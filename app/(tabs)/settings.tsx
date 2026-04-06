@@ -442,7 +442,7 @@ export default function SettingsScreen() {
                 onChangeText={handleProfilePhoneChange}
                 keyboardType="phone-pad"
                 returnKeyType="next"
-                maxLength={14}
+                maxLength={19}
               />
 
               <Text style={[styles.fieldLabel, { color: colors.muted }]}>Email (optional)</Text>
@@ -1134,11 +1134,11 @@ const styles = StyleSheet.create({
   schedTab: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, alignItems: "center", justifyContent: "center", minHeight: 42 },
   calNavRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
   calNavBtn: { padding: 4 },
-  calWeekRow: { flexDirection: "row", marginBottom: 4 },
-  calDayHeader: { flex: 1, textAlign: "center", fontSize: 12, fontWeight: "600" },
+  calWeekRow: { flexDirection: "row", marginBottom: 6, width: "100%" },
+  calDayHeader: { width: "14.28%", textAlign: "center", fontSize: 12, fontWeight: "600", lineHeight: 18 },
   calGrid: { flexDirection: "row", flexWrap: "wrap", width: "100%" },
-  calCell: { width: "14.28%", aspectRatio: 1, alignItems: "center", justifyContent: "center" },
-  calDot: { width: 4, height: 4, borderRadius: 2, marginTop: 2 },
+  calCell: { width: "14.28%", aspectRatio: 1, alignItems: "center", justifyContent: "center", padding: 2 },
+  calDot: { width: 5, height: 5, borderRadius: 2.5, marginTop: 2 },
   customDayDetail: { marginTop: 14, padding: 14, borderRadius: 14, borderWidth: 1 },
   closedTag: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, alignSelf: "flex-start" },
   customActionBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, alignItems: "center", justifyContent: "center", minHeight: 40 },

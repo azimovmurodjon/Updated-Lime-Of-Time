@@ -8,6 +8,7 @@ import {
   Alert,
   Modal,
   Platform,
+  Linking,
   useWindowDimensions,
 } from "react-native";
 import { useRouter } from "expo-router";
@@ -16,7 +17,7 @@ import { useStore, generateId } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useCallback, useMemo } from "react";
-import { GiftCard } from "@/lib/types";
+import { GiftCard, formatPhoneNumber, stripPhoneFormat } from "@/lib/types";
 import * as Clipboard from "expo-clipboard";
 
 function generateGiftCode(): string {
@@ -128,6 +129,29 @@ export default function GiftCardsScreen() {
     }
   }, []);
 
+  const handleSendGiftSMS = useCallback((card: GiftCard) => {
+    const service = getServiceById(card.serviceLocalId);
+    const businessName = state.settings.businessName || "Our Business";
+    const serviceName = service?.name ?? "a service";
+    const servicePrice = service?.price?.toFixed(2) ?? "0.00";
+    const expiryText = card.expiresAt
+      ? `\nThis gift card expires on ${new Date(card.expiresAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.`
+      : "";
+    const personalMsg = card.message ? `\n\n"${card.message}"` : "";
+    const body = `🎁 You've received a Gift Card from ${businessName}!\n\nService: ${serviceName} ($${servicePrice})\nGift Code: ${card.code}${personalMsg}${expiryText}\n\nTo redeem, mention this code when booking your appointment. Enjoy!\n\n— ${businessName}`;
+    const phone = card.recipientPhone ? stripPhoneFormat(card.recipientPhone) : "";
+    const smsUrl = Platform.OS === "ios"
+      ? `sms:${phone}&body=${encodeURIComponent(body)}`
+      : `sms:${phone}?body=${encodeURIComponent(body)}`;
+    Linking.openURL(smsUrl).catch(() => {
+      Alert.alert("Error", "Could not open messaging app.");
+    });
+  }, [getServiceById, state.settings.businessName]);
+
+  const handlePhoneInput = useCallback((text: string) => {
+    setRecipientPhone(formatPhoneNumber(text));
+  }, []);
+
   const sortedCards = useMemo(
     () => [...state.giftCards].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
     [state.giftCards]
@@ -200,13 +224,22 @@ export default function GiftCardsScreen() {
             </Text>
             <View style={styles.cardActions}>
               {!item.redeemed && !isExpired && (
-                <Pressable
-                  onPress={() => handleRedeem(item)}
-                  style={({ pressed }) => [styles.actionBtn, { backgroundColor: colors.success + "15" }, pressed && { opacity: 0.7 }]}
-                >
-                  <IconSymbol name="checkmark" size={14} color={colors.success} />
-                  <Text style={[styles.actionText, { color: colors.success }]}>Redeem</Text>
-                </Pressable>
+                <>
+                  <Pressable
+                    onPress={() => handleSendGiftSMS(item)}
+                    style={({ pressed }) => [styles.actionBtn, { backgroundColor: colors.primary + "15" }, pressed && { opacity: 0.7 }]}
+                  >
+                    <IconSymbol name="paperplane.fill" size={14} color={colors.primary} />
+                    <Text style={[styles.actionText, { color: colors.primary }]}>Send</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleRedeem(item)}
+                    style={({ pressed }) => [styles.actionBtn, { backgroundColor: colors.success + "15" }, pressed && { opacity: 0.7 }]}
+                  >
+                    <IconSymbol name="checkmark" size={14} color={colors.success} />
+                    <Text style={[styles.actionText, { color: colors.success }]}>Redeem</Text>
+                  </Pressable>
+                </>
               )}
               <Pressable
                 onPress={() => handleDelete(item.id)}
@@ -252,10 +285,11 @@ export default function GiftCardsScreen() {
       <TextInput
         style={[styles.input, { color: colors.foreground, backgroundColor: colors.background, borderColor: colors.border }]}
         value={recipientPhone}
-        onChangeText={setRecipientPhone}
-        placeholder="Optional"
+        onChangeText={handlePhoneInput}
+        placeholder="(000) 000-0000"
         placeholderTextColor={colors.muted + "80"}
         keyboardType="phone-pad"
+        maxLength={19}
       />
 
       {/* Personal Message */}

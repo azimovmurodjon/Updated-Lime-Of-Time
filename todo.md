@@ -104,3 +104,9 @@
 - [x] Update discount system to use calendar date selection instead of day-of-week
 - [x] Discount date picker: only allow future dates, not past ones
 - [x] Integrate date-based discounts into booking flow and DB
+- [x] Fix phone number formatting - +1 numbers should save as +1 (888) 888-8888 not (188) 888-8888
+- [x] Fix custom days calendar alignment in Settings working hours
+- [x] Add gift card sharing - business owner sends to client via SMS
+- [x] Add gift card redemption on client web booking page
+- [x] Make booking days unselectable when no available time slots exist
+- [x] Release cancelled appointment time slots for rebooking by other clients

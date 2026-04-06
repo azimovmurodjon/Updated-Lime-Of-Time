@@ -187,7 +187,7 @@ export default function ClientsScreen() {
               onChangeText={handlePhoneChange}
               keyboardType="phone-pad"
               returnKeyType="next"
-              maxLength={14}
+              maxLength={19}
             />
             <TextInput
               style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground, marginBottom: 14 }]}

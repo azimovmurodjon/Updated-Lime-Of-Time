@@ -75,10 +75,11 @@ export default function PublicBookingScreen() {
     );
   }, [selectedDate, state.settings, state.appointments, selectedService, state.customSchedule]);
 
-  // Date options: next 30 days, only future dates — mark closed days
+  // Date options: next 30 days — mark closed days and days with no available slots
   const dateOptions = useMemo(() => {
-    const dates: { date: string; closed: boolean }[] = [];
+    const dates: { date: string; closed: boolean; noSlots: boolean }[] = [];
     const today = new Date();
+    const duration = selectedService?.duration ?? state.settings.defaultDuration;
     for (let i = 0; i < 30; i++) {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
@@ -95,10 +96,16 @@ export default function PublicBookingScreen() {
         const wh = state.settings.workingHours[dayName];
         closed = !wh || !wh.enabled;
       }
-      dates.push({ date: ds, closed });
+      // Check if there are available time slots for this date
+      let noSlots = false;
+      if (!closed) {
+        const slots = generateAvailableSlots(ds, duration, state.settings.workingHours, state.appointments, 30, state.customSchedule);
+        noSlots = slots.length === 0;
+      }
+      dates.push({ date: ds, closed, noSlots });
     }
     return dates;
-  }, [state.customSchedule, state.settings.workingHours]);
+  }, [state.customSchedule, state.settings.workingHours, state.appointments, selectedService, state.settings.defaultDuration]);
 
   // Get applicable discount for selected time
   const applicableDiscount = useMemo((): Discount | null => {
@@ -372,12 +379,12 @@ export default function PublicBookingScreen() {
                   const isSelected = opt.date === selectedDate;
                   const dayName = dateObj.toLocaleDateString("en-US", { weekday: "short" });
                   const dayNum = dateObj.getDate();
-                  const isOff = opt.closed;
+                  const isUnavailable = opt.closed || opt.noSlots;
                   return (
                     <Pressable
                       key={opt.date}
                       onPress={() => {
-                        if (!isOff) {
+                        if (!isUnavailable) {
                           setSelectedDate(opt.date);
                           setSelectedTime(null);
                         }
@@ -385,15 +392,16 @@ export default function PublicBookingScreen() {
                       style={({ pressed }) => [
                         styles.dateChip,
                         {
-                          backgroundColor: isSelected ? colors.primary : isOff ? colors.border + "30" : colors.surface,
+                          backgroundColor: isSelected ? colors.primary : isUnavailable ? colors.border + "30" : colors.surface,
                           borderColor: isSelected ? colors.primary : colors.border,
-                          opacity: isOff ? 0.4 : pressed ? 0.7 : 1,
+                          opacity: isUnavailable ? 0.35 : pressed ? 0.7 : 1,
                         },
                       ]}
                     >
                       <Text style={{ fontSize: 11, fontWeight: "500", color: isSelected ? "#FFFFFF" : colors.muted }}>{dayName}</Text>
-                      <Text style={{ fontSize: 18, fontWeight: "700", color: isSelected ? "#FFFFFF" : colors.foreground, lineHeight: 24 }}>{dayNum}</Text>
-                      {isOff && <Text style={{ fontSize: 9, color: colors.error, fontWeight: "600" }}>OFF</Text>}
+                      <Text style={{ fontSize: 18, fontWeight: "700", color: isSelected ? "#FFFFFF" : isUnavailable ? colors.muted : colors.foreground, lineHeight: 24 }}>{dayNum}</Text>
+                      {opt.closed && <Text style={{ fontSize: 9, color: colors.error, fontWeight: "600" }}>OFF</Text>}
+                      {!opt.closed && opt.noSlots && <Text style={{ fontSize: 9, color: colors.warning, fontWeight: "600" }}>FULL</Text>}
                     </Pressable>
                   );
                 })}

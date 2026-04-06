@@ -151,19 +151,31 @@ export const DAYS_OF_WEEK = [
 ] as const;
 
 // ─── Phone Formatting ──────────────────────────────────────────────
-/** Format a phone number to (000) 000-0000 format */
+/** Format a phone number to (000) 000-0000 or +1 (000) 000-0000 format.
+ *  Handles US numbers with or without country code (+1 or leading 1). */
 export function formatPhoneNumber(value: string): string {
   // Strip all non-digit characters
-  const digits = value.replace(/\D/g, "");
-  // Limit to 10 digits
+  let digits = value.replace(/\D/g, "");
+  // Detect +1 prefix in original value
+  const hasPlus1 = value.replace(/\s/g, "").startsWith("+1");
+  // If 11 digits starting with 1, or original had +1, treat as US +1 number
+  let prefix = "";
+  if (hasPlus1 || (digits.length === 11 && digits.startsWith("1"))) {
+    prefix = "+1 ";
+    // Strip the leading country code 1
+    if (digits.startsWith("1") && digits.length > 10) {
+      digits = digits.slice(1);
+    }
+  }
+  // Limit to 10 digits (the local part)
   const limited = digits.slice(0, 10);
-  if (limited.length === 0) return "";
-  if (limited.length <= 3) return `(${limited}`;
-  if (limited.length <= 6) return `(${limited.slice(0, 3)}) ${limited.slice(3)}`;
-  return `(${limited.slice(0, 3)}) ${limited.slice(3, 6)}-${limited.slice(6)}`;
+  if (limited.length === 0) return prefix ? "+1" : "";
+  if (limited.length <= 3) return `${prefix}(${limited}`;
+  if (limited.length <= 6) return `${prefix}(${limited.slice(0, 3)}) ${limited.slice(3)}`;
+  return `${prefix}(${limited.slice(0, 3)}) ${limited.slice(3, 6)}-${limited.slice(6)}`;
 }
 
-/** Strip phone formatting to get raw digits */
+/** Strip phone formatting to get raw digits (keeps country code digit if present) */
 export function stripPhoneFormat(formatted: string): string {
   return formatted.replace(/\D/g, "");
 }
