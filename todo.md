@@ -51,3 +51,4 @@
 - [x] Fix contact import to select individual contacts instead of bulk import
 - [x] Add business name/logo to dashboard header
 - [x] Allow user to upload custom business logo image
+- [x] Replace logo everywhere with new attached image, remove white background
