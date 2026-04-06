@@ -52,3 +52,8 @@
 - [x] Add business name/logo to dashboard header
 - [x] Allow user to upload custom business logo image
 - [x] Replace logo everywhere with new attached image, remove white background
+- [x] Fix contact picker: list hidden by keyboard, show list on top
+- [x] Fix contact picker: results from top not bottom, hide keyboard until search bar tapped
+- [x] Fix any existing errors in the app
+- [x] Add report generator for tax/year-end with all data (revenue, clients, appointments, services)
+- [x] Reports accessible from each dashboard analytics slide

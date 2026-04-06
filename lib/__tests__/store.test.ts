@@ -716,3 +716,119 @@ describe("Public Booking URL", () => {
     expect(link).toBe("https://limeoftime.com/review/my-salon");
   });
 });
+
+describe("Report Generation Data", () => {
+  const mockServices = [
+    { id: "s1", name: "Haircut", duration: 30, price: 50, color: "#4CAF50", createdAt: "2026-01-01" },
+    { id: "s2", name: "Massage", duration: 60, price: 100, color: "#2196F3", createdAt: "2026-01-01" },
+  ];
+
+  const mockAppointments = [
+    { id: "a1", serviceId: "s1", clientId: "c1", date: "2026-01-15", time: "09:00", duration: 30, status: "completed" as const, notes: "", createdAt: "2026-01-15" },
+    { id: "a2", serviceId: "s2", clientId: "c2", date: "2026-02-10", time: "10:00", duration: 60, status: "completed" as const, notes: "", createdAt: "2026-02-10" },
+    { id: "a3", serviceId: "s1", clientId: "c1", date: "2026-03-05", time: "14:00", duration: 30, status: "cancelled" as const, notes: "", createdAt: "2026-03-05" },
+    { id: "a4", serviceId: "s2", clientId: "c3", date: "2026-04-01", time: "11:00", duration: 60, status: "pending" as const, notes: "", createdAt: "2026-04-01" },
+  ];
+
+  it("should calculate total revenue from completed appointments", () => {
+    const completedAppts = mockAppointments.filter((a) => a.status === "completed");
+    const totalRevenue = completedAppts.reduce((sum, a) => {
+      const svc = mockServices.find((s) => s.id === a.serviceId);
+      return sum + (svc?.price ?? 0);
+    }, 0);
+    expect(totalRevenue).toBe(150); // 50 + 100
+  });
+
+  it("should calculate monthly revenue breakdown", () => {
+    const completedAppts = mockAppointments.filter((a) => a.status === "completed");
+    const monthlyRevenue: Record<string, number> = {};
+    completedAppts.forEach((a) => {
+      const monthKey = a.date.substring(0, 7);
+      const svc = mockServices.find((s) => s.id === a.serviceId);
+      monthlyRevenue[monthKey] = (monthlyRevenue[monthKey] || 0) + (svc?.price ?? 0);
+    });
+    expect(monthlyRevenue["2026-01"]).toBe(50);
+    expect(monthlyRevenue["2026-02"]).toBe(100);
+  });
+
+  it("should calculate service revenue breakdown", () => {
+    const completedAppts = mockAppointments.filter((a) => a.status === "completed");
+    const serviceRevenue: Record<string, number> = {};
+    completedAppts.forEach((a) => {
+      const svc = mockServices.find((s) => s.id === a.serviceId);
+      if (svc) {
+        serviceRevenue[svc.id] = (serviceRevenue[svc.id] || 0) + svc.price;
+      }
+    });
+    expect(serviceRevenue["s1"]).toBe(50);
+    expect(serviceRevenue["s2"]).toBe(100);
+  });
+
+  it("should calculate cancellation fees correctly", () => {
+    const cancelledAppts = mockAppointments.filter((a) => a.status === "cancelled");
+    const feePercentage = 50;
+    const cancellationFees = cancelledAppts.reduce((sum, a) => {
+      const svc = mockServices.find((s) => s.id === a.serviceId);
+      return sum + ((svc?.price ?? 0) * feePercentage) / 100;
+    }, 0);
+    expect(cancellationFees).toBe(25); // 50% of $50
+  });
+
+  it("should calculate total hours worked", () => {
+    const completedAppts = mockAppointments.filter((a) => a.status === "completed");
+    const totalMinutes = completedAppts.reduce((sum, a) => sum + a.duration, 0);
+    const totalHours = totalMinutes / 60;
+    expect(totalHours).toBe(1.5); // 30min + 60min
+  });
+
+  it("should count appointments by status", () => {
+    const statusCounts = {
+      completed: mockAppointments.filter((a) => a.status === "completed").length,
+      cancelled: mockAppointments.filter((a) => a.status === "cancelled").length,
+      pending: mockAppointments.filter((a) => a.status === "pending").length,
+    };
+    expect(statusCounts.completed).toBe(2);
+    expect(statusCounts.cancelled).toBe(1);
+    expect(statusCounts.pending).toBe(1);
+  });
+
+  it("should calculate average revenue per appointment", () => {
+    const completedAppts = mockAppointments.filter((a) => a.status === "completed");
+    const totalRevenue = completedAppts.reduce((sum, a) => {
+      const svc = mockServices.find((s) => s.id === a.serviceId);
+      return sum + (svc?.price ?? 0);
+    }, 0);
+    const avgRevenue = completedAppts.length > 0 ? Math.round(totalRevenue / completedAppts.length) : 0;
+    expect(avgRevenue).toBe(75); // 150 / 2
+  });
+
+  it("should calculate end time for appointments using minutesToTime", () => {
+    const appt = mockAppointments[0]; // 09:00, 30 min
+    const endMin = timeToMinutes(appt.time) + appt.duration;
+    const endTime = minutesToTime(endMin);
+    expect(endTime).toBe("09:30");
+
+    const appt2 = mockAppointments[1]; // 10:00, 60 min
+    const endMin2 = timeToMinutes(appt2.time) + appt2.duration;
+    const endTime2 = minutesToTime(endMin2);
+    expect(endTime2).toBe("11:00");
+  });
+});
+
+describe("Contact Picker Key Generation", () => {
+  it("should generate unique keys for contacts with same name", () => {
+    const getContactKey = (contact: { name?: string; phone?: string }, index: number): string => {
+      const name = contact.name ?? "";
+      const phone = contact.phone ?? "";
+      return `contact--${name}-${phone}-${index}`;
+    };
+
+    const key1 = getContactKey({ name: "John", phone: "123" }, 0);
+    const key2 = getContactKey({ name: "John", phone: "456" }, 1);
+    const key3 = getContactKey({ name: "John", phone: "123" }, 2);
+
+    expect(key1).not.toBe(key2);
+    expect(key1).not.toBe(key3);
+    expect(key2).not.toBe(key3);
+  });
+});

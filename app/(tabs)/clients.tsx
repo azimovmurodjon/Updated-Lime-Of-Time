@@ -1,10 +1,10 @@
-import { FlatList, Text, View, Pressable, StyleSheet, TextInput, useWindowDimensions, Alert, Platform, Modal } from "react-native";
+import { FlatList, Text, View, Pressable, StyleSheet, TextInput, useWindowDimensions, Alert, Platform, Modal, Keyboard, KeyboardAvoidingView } from "react-native";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, generateId } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { Client, Review } from "@/lib/types";
 import * as Contacts from "expo-contacts";
 
@@ -12,7 +12,7 @@ export default function ClientsScreen() {
   const { state, dispatch, getReviewsForClient, getAppointmentsForClient } = useStore();
   const colors = useColors();
   const router = useRouter();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const hp = Math.round(Math.max(16, width * 0.045));
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
@@ -24,6 +24,8 @@ export default function ClientsScreen() {
   const [contactPickerVisible, setContactPickerVisible] = useState(false);
   const [deviceContacts, setDeviceContacts] = useState<Contacts.Contact[]>([]);
   const [contactSearch, setContactSearch] = useState("");
+  const [contactSearchFocused, setContactSearchFocused] = useState(false);
+  const contactSearchRef = useRef<TextInput>(null);
 
   const filteredClients = useMemo(() => {
     const q = search.toLowerCase();
@@ -99,6 +101,7 @@ export default function ClientsScreen() {
 
       setDeviceContacts(available);
       setContactSearch("");
+      setContactSearchFocused(false);
       setContactPickerVisible(true);
     } catch (error) {
       Alert.alert("Error", "Failed to access contacts. Please try again.");
@@ -137,6 +140,14 @@ export default function ClientsScreen() {
     if (reviews.length === 0) return null;
     const avg = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
     return Math.round(avg * 10) / 10;
+  };
+
+  // Generate a stable unique key for each contact
+  const getContactKey = (contact: Contacts.Contact, index: number): string => {
+    const id = (contact as any).lookupKey ?? (contact as any).rawContactId ?? "";
+    const name = contact.name ?? `${contact.firstName ?? ""}${contact.lastName ?? ""}`;
+    const phone = contact.phoneNumbers?.[0]?.number ?? "";
+    return `contact-${id}-${name}-${phone}-${index}`;
   };
 
   return (
@@ -286,64 +297,101 @@ export default function ClientsScreen() {
         }
       />
 
-      {/* Contact Picker Modal */}
-      <Modal visible={contactPickerVisible} transparent animationType="slide">
-        <Pressable style={styles.modalOverlay} onPress={() => setContactPickerVisible(false)}>
-          <Pressable style={[styles.modalContent, { backgroundColor: colors.background }]} onPress={() => {}}>
-            <View style={styles.modalHeader}>
-              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>Select Contact</Text>
-              <Pressable onPress={() => setContactPickerVisible(false)} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
-                <IconSymbol name="xmark" size={22} color={colors.foreground} />
-              </Pressable>
-            </View>
-            <View style={[styles.searchBar, { backgroundColor: colors.surface, borderColor: colors.border, marginBottom: 12 }]}>
-              <IconSymbol name="magnifyingglass" size={16} color={colors.muted} />
-              <TextInput
-                style={[styles.searchInput, { color: colors.foreground, fontSize: 14 }]}
-                placeholder="Search contacts..."
-                placeholderTextColor={colors.muted}
-                value={contactSearch}
-                onChangeText={setContactSearch}
-                returnKeyType="done"
-                autoFocus
+      {/* Contact Picker Modal - Full screen overlay with list on TOP */}
+      <Modal visible={contactPickerVisible} transparent animationType="fade">
+        <Pressable
+          style={[styles.modalOverlay]}
+          onPress={() => {
+            Keyboard.dismiss();
+            setContactPickerVisible(false);
+          }}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.modalPositioner}
+          >
+            <Pressable
+              style={[styles.modalContent, { backgroundColor: colors.background, maxHeight: height * 0.75 }]}
+              onPress={() => Keyboard.dismiss()}
+            >
+              {/* Modal Header */}
+              <View style={styles.modalHeader}>
+                <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>Select Contact</Text>
+                <Pressable
+                  onPress={() => setContactPickerVisible(false)}
+                  style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, padding: 4 }]}
+                >
+                  <IconSymbol name="xmark" size={22} color={colors.foreground} />
+                </Pressable>
+              </View>
+
+              {/* Contact List FIRST (on top) - keyboard won't cover it */}
+              <FlatList
+                data={filteredContacts}
+                keyExtractor={(item, index) => getContactKey(item, index)}
+                showsVerticalScrollIndicator={true}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingBottom: 16 }}
+                renderItem={({ item }) => {
+                  const name = item.name || `${item.firstName ?? ""} ${item.lastName ?? ""}`.trim();
+                  const phone = item.phoneNumbers?.[0]?.number ?? "";
+                  return (
+                    <Pressable
+                      onPress={() => handleSelectContact(item)}
+                      style={({ pressed }) => [
+                        styles.contactRow,
+                        { borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+                      ]}
+                    >
+                      <View style={[styles.contactAvatar, { backgroundColor: colors.primary + "15" }]}>
+                        <Text style={{ fontSize: 13, fontWeight: "700", color: colors.primary }}>
+                          {name ? name.slice(0, 2).toUpperCase() : "?"}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground }}>{name || "Unknown"}</Text>
+                        {phone ? <Text style={{ fontSize: 12, color: colors.muted }}>{phone}</Text> : null}
+                      </View>
+                      <IconSymbol name="plus" size={18} color={colors.primary} />
+                    </Pressable>
+                  );
+                }}
+                ListEmptyComponent={
+                  <View style={{ alignItems: "center", paddingVertical: 32 }}>
+                    <Text style={{ fontSize: 14, color: colors.muted }}>No matching contacts</Text>
+                  </View>
+                }
               />
-            </View>
-            <FlatList
-              data={filteredContacts}
-              keyExtractor={(item) => item.contactType ?? item.name ?? Math.random().toString()}
-              showsVerticalScrollIndicator={false}
-              style={{ maxHeight: 400 }}
-              renderItem={({ item }) => {
-                const name = item.name || `${item.firstName ?? ""} ${item.lastName ?? ""}`.trim();
-                const phone = item.phoneNumbers?.[0]?.number ?? "";
-                return (
+
+              {/* Search bar at BOTTOM - keyboard appears right below it */}
+              <View style={[styles.contactSearchBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <IconSymbol name="magnifyingglass" size={16} color={colors.muted} />
+                <TextInput
+                  ref={contactSearchRef}
+                  style={[styles.searchInput, { color: colors.foreground, fontSize: 14 }]}
+                  placeholder="Search contacts..."
+                  placeholderTextColor={colors.muted}
+                  value={contactSearch}
+                  onChangeText={setContactSearch}
+                  returnKeyType="done"
+                  onSubmitEditing={() => Keyboard.dismiss()}
+                />
+                {contactSearch.length > 0 && (
                   <Pressable
-                    onPress={() => handleSelectContact(item)}
-                    style={({ pressed }) => [
-                      styles.contactRow,
-                      { borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
-                    ]}
+                    onPress={() => {
+                      setContactSearch("");
+                      Keyboard.dismiss();
+                    }}
+                    style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, padding: 4 }]}
                   >
-                    <View style={[styles.contactAvatar, { backgroundColor: colors.primary + "15" }]}>
-                      <Text style={{ fontSize: 13, fontWeight: "700", color: colors.primary }}>
-                        {name ? name.slice(0, 2).toUpperCase() : "?"}
-                      </Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground }}>{name || "Unknown"}</Text>
-                      {phone ? <Text style={{ fontSize: 12, color: colors.muted }}>{phone}</Text> : null}
-                    </View>
-                    <IconSymbol name="plus" size={18} color={colors.primary} />
+                    <IconSymbol name="xmark" size={16} color={colors.muted} />
                   </Pressable>
-                );
-              }}
-              ListEmptyComponent={
-                <View style={{ alignItems: "center", paddingVertical: 32 }}>
-                  <Text style={{ fontSize: 14, color: colors.muted }}>No matching contacts</Text>
-                </View>
-              }
-            />
-          </Pressable>
+                )}
+              </View>
+            </Pressable>
+          </KeyboardAvoidingView>
         </Pressable>
       </Modal>
     </ScreenContainer>
@@ -364,9 +412,29 @@ const styles = StyleSheet.create({
   avatar: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", marginRight: 12 },
   avatarText: { fontSize: 14, fontWeight: "700" },
   emptyContainer: { alignItems: "center", paddingVertical: 48 },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
-  modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingBottom: 40, paddingHorizontal: 20, maxHeight: "80%" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center" },
+  modalPositioner: { flex: 1, justifyContent: "center", alignItems: "center", width: "100%" },
+  modalContent: {
+    width: "92%",
+    borderRadius: 20,
+    paddingTop: 16,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
   modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+  contactSearchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    marginTop: 12,
+  },
   contactRow: { flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: 1 },
   contactAvatar: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", marginRight: 12 },
 });

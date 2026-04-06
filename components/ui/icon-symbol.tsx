@@ -48,6 +48,10 @@ const MAPPING = {
   "sun.max.fill": "light-mode",
   "circle.lefthalf.filled": "contrast",
   "photo": "image",
+  "doc.text.fill": "description",
+  "square.and.arrow.up": "share",
+  "arrow.down.doc.fill": "file-download",
+  "calendar.badge.clock": "event",
 } as IconMapping;
 
 export function IconSymbol({
