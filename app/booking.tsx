@@ -650,23 +650,29 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   input: {
+    width: "100%",
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 14,
+    lineHeight: 20,
     marginBottom: 10,
     borderWidth: 1,
   },
   continueButton: {
+    width: "100%",
     paddingVertical: 16,
     borderRadius: 16,
     alignItems: "center",
+    justifyContent: "center",
     marginTop: 8,
+    minHeight: 52,
   },
   continueText: {
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "600",
+    lineHeight: 22,
   },
   serviceOption: {
     flexDirection: "row",
@@ -685,10 +691,12 @@ const styles = StyleSheet.create({
   dateRow: {
     flexDirection: "row",
     gap: 8,
+    flexWrap: "nowrap",
   },
   dateChip: {
-    width: 56,
+    minWidth: 52,
     paddingVertical: 10,
+    paddingHorizontal: 4,
     borderRadius: 14,
     borderWidth: 1,
     alignItems: "center",
@@ -697,6 +705,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
+    width: "100%",
   },
   timeChip: {
     paddingHorizontal: 16,
@@ -704,6 +713,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     alignItems: "center",
+    minWidth: 80,
   },
   emptySlots: {
     alignItems: "center",
@@ -712,10 +722,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   notesInput: {
+    width: "100%",
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 14,
+    lineHeight: 20,
     borderWidth: 1,
     minHeight: 50,
     textAlignVertical: "top",
@@ -733,6 +745,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 10,
     borderBottomWidth: 1,
+    width: "100%",
   },
   locationRow: {
     flexDirection: "row",

@@ -93,3 +93,8 @@
 - [x] Working days calendar - select specific days and set custom hours
 - [x] Integrate working days with DB and client-side booking
 - [x] Closed days should block booking on client side
+- [x] Fix dashboard layout alignment - charts, stats cards, quick actions properly aligned
+- [x] Fix text fields and buttons alignment across all screens and resolutions
+- [x] Fix responsive layout for all device sizes - consistent padding, margins, widths
+- [x] Fix quick actions section alignment on dashboard
+- [x] Fix form inputs alignment on onboarding, booking, settings screens

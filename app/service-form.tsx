@@ -199,12 +199,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 36,
   },
   durationChip: {
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 40,
   },
   colorCircle: {
     width: 36,
@@ -217,9 +223,12 @@ const styles = StyleSheet.create({
     borderRadius: 7,
   },
   deleteButton: {
+    width: "100%",
     alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 12,
     borderRadius: 14,
     borderWidth: 1,
+    minHeight: 48,
   },
 });

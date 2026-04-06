@@ -504,8 +504,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   dateChip: {
-    width: 56,
+    minWidth: 52,
     paddingVertical: 10,
+    paddingHorizontal: 4,
     borderRadius: 14,
     borderWidth: 1,
     alignItems: "center",
@@ -516,6 +517,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     alignItems: "center",
+    minWidth: 80,
   },
   summaryDot: {
     width: 10,
@@ -523,13 +525,19 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   primaryButton: {
+    width: "100%",
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: "center",
+    justifyContent: "center",
+    minHeight: 48,
   },
   bookButton: {
+    width: "100%",
     paddingVertical: 16,
     borderRadius: 16,
     alignItems: "center",
+    justifyContent: "center",
+    minHeight: 52,
   },
 });

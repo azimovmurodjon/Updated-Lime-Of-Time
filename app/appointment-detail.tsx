@@ -359,8 +359,8 @@ function DetailRow({ icon, label, value, colors, onPress }: { icon: any; label: 
 
 const styles = StyleSheet.create({
   colorDot: { width: 14, height: 14, borderRadius: 7 },
-  actionButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 14, borderRadius: 14 },
-  deleteButton: { alignItems: "center", paddingVertical: 12, borderRadius: 14, borderWidth: 1 },
-  messageBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, marginBottom: 12 },
+  actionButton: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 14, borderRadius: 14, minHeight: 52 },
+  deleteButton: { width: "100%", alignItems: "center", justifyContent: "center", paddingVertical: 12, borderRadius: 14, borderWidth: 1, minHeight: 48 },
+  messageBtn: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, marginBottom: 12, minHeight: 52 },
   messageBtnText: { fontSize: 15, fontWeight: "600", marginLeft: 8 },
 });

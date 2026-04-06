@@ -744,11 +744,13 @@ const styles = StyleSheet.create({
   formTitle: { fontSize: 18, fontWeight: "700", marginBottom: 16 },
   label: { fontSize: 13, fontWeight: "600", marginBottom: 6, marginTop: 4 },
   input: {
+    width: "100%",
     height: 44,
     borderRadius: 10,
     borderWidth: 1,
     paddingHorizontal: 12,
     fontSize: 15,
+    lineHeight: 20,
     marginBottom: 8,
   },
   percentRow: {
@@ -776,6 +778,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 8,
     marginBottom: 12,
+    width: "100%",
   },
   dayChip: {
     paddingHorizontal: 12,
@@ -790,13 +793,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginRight: 8,
   },
-  formActions: { flexDirection: "row", gap: 12, marginTop: 8 },
+  formActions: { flexDirection: "row", gap: 12, marginTop: 8, width: "100%" },
   formBtn: {
     height: 44,
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 20,
+    minWidth: 80,
   },
   modalOverlay: {
     flex: 1,

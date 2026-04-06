@@ -540,6 +540,7 @@ const styles = StyleSheet.create({
   },
   inputGroup: {
     marginBottom: 16,
+    width: "100%",
   },
   inputLabel: {
     fontSize: 12,
@@ -548,22 +549,28 @@ const styles = StyleSheet.create({
     marginLeft: 2,
   },
   input: {
+    width: "100%",
     borderRadius: 14,
     borderWidth: 1,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 15,
+    lineHeight: 20,
   },
   primaryBtn: {
+    width: "100%",
     paddingVertical: 16,
     borderRadius: 14,
     alignItems: "center",
+    justifyContent: "center",
     marginTop: 8,
+    minHeight: 52,
   },
   primaryBtnText: {
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "700",
+    lineHeight: 22,
   },
   secondaryBtn: {
     paddingVertical: 16,
@@ -571,15 +578,19 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     alignItems: "center",
+    justifyContent: "center",
     marginTop: 8,
+    minHeight: 52,
   },
   secondaryBtnText: {
     fontSize: 16,
     fontWeight: "600",
+    lineHeight: 22,
   },
   buttonRow: {
     flexDirection: "row",
     gap: 12,
     marginTop: 8,
+    width: "100%",
   },
 });
