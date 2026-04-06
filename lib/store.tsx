@@ -4,6 +4,7 @@ import {
   Service,
   Client,
   Appointment,
+  Review,
   BusinessSettings,
   DEFAULT_WORKING_HOURS,
   DEFAULT_BUSINESS_PROFILE,
@@ -16,6 +17,7 @@ interface AppState {
   services: Service[];
   clients: Client[];
   appointments: Appointment[];
+  reviews: Review[];
   settings: BusinessSettings;
   loaded: boolean;
 }
@@ -29,12 +31,15 @@ const initialSettings: BusinessSettings = {
   themeMode: "system",
   cancellationPolicy: DEFAULT_CANCELLATION_POLICY,
   onboardingComplete: false,
+  temporaryClosed: false,
+  businessLogoUri: "",
 };
 
 const initialState: AppState = {
   services: [],
   clients: [],
   appointments: [],
+  reviews: [],
   settings: initialSettings,
   loaded: false,
 };
@@ -52,7 +57,10 @@ type Action =
   | { type: "UPDATE_APPOINTMENT"; payload: Appointment }
   | { type: "UPDATE_APPOINTMENT_STATUS"; payload: { id: string; status: AppointmentStatus } }
   | { type: "DELETE_APPOINTMENT"; payload: string }
-  | { type: "UPDATE_SETTINGS"; payload: Partial<BusinessSettings> };
+  | { type: "UPDATE_SETTINGS"; payload: Partial<BusinessSettings> }
+  | { type: "ADD_REVIEW"; payload: Review }
+  | { type: "DELETE_REVIEW"; payload: string }
+  | { type: "RESET_ALL_DATA" };
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -112,6 +120,12 @@ function reducer(state: AppState, action: Action): AppState {
         ...state,
         settings: { ...state.settings, ...action.payload },
       };
+    case "ADD_REVIEW":
+      return { ...state, reviews: [...state.reviews, action.payload] };
+    case "DELETE_REVIEW":
+      return { ...state, reviews: state.reviews.filter((r) => r.id !== action.payload) };
+    case "RESET_ALL_DATA":
+      return { ...initialState, loaded: true };
     default:
       return state;
   }
@@ -125,6 +139,7 @@ interface StoreContextType {
   getClientById: (id: string) => Client | undefined;
   getAppointmentsForDate: (date: string) => Appointment[];
   getAppointmentsForClient: (clientId: string) => Appointment[];
+  getReviewsForClient: (clientId: string) => Review[];
   getTodayStats: () => { todayCount: number; weekCount: number; weekRevenue: number };
 }
 
@@ -134,6 +149,7 @@ const STORAGE_KEYS = {
   services: "@bookease_services",
   clients: "@bookease_clients",
   appointments: "@bookease_appointments",
+  reviews: "@bookease_reviews",
   settings: "@bookease_settings",
 };
 
@@ -144,11 +160,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
-        const [servicesRaw, clientsRaw, appointmentsRaw, settingsRaw] =
+        const [servicesRaw, clientsRaw, appointmentsRaw, reviewsRaw, settingsRaw] =
           await Promise.all([
             AsyncStorage.getItem(STORAGE_KEYS.services),
             AsyncStorage.getItem(STORAGE_KEYS.clients),
             AsyncStorage.getItem(STORAGE_KEYS.appointments),
+            AsyncStorage.getItem(STORAGE_KEYS.reviews),
             AsyncStorage.getItem(STORAGE_KEYS.settings),
           ]);
         dispatch({
@@ -157,6 +174,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             services: servicesRaw ? JSON.parse(servicesRaw) : [],
             clients: clientsRaw ? JSON.parse(clientsRaw) : [],
             appointments: appointmentsRaw ? JSON.parse(appointmentsRaw) : [],
+            reviews: reviewsRaw ? JSON.parse(reviewsRaw) : [],
             settings: settingsRaw
               ? { ...initialSettings, ...JSON.parse(settingsRaw) }
               : initialSettings,
@@ -186,6 +204,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       JSON.stringify(state.appointments)
     );
   }, [state.appointments, state.loaded]);
+
+  useEffect(() => {
+    if (!state.loaded) return;
+    AsyncStorage.setItem(STORAGE_KEYS.reviews, JSON.stringify(state.reviews));
+  }, [state.reviews, state.loaded]);
 
   useEffect(() => {
     if (!state.loaded) return;
@@ -219,6 +242,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           return dateComp !== 0 ? dateComp : b.time.localeCompare(a.time);
         }),
     [state.appointments]
+  );
+
+  const getReviewsForClient = useCallback(
+    (clientId: string) =>
+      state.reviews.filter((r) => r.clientId === clientId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [state.reviews]
   );
 
   const getTodayStats = useCallback(() => {
@@ -257,6 +286,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         getClientById,
         getAppointmentsForDate,
         getAppointmentsForClient,
+        getReviewsForClient,
         getTodayStats,
       }}
     >

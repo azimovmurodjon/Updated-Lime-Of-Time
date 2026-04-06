@@ -43,3 +43,11 @@
 - [x] Prevent double-booking: accepted appointment times should be unavailable to other clients
 - [x] Add cancellation fee policy controlled by business owner (2-hour window)
 - [x] Make calendar green status dots darker green
+- [x] Add logout tab in Settings
+- [x] Add delete business tab in Settings
+- [x] Add temporary closed toggle in Settings connected to scheduling
+- [x] Add review system connected to client page
+- [x] Use limeoftime.com for public client pages (reviews and booking)
+- [x] Fix contact import to select individual contacts instead of bulk import
+- [x] Add business name/logo to dashboard header
+- [x] Allow user to upload custom business logo image

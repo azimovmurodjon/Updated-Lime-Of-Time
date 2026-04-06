@@ -98,6 +98,7 @@ export default function PublicBookingScreen() {
   }, [selectedServiceId, selectedTime, clientName, clientPhone, clientEmail, notes, selectedDate, selectedService, state, dispatch]);
 
   const businessName = state.settings.businessName || "Our Business";
+  const isClosed = state.settings.temporaryClosed;
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} className="pt-2" style={{ paddingHorizontal: hp }}>
@@ -108,13 +109,33 @@ export default function PublicBookingScreen() {
         </Pressable>
         <View style={{ flex: 1, alignItems: "center" }}>
           <Text className="text-lg font-bold text-foreground">Book with {businessName}</Text>
+          <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>Powered by Lime Of Time</Text>
         </View>
         <View style={{ width: 24 }} />
       </View>
 
+      {/* Temporary Closed Banner */}
+      {isClosed && (
+        <View style={[styles.closedBanner, { backgroundColor: colors.error + '15', borderColor: colors.error + '30' }]}>
+          <IconSymbol name="xmark.circle.fill" size={18} color={colors.error} />
+          <Text style={{ fontSize: 14, fontWeight: '600', color: colors.error, marginLeft: 8 }}>
+            {businessName} is temporarily closed
+          </Text>
+        </View>
+      )}
+
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+        {/* Closed message */}
+        {isClosed && step === "info" && (
+          <View style={{ alignItems: "center", paddingVertical: 40 }}>
+            <Text style={{ fontSize: 16, color: colors.muted, textAlign: "center", lineHeight: 24 }}>
+              {businessName} is not accepting bookings at this time. Please check back later.
+            </Text>
+          </View>
+        )}
+
         {/* Step: Client Info */}
-        {step === "info" && (
+        {step === "info" && !isClosed && (
           <View>
             <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={styles.iconRow}>
@@ -527,5 +548,15 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     alignSelf: "stretch",
     alignItems: "center",
+  },
+  closedBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
   },
 });

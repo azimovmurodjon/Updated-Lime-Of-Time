@@ -1,24 +1,28 @@
+import { useState, useCallback, useMemo } from "react";
 import {
   Text,
   View,
   Pressable,
   StyleSheet,
+  Switch,
   TextInput,
   ScrollView,
-  Switch,
-  useWindowDimensions,
-  Image,
+  Alert,
   FlatList,
   Modal,
+  Image,
+  useWindowDimensions,
+  Platform,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
-import { useStore } from "@/lib/store";
+import { useStore, formatTime } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { useState, useCallback, useMemo } from "react";
-import { DAYS_OF_WEEK, WorkingHours, BusinessProfile, minutesToTime, timeToMinutes } from "@/lib/types";
+import { useRouter } from "expo-router";
 import { useThemeContext } from "@/lib/theme-provider";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
+const DAYS_OF_WEEK = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
 const DAY_LABELS: Record<string, string> = {
   sunday: "Sun",
   monday: "Mon",
@@ -29,227 +33,232 @@ const DAY_LABELS: Record<string, string> = {
   saturday: "Sat",
 };
 
-type ThemeOption = "light" | "dark" | "system";
-
-// Generate time options in 15-min intervals
 const TIME_OPTIONS: string[] = [];
 for (let h = 0; h < 24; h++) {
-  for (let m = 0; m < 60; m += 15) {
+  for (let m = 0; m < 60; m += 30) {
     TIME_OPTIONS.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
   }
 }
 
-function formatTimeLabel(t: string) {
-  const [hStr, mStr] = t.split(":");
-  const h = parseInt(hStr, 10);
+function formatTimeLabel(time: string): string {
+  const [h, m] = time.split(":").map(Number);
   const ampm = h >= 12 ? "PM" : "AM";
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${h12}:${mStr} ${ampm}`;
+  const hour = h % 12 || 12;
+  return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
 export default function SettingsScreen() {
   const { state, dispatch } = useStore();
   const colors = useColors();
+  const router = useRouter();
   const { width } = useWindowDimensions();
   const hp = Math.round(Math.max(16, width * 0.045));
-  const { settings } = state;
-  const { setColorScheme } = useThemeContext();
+  const { setColorScheme: setThemeOverride } = useThemeContext();
+  const settings = state.settings;
 
-  const [businessName, setBusinessName] = useState(settings.businessName);
+  // Business Name editing
   const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState(settings.businessName);
 
-  // Business Profile state
+  // Profile editing
   const [editingProfile, setEditingProfile] = useState(false);
-  const [profileForm, setProfileForm] = useState<BusinessProfile>({
-    ownerName: settings.profile?.ownerName ?? "",
-    phone: settings.profile?.phone ?? "",
-    email: settings.profile?.email ?? "",
-    address: settings.profile?.address ?? "",
-    description: settings.profile?.description ?? "",
-    website: settings.profile?.website ?? "",
-  });
+  const [profileForm, setProfileForm] = useState(settings.profile);
 
-  // Time picker modal
+  // Time picker
   const [timePickerVisible, setTimePickerVisible] = useState(false);
   const [timePickerDay, setTimePickerDay] = useState("");
   const [timePickerField, setTimePickerField] = useState<"start" | "end">("start");
 
-  const currentTheme: ThemeOption = settings.themeMode ?? "system";
+  const currentPickerValue = useMemo(() => {
+    if (!timePickerDay) return "09:00";
+    const wh = settings.workingHours[timePickerDay];
+    return timePickerField === "start" ? wh?.start ?? "09:00" : wh?.end ?? "17:00";
+  }, [timePickerDay, timePickerField, settings.workingHours]);
 
-  const handleSaveName = useCallback(() => {
-    if (businessName.trim()) {
-      dispatch({ type: "UPDATE_SETTINGS", payload: { businessName: businessName.trim() } });
+  const saveName = useCallback(() => {
+    if (nameValue.trim()) {
+      dispatch({ type: "UPDATE_SETTINGS", payload: { businessName: nameValue.trim() } });
     }
     setEditingName(false);
-  }, [businessName, dispatch]);
+  }, [nameValue, dispatch]);
 
-  const handleSaveProfile = useCallback(() => {
-    dispatch({
-      type: "UPDATE_SETTINGS",
-      payload: {
-        profile: {
-          ownerName: profileForm.ownerName.trim(),
-          phone: profileForm.phone.trim(),
-          email: profileForm.email.trim(),
-          address: profileForm.address.trim(),
-          description: profileForm.description.trim(),
-          website: profileForm.website.trim(),
-        },
-      },
-    });
+  const saveProfile = useCallback(() => {
+    dispatch({ type: "UPDATE_SETTINGS", payload: { profile: profileForm } });
     setEditingProfile(false);
   }, [profileForm, dispatch]);
 
   const toggleNotifications = useCallback(() => {
-    dispatch({
-      type: "UPDATE_SETTINGS",
-      payload: { notificationsEnabled: !settings.notificationsEnabled },
-    });
+    dispatch({ type: "UPDATE_SETTINGS", payload: { notificationsEnabled: !settings.notificationsEnabled } });
   }, [settings.notificationsEnabled, dispatch]);
 
   const toggleDay = useCallback(
     (day: string) => {
-      const current = settings.workingHours[day];
-      const updated: Record<string, WorkingHours> = {
-        ...settings.workingHours,
-        [day]: { ...current, enabled: !current.enabled },
-      };
-      dispatch({ type: "UPDATE_SETTINGS", payload: { workingHours: updated } });
+      const wh = { ...settings.workingHours };
+      wh[day] = { ...wh[day], enabled: !wh[day].enabled };
+      dispatch({ type: "UPDATE_SETTINGS", payload: { workingHours: wh } });
     },
     [settings.workingHours, dispatch]
   );
 
-  const updateDayTime = useCallback(
-    (day: string, field: "start" | "end", value: string) => {
-      const current = settings.workingHours[day];
-      const updated: Record<string, WorkingHours> = {
-        ...settings.workingHours,
-        [day]: { ...current, [field]: value },
-      };
-      dispatch({ type: "UPDATE_SETTINGS", payload: { workingHours: updated } });
-    },
-    [settings.workingHours, dispatch]
-  );
-
-  const openTimePicker = (day: string, field: "start" | "end") => {
+  const openTimePicker = useCallback((day: string, field: "start" | "end") => {
     setTimePickerDay(day);
     setTimePickerField(field);
     setTimePickerVisible(true);
-  };
+  }, []);
 
-  const selectTime = (time: string) => {
-    updateDayTime(timePickerDay, timePickerField, time);
-    setTimePickerVisible(false);
-  };
-
-  const setDefaultDuration = useCallback(
-    (duration: number) => {
-      dispatch({ type: "UPDATE_SETTINGS", payload: { defaultDuration: duration } });
+  const selectTime = useCallback(
+    (time: string) => {
+      const wh = { ...settings.workingHours };
+      wh[timePickerDay] = { ...wh[timePickerDay], [timePickerField]: time };
+      dispatch({ type: "UPDATE_SETTINGS", payload: { workingHours: wh } });
+      setTimePickerVisible(false);
     },
-    [dispatch]
+    [timePickerDay, timePickerField, settings.workingHours, dispatch]
   );
 
-  const handleThemeChange = useCallback(
-    (mode: ThemeOption) => {
+  const setThemeMode = useCallback(
+    (mode: "light" | "dark" | "system") => {
       dispatch({ type: "UPDATE_SETTINGS", payload: { themeMode: mode } });
-      if (mode === "system") {
-        setColorScheme("light");
-      } else {
-        setColorScheme(mode);
-      }
+      setThemeOverride(mode === "system" ? "light" : mode);
     },
-    [dispatch, setColorScheme]
+    [dispatch, setThemeOverride]
   );
 
-  const updateProfileField = (field: keyof BusinessProfile, value: string) => {
-    setProfileForm((prev) => ({ ...prev, [field]: value }));
-  };
-
-  // Cancellation policy
   const policy = settings.cancellationPolicy;
-  const toggleCancellationPolicy = useCallback(() => {
+
+  const toggleCancellation = useCallback(() => {
     dispatch({
       type: "UPDATE_SETTINGS",
-      payload: {
-        cancellationPolicy: {
-          ...policy,
-          enabled: !policy.enabled,
-        },
-      },
+      payload: { cancellationPolicy: { ...policy, enabled: !policy.enabled } },
     });
   }, [policy, dispatch]);
 
-  const updateCancellationHours = useCallback(
+  const setCancellationHours = useCallback(
     (hours: number) => {
       dispatch({
         type: "UPDATE_SETTINGS",
-        payload: {
-          cancellationPolicy: { ...policy, hoursBeforeAppointment: hours },
-        },
+        payload: { cancellationPolicy: { ...policy, hoursBeforeAppointment: hours } },
       });
     },
     [policy, dispatch]
   );
 
-  const updateCancellationFee = useCallback(
+  const setCancellationFee = useCallback(
     (fee: number) => {
       dispatch({
         type: "UPDATE_SETTINGS",
-        payload: {
-          cancellationPolicy: { ...policy, feePercentage: fee },
-        },
+        payload: { cancellationPolicy: { ...policy, feePercentage: fee } },
       });
     },
     [policy, dispatch]
   );
 
-  const themeOptions: { key: ThemeOption; label: string; icon: "sun.max.fill" | "moon.fill" | "circle.lefthalf.filled" }[] = [
+  // Temporary Closed toggle
+  const toggleTemporaryClosed = useCallback(() => {
+    const newValue = !settings.temporaryClosed;
+    dispatch({ type: "UPDATE_SETTINGS", payload: { temporaryClosed: newValue } });
+    if (newValue) {
+      Alert.alert("Business Closed", "Your business is now marked as temporarily closed. Clients will not be able to book new appointments.");
+    }
+  }, [settings.temporaryClosed, dispatch]);
+
+  // Logout
+  const handleLogout = useCallback(() => {
+    Alert.alert("Log Out", "Are you sure you want to log out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Log Out",
+        style: "destructive",
+        onPress: () => {
+          dispatch({ type: "UPDATE_SETTINGS", payload: { onboardingComplete: false } });
+          router.replace("/onboarding");
+        },
+      },
+    ]);
+  }, [dispatch, router]);
+
+  // Delete Business
+  const handleDeleteBusiness = useCallback(() => {
+    Alert.alert(
+      "Delete Business",
+      "This will permanently delete all your data including services, clients, appointments, and reviews. This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete Everything",
+          style: "destructive",
+          onPress: async () => {
+            dispatch({ type: "RESET_ALL_DATA" });
+            try {
+              await AsyncStorage.multiRemove([
+                "@bookease_services",
+                "@bookease_clients",
+                "@bookease_appointments",
+                "@bookease_reviews",
+                "@bookease_settings",
+              ]);
+            } catch {}
+            router.replace("/onboarding");
+          },
+        },
+      ]
+    );
+  }, [dispatch, router]);
+
+  const themeOptions: { key: "light" | "dark" | "system"; label: string; icon: string }[] = [
     { key: "light", label: "Light", icon: "sun.max.fill" },
     { key: "dark", label: "Dark", icon: "moon.fill" },
-    { key: "system", label: "System", icon: "circle.lefthalf.filled" },
+    { key: "system", label: "Auto", icon: "gear" },
   ];
-
-  const currentPickerValue = timePickerDay
-    ? settings.workingHours[timePickerDay]?.[timePickerField] ?? "09:00"
-    : "09:00";
 
   return (
     <ScreenContainer>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}>
-        {/* Header with logo */}
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: hp, paddingTop: 8, paddingBottom: 100 }}>
+        {/* Header */}
         <View style={styles.headerRow}>
           <Text style={{ fontSize: 24, fontWeight: "700", color: colors.foreground }}>Settings</Text>
           <Image source={require("@/assets/images/icon.png")} style={styles.headerLogo} resizeMode="contain" />
         </View>
 
+        {/* Temporary Closed Banner */}
+        {settings.temporaryClosed && (
+          <View style={[styles.closedBanner, { backgroundColor: colors.error + "15", borderColor: colors.error + "40" }]}>
+            <IconSymbol name="xmark.circle.fill" size={18} color={colors.error} />
+            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.error, marginLeft: 8, flex: 1 }}>
+              Business is temporarily closed
+            </Text>
+          </View>
+        )}
+
         {/* Business Name */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.cardLabel, { color: colors.muted }]}>Business Name</Text>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardHeaderLeft}>
+              <IconSymbol name="building.2.fill" size={20} color={colors.primary} />
+              <Text style={[styles.cardTitle, { color: colors.foreground }]}>Business Name</Text>
+            </View>
+            {!editingName && (
+              <Pressable onPress={() => { setNameValue(settings.businessName); setEditingName(true); }} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
+                <IconSymbol name="pencil" size={18} color={colors.primary} />
+              </Pressable>
+            )}
+          </View>
           {editingName ? (
             <View style={styles.editRow}>
               <TextInput
                 style={[styles.editInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-                value={businessName}
-                onChangeText={setBusinessName}
+                value={nameValue}
+                onChangeText={setNameValue}
                 returnKeyType="done"
-                onSubmitEditing={handleSaveName}
+                onSubmitEditing={saveName}
                 autoFocus
               />
-              <Pressable
-                onPress={handleSaveName}
-                style={({ pressed }) => [styles.smallButton, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
-              >
+              <Pressable onPress={saveName} style={({ pressed }) => [styles.smallButton, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}>
                 <Text style={styles.smallButtonText}>Save</Text>
               </Pressable>
             </View>
           ) : (
-            <Pressable
-              onPress={() => setEditingName(true)}
-              style={({ pressed }) => [styles.editableRow, { opacity: pressed ? 0.7 : 1 }]}
-            >
-              <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground, flex: 1 }}>{settings.businessName}</Text>
-              <IconSymbol name="pencil" size={18} color={colors.muted} />
-            </Pressable>
+            <Text style={{ fontSize: 16, color: colors.foreground, fontWeight: "500" }}>{settings.businessName}</Text>
           )}
         </View>
 
@@ -257,151 +266,135 @@ export default function SettingsScreen() {
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.cardHeader}>
             <View style={styles.cardHeaderLeft}>
-              <IconSymbol name="person.fill" size={18} color={colors.primary} />
+              <IconSymbol name="person.fill" size={20} color={colors.primary} />
               <Text style={[styles.cardTitle, { color: colors.foreground }]}>Business Profile</Text>
             </View>
-            <Pressable
-              onPress={() => {
-                if (editingProfile) {
-                  handleSaveProfile();
-                } else {
-                  setProfileForm({
-                    ownerName: settings.profile?.ownerName ?? "",
-                    phone: settings.profile?.phone ?? "",
-                    email: settings.profile?.email ?? "",
-                    address: settings.profile?.address ?? "",
-                    description: settings.profile?.description ?? "",
-                    website: settings.profile?.website ?? "",
-                  });
-                  setEditingProfile(true);
-                }
-              }}
-              style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
-            >
-              <Text style={{ color: colors.primary, fontSize: 14, fontWeight: "600" }}>
-                {editingProfile ? "Save" : "Edit"}
-              </Text>
-            </Pressable>
+            {!editingProfile && (
+              <Pressable onPress={() => { setProfileForm(settings.profile); setEditingProfile(true); }} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
+                <IconSymbol name="pencil" size={18} color={colors.primary} />
+              </Pressable>
+            )}
           </View>
-
           {editingProfile ? (
             <View>
               {[
-                { key: "ownerName" as const, label: "Owner Name", placeholder: "Your full name", kb: "default" as const },
-                { key: "phone" as const, label: "Phone", placeholder: "Business phone", kb: "phone-pad" as const },
-                { key: "email" as const, label: "Email", placeholder: "Business email", kb: "email-address" as const },
-                { key: "address" as const, label: "Address", placeholder: "Business address", kb: "default" as const },
-                { key: "website" as const, label: "Website", placeholder: "https://yourbusiness.com", kb: "url" as const },
-              ].map((f) => (
-                <View key={f.key}>
-                  <Text style={[styles.fieldLabel, { color: colors.muted }]}>{f.label}</Text>
+                { key: "ownerName", label: "Owner Name", placeholder: "John Doe", kb: "default" as const },
+                { key: "phone", label: "Phone", placeholder: "+1 (555) 000-0000", kb: "phone-pad" as const },
+                { key: "email", label: "Email (optional)", placeholder: "you@business.com", kb: "email-address" as const },
+                { key: "address", label: "Address", placeholder: "123 Main St, City", kb: "default" as const },
+                { key: "website", label: "Website (optional)", placeholder: "https://...", kb: "url" as const },
+                { key: "description", label: "Description", placeholder: "Tell clients about your business...", kb: "default" as const },
+              ].map((field) => (
+                <View key={field.key}>
+                  <Text style={[styles.fieldLabel, { color: colors.muted }]}>{field.label}</Text>
                   <TextInput
                     style={[styles.profileInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-                    placeholder={f.placeholder}
+                    placeholder={field.placeholder}
                     placeholderTextColor={colors.muted}
-                    value={profileForm[f.key]}
-                    onChangeText={(v) => updateProfileField(f.key, v)}
-                    keyboardType={f.kb}
-                    autoCapitalize={f.kb === "email-address" || f.kb === "url" ? "none" : "sentences"}
-                    returnKeyType="next"
+                    value={(profileForm as any)[field.key]}
+                    onChangeText={(v) => setProfileForm((p) => ({ ...p, [field.key]: v }))}
+                    keyboardType={field.kb}
+                    autoCapitalize={field.key === "email" || field.key === "website" ? "none" : "words"}
+                    multiline={field.key === "description"}
+                    numberOfLines={field.key === "description" ? 3 : 1}
+                    returnKeyType="done"
                   />
                 </View>
               ))}
-              <Text style={[styles.fieldLabel, { color: colors.muted }]}>Description</Text>
-              <TextInput
-                style={[styles.profileInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground, minHeight: 60, textAlignVertical: "top" }]}
-                placeholder="Tell clients about your business..."
-                placeholderTextColor={colors.muted}
-                value={profileForm.description}
-                onChangeText={(v) => updateProfileField("description", v)}
-                multiline
-                numberOfLines={3}
-                returnKeyType="done"
-              />
               <View style={styles.profileActions}>
-                <Pressable
-                  onPress={() => setEditingProfile(false)}
-                  style={({ pressed }) => [styles.cancelButton, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
-                >
-                  <Text style={{ fontSize: 14, fontWeight: "500", color: colors.foreground }}>Cancel</Text>
+                <Pressable onPress={() => setEditingProfile(false)} style={({ pressed }) => [styles.cancelButton, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}>
+                  <Text style={{ fontSize: 14, color: colors.foreground }}>Cancel</Text>
                 </Pressable>
-                <Pressable
-                  onPress={handleSaveProfile}
-                  style={({ pressed }) => [styles.saveButton, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
-                >
+                <Pressable onPress={saveProfile} style={({ pressed }) => [styles.saveButton, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}>
                   <Text style={styles.saveButtonText}>Save Profile</Text>
                 </Pressable>
               </View>
             </View>
           ) : (
             <View>
-              {settings.profile?.ownerName ? (
+              {settings.profile.ownerName ? (
                 <View style={styles.profileRow}>
                   <IconSymbol name="person.fill" size={14} color={colors.muted} />
                   <Text style={{ fontSize: 14, color: colors.foreground, marginLeft: 8 }}>{settings.profile.ownerName}</Text>
                 </View>
               ) : null}
-              {settings.profile?.phone ? (
+              {settings.profile.phone ? (
                 <View style={styles.profileRow}>
                   <IconSymbol name="phone.fill" size={14} color={colors.muted} />
                   <Text style={{ fontSize: 14, color: colors.foreground, marginLeft: 8 }}>{settings.profile.phone}</Text>
                 </View>
               ) : null}
-              {settings.profile?.email ? (
+              {settings.profile.email ? (
                 <View style={styles.profileRow}>
                   <IconSymbol name="envelope.fill" size={14} color={colors.muted} />
                   <Text style={{ fontSize: 14, color: colors.foreground, marginLeft: 8 }}>{settings.profile.email}</Text>
                 </View>
               ) : null}
-              {settings.profile?.address ? (
+              {settings.profile.address ? (
                 <View style={styles.profileRow}>
                   <IconSymbol name="mappin" size={14} color={colors.muted} />
                   <Text style={{ fontSize: 14, color: colors.foreground, marginLeft: 8 }}>{settings.profile.address}</Text>
                 </View>
               ) : null}
-              {settings.profile?.website ? (
+              {settings.profile.website ? (
                 <View style={styles.profileRow}>
                   <IconSymbol name="globe" size={14} color={colors.muted} />
-                  <Text style={{ fontSize: 14, color: colors.foreground, marginLeft: 8 }}>{settings.profile.website}</Text>
+                  <Text style={{ fontSize: 14, color: colors.primary, marginLeft: 8 }}>{settings.profile.website}</Text>
                 </View>
               ) : null}
-              {settings.profile?.description ? (
-                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 8, lineHeight: 18 }}>{settings.profile.description}</Text>
+              {settings.profile.description ? (
+                <Text style={{ fontSize: 13, color: colors.muted, marginTop: 6, lineHeight: 18 }}>{settings.profile.description}</Text>
               ) : null}
-              {!settings.profile?.ownerName && !settings.profile?.phone && !settings.profile?.email ? (
-                <Text style={{ fontSize: 14, color: colors.muted, fontStyle: "italic" }}>Tap Edit to add your business profile</Text>
-              ) : null}
+              {!settings.profile.ownerName && !settings.profile.phone && (
+                <Text style={{ fontSize: 13, color: colors.muted }}>Tap edit to add your business profile</Text>
+              )}
             </View>
           )}
         </View>
 
+        {/* Temporary Closed */}
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.switchRow}>
+            <View style={styles.switchLabel}>
+              <IconSymbol name="clock.fill" size={20} color={settings.temporaryClosed ? colors.error : colors.primary} />
+              <View style={{ marginLeft: 12, flex: 1 }}>
+                <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground }}>Temporarily Closed</Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
+                  Blocks all new bookings when enabled
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={settings.temporaryClosed}
+              onValueChange={toggleTemporaryClosed}
+              trackColor={{ false: colors.border, true: colors.error + "60" }}
+              thumbColor={settings.temporaryClosed ? colors.error : colors.muted}
+            />
+          </View>
+        </View>
+
         {/* Theme Mode */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={styles.cardHeader}>
-            <View style={styles.cardHeaderLeft}>
-              <IconSymbol name="circle.lefthalf.filled" size={18} color={colors.primary} />
-              <Text style={[styles.cardTitle, { color: colors.foreground }]}>Appearance</Text>
-            </View>
-          </View>
+          <Text style={[styles.cardLabel, { color: colors.muted }]}>Appearance</Text>
           <View style={styles.themeRow}>
             {themeOptions.map((opt) => {
-              const isActive = currentTheme === opt.key;
+              const isActive = settings.themeMode === opt.key;
               return (
                 <Pressable
                   key={opt.key}
-                  onPress={() => handleThemeChange(opt.key)}
+                  onPress={() => setThemeMode(opt.key)}
                   style={({ pressed }) => [
                     styles.themeOption,
                     {
-                      backgroundColor: isActive ? colors.primary : colors.background,
-                      borderColor: isActive ? colors.primary : colors.border,
-                      opacity: pressed ? 0.7 : 1,
                       flex: 1,
+                      backgroundColor: isActive ? colors.primary + "15" : colors.background,
+                      borderColor: isActive ? colors.primary : colors.border,
+                      opacity: pressed ? 0.8 : 1,
                     },
                   ]}
                 >
-                  <IconSymbol name={opt.icon} size={20} color={isActive ? "#FFF" : colors.foreground} />
-                  <Text style={{ fontSize: 13, fontWeight: "600", color: isActive ? "#FFF" : colors.foreground, marginTop: 4 }}>
+                  <IconSymbol name={opt.icon as any} size={22} color={isActive ? colors.primary : colors.muted} />
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: isActive ? colors.primary : colors.muted, marginTop: 6 }}>
                     {opt.label}
                   </Text>
                 </Pressable>
@@ -410,102 +403,59 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Default Duration */}
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.cardLabel, { color: colors.muted }]}>Default Appointment Duration</Text>
-          <View style={styles.durationRow}>
-            {[15, 30, 45, 60, 90, 120].map((d) => (
-              <Pressable
-                key={d}
-                onPress={() => setDefaultDuration(d)}
-                style={({ pressed }) => [
-                  styles.durationChip,
-                  {
-                    backgroundColor: settings.defaultDuration === d ? colors.primary : colors.background,
-                    borderColor: settings.defaultDuration === d ? colors.primary : colors.border,
-                    opacity: pressed ? 0.7 : 1,
-                  },
-                ]}
-              >
-                <Text
-                  style={{
-                    fontSize: 13,
-                    fontWeight: "500",
-                    color: settings.defaultDuration === d ? "#FFFFFF" : colors.foreground,
-                  }}
-                >
-                  {d} min
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-
         {/* Cancellation Policy */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.switchRow}>
             <View style={styles.switchLabel}>
-              <IconSymbol name="xmark" size={20} color={colors.error} />
+              <IconSymbol name="exclamationmark.triangle.fill" size={20} color="#FF9800" />
               <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground, marginLeft: 12 }}>Cancellation Fee</Text>
             </View>
             <Switch
               value={policy.enabled}
-              onValueChange={toggleCancellationPolicy}
+              onValueChange={toggleCancellation}
               trackColor={{ false: colors.border, true: colors.primary + "60" }}
               thumbColor={policy.enabled ? colors.primary : colors.muted}
             />
           </View>
           {policy.enabled && (
             <View style={{ marginTop: 14 }}>
-              <Text style={[styles.fieldLabel, { color: colors.muted }]}>Hours before appointment</Text>
+              <Text style={{ fontSize: 12, fontWeight: "500", color: colors.muted, marginBottom: 8 }}>Hours Before Appointment</Text>
               <View style={styles.durationRow}>
                 {[1, 2, 4, 6, 12, 24].map((h) => (
                   <Pressable
                     key={h}
-                    onPress={() => updateCancellationHours(h)}
+                    onPress={() => setCancellationHours(h)}
                     style={({ pressed }) => [
                       styles.durationChip,
                       {
-                        backgroundColor: policy.hoursBeforeAppointment === h ? colors.error : colors.background,
-                        borderColor: policy.hoursBeforeAppointment === h ? colors.error : colors.border,
+                        backgroundColor: policy.hoursBeforeAppointment === h ? colors.primary : colors.background,
+                        borderColor: policy.hoursBeforeAppointment === h ? colors.primary : colors.border,
                         opacity: pressed ? 0.7 : 1,
                       },
                     ]}
                   >
-                    <Text
-                      style={{
-                        fontSize: 13,
-                        fontWeight: "500",
-                        color: policy.hoursBeforeAppointment === h ? "#FFFFFF" : colors.foreground,
-                      }}
-                    >
+                    <Text style={{ fontSize: 13, fontWeight: "500", color: policy.hoursBeforeAppointment === h ? "#FFFFFF" : colors.foreground }}>
                       {h}h
                     </Text>
                   </Pressable>
                 ))}
               </View>
-              <Text style={[styles.fieldLabel, { color: colors.muted, marginTop: 10 }]}>Fee percentage</Text>
+              <Text style={{ fontSize: 12, fontWeight: "500", color: colors.muted, marginTop: 12, marginBottom: 8 }}>Fee Percentage</Text>
               <View style={styles.durationRow}>
-                {[10, 25, 50, 75, 100].map((p) => (
+                {[25, 50, 75, 100].map((p) => (
                   <Pressable
                     key={p}
-                    onPress={() => updateCancellationFee(p)}
+                    onPress={() => setCancellationFee(p)}
                     style={({ pressed }) => [
                       styles.durationChip,
                       {
-                        backgroundColor: policy.feePercentage === p ? colors.error : colors.background,
-                        borderColor: policy.feePercentage === p ? colors.error : colors.border,
+                        backgroundColor: policy.feePercentage === p ? colors.primary : colors.background,
+                        borderColor: policy.feePercentage === p ? colors.primary : colors.border,
                         opacity: pressed ? 0.7 : 1,
                       },
                     ]}
                   >
-                    <Text
-                      style={{
-                        fontSize: 13,
-                        fontWeight: "500",
-                        color: policy.feePercentage === p ? "#FFFFFF" : colors.foreground,
-                      }}
-                    >
+                    <Text style={{ fontSize: 13, fontWeight: "500", color: policy.feePercentage === p ? "#FFFFFF" : colors.foreground }}>
                       {p}%
                     </Text>
                   </Pressable>
@@ -549,41 +499,23 @@ export default function SettingsScreen() {
                   thumbColor={wh.enabled ? colors.primary : colors.muted}
                   style={{ transform: [{ scale: 0.8 }] }}
                 />
-                <Text
-                  style={{
-                    fontSize: 13,
-                    fontWeight: "500",
-                    width: 44,
-                    marginLeft: 8,
-                    color: wh.enabled ? colors.foreground : colors.muted,
-                  }}
-                >
+                <Text style={{ fontSize: 13, fontWeight: "500", width: 44, marginLeft: 8, color: wh.enabled ? colors.foreground : colors.muted }}>
                   {DAY_LABELS[day]}
                 </Text>
                 {wh.enabled && (
                   <View style={styles.timeInputs}>
                     <Pressable
                       onPress={() => openTimePicker(day, "start")}
-                      style={({ pressed }) => [
-                        styles.timeButton,
-                        { backgroundColor: colors.background, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
-                      ]}
+                      style={({ pressed }) => [styles.timeButton, { backgroundColor: colors.background, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
                     >
-                      <Text style={{ fontSize: 12, color: colors.foreground, textAlign: "center" }}>
-                        {formatTimeLabel(wh.start)}
-                      </Text>
+                      <Text style={{ fontSize: 12, color: colors.foreground, textAlign: "center" }}>{formatTimeLabel(wh.start)}</Text>
                     </Pressable>
                     <Text style={{ fontSize: 12, color: colors.muted, marginHorizontal: 4 }}>to</Text>
                     <Pressable
                       onPress={() => openTimePicker(day, "end")}
-                      style={({ pressed }) => [
-                        styles.timeButton,
-                        { backgroundColor: colors.background, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
-                      ]}
+                      style={({ pressed }) => [styles.timeButton, { backgroundColor: colors.background, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
                     >
-                      <Text style={{ fontSize: 12, color: colors.foreground, textAlign: "center" }}>
-                        {formatTimeLabel(wh.end)}
-                      </Text>
+                      <Text style={{ fontSize: 12, color: colors.foreground, textAlign: "center" }}>{formatTimeLabel(wh.end)}</Text>
                     </Pressable>
                   </View>
                 )}
@@ -611,6 +543,26 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* Log Out */}
+        <Pressable
+          onPress={handleLogout}
+          style={({ pressed }) => [styles.dangerButton, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
+        >
+          <IconSymbol name="arrow.right.square.fill" size={20} color={colors.primary} />
+          <Text style={{ fontSize: 15, fontWeight: "600", color: colors.primary, marginLeft: 12, flex: 1 }}>Log Out</Text>
+          <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+        </Pressable>
+
+        {/* Delete Business */}
+        <Pressable
+          onPress={handleDeleteBusiness}
+          style={({ pressed }) => [styles.dangerButton, { backgroundColor: colors.error + "08", borderColor: colors.error + "30", opacity: pressed ? 0.7 : 1 }]}
+        >
+          <IconSymbol name="trash.fill" size={20} color={colors.error} />
+          <Text style={{ fontSize: 15, fontWeight: "600", color: colors.error, marginLeft: 12, flex: 1 }}>Delete Business</Text>
+          <IconSymbol name="chevron.right" size={16} color={colors.error + "60"} />
+        </Pressable>
+
         {/* App Info */}
         <View style={styles.appInfo}>
           <Image source={require("@/assets/images/icon.png")} style={{ width: 48, height: 48, borderRadius: 12, marginBottom: 8 }} resizeMode="contain" />
@@ -622,10 +574,7 @@ export default function SettingsScreen() {
 
       {/* Time Picker Modal */}
       <Modal visible={timePickerVisible} transparent animationType="slide">
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setTimePickerVisible(false)}
-        >
+        <Pressable style={styles.modalOverlay} onPress={() => setTimePickerVisible(false)}>
           <Pressable style={[styles.modalContent, { backgroundColor: colors.background }]} onPress={() => {}}>
             <View style={styles.modalHeader}>
               <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>
@@ -656,13 +605,7 @@ export default function SettingsScreen() {
                       },
                     ]}
                   >
-                    <Text
-                      style={{
-                        fontSize: 16,
-                        fontWeight: isSelected ? "700" : "400",
-                        color: isSelected ? colors.primary : colors.foreground,
-                      }}
-                    >
+                    <Text style={{ fontSize: 16, fontWeight: isSelected ? "700" : "400", color: isSelected ? colors.primary : colors.foreground }}>
                       {formatTimeLabel(item)}
                     </Text>
                     {isSelected && <IconSymbol name="checkmark" size={18} color={colors.primary} />}
@@ -678,209 +621,42 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 20,
-    paddingTop: 4,
-  },
-  headerLogo: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-  },
-  card: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 14,
-    borderWidth: 1,
-  },
-  cardLabel: {
-    fontSize: 12,
-    fontWeight: "500",
-    marginBottom: 10,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 14,
-  },
-  cardHeaderLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    marginLeft: 10,
-  },
-  editRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  editInput: {
-    flex: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-    borderWidth: 1,
-  },
-  editableRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  smallButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  smallButtonText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  fieldLabel: {
-    fontSize: 12,
-    fontWeight: "500",
-    marginBottom: 4,
-    marginTop: 6,
-  },
-  profileInput: {
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    borderWidth: 1,
-    marginBottom: 6,
-  },
-  profileActions: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 10,
-  },
-  cancelButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: "center",
-  },
-  saveButton: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  saveButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  profileRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 6,
-  },
-  themeRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  themeOption: {
-    alignItems: "center",
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1.5,
-  },
-  durationRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  durationChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  switchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  switchLabel: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  dayRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-  },
-  timeInputs: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-end",
-  },
-  timeButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    minWidth: 72,
-  },
-  statsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  statItem: {
-    flex: 1,
-    alignItems: "center",
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: "700",
-    lineHeight: 30,
-  },
-  appInfo: {
-    alignItems: "center",
-    paddingVertical: 24,
-  },
-  appName: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 16,
-    paddingBottom: 40,
-    paddingHorizontal: 20,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-  timePickerItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 4,
-    height: 48,
-  },
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20, paddingTop: 4 },
+  headerLogo: { width: 32, height: 32, borderRadius: 8 },
+  closedBanner: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 14 },
+  card: { borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1 },
+  cardLabel: { fontSize: 12, fontWeight: "500", marginBottom: 10 },
+  cardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
+  cardHeaderLeft: { flexDirection: "row", alignItems: "center" },
+  cardTitle: { fontSize: 15, fontWeight: "600", marginLeft: 10 },
+  editRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  editInput: { flex: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, borderWidth: 1 },
+  smallButton: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
+  smallButtonText: { color: "#FFFFFF", fontSize: 12, fontWeight: "600" },
+  fieldLabel: { fontSize: 12, fontWeight: "500", marginBottom: 4, marginTop: 6 },
+  profileInput: { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, borderWidth: 1, marginBottom: 6 },
+  profileActions: { flexDirection: "row", gap: 8, marginTop: 10 },
+  cancelButton: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, alignItems: "center" },
+  saveButton: { flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: "center" },
+  saveButtonText: { color: "#FFFFFF", fontSize: 14, fontWeight: "600" },
+  profileRow: { flexDirection: "row", alignItems: "center", paddingVertical: 6 },
+  themeRow: { flexDirection: "row", gap: 10 },
+  themeOption: { alignItems: "center", paddingVertical: 14, borderRadius: 14, borderWidth: 1.5 },
+  durationRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  durationChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
+  switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  switchLabel: { flexDirection: "row", alignItems: "center", flex: 1 },
+  dayRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10 },
+  timeInputs: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "flex-end" },
+  timeButton: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, minWidth: 72 },
+  statsRow: { flexDirection: "row", justifyContent: "space-between" },
+  statItem: { flex: 1, alignItems: "center" },
+  statNumber: { fontSize: 24, fontWeight: "700", lineHeight: 30 },
+  dangerButton: { flexDirection: "row", alignItems: "center", borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1 },
+  appInfo: { alignItems: "center", paddingVertical: 24 },
+  appName: { fontSize: 16, fontWeight: "700" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
+  modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingBottom: 40, paddingHorizontal: 20 },
+  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+  timePickerItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, borderWidth: 1, marginBottom: 4, height: 48 },
 });

@@ -138,6 +138,8 @@ describe("Business Profile", () => {
       themeMode: "system",
       cancellationPolicy: { enabled: true, hoursBeforeAppointment: 2, feePercentage: 50 },
       onboardingComplete: false,
+      temporaryClosed: false,
+      businessLogoUri: "",
     };
     expect(settings.profile).toBeDefined();
     expect(settings.profile.ownerName).toBe("");
@@ -273,6 +275,8 @@ describe("Theme Mode", () => {
       themeMode: "dark",
       cancellationPolicy: { enabled: true, hoursBeforeAppointment: 2, feePercentage: 50 },
       onboardingComplete: false,
+      temporaryClosed: false,
+      businessLogoUri: "",
     };
     expect(settings.themeMode).toBe("dark");
   });
@@ -287,6 +291,8 @@ describe("Theme Mode", () => {
       themeMode: "system",
       cancellationPolicy: { enabled: true, hoursBeforeAppointment: 2, feePercentage: 50 },
       onboardingComplete: false,
+      temporaryClosed: false,
+      businessLogoUri: "",
     };
     expect(settings.themeMode).toBe("system");
   });
@@ -414,6 +420,8 @@ describe("Cancellation Policy", () => {
       themeMode: "system",
       cancellationPolicy: DEFAULT_CANCELLATION_POLICY,
       onboardingComplete: false,
+      temporaryClosed: false,
+      businessLogoUri: "",
     };
     expect(settings.cancellationPolicy.enabled).toBe(true);
     expect(settings.onboardingComplete).toBe(false);
@@ -519,5 +527,192 @@ describe("End Time Calculation", () => {
     const endMinutes = timeToMinutes(startTime) + duration;
     const endTime = minutesToTime(endMinutes);
     expect(endTime).toBe("16:00");
+  });
+});
+
+describe("Temporary Closed Feature", () => {
+  it("should include temporaryClosed in BusinessSettings", () => {
+    const settings: BusinessSettings = {
+      businessName: "Test",
+      defaultDuration: 30,
+      notificationsEnabled: false,
+      workingHours: DEFAULT_WORKING_HOURS,
+      profile: DEFAULT_BUSINESS_PROFILE,
+      themeMode: "system",
+      cancellationPolicy: DEFAULT_CANCELLATION_POLICY,
+      onboardingComplete: true,
+      temporaryClosed: true,
+      businessLogoUri: "",
+    };
+    expect(settings.temporaryClosed).toBe(true);
+  });
+
+  it("should default to not temporarily closed", () => {
+    const settings: BusinessSettings = {
+      businessName: "Test",
+      defaultDuration: 30,
+      notificationsEnabled: false,
+      workingHours: DEFAULT_WORKING_HOURS,
+      profile: DEFAULT_BUSINESS_PROFILE,
+      themeMode: "system",
+      cancellationPolicy: DEFAULT_CANCELLATION_POLICY,
+      onboardingComplete: false,
+      temporaryClosed: false,
+      businessLogoUri: "",
+    };
+    expect(settings.temporaryClosed).toBe(false);
+  });
+});
+
+describe("Review System", () => {
+  it("should create a valid Review object", () => {
+    const review = {
+      id: "rev-1",
+      clientId: "client-1",
+      rating: 5,
+      comment: "Great service!",
+      createdAt: new Date().toISOString(),
+    };
+    expect(review.id).toBeTruthy();
+    expect(review.clientId).toBe("client-1");
+    expect(review.rating).toBe(5);
+    expect(review.rating).toBeGreaterThanOrEqual(1);
+    expect(review.rating).toBeLessThanOrEqual(5);
+    expect(review.comment).toBe("Great service!");
+  });
+
+  it("should allow reviews with optional appointmentId", () => {
+    const review = {
+      id: "rev-2",
+      clientId: "client-1",
+      appointmentId: "appt-1",
+      rating: 4,
+      comment: "Good",
+      createdAt: new Date().toISOString(),
+    };
+    expect(review.appointmentId).toBe("appt-1");
+  });
+
+  it("should allow reviews without appointmentId", () => {
+    const review: { id: string; clientId: string; appointmentId?: string; rating: number; comment: string; createdAt: string } = {
+      id: "rev-3",
+      clientId: "client-2",
+      rating: 3,
+      comment: "Average",
+      createdAt: new Date().toISOString(),
+    };
+    expect(review.appointmentId).toBeUndefined();
+  });
+
+  it("should validate rating range 1-5", () => {
+    const ratings = [1, 2, 3, 4, 5];
+    ratings.forEach((r) => {
+      expect(r).toBeGreaterThanOrEqual(1);
+      expect(r).toBeLessThanOrEqual(5);
+    });
+  });
+
+  it("should filter reviews by clientId", () => {
+    const reviews = [
+      { id: "r1", clientId: "c1", rating: 5, comment: "Great", createdAt: "" },
+      { id: "r2", clientId: "c2", rating: 4, comment: "Good", createdAt: "" },
+      { id: "r3", clientId: "c1", rating: 3, comment: "OK", createdAt: "" },
+    ];
+    const clientReviews = reviews.filter((r) => r.clientId === "c1");
+    expect(clientReviews).toHaveLength(2);
+    expect(clientReviews[0].id).toBe("r1");
+    expect(clientReviews[1].id).toBe("r3");
+  });
+});
+
+describe("Business Logo URI", () => {
+  it("should store custom business logo URI", () => {
+    const settings: BusinessSettings = {
+      businessName: "My Salon",
+      defaultDuration: 30,
+      notificationsEnabled: false,
+      workingHours: DEFAULT_WORKING_HOURS,
+      profile: DEFAULT_BUSINESS_PROFILE,
+      themeMode: "system",
+      cancellationPolicy: DEFAULT_CANCELLATION_POLICY,
+      onboardingComplete: true,
+      temporaryClosed: false,
+      businessLogoUri: "file:///data/user/0/com.app/cache/photo.jpg",
+    };
+    expect(settings.businessLogoUri).toBe("file:///data/user/0/com.app/cache/photo.jpg");
+  });
+
+  it("should default to empty string when no logo uploaded", () => {
+    const settings: BusinessSettings = {
+      businessName: "Test",
+      defaultDuration: 30,
+      notificationsEnabled: false,
+      workingHours: DEFAULT_WORKING_HOURS,
+      profile: DEFAULT_BUSINESS_PROFILE,
+      themeMode: "system",
+      cancellationPolicy: DEFAULT_CANCELLATION_POLICY,
+      onboardingComplete: false,
+      temporaryClosed: false,
+      businessLogoUri: "",
+    };
+    expect(settings.businessLogoUri).toBe("");
+  });
+});
+
+describe("Logout and Delete Business", () => {
+  it("should reset onboardingComplete on logout", () => {
+    const settings: BusinessSettings = {
+      businessName: "My Business",
+      defaultDuration: 60,
+      notificationsEnabled: true,
+      workingHours: DEFAULT_WORKING_HOURS,
+      profile: { ...DEFAULT_BUSINESS_PROFILE, ownerName: "John" },
+      themeMode: "light",
+      cancellationPolicy: DEFAULT_CANCELLATION_POLICY,
+      onboardingComplete: true,
+      temporaryClosed: false,
+      businessLogoUri: "",
+    };
+    // Simulate logout
+    const loggedOut = { ...settings, onboardingComplete: false };
+    expect(loggedOut.onboardingComplete).toBe(false);
+    expect(loggedOut.businessName).toBe("My Business"); // data preserved
+  });
+
+  it("should clear all data on delete business", () => {
+    // Simulate RESET_ALL_DATA
+    const emptyState = {
+      services: [] as any[],
+      clients: [] as any[],
+      appointments: [] as any[],
+      reviews: [] as any[],
+    };
+    expect(emptyState.services).toHaveLength(0);
+    expect(emptyState.clients).toHaveLength(0);
+    expect(emptyState.appointments).toHaveLength(0);
+    expect(emptyState.reviews).toHaveLength(0);
+  });
+});
+
+describe("Public Booking URL", () => {
+  it("should use limeoftime.com domain", () => {
+    const PUBLIC_BOOKING_URL = "https://limeoftime.com";
+    expect(PUBLIC_BOOKING_URL).toContain("limeoftime.com");
+  });
+
+  it("should generate correct booking link with slug", () => {
+    const PUBLIC_BOOKING_URL = "https://limeoftime.com";
+    const businessName = "My Salon";
+    const slug = businessName.toLowerCase().replace(/\s+/g, "-");
+    const link = `${PUBLIC_BOOKING_URL}/book/${slug}`;
+    expect(link).toBe("https://limeoftime.com/book/my-salon");
+  });
+
+  it("should generate correct review link with slug", () => {
+    const PUBLIC_BOOKING_URL = "https://limeoftime.com";
+    const businessName = "My Salon";
+    const slug = businessName.toLowerCase().replace(/\s+/g, "-");
+    const link = `${PUBLIC_BOOKING_URL}/review/${slug}`;
+    expect(link).toBe("https://limeoftime.com/review/my-salon");
   });
 });

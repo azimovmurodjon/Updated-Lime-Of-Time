@@ -1,35 +1,161 @@
-import { FlatList, Text, View, Pressable, StyleSheet, TextInput, Alert, Platform, Linking } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useState, useMemo, useCallback } from "react";
+import {
+  Text,
+  View,
+  Pressable,
+  StyleSheet,
+  ScrollView,
+  TextInput,
+  Alert,
+  Linking,
+  useWindowDimensions,
+  Platform,
+} from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
-import { useStore, formatTime, formatDateDisplay } from "@/lib/store";
+import { useStore, formatTime, formatDateDisplay, generateId } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { useMemo, useState } from "react";
-import { minutesToTime, timeToMinutes, Appointment } from "@/lib/types";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { Review, minutesToTime, timeToMinutes, Appointment } from "@/lib/types";
+
+type TabKey = "appointments" | "messages" | "reviews";
 
 export default function ClientDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { state, dispatch, getServiceById, getAppointmentsForClient } = useStore();
+  const { state, dispatch, getClientById, getAppointmentsForClient, getServiceById, getReviewsForClient } = useStore();
   const colors = useColors();
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const hp = Math.round(Math.max(16, width * 0.045));
 
-  const client = useMemo(() => state.clients.find((c) => c.id === id), [state.clients, id]);
-  const appointments = useMemo(() => (id ? getAppointmentsForClient(id) : []), [getAppointmentsForClient, id]);
+  const client = getClientById(id ?? "");
+  const appointments = getAppointmentsForClient(id ?? "");
+  const reviews = getReviewsForClient(id ?? "");
+  const [activeTab, setActiveTab] = useState<TabKey>("appointments");
 
+  // Edit state
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(client?.name ?? "");
   const [editPhone, setEditPhone] = useState(client?.phone ?? "");
   const [editEmail, setEditEmail] = useState(client?.email ?? "");
   const [editNotes, setEditNotes] = useState(client?.notes ?? "");
 
+  // Review form
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+
+  const handleSave = useCallback(() => {
+    if (!editName.trim() || !client) return;
+    dispatch({
+      type: "UPDATE_CLIENT",
+      payload: { ...client, name: editName.trim(), phone: editPhone.trim(), email: editEmail.trim(), notes: editNotes.trim() },
+    });
+    setEditing(false);
+  }, [editName, editPhone, editEmail, editNotes, client, dispatch]);
+
+  const handleDelete = useCallback(() => {
+    if (!client) return;
+    Alert.alert("Delete Client", "This will remove the client permanently.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => { dispatch({ type: "DELETE_CLIENT", payload: client.id }); router.back(); } },
+    ]);
+  }, [client, dispatch, router]);
+
+  const handleAddReview = useCallback(() => {
+    if (!id) return;
+    const review: Review = {
+      id: generateId(),
+      clientId: id,
+      rating: reviewRating,
+      comment: reviewComment.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    dispatch({ type: "ADD_REVIEW", payload: review });
+    setReviewComment("");
+    setReviewRating(5);
+    setShowReviewForm(false);
+  }, [id, reviewRating, reviewComment, dispatch]);
+
+  const handleDeleteReview = useCallback(
+    (reviewId: string) => {
+      Alert.alert("Delete Review", "Are you sure?", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => dispatch({ type: "DELETE_REVIEW", payload: reviewId }) },
+      ]);
+    },
+    [dispatch]
+  );
+
+  const openSMS = useCallback(
+    (phone: string, message: string) => {
+      const smsUrl = Platform.OS === "ios"
+        ? `sms:${phone}&body=${encodeURIComponent(message)}`
+        : `sms:${phone}?body=${encodeURIComponent(message)}`;
+      Linking.openURL(smsUrl).catch(() => {});
+    },
+    []
+  );
+
+  const generateMessage = useCallback(
+    (appt: Appointment, type: "confirmation" | "reminder" | "upcoming" | "cancelled" | "completed") => {
+      if (!client) return "";
+      const svc = getServiceById(appt.serviceId);
+      const dateStr = formatDateDisplay(appt.date);
+      const startTime = formatTime(appt.time);
+      const endTime = formatTime(minutesToTime(timeToMinutes(appt.time) + appt.duration));
+      const bizName = state.settings.businessName;
+      const svcName = svc?.name ?? "your appointment";
+
+      switch (type) {
+        case "confirmation":
+          return `Hi ${client.name}! Your appointment for ${svcName} at ${bizName} is confirmed for ${dateStr} at ${startTime} - ${endTime}. We look forward to seeing you!`;
+        case "reminder":
+          return `Hi ${client.name}, friendly reminder about your ${svcName} appointment at ${bizName} on ${dateStr} at ${startTime}. See you soon!`;
+        case "upcoming":
+          return `Hi ${client.name}, your upcoming ${svcName} appointment at ${bizName} is scheduled for ${dateStr}, ${startTime} - ${endTime}. Please let us know if you need to reschedule.`;
+        case "cancelled":
+          return `Hi ${client.name}, your ${svcName} appointment at ${bizName} on ${dateStr} at ${startTime} has been cancelled. Please contact us to reschedule.`;
+        case "completed":
+          return `Thank you ${client.name} for visiting ${bizName}! We hope you enjoyed your ${svcName}. We'd love to see you again!`;
+        default:
+          return "";
+      }
+    },
+    [client, state.settings.businessName, getServiceById]
+  );
+
+  const handleSendMessage = useCallback(
+    (appt: Appointment, type: "confirmation" | "reminder" | "upcoming" | "cancelled" | "completed") => {
+      if (!client?.phone) {
+        Alert.alert("No Phone", "This client doesn't have a phone number.");
+        return;
+      }
+      const message = generateMessage(appt, type);
+      openSMS(client.phone, message);
+    },
+    [client, generateMessage, openSMS]
+  );
+
+  const handleQuickMessage = useCallback(() => {
+    if (!client?.phone) {
+      Alert.alert("No Phone", "This client doesn't have a phone number.");
+      return;
+    }
+    const message = `Hi ${client.name}, thank you for being a valued client of ${state.settings.businessName}! We'd love to schedule your next appointment.`;
+    openSMS(client.phone, message);
+  }, [client, state.settings.businessName, openSMS]);
+
   if (!client) {
     return (
-      <ScreenContainer edges={["top", "bottom", "left", "right"]} className="p-5">
-        <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
-          <IconSymbol name="arrow.left" size={24} color={colors.foreground} />
-        </Pressable>
-        <View className="flex-1 items-center justify-center">
-          <Text className="text-base text-muted">Client not found</Text>
+      <ScreenContainer edges={["top", "bottom", "left", "right"]}>
+        <View style={{ padding: hp }}>
+          <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+            <IconSymbol name="chevron.left" size={24} color={colors.foreground} />
+          </Pressable>
+          <View style={{ alignItems: "center", paddingTop: 60 }}>
+            <Text style={{ color: colors.muted, fontSize: 16 }}>Client not found</Text>
+          </View>
         </View>
       </ScreenContainer>
     );
@@ -41,385 +167,305 @@ export default function ClientDetailScreen() {
     return name.slice(0, 2).toUpperCase();
   };
 
-  const handleSave = () => {
-    if (!editName.trim()) return;
-    dispatch({
-      type: "UPDATE_CLIENT",
-      payload: {
-        ...client,
-        name: editName.trim(),
-        phone: editPhone.trim(),
-        email: editEmail.trim(),
-        notes: editNotes.trim(),
-      },
-    });
-    setEditing(false);
-  };
-
-  const handleDelete = () => {
-    const doIt = () => {
-      dispatch({ type: "DELETE_CLIENT", payload: client.id });
-      router.back();
-    };
-    if (Platform.OS === "web") {
-      doIt();
-    } else {
-      Alert.alert("Delete Client", "This will remove the client permanently.", [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: doIt },
-      ]);
-    }
-  };
-
-  const handleMessageForAppointment = (appt: Appointment) => {
-    if (!client.phone) return;
-    const svc = getServiceById(appt.serviceId);
-    const endTime = formatTime(minutesToTime(timeToMinutes(appt.time) + appt.duration));
-    const biz = state.settings.businessName;
-    let msg = "";
-
-    if (appt.status === "confirmed") {
-      msg = `Hi ${client.name}, your appointment is on ${formatDateDisplay(appt.date)} at ${formatTime(appt.time)} - ${endTime} for ${svc?.name ?? "service"} with ${biz}. Confirmed! See you then.`;
-    } else if (appt.status === "pending") {
-      msg = `Hi ${client.name}, your appointment request for ${formatDateDisplay(appt.date)} at ${formatTime(appt.time)} - ${endTime} for ${svc?.name ?? "service"} with ${biz} is being reviewed. We'll confirm shortly.`;
-    } else if (appt.status === "completed") {
-      msg = `Hi ${client.name}, thank you for your visit to ${biz} on ${formatDateDisplay(appt.date)} for ${svc?.name ?? "service"}. We hope to see you again!`;
-    } else if (appt.status === "cancelled") {
-      msg = `Hi ${client.name}, your appointment with ${biz} on ${formatDateDisplay(appt.date)} at ${formatTime(appt.time)} for ${svc?.name ?? "service"} has been cancelled. Please contact us to reschedule.`;
-    }
-
-    const smsUrl = Platform.OS === "ios"
-      ? `sms:${client.phone}&body=${encodeURIComponent(msg)}`
-      : `sms:${client.phone}?body=${encodeURIComponent(msg)}`;
-    Linking.openURL(smsUrl).catch(() => {});
-  };
-
-  const handleGeneralMessage = () => {
-    if (!client.phone) return;
-    const msg = `Hi ${client.name}, this is ${state.settings.businessName}. We'd love to hear from you! Feel free to book your next appointment anytime.`;
-    const smsUrl = Platform.OS === "ios"
-      ? `sms:${client.phone}&body=${encodeURIComponent(msg)}`
-      : `sms:${client.phone}?body=${encodeURIComponent(msg)}`;
-    Linking.openURL(smsUrl).catch(() => {});
-  };
-
+  const avgRating = reviews.length > 0 ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1) : null;
   const upcomingAppts = appointments.filter((a) => a.status === "confirmed" || a.status === "pending");
   const pastAppts = appointments.filter((a) => a.status === "completed" || a.status === "cancelled");
 
+  const tabs: { key: TabKey; label: string; count?: number }[] = [
+    { key: "appointments", label: "Appointments", count: appointments.length },
+    { key: "messages", label: "Messages" },
+    { key: "reviews", label: "Reviews", count: reviews.length },
+  ];
+
   return (
-    <ScreenContainer edges={["top", "bottom", "left", "right"]} className="p-5">
-      {/* Header */}
-      <View className="flex-row items-center justify-between mb-6">
-        <View className="flex-row items-center">
+    <ScreenContainer edges={["top", "bottom", "left", "right"]}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}>
+        {/* Header */}
+        <View style={styles.topBar}>
           <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
-            <IconSymbol name="arrow.left" size={24} color={colors.foreground} />
+            <IconSymbol name="chevron.left" size={24} color={colors.primary} />
           </Pressable>
-          <Text className="text-xl font-bold text-foreground ml-4">Client</Text>
-        </View>
-        {!editing && (
-          <Pressable
-            onPress={() => {
-              setEditName(client.name);
-              setEditPhone(client.phone);
-              setEditEmail(client.email);
-              setEditNotes(client.notes);
-              setEditing(true);
-            }}
-            style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}
-          >
-            <IconSymbol name="pencil" size={22} color={colors.primary} />
-          </Pressable>
-        )}
-      </View>
-
-      <FlatList
-        data={editing ? [] : [...upcomingAppts, ...pastAppts]}
-        keyExtractor={(item) => item.id}
-        showsVerticalScrollIndicator={false}
-        ListHeaderComponent={
-          <View>
-            {/* Profile Card */}
-            {editing ? (
-              <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
-                <TextInput
-                  className="bg-background rounded-xl px-3 py-3 text-sm mb-2 border border-border"
-                  placeholder="Full Name *"
-                  placeholderTextColor={colors.muted}
-                  value={editName}
-                  onChangeText={setEditName}
-                  style={{ color: colors.foreground }}
-                  returnKeyType="next"
-                />
-                <TextInput
-                  className="bg-background rounded-xl px-3 py-3 text-sm mb-2 border border-border"
-                  placeholder="Phone"
-                  placeholderTextColor={colors.muted}
-                  value={editPhone}
-                  onChangeText={setEditPhone}
-                  keyboardType="phone-pad"
-                  style={{ color: colors.foreground }}
-                  returnKeyType="next"
-                />
-                <TextInput
-                  className="bg-background rounded-xl px-3 py-3 text-sm mb-2 border border-border"
-                  placeholder="Email"
-                  placeholderTextColor={colors.muted}
-                  value={editEmail}
-                  onChangeText={setEditEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  style={{ color: colors.foreground }}
-                  returnKeyType="next"
-                />
-                <TextInput
-                  className="bg-background rounded-xl px-3 py-3 text-sm mb-3 border border-border"
-                  placeholder="Notes"
-                  placeholderTextColor={colors.muted}
-                  value={editNotes}
-                  onChangeText={setEditNotes}
-                  multiline
-                  numberOfLines={3}
-                  style={{ color: colors.foreground, minHeight: 60, textAlignVertical: "top" }}
-                  returnKeyType="done"
-                />
-                <View className="flex-row gap-2">
-                  <Pressable
-                    onPress={() => setEditing(false)}
-                    style={({ pressed }) => [
-                      styles.formButton,
-                      { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, opacity: pressed ? 0.7 : 1 },
-                    ]}
-                  >
-                    <Text className="text-sm font-medium text-foreground">Cancel</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={handleSave}
-                    style={({ pressed }) => [
-                      styles.formButton,
-                      { backgroundColor: colors.primary, flex: 1, opacity: pressed ? 0.8 : 1 },
-                    ]}
-                  >
-                    <Text className="text-sm font-semibold text-white">Save</Text>
-                  </Pressable>
-                </View>
-              </View>
-            ) : (
-              <View className="items-center mb-6">
-                <View style={[styles.bigAvatar, { backgroundColor: colors.primary + "20" }]}>
-                  <Text className="text-2xl font-bold" style={{ color: colors.primary }}>
-                    {getInitials(client.name)}
-                  </Text>
-                </View>
-                <Text className="text-xl font-bold text-foreground mt-3">{client.name}</Text>
-                {client.phone ? (
-                  <View className="flex-row items-center mt-2">
-                    <IconSymbol name="phone.fill" size={14} color={colors.muted} />
-                    <Text className="text-sm text-muted ml-1">{client.phone}</Text>
-                  </View>
-                ) : null}
-                {client.email ? (
-                  <View className="flex-row items-center mt-1">
-                    <IconSymbol name="envelope.fill" size={14} color={colors.muted} />
-                    <Text className="text-sm text-muted ml-1">{client.email}</Text>
-                  </View>
-                ) : null}
-                {client.notes ? (
-                  <View className="bg-surface rounded-xl p-3 mt-3 w-full border border-border">
-                    <Text className="text-xs text-muted mb-1">Notes</Text>
-                    <Text className="text-sm text-foreground">{client.notes}</Text>
-                  </View>
-                ) : null}
-
-                {/* Message Button */}
-                {client.phone ? (
-                  <Pressable
-                    onPress={handleGeneralMessage}
-                    style={({ pressed }) => [
-                      styles.messageBtn,
-                      { borderColor: colors.primary, opacity: pressed ? 0.8 : 1 },
-                    ]}
-                  >
-                    <IconSymbol name="paperplane.fill" size={16} color={colors.primary} />
-                    <Text style={[styles.messageBtnText, { color: colors.primary }]}>Message</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            )}
-
-            {!editing && (
-              <>
-                {upcomingAppts.length > 0 && (
-                  <Text className="text-base font-semibold text-foreground mb-3">
-                    Upcoming ({upcomingAppts.length})
-                  </Text>
-                )}
-                {upcomingAppts.length === 0 && pastAppts.length > 0 && (
-                  <Text className="text-base font-semibold text-foreground mb-3">
-                    Past Visits ({pastAppts.length})
-                  </Text>
-                )}
-              </>
-            )}
-          </View>
-        }
-        renderItem={({ item, index }) => {
-          const service = getServiceById(item.serviceId);
-          const isFirstPast = index === upcomingAppts.length && upcomingAppts.length > 0;
-          const endTime = formatTime(minutesToTime(timeToMinutes(item.time) + item.duration));
-          return (
-            <View>
-              {isFirstPast && (
-                <Text className="text-base font-semibold text-foreground mb-3 mt-4">
-                  Past Visits ({pastAppts.length})
-                </Text>
-              )}
-              <View
-                style={[
-                  styles.apptRow,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
-                ]}
-              >
-                <Pressable
-                  onPress={() =>
-                    router.push({ pathname: "/appointment-detail" as any, params: { id: item.id } })
-                  }
-                  style={({ pressed }) => [{ flex: 1, flexDirection: "row", alignItems: "center", opacity: pressed ? 0.7 : 1 }]}
-                >
-                  <View style={[styles.colorDot, { backgroundColor: service?.color ?? colors.primary }]} />
-                  <View style={styles.rowContent}>
-                    <Text className="text-sm font-semibold text-foreground">{service?.name ?? "Service"}</Text>
-                    <Text className="text-xs text-muted">
-                      {formatDateDisplay(item.date)} · {formatTime(item.time)} - {endTime}
-                    </Text>
-                  </View>
-                  <View
-                    className="rounded-full px-2 py-0.5"
-                    style={{
-                      backgroundColor:
-                        item.status === "completed" ? colors.success + "20" :
-                        item.status === "cancelled" ? colors.error + "20" :
-                        item.status === "pending" ? "#FF980020" :
-                        colors.primary + "20",
-                    }}
-                  >
-                    <Text
-                      className="text-xs capitalize"
-                      style={{
-                        color:
-                          item.status === "completed" ? colors.success :
-                          item.status === "cancelled" ? colors.error :
-                          item.status === "pending" ? "#FF9800" :
-                          colors.primary,
-                      }}
-                    >
-                      {item.status}
-                    </Text>
-                  </View>
-                </Pressable>
-                {/* Message icon for this appointment */}
-                {client.phone ? (
-                  <Pressable
-                    onPress={() => handleMessageForAppointment(item)}
-                    style={({ pressed }) => [
-                      styles.msgIcon,
-                      { backgroundColor: colors.primary + "12", opacity: pressed ? 0.6 : 1 },
-                    ]}
-                  >
-                    <IconSymbol name="paperplane.fill" size={14} color={colors.primary} />
-                  </Pressable>
-                ) : null}
-              </View>
-            </View>
-          );
-        }}
-        ListFooterComponent={
-          !editing ? (
+          <Text style={{ fontSize: 17, fontWeight: "600", color: colors.foreground }}>Client</Text>
+          {!editing ? (
             <Pressable
-              onPress={handleDelete}
-              style={({ pressed }) => [
-                styles.deleteButton,
-                { borderColor: colors.error, opacity: pressed ? 0.7 : 1 },
-              ]}
+              onPress={() => { setEditName(client.name); setEditPhone(client.phone); setEditEmail(client.email); setEditNotes(client.notes); setEditing(true); }}
+              style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}
             >
-              <Text className="text-sm font-medium" style={{ color: colors.error }}>
-                Delete Client
-              </Text>
+              <IconSymbol name="pencil" size={20} color={colors.primary} />
             </Pressable>
-          ) : null
-        }
-        ListEmptyComponent={
-          !editing ? (
-            <View className="items-center py-8">
-              <Text className="text-sm text-muted">No appointment history</Text>
+          ) : (
+            <View style={{ width: 24 }} />
+          )}
+        </View>
+
+        {/* Profile Card */}
+        {editing ? (
+          <View style={[styles.editCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground, marginBottom: 12 }}>Edit Client</Text>
+            <TextInput style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]} placeholder="Full Name *" placeholderTextColor={colors.muted} value={editName} onChangeText={setEditName} returnKeyType="next" />
+            <TextInput style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]} placeholder="Phone" placeholderTextColor={colors.muted} value={editPhone} onChangeText={setEditPhone} keyboardType="phone-pad" returnKeyType="next" />
+            <TextInput style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]} placeholder="Email" placeholderTextColor={colors.muted} value={editEmail} onChangeText={setEditEmail} keyboardType="email-address" autoCapitalize="none" returnKeyType="next" />
+            <TextInput style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground, minHeight: 60, textAlignVertical: "top" }]} placeholder="Notes" placeholderTextColor={colors.muted} value={editNotes} onChangeText={setEditNotes} multiline numberOfLines={3} returnKeyType="done" />
+            <View style={styles.editActions}>
+              <Pressable onPress={() => setEditing(false)} style={({ pressed }) => [styles.cancelBtn, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}>
+                <Text style={{ fontSize: 14, color: colors.foreground }}>Cancel</Text>
+              </Pressable>
+              <Pressable onPress={handleSave} style={({ pressed }) => [styles.saveBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}>
+                <Text style={{ fontSize: 14, fontWeight: "600", color: "#FFF" }}>Save</Text>
+              </Pressable>
             </View>
-          ) : null
-        }
-        contentContainerStyle={{ paddingBottom: 40 }}
-      />
+          </View>
+        ) : (
+          <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[styles.bigAvatar, { backgroundColor: colors.primary + "20" }]}>
+              <Text style={{ fontSize: 24, fontWeight: "700", color: colors.primary }}>{getInitials(client.name)}</Text>
+            </View>
+            <Text style={{ fontSize: 20, fontWeight: "700", color: colors.foreground, marginTop: 12 }}>{client.name}</Text>
+            {avgRating && (
+              <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
+                <IconSymbol name="star.fill" size={14} color="#FFB300" />
+                <Text style={{ fontSize: 14, fontWeight: "600", color: "#FFB300", marginLeft: 4 }}>{avgRating}</Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginLeft: 4 }}>({reviews.length})</Text>
+              </View>
+            )}
+            <View style={styles.contactRow}>
+              {client.phone ? (
+                <Pressable onPress={() => Linking.openURL(`tel:${client.phone}`)} style={({ pressed }) => [styles.contactChip, { backgroundColor: colors.primary + "12", opacity: pressed ? 0.7 : 1 }]}>
+                  <IconSymbol name="phone.fill" size={14} color={colors.primary} />
+                  <Text style={{ fontSize: 12, color: colors.primary, marginLeft: 6 }}>{client.phone}</Text>
+                </Pressable>
+              ) : null}
+              {client.email ? (
+                <Pressable onPress={() => Linking.openURL(`mailto:${client.email}`)} style={({ pressed }) => [styles.contactChip, { backgroundColor: colors.primary + "12", opacity: pressed ? 0.7 : 1 }]}>
+                  <IconSymbol name="envelope.fill" size={14} color={colors.primary} />
+                  <Text style={{ fontSize: 12, color: colors.primary, marginLeft: 6 }} numberOfLines={1}>{client.email}</Text>
+                </Pressable>
+              ) : null}
+            </View>
+            {client.notes ? (
+              <View style={[styles.notesBox, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 2 }}>Notes</Text>
+                <Text style={{ fontSize: 13, color: colors.foreground, lineHeight: 18 }}>{client.notes}</Text>
+              </View>
+            ) : null}
+            {client.phone ? (
+              <Pressable onPress={handleQuickMessage} style={({ pressed }) => [styles.quickMsgBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}>
+                <IconSymbol name="paperplane.fill" size={16} color="#FFF" />
+                <Text style={{ fontSize: 14, fontWeight: "600", color: "#FFF", marginLeft: 8 }}>Send Message</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        )}
+
+        {/* Tabs */}
+        {!editing && (
+          <>
+            <View style={[styles.tabBar, { borderColor: colors.border }]}>
+              {tabs.map((tab) => (
+                <Pressable key={tab.key} onPress={() => setActiveTab(tab.key)} style={({ pressed }) => [styles.tabItem, { borderBottomColor: activeTab === tab.key ? colors.primary : "transparent", opacity: pressed ? 0.7 : 1 }]}>
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: activeTab === tab.key ? colors.primary : colors.muted }}>{tab.label}</Text>
+                  {tab.count !== undefined && tab.count > 0 && (
+                    <View style={[styles.tabBadge, { backgroundColor: activeTab === tab.key ? colors.primary : colors.muted + "30" }]}>
+                      <Text style={{ fontSize: 10, fontWeight: "700", color: activeTab === tab.key ? "#FFF" : colors.muted }}>{tab.count}</Text>
+                    </View>
+                  )}
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Appointments Tab */}
+            {activeTab === "appointments" && (
+              <View>
+                {upcomingAppts.length > 0 && <Text style={[styles.sectionLabel, { color: colors.foreground }]}>Upcoming ({upcomingAppts.length})</Text>}
+                {upcomingAppts.map((appt) => {
+                  const svc = getServiceById(appt.serviceId);
+                  const statusColor = appt.status === "confirmed" ? colors.success : appt.status === "pending" ? "#FF9800" : colors.primary;
+                  return (
+                    <Pressable key={appt.id} onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })} style={({ pressed }) => [styles.apptCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: svc?.color ?? colors.primary, opacity: pressed ? 0.8 : 1 }]}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{svc?.name ?? "Service"}</Text>
+                        <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{formatDateDisplay(appt.date)} · {formatTime(appt.time)} - {formatTime(minutesToTime(timeToMinutes(appt.time) + appt.duration))}</Text>
+                      </View>
+                      <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
+                        <Text style={{ fontSize: 10, fontWeight: "600", color: statusColor, textTransform: "capitalize" }}>{appt.status}</Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+                {pastAppts.length > 0 && <Text style={[styles.sectionLabel, { color: colors.foreground, marginTop: 12 }]}>Past ({pastAppts.length})</Text>}
+                {pastAppts.map((appt) => {
+                  const svc = getServiceById(appt.serviceId);
+                  const statusColor = appt.status === "completed" ? colors.success : colors.error;
+                  return (
+                    <Pressable key={appt.id} onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })} style={({ pressed }) => [styles.apptCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: svc?.color ?? colors.primary, opacity: pressed ? 0.8 : 1 }]}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{svc?.name ?? "Service"}</Text>
+                        <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{formatDateDisplay(appt.date)} · {formatTime(appt.time)} - {formatTime(minutesToTime(timeToMinutes(appt.time) + appt.duration))}</Text>
+                      </View>
+                      <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
+                        <Text style={{ fontSize: 10, fontWeight: "600", color: statusColor, textTransform: "capitalize" }}>{appt.status}</Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+                {appointments.length === 0 && (
+                  <View style={styles.emptyState}>
+                    <IconSymbol name="calendar" size={36} color={colors.muted + "60"} />
+                    <Text style={{ color: colors.muted, fontSize: 14, marginTop: 8 }}>No appointments yet</Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Messages Tab */}
+            {activeTab === "messages" && (
+              <View>
+                {appointments.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <IconSymbol name="paperplane.fill" size={36} color={colors.muted + "60"} />
+                    <Text style={{ color: colors.muted, fontSize: 14, marginTop: 8 }}>No appointments to message about</Text>
+                  </View>
+                ) : (
+                  appointments.map((appt) => {
+                    const svc = getServiceById(appt.serviceId);
+                    const dateStr = formatDateDisplay(appt.date);
+                    const msgTypes: { key: "confirmation" | "reminder" | "upcoming" | "cancelled" | "completed"; label: string; icon: string; color: string }[] = [];
+                    if (appt.status === "confirmed") {
+                      msgTypes.push({ key: "confirmation", label: "Confirmed", icon: "checkmark.circle.fill", color: colors.success });
+                      msgTypes.push({ key: "reminder", label: "Reminder", icon: "bell.fill", color: "#FF9800" });
+                    }
+                    if (appt.status === "pending") {
+                      msgTypes.push({ key: "upcoming", label: "Upcoming", icon: "clock.fill", color: "#2196F3" });
+                    }
+                    if (appt.status === "cancelled") {
+                      msgTypes.push({ key: "cancelled", label: "Cancelled", icon: "xmark.circle.fill", color: colors.error });
+                    }
+                    if (appt.status === "completed") {
+                      msgTypes.push({ key: "completed", label: "Thank You", icon: "heart.fill", color: "#9C27B0" });
+                    }
+                    return (
+                      <View key={appt.id} style={[styles.msgCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                        <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{svc?.name ?? "Service"}</Text>
+                        <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{dateStr} at {formatTime(appt.time)}</Text>
+                        <View style={styles.msgButtons}>
+                          {msgTypes.map((mt) => (
+                            <Pressable
+                              key={mt.key}
+                              onPress={() => handleSendMessage(appt, mt.key)}
+                              style={({ pressed }) => [styles.msgBtn, { backgroundColor: mt.color + "12", borderColor: mt.color + "30", opacity: pressed ? 0.7 : 1 }]}
+                            >
+                              <IconSymbol name={mt.icon as any} size={14} color={mt.color} />
+                              <Text style={{ fontSize: 12, fontWeight: "600", color: mt.color, marginLeft: 6 }}>{mt.label}</Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </View>
+                    );
+                  })
+                )}
+              </View>
+            )}
+
+            {/* Reviews Tab */}
+            {activeTab === "reviews" && (
+              <View>
+                <Pressable onPress={() => setShowReviewForm(!showReviewForm)} style={({ pressed }) => [styles.addReviewBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}>
+                  <IconSymbol name="plus" size={16} color="#FFF" />
+                  <Text style={{ fontSize: 14, fontWeight: "600", color: "#FFF", marginLeft: 6 }}>Add Review</Text>
+                </Pressable>
+
+                {showReviewForm && (
+                  <View style={[styles.reviewForm, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground, marginBottom: 10 }}>New Review</Text>
+                    <View style={styles.starsRow}>
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Pressable key={star} onPress={() => setReviewRating(star)} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, padding: 4 }]}>
+                          <IconSymbol name="star.fill" size={28} color={star <= reviewRating ? "#FFB300" : colors.border} />
+                        </Pressable>
+                      ))}
+                    </View>
+                    <TextInput style={[styles.reviewInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]} placeholder="Write a comment (optional)..." placeholderTextColor={colors.muted} value={reviewComment} onChangeText={setReviewComment} multiline numberOfLines={3} />
+                    <View style={styles.reviewActions}>
+                      <Pressable onPress={() => setShowReviewForm(false)} style={({ pressed }) => [styles.reviewCancelBtn, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}>
+                        <Text style={{ fontSize: 13, color: colors.foreground }}>Cancel</Text>
+                      </Pressable>
+                      <Pressable onPress={handleAddReview} style={({ pressed }) => [styles.reviewSaveBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}>
+                        <Text style={{ fontSize: 13, fontWeight: "600", color: "#FFF" }}>Save Review</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
+
+                {reviews.length === 0 && !showReviewForm ? (
+                  <View style={styles.emptyState}>
+                    <IconSymbol name="star.fill" size={36} color={colors.muted + "60"} />
+                    <Text style={{ color: colors.muted, fontSize: 14, marginTop: 8 }}>No reviews yet</Text>
+                  </View>
+                ) : (
+                  reviews.map((rev) => (
+                    <View key={rev.id} style={[styles.reviewCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                      <View style={styles.reviewHeader}>
+                        <View style={{ flexDirection: "row" }}>
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <IconSymbol key={star} name="star.fill" size={14} color={star <= rev.rating ? "#FFB300" : colors.border} />
+                          ))}
+                        </View>
+                        <Pressable onPress={() => handleDeleteReview(rev.id)} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+                          <IconSymbol name="trash.fill" size={14} color={colors.error + "80"} />
+                        </Pressable>
+                      </View>
+                      {rev.comment ? <Text style={{ fontSize: 13, color: colors.foreground, marginTop: 6, lineHeight: 18 }}>{rev.comment}</Text> : null}
+                      <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6 }}>
+                        {new Date(rev.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      </Text>
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
+
+            {/* Delete Client */}
+            <Pressable onPress={handleDelete} style={({ pressed }) => [styles.deleteBtn, { borderColor: colors.error, opacity: pressed ? 0.7 : 1 }]}>
+              <Text style={{ fontSize: 14, fontWeight: "500", color: colors.error }}>Delete Client</Text>
+            </Pressable>
+          </>
+        )}
+      </ScrollView>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  bigAvatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  apptRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-  },
-  colorDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 12,
-  },
-  rowContent: {
-    flex: 1,
-  },
-  formButton: {
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 16,
-  },
-  deleteButton: {
-    alignItems: "center",
-    paddingVertical: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    marginTop: 20,
-  },
-  messageBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    marginTop: 12,
-  },
-  messageBtnText: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginLeft: 6,
-  },
-  msgIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 8,
-  },
+  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 12 },
+  infoCard: { borderRadius: 16, padding: 20, borderWidth: 1, alignItems: "center", marginBottom: 16 },
+  editCard: { borderRadius: 16, padding: 16, borderWidth: 1, marginBottom: 16 },
+  bigAvatar: { width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center" },
+  contactRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12, justifyContent: "center" },
+  contactChip: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  notesBox: { borderRadius: 12, padding: 12, marginTop: 12, borderWidth: 1, width: "100%" },
+  quickMsgBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12, marginTop: 14, width: "100%" },
+  input: { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12, fontSize: 14, marginBottom: 8, borderWidth: 1 },
+  editActions: { flexDirection: "row", gap: 8, marginTop: 4 },
+  cancelBtn: { paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, alignItems: "center" },
+  saveBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: "center" },
+  tabBar: { flexDirection: "row", borderBottomWidth: 1, marginBottom: 16 },
+  tabItem: { flex: 1, alignItems: "center", paddingVertical: 12, borderBottomWidth: 2, flexDirection: "row", justifyContent: "center", gap: 6 },
+  tabBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, minWidth: 20, alignItems: "center" },
+  sectionLabel: { fontSize: 14, fontWeight: "600", marginBottom: 8 },
+  apptCard: { flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 14, marginBottom: 8, borderWidth: 1, borderLeftWidth: 4 },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  emptyState: { alignItems: "center", paddingVertical: 40 },
+  msgCard: { borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1 },
+  msgButtons: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
+  msgBtn: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
+  addReviewBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 12, borderRadius: 12, marginBottom: 14 },
+  reviewForm: { borderRadius: 16, padding: 16, borderWidth: 1, marginBottom: 14 },
+  starsRow: { flexDirection: "row", justifyContent: "center", marginBottom: 12 },
+  reviewInput: { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, borderWidth: 1, minHeight: 80, textAlignVertical: "top" },
+  reviewActions: { flexDirection: "row", gap: 8, marginTop: 12 },
+  reviewCancelBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1 },
+  reviewSaveBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center" },
+  reviewCard: { borderRadius: 14, padding: 14, marginBottom: 8, borderWidth: 1 },
+  reviewHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  deleteBtn: { alignItems: "center", paddingVertical: 12, borderRadius: 14, borderWidth: 1, marginTop: 24 },
 });

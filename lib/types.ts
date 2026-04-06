@@ -30,6 +30,15 @@ export interface Appointment {
   createdAt: string;
 }
 
+export interface Review {
+  id: string;
+  clientId: string;
+  appointmentId?: string;
+  rating: number; // 1-5
+  comment: string;
+  createdAt: string;
+}
+
 export interface WorkingHours {
   enabled: boolean;
   start: string; // HH:MM
@@ -60,6 +69,8 @@ export interface BusinessSettings {
   themeMode: "light" | "dark" | "system";
   cancellationPolicy: CancellationPolicy;
   onboardingComplete: boolean;
+  temporaryClosed: boolean;
+  businessLogoUri: string; // local URI for custom uploaded logo
 }
 
 export const SERVICE_COLORS = [
@@ -186,3 +197,6 @@ export function generateAllTimeOptions(): string[] {
   }
   return options;
 }
+
+/** Public booking URL base */
+export const PUBLIC_BOOKING_URL = "http://limeoftime.com";

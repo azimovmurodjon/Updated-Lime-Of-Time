@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useEffect, useCallback } from "react";
 import {
   Text,
   View,
@@ -7,17 +7,20 @@ import {
   Share,
   useWindowDimensions,
   ScrollView,
+  Image,
+  Alert,
+  Platform,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatTime, formatDateStr } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter } from "expo-router";
-import { minutesToTime, timeToMinutes } from "@/lib/types";
-import { useEffect } from "react";
+import { minutesToTime, timeToMinutes, PUBLIC_BOOKING_URL } from "@/lib/types";
+import * as ImagePicker from "expo-image-picker";
 
 export default function HomeScreen() {
-  const { state, getServiceById, getClientById, getAppointmentsForDate } = useStore();
+  const { state, dispatch, getServiceById, getClientById, getAppointmentsForDate } = useStore();
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -74,15 +77,36 @@ export default function HomeScreen() {
 
   const pendingCount = state.appointments.filter((a) => a.status === "pending").length;
 
-  const handleShareBookingLink = async () => {
-    const url = `https://limeoftime.app/book/${state.settings.businessName.replace(/\s+/g, "-").toLowerCase()}`;
+  const handleShareBookingLink = useCallback(async () => {
+    const slug = state.settings.businessName.replace(/\s+/g, "-").toLowerCase();
+    const url = `${PUBLIC_BOOKING_URL}/book/${slug}`;
     try {
       await Share.share({
         message: `Book an appointment with ${state.settings.businessName}!\n\n${url}`,
         title: "Book an Appointment",
       });
     } catch {}
-  };
+  }, [state.settings.businessName]);
+
+  const handlePickLogo = useCallback(async () => {
+    if (Platform.OS === "web") {
+      Alert.alert("Not Available", "Image upload is available on mobile devices.");
+      return;
+    }
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets[0]) {
+        dispatch({ type: "UPDATE_SETTINGS", payload: { businessLogoUri: result.assets[0].uri } });
+      }
+    } catch {
+      Alert.alert("Error", "Failed to pick image. Please try again.");
+    }
+  }, [dispatch]);
 
   const slides = [
     {
@@ -128,51 +152,65 @@ export default function HomeScreen() {
     return formatTime(minutesToTime(timeToMinutes(time) + duration));
   };
 
+  const logoSource = state.settings.businessLogoUri
+    ? { uri: state.settings.businessLogoUri }
+    : require("@/assets/images/icon.png");
+
   return (
     <ScreenContainer>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: hp, paddingTop: 8, paddingBottom: 100 }}
       >
-        {/* Greeting */}
-        <Text style={[styles.greeting, { color: colors.foreground }]}>{greeting}</Text>
+        {/* Business Header */}
+        <View style={styles.businessHeader}>
+          <Pressable onPress={handlePickLogo} style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}>
+            <Image source={logoSource} style={styles.businessLogo} resizeMode="cover" />
+            <View style={[styles.cameraOverlay, { backgroundColor: colors.primary }]}>
+              <IconSymbol name="camera.fill" size={10} color="#FFF" />
+            </View>
+          </Pressable>
+          <View style={{ flex: 1, marginLeft: 14 }}>
+            <Text style={{ fontSize: 20, fontWeight: "700", color: colors.foreground }} numberOfLines={1}>
+              {state.settings.businessName}
+            </Text>
+            <Text style={{ fontSize: 13, color: colors.muted, marginTop: 2 }}>{greeting}</Text>
+          </View>
+          {state.settings.temporaryClosed && (
+            <View style={[styles.closedBadge, { backgroundColor: colors.error + "15" }]}>
+              <Text style={{ fontSize: 10, fontWeight: "700", color: colors.error }}>CLOSED</Text>
+            </View>
+          )}
+        </View>
+
         <Text style={[styles.dateLabel, { color: colors.muted }]}>{dateLabel}</Text>
 
         {/* Pending badge */}
         {pendingCount > 0 && (
           <Pressable
-            onPress={() =>
-              router.push({ pathname: "/(tabs)/calendar", params: { filter: "requests" } })
-            }
-            style={({ pressed }) => [
-              styles.pendingBanner,
-              {
-                backgroundColor: "#FFF3E0",
-                borderColor: "#FF9800",
-                opacity: pressed ? 0.8 : 1,
-              },
-            ]}
+            onPress={() => router.push({ pathname: "/(tabs)/calendar", params: { filter: "requests" } })}
+            style={({ pressed }) => [styles.pendingBanner, { backgroundColor: "#FFF3E0", borderColor: "#FF9800", opacity: pressed ? 0.8 : 1 }]}
           >
             <IconSymbol name="questionmark.circle.fill" size={20} color="#FF9800" />
-            <Text
-              style={{
-                color: "#E65100",
-                fontSize: 14,
-                fontWeight: "600",
-                marginLeft: 8,
-                flex: 1,
-              }}
-            >
+            <Text style={{ color: "#E65100", fontSize: 14, fontWeight: "600", marginLeft: 8, flex: 1 }}>
               {pendingCount} appointment request{pendingCount > 1 ? "s" : ""} pending
             </Text>
             <IconSymbol name="chevron.right" size={16} color="#FF9800" />
           </Pressable>
         )}
 
+        {/* Temporary Closed Banner */}
+        {state.settings.temporaryClosed && (
+          <View style={[styles.closedBanner, { backgroundColor: colors.error + "10", borderColor: colors.error + "30" }]}>
+            <IconSymbol name="exclamationmark.triangle.fill" size={18} color={colors.error} />
+            <Text style={{ fontSize: 13, color: colors.error, fontWeight: "500", marginLeft: 8 }}>
+              Business is temporarily closed. New bookings are paused.
+            </Text>
+          </View>
+        )}
+
         {/* Analytics Slides */}
-        <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 20 }]}>
-          Dashboard
-        </Text>
+        <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 20 }]}>Dashboard</Text>
         <View style={styles.slidesGrid}>
           {slides.map((slide) => (
             <Pressable
@@ -195,9 +233,7 @@ export default function HomeScreen() {
               <Text style={[styles.slideValue, { color: slide.color }]}>{slide.value}</Text>
               <Text style={[styles.slideTitle, { color: slide.color + "CC" }]}>{slide.title}</Text>
               {slide.sub ? (
-                <Text style={{ fontSize: 11, color: slide.color + "99", marginTop: 2 }}>
-                  {slide.sub}
-                </Text>
+                <Text style={{ fontSize: 11, color: slide.color + "99", marginTop: 2 }}>{slide.sub}</Text>
               ) : null}
             </Pressable>
           ))}
@@ -206,38 +242,21 @@ export default function HomeScreen() {
         {/* Share Booking Link */}
         <Pressable
           onPress={handleShareBookingLink}
-          style={({ pressed }) => [
-            styles.bookingLinkBtn,
-            { borderColor: colors.primary, opacity: pressed ? 0.8 : 1 },
-          ]}
+          style={({ pressed }) => [styles.bookingLinkBtn, { borderColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
         >
           <IconSymbol name="paperplane.fill" size={18} color={colors.primary} />
-          <Text style={[styles.bookingLinkText, { color: colors.primary }]}>
-            Send Booking Link to Client
-          </Text>
+          <Text style={[styles.bookingLinkText, { color: colors.primary }]}>Send Booking Link to Client</Text>
         </Pressable>
 
         {/* Today's Schedule */}
-        <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 24 }]}>
-          Today's Schedule
-        </Text>
+        <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 24 }]}>Today's Schedule</Text>
         {todayAppts.length === 0 ? (
-          <View
-            style={[
-              styles.emptyCard,
-              { backgroundColor: colors.surface, borderColor: colors.border },
-            ]}
-          >
+          <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <IconSymbol name="calendar" size={36} color={colors.muted + "60"} />
-            <Text style={{ color: colors.muted, fontSize: 14, marginTop: 8 }}>
-              No appointments today
-            </Text>
+            <Text style={{ color: colors.muted, fontSize: 14, marginTop: 8 }}>No appointments today</Text>
             <Pressable
               onPress={() => router.push("/new-booking")}
-              style={({ pressed }) => [
-                styles.bookBtn,
-                { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
-              ]}
+              style={({ pressed }) => [styles.bookBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}
             >
               <Text style={styles.bookBtnText}>Book an Appointment</Text>
             </Pressable>
@@ -257,9 +276,7 @@ export default function HomeScreen() {
             return (
               <Pressable
                 key={appt.id}
-                onPress={() =>
-                  router.push({ pathname: "/appointment-detail", params: { id: appt.id } })
-                }
+                onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })}
                 style={({ pressed }) => [
                   styles.apptCard,
                   {
@@ -275,22 +292,11 @@ export default function HomeScreen() {
                     <Text style={[styles.apptTime, { color: colors.foreground }]}>
                       {formatTime(appt.time)} - {getEndTime(appt.time, appt.duration)}
                     </Text>
-                    <Text style={[styles.apptService, { color: colors.foreground }]}>
-                      {svc?.name ?? "Service"}
-                    </Text>
-                    <Text style={{ fontSize: 13, color: colors.muted }}>
-                      {client?.name ?? "Client"}
-                    </Text>
+                    <Text style={[styles.apptService, { color: colors.foreground }]}>{svc?.name ?? "Service"}</Text>
+                    <Text style={{ fontSize: 13, color: colors.muted }}>{client?.name ?? "Client"}</Text>
                   </View>
                   <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
-                    <Text
-                      style={{
-                        fontSize: 11,
-                        fontWeight: "600",
-                        color: statusColor,
-                        textTransform: "capitalize",
-                      }}
-                    >
+                    <Text style={{ fontSize: 11, fontWeight: "600", color: statusColor, textTransform: "capitalize" }}>
                       {appt.status}
                     </Text>
                   </View>
@@ -302,10 +308,7 @@ export default function HomeScreen() {
       </ScrollView>
       <Pressable
         onPress={() => router.push("/new-booking")}
-        style={({ pressed }) => [
-          styles.fab,
-          { backgroundColor: colors.primary, right: hp, opacity: pressed ? 0.85 : 1 },
-        ]}
+        style={({ pressed }) => [styles.fab, { backgroundColor: colors.primary, right: hp, opacity: pressed ? 0.85 : 1 }]}
       >
         <IconSymbol name="plus" size={28} color="#FFF" />
       </Pressable>
@@ -314,10 +317,31 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  greeting: {
-    fontSize: 26,
-    fontWeight: "700",
-    lineHeight: 32,
+  businessHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+    paddingTop: 4,
+  },
+  businessLogo: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+  },
+  cameraOverlay: {
+    position: "absolute",
+    bottom: -2,
+    right: -2,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  closedBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
   dateLabel: {
     fontSize: 14,
@@ -331,6 +355,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     marginTop: 14,
+  },
+  closedBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 10,
   },
   sectionTitle: {
     fontSize: 18,
