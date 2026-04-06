@@ -13,6 +13,7 @@ import {
   Image,
   useWindowDimensions,
   Platform,
+  Linking,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatTime } from "@/lib/store";
@@ -21,6 +22,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter } from "expo-router";
 import { useThemeContext } from "@/lib/theme-provider";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { formatPhoneNumber, getMapUrl } from "@/lib/types";
 
 const DAYS_OF_WEEK = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
 const DAY_LABELS: Record<string, string> = {
@@ -82,10 +84,26 @@ export default function SettingsScreen() {
     setEditingName(false);
   }, [nameValue, dispatch]);
 
+  const handleProfilePhoneChange = useCallback((text: string) => {
+    setProfileForm((p) => ({ ...p, phone: formatPhoneNumber(text) }));
+  }, []);
+
   const saveProfile = useCallback(() => {
     dispatch({ type: "UPDATE_SETTINGS", payload: { profile: profileForm } });
     setEditingProfile(false);
   }, [profileForm, dispatch]);
+
+  const openAddressInMap = useCallback(() => {
+    const address = settings.profile.address;
+    if (!address) {
+      Alert.alert("No Address", "Please add an address to your business profile first.");
+      return;
+    }
+    const url = getMapUrl(address);
+    Linking.openURL(url).catch(() => {
+      Alert.alert("Error", "Could not open maps application.");
+    });
+  }, [settings.profile.address]);
 
   const toggleNotifications = useCallback(() => {
     dispatch({ type: "UPDATE_SETTINGS", payload: { notificationsEnabled: !settings.notificationsEnabled } });
@@ -275,32 +293,75 @@ export default function SettingsScreen() {
               </Pressable>
             )}
           </View>
+
           {editingProfile ? (
             <View>
-              {[
-                { key: "ownerName", label: "Owner Name", placeholder: "John Doe", kb: "default" as const },
-                { key: "phone", label: "Phone", placeholder: "+1 (555) 000-0000", kb: "phone-pad" as const },
-                { key: "email", label: "Email (optional)", placeholder: "you@business.com", kb: "email-address" as const },
-                { key: "address", label: "Address", placeholder: "123 Main St, City", kb: "default" as const },
-                { key: "website", label: "Website (optional)", placeholder: "https://...", kb: "url" as const },
-                { key: "description", label: "Description", placeholder: "Tell clients about your business...", kb: "default" as const },
-              ].map((field) => (
-                <View key={field.key}>
-                  <Text style={[styles.fieldLabel, { color: colors.muted }]}>{field.label}</Text>
-                  <TextInput
-                    style={[styles.profileInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-                    placeholder={field.placeholder}
-                    placeholderTextColor={colors.muted}
-                    value={(profileForm as any)[field.key]}
-                    onChangeText={(v) => setProfileForm((p) => ({ ...p, [field.key]: v }))}
-                    keyboardType={field.kb}
-                    autoCapitalize={field.key === "email" || field.key === "website" ? "none" : "words"}
-                    multiline={field.key === "description"}
-                    numberOfLines={field.key === "description" ? 3 : 1}
-                    returnKeyType="done"
-                  />
-                </View>
-              ))}
+              <Text style={[styles.fieldLabel, { color: colors.muted }]}>Owner Name</Text>
+              <TextInput
+                style={[styles.profileInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+                placeholder="John Doe"
+                placeholderTextColor={colors.muted}
+                value={profileForm.ownerName}
+                onChangeText={(v) => setProfileForm((p) => ({ ...p, ownerName: v }))}
+                returnKeyType="next"
+              />
+
+              <Text style={[styles.fieldLabel, { color: colors.muted }]}>Phone</Text>
+              <TextInput
+                style={[styles.profileInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+                placeholder="(000) 000-0000"
+                placeholderTextColor={colors.muted}
+                value={profileForm.phone}
+                onChangeText={handleProfilePhoneChange}
+                keyboardType="phone-pad"
+                returnKeyType="next"
+                maxLength={14}
+              />
+
+              <Text style={[styles.fieldLabel, { color: colors.muted }]}>Email (optional)</Text>
+              <TextInput
+                style={[styles.profileInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+                placeholder="you@business.com"
+                placeholderTextColor={colors.muted}
+                value={profileForm.email}
+                onChangeText={(v) => setProfileForm((p) => ({ ...p, email: v }))}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                returnKeyType="next"
+              />
+
+              <Text style={[styles.fieldLabel, { color: colors.muted }]}>Address</Text>
+              <TextInput
+                style={[styles.profileInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+                placeholder="4661 McKnight Road, Pittsburgh PA, 15237"
+                placeholderTextColor={colors.muted}
+                value={profileForm.address}
+                onChangeText={(v) => setProfileForm((p) => ({ ...p, address: v }))}
+                returnKeyType="next"
+              />
+
+              <Text style={[styles.fieldLabel, { color: colors.muted }]}>Website (optional)</Text>
+              <TextInput
+                style={[styles.profileInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+                placeholder="https://www.yourbusiness.com"
+                placeholderTextColor={colors.muted}
+                value={profileForm.website}
+                onChangeText={(v) => setProfileForm((p) => ({ ...p, website: v }))}
+                autoCapitalize="none"
+                returnKeyType="next"
+              />
+
+              <Text style={[styles.fieldLabel, { color: colors.muted }]}>Description</Text>
+              <TextInput
+                style={[styles.profileInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground, minHeight: 70, textAlignVertical: "top" }]}
+                placeholder="Tell clients about your business..."
+                placeholderTextColor={colors.muted}
+                value={profileForm.description}
+                onChangeText={(v) => setProfileForm((p) => ({ ...p, description: v }))}
+                multiline
+                numberOfLines={3}
+              />
+
               <View style={styles.profileActions}>
                 <Pressable onPress={() => setEditingProfile(false)} style={({ pressed }) => [styles.cancelButton, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}>
                   <Text style={{ fontSize: 14, color: colors.foreground }}>Cancel</Text>
@@ -331,16 +392,28 @@ export default function SettingsScreen() {
                 </View>
               ) : null}
               {settings.profile.address ? (
-                <View style={styles.profileRow}>
-                  <IconSymbol name="mappin" size={14} color={colors.muted} />
-                  <Text style={{ fontSize: 14, color: colors.foreground, marginLeft: 8 }}>{settings.profile.address}</Text>
-                </View>
+                <Pressable
+                  onPress={openAddressInMap}
+                  style={({ pressed }) => [styles.profileRow, { opacity: pressed ? 0.6 : 1 }]}
+                >
+                  <IconSymbol name="mappin" size={14} color={colors.primary} />
+                  <Text style={{ fontSize: 14, color: colors.primary, marginLeft: 8, textDecorationLine: "underline", flex: 1 }}>
+                    {settings.profile.address}
+                  </Text>
+                  <IconSymbol name="arrow.up.right.square" size={14} color={colors.primary} style={{ marginLeft: 4 }} />
+                </Pressable>
               ) : null}
               {settings.profile.website ? (
-                <View style={styles.profileRow}>
-                  <IconSymbol name="globe" size={14} color={colors.muted} />
-                  <Text style={{ fontSize: 14, color: colors.primary, marginLeft: 8 }}>{settings.profile.website}</Text>
-                </View>
+                <Pressable
+                  onPress={() => {
+                    const url = settings.profile.website.startsWith("http") ? settings.profile.website : `https://${settings.profile.website}`;
+                    Linking.openURL(url).catch(() => {});
+                  }}
+                  style={({ pressed }) => [styles.profileRow, { opacity: pressed ? 0.6 : 1 }]}
+                >
+                  <IconSymbol name="globe" size={14} color={colors.primary} />
+                  <Text style={{ fontSize: 14, color: colors.primary, marginLeft: 8, textDecorationLine: "underline" }}>{settings.profile.website}</Text>
+                </Pressable>
               ) : null}
               {settings.profile.description ? (
                 <Text style={{ fontSize: 13, color: colors.muted, marginTop: 6, lineHeight: 18 }}>{settings.profile.description}</Text>
@@ -633,7 +706,7 @@ const styles = StyleSheet.create({
   editInput: { flex: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, borderWidth: 1 },
   smallButton: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
   smallButtonText: { color: "#FFFFFF", fontSize: 12, fontWeight: "600" },
-  fieldLabel: { fontSize: 12, fontWeight: "500", marginBottom: 4, marginTop: 6 },
+  fieldLabel: { fontSize: 12, fontWeight: "500", marginBottom: 4, marginTop: 6, color: "#687076" },
   profileInput: { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, borderWidth: 1, marginBottom: 6 },
   profileActions: { flexDirection: "row", gap: 8, marginTop: 10 },
   cancelButton: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, alignItems: "center" },

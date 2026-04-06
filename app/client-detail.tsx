@@ -16,7 +16,21 @@ import { useStore, formatTime, formatDateDisplay, generateId } from "@/lib/store
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Review, minutesToTime, timeToMinutes, Appointment } from "@/lib/types";
+import {
+  Review,
+  minutesToTime,
+  timeToMinutes,
+  Appointment,
+  getServiceDisplayName,
+  getMapUrl,
+  stripPhoneFormat,
+  formatPhoneNumber,
+  formatDateLong,
+  formatTimeDisplay,
+  generateConfirmationMessage,
+  generateReminderMessage,
+  generateCancellationMessage,
+} from "@/lib/types";
 
 type TabKey = "appointments" | "messages" | "reviews";
 
@@ -33,6 +47,9 @@ export default function ClientDetailScreen() {
   const reviews = getReviewsForClient(id ?? "");
   const [activeTab, setActiveTab] = useState<TabKey>("appointments");
 
+  const biz = state.settings;
+  const profile = biz.profile;
+
   // Edit state
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(client?.name ?? "");
@@ -45,6 +62,10 @@ export default function ClientDetailScreen() {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
 
+  const handlePhoneChange = (text: string) => {
+    setEditPhone(formatPhoneNumber(text));
+  };
+
   const handleSave = useCallback(() => {
     if (!editName.trim() || !client) return;
     dispatch({
@@ -56,10 +77,18 @@ export default function ClientDetailScreen() {
 
   const handleDelete = useCallback(() => {
     if (!client) return;
-    Alert.alert("Delete Client", "This will remove the client permanently.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => { dispatch({ type: "DELETE_CLIENT", payload: client.id }); router.back(); } },
-    ]);
+    const doDelete = () => {
+      dispatch({ type: "DELETE_CLIENT", payload: client.id });
+      router.back();
+    };
+    if (Platform.OS === "web") {
+      doDelete();
+    } else {
+      Alert.alert("Delete Client", "This will remove the client permanently.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: doDelete },
+      ]);
+    }
   }, [client, dispatch, router]);
 
   const handleAddReview = useCallback(() => {
@@ -79,20 +108,29 @@ export default function ClientDetailScreen() {
 
   const handleDeleteReview = useCallback(
     (reviewId: string) => {
-      Alert.alert("Delete Review", "Are you sure?", [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => dispatch({ type: "DELETE_REVIEW", payload: reviewId }) },
-      ]);
+      const doIt = () => dispatch({ type: "DELETE_REVIEW", payload: reviewId });
+      if (Platform.OS === "web") {
+        doIt();
+      } else {
+        Alert.alert("Delete Review", "Are you sure?", [
+          { text: "Cancel", style: "cancel" },
+          { text: "Delete", style: "destructive", onPress: doIt },
+        ]);
+      }
     },
     [dispatch]
   );
 
   const openSMS = useCallback(
     (phone: string, message: string) => {
-      const smsUrl = Platform.OS === "ios"
-        ? `sms:${phone}&body=${encodeURIComponent(message)}`
-        : `sms:${phone}?body=${encodeURIComponent(message)}`;
-      Linking.openURL(smsUrl).catch(() => {});
+      const rawPhone = stripPhoneFormat(phone);
+      if (Platform.OS === "web") {
+        Alert.alert("SMS Message", message);
+        return;
+      }
+      const separator = Platform.OS === "ios" ? "&" : "?";
+      const url = `sms:${rawPhone}${separator}body=${encodeURIComponent(message)}`;
+      Linking.openURL(url).catch(() => Alert.alert("SMS", message));
     },
     []
   );
@@ -101,28 +139,32 @@ export default function ClientDetailScreen() {
     (appt: Appointment, type: "confirmation" | "reminder" | "upcoming" | "cancelled" | "completed") => {
       if (!client) return "";
       const svc = getServiceById(appt.serviceId);
-      const dateStr = formatDateDisplay(appt.date);
-      const startTime = formatTime(appt.time);
-      const endTime = formatTime(minutesToTime(timeToMinutes(appt.time) + appt.duration));
-      const bizName = state.settings.businessName;
-      const svcName = svc?.name ?? "your appointment";
+      const svcName = svc ? getServiceDisplayName(svc) : "your appointment";
+      const bizName = biz.businessName;
+      const addr = profile.address;
+      const bizPhone = profile.phone;
 
       switch (type) {
         case "confirmation":
-          return `Hi ${client.name}! Your appointment for ${svcName} at ${bizName} is confirmed for ${dateStr} at ${startTime} - ${endTime}. We look forward to seeing you!`;
+          return generateConfirmationMessage(bizName, addr, client.name, svcName, appt.duration, appt.date, appt.time, bizPhone);
         case "reminder":
-          return `Hi ${client.name}, friendly reminder about your ${svcName} appointment at ${bizName} on ${dateStr} at ${startTime}. See you soon!`;
-        case "upcoming":
-          return `Hi ${client.name}, your upcoming ${svcName} appointment at ${bizName} is scheduled for ${dateStr}, ${startTime} - ${endTime}. Please let us know if you need to reschedule.`;
+          return generateReminderMessage(bizName, addr, client.name, svcName, appt.duration, appt.date, appt.time, bizPhone);
+        case "upcoming": {
+          const endTime = formatTimeDisplay(minutesToTime(timeToMinutes(appt.time) + appt.duration));
+          const mapUrl = getMapUrl(addr);
+          return `Dear ${client.name},\n\nYou have an upcoming appointment request pending confirmation.\n\n📋 Service: ${svcName}\n📅 Date: ${formatDateLong(appt.date)}\n⏰ Time: ${formatTimeDisplay(appt.time)} - ${endTime}\n📍 Location: ${addr}\n🗺️ Map: ${mapUrl}\n🏢 Business: ${bizName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(bizPhone))}\n\nWe will confirm your appointment shortly. Thank you for your patience!\n\n${bizName}`;
+        }
         case "cancelled":
-          return `Hi ${client.name}, your ${svcName} appointment at ${bizName} on ${dateStr} at ${startTime} has been cancelled. Please contact us to reschedule.`;
-        case "completed":
-          return `Thank you ${client.name} for visiting ${bizName}! We hope you enjoyed your ${svcName}. We'd love to see you again!`;
+          return generateCancellationMessage(bizName, client.name, svcName, appt.date, appt.time, "", bizPhone);
+        case "completed": {
+          const mapUrl = getMapUrl(addr);
+          return `Dear ${client.name},\n\nThank you for visiting ${bizName}! Your appointment for ${svcName} on ${formatDateLong(appt.date)} has been completed.\n\nWe hope you had a wonderful experience and we'd love to see you again!\n\n📍 Location: ${addr}\n🗺️ Map: ${mapUrl}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(bizPhone))}\n\nBest regards,\n${bizName}`;
+        }
         default:
           return "";
       }
     },
-    [client, state.settings.businessName, getServiceById]
+    [client, biz.businessName, profile, getServiceById]
   );
 
   const handleSendMessage = useCallback(
@@ -142,9 +184,11 @@ export default function ClientDetailScreen() {
       Alert.alert("No Phone", "This client doesn't have a phone number.");
       return;
     }
-    const message = `Hi ${client.name}, thank you for being a valued client of ${state.settings.businessName}! We'd love to schedule your next appointment.`;
+    const addr = profile.address;
+    const mapUrl = addr ? `\n\n📍 Location: ${addr}\n🗺️ Map: ${getMapUrl(addr)}` : "";
+    const message = `Dear ${client.name},\n\nThank you for being a valued client of ${biz.businessName}! We'd love to schedule your next appointment.${mapUrl}\n\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(profile.phone))}\n\nBest regards,\n${biz.businessName}`;
     openSMS(client.phone, message);
-  }, [client, state.settings.businessName, openSMS]);
+  }, [client, biz.businessName, profile, openSMS]);
 
   if (!client) {
     return (
@@ -203,7 +247,7 @@ export default function ClientDetailScreen() {
           <View style={[styles.editCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground, marginBottom: 12 }}>Edit Client</Text>
             <TextInput style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]} placeholder="Full Name *" placeholderTextColor={colors.muted} value={editName} onChangeText={setEditName} returnKeyType="next" />
-            <TextInput style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]} placeholder="Phone" placeholderTextColor={colors.muted} value={editPhone} onChangeText={setEditPhone} keyboardType="phone-pad" returnKeyType="next" />
+            <TextInput style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]} placeholder="(000) 000-0000" placeholderTextColor={colors.muted} value={editPhone} onChangeText={handlePhoneChange} keyboardType="phone-pad" returnKeyType="next" />
             <TextInput style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]} placeholder="Email" placeholderTextColor={colors.muted} value={editEmail} onChangeText={setEditEmail} keyboardType="email-address" autoCapitalize="none" returnKeyType="next" />
             <TextInput style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground, minHeight: 60, textAlignVertical: "top" }]} placeholder="Notes" placeholderTextColor={colors.muted} value={editNotes} onChangeText={setEditNotes} multiline numberOfLines={3} returnKeyType="done" />
             <View style={styles.editActions}>
@@ -230,7 +274,7 @@ export default function ClientDetailScreen() {
             )}
             <View style={styles.contactRow}>
               {client.phone ? (
-                <Pressable onPress={() => Linking.openURL(`tel:${client.phone}`)} style={({ pressed }) => [styles.contactChip, { backgroundColor: colors.primary + "12", opacity: pressed ? 0.7 : 1 }]}>
+                <Pressable onPress={() => Linking.openURL(`tel:${stripPhoneFormat(client.phone)}`)} style={({ pressed }) => [styles.contactChip, { backgroundColor: colors.primary + "12", opacity: pressed ? 0.7 : 1 }]}>
                   <IconSymbol name="phone.fill" size={14} color={colors.primary} />
                   <Text style={{ fontSize: 12, color: colors.primary, marginLeft: 6 }}>{client.phone}</Text>
                 </Pressable>
@@ -283,7 +327,7 @@ export default function ClientDetailScreen() {
                   return (
                     <Pressable key={appt.id} onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })} style={({ pressed }) => [styles.apptCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: svc?.color ?? colors.primary, opacity: pressed ? 0.8 : 1 }]}>
                       <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{svc?.name ?? "Service"}</Text>
+                        <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{svc ? getServiceDisplayName(svc) : "Service"}</Text>
                         <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{formatDateDisplay(appt.date)} · {formatTime(appt.time)} - {formatTime(minutesToTime(timeToMinutes(appt.time) + appt.duration))}</Text>
                       </View>
                       <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
@@ -299,7 +343,7 @@ export default function ClientDetailScreen() {
                   return (
                     <Pressable key={appt.id} onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })} style={({ pressed }) => [styles.apptCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: svc?.color ?? colors.primary, opacity: pressed ? 0.8 : 1 }]}>
                       <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{svc?.name ?? "Service"}</Text>
+                        <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{svc ? getServiceDisplayName(svc) : "Service"}</Text>
                         <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{formatDateDisplay(appt.date)} · {formatTime(appt.time)} - {formatTime(minutesToTime(timeToMinutes(appt.time) + appt.duration))}</Text>
                       </View>
                       <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
@@ -328,14 +372,13 @@ export default function ClientDetailScreen() {
                 ) : (
                   appointments.map((appt) => {
                     const svc = getServiceById(appt.serviceId);
-                    const dateStr = formatDateDisplay(appt.date);
                     const msgTypes: { key: "confirmation" | "reminder" | "upcoming" | "cancelled" | "completed"; label: string; icon: string; color: string }[] = [];
                     if (appt.status === "confirmed") {
                       msgTypes.push({ key: "confirmation", label: "Confirmed", icon: "checkmark.circle.fill", color: colors.success });
                       msgTypes.push({ key: "reminder", label: "Reminder", icon: "bell.fill", color: "#FF9800" });
                     }
                     if (appt.status === "pending") {
-                      msgTypes.push({ key: "upcoming", label: "Upcoming", icon: "clock.fill", color: "#2196F3" });
+                      msgTypes.push({ key: "upcoming", label: "Pending", icon: "clock.fill", color: "#2196F3" });
                     }
                     if (appt.status === "cancelled") {
                       msgTypes.push({ key: "cancelled", label: "Cancelled", icon: "xmark.circle.fill", color: colors.error });
@@ -345,8 +388,8 @@ export default function ClientDetailScreen() {
                     }
                     return (
                       <View key={appt.id} style={[styles.msgCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                        <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{svc?.name ?? "Service"}</Text>
-                        <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{dateStr} at {formatTime(appt.time)}</Text>
+                        <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{svc ? getServiceDisplayName(svc) : "Service"}</Text>
+                        <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{formatDateDisplay(appt.date)} at {formatTime(appt.time)} - {formatTime(minutesToTime(timeToMinutes(appt.time) + appt.duration))}</Text>
                         <View style={styles.msgButtons}>
                           {msgTypes.map((mt) => (
                             <Pressable

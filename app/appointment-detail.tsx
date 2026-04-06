@@ -5,7 +5,18 @@ import { useStore, formatTime, formatDateDisplay } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useMemo } from "react";
-import { minutesToTime, timeToMinutes } from "@/lib/types";
+import {
+  minutesToTime,
+  timeToMinutes,
+  formatTimeDisplay,
+  getServiceDisplayName,
+  getMapUrl,
+  stripPhoneFormat,
+  generateAcceptMessage,
+  generateRejectMessage,
+  generateCancellationMessage,
+  generateReminderMessage,
+} from "@/lib/types";
 
 export default function AppointmentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -33,10 +44,22 @@ export default function AppointmentDetailScreen() {
 
   const service = getServiceById(appointment.serviceId);
   const client = getClientById(appointment.clientId);
-  const endTime = formatTime(minutesToTime(timeToMinutes(appointment.time) + appointment.duration));
+  const endTimeStr = formatTime(minutesToTime(timeToMinutes(appointment.time) + appointment.duration));
   const policy = state.settings.cancellationPolicy;
+  const biz = state.settings;
+  const profile = biz.profile;
 
-  // Check if cancellation fee applies
+  const openSms = (phone: string, message: string) => {
+    const rawPhone = stripPhoneFormat(phone);
+    if (Platform.OS === "web") {
+      Alert.alert("SMS Message", message);
+      return;
+    }
+    const separator = Platform.OS === "ios" ? "&" : "?";
+    const url = `sms:${rawPhone}${separator}body=${encodeURIComponent(message)}`;
+    Linking.openURL(url).catch(() => Alert.alert("SMS", message));
+  };
+
   const getCancellationInfo = () => {
     if (!policy.enabled) return { feeApplies: false, fee: 0 };
     const apptDateTime = new Date(`${appointment.date}T${appointment.time}:00`);
@@ -49,13 +72,18 @@ export default function AppointmentDetailScreen() {
 
   const handleAccept = () => {
     dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status: "confirmed" } });
-    // Open SMS with confirmation message
     if (client?.phone) {
-      const msg = `Hi ${client.name}, your appointment with ${state.settings.businessName} on ${formatDateDisplay(appointment.date)} at ${formatTime(appointment.time)} - ${endTime} for ${service?.name ?? "service"} has been confirmed. See you then!`;
-      const smsUrl = Platform.OS === "ios"
-        ? `sms:${client.phone}&body=${encodeURIComponent(msg)}`
-        : `sms:${client.phone}?body=${encodeURIComponent(msg)}`;
-      Linking.openURL(smsUrl).catch(() => {});
+      const msg = generateAcceptMessage(
+        biz.businessName,
+        profile.address,
+        client.name,
+        service ? getServiceDisplayName(service) : "Service",
+        appointment.duration,
+        appointment.date,
+        appointment.time,
+        profile.phone
+      );
+      openSms(client.phone, msg);
     }
     router.back();
   };
@@ -64,21 +92,23 @@ export default function AppointmentDetailScreen() {
     const cancInfo = getCancellationInfo();
     const doIt = () => {
       dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status } });
-      // Open SMS with message
       if (client?.phone) {
         let msg = "";
         if (status === "completed") {
-          msg = `Hi ${client.name}, your appointment with ${state.settings.businessName} for ${service?.name ?? "service"} on ${formatDateDisplay(appointment.date)} has been completed. Thank you for visiting us!`;
+          msg = `Dear ${client.name},\n\nThank you for visiting ${biz.businessName}! Your appointment for ${service ? getServiceDisplayName(service) : "service"} on ${formatDateDisplay(appointment.date)} has been completed.\n\nWe hope you had a great experience. We'd love to see you again!\n\n📍 ${profile.address}\n📞 ${profile.phone}\n\nBest regards,\n${biz.businessName}`;
         } else {
-          msg = `Hi ${client.name}, your appointment with ${state.settings.businessName} on ${formatDateDisplay(appointment.date)} at ${formatTime(appointment.time)} for ${service?.name ?? "service"} has been cancelled.`;
-          if (cancInfo.feeApplies && cancInfo.fee > 0) {
-            msg += ` A cancellation fee of $${cancInfo.fee} applies as this is within ${policy.hoursBeforeAppointment} hours of the appointment time.`;
-          }
+          const feeStr = cancInfo.feeApplies && cancInfo.fee > 0 ? `$${cancInfo.fee} (${policy.feePercentage}%)` : "";
+          msg = generateCancellationMessage(
+            biz.businessName,
+            client.name,
+            service ? getServiceDisplayName(service) : "Service",
+            appointment.date,
+            appointment.time,
+            feeStr,
+            profile.phone
+          );
         }
-        const smsUrl = Platform.OS === "ios"
-          ? `sms:${client.phone}&body=${encodeURIComponent(msg)}`
-          : `sms:${client.phone}?body=${encodeURIComponent(msg)}`;
-        Linking.openURL(smsUrl).catch(() => {});
+        openSms(client.phone, msg);
       }
       router.back();
     };
@@ -115,13 +145,25 @@ export default function AppointmentDetailScreen() {
     }
   };
 
-  const handleSendMessage = () => {
+  const handleSendReminder = () => {
     if (!client?.phone) return;
-    const msg = `Hi ${client.name}, this is a reminder about your appointment with ${state.settings.businessName} on ${formatDateDisplay(appointment.date)} at ${formatTime(appointment.time)} - ${endTime} for ${service?.name ?? "service"}. Status: ${appointment.status}. Please let us know if you need any changes.`;
-    const smsUrl = Platform.OS === "ios"
-      ? `sms:${client.phone}&body=${encodeURIComponent(msg)}`
-      : `sms:${client.phone}?body=${encodeURIComponent(msg)}`;
-    Linking.openURL(smsUrl).catch(() => {});
+    const msg = generateReminderMessage(
+      biz.businessName,
+      profile.address,
+      client.name,
+      service ? getServiceDisplayName(service) : "Service",
+      appointment.duration,
+      appointment.date,
+      appointment.time,
+      profile.phone
+    );
+    openSms(client.phone, msg);
+  };
+
+  const handleOpenMap = () => {
+    if (!profile.address) return;
+    const url = getMapUrl(profile.address);
+    Linking.openURL(url).catch(() => {});
   };
 
   return (
@@ -142,7 +184,9 @@ export default function AppointmentDetailScreen() {
         >
           <View className="flex-row items-center mb-2">
             <View style={[styles.colorDot, { backgroundColor: service?.color ?? colors.primary }]} />
-            <Text className="text-xl font-bold text-foreground ml-3">{service?.name ?? "Service"}</Text>
+            <Text className="text-xl font-bold text-foreground ml-3">
+              {service ? getServiceDisplayName(service) : "Service"}
+            </Text>
           </View>
           <Text className="text-sm text-muted">
             {appointment.duration} min · ${service?.price ?? 0}
@@ -156,26 +200,20 @@ export default function AppointmentDetailScreen() {
             className="self-start rounded-full px-3 py-1"
             style={{
               backgroundColor:
-                appointment.status === "completed"
-                  ? colors.success + "20"
-                  : appointment.status === "cancelled"
-                  ? colors.error + "20"
-                  : appointment.status === "pending"
-                  ? "#FF980020"
-                  : colors.primary + "20",
+                appointment.status === "completed" ? colors.success + "20"
+                : appointment.status === "cancelled" ? colors.error + "20"
+                : appointment.status === "pending" ? "#FF980020"
+                : colors.primary + "20",
             }}
           >
             <Text
               className="text-sm font-semibold capitalize"
               style={{
                 color:
-                  appointment.status === "completed"
-                    ? colors.success
-                    : appointment.status === "cancelled"
-                    ? colors.error
-                    : appointment.status === "pending"
-                    ? "#FF9800"
-                    : colors.primary,
+                  appointment.status === "completed" ? colors.success
+                  : appointment.status === "cancelled" ? colors.error
+                  : appointment.status === "pending" ? "#FF9800"
+                  : colors.primary,
               }}
             >
               {appointment.status}
@@ -189,7 +227,7 @@ export default function AppointmentDetailScreen() {
           <DetailRow
             icon="clock.fill"
             label="Time"
-            value={`${formatTime(appointment.time)} - ${endTime}`}
+            value={`${formatTime(appointment.time)} - ${endTimeStr}`}
             colors={colors}
           />
           <DetailRow
@@ -197,14 +235,19 @@ export default function AppointmentDetailScreen() {
             label="Client"
             value={client?.name ?? "Unknown"}
             colors={colors}
-            onPress={
-              client
-                ? () => router.push({ pathname: "/client-detail" as any, params: { id: client.id } })
-                : undefined
-            }
+            onPress={client ? () => router.push({ pathname: "/client-detail" as any, params: { id: client.id } }) : undefined}
           />
           {client?.phone ? (
             <DetailRow icon="phone.fill" label="Phone" value={client.phone} colors={colors} />
+          ) : null}
+          {profile.address ? (
+            <DetailRow
+              icon="mappin"
+              label="Location"
+              value={profile.address}
+              colors={colors}
+              onPress={handleOpenMap}
+            />
           ) : null}
         </View>
 
@@ -229,14 +272,14 @@ export default function AppointmentDetailScreen() {
         {/* Message Client Button */}
         {client?.phone && (
           <Pressable
-            onPress={handleSendMessage}
+            onPress={handleSendReminder}
             style={({ pressed }) => [
               styles.messageBtn,
               { borderColor: colors.primary, opacity: pressed ? 0.8 : 1 },
             ]}
           >
             <IconSymbol name="paperplane.fill" size={18} color={colors.primary} />
-            <Text style={[styles.messageBtnText, { color: colors.primary }]}>Message Client</Text>
+            <Text style={[styles.messageBtnText, { color: colors.primary }]}>Send Reminder</Text>
           </Pressable>
         )}
 
@@ -245,20 +288,14 @@ export default function AppointmentDetailScreen() {
           <View className="gap-3 mt-2 mb-4">
             <Pressable
               onPress={handleAccept}
-              style={({ pressed }) => [
-                styles.actionButton,
-                { backgroundColor: colors.success, opacity: pressed ? 0.8 : 1 },
-              ]}
+              style={({ pressed }) => [styles.actionButton, { backgroundColor: colors.success, opacity: pressed ? 0.8 : 1 }]}
             >
               <IconSymbol name="checkmark" size={20} color="#FFFFFF" />
               <Text className="text-white font-semibold ml-2">Accept Appointment</Text>
             </Pressable>
             <Pressable
               onPress={() => handleStatusChange("cancelled")}
-              style={({ pressed }) => [
-                styles.actionButton,
-                { backgroundColor: colors.error, opacity: pressed ? 0.8 : 1 },
-              ]}
+              style={({ pressed }) => [styles.actionButton, { backgroundColor: colors.error, opacity: pressed ? 0.8 : 1 }]}
             >
               <IconSymbol name="xmark" size={20} color="#FFFFFF" />
               <Text className="text-white font-semibold ml-2">Reject Appointment</Text>
@@ -270,20 +307,14 @@ export default function AppointmentDetailScreen() {
           <View className="gap-3 mt-2 mb-4">
             <Pressable
               onPress={() => handleStatusChange("completed")}
-              style={({ pressed }) => [
-                styles.actionButton,
-                { backgroundColor: colors.success, opacity: pressed ? 0.8 : 1 },
-              ]}
+              style={({ pressed }) => [styles.actionButton, { backgroundColor: colors.success, opacity: pressed ? 0.8 : 1 }]}
             >
               <IconSymbol name="checkmark" size={20} color="#FFFFFF" />
               <Text className="text-white font-semibold ml-2">Mark Complete</Text>
             </Pressable>
             <Pressable
               onPress={() => handleStatusChange("cancelled")}
-              style={({ pressed }) => [
-                styles.actionButton,
-                { backgroundColor: colors.error, opacity: pressed ? 0.8 : 1 },
-              ]}
+              style={({ pressed }) => [styles.actionButton, { backgroundColor: colors.error, opacity: pressed ? 0.8 : 1 }]}
             >
               <IconSymbol name="xmark" size={20} color="#FFFFFF" />
               <Text className="text-white font-semibold ml-2">Cancel Appointment</Text>
@@ -293,14 +324,9 @@ export default function AppointmentDetailScreen() {
 
         <Pressable
           onPress={handleDelete}
-          style={({ pressed }) => [
-            styles.deleteButton,
-            { borderColor: colors.error, opacity: pressed ? 0.7 : 1 },
-          ]}
+          style={({ pressed }) => [styles.deleteButton, { borderColor: colors.error, opacity: pressed ? 0.7 : 1 }]}
         >
-          <Text className="text-sm font-medium" style={{ color: colors.error }}>
-            Delete Appointment
-          </Text>
+          <Text className="text-sm font-medium" style={{ color: colors.error }}>Delete Appointment</Text>
         </Pressable>
 
         <View style={{ height: 40 }} />
@@ -309,24 +335,12 @@ export default function AppointmentDetailScreen() {
   );
 }
 
-function DetailRow({
-  icon,
-  label,
-  value,
-  colors,
-  onPress,
-}: {
-  icon: any;
-  label: string;
-  value: string;
-  colors: any;
-  onPress?: () => void;
-}) {
+function DetailRow({ icon, label, value, colors, onPress }: { icon: any; label: string; value: string; colors: any; onPress?: () => void }) {
   const content = (
     <View className="flex-row items-center py-2">
       <IconSymbol name={icon} size={18} color={colors.muted} />
       <Text className="text-xs text-muted ml-2 w-16">{label}</Text>
-      <Text className="text-sm text-foreground flex-1">{value}</Text>
+      <Text className="text-sm text-foreground flex-1" numberOfLines={2}>{value}</Text>
       {onPress && <IconSymbol name="chevron.right" size={14} color={colors.muted} />}
     </View>
   );
@@ -341,36 +355,9 @@ function DetailRow({
 }
 
 const styles = StyleSheet.create({
-  colorDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-  },
-  actionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 14,
-    borderRadius: 14,
-  },
-  deleteButton: {
-    alignItems: "center",
-    paddingVertical: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  messageBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    marginBottom: 12,
-  },
-  messageBtnText: {
-    fontSize: 15,
-    fontWeight: "600",
-    marginLeft: 8,
-  },
+  colorDot: { width: 14, height: 14, borderRadius: 7 },
+  actionButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 14, borderRadius: 14 },
+  deleteButton: { alignItems: "center", paddingVertical: 12, borderRadius: 14, borderWidth: 1 },
+  messageBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, marginBottom: 12 },
+  messageBtnText: { fontSize: 15, fontWeight: "600", marginLeft: 8 },
 });

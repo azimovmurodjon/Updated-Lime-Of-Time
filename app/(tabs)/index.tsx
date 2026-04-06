@@ -80,13 +80,17 @@ export default function HomeScreen() {
   const handleShareBookingLink = useCallback(async () => {
     const slug = state.settings.businessName.replace(/\s+/g, "-").toLowerCase();
     const url = `${PUBLIC_BOOKING_URL}/book/${slug}`;
+    const profile = state.settings.profile;
+    const addressLine = profile.address ? `\n📍 ${profile.address}` : "";
+    const phoneLine = profile.phone ? `\n📞 ${profile.phone}` : "";
+    const websiteLine = profile.website ? `\n🌐 ${profile.website}` : "";
     try {
       await Share.share({
-        message: `Book an appointment with ${state.settings.businessName}!\n\n${url}`,
+        message: `Book an appointment with ${state.settings.businessName}!${addressLine}${phoneLine}${websiteLine}\n\nSchedule online: ${url}\n\nPowered by Lime Of Time`,
         title: "Book an Appointment",
       });
     } catch {}
-  }, [state.settings.businessName]);
+  }, [state.settings.businessName, state.settings.profile]);
 
   const handlePickLogo = useCallback(async () => {
     if (Platform.OS === "web") {

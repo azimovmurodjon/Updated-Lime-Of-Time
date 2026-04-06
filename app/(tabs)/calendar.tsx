@@ -15,7 +15,17 @@ import { useStore, formatTime, formatDateStr, formatDateDisplay } from "@/lib/st
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter } from "expo-router";
-import { Appointment } from "@/lib/types";
+import {
+  Appointment,
+  isDateInPast,
+  getServiceDisplayName,
+  formatTimeDisplay,
+  minutesToTime,
+  timeToMinutes,
+  generateAcceptMessage,
+  generateRejectMessage,
+  stripPhoneFormat,
+} from "@/lib/types";
 
 const FILTERS = [
   { key: "upcoming", label: "Upcoming" },
@@ -43,6 +53,8 @@ export default function CalendarScreen() {
   const [activeFilter, setActiveFilter] = useState<FilterKey>("upcoming");
 
   const cellSize = Math.floor((width - hp * 2) / 7);
+
+  const todayStr = formatDateStr(now);
 
   // Calendar grid
   const calendarDays = useMemo(() => {
@@ -73,8 +85,6 @@ export default function CalendarScreen() {
     if (currentMonth === 11) { setCurrentMonth(0); setCurrentYear(currentYear + 1); }
     else setCurrentMonth(currentMonth + 1);
   };
-
-  const todayStr = formatDateStr(now);
 
   // Filter appointments
   const filteredAppointments = useMemo(() => {
@@ -107,31 +117,41 @@ export default function CalendarScreen() {
       .sort((a, b) => a.time.localeCompare(b.time));
   }, [state.appointments, selectedDate]);
 
-  const openSmsWithMessage = (phone: string, message: string) => {
+  const openSmsWithMessage = useCallback((phone: string, message: string) => {
     if (Platform.OS === "web") {
       Alert.alert("SMS Message", message);
       return;
     }
+    const rawPhone = stripPhoneFormat(phone);
     const separator = Platform.OS === "ios" ? "&" : "?";
-    const url = `sms:${phone}${separator}body=${encodeURIComponent(message)}`;
+    const url = `sms:${rawPhone}${separator}body=${encodeURIComponent(message)}`;
     Linking.openURL(url).catch(() => Alert.alert("SMS", message));
-  };
+  }, []);
 
-  const handleAccept = (appt: Appointment) => {
+  const handleAccept = useCallback((appt: Appointment) => {
     const client = getClientById(appt.clientId);
     const svc = getServiceById(appt.serviceId);
     dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appt.id, status: "confirmed" } });
 
-    const message = `Hi ${client?.name ?? "there"}! Your appointment for ${svc?.name ?? "service"} on ${formatDateDisplay(appt.date)} at ${formatTime(appt.time)} has been confirmed. We look forward to seeing you! - ${state.settings.businessName}`;
+    const message = generateAcceptMessage(
+      state.settings.businessName,
+      state.settings.profile.address,
+      client?.name ?? "Valued Client",
+      svc ? getServiceDisplayName(svc) : "Service",
+      appt.duration,
+      appt.date,
+      appt.time,
+      state.settings.profile.phone
+    );
 
     if (client?.phone) {
       openSmsWithMessage(client.phone, message);
     } else {
       Alert.alert("Appointment Confirmed", message);
     }
-  };
+  }, [getClientById, getServiceById, dispatch, state.settings, openSmsWithMessage]);
 
-  const handleReject = (appt: Appointment) => {
+  const handleReject = useCallback((appt: Appointment) => {
     const client = getClientById(appt.clientId);
     const svc = getServiceById(appt.serviceId);
 
@@ -142,7 +162,14 @@ export default function CalendarScreen() {
         style: "destructive",
         onPress: () => {
           dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appt.id, status: "cancelled" } });
-          const message = `Hi ${client?.name ?? "there"}, unfortunately we are unable to accommodate your appointment for ${svc?.name ?? "service"} on ${formatDateDisplay(appt.date)} at ${formatTime(appt.time)}. Please feel free to book another time. - ${state.settings.businessName}`;
+          const message = generateRejectMessage(
+            state.settings.businessName,
+            client?.name ?? "Valued Client",
+            svc ? getServiceDisplayName(svc) : "Service",
+            appt.date,
+            appt.time,
+            state.settings.profile.phone
+          );
           if (client?.phone) {
             openSmsWithMessage(client.phone, message);
           } else {
@@ -151,13 +178,17 @@ export default function CalendarScreen() {
         },
       },
     ]);
-  };
+  }, [getClientById, getServiceById, dispatch, state.settings, openSmsWithMessage]);
 
   const filterColors: Record<FilterKey, string> = {
     upcoming: colors.success,
     requests: "#FF9800",
     cancelled: colors.error,
     completed: colors.primary,
+  };
+
+  const getEndTime = (time: string, duration: number): string => {
+    return formatTimeDisplay(minutesToTime(timeToMinutes(time) + duration));
   };
 
   return (
@@ -197,12 +228,16 @@ export default function CalendarScreen() {
             const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
             const isSelected = dateStr === selectedDate;
             const isToday = dateStr === todayStr;
+            const isPast = isDateInPast(dateStr);
             const statuses = dayStatuses[dateStr];
 
             return (
               <Pressable
                 key={dateStr}
-                onPress={() => setSelectedDate(dateStr)}
+                onPress={() => {
+                  if (!isPast) setSelectedDate(dateStr);
+                }}
+                disabled={isPast}
                 style={({ pressed }) => [
                   styles.dayCell,
                   {
@@ -210,7 +245,7 @@ export default function CalendarScreen() {
                     height: cellSize,
                     backgroundColor: isSelected ? colors.primary : "transparent",
                     borderRadius: cellSize / 2,
-                    opacity: pressed ? 0.7 : 1,
+                    opacity: isPast ? 0.35 : pressed ? 0.7 : 1,
                   },
                 ]}
               >
@@ -218,7 +253,7 @@ export default function CalendarScreen() {
                   style={{
                     fontSize: 15,
                     fontWeight: isToday || isSelected ? "700" : "400",
-                    color: isSelected ? "#FFF" : isToday ? colors.primary : colors.foreground,
+                    color: isSelected ? "#FFF" : isToday ? colors.primary : isPast ? colors.muted : colors.foreground,
                   }}
                 >
                   {day}
@@ -247,7 +282,9 @@ export default function CalendarScreen() {
             {formatDateDisplay(selectedDate)}
           </Text>
           {selectedDateAppts.length === 0 ? (
-            <Text style={{ color: colors.muted, fontSize: 13, marginTop: 4, marginBottom: 12 }}>No appointments on this date</Text>
+            <Text style={{ color: colors.muted, fontSize: 13, marginTop: 4, marginBottom: 12 }}>
+              No appointments on this day
+            </Text>
           ) : (
             selectedDateAppts.map((appt) => {
               const svc = getServiceById(appt.serviceId);
@@ -264,8 +301,12 @@ export default function CalendarScreen() {
                   style={({ pressed }) => [styles.apptCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: svc?.color ?? colors.primary, opacity: pressed ? 0.8 : 1 }]}
                 >
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>{formatTime(appt.time)}</Text>
-                    <Text style={{ fontSize: 13, fontWeight: "500", color: colors.foreground, marginTop: 2 }}>{svc?.name}</Text>
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>
+                      {formatTime(appt.time)} - {getEndTime(appt.time, appt.duration)}
+                    </Text>
+                    <Text style={{ fontSize: 13, fontWeight: "500", color: colors.foreground, marginTop: 2 }}>
+                      {svc ? getServiceDisplayName(svc) : "Service"}
+                    </Text>
                     <Text style={{ fontSize: 12, color: colors.muted }}>{client?.name}</Text>
                   </View>
                   <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
@@ -333,8 +374,12 @@ export default function CalendarScreen() {
                   >
                     <View style={styles.filterCardRow}>
                       <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>{formatDateDisplay(appt.date)} · {formatTime(appt.time)}</Text>
-                        <Text style={{ fontSize: 13, color: colors.foreground, marginTop: 2 }}>{svc?.name}</Text>
+                        <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>
+                          {formatDateDisplay(appt.date)} · {formatTime(appt.time)} - {getEndTime(appt.time, appt.duration)}
+                        </Text>
+                        <Text style={{ fontSize: 13, color: colors.foreground, marginTop: 2 }}>
+                          {svc ? getServiceDisplayName(svc) : "Service"}
+                        </Text>
                         <Text style={{ fontSize: 12, color: colors.muted }}>{client?.name} {client?.phone ? `· ${client.phone}` : ""}</Text>
                       </View>
                     </View>
@@ -368,126 +413,25 @@ export default function CalendarScreen() {
 }
 
 const styles = StyleSheet.create({
-  monthHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 8,
-  },
-  monthTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  navBtn: {
-    padding: 8,
-  },
-  dayHeaderRow: {
-    flexDirection: "row",
-    marginBottom: 4,
-  },
-  calendarGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-  },
-  dayCell: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  dotsRow: {
-    flexDirection: "row",
-    gap: 2,
-    position: "absolute",
-    bottom: 4,
-  },
-  dot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-  },
-  dotLegend: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 14,
-    marginTop: 6,
-    marginBottom: 8,
-  },
-  legendItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  legendDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    marginBottom: 8,
-  },
-  apptCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderLeftWidth: 4,
-    marginBottom: 8,
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    marginRight: 8,
-  },
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 24,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  filterCard: {
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderLeftWidth: 4,
-    marginBottom: 10,
-  },
-  filterCardRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  actionRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-  },
-  acceptBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 10,
-    flex: 1,
-    justifyContent: "center",
-  },
-  rejectBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    flex: 1,
-    justifyContent: "center",
-  },
+  monthHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8 },
+  monthTitle: { fontSize: 18, fontWeight: "700" },
+  navBtn: { padding: 8 },
+  dayHeaderRow: { flexDirection: "row", marginBottom: 4 },
+  calendarGrid: { flexDirection: "row", flexWrap: "wrap" },
+  dayCell: { alignItems: "center", justifyContent: "center" },
+  dotsRow: { flexDirection: "row", gap: 2, position: "absolute", bottom: 4 },
+  dot: { width: 5, height: 5, borderRadius: 2.5 },
+  dotLegend: { flexDirection: "row", justifyContent: "center", gap: 14, marginTop: 6, marginBottom: 8 },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  legendDot: { width: 7, height: 7, borderRadius: 3.5 },
+  sectionTitle: { fontSize: 16, fontWeight: "700", marginBottom: 8 },
+  apptCard: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12, borderWidth: 1, borderLeftWidth: 4, marginBottom: 8 },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, marginRight: 8 },
+  emptyState: { alignItems: "center", paddingVertical: 24, borderRadius: 14, borderWidth: 1 },
+  filterCard: { borderRadius: 14, padding: 14, borderWidth: 1, borderLeftWidth: 4, marginBottom: 10 },
+  filterCardRow: { flexDirection: "row", alignItems: "center" },
+  actionRow: { flexDirection: "row", gap: 10, marginTop: 12, paddingTop: 10, borderTopWidth: 1 },
+  acceptBtn: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, flex: 1, justifyContent: "center" },
+  rejectBtn: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, flex: 1, justifyContent: "center" },
 });

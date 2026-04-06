@@ -57,3 +57,15 @@
 - [x] Fix any existing errors in the app
 - [x] Add report generator for tax/year-end with all data (revenue, clients, appointments, services)
 - [x] Reports accessible from each dashboard analytics slide
+- [x] Fix contact picker: properly request permissions and show phone contacts list
+- [x] Phone number format: (000) 000-0000
+- [x] Settings address: click opens maps showing location on device
+- [x] Working hours: control by specific working days via calendar, select time per day
+- [x] Calendar: previous days should not be selectable
+- [x] Service name: show duration at end e.g. "Hair Cut (20 min)"
+- [x] Allow multiple same services with different timing and price
+- [x] Fix shared booking link: use limeoftime.com/book/business-name with full business info
+- [x] Shared link page: show business name, address, services with duration, calendar with only available upcoming times
+- [x] Accept appointment: share full address with map link (e.g. 4661 McKnight Road, Pittsburgh PA, 15237)
+- [x] All messages: professional format with full business info, address, service, date, time
+- [x] Address in messages: clickable map link for clients

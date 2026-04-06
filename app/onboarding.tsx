@@ -15,6 +15,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { useState } from "react";
+import { formatPhoneNumber } from "@/lib/types";
 
 type Step = 1 | 2;
 
@@ -34,9 +35,17 @@ export default function OnboardingScreen() {
   const [website, setWebsite] = useState("");
   const [description, setDescription] = useState("");
 
+  const handlePhoneChange = (text: string) => {
+    setPhone(formatPhoneNumber(text));
+  };
+
+  const handleBusinessPhoneChange = (text: string) => {
+    setBusinessPhone(formatPhoneNumber(text));
+  };
+
   const handlePhoneNext = () => {
     if (!phone.trim()) return;
-    setBusinessPhone(phone.trim());
+    setBusinessPhone(phone);
     setStep(2);
   };
 
@@ -114,13 +123,14 @@ export default function OnboardingScreen() {
                       color: colors.foreground,
                     },
                   ]}
-                  placeholder="(555) 123-4567"
+                  placeholder="(000) 000-0000"
                   placeholderTextColor={colors.muted}
                   value={phone}
-                  onChangeText={setPhone}
+                  onChangeText={handlePhoneChange}
                   keyboardType="phone-pad"
                   returnKeyType="done"
                   onSubmitEditing={handlePhoneNext}
+                  maxLength={14}
                   autoFocus
                 />
               </View>
@@ -181,7 +191,7 @@ export default function OnboardingScreen() {
                       color: colors.foreground,
                     },
                   ]}
-                  placeholder="123 Main St, City, State"
+                  placeholder="4661 McKnight Road, Pittsburgh PA, 15237"
                   placeholderTextColor={colors.muted}
                   value={address}
                   onChangeText={setAddress}
@@ -200,12 +210,13 @@ export default function OnboardingScreen() {
                       color: colors.foreground,
                     },
                   ]}
-                  placeholder="Business phone"
+                  placeholder="(000) 000-0000"
                   placeholderTextColor={colors.muted}
                   value={businessPhone}
-                  onChangeText={setBusinessPhone}
+                  onChangeText={handleBusinessPhoneChange}
                   keyboardType="phone-pad"
                   returnKeyType="next"
+                  maxLength={14}
                 />
               </View>
 

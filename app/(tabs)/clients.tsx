@@ -1,31 +1,24 @@
-import { FlatList, Text, View, Pressable, StyleSheet, TextInput, useWindowDimensions, Alert, Platform, Modal, Keyboard, KeyboardAvoidingView } from "react-native";
+import { FlatList, Text, View, Pressable, StyleSheet, TextInput, useWindowDimensions, Alert, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, generateId } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { useState, useMemo, useCallback, useRef } from "react";
-import { Client, Review } from "@/lib/types";
+import { useState, useMemo, useCallback } from "react";
+import { Client, formatPhoneNumber, stripPhoneFormat } from "@/lib/types";
 import * as Contacts from "expo-contacts";
 
 export default function ClientsScreen() {
   const { state, dispatch, getReviewsForClient, getAppointmentsForClient } = useStore();
   const colors = useColors();
   const router = useRouter();
-  const { width, height } = useWindowDimensions();
+  const { width } = useWindowDimensions();
   const hp = Math.round(Math.max(16, width * 0.045));
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [newEmail, setNewEmail] = useState("");
-
-  // Contact picker modal
-  const [contactPickerVisible, setContactPickerVisible] = useState(false);
-  const [deviceContacts, setDeviceContacts] = useState<Contacts.Contact[]>([]);
-  const [contactSearch, setContactSearch] = useState("");
-  const [contactSearchFocused, setContactSearchFocused] = useState(false);
-  const contactSearchRef = useRef<TextInput>(null);
 
   const filteredClients = useMemo(() => {
     const q = search.toLowerCase();
@@ -39,14 +32,9 @@ export default function ClientsScreen() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [state.clients, search]);
 
-  const filteredContacts = useMemo(() => {
-    if (!contactSearch) return deviceContacts;
-    const q = contactSearch.toLowerCase();
-    return deviceContacts.filter((c) => {
-      const name = c.name || `${c.firstName ?? ""} ${c.lastName ?? ""}`.trim();
-      return name.toLowerCase().includes(q);
-    });
-  }, [deviceContacts, contactSearch]);
+  const handlePhoneChange = useCallback((text: string) => {
+    setNewPhone(formatPhoneNumber(text));
+  }, []);
 
   const handleAddClient = useCallback(() => {
     if (!newName.trim()) return;
@@ -65,69 +53,64 @@ export default function ClientsScreen() {
     setShowAdd(false);
   }, [newName, newPhone, newEmail, dispatch]);
 
-  const handleOpenContactPicker = useCallback(async () => {
+  const handleSelectFromContacts = useCallback(async () => {
     if (Platform.OS === "web") {
       Alert.alert("Not Available", "Contact import is only available on mobile devices.");
       return;
     }
     try {
-      const { status } = await Contacts.requestPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Permission Denied", "Please allow access to contacts in your device settings.");
+      // On Android, request permission first
+      if (Platform.OS === "android") {
+        const { status } = await Contacts.requestPermissionsAsync();
+        if (status !== "granted") {
+          Alert.alert("Permission Denied", "Please allow access to contacts in your device settings.");
+          return;
+        }
+      }
+
+      // Use the native system contact picker — opens the device's contact list
+      const contact = await Contacts.presentContactPickerAsync();
+
+      if (!contact) {
+        // User cancelled the picker
         return;
       }
 
-      const { data } = await Contacts.getContactsAsync({
-        fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Emails],
-        sort: Contacts.SortTypes.FirstName,
-      });
-
-      if (data.length === 0) {
-        Alert.alert("No Contacts", "No contacts found on your device.");
-        return;
-      }
-
-      // Filter out contacts already in client list
-      const existingNames = new Set(state.clients.map((c) => c.name.toLowerCase()));
-      const available = data.filter((c) => {
-        const name = c.name || `${c.firstName ?? ""} ${c.lastName ?? ""}`.trim();
-        return name && !existingNames.has(name.toLowerCase());
-      });
-
-      if (available.length === 0) {
-        Alert.alert("All Imported", "All your contacts are already in your client list.");
-        return;
-      }
-
-      setDeviceContacts(available);
-      setContactSearch("");
-      setContactSearchFocused(false);
-      setContactPickerVisible(true);
-    } catch (error) {
-      Alert.alert("Error", "Failed to access contacts. Please try again.");
-    }
-  }, [state.clients]);
-
-  const handleSelectContact = useCallback(
-    (contact: Contacts.Contact) => {
       const name = contact.name || `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim();
-      if (!name) return;
+      if (!name) {
+        Alert.alert("Invalid Contact", "The selected contact has no name.");
+        return;
+      }
+
+      // Check if already exists
+      const exists = state.clients.some(
+        (c) => c.name.toLowerCase() === name.toLowerCase()
+      );
+      if (exists) {
+        Alert.alert("Already Added", `${name} is already in your client list.`);
+        return;
+      }
+
       const phone = contact.phoneNumbers?.[0]?.number ?? "";
       const email = contact.emails?.[0]?.email ?? "";
+
+      // Format phone number
+      const formattedPhone = phone ? formatPhoneNumber(stripPhoneFormat(phone)) : "";
+
       const client: Client = {
         id: generateId(),
         name,
-        phone,
+        phone: formattedPhone,
         email,
         notes: "Imported from contacts",
         createdAt: new Date().toISOString(),
       };
       dispatch({ type: "ADD_CLIENT", payload: client });
-      setContactPickerVisible(false);
       Alert.alert("Added", `${name} has been added as a client.`);
-    },
-    [dispatch]
-  );
+    } catch (error) {
+      Alert.alert("Error", "Failed to access contacts. Please try again.");
+    }
+  }, [state.clients, dispatch]);
 
   const getInitials = (name: string) => {
     const parts = name.split(" ");
@@ -142,14 +125,6 @@ export default function ClientsScreen() {
     return Math.round(avg * 10) / 10;
   };
 
-  // Generate a stable unique key for each contact
-  const getContactKey = (contact: Contacts.Contact, index: number): string => {
-    const id = (contact as any).lookupKey ?? (contact as any).rawContactId ?? "";
-    const name = contact.name ?? `${contact.firstName ?? ""}${contact.lastName ?? ""}`;
-    const phone = contact.phoneNumbers?.[0]?.number ?? "";
-    return `contact-${id}-${name}-${phone}-${index}`;
-  };
-
   return (
     <ScreenContainer>
       <View style={{ paddingHorizontal: hp }}>
@@ -157,7 +132,7 @@ export default function ClientsScreen() {
           <Text style={{ fontSize: 24, fontWeight: "700", color: colors.foreground }}>Clients</Text>
           <View style={{ flexDirection: "row", gap: 8 }}>
             <Pressable
-              onPress={handleOpenContactPicker}
+              onPress={handleSelectFromContacts}
               style={({ pressed }) => [
                 styles.iconButton,
                 { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
@@ -204,12 +179,13 @@ export default function ClientsScreen() {
             />
             <TextInput
               style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-              placeholder="Phone"
+              placeholder="(000) 000-0000"
               placeholderTextColor={colors.muted}
               value={newPhone}
-              onChangeText={setNewPhone}
+              onChangeText={handlePhoneChange}
               keyboardType="phone-pad"
               returnKeyType="next"
+              maxLength={14}
             />
             <TextInput
               style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground, marginBottom: 14 }]}
@@ -296,104 +272,6 @@ export default function ClientsScreen() {
           </View>
         }
       />
-
-      {/* Contact Picker Modal - Full screen overlay with list on TOP */}
-      <Modal visible={contactPickerVisible} transparent animationType="fade">
-        <Pressable
-          style={[styles.modalOverlay]}
-          onPress={() => {
-            Keyboard.dismiss();
-            setContactPickerVisible(false);
-          }}
-        >
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            style={styles.modalPositioner}
-          >
-            <Pressable
-              style={[styles.modalContent, { backgroundColor: colors.background, maxHeight: height * 0.75 }]}
-              onPress={() => Keyboard.dismiss()}
-            >
-              {/* Modal Header */}
-              <View style={styles.modalHeader}>
-                <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>Select Contact</Text>
-                <Pressable
-                  onPress={() => setContactPickerVisible(false)}
-                  style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, padding: 4 }]}
-                >
-                  <IconSymbol name="xmark" size={22} color={colors.foreground} />
-                </Pressable>
-              </View>
-
-              {/* Contact List FIRST (on top) - keyboard won't cover it */}
-              <FlatList
-                data={filteredContacts}
-                keyExtractor={(item, index) => getContactKey(item, index)}
-                showsVerticalScrollIndicator={true}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="on-drag"
-                style={{ flex: 1 }}
-                contentContainerStyle={{ paddingBottom: 16 }}
-                renderItem={({ item }) => {
-                  const name = item.name || `${item.firstName ?? ""} ${item.lastName ?? ""}`.trim();
-                  const phone = item.phoneNumbers?.[0]?.number ?? "";
-                  return (
-                    <Pressable
-                      onPress={() => handleSelectContact(item)}
-                      style={({ pressed }) => [
-                        styles.contactRow,
-                        { borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
-                      ]}
-                    >
-                      <View style={[styles.contactAvatar, { backgroundColor: colors.primary + "15" }]}>
-                        <Text style={{ fontSize: 13, fontWeight: "700", color: colors.primary }}>
-                          {name ? name.slice(0, 2).toUpperCase() : "?"}
-                        </Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground }}>{name || "Unknown"}</Text>
-                        {phone ? <Text style={{ fontSize: 12, color: colors.muted }}>{phone}</Text> : null}
-                      </View>
-                      <IconSymbol name="plus" size={18} color={colors.primary} />
-                    </Pressable>
-                  );
-                }}
-                ListEmptyComponent={
-                  <View style={{ alignItems: "center", paddingVertical: 32 }}>
-                    <Text style={{ fontSize: 14, color: colors.muted }}>No matching contacts</Text>
-                  </View>
-                }
-              />
-
-              {/* Search bar at BOTTOM - keyboard appears right below it */}
-              <View style={[styles.contactSearchBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <IconSymbol name="magnifyingglass" size={16} color={colors.muted} />
-                <TextInput
-                  ref={contactSearchRef}
-                  style={[styles.searchInput, { color: colors.foreground, fontSize: 14 }]}
-                  placeholder="Search contacts..."
-                  placeholderTextColor={colors.muted}
-                  value={contactSearch}
-                  onChangeText={setContactSearch}
-                  returnKeyType="done"
-                  onSubmitEditing={() => Keyboard.dismiss()}
-                />
-                {contactSearch.length > 0 && (
-                  <Pressable
-                    onPress={() => {
-                      setContactSearch("");
-                      Keyboard.dismiss();
-                    }}
-                    style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, padding: 4 }]}
-                  >
-                    <IconSymbol name="xmark" size={16} color={colors.muted} />
-                  </Pressable>
-                )}
-              </View>
-            </Pressable>
-          </KeyboardAvoidingView>
-        </Pressable>
-      </Modal>
     </ScreenContainer>
   );
 }
@@ -412,29 +290,4 @@ const styles = StyleSheet.create({
   avatar: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", marginRight: 12 },
   avatarText: { fontSize: 14, fontWeight: "700" },
   emptyContainer: { alignItems: "center", paddingVertical: 48 },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center" },
-  modalPositioner: { flex: 1, justifyContent: "center", alignItems: "center", width: "100%" },
-  modalContent: {
-    width: "92%",
-    borderRadius: 20,
-    paddingTop: 16,
-    paddingBottom: 16,
-    paddingHorizontal: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
-  contactSearchBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    marginTop: 12,
-  },
-  contactRow: { flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: 1 },
-  contactAvatar: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", marginRight: 12 },
 });

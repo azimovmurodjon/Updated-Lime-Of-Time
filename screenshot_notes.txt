@@ -1,9 +1,8 @@
-Screenshot review v6 (2026-04-06):
+Screenshot review v7 (2026-04-06):
 - App shows onboarding screen with Lime Of Time logo and branding
-- Phone number input field visible with placeholder
+- Phone number input field visible with (000) 000-0000 placeholder format
 - Continue button visible with lime green styling
 - Green lime theme applied correctly throughout
-- All 64 tests passing, 0 TypeScript errors
+- No TypeScript errors, no build errors
 - Dev server running successfully
-- Report generation added to analytics-detail screens
-- Contact picker fixed to select individual contacts
+- All v7 changes applied: native contact picker, phone formatting, map integration, professional messaging, service duration display, booking link fix, calendar past-day blocking

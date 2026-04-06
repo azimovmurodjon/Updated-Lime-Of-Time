@@ -6,6 +6,8 @@ import {
   TextInput,
   ScrollView,
   useWindowDimensions,
+  Linking,
+  Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -13,7 +15,21 @@ import { useStore, generateId, formatDateStr, formatTime, formatDateDisplay } fr
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useMemo, useCallback } from "react";
-import { Appointment, Client, DAYS_OF_WEEK, generateAvailableSlots } from "@/lib/types";
+import {
+  Appointment,
+  Client,
+  DAYS_OF_WEEK,
+  generateAvailableSlots,
+  getServiceDisplayName,
+  formatPhoneNumber,
+  stripPhoneFormat,
+  getMapUrl,
+  minutesToTime,
+  timeToMinutes,
+  formatDateLong,
+  formatTimeDisplay,
+  isDateInPast,
+} from "@/lib/types";
 
 type BookingStep = "info" | "service" | "datetime" | "confirm" | "done";
 
@@ -34,8 +50,15 @@ export default function PublicBookingScreen() {
   const [notes, setNotes] = useState("");
 
   const selectedService = selectedServiceId ? getServiceById(selectedServiceId) : null;
+  const businessName = state.settings.businessName || "Our Business";
+  const profile = state.settings.profile;
+  const isClosed = state.settings.temporaryClosed;
 
-  // Generate available time slots using shared helper (filters past times, overlapping bookings)
+  const handlePhoneChange = (text: string) => {
+    setClientPhone(formatPhoneNumber(text));
+  };
+
+  // Generate available time slots using shared helper
   const timeSlots = useMemo(() => {
     const duration = selectedService?.duration ?? state.settings.defaultDuration;
     return generateAvailableSlots(
@@ -47,11 +70,11 @@ export default function PublicBookingScreen() {
     );
   }, [selectedDate, state.settings, state.appointments, selectedService]);
 
-  // Date options: next 14 days
+  // Date options: next 30 days, only future dates
   const dateOptions = useMemo(() => {
     const dates: string[] = [];
     const today = new Date();
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < 30; i++) {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
       dates.push(formatDateStr(d));
@@ -62,9 +85,8 @@ export default function PublicBookingScreen() {
   const handleConfirmBooking = useCallback(() => {
     if (!selectedServiceId || !selectedTime || !clientName.trim()) return;
 
-    // Create or find client
     const existingClient = state.clients.find(
-      (c) => c.phone === clientPhone.trim() && clientPhone.trim() !== ""
+      (c) => stripPhoneFormat(c.phone) === stripPhoneFormat(clientPhone) && stripPhoneFormat(clientPhone) !== ""
     );
     let clientId: string;
     if (existingClient) {
@@ -97,8 +119,16 @@ export default function PublicBookingScreen() {
     setStep("done");
   }, [selectedServiceId, selectedTime, clientName, clientPhone, clientEmail, notes, selectedDate, selectedService, state, dispatch]);
 
-  const businessName = state.settings.businessName || "Our Business";
-  const isClosed = state.settings.temporaryClosed;
+  const openMap = useCallback(() => {
+    if (profile.address) {
+      Linking.openURL(getMapUrl(profile.address));
+    }
+  }, [profile.address]);
+
+  const endTimeStr = useMemo(() => {
+    if (!selectedTime || !selectedService) return "";
+    return formatTimeDisplay(minutesToTime(timeToMinutes(selectedTime) + selectedService.duration));
+  }, [selectedTime, selectedService]);
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} className="pt-2" style={{ paddingHorizontal: hp }}>
@@ -108,17 +138,46 @@ export default function PublicBookingScreen() {
           <IconSymbol name="chevron.left" size={24} color={colors.foreground} />
         </Pressable>
         <View style={{ flex: 1, alignItems: "center" }}>
-          <Text className="text-lg font-bold text-foreground">Book with {businessName}</Text>
+          <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground }}>Book with {businessName}</Text>
           <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>Powered by Lime Of Time</Text>
         </View>
         <View style={{ width: 24 }} />
       </View>
 
+      {/* Business Info Card */}
+      <View style={[styles.bizInfoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>{businessName}</Text>
+        {profile.address ? (
+          <Pressable onPress={openMap} style={({ pressed }) => [styles.bizInfoRow, { opacity: pressed ? 0.6 : 1 }]}>
+            <IconSymbol name="mappin" size={14} color={colors.primary} />
+            <Text style={{ fontSize: 13, color: colors.primary, marginLeft: 8, flex: 1, textDecorationLine: "underline" }}>{profile.address}</Text>
+          </Pressable>
+        ) : null}
+        {profile.phone ? (
+          <View style={styles.bizInfoRow}>
+            <IconSymbol name="phone.fill" size={14} color={colors.muted} />
+            <Text style={{ fontSize: 13, color: colors.muted, marginLeft: 8 }}>{formatPhoneNumber(stripPhoneFormat(profile.phone))}</Text>
+          </View>
+        ) : null}
+        {profile.email ? (
+          <View style={styles.bizInfoRow}>
+            <IconSymbol name="envelope.fill" size={14} color={colors.muted} />
+            <Text style={{ fontSize: 13, color: colors.muted, marginLeft: 8 }}>{profile.email}</Text>
+          </View>
+        ) : null}
+        {profile.website ? (
+          <View style={styles.bizInfoRow}>
+            <IconSymbol name="globe" size={14} color={colors.muted} />
+            <Text style={{ fontSize: 13, color: colors.muted, marginLeft: 8 }}>{profile.website}</Text>
+          </View>
+        ) : null}
+      </View>
+
       {/* Temporary Closed Banner */}
       {isClosed && (
-        <View style={[styles.closedBanner, { backgroundColor: colors.error + '15', borderColor: colors.error + '30' }]}>
+        <View style={[styles.closedBanner, { backgroundColor: colors.error + "15", borderColor: colors.error + "30" }]}>
           <IconSymbol name="xmark.circle.fill" size={18} color={colors.error} />
-          <Text style={{ fontSize: 14, fontWeight: '600', color: colors.error, marginLeft: 8 }}>
+          <Text style={{ fontSize: 14, fontWeight: "600", color: colors.error, marginLeft: 8 }}>
             {businessName} is temporarily closed
           </Text>
         </View>
@@ -142,7 +201,7 @@ export default function PublicBookingScreen() {
                 <View style={[styles.iconCircle, { backgroundColor: colors.primary + "15" }]}>
                   <IconSymbol name="person.fill" size={22} color={colors.primary} />
                 </View>
-                <Text className="text-base font-semibold text-foreground" style={{ marginLeft: 12 }}>Your Information</Text>
+                <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground, marginLeft: 12 }}>Your Information</Text>
               </View>
 
               <TextInput
@@ -155,16 +214,16 @@ export default function PublicBookingScreen() {
               />
               <TextInput
                 style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-                placeholder="Phone Number"
+                placeholder="(000) 000-0000"
                 placeholderTextColor={colors.muted}
                 value={clientPhone}
-                onChangeText={setClientPhone}
+                onChangeText={handlePhoneChange}
                 keyboardType="phone-pad"
                 returnKeyType="next"
               />
               <TextInput
                 style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground, marginBottom: 0 }]}
-                placeholder="Email"
+                placeholder="Email (optional)"
                 placeholderTextColor={colors.muted}
                 value={clientEmail}
                 onChangeText={setClientEmail}
@@ -175,9 +234,7 @@ export default function PublicBookingScreen() {
             </View>
 
             <Pressable
-              onPress={() => {
-                if (clientName.trim()) setStep("service");
-              }}
+              onPress={() => { if (clientName.trim()) setStep("service"); }}
               style={({ pressed }) => [
                 styles.continueButton,
                 {
@@ -197,7 +254,7 @@ export default function PublicBookingScreen() {
             <Pressable onPress={() => setStep("info")} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, marginBottom: 12 }]}>
               <Text style={{ color: colors.primary, fontSize: 14 }}>← Back</Text>
             </Pressable>
-            <Text className="text-base font-semibold text-foreground" style={{ marginBottom: 12 }}>Choose a Service</Text>
+            <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground, marginBottom: 12 }}>Choose a Service</Text>
             {state.services.map((item) => (
               <Pressable
                 key={item.id}
@@ -216,15 +273,15 @@ export default function PublicBookingScreen() {
               >
                 <View style={[styles.colorDot, { backgroundColor: item.color }]} />
                 <View style={{ flex: 1 }}>
-                  <Text className="text-base font-semibold text-foreground">{item.name}</Text>
-                  <Text className="text-xs text-muted" style={{ marginTop: 2 }}>{item.duration} min · ${item.price}</Text>
+                  <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{getServiceDisplayName(item)}</Text>
+                  <Text style={{ fontSize: 13, color: colors.muted, marginTop: 2 }}>${item.price}</Text>
                 </View>
                 <IconSymbol name="chevron.right" size={16} color={colors.muted} />
               </Pressable>
             ))}
             {state.services.length === 0 && (
               <View style={{ alignItems: "center", paddingVertical: 32 }}>
-                <Text className="text-sm text-muted">No services available at this time</Text>
+                <Text style={{ fontSize: 14, color: colors.muted }}>No services available at this time</Text>
               </View>
             )}
           </View>
@@ -236,7 +293,7 @@ export default function PublicBookingScreen() {
             <Pressable onPress={() => setStep("service")} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, marginBottom: 12 }]}>
               <Text style={{ color: colors.primary, fontSize: 14 }}>← Back</Text>
             </Pressable>
-            <Text className="text-base font-semibold text-foreground" style={{ marginBottom: 12 }}>Pick a Date</Text>
+            <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground, marginBottom: 12 }}>Pick a Date</Text>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
               <View style={styles.dateRow}>
@@ -274,16 +331,17 @@ export default function PublicBookingScreen() {
               </View>
             </ScrollView>
 
-            <Text className="text-base font-semibold text-foreground" style={{ marginBottom: 12 }}>Available Times</Text>
+            <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground, marginBottom: 12 }}>Available Times</Text>
             {timeSlots.length === 0 ? (
               <View style={[styles.emptySlots, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <Text className="text-sm text-muted">No available times for this date</Text>
-                <Text className="text-xs text-muted" style={{ marginTop: 4 }}>Try a different date</Text>
+                <Text style={{ fontSize: 14, color: colors.muted }}>No available times for this date</Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 4 }}>Try a different date</Text>
               </View>
             ) : (
               <View style={styles.timeGrid}>
                 {timeSlots.map((t) => {
                   const isSelected = t === selectedTime;
+                  const endT = minutesToTime(timeToMinutes(t) + (selectedService?.duration ?? state.settings.defaultDuration));
                   return (
                     <Pressable
                       key={t}
@@ -298,6 +356,7 @@ export default function PublicBookingScreen() {
                       ]}
                     >
                       <Text style={{ fontSize: 14, fontWeight: "500", color: isSelected ? "#FFFFFF" : colors.foreground }}>{formatTime(t)}</Text>
+                      <Text style={{ fontSize: 10, color: isSelected ? "#FFFFFF99" : colors.muted, marginTop: 1 }}>to {formatTime(endT)}</Text>
                     </Pressable>
                   );
                 })}
@@ -305,7 +364,7 @@ export default function PublicBookingScreen() {
             )}
 
             {/* Notes */}
-            <Text className="text-xs font-medium text-muted" style={{ marginTop: 16, marginBottom: 6 }}>Notes (optional)</Text>
+            <Text style={{ fontSize: 12, fontWeight: "500", color: colors.muted, marginTop: 16, marginBottom: 6 }}>Notes (optional)</Text>
             <TextInput
               style={[styles.notesInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground }]}
               placeholder="Any special requests..."
@@ -339,38 +398,52 @@ export default function PublicBookingScreen() {
             </Pressable>
 
             <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text className="text-lg font-bold text-foreground" style={{ marginBottom: 16 }}>Booking Summary</Text>
+              <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground, marginBottom: 16 }}>Booking Summary</Text>
 
-              <View style={styles.summaryRow}>
-                <Text className="text-sm text-muted">Client</Text>
-                <Text className="text-sm font-semibold text-foreground">{clientName}</Text>
+              <View style={[styles.summaryRow, { borderBottomColor: colors.border + "40" }]}>
+                <Text style={{ fontSize: 14, color: colors.muted }}>Client</Text>
+                <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{clientName}</Text>
               </View>
               {clientPhone ? (
-                <View style={styles.summaryRow}>
-                  <Text className="text-sm text-muted">Phone</Text>
-                  <Text className="text-sm font-semibold text-foreground">{clientPhone}</Text>
+                <View style={[styles.summaryRow, { borderBottomColor: colors.border + "40" }]}>
+                  <Text style={{ fontSize: 14, color: colors.muted }}>Phone</Text>
+                  <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{clientPhone}</Text>
                 </View>
               ) : null}
-              <View style={styles.summaryRow}>
-                <Text className="text-sm text-muted">Service</Text>
-                <Text className="text-sm font-semibold text-foreground">{selectedService?.name}</Text>
+              <View style={[styles.summaryRow, { borderBottomColor: colors.border + "40" }]}>
+                <Text style={{ fontSize: 14, color: colors.muted }}>Service</Text>
+                <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{selectedService ? getServiceDisplayName(selectedService) : ""}</Text>
               </View>
-              <View style={styles.summaryRow}>
-                <Text className="text-sm text-muted">Date</Text>
-                <Text className="text-sm font-semibold text-foreground">{formatDateDisplay(selectedDate)}</Text>
+              <View style={[styles.summaryRow, { borderBottomColor: colors.border + "40" }]}>
+                <Text style={{ fontSize: 14, color: colors.muted }}>Date</Text>
+                <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{formatDateDisplay(selectedDate)}</Text>
               </View>
-              <View style={styles.summaryRow}>
-                <Text className="text-sm text-muted">Time</Text>
-                <Text className="text-sm font-semibold text-foreground">{selectedTime ? formatTime(selectedTime) : ""}</Text>
+              <View style={[styles.summaryRow, { borderBottomColor: colors.border + "40" }]}>
+                <Text style={{ fontSize: 14, color: colors.muted }}>Time</Text>
+                <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>
+                  {selectedTime ? formatTime(selectedTime) : ""} - {endTimeStr}
+                </Text>
               </View>
-              <View style={styles.summaryRow}>
-                <Text className="text-sm text-muted">Duration</Text>
-                <Text className="text-sm font-semibold text-foreground">{selectedService?.duration} min</Text>
+              <View style={[styles.summaryRow, { borderBottomColor: colors.border + "40" }]}>
+                <Text style={{ fontSize: 14, color: colors.muted }}>Duration</Text>
+                <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{selectedService?.duration} min</Text>
               </View>
               <View style={[styles.summaryRow, { borderBottomWidth: 0 }]}>
-                <Text className="text-sm text-muted">Price</Text>
-                <Text className="text-base font-bold" style={{ color: colors.primary }}>${selectedService?.price}</Text>
+                <Text style={{ fontSize: 14, color: colors.muted }}>Price</Text>
+                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.primary }}>${selectedService?.price}</Text>
               </View>
+
+              {/* Business Location */}
+              {profile.address ? (
+                <Pressable onPress={openMap} style={({ pressed }) => [styles.locationRow, { backgroundColor: colors.primary + "08", borderColor: colors.primary + "20", opacity: pressed ? 0.7 : 1 }]}>
+                  <IconSymbol name="mappin" size={16} color={colors.primary} />
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>Location</Text>
+                    <Text style={{ fontSize: 13, fontWeight: "500", color: colors.primary, textDecorationLine: "underline" }}>{profile.address}</Text>
+                  </View>
+                  <Text style={{ fontSize: 11, color: colors.primary }}>Open Map →</Text>
+                </Pressable>
+              ) : null}
             </View>
 
             <Pressable
@@ -391,16 +464,21 @@ export default function PublicBookingScreen() {
             <View style={[styles.checkCircle, { backgroundColor: colors.success + "15" }]}>
               <IconSymbol name="checkmark" size={36} color={colors.success} />
             </View>
-            <Text className="text-2xl font-bold text-foreground" style={{ marginTop: 20 }}>Booking Requested!</Text>
-            <Text className="text-sm text-muted text-center" style={{ marginTop: 8, maxWidth: 260, lineHeight: 20 }}>
+            <Text style={{ fontSize: 24, fontWeight: "700", color: colors.foreground, marginTop: 20 }}>Booking Requested!</Text>
+            <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center", marginTop: 8, maxWidth: 280, lineHeight: 20 }}>
               Your appointment request with {businessName} has been submitted. The business owner will review and confirm your booking shortly.
             </Text>
 
             <View style={[styles.doneSummary, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text className="text-sm font-semibold text-foreground">{selectedService?.name}</Text>
-              <Text className="text-sm text-muted" style={{ marginTop: 4 }}>
-                {formatDateDisplay(selectedDate)} at {selectedTime ? formatTime(selectedTime) : ""}
+              <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{selectedService ? getServiceDisplayName(selectedService) : ""}</Text>
+              <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4 }}>
+                {formatDateDisplay(selectedDate)} at {selectedTime ? formatTime(selectedTime) : ""} - {endTimeStr}
               </Text>
+              {profile.address ? (
+                <Pressable onPress={openMap} style={({ pressed }) => [{ marginTop: 8, opacity: pressed ? 0.6 : 1 }]}>
+                  <Text style={{ fontSize: 13, color: colors.primary, textDecorationLine: "underline" }}>📍 {profile.address}</Text>
+                </Pressable>
+              ) : null}
             </View>
 
             <Pressable
@@ -423,8 +501,19 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 12,
     paddingVertical: 4,
+  },
+  bizInfoCard: {
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  bizInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
   },
   sectionCard: {
     borderRadius: 16,
@@ -498,6 +587,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
+    alignItems: "center",
   },
   emptySlots: {
     alignItems: "center",
@@ -527,7 +617,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB20",
+  },
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 12,
   },
   doneContainer: {
     alignItems: "center",

@@ -9,10 +9,24 @@ import {
   BusinessProfile,
   BusinessSettings,
   CancellationPolicy,
+  Service,
   timeToMinutes,
   minutesToTime,
   timeSlotsOverlap,
   generateAvailableSlots,
+  formatPhoneNumber,
+  stripPhoneFormat,
+  getMapUrl,
+  getServiceDisplayName,
+  formatDateLong,
+  formatTimeDisplay,
+  isDateInPast,
+  generateConfirmationMessage,
+  generateAcceptMessage,
+  generateRejectMessage,
+  generateCancellationMessage,
+  generateReminderMessage,
+  generateAllTimeOptions,
 } from "../types";
 
 describe("Types and Constants", () => {
@@ -830,5 +844,150 @@ describe("Contact Picker Key Generation", () => {
     expect(key1).not.toBe(key2);
     expect(key1).not.toBe(key3);
     expect(key2).not.toBe(key3);
+  });
+});
+
+describe("Phone Number Formatting", () => {
+  it("should format 10-digit number to (000) 000-0000", () => {
+    expect(formatPhoneNumber("4125551234")).toBe("(412) 555-1234");
+  });
+
+  it("should handle partial input", () => {
+    expect(formatPhoneNumber("412")).toBe("(412");
+    expect(formatPhoneNumber("412555")).toBe("(412) 555");
+    expect(formatPhoneNumber("41255512")).toBe("(412) 555-12");
+  });
+
+  it("should strip non-digit characters", () => {
+    expect(formatPhoneNumber("(412) 555-1234")).toBe("(412) 555-1234");
+    expect(formatPhoneNumber("412-555-1234")).toBe("(412) 555-1234");
+  });
+
+  it("should return empty string for empty input", () => {
+    expect(formatPhoneNumber("")).toBe("");
+  });
+
+  it("should strip phone format to raw digits", () => {
+    expect(stripPhoneFormat("(412) 555-1234")).toBe("4125551234");
+    expect(stripPhoneFormat("412-555-1234")).toBe("4125551234");
+  });
+});
+
+describe("Map URL Helper", () => {
+  it("should generate Google Maps URL with encoded address", () => {
+    const url = getMapUrl("4661 McKnight Road, Pittsburgh PA, 15237");
+    expect(url).toContain("maps.google.com");
+    expect(url).toContain("4661");
+    expect(url).toContain("Pittsburgh");
+  });
+
+  it("should encode special characters", () => {
+    const url = getMapUrl("123 Main St, Suite #5");
+    expect(url).toContain("123");
+    expect(url).toContain("maps.google.com");
+  });
+});
+
+describe("Service Display Name", () => {
+  it("should show service name with duration", () => {
+    const service: Service = {
+      id: "s1", name: "Haircut", duration: 20, price: 30, color: "#4CAF50", createdAt: "",
+    };
+    expect(getServiceDisplayName(service)).toBe("Haircut (20 min)");
+  });
+
+  it("should handle 60-min service", () => {
+    const service: Service = {
+      id: "s2", name: "Massage", duration: 60, price: 80, color: "#2196F3", createdAt: "",
+    };
+    expect(getServiceDisplayName(service)).toBe("Massage (60 min)");
+  });
+});
+
+describe("Date and Time Display Helpers", () => {
+  it("should format date to long format", () => {
+    const formatted = formatDateLong("2026-04-15");
+    expect(formatted).toContain("April");
+    expect(formatted).toContain("15");
+    expect(formatted).toContain("2026");
+  });
+
+  it("should format time to 12-hour AM/PM", () => {
+    expect(formatTimeDisplay("09:00")).toBe("9:00 AM");
+    expect(formatTimeDisplay("13:30")).toBe("1:30 PM");
+    expect(formatTimeDisplay("00:00")).toBe("12:00 AM");
+    expect(formatTimeDisplay("12:00")).toBe("12:00 PM");
+  });
+
+  it("should detect past dates", () => {
+    expect(isDateInPast("2020-01-01")).toBe(true);
+    expect(isDateInPast("2099-12-31")).toBe(false);
+  });
+});
+
+describe("Professional Message Generators", () => {
+  const bizName = "Lime Salon";
+  const address = "4661 McKnight Road, Pittsburgh PA, 15237";
+  const clientName = "Jane Doe";
+  const serviceName = "Haircut";
+  const duration = 30;
+  const date = "2026-04-15";
+  const time = "10:00";
+  const phone = "4125551234";
+
+  it("should generate confirmation message with all details", () => {
+    const msg = generateConfirmationMessage(bizName, address, clientName, serviceName, duration, date, time, phone);
+    expect(msg).toContain("Jane Doe");
+    expect(msg).toContain("Haircut");
+    expect(msg).toContain("April");
+    expect(msg).toContain("10:00 AM");
+    expect(msg).toContain("10:30 AM");
+    expect(msg).toContain("4661 McKnight Road");
+    expect(msg).toContain("Lime Salon");
+    expect(msg).toContain("(412) 555-1234");
+  });
+
+  it("should generate accept message with map link", () => {
+    const msg = generateAcceptMessage(bizName, address, clientName, serviceName, duration, date, time, phone);
+    expect(msg).toContain("accepted");
+    expect(msg).toContain("maps.google.com");
+    expect(msg).toContain("4661 McKnight Road");
+  });
+
+  it("should generate reject message", () => {
+    const msg = generateRejectMessage(bizName, clientName, serviceName, date, time, phone);
+    expect(msg).toContain("could not be accommodated");
+    expect(msg).toContain("Jane Doe");
+    expect(msg).toContain("Haircut");
+  });
+
+  it("should generate cancellation message with fee", () => {
+    const msg = generateCancellationMessage(bizName, clientName, serviceName, date, time, "$25.00", phone);
+    expect(msg).toContain("cancelled");
+    expect(msg).toContain("$25.00");
+    expect(msg).toContain("Cancellation Fee");
+  });
+
+  it("should generate cancellation message without fee", () => {
+    const msg = generateCancellationMessage(bizName, clientName, serviceName, date, time, "", phone);
+    expect(msg).toContain("cancelled");
+    expect(msg).not.toContain("Cancellation Fee");
+  });
+
+  it("should generate reminder message with map link", () => {
+    const msg = generateReminderMessage(bizName, address, clientName, serviceName, duration, date, time, phone);
+    expect(msg).toContain("reminder");
+    expect(msg).toContain("maps.google.com");
+    expect(msg).toContain("10:30 AM");
+  });
+});
+
+describe("generateAllTimeOptions", () => {
+  it("should generate 48 time options (every 30 min for 24 hours)", () => {
+    const options = generateAllTimeOptions();
+    expect(options).toHaveLength(48);
+    expect(options[0]).toBe("00:00");
+    expect(options[1]).toBe("00:30");
+    expect(options[options.length - 1]).toBe("23:30");
   });
 });

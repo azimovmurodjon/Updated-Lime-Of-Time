@@ -117,6 +117,31 @@ export const DAYS_OF_WEEK = [
   "saturday",
 ] as const;
 
+// ─── Phone Formatting ──────────────────────────────────────────────
+/** Format a phone number to (000) 000-0000 format */
+export function formatPhoneNumber(value: string): string {
+  // Strip all non-digit characters
+  const digits = value.replace(/\D/g, "");
+  // Limit to 10 digits
+  const limited = digits.slice(0, 10);
+  if (limited.length === 0) return "";
+  if (limited.length <= 3) return `(${limited}`;
+  if (limited.length <= 6) return `(${limited.slice(0, 3)}) ${limited.slice(3)}`;
+  return `(${limited.slice(0, 3)}) ${limited.slice(3, 6)}-${limited.slice(6)}`;
+}
+
+/** Strip phone formatting to get raw digits */
+export function stripPhoneFormat(formatted: string): string {
+  return formatted.replace(/\D/g, "");
+}
+
+// ─── Map URL Helper ────────────────────────────────────────────────
+/** Generate a map URL that opens in the device's default map app */
+export function getMapUrl(address: string): string {
+  const encoded = encodeURIComponent(address);
+  return `https://maps.google.com/?q=${encoded}`;
+}
+
 // ─── Time Helpers ───────────────────────────────────────────────────
 export function timeToMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number);
@@ -196,6 +221,113 @@ export function generateAllTimeOptions(): string[] {
     }
   }
   return options;
+}
+
+/** Format a date string for display in messages: "Monday, January 15, 2026" */
+export function formatDateLong(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+/** Format time for display: "9:00 AM" */
+export function formatTimeDisplay(time: string): string {
+  const [h, m] = time.split(":").map(Number);
+  const ampm = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 || 12;
+  return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
+}
+
+/** Get service display name with duration: "Haircut (20 min)" */
+export function getServiceDisplayName(service: Service): string {
+  return `${service.name} (${service.duration} min)`;
+}
+
+/** Check if a date string is in the past (before today) */
+export function isDateInPast(dateStr: string): boolean {
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  return dateStr < todayStr;
+}
+
+/** Generate professional appointment confirmation message */
+export function generateConfirmationMessage(
+  businessName: string,
+  address: string,
+  clientName: string,
+  serviceName: string,
+  serviceDuration: number,
+  date: string,
+  time: string,
+  businessPhone: string
+): string {
+  const endTime = formatTimeDisplay(minutesToTime(timeToMinutes(time) + serviceDuration));
+  return `Dear ${clientName},\n\nYour appointment has been confirmed!\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${address}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early. If you need to reschedule or cancel, please contact us at least 2 hours before your appointment.\n\nThank you for choosing ${businessName}!`;
+}
+
+/** Generate professional appointment request accepted message */
+export function generateAcceptMessage(
+  businessName: string,
+  address: string,
+  clientName: string,
+  serviceName: string,
+  serviceDuration: number,
+  date: string,
+  time: string,
+  businessPhone: string
+): string {
+  const endTime = formatTimeDisplay(minutesToTime(timeToMinutes(time) + serviceDuration));
+  const mapUrl = getMapUrl(address);
+  return `Dear ${clientName},\n\nGreat news! Your appointment request has been accepted.\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${address}\n🗺️ Map: ${mapUrl}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early. If you need to reschedule or cancel, please contact us at least 2 hours before your appointment.\n\nWe look forward to seeing you!\n${businessName}`;
+}
+
+/** Generate professional appointment rejection message */
+export function generateRejectMessage(
+  businessName: string,
+  clientName: string,
+  serviceName: string,
+  date: string,
+  time: string,
+  businessPhone: string
+): string {
+  return `Dear ${clientName},\n\nWe regret to inform you that your appointment request could not be accommodated at this time.\n\n📋 Service: ${serviceName}\n📅 Requested Date: ${formatDateLong(date)}\n⏰ Requested Time: ${formatTimeDisplay(time)}\n\nWe apologize for any inconvenience. Please feel free to book another available time slot through our scheduling page or contact us directly.\n\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nThank you for your understanding.\n${businessName}`;
+}
+
+/** Generate professional cancellation message */
+export function generateCancellationMessage(
+  businessName: string,
+  clientName: string,
+  serviceName: string,
+  date: string,
+  time: string,
+  cancellationFee: string,
+  businessPhone: string
+): string {
+  const feeNote = cancellationFee
+    ? `\n\n⚠️ Cancellation Fee: ${cancellationFee}\nAs per our cancellation policy, a fee applies for cancellations made within the required notice period.`
+    : "";
+  return `Dear ${clientName},\n\nYour appointment has been cancelled.\n\n📋 Service: ${serviceName}\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)}${feeNote}\n\nIf you would like to reschedule, please visit our booking page or contact us directly.\n\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nThank you.\n${businessName}`;
+}
+
+/** Generate professional upcoming reminder message */
+export function generateReminderMessage(
+  businessName: string,
+  address: string,
+  clientName: string,
+  serviceName: string,
+  serviceDuration: number,
+  date: string,
+  time: string,
+  businessPhone: string
+): string {
+  const endTime = formatTimeDisplay(minutesToTime(timeToMinutes(time) + serviceDuration));
+  const mapUrl = getMapUrl(address);
+  return `Dear ${clientName},\n\nThis is a friendly reminder about your upcoming appointment.\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${address}\n🗺️ Map: ${mapUrl}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early. If you need to reschedule or cancel, please contact us as soon as possible.\n\nSee you soon!\n${businessName}`;
 }
 
 /** Public booking URL base */
