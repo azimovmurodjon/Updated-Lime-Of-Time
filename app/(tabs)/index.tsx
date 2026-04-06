@@ -20,7 +20,7 @@ import { minutesToTime, timeToMinutes, PUBLIC_BOOKING_URL } from "@/lib/types";
 import * as ImagePicker from "expo-image-picker";
 
 export default function HomeScreen() {
-  const { state, dispatch, getServiceById, getClientById, getAppointmentsForDate } = useStore();
+  const { state, dispatch, getServiceById, getClientById, getAppointmentsForDate, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -105,7 +105,9 @@ export default function HomeScreen() {
         quality: 0.8,
       });
       if (!result.canceled && result.assets[0]) {
-        dispatch({ type: "UPDATE_SETTINGS", payload: { businessLogoUri: result.assets[0].uri } });
+        const action = { type: "UPDATE_SETTINGS" as const, payload: { businessLogoUri: result.assets[0].uri } };
+        dispatch(action);
+        syncToDb(action);
       }
     } catch {
       Alert.alert("Error", "Failed to pick image. Please try again.");

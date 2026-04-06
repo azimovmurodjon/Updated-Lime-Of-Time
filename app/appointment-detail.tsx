@@ -20,7 +20,7 @@ import {
 
 export default function AppointmentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { state, dispatch, getServiceById, getClientById } = useStore();
+  const { state, dispatch, getServiceById, getClientById, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
 
@@ -72,6 +72,7 @@ export default function AppointmentDetailScreen() {
 
   const handleAccept = () => {
     dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status: "confirmed" } });
+    syncToDb({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status: "confirmed" } });
     if (client?.phone) {
       const msg = generateAcceptMessage(
         biz.businessName,
@@ -92,6 +93,7 @@ export default function AppointmentDetailScreen() {
     const cancInfo = getCancellationInfo();
     const doIt = () => {
       dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status } });
+      syncToDb({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status } });
       if (client?.phone) {
         let msg = "";
         if (status === "completed") {
@@ -133,6 +135,7 @@ export default function AppointmentDetailScreen() {
   const handleDelete = () => {
     const doIt = () => {
       dispatch({ type: "DELETE_APPOINTMENT", payload: appointment.id });
+      syncToDb({ type: "DELETE_APPOINTMENT", payload: appointment.id });
       router.back();
     };
     if (Platform.OS === "web") {

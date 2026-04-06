@@ -18,7 +18,7 @@ import { Appointment, Client, DAYS_OF_WEEK, generateAvailableSlots, minutesToTim
 type Step = 1 | 2 | 3;
 
 export default function NewBookingScreen() {
-  const { state, dispatch, getServiceById, getClientById } = useStore();
+  const { state, dispatch, getServiceById, getClientById, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
 
@@ -81,6 +81,7 @@ export default function NewBookingScreen() {
       createdAt: new Date().toISOString(),
     };
     dispatch({ type: "ADD_CLIENT", payload: client });
+    syncToDb({ type: "ADD_CLIENT", payload: client });
     setSelectedClientId(client.id);
     setShowQuickAdd(false);
     setQuickName("");
@@ -102,6 +103,7 @@ export default function NewBookingScreen() {
       createdAt: new Date().toISOString(),
     };
     dispatch({ type: "ADD_APPOINTMENT", payload: appointment });
+    syncToDb({ type: "ADD_APPOINTMENT", payload: appointment });
     router.back();
   }, [selectedServiceId, selectedClientId, selectedDate, selectedTime, duration, notes, dispatch, router]);
 

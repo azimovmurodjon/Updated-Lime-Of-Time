@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useReducer, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useReducer, useCallback, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   Service,
@@ -11,6 +11,7 @@ import {
   DEFAULT_CANCELLATION_POLICY,
   AppointmentStatus,
 } from "./types";
+import { trpc } from "./trpc";
 
 // ─── State ───────────────────────────────────────────────────────────
 interface AppState {
@@ -20,6 +21,10 @@ interface AppState {
   reviews: Review[];
   settings: BusinessSettings;
   loaded: boolean;
+  /** DB id of the current business owner – null until bootstrap completes */
+  businessOwnerId: number | null;
+  /** Whether we're currently syncing with the server */
+  syncing: boolean;
 }
 
 const initialSettings: BusinessSettings = {
@@ -42,11 +47,15 @@ const initialState: AppState = {
   reviews: [],
   settings: initialSettings,
   loaded: false,
+  businessOwnerId: null,
+  syncing: false,
 };
 
 // ─── Actions ─────────────────────────────────────────────────────────
 type Action =
   | { type: "LOAD_DATA"; payload: Partial<AppState> }
+  | { type: "SET_BUSINESS_OWNER_ID"; payload: number | null }
+  | { type: "SET_SYNCING"; payload: boolean }
   | { type: "ADD_SERVICE"; payload: Service }
   | { type: "UPDATE_SERVICE"; payload: Service }
   | { type: "DELETE_SERVICE"; payload: string }
@@ -66,6 +75,10 @@ function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case "LOAD_DATA":
       return { ...state, ...action.payload, loaded: true };
+    case "SET_BUSINESS_OWNER_ID":
+      return { ...state, businessOwnerId: action.payload };
+    case "SET_SYNCING":
+      return { ...state, syncing: action.payload };
     case "ADD_SERVICE":
       return { ...state, services: [...state.services, action.payload] };
     case "UPDATE_SERVICE":
@@ -141,6 +154,8 @@ interface StoreContextType {
   getAppointmentsForClient: (clientId: string) => Appointment[];
   getReviewsForClient: (clientId: string) => Review[];
   getTodayStats: () => { todayCount: number; weekCount: number; weekRevenue: number };
+  /** Sync a specific action to the database */
+  syncToDb: (action: Action) => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextType | null>(null);
@@ -151,15 +166,144 @@ const STORAGE_KEYS = {
   appointments: "@bookease_appointments",
   reviews: "@bookease_reviews",
   settings: "@bookease_settings",
+  businessOwnerId: "@bookease_business_owner_id",
 };
+
+/** Convert DB rows to local frontend models */
+function dbServiceToLocal(s: any): Service {
+  return {
+    id: s.localId,
+    name: s.name,
+    duration: s.duration,
+    price: typeof s.price === "string" ? parseFloat(s.price) : s.price,
+    color: s.color,
+    createdAt: s.createdAt ? new Date(s.createdAt).toISOString() : new Date().toISOString(),
+  };
+}
+
+function dbClientToLocal(c: any): Client {
+  return {
+    id: c.localId,
+    name: c.name,
+    phone: c.phone ?? "",
+    email: c.email ?? "",
+    notes: c.notes ?? "",
+    createdAt: c.createdAt ? new Date(c.createdAt).toISOString() : new Date().toISOString(),
+  };
+}
+
+function dbAppointmentToLocal(a: any): Appointment {
+  return {
+    id: a.localId,
+    serviceId: a.serviceLocalId,
+    clientId: a.clientLocalId,
+    date: a.date,
+    time: a.time,
+    duration: a.duration,
+    status: a.status as AppointmentStatus,
+    notes: a.notes ?? "",
+    createdAt: a.createdAt ? new Date(a.createdAt).toISOString() : new Date().toISOString(),
+  };
+}
+
+function dbReviewToLocal(r: any): Review {
+  return {
+    id: r.localId,
+    clientId: r.clientLocalId,
+    appointmentId: r.appointmentLocalId ?? undefined,
+    rating: r.rating,
+    comment: r.comment ?? "",
+    createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+  };
+}
+
+function dbOwnerToSettings(owner: any): Partial<BusinessSettings> {
+  return {
+    businessName: owner.businessName,
+    defaultDuration: owner.defaultDuration ?? 60,
+    notificationsEnabled: owner.notificationsEnabled ?? true,
+    themeMode: owner.themeMode ?? "system",
+    temporaryClosed: owner.temporaryClosed ?? false,
+    onboardingComplete: owner.onboardingComplete ?? false,
+    businessLogoUri: owner.businessLogoUri ?? "",
+    workingHours: owner.workingHours ?? DEFAULT_WORKING_HOURS,
+    cancellationPolicy: owner.cancellationPolicy ?? DEFAULT_CANCELLATION_POLICY,
+    profile: {
+      ownerName: owner.ownerName ?? "",
+      phone: owner.phone ?? "",
+      email: owner.email ?? "",
+      address: owner.address ?? "",
+      description: owner.description ?? "",
+      website: owner.website ?? "",
+    },
+  };
+}
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const trpcUtils = trpc.useUtils();
+  const businessOwnerIdRef = useRef<number | null>(null);
 
-  // Load data from AsyncStorage on mount
+  // Keep ref in sync
+  useEffect(() => {
+    businessOwnerIdRef.current = state.businessOwnerId;
+  }, [state.businessOwnerId]);
+
+  // ─── tRPC mutations ─────────────────────────────────────────────
+  const createServiceMut = trpc.services.create.useMutation();
+  const updateServiceMut = trpc.services.update.useMutation();
+  const deleteServiceMut = trpc.services.delete.useMutation();
+  const createClientMut = trpc.clients.create.useMutation();
+  const updateClientMut = trpc.clients.update.useMutation();
+  const deleteClientMut = trpc.clients.delete.useMutation();
+  const createApptMut = trpc.appointments.create.useMutation();
+  const updateApptMut = trpc.appointments.update.useMutation();
+  const deleteApptMut = trpc.appointments.delete.useMutation();
+  const createReviewMut = trpc.reviews.create.useMutation();
+  const deleteReviewMut = trpc.reviews.delete.useMutation();
+  const updateBusinessMut = trpc.business.update.useMutation();
+
+  // ─── Bootstrap: Load from DB or fallback to AsyncStorage ────────
   useEffect(() => {
     (async () => {
       try {
+        // First check if we have a stored business owner ID
+        const storedOwnerId = await AsyncStorage.getItem(STORAGE_KEYS.businessOwnerId);
+        
+        if (storedOwnerId) {
+          const ownerId = parseInt(storedOwnerId, 10);
+          try {
+            // Try to load from database
+            const fullData = await trpcUtils.business.getFullData.fetch({ id: ownerId });
+            if (fullData && fullData.owner) {
+              const settingsFromDb = dbOwnerToSettings(fullData.owner);
+              dispatch({
+                type: "LOAD_DATA",
+                payload: {
+                  services: (fullData.services || []).map(dbServiceToLocal),
+                  clients: (fullData.clients || []).map(dbClientToLocal),
+                  appointments: (fullData.appointments || []).map(dbAppointmentToLocal),
+                  reviews: (fullData.reviews || []).map(dbReviewToLocal),
+                  settings: { ...initialSettings, ...settingsFromDb },
+                  businessOwnerId: ownerId,
+                },
+              });
+              // Also persist to AsyncStorage as cache
+              await persistToAsyncStorage(
+                (fullData.services || []).map(dbServiceToLocal),
+                (fullData.clients || []).map(dbClientToLocal),
+                (fullData.appointments || []).map(dbAppointmentToLocal),
+                (fullData.reviews || []).map(dbReviewToLocal),
+                { ...initialSettings, ...settingsFromDb }
+              );
+              return;
+            }
+          } catch (err) {
+            console.warn("[Store] Failed to load from DB, falling back to local:", err);
+          }
+        }
+
+        // Fallback: load from AsyncStorage
         const [servicesRaw, clientsRaw, appointmentsRaw, reviewsRaw, settingsRaw] =
           await Promise.all([
             AsyncStorage.getItem(STORAGE_KEYS.services),
@@ -168,6 +312,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             AsyncStorage.getItem(STORAGE_KEYS.reviews),
             AsyncStorage.getItem(STORAGE_KEYS.settings),
           ]);
+        
+        const loadedSettings = settingsRaw
+          ? { ...initialSettings, ...JSON.parse(settingsRaw) }
+          : initialSettings;
+        
         dispatch({
           type: "LOAD_DATA",
           payload: {
@@ -175,9 +324,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             clients: clientsRaw ? JSON.parse(clientsRaw) : [],
             appointments: appointmentsRaw ? JSON.parse(appointmentsRaw) : [],
             reviews: reviewsRaw ? JSON.parse(reviewsRaw) : [],
-            settings: settingsRaw
-              ? { ...initialSettings, ...JSON.parse(settingsRaw) }
-              : initialSettings,
+            settings: loadedSettings,
+            businessOwnerId: storedOwnerId ? parseInt(storedOwnerId, 10) : null,
           },
         });
       } catch {
@@ -186,7 +334,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  // Persist data whenever it changes
+  // ─── Persist to AsyncStorage whenever state changes ─────────────
   useEffect(() => {
     if (!state.loaded) return;
     AsyncStorage.setItem(STORAGE_KEYS.services, JSON.stringify(state.services));
@@ -199,10 +347,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!state.loaded) return;
-    AsyncStorage.setItem(
-      STORAGE_KEYS.appointments,
-      JSON.stringify(state.appointments)
-    );
+    AsyncStorage.setItem(STORAGE_KEYS.appointments, JSON.stringify(state.appointments));
   }, [state.appointments, state.loaded]);
 
   useEffect(() => {
@@ -215,6 +360,187 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(state.settings));
   }, [state.settings, state.loaded]);
 
+  useEffect(() => {
+    if (state.businessOwnerId !== null) {
+      AsyncStorage.setItem(STORAGE_KEYS.businessOwnerId, String(state.businessOwnerId));
+    }
+  }, [state.businessOwnerId]);
+
+  // ─── Sync action to database ────────────────────────────────────
+  const syncToDb = useCallback(
+    async (action: Action) => {
+      const ownerId = businessOwnerIdRef.current;
+      if (!ownerId) return; // No business owner yet, skip DB sync
+
+      try {
+        switch (action.type) {
+          case "ADD_SERVICE": {
+            const svc = action.payload as Service;
+            await createServiceMut.mutateAsync({
+              businessOwnerId: ownerId,
+              localId: svc.id,
+              name: svc.name,
+              duration: svc.duration,
+              price: String(svc.price),
+              color: svc.color,
+            });
+            break;
+          }
+          case "UPDATE_SERVICE": {
+            const svc = action.payload as Service;
+            // Find the DB record by localId
+            const dbSvc = await trpcUtils.services.list.fetch({ businessOwnerId: ownerId });
+            const match = dbSvc.find((s: any) => s.localId === svc.id);
+            if (match) {
+              await updateServiceMut.mutateAsync({
+                dbId: match.id,
+                businessOwnerId: ownerId,
+                name: svc.name,
+                duration: svc.duration,
+                price: String(svc.price),
+                color: svc.color,
+              });
+            }
+            break;
+          }
+          case "DELETE_SERVICE": {
+            await deleteServiceMut.mutateAsync({
+              localId: action.payload as string,
+              businessOwnerId: ownerId,
+            });
+            break;
+          }
+          case "ADD_CLIENT": {
+            const cl = action.payload as Client;
+            await createClientMut.mutateAsync({
+              businessOwnerId: ownerId,
+              localId: cl.id,
+              name: cl.name,
+              phone: cl.phone || undefined,
+              email: cl.email || undefined,
+              notes: cl.notes || undefined,
+            });
+            break;
+          }
+          case "UPDATE_CLIENT": {
+            const cl = action.payload as Client;
+            await updateClientMut.mutateAsync({
+              localId: cl.id,
+              businessOwnerId: ownerId,
+              name: cl.name,
+              phone: cl.phone || undefined,
+              email: cl.email || undefined,
+              notes: cl.notes || undefined,
+            });
+            break;
+          }
+          case "DELETE_CLIENT": {
+            await deleteClientMut.mutateAsync({
+              localId: action.payload as string,
+              businessOwnerId: ownerId,
+            });
+            break;
+          }
+          case "ADD_APPOINTMENT": {
+            const appt = action.payload as Appointment;
+            await createApptMut.mutateAsync({
+              businessOwnerId: ownerId,
+              localId: appt.id,
+              serviceLocalId: appt.serviceId,
+              clientLocalId: appt.clientId,
+              date: appt.date,
+              time: appt.time,
+              duration: appt.duration,
+              status: appt.status,
+              notes: appt.notes || undefined,
+            });
+            break;
+          }
+          case "UPDATE_APPOINTMENT": {
+            const appt = action.payload as Appointment;
+            await updateApptMut.mutateAsync({
+              localId: appt.id,
+              businessOwnerId: ownerId,
+              status: appt.status,
+              date: appt.date,
+              time: appt.time,
+              duration: appt.duration,
+              notes: appt.notes || undefined,
+            });
+            break;
+          }
+          case "UPDATE_APPOINTMENT_STATUS": {
+            const { id, status } = action.payload as { id: string; status: AppointmentStatus };
+            await updateApptMut.mutateAsync({
+              localId: id,
+              businessOwnerId: ownerId,
+              status,
+            });
+            break;
+          }
+          case "DELETE_APPOINTMENT": {
+            await deleteApptMut.mutateAsync({
+              localId: action.payload as string,
+              businessOwnerId: ownerId,
+            });
+            break;
+          }
+          case "ADD_REVIEW": {
+            const rev = action.payload as Review;
+            await createReviewMut.mutateAsync({
+              businessOwnerId: ownerId,
+              localId: rev.id,
+              clientLocalId: rev.clientId,
+              appointmentLocalId: rev.appointmentId || undefined,
+              rating: rev.rating,
+              comment: rev.comment || undefined,
+            });
+            break;
+          }
+          case "DELETE_REVIEW": {
+            await deleteReviewMut.mutateAsync({
+              localId: action.payload as string,
+              businessOwnerId: ownerId,
+            });
+            break;
+          }
+          case "UPDATE_SETTINGS": {
+            const settings = action.payload as Partial<BusinessSettings>;
+            const updateData: any = { id: ownerId };
+            if (settings.businessName !== undefined) updateData.businessName = settings.businessName;
+            if (settings.profile) {
+              if (settings.profile.ownerName !== undefined) updateData.ownerName = settings.profile.ownerName;
+              if (settings.profile.phone !== undefined) updateData.phone = settings.profile.phone;
+              if (settings.profile.email !== undefined) updateData.email = settings.profile.email;
+              if (settings.profile.address !== undefined) updateData.address = settings.profile.address;
+              if (settings.profile.description !== undefined) updateData.description = settings.profile.description;
+              if (settings.profile.website !== undefined) updateData.website = settings.profile.website;
+            }
+            if (settings.businessLogoUri !== undefined) updateData.businessLogoUri = settings.businessLogoUri;
+            if (settings.defaultDuration !== undefined) updateData.defaultDuration = settings.defaultDuration;
+            if (settings.notificationsEnabled !== undefined) updateData.notificationsEnabled = settings.notificationsEnabled;
+            if (settings.themeMode !== undefined) updateData.themeMode = settings.themeMode;
+            if (settings.temporaryClosed !== undefined) updateData.temporaryClosed = settings.temporaryClosed;
+            if (settings.workingHours !== undefined) updateData.workingHours = settings.workingHours;
+            if (settings.cancellationPolicy !== undefined) updateData.cancellationPolicy = settings.cancellationPolicy;
+            // Only update if there's something besides id
+            if (Object.keys(updateData).length > 1) {
+              await updateBusinessMut.mutateAsync(updateData);
+            }
+            break;
+          }
+          default:
+            break;
+        }
+      } catch (err) {
+        console.warn("[Store] Failed to sync to DB:", action.type, err);
+        // Local state is still updated, DB sync failed silently
+      }
+    },
+    []
+  );
+
+  // ─── Selectors ──────────────────────────────────────────────────
   const getServiceById = useCallback(
     (id: string) => state.services.find((s) => s.id === id),
     [state.services]
@@ -257,7 +583,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       (a) => a.date === todayStr && a.status !== "cancelled"
     ).length;
 
-    // Get start of week (Sunday)
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay());
     const endOfWeek = new Date(startOfWeek);
@@ -288,6 +613,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         getAppointmentsForClient,
         getReviewsForClient,
         getTodayStats,
+        syncToDb,
       }}
     >
       {children}
@@ -302,6 +628,26 @@ export function useStore() {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────
+async function persistToAsyncStorage(
+  services: Service[],
+  clients: Client[],
+  appointments: Appointment[],
+  reviews: Review[],
+  settings: BusinessSettings
+) {
+  try {
+    await Promise.all([
+      AsyncStorage.setItem(STORAGE_KEYS.services, JSON.stringify(services)),
+      AsyncStorage.setItem(STORAGE_KEYS.clients, JSON.stringify(clients)),
+      AsyncStorage.setItem(STORAGE_KEYS.appointments, JSON.stringify(appointments)),
+      AsyncStorage.setItem(STORAGE_KEYS.reviews, JSON.stringify(reviews)),
+      AsyncStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(settings)),
+    ]);
+  } catch (err) {
+    console.warn("[Store] Failed to persist to AsyncStorage:", err);
+  }
+}
+
 export function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
 }

@@ -34,7 +34,7 @@ import {
 type BookingStep = "info" | "service" | "datetime" | "confirm" | "done";
 
 export default function PublicBookingScreen() {
-  const { state, dispatch, getServiceById } = useStore();
+  const { state, dispatch, getServiceById, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -102,6 +102,7 @@ export default function PublicBookingScreen() {
         createdAt: new Date().toISOString(),
       };
       dispatch({ type: "ADD_CLIENT", payload: newClient });
+      syncToDb({ type: "ADD_CLIENT", payload: newClient });
     }
 
     const appointment: Appointment = {
@@ -116,6 +117,7 @@ export default function PublicBookingScreen() {
       createdAt: new Date().toISOString(),
     };
     dispatch({ type: "ADD_APPOINTMENT", payload: appointment });
+    syncToDb({ type: "ADD_APPOINTMENT", payload: appointment });
     setStep("done");
   }, [selectedServiceId, selectedTime, clientName, clientPhone, clientEmail, notes, selectedDate, selectedService, state, dispatch]);
 

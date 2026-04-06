@@ -40,7 +40,7 @@ const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "Ju
 const DAY_HEADERS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 export default function CalendarScreen() {
-  const { state, dispatch, getServiceById, getClientById } = useStore();
+  const { state, dispatch, getServiceById, getClientById, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -132,6 +132,7 @@ export default function CalendarScreen() {
     const client = getClientById(appt.clientId);
     const svc = getServiceById(appt.serviceId);
     dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appt.id, status: "confirmed" } });
+    syncToDb({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appt.id, status: "confirmed" } });
 
     const message = generateAcceptMessage(
       state.settings.businessName,
@@ -162,6 +163,7 @@ export default function CalendarScreen() {
         style: "destructive",
         onPress: () => {
           dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appt.id, status: "cancelled" } });
+          syncToDb({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appt.id, status: "cancelled" } });
           const message = generateRejectMessage(
             state.settings.businessName,
             client?.name ?? "Valued Client",

@@ -69,3 +69,15 @@
 - [x] Accept appointment: share full address with map link (e.g. 4661 McKnight Road, Pittsburgh PA, 15237)
 - [x] All messages: professional format with full business info, address, service, date, time
 - [x] Address in messages: clickable map link for clients
+- [x] Connect database - design and implement DB schema for all entities
+- [x] Create tRPC API routes for business owner CRUD
+- [x] Create tRPC API routes for clients CRUD (linked to business owner)
+- [x] Create tRPC API routes for services CRUD (linked to business owner)
+- [x] Create tRPC API routes for appointments CRUD (linked to business owner)
+- [x] Create tRPC API routes for reviews CRUD (linked to business owner)
+- [x] Create tRPC API routes for business settings/profile
+- [x] Connect frontend store to database via tRPC
+- [x] Implement auth flow - check DB for existing business owner on app launch
+- [x] Route to onboarding if no business owner, home if exists
+- [x] Ensure all client data is linked to specific business owner
+- [x] Write tests for database connections and API routes

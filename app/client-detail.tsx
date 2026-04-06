@@ -36,7 +36,7 @@ type TabKey = "appointments" | "messages" | "reviews";
 
 export default function ClientDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { state, dispatch, getClientById, getAppointmentsForClient, getServiceById, getReviewsForClient } = useStore();
+  const { state, dispatch, getClientById, getAppointmentsForClient, getServiceById, getReviewsForClient, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -68,10 +68,12 @@ export default function ClientDetailScreen() {
 
   const handleSave = useCallback(() => {
     if (!editName.trim() || !client) return;
-    dispatch({
-      type: "UPDATE_CLIENT",
+    const action = {
+      type: "UPDATE_CLIENT" as const,
       payload: { ...client, name: editName.trim(), phone: editPhone.trim(), email: editEmail.trim(), notes: editNotes.trim() },
-    });
+    };
+    dispatch(action);
+    syncToDb(action);
     setEditing(false);
   }, [editName, editPhone, editEmail, editNotes, client, dispatch]);
 
@@ -79,6 +81,7 @@ export default function ClientDetailScreen() {
     if (!client) return;
     const doDelete = () => {
       dispatch({ type: "DELETE_CLIENT", payload: client.id });
+      syncToDb({ type: "DELETE_CLIENT", payload: client.id });
       router.back();
     };
     if (Platform.OS === "web") {
@@ -101,6 +104,7 @@ export default function ClientDetailScreen() {
       createdAt: new Date().toISOString(),
     };
     dispatch({ type: "ADD_REVIEW", payload: review });
+    syncToDb({ type: "ADD_REVIEW", payload: review });
     setReviewComment("");
     setReviewRating(5);
     setShowReviewForm(false);
@@ -108,7 +112,10 @@ export default function ClientDetailScreen() {
 
   const handleDeleteReview = useCallback(
     (reviewId: string) => {
-      const doIt = () => dispatch({ type: "DELETE_REVIEW", payload: reviewId });
+      const doIt = () => {
+        dispatch({ type: "DELETE_REVIEW", payload: reviewId });
+        syncToDb({ type: "DELETE_REVIEW", payload: reviewId });
+      };
       if (Platform.OS === "web") {
         doIt();
       } else {

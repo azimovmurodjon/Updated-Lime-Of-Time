@@ -23,6 +23,7 @@ import { useRouter } from "expo-router";
 import { useThemeContext } from "@/lib/theme-provider";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { formatPhoneNumber, getMapUrl } from "@/lib/types";
+import { trpc } from "@/lib/trpc";
 
 const DAYS_OF_WEEK = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
 const DAY_LABELS: Record<string, string> = {
@@ -50,7 +51,8 @@ function formatTimeLabel(time: string): string {
 }
 
 export default function SettingsScreen() {
-  const { state, dispatch } = useStore();
+  const { state, dispatch, syncToDb } = useStore();
+  const deleteBusinessMut = trpc.business.delete.useMutation();
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -79,19 +81,23 @@ export default function SettingsScreen() {
 
   const saveName = useCallback(() => {
     if (nameValue.trim()) {
-      dispatch({ type: "UPDATE_SETTINGS", payload: { businessName: nameValue.trim() } });
+      const action = { type: "UPDATE_SETTINGS" as const, payload: { businessName: nameValue.trim() } };
+      dispatch(action);
+      syncToDb(action);
     }
     setEditingName(false);
-  }, [nameValue, dispatch]);
+  }, [nameValue, dispatch, syncToDb]);
 
   const handleProfilePhoneChange = useCallback((text: string) => {
     setProfileForm((p) => ({ ...p, phone: formatPhoneNumber(text) }));
   }, []);
 
   const saveProfile = useCallback(() => {
-    dispatch({ type: "UPDATE_SETTINGS", payload: { profile: profileForm } });
+    const action = { type: "UPDATE_SETTINGS" as const, payload: { profile: profileForm } };
+    dispatch(action);
+    syncToDb(action);
     setEditingProfile(false);
-  }, [profileForm, dispatch]);
+  }, [profileForm, dispatch, syncToDb]);
 
   const openAddressInMap = useCallback(() => {
     const address = settings.profile.address;
@@ -106,16 +112,20 @@ export default function SettingsScreen() {
   }, [settings.profile.address]);
 
   const toggleNotifications = useCallback(() => {
-    dispatch({ type: "UPDATE_SETTINGS", payload: { notificationsEnabled: !settings.notificationsEnabled } });
-  }, [settings.notificationsEnabled, dispatch]);
+    const action = { type: "UPDATE_SETTINGS" as const, payload: { notificationsEnabled: !settings.notificationsEnabled } };
+    dispatch(action);
+    syncToDb(action);
+  }, [settings.notificationsEnabled, dispatch, syncToDb]);
 
   const toggleDay = useCallback(
     (day: string) => {
       const wh = { ...settings.workingHours };
       wh[day] = { ...wh[day], enabled: !wh[day].enabled };
-      dispatch({ type: "UPDATE_SETTINGS", payload: { workingHours: wh } });
+      const action = { type: "UPDATE_SETTINGS" as const, payload: { workingHours: wh } };
+      dispatch(action);
+      syncToDb(action);
     },
-    [settings.workingHours, dispatch]
+    [settings.workingHours, dispatch, syncToDb]
   );
 
   const openTimePicker = useCallback((day: string, field: "start" | "end") => {
@@ -128,57 +138,60 @@ export default function SettingsScreen() {
     (time: string) => {
       const wh = { ...settings.workingHours };
       wh[timePickerDay] = { ...wh[timePickerDay], [timePickerField]: time };
-      dispatch({ type: "UPDATE_SETTINGS", payload: { workingHours: wh } });
+      const action = { type: "UPDATE_SETTINGS" as const, payload: { workingHours: wh } };
+      dispatch(action);
+      syncToDb(action);
       setTimePickerVisible(false);
     },
-    [timePickerDay, timePickerField, settings.workingHours, dispatch]
+    [timePickerDay, timePickerField, settings.workingHours, dispatch, syncToDb]
   );
 
   const setThemeMode = useCallback(
     (mode: "light" | "dark" | "system") => {
-      dispatch({ type: "UPDATE_SETTINGS", payload: { themeMode: mode } });
+      const action = { type: "UPDATE_SETTINGS" as const, payload: { themeMode: mode } };
+      dispatch(action);
+      syncToDb(action);
       setThemeOverride(mode === "system" ? "light" : mode);
     },
-    [dispatch, setThemeOverride]
+    [dispatch, setThemeOverride, syncToDb]
   );
 
   const policy = settings.cancellationPolicy;
 
   const toggleCancellation = useCallback(() => {
-    dispatch({
-      type: "UPDATE_SETTINGS",
-      payload: { cancellationPolicy: { ...policy, enabled: !policy.enabled } },
-    });
-  }, [policy, dispatch]);
+    const action = { type: "UPDATE_SETTINGS" as const, payload: { cancellationPolicy: { ...policy, enabled: !policy.enabled } } };
+    dispatch(action);
+    syncToDb(action);
+  }, [policy, dispatch, syncToDb]);
 
   const setCancellationHours = useCallback(
     (hours: number) => {
-      dispatch({
-        type: "UPDATE_SETTINGS",
-        payload: { cancellationPolicy: { ...policy, hoursBeforeAppointment: hours } },
-      });
+      const action = { type: "UPDATE_SETTINGS" as const, payload: { cancellationPolicy: { ...policy, hoursBeforeAppointment: hours } } };
+      dispatch(action);
+      syncToDb(action);
     },
-    [policy, dispatch]
+    [policy, dispatch, syncToDb]
   );
 
   const setCancellationFee = useCallback(
     (fee: number) => {
-      dispatch({
-        type: "UPDATE_SETTINGS",
-        payload: { cancellationPolicy: { ...policy, feePercentage: fee } },
-      });
+      const action = { type: "UPDATE_SETTINGS" as const, payload: { cancellationPolicy: { ...policy, feePercentage: fee } } };
+      dispatch(action);
+      syncToDb(action);
     },
-    [policy, dispatch]
+    [policy, dispatch, syncToDb]
   );
 
   // Temporary Closed toggle
   const toggleTemporaryClosed = useCallback(() => {
     const newValue = !settings.temporaryClosed;
-    dispatch({ type: "UPDATE_SETTINGS", payload: { temporaryClosed: newValue } });
+    const action = { type: "UPDATE_SETTINGS" as const, payload: { temporaryClosed: newValue } };
+    dispatch(action);
+    syncToDb(action);
     if (newValue) {
       Alert.alert("Business Closed", "Your business is now marked as temporarily closed. Clients will not be able to book new appointments.");
     }
-  }, [settings.temporaryClosed, dispatch]);
+  }, [settings.temporaryClosed, dispatch, syncToDb]);
 
   // Logout
   const handleLogout = useCallback(() => {
@@ -187,8 +200,18 @@ export default function SettingsScreen() {
       {
         text: "Log Out",
         style: "destructive",
-        onPress: () => {
-          dispatch({ type: "UPDATE_SETTINGS", payload: { onboardingComplete: false } });
+        onPress: async () => {
+          dispatch({ type: "RESET_ALL_DATA" });
+          try {
+            await AsyncStorage.multiRemove([
+              "@bookease_services",
+              "@bookease_clients",
+              "@bookease_appointments",
+              "@bookease_reviews",
+              "@bookease_settings",
+              "@bookease_business_owner_id",
+            ]);
+          } catch {}
           router.replace("/onboarding");
         },
       },
@@ -206,6 +229,14 @@ export default function SettingsScreen() {
           text: "Delete Everything",
           style: "destructive",
           onPress: async () => {
+            // Delete from database first
+            if (state.businessOwnerId) {
+              try {
+                await deleteBusinessMut.mutateAsync({ id: state.businessOwnerId });
+              } catch (err) {
+                console.warn("[Settings] Failed to delete from DB:", err);
+              }
+            }
             dispatch({ type: "RESET_ALL_DATA" });
             try {
               await AsyncStorage.multiRemove([
@@ -214,6 +245,7 @@ export default function SettingsScreen() {
                 "@bookease_appointments",
                 "@bookease_reviews",
                 "@bookease_settings",
+                "@bookease_business_owner_id",
               ]);
             } catch {}
             router.replace("/onboarding");
@@ -221,7 +253,7 @@ export default function SettingsScreen() {
         },
       ]
     );
-  }, [dispatch, router]);
+  }, [dispatch, router, state.businessOwnerId, deleteBusinessMut]);
 
   const themeOptions: { key: "light" | "dark" | "system"; label: string; icon: string }[] = [
     { key: "light", label: "Light", icon: "sun.max.fill" },

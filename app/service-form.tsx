@@ -11,7 +11,7 @@ const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120];
 
 export default function ServiceFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const { state, dispatch } = useStore();
+  const { state, dispatch, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
 
@@ -39,8 +39,10 @@ export default function ServiceFormScreen() {
     };
     if (isEdit) {
       dispatch({ type: "UPDATE_SERVICE", payload: service });
+      syncToDb({ type: "UPDATE_SERVICE", payload: service });
     } else {
       dispatch({ type: "ADD_SERVICE", payload: service });
+      syncToDb({ type: "ADD_SERVICE", payload: service });
     }
     router.back();
   };
@@ -49,6 +51,7 @@ export default function ServiceFormScreen() {
     if (!existing) return;
     const doIt = () => {
       dispatch({ type: "DELETE_SERVICE", payload: existing.id });
+      syncToDb({ type: "DELETE_SERVICE", payload: existing.id });
       router.back();
     };
     if (Platform.OS === "web") {
