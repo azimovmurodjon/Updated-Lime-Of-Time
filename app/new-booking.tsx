@@ -37,27 +37,40 @@ export default function NewBookingScreen() {
   const selectedClient = selectedClientId ? getClientById(selectedClientId) : null;
   const duration = selectedService?.duration ?? state.settings.defaultDuration;
 
-  // Generate available time slots using the shared helper (filters past times + conflicts)
+  // Generate available time slots using the shared helper (with custom schedule)
   const timeSlots = useMemo(() => {
     return generateAvailableSlots(
       selectedDate,
       duration,
       state.settings.workingHours,
-      state.appointments
+      state.appointments,
+      30,
+      state.customSchedule
     );
-  }, [selectedDate, state.settings.workingHours, state.appointments, duration]);
+  }, [selectedDate, state.settings.workingHours, state.appointments, duration, state.customSchedule]);
 
-  // Date options: next 14 days
+  // Date options: next 14 days with closed-day awareness
   const dateOptions = useMemo(() => {
-    const dates: string[] = [];
+    const dates: { date: string; closed: boolean }[] = [];
     const today = new Date();
     for (let i = 0; i < 14; i++) {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
-      dates.push(formatDateStr(d));
+      const ds = formatDateStr(d);
+      const customDay = state.customSchedule.find((cs) => cs.date === ds);
+      let closed = false;
+      if (customDay) {
+        closed = !customDay.isOpen;
+      } else {
+        const dayIndex = d.getDay();
+        const dayName = DAYS_OF_WEEK[dayIndex];
+        const wh = state.settings.workingHours[dayName];
+        closed = !wh || !wh.enabled;
+      }
+      dates.push({ date: ds, closed });
     }
     return dates;
-  }, []);
+  }, [state.customSchedule, state.settings.workingHours]);
 
   const filteredClients = useMemo(() => {
     const q = clientSearch.toLowerCase();
@@ -316,24 +329,27 @@ export default function NewBookingScreen() {
           <Text className="text-xs font-medium text-muted mb-2 ml-1">Date</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
             <View className="flex-row gap-2">
-              {dateOptions.map((d) => {
-                const dateObj = new Date(d + "T12:00:00");
-                const isSelected = d === selectedDate;
+              {dateOptions.map((opt) => {
+                const dateObj = new Date(opt.date + "T12:00:00");
+                const isSelected = opt.date === selectedDate;
                 const dayName = dateObj.toLocaleDateString("en-US", { weekday: "short" });
                 const dayNum = dateObj.getDate();
+                const isOff = opt.closed;
                 return (
                   <Pressable
-                    key={d}
+                    key={opt.date}
                     onPress={() => {
-                      setSelectedDate(d);
-                      setSelectedTime(null);
+                      if (!isOff) {
+                        setSelectedDate(opt.date);
+                        setSelectedTime(null);
+                      }
                     }}
                     style={({ pressed }) => [
                       styles.dateChip,
                       {
-                        backgroundColor: isSelected ? colors.primary : colors.surface,
+                        backgroundColor: isSelected ? colors.primary : isOff ? colors.border + "30" : colors.surface,
                         borderColor: isSelected ? colors.primary : colors.border,
-                        opacity: pressed ? 0.7 : 1,
+                        opacity: isOff ? 0.4 : pressed ? 0.7 : 1,
                       },
                     ]}
                   >
@@ -349,6 +365,7 @@ export default function NewBookingScreen() {
                     >
                       {dayNum}
                     </Text>
+                    {isOff && <Text style={{ fontSize: 9, color: colors.error, fontWeight: "600" }}>OFF</Text>}
                   </Pressable>
                 );
               })}

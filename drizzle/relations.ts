@@ -6,6 +6,9 @@ import {
   clients,
   appointments,
   reviews,
+  discounts,
+  giftCards,
+  customSchedule,
 } from "./schema";
 
 export const usersRelations = relations(users, ({ one }) => ({
@@ -24,6 +27,9 @@ export const businessOwnersRelations = relations(businessOwners, ({ one, many })
   clients: many(clients),
   appointments: many(appointments),
   reviews: many(reviews),
+  discounts: many(discounts),
+  giftCards: many(giftCards),
+  customSchedule: many(customSchedule),
 }));
 
 export const servicesRelations = relations(services, ({ one }) => ({
@@ -50,6 +56,27 @@ export const appointmentsRelations = relations(appointments, ({ one }) => ({
 export const reviewsRelations = relations(reviews, ({ one }) => ({
   businessOwner: one(businessOwners, {
     fields: [reviews.businessOwnerId],
+    references: [businessOwners.id],
+  }),
+}));
+
+export const discountsRelations = relations(discounts, ({ one }) => ({
+  businessOwner: one(businessOwners, {
+    fields: [discounts.businessOwnerId],
+    references: [businessOwners.id],
+  }),
+}));
+
+export const giftCardsRelations = relations(giftCards, ({ one }) => ({
+  businessOwner: one(businessOwners, {
+    fields: [giftCards.businessOwnerId],
+    references: [businessOwners.id],
+  }),
+}));
+
+export const customScheduleRelations = relations(customSchedule, ({ one }) => ({
+  businessOwner: one(businessOwners, {
+    fields: [customSchedule.businessOwnerId],
     references: [businessOwners.id],
   }),
 }));

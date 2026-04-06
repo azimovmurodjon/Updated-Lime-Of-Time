@@ -29,6 +29,8 @@ import {
   formatDateLong,
   formatTimeDisplay,
   isDateInPast,
+  getApplicableDiscount,
+  Discount,
 } from "@/lib/types";
 
 type BookingStep = "info" | "service" | "datetime" | "confirm" | "done";
@@ -48,6 +50,8 @@ export default function PublicBookingScreen() {
   const [selectedDate, setSelectedDate] = useState(formatDateStr(new Date()));
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
+  const [giftCode, setGiftCode] = useState("");
+  const [giftApplied, setGiftApplied] = useState<string | null>(null); // gift card id if applied
 
   const selectedService = selectedServiceId ? getServiceById(selectedServiceId) : null;
   const businessName = state.settings.businessName || "Our Business";
@@ -58,7 +62,7 @@ export default function PublicBookingScreen() {
     setClientPhone(formatPhoneNumber(text));
   };
 
-  // Generate available time slots using shared helper
+  // Generate available time slots using shared helper (with custom schedule)
   const timeSlots = useMemo(() => {
     const duration = selectedService?.duration ?? state.settings.defaultDuration;
     return generateAvailableSlots(
@@ -66,21 +70,77 @@ export default function PublicBookingScreen() {
       duration,
       state.settings.workingHours,
       state.appointments,
-      30
+      30,
+      state.customSchedule
     );
-  }, [selectedDate, state.settings, state.appointments, selectedService]);
+  }, [selectedDate, state.settings, state.appointments, selectedService, state.customSchedule]);
 
-  // Date options: next 30 days, only future dates
+  // Date options: next 30 days, only future dates — mark closed days
   const dateOptions = useMemo(() => {
-    const dates: string[] = [];
+    const dates: { date: string; closed: boolean }[] = [];
     const today = new Date();
     for (let i = 0; i < 30; i++) {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
-      dates.push(formatDateStr(d));
+      const ds = formatDateStr(d);
+      // Check custom schedule override first
+      const customDay = state.customSchedule.find((cs) => cs.date === ds);
+      let closed = false;
+      if (customDay) {
+        closed = !customDay.isOpen;
+      } else {
+        // Fall back to weekly hours
+        const dayIndex = d.getDay();
+        const dayName = DAYS_OF_WEEK[dayIndex];
+        const wh = state.settings.workingHours[dayName];
+        closed = !wh || !wh.enabled;
+      }
+      dates.push({ date: ds, closed });
     }
     return dates;
-  }, []);
+  }, [state.customSchedule, state.settings.workingHours]);
+
+  // Get applicable discount for selected time
+  const applicableDiscount = useMemo((): Discount | null => {
+    if (!selectedServiceId || !selectedTime) return null;
+    return getApplicableDiscount(state.discounts, selectedDate, selectedTime, selectedServiceId);
+  }, [state.discounts, selectedDate, selectedTime, selectedServiceId]);
+
+  // Gift card validation
+  const handleApplyGiftCode = useCallback(() => {
+    if (!giftCode.trim()) return;
+    const card = state.giftCards.find((g) => g.code.toUpperCase() === giftCode.trim().toUpperCase() && !g.redeemed);
+    if (!card) {
+      setGiftApplied(null);
+      return;
+    }
+    // Check expiry
+    if (card.expiresAt && new Date(card.expiresAt) < new Date()) {
+      setGiftApplied(null);
+      return;
+    }
+    setGiftApplied(card.id);
+    // Auto-select the service from the gift card
+    if (card.serviceLocalId) {
+      setSelectedServiceId(card.serviceLocalId);
+    }
+  }, [giftCode, state.giftCards]);
+
+  const appliedGiftCard = giftApplied ? state.giftCards.find((g) => g.id === giftApplied) : null;
+
+  // Calculate final price
+  const priceInfo = useMemo(() => {
+    if (!selectedService) return { original: 0, final: 0, discountPct: 0, isGift: false };
+    const original = selectedService.price;
+    if (appliedGiftCard) {
+      return { original, final: 0, discountPct: 100, isGift: true };
+    }
+    if (applicableDiscount) {
+      const discounted = original * (1 - applicableDiscount.percentage / 100);
+      return { original, final: Math.round(discounted * 100) / 100, discountPct: applicableDiscount.percentage, isGift: false };
+    }
+    return { original, final: original, discountPct: 0, isGift: false };
+  }, [selectedService, applicableDiscount, appliedGiftCard]);
 
   const handleConfirmBooking = useCallback(() => {
     if (!selectedServiceId || !selectedTime || !clientName.trim()) return;
@@ -118,8 +178,16 @@ export default function PublicBookingScreen() {
     };
     dispatch({ type: "ADD_APPOINTMENT", payload: appointment });
     syncToDb({ type: "ADD_APPOINTMENT", payload: appointment });
+
+    // Redeem gift card if applied
+    if (appliedGiftCard) {
+      const updatedGift = { ...appliedGiftCard, redeemed: true, redeemedAt: new Date().toISOString() };
+      dispatch({ type: "UPDATE_GIFT_CARD", payload: updatedGift });
+      syncToDb({ type: "UPDATE_GIFT_CARD", payload: updatedGift });
+    }
+
     setStep("done");
-  }, [selectedServiceId, selectedTime, clientName, clientPhone, clientEmail, notes, selectedDate, selectedService, state, dispatch]);
+  }, [selectedServiceId, selectedTime, clientName, clientPhone, clientEmail, notes, selectedDate, selectedService, state, dispatch, appliedGiftCard, syncToDb]);
 
   const openMap = useCallback(() => {
     if (profile.address) {
@@ -299,20 +367,18 @@ export default function PublicBookingScreen() {
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
               <View style={styles.dateRow}>
-                {dateOptions.map((d) => {
-                  const dateObj = new Date(d + "T12:00:00");
-                  const isSelected = d === selectedDate;
+                {dateOptions.map((opt) => {
+                  const dateObj = new Date(opt.date + "T12:00:00");
+                  const isSelected = opt.date === selectedDate;
                   const dayName = dateObj.toLocaleDateString("en-US", { weekday: "short" });
                   const dayNum = dateObj.getDate();
-                  const dayOfWeek = DAYS_OF_WEEK[dateObj.getDay()];
-                  const wh = state.settings.workingHours[dayOfWeek];
-                  const isOff = !wh || !wh.enabled;
+                  const isOff = opt.closed;
                   return (
                     <Pressable
-                      key={d}
+                      key={opt.date}
                       onPress={() => {
                         if (!isOff) {
-                          setSelectedDate(d);
+                          setSelectedDate(opt.date);
                           setSelectedTime(null);
                         }
                       }}
@@ -327,6 +393,7 @@ export default function PublicBookingScreen() {
                     >
                       <Text style={{ fontSize: 11, fontWeight: "500", color: isSelected ? "#FFFFFF" : colors.muted }}>{dayName}</Text>
                       <Text style={{ fontSize: 18, fontWeight: "700", color: isSelected ? "#FFFFFF" : colors.foreground, lineHeight: 24 }}>{dayNum}</Text>
+                      {isOff && <Text style={{ fontSize: 9, color: colors.error, fontWeight: "600" }}>OFF</Text>}
                     </Pressable>
                   );
                 })}
@@ -362,6 +429,47 @@ export default function PublicBookingScreen() {
                     </Pressable>
                   );
                 })}
+              </View>
+            )}
+
+            {/* Discount indicator */}
+            {applicableDiscount && selectedTime && (
+              <View style={[styles.discountBanner, { backgroundColor: "#FF9800" + "15", borderColor: "#FF9800" + "40" }]}>
+                <Text style={{ fontSize: 13, fontWeight: "600", color: "#FF9800" }}>
+                  {applicableDiscount.percentage}% OFF — {applicableDiscount.name}
+                </Text>
+                <Text style={{ fontSize: 12, color: "#FF9800", marginTop: 2 }}>
+                  ${selectedService ? (selectedService.price * (1 - applicableDiscount.percentage / 100)).toFixed(2) : "0"} instead of ${selectedService?.price}
+                </Text>
+              </View>
+            )}
+
+            {/* Gift Card Code */}
+            <Text style={{ fontSize: 12, fontWeight: "500", color: colors.muted, marginTop: 16, marginBottom: 6 }}>Gift Card Code (optional)</Text>
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+              <TextInput
+                style={[styles.notesInput, { flex: 1, backgroundColor: colors.surface, borderColor: giftApplied ? colors.success : colors.border, color: colors.foreground }]}
+                placeholder="Enter gift code..."
+                placeholderTextColor={colors.muted}
+                value={giftCode}
+                onChangeText={(t) => { setGiftCode(t.toUpperCase()); setGiftApplied(null); }}
+                autoCapitalize="characters"
+                returnKeyType="done"
+                onSubmitEditing={handleApplyGiftCode}
+              />
+              <Pressable
+                onPress={handleApplyGiftCode}
+                style={({ pressed }) => [{ backgroundColor: colors.primary, paddingHorizontal: 16, borderRadius: 12, justifyContent: "center", opacity: pressed ? 0.8 : 1 }]}
+              >
+                <Text style={{ color: "#fff", fontWeight: "600", fontSize: 13 }}>Apply</Text>
+              </Pressable>
+            </View>
+            {giftApplied && appliedGiftCard && (
+              <View style={[styles.discountBanner, { backgroundColor: colors.success + "15", borderColor: colors.success + "40" }]}>
+                <Text style={{ fontSize: 13, fontWeight: "600", color: colors.success }}>Gift Card Applied!</Text>
+                <Text style={{ fontSize: 12, color: colors.success, marginTop: 2 }}>
+                  Free service: {state.services.find((s) => s.id === appliedGiftCard.serviceLocalId)?.name ?? "Service"}
+                </Text>
               </View>
             )}
 
@@ -402,10 +510,6 @@ export default function PublicBookingScreen() {
             <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground, marginBottom: 16 }}>Booking Summary</Text>
 
-              <View style={[styles.summaryRow, { borderBottomColor: colors.border + "40" }]}>
-                <Text style={{ fontSize: 14, color: colors.muted }}>Client</Text>
-                <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{clientName}</Text>
-              </View>
               {clientPhone ? (
                 <View style={[styles.summaryRow, { borderBottomColor: colors.border + "40" }]}>
                   <Text style={{ fontSize: 14, color: colors.muted }}>Phone</Text>
@@ -432,7 +536,17 @@ export default function PublicBookingScreen() {
               </View>
               <View style={[styles.summaryRow, { borderBottomWidth: 0 }]}>
                 <Text style={{ fontSize: 14, color: colors.muted }}>Price</Text>
-                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.primary }}>${selectedService?.price}</Text>
+                <View style={{ alignItems: "flex-end" }}>
+                  {priceInfo.discountPct > 0 && (
+                    <Text style={{ fontSize: 12, textDecorationLine: "line-through", color: colors.muted }}>${priceInfo.original.toFixed(2)}</Text>
+                  )}
+                  <Text style={{ fontSize: 16, fontWeight: "700", color: priceInfo.isGift ? colors.success : colors.primary }}>
+                    {priceInfo.isGift ? "FREE (Gift)" : `$${priceInfo.final.toFixed(2)}`}
+                  </Text>
+                  {priceInfo.discountPct > 0 && !priceInfo.isGift && (
+                    <Text style={{ fontSize: 11, color: "#FF9800", fontWeight: "600" }}>{priceInfo.discountPct}% discount applied</Text>
+                  )}
+                </View>
               </View>
 
               {/* Business Location */}
@@ -657,5 +771,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     marginBottom: 16,
+  },
+  discountBanner: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 12,
   },
 });

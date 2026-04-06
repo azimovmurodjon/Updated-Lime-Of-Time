@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 
 // Test that the schema exports are correct
 describe("Database Schema", () => {
-  it("should export all required tables", async () => {
+  it("should export all required tables including new ones", async () => {
     const schema = await import("../drizzle/schema");
     expect(schema.users).toBeDefined();
     expect(schema.businessOwners).toBeDefined();
@@ -10,16 +10,21 @@ describe("Database Schema", () => {
     expect(schema.clients).toBeDefined();
     expect(schema.appointments).toBeDefined();
     expect(schema.reviews).toBeDefined();
+    expect(schema.discounts).toBeDefined();
+    expect(schema.giftCards).toBeDefined();
+    expect(schema.customSchedule).toBeDefined();
   });
 
-  it("should export type definitions", async () => {
+  it("should export type definitions for all tables", async () => {
     const schema = await import("../drizzle/schema");
-    // Verify table objects exist and are objects
     expect(typeof schema.businessOwners).toBe("object");
     expect(typeof schema.services).toBe("object");
     expect(typeof schema.clients).toBe("object");
     expect(typeof schema.appointments).toBe("object");
     expect(typeof schema.reviews).toBe("object");
+    expect(typeof schema.discounts).toBe("object");
+    expect(typeof schema.giftCards).toBe("object");
+    expect(typeof schema.customSchedule).toBe("object");
   });
 });
 
@@ -28,8 +33,6 @@ describe("API Router Structure", () => {
   it("should export appRouter with all sub-routers", async () => {
     const { appRouter } = await import("../server/routers");
     expect(appRouter).toBeDefined();
-    
-    // Check that the router has the expected procedure keys
     const procedures = appRouter._def.procedures;
     expect(procedures).toBeDefined();
   });
@@ -45,6 +48,8 @@ describe("Frontend Types", () => {
     expect(types.formatPhoneNumber).toBeDefined();
     expect(types.stripPhoneFormat).toBeDefined();
     expect(types.generateAvailableSlots).toBeDefined();
+    expect(types.getApplicableDiscount).toBeDefined();
+    expect(types.generateGiftCardCode).toBeDefined();
   });
 
   it("should format phone numbers correctly", async () => {
@@ -54,7 +59,7 @@ describe("Frontend Types", () => {
   });
 });
 
-// Test time/date helpers from types (store has trpc dependency that doesn't resolve in vitest)
+// Test time/date helpers from types
 describe("Time and Date Helpers", () => {
   it("should convert time to minutes and back", async () => {
     const { timeToMinutes, minutesToTime } = await import("../lib/types");
@@ -89,7 +94,7 @@ describe("Time and Date Helpers", () => {
 
 // Test the relations
 describe("Database Relations", () => {
-  it("should export all relation definitions", async () => {
+  it("should export all relation definitions including new ones", async () => {
     const relations = await import("../drizzle/relations");
     expect(relations.usersRelations).toBeDefined();
     expect(relations.businessOwnersRelations).toBeDefined();
@@ -97,6 +102,9 @@ describe("Database Relations", () => {
     expect(relations.clientsRelations).toBeDefined();
     expect(relations.appointmentsRelations).toBeDefined();
     expect(relations.reviewsRelations).toBeDefined();
+    expect(relations.discountsRelations).toBeDefined();
+    expect(relations.giftCardsRelations).toBeDefined();
+    expect(relations.customScheduleRelations).toBeDefined();
   });
 });
 
@@ -116,5 +124,147 @@ describe("Business Data Flow", () => {
     expect(DEFAULT_CANCELLATION_POLICY.enabled).toBe(true);
     expect(DEFAULT_CANCELLATION_POLICY.hoursBeforeAppointment).toBe(2);
     expect(DEFAULT_CANCELLATION_POLICY.feePercentage).toBe(50);
+  });
+});
+
+// Test discount logic
+describe("Discount Logic", () => {
+  it("should find applicable discount by day and time", async () => {
+    const { getApplicableDiscount } = await import("../lib/types");
+    const discounts: any[] = [
+      {
+        id: "d1",
+        name: "Happy Hour",
+        percentage: 20,
+        startTime: "14:00",
+        endTime: "16:00",
+        daysOfWeek: ["monday", "tuesday"],
+        serviceIds: null,
+        active: true,
+        createdAt: "2026-01-01T00:00:00Z",
+      },
+    ];
+    // Monday at 15:00 should match
+    const result = getApplicableDiscount(discounts, "2026-04-06", "15:00", "any-service");
+    expect(result).toBeDefined();
+    expect(result?.percentage).toBe(20);
+  });
+
+  it("should return null when no discount matches", async () => {
+    const { getApplicableDiscount } = await import("../lib/types");
+    const discounts: any[] = [
+      {
+        id: "d1",
+        name: "Happy Hour",
+        percentage: 20,
+        startTime: "14:00",
+        endTime: "16:00",
+        daysOfWeek: ["monday"],
+        serviceIds: null,
+        active: true,
+        createdAt: "2026-01-01T00:00:00Z",
+      },
+    ];
+    // Tuesday at 10:00 should not match (wrong day)
+    const result = getApplicableDiscount(discounts, "2026-04-07", "10:00", "any-service");
+    expect(result).toBeNull();
+  });
+
+  it("should filter by serviceId when specified", async () => {
+    const { getApplicableDiscount } = await import("../lib/types");
+    const discounts: any[] = [
+      {
+        id: "d1",
+        name: "Service Specific",
+        percentage: 15,
+        startTime: "09:00",
+        endTime: "17:00",
+        daysOfWeek: ["monday"],
+        serviceIds: ["svc1"],
+        active: true,
+        createdAt: "2026-01-01T00:00:00Z",
+      },
+    ];
+    // Monday at 10:00 for svc1 should match
+    const match = getApplicableDiscount(discounts, "2026-04-06", "10:00", "svc1");
+    expect(match).toBeDefined();
+    // Monday at 10:00 for svc2 should not match
+    const noMatch = getApplicableDiscount(discounts, "2026-04-06", "10:00", "svc2");
+    expect(noMatch).toBeNull();
+  });
+});
+
+// Test gift code generation
+describe("Gift Card Logic", () => {
+  it("should generate unique gift codes", async () => {
+    const { generateGiftCardCode } = await import("../lib/types");
+    const code1 = generateGiftCardCode();
+    const code2 = generateGiftCardCode();
+    expect(code1.startsWith("GIFT-")).toBe(true);
+    expect(code2.startsWith("GIFT-")).toBe(true);
+    expect(code1.length).toBeGreaterThanOrEqual(8);
+    expect(code2.length).toBeGreaterThanOrEqual(8);
+    expect(code1).not.toBe(code2);
+  });
+
+  it("should generate alphanumeric codes", async () => {
+    const { generateGiftCardCode } = await import("../lib/types");
+    const code = generateGiftCardCode();
+    expect(code).toMatch(/^GIFT-[A-Z0-9]+$/);
+  });
+});
+
+// Test custom schedule integration with slot generation
+describe("Custom Schedule Slot Generation", () => {
+  it("should return no slots when custom schedule marks day as closed", async () => {
+    const { generateAvailableSlots, DEFAULT_WORKING_HOURS } = await import("../lib/types");
+    const customSchedule = [{ date: "2026-04-06", isOpen: false }];
+    const slots = generateAvailableSlots(
+      "2026-04-06",
+      60,
+      DEFAULT_WORKING_HOURS,
+      [],
+      30,
+      customSchedule
+    );
+    expect(slots).toHaveLength(0);
+  });
+
+  it("should use custom hours when custom schedule provides them", async () => {
+    const { generateAvailableSlots, DEFAULT_WORKING_HOURS } = await import("../lib/types");
+    // Use a future date to avoid past-date filtering
+    const futureDate = "2026-12-07";
+    const customSchedule = [{ date: futureDate, isOpen: true, startTime: "10:00", endTime: "12:00" }];
+    const slots = generateAvailableSlots(
+      futureDate,
+      60,
+      DEFAULT_WORKING_HOURS,
+      [],
+      30,
+      customSchedule
+    );
+    // Should have slots from 10:00 to 11:00 (60 min duration, so last slot at 11:00 ends at 12:00)
+    expect(slots.length).toBeGreaterThan(0);
+    expect(slots[0]).toBe("10:00");
+    // All slots should be within 10:00-12:00
+    slots.forEach((s: string) => {
+      expect(s >= "10:00").toBe(true);
+    });
+  });
+
+  it("should fall back to weekly hours when no custom override exists", async () => {
+    const { generateAvailableSlots, DEFAULT_WORKING_HOURS } = await import("../lib/types");
+    // Use a future Monday (2026-04-13)
+    const slots = generateAvailableSlots(
+      "2026-04-13",
+      60,
+      DEFAULT_WORKING_HOURS,
+      [],
+      30,
+      [] // no custom schedule
+    );
+    // Monday is enabled by default (9-17), so should have slots
+    expect(slots.length).toBeGreaterThan(0);
+    expect(slots[0]).toBe("09:00");
   });
 });

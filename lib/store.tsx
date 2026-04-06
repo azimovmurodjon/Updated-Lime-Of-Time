@@ -5,6 +5,9 @@ import {
   Client,
   Appointment,
   Review,
+  Discount,
+  GiftCard,
+  CustomScheduleDay,
   BusinessSettings,
   DEFAULT_WORKING_HOURS,
   DEFAULT_BUSINESS_PROFILE,
@@ -19,6 +22,9 @@ interface AppState {
   clients: Client[];
   appointments: Appointment[];
   reviews: Review[];
+  discounts: Discount[];
+  giftCards: GiftCard[];
+  customSchedule: CustomScheduleDay[];
   settings: BusinessSettings;
   loaded: boolean;
   /** DB id of the current business owner – null until bootstrap completes */
@@ -45,6 +51,9 @@ const initialState: AppState = {
   clients: [],
   appointments: [],
   reviews: [],
+  discounts: [],
+  giftCards: [],
+  customSchedule: [],
   settings: initialSettings,
   loaded: false,
   businessOwnerId: null,
@@ -69,6 +78,14 @@ type Action =
   | { type: "UPDATE_SETTINGS"; payload: Partial<BusinessSettings> }
   | { type: "ADD_REVIEW"; payload: Review }
   | { type: "DELETE_REVIEW"; payload: string }
+  | { type: "ADD_DISCOUNT"; payload: Discount }
+  | { type: "UPDATE_DISCOUNT"; payload: Discount }
+  | { type: "DELETE_DISCOUNT"; payload: string }
+  | { type: "ADD_GIFT_CARD"; payload: GiftCard }
+  | { type: "UPDATE_GIFT_CARD"; payload: GiftCard }
+  | { type: "DELETE_GIFT_CARD"; payload: string }
+  | { type: "SET_CUSTOM_SCHEDULE"; payload: CustomScheduleDay }
+  | { type: "DELETE_CUSTOM_SCHEDULE"; payload: string }
   | { type: "RESET_ALL_DATA" };
 
 function reducer(state: AppState, action: Action): AppState {
@@ -137,6 +154,39 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, reviews: [...state.reviews, action.payload] };
     case "DELETE_REVIEW":
       return { ...state, reviews: state.reviews.filter((r) => r.id !== action.payload) };
+    case "ADD_DISCOUNT":
+      return { ...state, discounts: [...state.discounts, action.payload] };
+    case "UPDATE_DISCOUNT":
+      return {
+        ...state,
+        discounts: state.discounts.map((d) =>
+          d.id === action.payload.id ? action.payload : d
+        ),
+      };
+    case "DELETE_DISCOUNT":
+      return { ...state, discounts: state.discounts.filter((d) => d.id !== action.payload) };
+    case "ADD_GIFT_CARD":
+      return { ...state, giftCards: [...state.giftCards, action.payload] };
+    case "UPDATE_GIFT_CARD":
+      return {
+        ...state,
+        giftCards: state.giftCards.map((g) =>
+          g.id === action.payload.id ? action.payload : g
+        ),
+      };
+    case "DELETE_GIFT_CARD":
+      return { ...state, giftCards: state.giftCards.filter((g) => g.id !== action.payload) };
+    case "SET_CUSTOM_SCHEDULE": {
+      const existing = state.customSchedule.findIndex((cs) => cs.date === action.payload.date);
+      if (existing >= 0) {
+        const updated = [...state.customSchedule];
+        updated[existing] = action.payload;
+        return { ...state, customSchedule: updated };
+      }
+      return { ...state, customSchedule: [...state.customSchedule, action.payload] };
+    }
+    case "DELETE_CUSTOM_SCHEDULE":
+      return { ...state, customSchedule: state.customSchedule.filter((cs) => cs.date !== action.payload) };
     case "RESET_ALL_DATA":
       return { ...initialState, loaded: true };
     default:
@@ -217,6 +267,44 @@ function dbReviewToLocal(r: any): Review {
   };
 }
 
+function dbDiscountToLocal(d: any): Discount {
+  return {
+    id: d.localId,
+    name: d.name,
+    percentage: d.percentage,
+    startTime: d.startTime,
+    endTime: d.endTime,
+    daysOfWeek: Array.isArray(d.daysOfWeek) ? d.daysOfWeek : [],
+    serviceIds: d.serviceIds ?? null,
+    active: d.active ?? true,
+    createdAt: d.createdAt ? new Date(d.createdAt).toISOString() : new Date().toISOString(),
+  };
+}
+
+function dbGiftCardToLocal(g: any): GiftCard {
+  return {
+    id: g.localId,
+    code: g.code,
+    serviceLocalId: g.serviceLocalId,
+    recipientName: g.recipientName ?? "",
+    recipientPhone: g.recipientPhone ?? "",
+    message: g.message ?? "",
+    redeemed: g.redeemed ?? false,
+    redeemedAt: g.redeemedAt ? new Date(g.redeemedAt).toISOString() : undefined,
+    expiresAt: g.expiresAt ?? undefined,
+    createdAt: g.createdAt ? new Date(g.createdAt).toISOString() : new Date().toISOString(),
+  };
+}
+
+function dbCustomScheduleToLocal(cs: any): CustomScheduleDay {
+  return {
+    date: cs.date,
+    isOpen: cs.isOpen ?? true,
+    startTime: cs.startTime ?? undefined,
+    endTime: cs.endTime ?? undefined,
+  };
+}
+
 function dbOwnerToSettings(owner: any): Partial<BusinessSettings> {
   return {
     businessName: owner.businessName,
@@ -262,6 +350,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const createReviewMut = trpc.reviews.create.useMutation();
   const deleteReviewMut = trpc.reviews.delete.useMutation();
   const updateBusinessMut = trpc.business.update.useMutation();
+  const createDiscountMut = trpc.discounts.create.useMutation();
+  const updateDiscountMut = trpc.discounts.update.useMutation();
+  const deleteDiscountMut = trpc.discounts.delete.useMutation();
+  const createGiftCardMut = trpc.giftCards.create.useMutation();
+  const updateGiftCardMut = trpc.giftCards.update.useMutation();
+  const deleteGiftCardMut = trpc.giftCards.delete.useMutation();
+  const upsertScheduleMut = trpc.customSchedule.upsert.useMutation();
+  const deleteScheduleMut = trpc.customSchedule.delete.useMutation();
 
   // ─── Bootstrap: Load from DB or fallback to AsyncStorage ────────
   useEffect(() => {
@@ -284,6 +380,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                   clients: (fullData.clients || []).map(dbClientToLocal),
                   appointments: (fullData.appointments || []).map(dbAppointmentToLocal),
                   reviews: (fullData.reviews || []).map(dbReviewToLocal),
+                  discounts: (fullData.discounts || []).map(dbDiscountToLocal),
+                  giftCards: (fullData.giftCards || []).map(dbGiftCardToLocal),
+                  customSchedule: (fullData.customSchedule || []).map(dbCustomScheduleToLocal),
                   settings: { ...initialSettings, ...settingsFromDb },
                   businessOwnerId: ownerId,
                 },
@@ -527,6 +626,92 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             if (Object.keys(updateData).length > 1) {
               await updateBusinessMut.mutateAsync(updateData);
             }
+            break;
+          }
+          case "ADD_DISCOUNT": {
+            const disc = action.payload as Discount;
+            await createDiscountMut.mutateAsync({
+              businessOwnerId: ownerId,
+              localId: disc.id,
+              name: disc.name,
+              percentage: disc.percentage,
+              startTime: disc.startTime,
+              endTime: disc.endTime,
+              daysOfWeek: disc.daysOfWeek,
+              serviceIds: disc.serviceIds,
+              active: disc.active,
+            });
+            break;
+          }
+          case "UPDATE_DISCOUNT": {
+            const disc = action.payload as Discount;
+            await updateDiscountMut.mutateAsync({
+              localId: disc.id,
+              businessOwnerId: ownerId,
+              name: disc.name,
+              percentage: disc.percentage,
+              startTime: disc.startTime,
+              endTime: disc.endTime,
+              daysOfWeek: disc.daysOfWeek,
+              serviceIds: disc.serviceIds,
+              active: disc.active,
+            });
+            break;
+          }
+          case "DELETE_DISCOUNT": {
+            await deleteDiscountMut.mutateAsync({
+              localId: action.payload as string,
+              businessOwnerId: ownerId,
+            });
+            break;
+          }
+          case "ADD_GIFT_CARD": {
+            const gc = action.payload as GiftCard;
+            await createGiftCardMut.mutateAsync({
+              businessOwnerId: ownerId,
+              localId: gc.id,
+              code: gc.code,
+              serviceLocalId: gc.serviceLocalId,
+              recipientName: gc.recipientName || undefined,
+              recipientPhone: gc.recipientPhone || undefined,
+              message: gc.message || undefined,
+              expiresAt: gc.expiresAt || undefined,
+            });
+            break;
+          }
+          case "UPDATE_GIFT_CARD": {
+            const gc = action.payload as GiftCard;
+            await updateGiftCardMut.mutateAsync({
+              localId: gc.id,
+              businessOwnerId: ownerId,
+              redeemed: gc.redeemed,
+              redeemedAt: gc.redeemedAt,
+            });
+            break;
+          }
+          case "DELETE_GIFT_CARD": {
+            await deleteGiftCardMut.mutateAsync({
+              localId: action.payload as string,
+              businessOwnerId: ownerId,
+            });
+            break;
+          }
+          case "SET_CUSTOM_SCHEDULE": {
+            const cs = action.payload as CustomScheduleDay;
+            await upsertScheduleMut.mutateAsync({
+              businessOwnerId: ownerId,
+              date: cs.date,
+              isOpen: cs.isOpen,
+              startTime: cs.startTime,
+              endTime: cs.endTime,
+            });
+            break;
+          }
+          case "DELETE_CUSTOM_SCHEDULE": {
+            await deleteScheduleMut.mutateAsync({
+              businessOwnerId: ownerId,
+              date: action.payload as string,
+            });
             break;
           }
           default:

@@ -9,7 +9,7 @@ import { Client, formatPhoneNumber, stripPhoneFormat } from "@/lib/types";
 import * as Contacts from "expo-contacts";
 
 export default function ClientsScreen() {
-  const { state, dispatch, getReviewsForClient, getAppointmentsForClient } = useStore();
+  const { state, dispatch, getReviewsForClient, getAppointmentsForClient, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -47,11 +47,12 @@ export default function ClientsScreen() {
       createdAt: new Date().toISOString(),
     };
     dispatch({ type: "ADD_CLIENT", payload: client });
+    syncToDb({ type: "ADD_CLIENT", payload: client });
     setNewName("");
     setNewPhone("");
     setNewEmail("");
     setShowAdd(false);
-  }, [newName, newPhone, newEmail, dispatch]);
+  }, [newName, newPhone, newEmail, dispatch, syncToDb]);
 
   const handleSelectFromContacts = useCallback(async () => {
     if (Platform.OS === "web") {
@@ -106,11 +107,12 @@ export default function ClientsScreen() {
         createdAt: new Date().toISOString(),
       };
       dispatch({ type: "ADD_CLIENT", payload: client });
+      syncToDb({ type: "ADD_CLIENT", payload: client });
       Alert.alert("Added", `${name} has been added as a client.`);
     } catch (error) {
       Alert.alert("Error", "Failed to access contacts. Please try again.");
     }
-  }, [state.clients, dispatch]);
+  }, [state.clients, dispatch, syncToDb]);
 
   const getInitials = (name: string) => {
     const parts = name.split(" ");

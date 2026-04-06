@@ -39,6 +39,38 @@ export interface Review {
   createdAt: string;
 }
 
+export interface Discount {
+  id: string;
+  name: string;
+  percentage: number; // 0-100
+  startTime: string; // HH:MM
+  endTime: string; // HH:MM
+  daysOfWeek: string[]; // e.g. ["monday", "tuesday"]
+  serviceIds: string[] | null; // null = all services
+  active: boolean;
+  createdAt: string;
+}
+
+export interface GiftCard {
+  id: string;
+  code: string;
+  serviceLocalId: string;
+  recipientName: string;
+  recipientPhone: string;
+  message: string;
+  redeemed: boolean;
+  redeemedAt?: string;
+  expiresAt?: string;
+  createdAt: string;
+}
+
+export interface CustomScheduleDay {
+  date: string; // YYYY-MM-DD
+  isOpen: boolean;
+  startTime?: string; // HH:MM
+  endTime?: string; // HH:MM
+}
+
 export interface WorkingHours {
   enabled: boolean;
   start: string; // HH:MM
@@ -168,14 +200,58 @@ export function timeSlotsOverlap(
   return aStart < bEnd && bStart < aEnd;
 }
 
-/** Generate available time slots for a given date, considering working hours, existing appointments, and past-time filtering */
+/** Filter slots by past times and existing appointments */
+function filterSlots(
+  slots: string[],
+  date: string,
+  serviceDuration: number,
+  appointments: Appointment[]
+): string[] {
+  let filtered = [...slots];
+  // Filter out past times for today
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  if (date === todayStr) {
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    filtered = filtered.filter((s) => timeToMinutes(s) > currentMinutes);
+  }
+  // Filter out slots that overlap with existing non-cancelled appointments
+  const dayAppointments = appointments.filter(
+    (a) => a.date === date && a.status !== "cancelled"
+  );
+  return filtered.filter((slot) => {
+    return !dayAppointments.some((a) =>
+      timeSlotsOverlap(slot, serviceDuration, a.time, a.duration)
+    );
+  });
+}
+
+/** Generate available time slots for a given date, considering working hours, custom schedule overrides, existing appointments, and past-time filtering */
 export function generateAvailableSlots(
   date: string,
   serviceDuration: number,
   workingHours: Record<string, WorkingHours>,
   appointments: Appointment[],
-  stepMinutes: number = 30
+  stepMinutes: number = 30,
+  customSchedule?: CustomScheduleDay[]
 ): string[] {
+  // Check for custom schedule override for this specific date
+  const customDay = customSchedule?.find((cs) => cs.date === date);
+  if (customDay) {
+    if (!customDay.isOpen) return []; // Business explicitly closed on this date
+    if (customDay.startTime && customDay.endTime) {
+      // Use custom hours for this date
+      const startMin = timeToMinutes(customDay.startTime);
+      const endMin = timeToMinutes(customDay.endTime);
+      const slots: string[] = [];
+      for (let min = startMin; min + serviceDuration <= endMin; min += stepMinutes) {
+        slots.push(minutesToTime(min));
+      }
+      return filterSlots(slots, date, serviceDuration, appointments);
+    }
+  }
+
+  // Fall back to weekly working hours
   const dateObj = new Date(date + "T12:00:00");
   const dayIndex = dateObj.getDay();
   const dayName = DAYS_OF_WEEK[dayIndex];
@@ -190,26 +266,44 @@ export function generateAvailableSlots(
     slots.push(minutesToTime(min));
   }
 
-  // Filter out past times for today
-  const now = new Date();
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  if (date === todayStr) {
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    const filtered = slots.filter((s) => timeToMinutes(s) > currentMinutes);
-    slots.length = 0;
-    slots.push(...filtered);
+  return filterSlots(slots, date, serviceDuration, appointments);
+}
+
+/** Get applicable discount for a given time slot, date, and service */
+export function getApplicableDiscount(
+  discounts: Discount[],
+  date: string,
+  time: string,
+  serviceId: string
+): Discount | null {
+  const dateObj = new Date(date + "T12:00:00");
+  const dayIndex = dateObj.getDay();
+  const dayName = DAYS_OF_WEEK[dayIndex];
+  const timeMin = timeToMinutes(time);
+
+  for (const disc of discounts) {
+    if (!disc.active) continue;
+    // Check day of week
+    if (disc.daysOfWeek.length > 0 && !disc.daysOfWeek.includes(dayName)) continue;
+    // Check time window
+    const discStart = timeToMinutes(disc.startTime);
+    const discEnd = timeToMinutes(disc.endTime);
+    if (timeMin < discStart || timeMin >= discEnd) continue;
+    // Check service filter
+    if (disc.serviceIds && disc.serviceIds.length > 0 && !disc.serviceIds.includes(serviceId)) continue;
+    return disc;
   }
+  return null;
+}
 
-  // Filter out slots that overlap with existing non-cancelled appointments (including pending/confirmed)
-  const dayAppointments = appointments.filter(
-    (a) => a.date === date && a.status !== "cancelled"
-  );
-
-  return slots.filter((slot) => {
-    return !dayAppointments.some((a) =>
-      timeSlotsOverlap(slot, serviceDuration, a.time, a.duration)
-    );
-  });
+/** Generate a unique gift card code */
+export function generateGiftCardCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "GIFT-";
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
 }
 
 /** Generate all time options for a scrolling time picker (every 30 min from 00:00 to 23:30) */

@@ -14,6 +14,12 @@ import {
   InsertAppointment,
   reviews,
   InsertReview,
+  discounts,
+  InsertDiscount,
+  giftCards,
+  InsertGiftCard,
+  customSchedule,
+  InsertCustomSchedule,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -130,6 +136,9 @@ export async function deleteBusinessOwner(id: number): Promise<void> {
   await db.delete(appointments).where(eq(appointments.businessOwnerId, id));
   await db.delete(clients).where(eq(clients.businessOwnerId, id));
   await db.delete(services).where(eq(services.businessOwnerId, id));
+  await db.delete(discounts).where(eq(discounts.businessOwnerId, id));
+  await db.delete(giftCards).where(eq(giftCards.businessOwnerId, id));
+  await db.delete(customSchedule).where(eq(customSchedule.businessOwnerId, id));
   await db.delete(businessOwners).where(eq(businessOwners.id, id));
 }
 
@@ -321,15 +330,160 @@ export async function deleteReview(
     );
 }
 
+// ─── Discounts ──────────────────────────────────────────────────────
+
+export async function getDiscountsByOwner(businessOwnerId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(discounts).where(eq(discounts.businessOwnerId, businessOwnerId));
+}
+
+export async function createDiscount(data: InsertDiscount): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(discounts).values(data);
+  return result.insertId;
+}
+
+export async function updateDiscount(
+  localId: string,
+  businessOwnerId: number,
+  data: Partial<InsertDiscount>
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .update(discounts)
+    .set(data)
+    .where(and(eq(discounts.localId, localId), eq(discounts.businessOwnerId, businessOwnerId)));
+}
+
+export async function deleteDiscount(localId: string, businessOwnerId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .delete(discounts)
+    .where(and(eq(discounts.localId, localId), eq(discounts.businessOwnerId, businessOwnerId)));
+}
+
+// ─── Gift Cards ─────────────────────────────────────────────────────
+
+export async function getGiftCardsByOwner(businessOwnerId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(giftCards).where(eq(giftCards.businessOwnerId, businessOwnerId));
+}
+
+export async function createGiftCard(data: InsertGiftCard): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(giftCards).values(data);
+  return result.insertId;
+}
+
+export async function updateGiftCard(
+  localId: string,
+  businessOwnerId: number,
+  data: Partial<InsertGiftCard>
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .update(giftCards)
+    .set(data)
+    .where(and(eq(giftCards.localId, localId), eq(giftCards.businessOwnerId, businessOwnerId)));
+}
+
+export async function deleteGiftCard(localId: string, businessOwnerId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .delete(giftCards)
+    .where(and(eq(giftCards.localId, localId), eq(giftCards.businessOwnerId, businessOwnerId)));
+}
+
+export async function getGiftCardByCode(code: string, businessOwnerId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db
+    .select()
+    .from(giftCards)
+    .where(and(eq(giftCards.code, code), eq(giftCards.businessOwnerId, businessOwnerId)))
+    .limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+// ─── Custom Schedule ────────────────────────────────────────────────
+
+export async function getCustomScheduleByOwner(businessOwnerId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(customSchedule).where(eq(customSchedule.businessOwnerId, businessOwnerId));
+}
+
+export async function upsertCustomScheduleDay(
+  businessOwnerId: number,
+  date: string,
+  isOpen: boolean,
+  startTime?: string,
+  endTime?: string
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Check if entry exists
+  const existing = await db
+    .select()
+    .from(customSchedule)
+    .where(and(eq(customSchedule.businessOwnerId, businessOwnerId), eq(customSchedule.date, date)))
+    .limit(1);
+  if (existing.length > 0) {
+    await db
+      .update(customSchedule)
+      .set({ isOpen, startTime: startTime ?? null, endTime: endTime ?? null })
+      .where(and(eq(customSchedule.businessOwnerId, businessOwnerId), eq(customSchedule.date, date)));
+  } else {
+    await db.insert(customSchedule).values({
+      businessOwnerId,
+      date,
+      isOpen,
+      startTime: startTime ?? null,
+      endTime: endTime ?? null,
+    });
+  }
+}
+
+export async function deleteCustomScheduleDay(
+  businessOwnerId: number,
+  date: string
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .delete(customSchedule)
+    .where(and(eq(customSchedule.businessOwnerId, businessOwnerId), eq(customSchedule.date, date)));
+}
+
 // ─── Bootstrap: Load all data for a business owner ───────────────────
 
 export async function getFullBusinessData(businessOwnerId: number) {
-  const [owner, svcList, clientList, apptList, reviewList] = await Promise.all([
+  const [owner, svcList, clientList, apptList, reviewList, discountList, giftCardList, scheduleList] = await Promise.all([
     getBusinessOwnerById(businessOwnerId),
     getServicesByOwner(businessOwnerId),
     getClientsByOwner(businessOwnerId),
     getAppointmentsByOwner(businessOwnerId),
     getReviewsByOwner(businessOwnerId),
+    getDiscountsByOwner(businessOwnerId),
+    getGiftCardsByOwner(businessOwnerId),
+    getCustomScheduleByOwner(businessOwnerId),
   ]);
-  return { owner, services: svcList, clients: clientList, appointments: apptList, reviews: reviewList };
+  return {
+    owner,
+    services: svcList,
+    clients: clientList,
+    appointments: apptList,
+    reviews: reviewList,
+    discounts: discountList,
+    giftCards: giftCardList,
+    customSchedule: scheduleList,
+  };
 }

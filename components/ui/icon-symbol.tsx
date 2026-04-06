@@ -52,7 +52,19 @@ const MAPPING = {
   "square.and.arrow.up": "share",
   "arrow.down.doc.fill": "file-download",
   "calendar.badge.clock": "event",
-} as IconMapping;
+  "tag.fill": "local-offer",
+  "gift.fill": "card-giftcard",
+  "percent": "percent",
+  "qrcode": "qr-code",
+  "link": "link",
+  "calendar.badge.plus": "event-available",
+  "calendar.badge.minus": "event-busy",
+  "clock.badge.checkmark.fill": "schedule",
+  "power": "power-settings-new",
+  "info.circle.fill": "info",
+  "arrow.clockwise": "refresh",
+  "copy": "content-copy",
+} as unknown as IconMapping;
 
 export function IconSymbol({
   name,

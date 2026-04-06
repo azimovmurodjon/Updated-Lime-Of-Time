@@ -293,6 +293,163 @@ const reviewsRouter = router({
     }),
 });
 
+// ─── Discounts Router ────────────────────────────────────────────────
+
+const discountsRouter = router({
+  list: publicProcedure
+    .input(z.object({ businessOwnerId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getDiscountsByOwner(input.businessOwnerId);
+    }),
+
+  create: publicProcedure
+    .input(
+      z.object({
+        businessOwnerId: z.number(),
+        localId: z.string(),
+        name: z.string().min(1),
+        percentage: z.number().min(1).max(100),
+        startTime: z.string(),
+        endTime: z.string(),
+        daysOfWeek: z.array(z.string()).optional(),
+        serviceIds: z.array(z.string()).nullable().optional(),
+        active: z.boolean().default(true),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const id = await db.createDiscount({
+        ...input,
+        daysOfWeek: input.daysOfWeek ?? [],
+        serviceIds: input.serviceIds ?? null,
+      });
+      return { id, localId: input.localId };
+    }),
+
+  update: publicProcedure
+    .input(
+      z.object({
+        localId: z.string(),
+        businessOwnerId: z.number(),
+        name: z.string().optional(),
+        percentage: z.number().optional(),
+        startTime: z.string().optional(),
+        endTime: z.string().optional(),
+        daysOfWeek: z.array(z.string()).optional(),
+        serviceIds: z.array(z.string()).nullable().optional(),
+        active: z.boolean().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { localId, businessOwnerId, ...data } = input;
+      await db.updateDiscount(localId, businessOwnerId, data);
+      return { success: true };
+    }),
+
+  delete: publicProcedure
+    .input(z.object({ localId: z.string(), businessOwnerId: z.number() }))
+    .mutation(async ({ input }) => {
+      await db.deleteDiscount(input.localId, input.businessOwnerId);
+      return { success: true };
+    }),
+});
+
+// ─── Gift Cards Router ────────────────────────────────────────────────
+
+const giftCardsRouter = router({
+  list: publicProcedure
+    .input(z.object({ businessOwnerId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getGiftCardsByOwner(input.businessOwnerId);
+    }),
+
+  create: publicProcedure
+    .input(
+      z.object({
+        businessOwnerId: z.number(),
+        localId: z.string(),
+        code: z.string(),
+        serviceLocalId: z.string(),
+        recipientName: z.string().optional(),
+        recipientPhone: z.string().optional(),
+        message: z.string().optional(),
+        expiresAt: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const id = await db.createGiftCard(input);
+      return { id, localId: input.localId };
+    }),
+
+  update: publicProcedure
+    .input(
+      z.object({
+        localId: z.string(),
+        businessOwnerId: z.number(),
+        redeemed: z.boolean().optional(),
+        redeemedAt: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { localId, businessOwnerId, ...data } = input;
+      const updateData: any = { ...data };
+      if (data.redeemedAt) updateData.redeemedAt = new Date(data.redeemedAt);
+      await db.updateGiftCard(localId, businessOwnerId, updateData);
+      return { success: true };
+    }),
+
+  delete: publicProcedure
+    .input(z.object({ localId: z.string(), businessOwnerId: z.number() }))
+    .mutation(async ({ input }) => {
+      await db.deleteGiftCard(input.localId, input.businessOwnerId);
+      return { success: true };
+    }),
+
+  findByCode: publicProcedure
+    .input(z.object({ code: z.string(), businessOwnerId: z.number() }))
+    .query(async ({ input }) => {
+      const card = await db.getGiftCardByCode(input.code, input.businessOwnerId);
+      return card ?? null;
+    }),
+});
+
+// ─── Custom Schedule Router ───────────────────────────────────────────
+
+const customScheduleRouter = router({
+  list: publicProcedure
+    .input(z.object({ businessOwnerId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getCustomScheduleByOwner(input.businessOwnerId);
+    }),
+
+  upsert: publicProcedure
+    .input(
+      z.object({
+        businessOwnerId: z.number(),
+        date: z.string(),
+        isOpen: z.boolean(),
+        startTime: z.string().optional(),
+        endTime: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      await db.upsertCustomScheduleDay(
+        input.businessOwnerId,
+        input.date,
+        input.isOpen,
+        input.startTime,
+        input.endTime
+      );
+      return { success: true };
+    }),
+
+  delete: publicProcedure
+    .input(z.object({ businessOwnerId: z.number(), date: z.string() }))
+    .mutation(async ({ input }) => {
+      await db.deleteCustomScheduleDay(input.businessOwnerId, input.date);
+      return { success: true };
+    }),
+});
+
 // ─── Root Router ─────────────────────────────────────────────────────
 
 export const appRouter = router({
@@ -310,6 +467,9 @@ export const appRouter = router({
   clients: clientsRouter,
   appointments: appointmentsRouter,
   reviews: reviewsRouter,
+  discounts: discountsRouter,
+  giftCards: giftCardsRouter,
+  customSchedule: customScheduleRouter,
 });
 
 export type AppRouter = typeof appRouter;

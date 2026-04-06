@@ -81,3 +81,15 @@
 - [x] Route to onboarding if no business owner, home if exists
 - [x] Ensure all client data is linked to specific business owner
 - [x] Write tests for database connections and API routes
+- [x] Fix client data not saving to DB - add syncToDb to clients.tsx
+- [x] Add discount system - time-based discounts for specific durations
+- [x] Add discount DB schema and tRPC routes
+- [x] Add discount UI in services/settings
+- [x] Add gift card system - shareable service gifts for clients
+- [x] Add gift card DB schema and tRPC routes
+- [x] Add gift card UI - create, share, redeem
+- [x] Add professional dashboard charts (revenue, appointments, clients)
+- [x] Add per-day working hours/schedule control with calendar
+- [x] Working days calendar - select specific days and set custom hours
+- [x] Integrate working days with DB and client-side booking
+- [x] Closed days should block booking on client side

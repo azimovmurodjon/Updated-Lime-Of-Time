@@ -153,3 +153,76 @@ export const reviews = mysqlTable("reviews", {
 
 export type DbReview = typeof reviews.$inferSelect;
 export type InsertReview = typeof reviews.$inferInsert;
+
+// ─── Discounts ──────────────────────────────────────────────────────
+export const discounts = mysqlTable("discounts", {
+  id: int("id").autoincrement().primaryKey(),
+  businessOwnerId: int("businessOwnerId").notNull(),
+  localId: varchar("localId", { length: 64 }).notNull(),
+  /** Name of the discount (e.g. "Happy Hour", "Early Bird") */
+  name: varchar("name", { length: 255 }).notNull(),
+  /** Percentage off (0-100) */
+  percentage: int("percentage").notNull(),
+  /** Start time HH:MM – discount applies during this window */
+  startTime: varchar("startTime", { length: 5 }).notNull(),
+  /** End time HH:MM */
+  endTime: varchar("endTime", { length: 5 }).notNull(),
+  /** Which days of week this discount applies (JSON array of day names) */
+  daysOfWeek: json("daysOfWeek"),
+  /** Optional: only for specific service localIds (JSON array), null = all services */
+  serviceIds: json("serviceIds"),
+  /** Whether the discount is currently active */
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DbDiscount = typeof discounts.$inferSelect;
+export type InsertDiscount = typeof discounts.$inferInsert;
+
+// ─── Gift Cards ─────────────────────────────────────────────────────
+export const giftCards = mysqlTable("gift_cards", {
+  id: int("id").autoincrement().primaryKey(),
+  businessOwnerId: int("businessOwnerId").notNull(),
+  localId: varchar("localId", { length: 64 }).notNull(),
+  /** Unique redemption code */
+  code: varchar("code", { length: 20 }).notNull(),
+  /** Service localId this gift card is for */
+  serviceLocalId: varchar("serviceLocalId", { length: 64 }).notNull(),
+  /** Recipient name */
+  recipientName: varchar("recipientName", { length: 255 }),
+  /** Recipient phone */
+  recipientPhone: varchar("recipientPhone", { length: 20 }),
+  /** Personal message */
+  message: text("message"),
+  /** Whether the gift card has been redeemed */
+  redeemed: boolean("redeemed").default(false).notNull(),
+  /** When it was redeemed */
+  redeemedAt: timestamp("redeemedAt"),
+  /** Expiry date YYYY-MM-DD */
+  expiresAt: varchar("expiresAt", { length: 10 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DbGiftCard = typeof giftCards.$inferSelect;
+export type InsertGiftCard = typeof giftCards.$inferInsert;
+
+// ─── Custom Schedule (per-date overrides) ───────────────────────────
+export const customSchedule = mysqlTable("custom_schedule", {
+  id: int("id").autoincrement().primaryKey(),
+  businessOwnerId: int("businessOwnerId").notNull(),
+  /** Date in YYYY-MM-DD format */
+  date: varchar("date", { length: 10 }).notNull(),
+  /** Whether the business is open on this date */
+  isOpen: boolean("isOpen").default(true).notNull(),
+  /** Custom start time HH:MM (overrides weekly hours) */
+  startTime: varchar("startTime", { length: 5 }),
+  /** Custom end time HH:MM */
+  endTime: varchar("endTime", { length: 5 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DbCustomSchedule = typeof customSchedule.$inferSelect;
+export type InsertCustomSchedule = typeof customSchedule.$inferInsert;

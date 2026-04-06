@@ -19,6 +19,111 @@ import { useRouter } from "expo-router";
 import { minutesToTime, timeToMinutes, PUBLIC_BOOKING_URL } from "@/lib/types";
 import * as ImagePicker from "expo-image-picker";
 
+// ─── Simple SVG-free chart components ────────────────────────────────
+
+function BarChart({
+  data,
+  colors: themeColors,
+  height = 120,
+}: {
+  data: { label: string; value: number; color: string }[];
+  colors: any;
+  height?: number;
+}) {
+  const maxVal = Math.max(...data.map((d) => d.value), 1);
+  return (
+    <View style={{ height, flexDirection: "row", alignItems: "flex-end", gap: 6 }}>
+      {data.map((d, i) => {
+        const barH = Math.max(4, (d.value / maxVal) * (height - 24));
+        return (
+          <View key={i} style={{ flex: 1, alignItems: "center" }}>
+            <Text style={{ fontSize: 10, fontWeight: "700", color: d.color, marginBottom: 4 }}>
+              {d.value > 0 ? d.value : ""}
+            </Text>
+            <View
+              style={{
+                width: "100%",
+                maxWidth: 32,
+                height: barH,
+                backgroundColor: d.color,
+                borderRadius: 6,
+              }}
+            />
+            <Text
+              style={{ fontSize: 9, color: themeColors.muted, marginTop: 4 }}
+              numberOfLines={1}
+            >
+              {d.label}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function MiniDonut({
+  segments,
+  size = 80,
+  strokeWidth = 14,
+  colors: themeColors,
+}: {
+  segments: { value: number; color: string; label: string }[];
+  size?: number;
+  strokeWidth?: number;
+  colors: any;
+}) {
+  const total = segments.reduce((s, seg) => s + seg.value, 0);
+  if (total === 0) {
+    return (
+      <View style={{ width: size, height: size, borderRadius: size / 2, borderWidth: strokeWidth, borderColor: themeColors.border, alignItems: "center", justifyContent: "center" }}>
+        <Text style={{ fontSize: 11, color: themeColors.muted }}>N/A</Text>
+      </View>
+    );
+  }
+  // Render as stacked horizontal bars to simulate donut without SVG
+  return (
+    <View style={{ width: size, height: size }}>
+      <View style={{ width: size, height: size, borderRadius: size / 2, overflow: "hidden", borderWidth: 2, borderColor: themeColors.border }}>
+        {segments.map((seg, i) => {
+          const pct = (seg.value / total) * 100;
+          return (
+            <View
+              key={i}
+              style={{
+                width: "100%",
+                height: `${pct}%`,
+                backgroundColor: seg.color,
+              }}
+            />
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+function ProgressBar({
+  value,
+  max,
+  color,
+  bgColor,
+}: {
+  value: number;
+  max: number;
+  color: string;
+  bgColor: string;
+}) {
+  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
+  return (
+    <View style={{ height: 8, borderRadius: 4, backgroundColor: bgColor, overflow: "hidden" }}>
+      <View style={{ height: "100%", width: `${pct}%`, backgroundColor: color, borderRadius: 4 }} />
+    </View>
+  );
+}
+
+// ─── Main Screen ─────────────────────────────────────────────────────
+
 export default function HomeScreen() {
   const { state, dispatch, getServiceById, getClientById, getAppointmentsForDate, syncToDb } = useStore();
   const colors = useColors();
@@ -27,7 +132,6 @@ export default function HomeScreen() {
   const hp = Math.round(Math.max(16, width * 0.045));
   const cardW = Math.round((width - hp * 2 - 12) / 2);
 
-  // Redirect to onboarding if not completed
   useEffect(() => {
     if (state.loaded && !state.settings.onboardingComplete) {
       router.replace("/onboarding");
@@ -46,22 +150,84 @@ export default function HomeScreen() {
 
   const todayAppts = getAppointmentsForDate(todayStr);
 
+  // ─── Analytics ──────────────────────────────────────────────────
   const analytics = useMemo(() => {
     const totalClients = state.clients.length;
-    const totalAppointments = state.appointments.filter((a) => a.status !== "cancelled").length;
-    const totalRevenue = state.appointments
-      .filter((a) => a.status === "completed")
-      .reduce((sum, a) => {
-        const svc = state.services.find((s) => s.id === a.serviceId);
-        return sum + (svc?.price ?? 0);
-      }, 0);
+    const activeAppts = state.appointments.filter((a) => a.status !== "cancelled");
+    const totalAppointments = activeAppts.length;
+    const completedAppts = state.appointments.filter((a) => a.status === "completed");
+    const totalRevenue = completedAppts.reduce((sum, a) => {
+      const svc = state.services.find((s) => s.id === a.serviceId);
+      return sum + (svc?.price ?? 0);
+    }, 0);
 
+    // This week revenue
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    const weekStr = formatDateStr(startOfWeek);
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    const endWeekStr = formatDateStr(endOfWeek);
+    const weekAppts = completedAppts.filter((a) => a.date >= weekStr && a.date <= endWeekStr);
+    const weekRevenue = weekAppts.reduce((sum, a) => {
+      const svc = state.services.find((s) => s.id === a.serviceId);
+      return sum + (svc?.price ?? 0);
+    }, 0);
+
+    // Last week revenue for comparison
+    const prevWeekStart = new Date(startOfWeek);
+    prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+    const prevWeekEnd = new Date(startOfWeek);
+    prevWeekEnd.setDate(prevWeekEnd.getDate() - 1);
+    const prevWeekAppts = completedAppts.filter(
+      (a) => a.date >= formatDateStr(prevWeekStart) && a.date <= formatDateStr(prevWeekEnd)
+    );
+    const prevWeekRevenue = prevWeekAppts.reduce((sum, a) => {
+      const svc = state.services.find((s) => s.id === a.serviceId);
+      return sum + (svc?.price ?? 0);
+    }, 0);
+
+    // Monthly data for bar chart (last 6 months)
+    const monthlyData: { label: string; value: number; color: string }[] = [];
+    const monthColors = ["#4CAF50", "#2196F3", "#FF9800", "#9C27B0", "#E91E63", "#00BCD4"];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const mStr = d.toLocaleDateString("en-US", { month: "short" });
+      const mStart = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+      const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      const mEnd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+      const mRev = completedAppts
+        .filter((a) => a.date >= mStart && a.date <= mEnd)
+        .reduce((sum, a) => {
+          const svc = state.services.find((s) => s.id === a.serviceId);
+          return sum + (svc?.price ?? 0);
+        }, 0);
+      monthlyData.push({ label: mStr, value: Math.round(mRev), color: monthColors[5 - i] });
+    }
+
+    // Service breakdown for donut
     const svcCounts: Record<string, number> = {};
-    state.appointments
-      .filter((a) => a.status !== "cancelled")
-      .forEach((a) => {
-        svcCounts[a.serviceId] = (svcCounts[a.serviceId] || 0) + 1;
-      });
+    activeAppts.forEach((a) => {
+      svcCounts[a.serviceId] = (svcCounts[a.serviceId] || 0) + 1;
+    });
+    const serviceBreakdown = state.services
+      .map((s) => ({
+        label: s.name,
+        value: svcCounts[s.id] || 0,
+        color: s.color,
+      }))
+      .filter((s) => s.value > 0)
+      .sort((a, b) => b.value - a.value);
+
+    // Status breakdown
+    const statusCounts = {
+      pending: state.appointments.filter((a) => a.status === "pending").length,
+      confirmed: state.appointments.filter((a) => a.status === "confirmed").length,
+      completed: completedAppts.length,
+      cancelled: state.appointments.filter((a) => a.status === "cancelled").length,
+    };
+
+    // Top service
     let topServiceId = "";
     let topCount = 0;
     Object.entries(svcCounts).forEach(([id, count]) => {
@@ -72,10 +238,27 @@ export default function HomeScreen() {
     });
     const topService = state.services.find((s) => s.id === topServiceId);
 
-    return { totalClients, totalAppointments, totalRevenue, topService, topCount };
+    return {
+      totalClients,
+      totalAppointments,
+      totalRevenue,
+      weekRevenue,
+      prevWeekRevenue,
+      monthlyData,
+      serviceBreakdown,
+      statusCounts,
+      topService,
+      topCount,
+    };
   }, [state.clients, state.appointments, state.services]);
 
-  const pendingCount = state.appointments.filter((a) => a.status === "pending").length;
+  const pendingCount = analytics.statusCounts.pending;
+  const revenueChange =
+    analytics.prevWeekRevenue > 0
+      ? Math.round(((analytics.weekRevenue - analytics.prevWeekRevenue) / analytics.prevWeekRevenue) * 100)
+      : analytics.weekRevenue > 0
+      ? 100
+      : 0;
 
   const handleShareBookingLink = useCallback(async () => {
     const slug = state.settings.businessName.replace(/\s+/g, "-").toLowerCase();
@@ -112,47 +295,7 @@ export default function HomeScreen() {
     } catch {
       Alert.alert("Error", "Failed to pick image. Please try again.");
     }
-  }, [dispatch]);
-
-  const slides = [
-    {
-      id: "clients",
-      title: "Total Clients",
-      value: analytics.totalClients.toString(),
-      icon: "person.2.fill" as const,
-      color: "#4CAF50",
-      bg: "#E8F5E9",
-    },
-    {
-      id: "appointments",
-      title: "Appointments",
-      value: analytics.totalAppointments.toString(),
-      icon: "calendar" as const,
-      color: "#2196F3",
-      bg: "#E3F2FD",
-    },
-    {
-      id: "revenue",
-      title: "Revenue",
-      value: `$${analytics.totalRevenue.toLocaleString()}`,
-      icon: "dollarsign.circle.fill" as const,
-      color: "#FF9800",
-      bg: "#FFF3E0",
-    },
-    {
-      id: "topservice",
-      title: "Top Service",
-      value: analytics.topService?.name ?? "N/A",
-      icon: "crown.fill" as const,
-      color: "#9C27B0",
-      bg: "#F3E5F5",
-      sub: analytics.topCount > 0 ? `${analytics.topCount} bookings` : "",
-    },
-  ];
-
-  const handleSlidePress = (id: string) => {
-    router.push({ pathname: "/analytics-detail", params: { tab: id } });
-  };
+  }, [dispatch, syncToDb]);
 
   const getEndTime = (time: string, duration: number) => {
     return formatTime(minutesToTime(timeToMinutes(time) + duration));
@@ -173,7 +316,7 @@ export default function HomeScreen() {
           <Pressable onPress={handlePickLogo} style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}>
             <Image source={logoSource} style={styles.businessLogo} resizeMode="cover" />
             <View style={[styles.cameraOverlay, { backgroundColor: colors.primary }]}>
-              <IconSymbol name="camera.fill" size={10} color="#FFF" />
+              <IconSymbol name="photo" size={10} color="#FFF" />
             </View>
           </Pressable>
           <View style={{ flex: 1, marginLeft: 14 }}>
@@ -208,53 +351,205 @@ export default function HomeScreen() {
         {/* Temporary Closed Banner */}
         {state.settings.temporaryClosed && (
           <View style={[styles.closedBanner, { backgroundColor: colors.error + "10", borderColor: colors.error + "30" }]}>
-            <IconSymbol name="exclamationmark.triangle.fill" size={18} color={colors.error} />
-            <Text style={{ fontSize: 13, color: colors.error, fontWeight: "500", marginLeft: 8 }}>
+            <Text style={{ fontSize: 13, color: colors.error, fontWeight: "500" }}>
               Business is temporarily closed. New bookings are paused.
             </Text>
           </View>
         )}
 
-        {/* Analytics Slides */}
-        <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 20 }]}>Dashboard</Text>
+        {/* ─── KPI Cards ─────────────────────────────────────────── */}
+        <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 20 }]}>Overview</Text>
         <View style={styles.slidesGrid}>
-          {slides.map((slide) => (
-            <Pressable
-              key={slide.id}
-              onPress={() => handleSlidePress(slide.id)}
-              style={({ pressed }) => [
-                styles.slideCard,
-                {
-                  width: cardW,
-                  backgroundColor: slide.bg,
-                  borderColor: slide.color + "30",
-                  opacity: pressed ? 0.85 : 1,
-                  transform: [{ scale: pressed ? 0.97 : 1 }],
-                },
-              ]}
-            >
-              <View style={[styles.slideIconBg, { backgroundColor: slide.color + "20" }]}>
-                <IconSymbol name={slide.icon} size={22} color={slide.color} />
+          <Pressable
+            onPress={() => router.push({ pathname: "/analytics-detail", params: { tab: "revenue" } })}
+            style={({ pressed }) => [
+              styles.kpiCard,
+              { width: cardW, backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.85 : 1 },
+            ]}
+          >
+            <View style={styles.kpiHeader}>
+              <View style={[styles.kpiIconBg, { backgroundColor: "#FF980020" }]}>
+                <IconSymbol name="dollarsign.circle.fill" size={20} color="#FF9800" />
               </View>
-              <Text style={[styles.slideValue, { color: slide.color }]}>{slide.value}</Text>
-              <Text style={[styles.slideTitle, { color: slide.color + "CC" }]}>{slide.title}</Text>
-              {slide.sub ? (
-                <Text style={{ fontSize: 11, color: slide.color + "99", marginTop: 2 }}>{slide.sub}</Text>
-              ) : null}
-            </Pressable>
-          ))}
+              {revenueChange !== 0 && (
+                <View style={[styles.changeBadge, { backgroundColor: revenueChange > 0 ? colors.success + "15" : colors.error + "15" }]}>
+                  <IconSymbol name="arrow.up.right" size={10} color={revenueChange > 0 ? colors.success : colors.error} />
+                  <Text style={{ fontSize: 10, fontWeight: "700", color: revenueChange > 0 ? colors.success : colors.error }}>
+                    {Math.abs(revenueChange)}%
+                  </Text>
+                </View>
+              )}
+            </View>
+            <Text style={[styles.kpiValue, { color: colors.foreground }]}>${analytics.weekRevenue.toLocaleString()}</Text>
+            <Text style={[styles.kpiLabel, { color: colors.muted }]}>This Week</Text>
+            <Text style={[styles.kpiTotal, { color: colors.muted }]}>${analytics.totalRevenue.toLocaleString()} total</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push({ pathname: "/analytics-detail", params: { tab: "appointments" } })}
+            style={({ pressed }) => [
+              styles.kpiCard,
+              { width: cardW, backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.85 : 1 },
+            ]}
+          >
+            <View style={[styles.kpiIconBg, { backgroundColor: "#2196F320" }]}>
+              <IconSymbol name="calendar" size={20} color="#2196F3" />
+            </View>
+            <Text style={[styles.kpiValue, { color: colors.foreground }]}>{analytics.totalAppointments}</Text>
+            <Text style={[styles.kpiLabel, { color: colors.muted }]}>Appointments</Text>
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>
+              <View style={[styles.miniStat, { backgroundColor: "#FF980015" }]}>
+                <Text style={{ fontSize: 10, fontWeight: "700", color: "#FF9800" }}>{analytics.statusCounts.pending}</Text>
+                <Text style={{ fontSize: 9, color: "#FF9800" }}>Pending</Text>
+              </View>
+              <View style={[styles.miniStat, { backgroundColor: colors.success + "15" }]}>
+                <Text style={{ fontSize: 10, fontWeight: "700", color: colors.success }}>{analytics.statusCounts.confirmed}</Text>
+                <Text style={{ fontSize: 9, color: colors.success }}>Active</Text>
+              </View>
+            </View>
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push({ pathname: "/analytics-detail", params: { tab: "clients" } })}
+            style={({ pressed }) => [
+              styles.kpiCard,
+              { width: cardW, backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.85 : 1 },
+            ]}
+          >
+            <View style={[styles.kpiIconBg, { backgroundColor: "#4CAF5020" }]}>
+              <IconSymbol name="person.2.fill" size={20} color="#4CAF50" />
+            </View>
+            <Text style={[styles.kpiValue, { color: colors.foreground }]}>{analytics.totalClients}</Text>
+            <Text style={[styles.kpiLabel, { color: colors.muted }]}>Total Clients</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push({ pathname: "/analytics-detail", params: { tab: "topservice" } })}
+            style={({ pressed }) => [
+              styles.kpiCard,
+              { width: cardW, backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.85 : 1 },
+            ]}
+          >
+            <View style={[styles.kpiIconBg, { backgroundColor: "#9C27B020" }]}>
+              <IconSymbol name="crown.fill" size={20} color="#9C27B0" />
+            </View>
+            <Text style={[styles.kpiValue, { color: colors.foreground }]} numberOfLines={1}>
+              {analytics.topService?.name ?? "N/A"}
+            </Text>
+            <Text style={[styles.kpiLabel, { color: colors.muted }]}>Top Service</Text>
+            {analytics.topCount > 0 && (
+              <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>{analytics.topCount} bookings</Text>
+            )}
+          </Pressable>
         </View>
 
-        {/* Share Booking Link */}
-        <Pressable
-          onPress={handleShareBookingLink}
-          style={({ pressed }) => [styles.bookingLinkBtn, { borderColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
-        >
-          <IconSymbol name="paperplane.fill" size={18} color={colors.primary} />
-          <Text style={[styles.bookingLinkText, { color: colors.primary }]}>Send Booking Link to Client</Text>
-        </Pressable>
+        {/* ─── Revenue Chart ─────────────────────────────────────── */}
+        <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.chartHeader}>
+            <Text style={[styles.chartTitle, { color: colors.foreground }]}>Revenue Trend</Text>
+            <Text style={[styles.chartSubtitle, { color: colors.muted }]}>Last 6 months</Text>
+          </View>
+          <BarChart data={analytics.monthlyData} colors={colors} height={130} />
+        </View>
 
-        {/* Today's Schedule */}
+        {/* ─── Service Breakdown + Status ─────────────────────────── */}
+        <View style={{ flexDirection: "row", gap: 12, marginTop: 16 }}>
+          {/* Service Breakdown */}
+          <View style={[styles.chartCard, { flex: 1, backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.chartTitle, { color: colors.foreground, marginBottom: 12 }]}>By Service</Text>
+            {analytics.serviceBreakdown.length > 0 ? (
+              <View style={{ alignItems: "center" }}>
+                <MiniDonut segments={analytics.serviceBreakdown} size={70} colors={colors} />
+                <View style={{ marginTop: 10, gap: 4, width: "100%" }}>
+                  {analytics.serviceBreakdown.slice(0, 3).map((s, i) => (
+                    <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: s.color }} />
+                      <Text style={{ fontSize: 11, color: colors.muted, flex: 1 }} numberOfLines={1}>
+                        {s.label}
+                      </Text>
+                      <Text style={{ fontSize: 11, fontWeight: "700", color: colors.foreground }}>{s.value}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : (
+              <Text style={{ fontSize: 12, color: colors.muted, textAlign: "center", paddingVertical: 20 }}>
+                No data yet
+              </Text>
+            )}
+          </View>
+
+          {/* Status Breakdown */}
+          <View style={[styles.chartCard, { flex: 1, backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.chartTitle, { color: colors.foreground, marginBottom: 12 }]}>Status</Text>
+            <View style={{ gap: 10 }}>
+              {[
+                { label: "Completed", value: analytics.statusCounts.completed, color: colors.primary },
+                { label: "Confirmed", value: analytics.statusCounts.confirmed, color: colors.success },
+                { label: "Pending", value: analytics.statusCounts.pending, color: "#FF9800" },
+                { label: "Cancelled", value: analytics.statusCounts.cancelled, color: colors.error },
+              ].map((item) => (
+                <View key={item.label}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                    <Text style={{ fontSize: 11, color: colors.muted }}>{item.label}</Text>
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: item.color }}>{item.value}</Text>
+                  </View>
+                  <ProgressBar
+                    value={item.value}
+                    max={Math.max(analytics.totalAppointments + analytics.statusCounts.cancelled, 1)}
+                    color={item.color}
+                    bgColor={colors.border + "60"}
+                  />
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+
+        {/* ─── Quick Actions ──────────────────────────────────────── */}
+        <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 24 }]}>Quick Actions</Text>
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <Pressable
+            onPress={() => router.push("/discounts")}
+            style={({ pressed }) => [
+              styles.quickAction,
+              { backgroundColor: "#FF980010", borderColor: "#FF980030", opacity: pressed ? 0.8 : 1 },
+            ]}
+          >
+            <IconSymbol name="tag.fill" size={20} color="#FF9800" />
+            <Text style={{ fontSize: 12, fontWeight: "600", color: "#FF9800", marginTop: 6 }}>Discounts</Text>
+            <Text style={{ fontSize: 18, fontWeight: "800", color: "#FF9800" }}>
+              {state.discounts.filter((d) => d.active).length}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => router.push("/gift-cards")}
+            style={({ pressed }) => [
+              styles.quickAction,
+              { backgroundColor: "#E91E6310", borderColor: "#E91E6330", opacity: pressed ? 0.8 : 1 },
+            ]}
+          >
+            <IconSymbol name="gift.fill" size={20} color="#E91E63" />
+            <Text style={{ fontSize: 12, fontWeight: "600", color: "#E91E63", marginTop: 6 }}>Gift Cards</Text>
+            <Text style={{ fontSize: 18, fontWeight: "800", color: "#E91E63" }}>
+              {state.giftCards.filter((g) => !g.redeemed).length}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={handleShareBookingLink}
+            style={({ pressed }) => [
+              styles.quickAction,
+              { backgroundColor: colors.primary + "10", borderColor: colors.primary + "30", opacity: pressed ? 0.8 : 1 },
+            ]}
+          >
+            <IconSymbol name="paperplane.fill" size={20} color={colors.primary} />
+            <Text style={{ fontSize: 12, fontWeight: "600", color: colors.primary, marginTop: 6, textAlign: "center" }}>
+              Share Link
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* ─── Today's Schedule ────────────────────────────────────── */}
         <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 24 }]}>Today's Schedule</Text>
         {todayAppts.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -262,7 +557,7 @@ export default function HomeScreen() {
             <Text style={{ color: colors.muted, fontSize: 14, marginTop: 8 }}>No appointments today</Text>
             <Pressable
               onPress={() => router.push("/new-booking")}
-              style={({ pressed }) => [styles.bookBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}
+              style={({ pressed }) => [styles.bookBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
             >
               <Text style={styles.bookBtnText}>Book an Appointment</Text>
             </Pressable>
@@ -380,42 +675,77 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 12,
   },
-  slideCard: {
+  kpiCard: {
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
   },
-  slideIconBg: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+  kpiHeader: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
     marginBottom: 10,
   },
-  slideValue: {
+  kpiIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  changeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  kpiValue: {
     fontSize: 22,
     fontWeight: "800",
     lineHeight: 28,
   },
-  slideTitle: {
+  kpiLabel: {
     fontSize: 12,
     fontWeight: "500",
     marginTop: 2,
   },
-  bookingLinkBtn: {
-    flexDirection: "row",
+  kpiTotal: {
+    fontSize: 11,
+    marginTop: 4,
+  },
+  miniStat: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
     alignItems: "center",
-    justifyContent: "center",
+  },
+  chartCard: {
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    marginTop: 0,
+  },
+  chartHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  chartTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  chartSubtitle: {
+    fontSize: 12,
+  },
+  quickAction: {
+    flex: 1,
+    alignItems: "center",
     paddingVertical: 14,
     borderRadius: 14,
-    borderWidth: 1.5,
-    marginTop: 20,
-  },
-  bookingLinkText: {
-    fontSize: 15,
-    fontWeight: "600",
-    marginLeft: 8,
+    borderWidth: 1,
   },
   emptyCard: {
     alignItems: "center",
