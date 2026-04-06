@@ -443,4 +443,4 @@ export function generateReminderMessage(
 }
 
 /** Public booking URL base */
-export const PUBLIC_BOOKING_URL = "http://limeoftime.com";
+export const PUBLIC_BOOKING_URL = "https://lime-of-time.com";

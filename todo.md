@@ -110,3 +110,4 @@
 - [x] Add gift card redemption on client web booking page
 - [x] Make booking days unselectable when no available time slots exist
 - [x] Release cancelled appointment time slots for rebooking by other clients
+- [x] Change all limeoftime.com references to lime-of-time.com

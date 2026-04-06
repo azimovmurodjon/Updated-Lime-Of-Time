@@ -709,25 +709,25 @@ describe("Logout and Delete Business", () => {
 });
 
 describe("Public Booking URL", () => {
-  it("should use limeoftime.com domain", () => {
-    const PUBLIC_BOOKING_URL = "https://limeoftime.com";
-    expect(PUBLIC_BOOKING_URL).toContain("limeoftime.com");
+  it("should use lime-of-time.com domain", () => {
+    const PUBLIC_BOOKING_URL = "https://lime-of-time.com";
+    expect(PUBLIC_BOOKING_URL).toContain("lime-of-time.com");
   });
 
   it("should generate correct booking link with slug", () => {
-    const PUBLIC_BOOKING_URL = "https://limeoftime.com";
+    const PUBLIC_BOOKING_URL = "https://lime-of-time.com";
     const businessName = "My Salon";
     const slug = businessName.toLowerCase().replace(/\s+/g, "-");
     const link = `${PUBLIC_BOOKING_URL}/book/${slug}`;
-    expect(link).toBe("https://limeoftime.com/book/my-salon");
+    expect(link).toBe("https://lime-of-time.com/book/my-salon");
   });
 
   it("should generate correct review link with slug", () => {
-    const PUBLIC_BOOKING_URL = "https://limeoftime.com";
+    const PUBLIC_BOOKING_URL = "https://lime-of-time.com";
     const businessName = "My Salon";
     const slug = businessName.toLowerCase().replace(/\s+/g, "-");
     const link = `${PUBLIC_BOOKING_URL}/review/${slug}`;
-    expect(link).toBe("https://limeoftime.com/review/my-salon");
+    expect(link).toBe("https://lime-of-time.com/review/my-salon");
   });
 });
 
