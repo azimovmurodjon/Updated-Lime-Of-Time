@@ -34,6 +34,20 @@ const MAPPING = {
   "arrow.left": "arrow-back",
   "mappin": "place",
   "globe": "language",
+  "message.fill": "message",
+  "person.crop.circle.badge.plus": "person-add",
+  "chart.bar.fill": "bar-chart",
+  "chart.pie.fill": "pie-chart",
+  "arrow.up.right": "trending-up",
+  "crown.fill": "emoji-events",
+  "circle.fill": "circle",
+  "checkmark.circle.fill": "check-circle",
+  "xmark.circle.fill": "cancel",
+  "questionmark.circle.fill": "help",
+  "moon.fill": "dark-mode",
+  "sun.max.fill": "light-mode",
+  "circle.lefthalf.filled": "contrast",
+  "photo": "image",
 } as IconMapping;
 
 export function IconSymbol({

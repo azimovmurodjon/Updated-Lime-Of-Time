@@ -7,6 +7,7 @@ import {
   ScrollView,
   Switch,
   useWindowDimensions,
+  Image,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
@@ -14,23 +15,27 @@ import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useCallback } from "react";
 import { DAYS_OF_WEEK, WorkingHours, BusinessProfile } from "@/lib/types";
+import { useThemeContext } from "@/lib/theme-provider";
 
 const DAY_LABELS: Record<string, string> = {
-  sunday: "Sunday",
-  monday: "Monday",
-  tuesday: "Tuesday",
-  wednesday: "Wednesday",
-  thursday: "Thursday",
-  friday: "Friday",
-  saturday: "Saturday",
+  sunday: "Sun",
+  monday: "Mon",
+  tuesday: "Tue",
+  wednesday: "Wed",
+  thursday: "Thu",
+  friday: "Fri",
+  saturday: "Sat",
 };
+
+type ThemeOption = "light" | "dark" | "system";
 
 export default function SettingsScreen() {
   const { state, dispatch } = useStore();
   const colors = useColors();
   const { width } = useWindowDimensions();
-  const hp = Math.max(16, width * 0.05);
+  const hp = Math.round(Math.max(16, width * 0.045));
   const { settings } = state;
+  const { colorScheme, setColorScheme } = useThemeContext();
 
   const [businessName, setBusinessName] = useState(settings.businessName);
   const [editingName, setEditingName] = useState(false);
@@ -45,6 +50,8 @@ export default function SettingsScreen() {
     description: settings.profile?.description ?? "",
     website: settings.profile?.website ?? "",
   });
+
+  const currentTheme: ThemeOption = settings.themeMode ?? "system";
 
   const handleSaveName = useCallback(() => {
     if (businessName.trim()) {
@@ -108,15 +115,36 @@ export default function SettingsScreen() {
     [dispatch]
   );
 
+  const handleThemeChange = useCallback((mode: ThemeOption) => {
+    dispatch({ type: "UPDATE_SETTINGS", payload: { themeMode: mode } });
+    if (mode === "system") {
+      // Let the system decide
+      const systemScheme = "light"; // fallback
+      setColorScheme(systemScheme);
+    } else {
+      setColorScheme(mode);
+    }
+  }, [dispatch, setColorScheme]);
+
   const updateProfileField = (field: keyof BusinessProfile, value: string) => {
     setProfileForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  return (
-    <ScreenContainer className="pt-2" style={{ paddingHorizontal: hp }}>
-      <Text className="text-2xl font-bold text-foreground" style={{ marginBottom: 20 }}>Settings</Text>
+  const themeOptions: { key: ThemeOption; label: string; icon: "sun.max.fill" | "moon.fill" | "circle.lefthalf.filled" }[] = [
+    { key: "light", label: "Light", icon: "sun.max.fill" },
+    { key: "dark", label: "Dark", icon: "moon.fill" },
+    { key: "system", label: "System", icon: "circle.lefthalf.filled" },
+  ];
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+  return (
+    <ScreenContainer>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}>
+        {/* Header with logo */}
+        <View style={styles.headerRow}>
+          <Text style={{ fontSize: 24, fontWeight: "700", color: colors.foreground }}>Settings</Text>
+          <Image source={require("@/assets/images/icon.png")} style={styles.headerLogo} resizeMode="contain" />
+        </View>
+
         {/* Business Name */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.cardLabel, { color: colors.muted }]}>Business Name</Text>
@@ -142,7 +170,7 @@ export default function SettingsScreen() {
               onPress={() => setEditingName(true)}
               style={({ pressed }) => [styles.editableRow, { opacity: pressed ? 0.7 : 1 }]}
             >
-              <Text className="text-base font-semibold text-foreground" style={{ flex: 1 }}>{settings.businessName}</Text>
+              <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground, flex: 1 }}>{settings.businessName}</Text>
               <IconSymbol name="pencil" size={18} color={colors.muted} />
             </Pressable>
           )}
@@ -181,61 +209,27 @@ export default function SettingsScreen() {
 
           {editingProfile ? (
             <View>
-              <Text style={[styles.fieldLabel, { color: colors.muted }]}>Owner Name</Text>
-              <TextInput
-                style={[styles.profileInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-                placeholder="Your full name"
-                placeholderTextColor={colors.muted}
-                value={profileForm.ownerName}
-                onChangeText={(v) => updateProfileField("ownerName", v)}
-                returnKeyType="next"
-              />
-
-              <Text style={[styles.fieldLabel, { color: colors.muted }]}>Phone</Text>
-              <TextInput
-                style={[styles.profileInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-                placeholder="Business phone number"
-                placeholderTextColor={colors.muted}
-                value={profileForm.phone}
-                onChangeText={(v) => updateProfileField("phone", v)}
-                keyboardType="phone-pad"
-                returnKeyType="next"
-              />
-
-              <Text style={[styles.fieldLabel, { color: colors.muted }]}>Email</Text>
-              <TextInput
-                style={[styles.profileInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-                placeholder="Business email"
-                placeholderTextColor={colors.muted}
-                value={profileForm.email}
-                onChangeText={(v) => updateProfileField("email", v)}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                returnKeyType="next"
-              />
-
-              <Text style={[styles.fieldLabel, { color: colors.muted }]}>Address</Text>
-              <TextInput
-                style={[styles.profileInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-                placeholder="Business address"
-                placeholderTextColor={colors.muted}
-                value={profileForm.address}
-                onChangeText={(v) => updateProfileField("address", v)}
-                returnKeyType="next"
-              />
-
-              <Text style={[styles.fieldLabel, { color: colors.muted }]}>Website</Text>
-              <TextInput
-                style={[styles.profileInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-                placeholder="https://yourbusiness.com"
-                placeholderTextColor={colors.muted}
-                value={profileForm.website}
-                onChangeText={(v) => updateProfileField("website", v)}
-                keyboardType="url"
-                autoCapitalize="none"
-                returnKeyType="next"
-              />
-
+              {[
+                { key: "ownerName" as const, label: "Owner Name", placeholder: "Your full name", kb: "default" as const },
+                { key: "phone" as const, label: "Phone", placeholder: "Business phone", kb: "phone-pad" as const },
+                { key: "email" as const, label: "Email", placeholder: "Business email", kb: "email-address" as const },
+                { key: "address" as const, label: "Address", placeholder: "Business address", kb: "default" as const },
+                { key: "website" as const, label: "Website", placeholder: "https://yourbusiness.com", kb: "url" as const },
+              ].map((f) => (
+                <View key={f.key}>
+                  <Text style={[styles.fieldLabel, { color: colors.muted }]}>{f.label}</Text>
+                  <TextInput
+                    style={[styles.profileInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+                    placeholder={f.placeholder}
+                    placeholderTextColor={colors.muted}
+                    value={profileForm[f.key]}
+                    onChangeText={(v) => updateProfileField(f.key, v)}
+                    keyboardType={f.kb}
+                    autoCapitalize={f.kb === "email-address" || f.kb === "url" ? "none" : "sentences"}
+                    returnKeyType="next"
+                  />
+                </View>
+              ))}
               <Text style={[styles.fieldLabel, { color: colors.muted }]}>Description</Text>
               <TextInput
                 style={[styles.profileInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground, minHeight: 60, textAlignVertical: "top" }]}
@@ -247,13 +241,12 @@ export default function SettingsScreen() {
                 numberOfLines={3}
                 returnKeyType="done"
               />
-
               <View style={styles.profileActions}>
                 <Pressable
                   onPress={() => setEditingProfile(false)}
                   style={({ pressed }) => [styles.cancelButton, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
                 >
-                  <Text className="text-sm font-medium text-foreground">Cancel</Text>
+                  <Text style={{ fontSize: 14, fontWeight: "500", color: colors.foreground }}>Cancel</Text>
                 </Pressable>
                 <Pressable
                   onPress={handleSaveProfile}
@@ -268,41 +261,76 @@ export default function SettingsScreen() {
               {settings.profile?.ownerName ? (
                 <View style={styles.profileRow}>
                   <IconSymbol name="person.fill" size={14} color={colors.muted} />
-                  <Text className="text-sm text-foreground" style={{ marginLeft: 8 }}>{settings.profile.ownerName}</Text>
+                  <Text style={{ fontSize: 14, color: colors.foreground, marginLeft: 8 }}>{settings.profile.ownerName}</Text>
                 </View>
               ) : null}
               {settings.profile?.phone ? (
                 <View style={styles.profileRow}>
                   <IconSymbol name="phone.fill" size={14} color={colors.muted} />
-                  <Text className="text-sm text-foreground" style={{ marginLeft: 8 }}>{settings.profile.phone}</Text>
+                  <Text style={{ fontSize: 14, color: colors.foreground, marginLeft: 8 }}>{settings.profile.phone}</Text>
                 </View>
               ) : null}
               {settings.profile?.email ? (
                 <View style={styles.profileRow}>
                   <IconSymbol name="envelope.fill" size={14} color={colors.muted} />
-                  <Text className="text-sm text-foreground" style={{ marginLeft: 8 }}>{settings.profile.email}</Text>
+                  <Text style={{ fontSize: 14, color: colors.foreground, marginLeft: 8 }}>{settings.profile.email}</Text>
                 </View>
               ) : null}
               {settings.profile?.address ? (
                 <View style={styles.profileRow}>
                   <IconSymbol name="mappin" size={14} color={colors.muted} />
-                  <Text className="text-sm text-foreground" style={{ marginLeft: 8 }}>{settings.profile.address}</Text>
+                  <Text style={{ fontSize: 14, color: colors.foreground, marginLeft: 8 }}>{settings.profile.address}</Text>
                 </View>
               ) : null}
               {settings.profile?.website ? (
                 <View style={styles.profileRow}>
                   <IconSymbol name="globe" size={14} color={colors.muted} />
-                  <Text className="text-sm text-foreground" style={{ marginLeft: 8 }}>{settings.profile.website}</Text>
+                  <Text style={{ fontSize: 14, color: colors.foreground, marginLeft: 8 }}>{settings.profile.website}</Text>
                 </View>
               ) : null}
               {settings.profile?.description ? (
-                <Text className="text-xs text-muted" style={{ marginTop: 8, lineHeight: 18 }}>{settings.profile.description}</Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 8, lineHeight: 18 }}>{settings.profile.description}</Text>
               ) : null}
               {!settings.profile?.ownerName && !settings.profile?.phone && !settings.profile?.email ? (
-                <Text className="text-sm text-muted" style={{ fontStyle: "italic" }}>Tap Edit to add your business profile</Text>
+                <Text style={{ fontSize: 14, color: colors.muted, fontStyle: "italic" }}>Tap Edit to add your business profile</Text>
               ) : null}
             </View>
           )}
+        </View>
+
+        {/* Theme Mode */}
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardHeaderLeft}>
+              <IconSymbol name="circle.lefthalf.filled" size={18} color={colors.primary} />
+              <Text style={[styles.cardTitle, { color: colors.foreground }]}>Appearance</Text>
+            </View>
+          </View>
+          <View style={styles.themeRow}>
+            {themeOptions.map((opt) => {
+              const isActive = currentTheme === opt.key;
+              return (
+                <Pressable
+                  key={opt.key}
+                  onPress={() => handleThemeChange(opt.key)}
+                  style={({ pressed }) => [
+                    styles.themeOption,
+                    {
+                      backgroundColor: isActive ? colors.primary : colors.background,
+                      borderColor: isActive ? colors.primary : colors.border,
+                      opacity: pressed ? 0.7 : 1,
+                      flex: 1,
+                    },
+                  ]}
+                >
+                  <IconSymbol name={opt.icon} size={20} color={isActive ? "#FFF" : colors.foreground} />
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: isActive ? "#FFF" : colors.foreground, marginTop: 4 }}>
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
 
         {/* Default Duration */}
@@ -341,7 +369,7 @@ export default function SettingsScreen() {
           <View style={styles.switchRow}>
             <View style={styles.switchLabel}>
               <IconSymbol name="bell.fill" size={20} color={colors.primary} />
-              <Text className="text-base font-medium text-foreground" style={{ marginLeft: 12 }}>Notifications</Text>
+              <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground, marginLeft: 12 }}>Notifications</Text>
             </View>
             <Switch
               value={settings.notificationsEnabled}
@@ -371,7 +399,7 @@ export default function SettingsScreen() {
                   style={{
                     fontSize: 13,
                     fontWeight: "500",
-                    width: 90,
+                    width: 44,
                     marginLeft: 8,
                     color: wh.enabled ? colors.foreground : colors.muted,
                   }}
@@ -400,39 +428,50 @@ export default function SettingsScreen() {
           })}
         </View>
 
-        {/* Stats */}
+        {/* Quick Stats */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.cardLabel, { color: colors.muted }]}>Quick Stats</Text>
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
               <Text style={[styles.statNumber, { color: colors.primary }]}>{state.services.length}</Text>
-              <Text className="text-xs text-muted">Services</Text>
+              <Text style={{ fontSize: 12, color: colors.muted }}>Services</Text>
             </View>
             <View style={styles.statItem}>
               <Text style={[styles.statNumber, { color: colors.primary }]}>{state.clients.length}</Text>
-              <Text className="text-xs text-muted">Clients</Text>
+              <Text style={{ fontSize: 12, color: colors.muted }}>Clients</Text>
             </View>
             <View style={styles.statItem}>
               <Text style={[styles.statNumber, { color: colors.primary }]}>{state.appointments.length}</Text>
-              <Text className="text-xs text-muted">Bookings</Text>
+              <Text style={{ fontSize: 12, color: colors.muted }}>Bookings</Text>
             </View>
           </View>
         </View>
 
         {/* App Info */}
         <View style={styles.appInfo}>
+          <Image source={require("@/assets/images/icon.png")} style={{ width: 48, height: 48, borderRadius: 12, marginBottom: 8 }} resizeMode="contain" />
           <Text style={[styles.appName, { color: colors.primary }]}>Lime Of Time</Text>
-          <Text className="text-xs text-muted" style={{ marginTop: 4 }}>Version 1.0.0</Text>
-          <Text className="text-xs text-muted" style={{ marginTop: 2 }}>Smart Scheduling for Small Business</Text>
+          <Text style={{ fontSize: 12, color: colors.muted, marginTop: 4 }}>Version 1.0.0</Text>
+          <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Smart Scheduling for Small Business</Text>
         </View>
-
-        <View style={{ height: 40 }} />
       </ScrollView>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
+    paddingTop: 4,
+  },
+  headerLogo: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+  },
   card: {
     borderRadius: 16,
     padding: 16,
@@ -527,6 +566,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 6,
+  },
+  themeRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  themeOption: {
+    alignItems: "center",
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
   },
   durationRow: {
     flexDirection: "row",

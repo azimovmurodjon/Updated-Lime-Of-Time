@@ -25,6 +25,7 @@ const initialSettings: BusinessSettings = {
   notificationsEnabled: true,
   workingHours: DEFAULT_WORKING_HOURS,
   profile: DEFAULT_BUSINESS_PROFILE,
+  themeMode: "system",
 };
 
 const initialState: AppState = {

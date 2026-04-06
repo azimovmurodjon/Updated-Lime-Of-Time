@@ -16,7 +16,7 @@ export interface Client {
   createdAt: string;
 }
 
-export type AppointmentStatus = "confirmed" | "completed" | "cancelled";
+export type AppointmentStatus = "pending" | "confirmed" | "completed" | "cancelled";
 
 export interface Appointment {
   id: string;
@@ -49,8 +49,9 @@ export interface BusinessSettings {
   businessName: string;
   defaultDuration: number;
   notificationsEnabled: boolean;
-  workingHours: Record<string, WorkingHours>; // key: 'monday', 'tuesday', etc.
+  workingHours: Record<string, WorkingHours>;
   profile: BusinessProfile;
+  themeMode: "light" | "dark" | "system";
 }
 
 export const SERVICE_COLORS = [

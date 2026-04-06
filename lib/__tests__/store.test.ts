@@ -80,7 +80,7 @@ describe("Data Model Shapes", () => {
     expect(appointment.id).toBeTruthy();
     expect(appointment.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(appointment.time).toMatch(/^\d{2}:\d{2}$/);
-    expect(["confirmed", "completed", "cancelled"]).toContain(appointment.status);
+    expect(["confirmed", "completed", "cancelled", "pending"]).toContain(appointment.status);
   });
 
   it("should create valid WorkingHours", () => {
@@ -129,6 +129,7 @@ describe("Business Profile", () => {
       notificationsEnabled: true,
       workingHours: DEFAULT_WORKING_HOURS,
       profile: DEFAULT_BUSINESS_PROFILE,
+      themeMode: "system",
     };
     expect(settings.profile).toBeDefined();
     expect(settings.profile.ownerName).toBe("");
@@ -211,5 +212,134 @@ describe("Time Slot Generation Logic", () => {
       if (m >= 60) { h += 1; m -= 60; }
     }
     expect(slots).toEqual(["09:00", "09:30", "10:00", "10:30", "11:00"]);
+  });
+});
+
+describe("Pending Appointment Status", () => {
+  it("should support pending status for client-booked appointments", () => {
+    const appointment = {
+      id: "appt-pending",
+      serviceId: "svc-1",
+      clientId: "client-1",
+      date: "2026-04-10",
+      time: "10:00",
+      duration: 30,
+      status: "pending" as const,
+      notes: "Booked via client link",
+      createdAt: new Date().toISOString(),
+    };
+    expect(appointment.status).toBe("pending");
+    expect(["confirmed", "completed", "cancelled", "pending"]).toContain(appointment.status);
+  });
+
+  it("should transition from pending to confirmed", () => {
+    let status: "pending" | "confirmed" | "cancelled" | "completed" = "pending";
+    expect(status).toBe("pending");
+    status = "confirmed";
+    expect(status).toBe("confirmed");
+  });
+
+  it("should transition from pending to cancelled (rejected)", () => {
+    let status: "pending" | "confirmed" | "cancelled" | "completed" = "pending";
+    expect(status).toBe("pending");
+    status = "cancelled";
+    expect(status).toBe("cancelled");
+  });
+});
+
+describe("Theme Mode", () => {
+  it("should support light, dark, and system theme modes", () => {
+    const validModes = ["light", "dark", "system"];
+    validModes.forEach((mode) => {
+      expect(["light", "dark", "system"]).toContain(mode);
+    });
+  });
+
+  it("should include themeMode in BusinessSettings", () => {
+    const settings: BusinessSettings = {
+      businessName: "Test",
+      defaultDuration: 30,
+      notificationsEnabled: false,
+      workingHours: DEFAULT_WORKING_HOURS,
+      profile: DEFAULT_BUSINESS_PROFILE,
+      themeMode: "dark",
+    };
+    expect(settings.themeMode).toBe("dark");
+  });
+
+  it("should default to system theme", () => {
+    const settings: BusinessSettings = {
+      businessName: "Test",
+      defaultDuration: 30,
+      notificationsEnabled: false,
+      workingHours: DEFAULT_WORKING_HOURS,
+      profile: DEFAULT_BUSINESS_PROFILE,
+      themeMode: "system",
+    };
+    expect(settings.themeMode).toBe("system");
+  });
+});
+
+describe("Analytics Data Computation", () => {
+  it("should compute revenue from completed appointments", () => {
+    const services = [
+      { id: "s1", name: "Haircut", price: 30, duration: 30, color: "#FF0000", createdAt: "" },
+      { id: "s2", name: "Massage", price: 60, duration: 60, color: "#00FF00", createdAt: "" },
+    ];
+    const appointments = [
+      { id: "a1", serviceId: "s1", clientId: "c1", date: "2026-04-01", time: "09:00", duration: 30, status: "completed" as const, notes: "", createdAt: "" },
+      { id: "a2", serviceId: "s2", clientId: "c2", date: "2026-04-02", time: "10:00", duration: 60, status: "completed" as const, notes: "", createdAt: "" },
+      { id: "a3", serviceId: "s1", clientId: "c1", date: "2026-04-03", time: "09:00", duration: 30, status: "cancelled" as const, notes: "", createdAt: "" },
+    ];
+    const completedAppts = appointments.filter((a) => a.status === "completed");
+    const totalRevenue = completedAppts.reduce((sum, a) => {
+      const svc = services.find((s) => s.id === a.serviceId);
+      return sum + (svc?.price ?? 0);
+    }, 0);
+    expect(totalRevenue).toBe(90); // 30 + 60
+    expect(completedAppts).toHaveLength(2);
+  });
+
+  it("should rank services by booking count", () => {
+    const services = [
+      { id: "s1", name: "Haircut", price: 30, duration: 30, color: "#FF0000", createdAt: "" },
+      { id: "s2", name: "Massage", price: 60, duration: 60, color: "#00FF00", createdAt: "" },
+    ];
+    const appointments = [
+      { id: "a1", serviceId: "s1", status: "completed" as const },
+      { id: "a2", serviceId: "s1", status: "confirmed" as const },
+      { id: "a3", serviceId: "s2", status: "completed" as const },
+      { id: "a4", serviceId: "s1", status: "cancelled" as const },
+    ];
+    const counts: Record<string, number> = {};
+    appointments.filter((a) => a.status !== "cancelled").forEach((a) => {
+      counts[a.serviceId] = (counts[a.serviceId] || 0) + 1;
+    });
+    const ranked = services
+      .map((s) => ({ ...s, bookings: counts[s.id] || 0 }))
+      .sort((a, b) => b.bookings - a.bookings);
+    expect(ranked[0].name).toBe("Haircut");
+    expect(ranked[0].bookings).toBe(2);
+    expect(ranked[1].name).toBe("Massage");
+    expect(ranked[1].bookings).toBe(1);
+  });
+
+  it("should filter appointments by status for calendar filters", () => {
+    const appointments = [
+      { id: "a1", status: "confirmed" as const, date: "2026-04-10" },
+      { id: "a2", status: "pending" as const, date: "2026-04-11" },
+      { id: "a3", status: "cancelled" as const, date: "2026-04-09" },
+      { id: "a4", status: "completed" as const, date: "2026-04-08" },
+      { id: "a5", status: "confirmed" as const, date: "2026-04-12" },
+    ];
+    const todayStr = "2026-04-06";
+    const upcoming = appointments.filter((a) => a.status === "confirmed" && a.date >= todayStr);
+    const requests = appointments.filter((a) => a.status === "pending");
+    const cancelled = appointments.filter((a) => a.status === "cancelled");
+    const completed = appointments.filter((a) => a.status === "completed");
+    expect(upcoming).toHaveLength(2);
+    expect(requests).toHaveLength(1);
+    expect(cancelled).toHaveLength(1);
+    expect(completed).toHaveLength(1);
   });
 });

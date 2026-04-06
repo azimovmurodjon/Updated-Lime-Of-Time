@@ -21,3 +21,13 @@
 - [x] Add "Send Booking Link" button to share with clients
 - [x] Build public booking page accessible via shared link
 - [x] Add business profile section in Settings (name, phone, email, address, description)
+- [x] Add pending appointment status for client-booked appointments
+- [x] Add accept/reject workflow with SMS message generation
+- [x] Add contact list import to Clients page
+- [x] Build 4 clickable analytics slides on Home (Total Clients, Total Appointments, Total Revenue, Top Service)
+- [x] Build analytics detail screens for each slide
+- [x] Add calendar filters: Upcoming, Requests, Cancelled, Completed
+- [x] Add colored status dots on calendar days
+- [x] Add background logo watermark
+- [x] Add theme mode toggle in Settings
+- [x] Fix responsive alignment for all device resolutions
