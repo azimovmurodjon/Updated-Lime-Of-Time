@@ -275,6 +275,7 @@ function dbDiscountToLocal(d: any): Discount {
     startTime: d.startTime,
     endTime: d.endTime,
     daysOfWeek: Array.isArray(d.daysOfWeek) ? d.daysOfWeek : [],
+    dates: Array.isArray(d.dates) ? d.dates : [],
     serviceIds: d.serviceIds ?? null,
     active: d.active ?? true,
     createdAt: d.createdAt ? new Date(d.createdAt).toISOString() : new Date().toISOString(),
@@ -638,6 +639,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               startTime: disc.startTime,
               endTime: disc.endTime,
               daysOfWeek: disc.daysOfWeek,
+              dates: disc.dates ?? [],
               serviceIds: disc.serviceIds,
               active: disc.active,
             });
@@ -653,6 +655,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               startTime: disc.startTime,
               endTime: disc.endTime,
               daysOfWeek: disc.daysOfWeek,
+              dates: disc.dates ?? [],
               serviceIds: disc.serviceIds,
               active: disc.active,
             });

@@ -167,8 +167,10 @@ export const discounts = mysqlTable("discounts", {
   startTime: varchar("startTime", { length: 5 }).notNull(),
   /** End time HH:MM */
   endTime: varchar("endTime", { length: 5 }).notNull(),
-  /** Which days of week this discount applies (JSON array of day names) */
+  /** Which days of week this discount applies (JSON array of day names) – legacy */
   daysOfWeek: json("daysOfWeek"),
+  /** Specific dates this discount applies (JSON array of YYYY-MM-DD strings) */
+  dates: json("dates"),
   /** Optional: only for specific service localIds (JSON array), null = all services */
   serviceIds: json("serviceIds"),
   /** Whether the discount is currently active */

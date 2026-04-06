@@ -45,7 +45,8 @@ export interface Discount {
   percentage: number; // 0-100
   startTime: string; // HH:MM
   endTime: string; // HH:MM
-  daysOfWeek: string[]; // e.g. ["monday", "tuesday"]
+  daysOfWeek: string[]; // legacy, kept for backward compat
+  dates: string[]; // specific dates YYYY-MM-DD (future dates only)
   serviceIds: string[] | null; // null = all services
   active: boolean;
   createdAt: string;
@@ -283,8 +284,13 @@ export function getApplicableDiscount(
 
   for (const disc of discounts) {
     if (!disc.active) continue;
-    // Check day of week
-    if (disc.daysOfWeek.length > 0 && !disc.daysOfWeek.includes(dayName)) continue;
+    // Check specific dates first (new system)
+    if (disc.dates && disc.dates.length > 0) {
+      if (!disc.dates.includes(date)) continue;
+    } else if (disc.daysOfWeek.length > 0) {
+      // Legacy: check day of week
+      if (!disc.daysOfWeek.includes(dayName)) continue;
+    }
     // Check time window
     const discStart = timeToMinutes(disc.startTime);
     const discEnd = timeToMinutes(disc.endTime);

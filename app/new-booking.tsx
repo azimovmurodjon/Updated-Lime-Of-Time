@@ -485,6 +485,7 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 8,
     borderWidth: 1,
+    width: "100%",
   },
   colorDot: {
     width: 12,
@@ -504,12 +505,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   dateChip: {
-    minWidth: 52,
+    minWidth: 56,
     paddingVertical: 10,
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
     borderRadius: 14,
     borderWidth: 1,
     alignItems: "center",
+    justifyContent: "center",
   },
   timeChip: {
     paddingHorizontal: 16,
@@ -517,7 +519,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     alignItems: "center",
-    minWidth: 80,
+    justifyContent: "center",
+    minWidth: 84,
+    minHeight: 44,
   },
   summaryDot: {
     width: 10,

@@ -98,3 +98,9 @@
 - [x] Fix responsive layout for all device sizes - consistent padding, margins, widths
 - [x] Fix quick actions section alignment on dashboard
 - [x] Fix form inputs alignment on onboarding, booking, settings screens
+- [x] Fix Discounts page alignment to match Settings/Calendar/Home quality
+- [x] Fix Gift Cards page alignment to match Settings/Calendar/Home quality
+- [x] Fix Book an Appointment pages alignment to match Settings/Calendar/Home quality
+- [x] Update discount system to use calendar date selection instead of day-of-week
+- [x] Discount date picker: only allow future dates, not past ones
+- [x] Integrate date-based discounts into booking flow and DB

@@ -312,6 +312,7 @@ const discountsRouter = router({
         startTime: z.string(),
         endTime: z.string(),
         daysOfWeek: z.array(z.string()).optional(),
+        dates: z.array(z.string()).optional(),
         serviceIds: z.array(z.string()).nullable().optional(),
         active: z.boolean().default(true),
       })
@@ -320,6 +321,7 @@ const discountsRouter = router({
       const id = await db.createDiscount({
         ...input,
         daysOfWeek: input.daysOfWeek ?? [],
+        dates: input.dates ?? [],
         serviceIds: input.serviceIds ?? null,
       });
       return { id, localId: input.localId };
@@ -335,6 +337,7 @@ const discountsRouter = router({
         startTime: z.string().optional(),
         endTime: z.string().optional(),
         daysOfWeek: z.array(z.string()).optional(),
+        dates: z.array(z.string()).optional(),
         serviceIds: z.array(z.string()).nullable().optional(),
         active: z.boolean().optional(),
       })
