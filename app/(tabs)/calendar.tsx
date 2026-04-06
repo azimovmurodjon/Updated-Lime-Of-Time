@@ -225,7 +225,7 @@ export default function CalendarScreen() {
                 </Text>
                 {/* Status dots */}
                 <View style={styles.dotsRow}>
-                  {statuses?.has("confirmed") && <View style={[styles.dot, { backgroundColor: "#4CAF50" }]} />}
+                  {statuses?.has("confirmed") && <View style={[styles.dot, { backgroundColor: "#1B5E20" }]} />}
                   {statuses?.has("pending") && <View style={[styles.dot, { backgroundColor: "#2196F3" }]} />}
                   {statuses?.has("cancelled") && <View style={[styles.dot, { backgroundColor: "#F44336" }]} />}
                 </View>
@@ -236,7 +236,7 @@ export default function CalendarScreen() {
 
         {/* Dot Legend */}
         <View style={[styles.dotLegend, { paddingHorizontal: hp }]}>
-          <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: "#4CAF50" }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Accepted</Text></View>
+          <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: "#1B5E20" }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Accepted</Text></View>
           <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: "#2196F3" }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Pending</Text></View>
           <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: "#F44336" }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Cancelled</Text></View>
         </View>
@@ -253,7 +253,7 @@ export default function CalendarScreen() {
               const svc = getServiceById(appt.serviceId);
               const client = getClientById(appt.clientId);
               const statusColor =
-                appt.status === "confirmed" ? "#4CAF50"
+                appt.status === "confirmed" ? "#1B5E20"
                 : appt.status === "pending" ? "#FF9800"
                 : appt.status === "completed" ? colors.primary
                 : "#F44336";
@@ -343,7 +343,7 @@ export default function CalendarScreen() {
                     <View style={[styles.actionRow, { borderTopColor: colors.border }]}>
                       <Pressable
                         onPress={() => handleAccept(appt)}
-                        style={({ pressed }) => [styles.acceptBtn, { backgroundColor: "#4CAF50", opacity: pressed ? 0.8 : 1 }]}
+                        style={({ pressed }) => [styles.acceptBtn, { backgroundColor: "#1B5E20", opacity: pressed ? 0.8 : 1 }]}
                       >
                         <IconSymbol name="checkmark" size={16} color="#FFF" />
                         <Text style={{ color: "#FFF", fontSize: 13, fontWeight: "600", marginLeft: 4 }}>Accept</Text>

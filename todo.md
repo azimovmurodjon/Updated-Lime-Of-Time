@@ -31,3 +31,15 @@
 - [x] Add background logo watermark
 - [x] Add theme mode toggle in Settings
 - [x] Fix responsive alignment for all device resolutions
+- [x] Fix time validation: prevent selecting past times for same-day bookings
+- [x] Fix appointment duration: end time = start time + service duration (e.g. 9AM + 1hr = 10AM)
+- [x] Add sign-up page with phone number entry
+- [x] Add business info page after sign-up (name, address, phone, optional email/website, description)
+- [x] Wire sign-up business info to Settings profile
+- [x] Remove dashboard background logo watermark
+- [x] Add client messaging with auto-generated appointment messages (date, time, company, service)
+- [x] Message button opens phone SMS with pre-filled message and client phone number
+- [x] Add scrolling time picker for working hours selection
+- [x] Prevent double-booking: accepted appointment times should be unavailable to other clients
+- [x] Add cancellation fee policy controlled by business owner (2-hour window)
+- [x] Make calendar green status dots darker green

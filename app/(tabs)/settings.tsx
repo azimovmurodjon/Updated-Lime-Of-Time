@@ -8,13 +8,15 @@ import {
   Switch,
   useWindowDimensions,
   Image,
+  FlatList,
+  Modal,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { useState, useCallback } from "react";
-import { DAYS_OF_WEEK, WorkingHours, BusinessProfile } from "@/lib/types";
+import { useState, useCallback, useMemo } from "react";
+import { DAYS_OF_WEEK, WorkingHours, BusinessProfile, minutesToTime, timeToMinutes } from "@/lib/types";
 import { useThemeContext } from "@/lib/theme-provider";
 
 const DAY_LABELS: Record<string, string> = {
@@ -29,13 +31,29 @@ const DAY_LABELS: Record<string, string> = {
 
 type ThemeOption = "light" | "dark" | "system";
 
+// Generate time options in 15-min intervals
+const TIME_OPTIONS: string[] = [];
+for (let h = 0; h < 24; h++) {
+  for (let m = 0; m < 60; m += 15) {
+    TIME_OPTIONS.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+  }
+}
+
+function formatTimeLabel(t: string) {
+  const [hStr, mStr] = t.split(":");
+  const h = parseInt(hStr, 10);
+  const ampm = h >= 12 ? "PM" : "AM";
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${h12}:${mStr} ${ampm}`;
+}
+
 export default function SettingsScreen() {
   const { state, dispatch } = useStore();
   const colors = useColors();
   const { width } = useWindowDimensions();
   const hp = Math.round(Math.max(16, width * 0.045));
   const { settings } = state;
-  const { colorScheme, setColorScheme } = useThemeContext();
+  const { setColorScheme } = useThemeContext();
 
   const [businessName, setBusinessName] = useState(settings.businessName);
   const [editingName, setEditingName] = useState(false);
@@ -50,6 +68,11 @@ export default function SettingsScreen() {
     description: settings.profile?.description ?? "",
     website: settings.profile?.website ?? "",
   });
+
+  // Time picker modal
+  const [timePickerVisible, setTimePickerVisible] = useState(false);
+  const [timePickerDay, setTimePickerDay] = useState("");
+  const [timePickerField, setTimePickerField] = useState<"start" | "end">("start");
 
   const currentTheme: ThemeOption = settings.themeMode ?? "system";
 
@@ -108,6 +131,17 @@ export default function SettingsScreen() {
     [settings.workingHours, dispatch]
   );
 
+  const openTimePicker = (day: string, field: "start" | "end") => {
+    setTimePickerDay(day);
+    setTimePickerField(field);
+    setTimePickerVisible(true);
+  };
+
+  const selectTime = (time: string) => {
+    updateDayTime(timePickerDay, timePickerField, time);
+    setTimePickerVisible(false);
+  };
+
   const setDefaultDuration = useCallback(
     (duration: number) => {
       dispatch({ type: "UPDATE_SETTINGS", payload: { defaultDuration: duration } });
@@ -115,26 +149,69 @@ export default function SettingsScreen() {
     [dispatch]
   );
 
-  const handleThemeChange = useCallback((mode: ThemeOption) => {
-    dispatch({ type: "UPDATE_SETTINGS", payload: { themeMode: mode } });
-    if (mode === "system") {
-      // Let the system decide
-      const systemScheme = "light"; // fallback
-      setColorScheme(systemScheme);
-    } else {
-      setColorScheme(mode);
-    }
-  }, [dispatch, setColorScheme]);
+  const handleThemeChange = useCallback(
+    (mode: ThemeOption) => {
+      dispatch({ type: "UPDATE_SETTINGS", payload: { themeMode: mode } });
+      if (mode === "system") {
+        setColorScheme("light");
+      } else {
+        setColorScheme(mode);
+      }
+    },
+    [dispatch, setColorScheme]
+  );
 
   const updateProfileField = (field: keyof BusinessProfile, value: string) => {
     setProfileForm((prev) => ({ ...prev, [field]: value }));
   };
+
+  // Cancellation policy
+  const policy = settings.cancellationPolicy;
+  const toggleCancellationPolicy = useCallback(() => {
+    dispatch({
+      type: "UPDATE_SETTINGS",
+      payload: {
+        cancellationPolicy: {
+          ...policy,
+          enabled: !policy.enabled,
+        },
+      },
+    });
+  }, [policy, dispatch]);
+
+  const updateCancellationHours = useCallback(
+    (hours: number) => {
+      dispatch({
+        type: "UPDATE_SETTINGS",
+        payload: {
+          cancellationPolicy: { ...policy, hoursBeforeAppointment: hours },
+        },
+      });
+    },
+    [policy, dispatch]
+  );
+
+  const updateCancellationFee = useCallback(
+    (fee: number) => {
+      dispatch({
+        type: "UPDATE_SETTINGS",
+        payload: {
+          cancellationPolicy: { ...policy, feePercentage: fee },
+        },
+      });
+    },
+    [policy, dispatch]
+  );
 
   const themeOptions: { key: ThemeOption; label: string; icon: "sun.max.fill" | "moon.fill" | "circle.lefthalf.filled" }[] = [
     { key: "light", label: "Light", icon: "sun.max.fill" },
     { key: "dark", label: "Dark", icon: "moon.fill" },
     { key: "system", label: "System", icon: "circle.lefthalf.filled" },
   ];
+
+  const currentPickerValue = timePickerDay
+    ? settings.workingHours[timePickerDay]?.[timePickerField] ?? "09:00"
+    : "09:00";
 
   return (
     <ScreenContainer>
@@ -364,6 +441,83 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* Cancellation Policy */}
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.switchRow}>
+            <View style={styles.switchLabel}>
+              <IconSymbol name="xmark" size={20} color={colors.error} />
+              <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground, marginLeft: 12 }}>Cancellation Fee</Text>
+            </View>
+            <Switch
+              value={policy.enabled}
+              onValueChange={toggleCancellationPolicy}
+              trackColor={{ false: colors.border, true: colors.primary + "60" }}
+              thumbColor={policy.enabled ? colors.primary : colors.muted}
+            />
+          </View>
+          {policy.enabled && (
+            <View style={{ marginTop: 14 }}>
+              <Text style={[styles.fieldLabel, { color: colors.muted }]}>Hours before appointment</Text>
+              <View style={styles.durationRow}>
+                {[1, 2, 4, 6, 12, 24].map((h) => (
+                  <Pressable
+                    key={h}
+                    onPress={() => updateCancellationHours(h)}
+                    style={({ pressed }) => [
+                      styles.durationChip,
+                      {
+                        backgroundColor: policy.hoursBeforeAppointment === h ? colors.error : colors.background,
+                        borderColor: policy.hoursBeforeAppointment === h ? colors.error : colors.border,
+                        opacity: pressed ? 0.7 : 1,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: "500",
+                        color: policy.hoursBeforeAppointment === h ? "#FFFFFF" : colors.foreground,
+                      }}
+                    >
+                      {h}h
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Text style={[styles.fieldLabel, { color: colors.muted, marginTop: 10 }]}>Fee percentage</Text>
+              <View style={styles.durationRow}>
+                {[10, 25, 50, 75, 100].map((p) => (
+                  <Pressable
+                    key={p}
+                    onPress={() => updateCancellationFee(p)}
+                    style={({ pressed }) => [
+                      styles.durationChip,
+                      {
+                        backgroundColor: policy.feePercentage === p ? colors.error : colors.background,
+                        borderColor: policy.feePercentage === p ? colors.error : colors.border,
+                        opacity: pressed ? 0.7 : 1,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: "500",
+                        color: policy.feePercentage === p ? "#FFFFFF" : colors.foreground,
+                      }}
+                    >
+                      {p}%
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Text style={{ fontSize: 11, color: colors.muted, marginTop: 8, lineHeight: 16 }}>
+                Clients will be charged {policy.feePercentage}% of the service price if they cancel within {policy.hoursBeforeAppointment} hour{policy.hoursBeforeAppointment > 1 ? "s" : ""} of the appointment.
+              </Text>
+            </View>
+          )}
+        </View>
+
         {/* Notifications */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.switchRow}>
@@ -408,19 +562,29 @@ export default function SettingsScreen() {
                 </Text>
                 {wh.enabled && (
                   <View style={styles.timeInputs}>
-                    <TextInput
-                      style={[styles.timeInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-                      value={wh.start}
-                      onChangeText={(v) => updateDayTime(day, "start", v)}
-                      returnKeyType="done"
-                    />
+                    <Pressable
+                      onPress={() => openTimePicker(day, "start")}
+                      style={({ pressed }) => [
+                        styles.timeButton,
+                        { backgroundColor: colors.background, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+                      ]}
+                    >
+                      <Text style={{ fontSize: 12, color: colors.foreground, textAlign: "center" }}>
+                        {formatTimeLabel(wh.start)}
+                      </Text>
+                    </Pressable>
                     <Text style={{ fontSize: 12, color: colors.muted, marginHorizontal: 4 }}>to</Text>
-                    <TextInput
-                      style={[styles.timeInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-                      value={wh.end}
-                      onChangeText={(v) => updateDayTime(day, "end", v)}
-                      returnKeyType="done"
-                    />
+                    <Pressable
+                      onPress={() => openTimePicker(day, "end")}
+                      style={({ pressed }) => [
+                        styles.timeButton,
+                        { backgroundColor: colors.background, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+                      ]}
+                    >
+                      <Text style={{ fontSize: 12, color: colors.foreground, textAlign: "center" }}>
+                        {formatTimeLabel(wh.end)}
+                      </Text>
+                    </Pressable>
                   </View>
                 )}
               </View>
@@ -455,6 +619,60 @@ export default function SettingsScreen() {
           <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Smart Scheduling for Small Business</Text>
         </View>
       </ScrollView>
+
+      {/* Time Picker Modal */}
+      <Modal visible={timePickerVisible} transparent animationType="slide">
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setTimePickerVisible(false)}
+        >
+          <Pressable style={[styles.modalContent, { backgroundColor: colors.background }]} onPress={() => {}}>
+            <View style={styles.modalHeader}>
+              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>
+                Select {timePickerField === "start" ? "Start" : "End"} Time
+              </Text>
+              <Pressable onPress={() => setTimePickerVisible(false)} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+                <IconSymbol name="xmark" size={22} color={colors.foreground} />
+              </Pressable>
+            </View>
+            <FlatList
+              data={TIME_OPTIONS}
+              keyExtractor={(item) => item}
+              showsVerticalScrollIndicator={false}
+              style={{ maxHeight: 360 }}
+              initialScrollIndex={Math.max(0, TIME_OPTIONS.indexOf(currentPickerValue) - 2)}
+              getItemLayout={(_, index) => ({ length: 48, offset: 48 * index, index })}
+              renderItem={({ item }) => {
+                const isSelected = item === currentPickerValue;
+                return (
+                  <Pressable
+                    onPress={() => selectTime(item)}
+                    style={({ pressed }) => [
+                      styles.timePickerItem,
+                      {
+                        backgroundColor: isSelected ? colors.primary + "15" : "transparent",
+                        borderColor: isSelected ? colors.primary : "transparent",
+                        opacity: pressed ? 0.7 : 1,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 16,
+                        fontWeight: isSelected ? "700" : "400",
+                        color: isSelected ? colors.primary : colors.foreground,
+                      }}
+                    >
+                      {formatTimeLabel(item)}
+                    </Text>
+                    {isSelected && <IconSymbol name="checkmark" size={18} color={colors.primary} />}
+                  </Pressable>
+                );
+              }}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -608,14 +826,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "flex-end",
   },
-  timeInput: {
-    width: 56,
+  timeButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    fontSize: 12,
-    textAlign: "center",
     borderWidth: 1,
+    minWidth: 72,
   },
   statsRow: {
     flexDirection: "row",
@@ -637,5 +853,34 @@ const styles = StyleSheet.create({
   appName: {
     fontSize: 16,
     fontWeight: "700",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 16,
+    paddingBottom: 40,
+    paddingHorizontal: 20,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  timePickerItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 4,
+    height: 48,
   },
 });

@@ -13,7 +13,7 @@ import { useStore, generateId, formatDateStr, formatTime, formatDateDisplay } fr
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useMemo, useCallback } from "react";
-import { Appointment, Client, DAYS_OF_WEEK } from "@/lib/types";
+import { Appointment, Client, DAYS_OF_WEEK, generateAvailableSlots, minutesToTime, timeToMinutes } from "@/lib/types";
 
 type Step = 1 | 2 | 3;
 
@@ -35,39 +35,17 @@ export default function NewBookingScreen() {
 
   const selectedService = selectedServiceId ? getServiceById(selectedServiceId) : null;
   const selectedClient = selectedClientId ? getClientById(selectedClientId) : null;
+  const duration = selectedService?.duration ?? state.settings.defaultDuration;
 
-  // Generate available time slots
+  // Generate available time slots using the shared helper (filters past times + conflicts)
   const timeSlots = useMemo(() => {
-    const dateObj = new Date(selectedDate + "T12:00:00");
-    const dayIndex = dateObj.getDay();
-    const dayName = DAYS_OF_WEEK[dayIndex];
-    const wh = state.settings.workingHours[dayName];
-    if (!wh || !wh.enabled) return [];
-
-    const [startH, startM] = wh.start.split(":").map(Number);
-    const [endH, endM] = wh.end.split(":").map(Number);
-    const slots: string[] = [];
-    let h = startH;
-    let m = startM;
-    const endMinutes = endH * 60 + endM;
-    const duration = selectedService?.duration ?? state.settings.defaultDuration;
-
-    while (h * 60 + m + duration <= endMinutes) {
-      slots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
-      m += 30;
-      if (m >= 60) {
-        h += 1;
-        m -= 60;
-      }
-    }
-
-    // Filter out already booked slots
-    const bookedTimes = state.appointments
-      .filter((a) => a.date === selectedDate && a.status !== "cancelled")
-      .map((a) => a.time);
-
-    return slots.filter((s) => !bookedTimes.includes(s));
-  }, [selectedDate, state.settings, state.appointments, selectedService]);
+    return generateAvailableSlots(
+      selectedDate,
+      duration,
+      state.settings.workingHours,
+      state.appointments
+    );
+  }, [selectedDate, state.settings.workingHours, state.appointments, duration]);
 
   // Date options: next 14 days
   const dateOptions = useMemo(() => {
@@ -118,19 +96,23 @@ export default function NewBookingScreen() {
       clientId: selectedClientId,
       date: selectedDate,
       time: selectedTime,
-      duration: selectedService?.duration ?? state.settings.defaultDuration,
+      duration,
       status: "confirmed",
       notes: notes.trim(),
       createdAt: new Date().toISOString(),
     };
     dispatch({ type: "ADD_APPOINTMENT", payload: appointment });
     router.back();
-  }, [selectedServiceId, selectedClientId, selectedDate, selectedTime, selectedService, notes, dispatch, router, state.settings.defaultDuration]);
+  }, [selectedServiceId, selectedClientId, selectedDate, selectedTime, duration, notes, dispatch, router]);
 
   const getInitials = (name: string) => {
     const parts = name.split(" ");
     if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
     return name.slice(0, 2).toUpperCase();
+  };
+
+  const getEndTime = (time: string) => {
+    return formatTime(minutesToTime(timeToMinutes(time) + duration));
   };
 
   return (
@@ -164,9 +146,7 @@ export default function NewBookingScreen() {
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
-            <Text className="text-base font-semibold text-foreground mb-3">
-              Select a Service
-            </Text>
+            <Text className="text-base font-semibold text-foreground mb-3">Select a Service</Text>
           }
           renderItem={({ item }) => (
             <Pressable
@@ -177,10 +157,8 @@ export default function NewBookingScreen() {
               style={({ pressed }) => [
                 styles.optionCard,
                 {
-                  backgroundColor:
-                    selectedServiceId === item.id ? item.color + "15" : colors.surface,
-                  borderColor:
-                    selectedServiceId === item.id ? item.color : colors.border,
+                  backgroundColor: selectedServiceId === item.id ? item.color + "15" : colors.surface,
+                  borderColor: selectedServiceId === item.id ? item.color : colors.border,
                   opacity: pressed ? 0.7 : 1,
                 },
               ]}
@@ -188,9 +166,7 @@ export default function NewBookingScreen() {
               <View style={[styles.colorDot, { backgroundColor: item.color }]} />
               <View style={styles.optionContent}>
                 <Text className="text-base font-semibold text-foreground">{item.name}</Text>
-                <Text className="text-xs text-muted mt-0.5">
-                  {item.duration} min · ${item.price}
-                </Text>
+                <Text className="text-xs text-muted mt-0.5">{item.duration} min · ${item.price}</Text>
               </View>
               <IconSymbol name="chevron.right" size={16} color={colors.muted} />
             </Pressable>
@@ -285,10 +261,8 @@ export default function NewBookingScreen() {
                     style={({ pressed }) => [
                       styles.optionCard,
                       {
-                        backgroundColor:
-                          selectedClientId === item.id ? colors.primary + "10" : colors.surface,
-                        borderColor:
-                          selectedClientId === item.id ? colors.primary : colors.border,
+                        backgroundColor: selectedClientId === item.id ? colors.primary + "10" : colors.surface,
+                        borderColor: selectedClientId === item.id ? colors.primary : colors.border,
                         opacity: pressed ? 0.7 : 1,
                       },
                     ]}
@@ -300,9 +274,7 @@ export default function NewBookingScreen() {
                     </View>
                     <View style={styles.optionContent}>
                       <Text className="text-base font-semibold text-foreground">{item.name}</Text>
-                      {item.phone ? (
-                        <Text className="text-xs text-muted">{item.phone}</Text>
-                      ) : null}
+                      {item.phone ? <Text className="text-xs text-muted">{item.phone}</Text> : null}
                     </View>
                     <IconSymbol name="chevron.right" size={16} color={colors.muted} />
                   </Pressable>
@@ -411,6 +383,15 @@ export default function NewBookingScreen() {
                     >
                       {formatTime(t)}
                     </Text>
+                    <Text
+                      style={{
+                        fontSize: 10,
+                        color: isSelected ? "#FFFFFF99" : colors.muted,
+                        marginTop: 1,
+                      }}
+                    >
+                      to {getEndTime(t)}
+                    </Text>
                   </Pressable>
                 );
               })}
@@ -446,11 +427,12 @@ export default function NewBookingScreen() {
                 </Text>
               </View>
               <Text className="text-sm text-muted">
-                {selectedClient?.name} · {formatDateDisplay(selectedDate)} · {formatTime(selectedTime)}
+                {selectedClient?.name} · {formatDateDisplay(selectedDate)}
               </Text>
               <Text className="text-sm text-muted">
-                {selectedService?.duration} min · ${selectedService?.price}
+                {formatTime(selectedTime)} - {getEndTime(selectedTime)} ({duration} min)
               </Text>
+              <Text className="text-sm text-muted">${selectedService?.price}</Text>
             </View>
           )}
 
@@ -460,8 +442,7 @@ export default function NewBookingScreen() {
             style={({ pressed }) => [
               styles.bookButton,
               {
-                backgroundColor:
-                  selectedTime ? colors.primary : colors.muted,
+                backgroundColor: selectedTime ? colors.primary : colors.muted,
                 opacity: pressed && selectedTime ? 0.8 : 1,
               },
             ]}
@@ -515,6 +496,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
+    alignItems: "center",
   },
   summaryDot: {
     width: 10,

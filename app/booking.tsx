@@ -13,7 +13,7 @@ import { useStore, generateId, formatDateStr, formatTime, formatDateDisplay } fr
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useMemo, useCallback } from "react";
-import { Appointment, Client, DAYS_OF_WEEK } from "@/lib/types";
+import { Appointment, Client, DAYS_OF_WEEK, generateAvailableSlots } from "@/lib/types";
 
 type BookingStep = "info" | "service" | "datetime" | "confirm" | "done";
 
@@ -35,33 +35,16 @@ export default function PublicBookingScreen() {
 
   const selectedService = selectedServiceId ? getServiceById(selectedServiceId) : null;
 
-  // Generate available time slots
+  // Generate available time slots using shared helper (filters past times, overlapping bookings)
   const timeSlots = useMemo(() => {
-    const dateObj = new Date(selectedDate + "T12:00:00");
-    const dayIndex = dateObj.getDay();
-    const dayName = DAYS_OF_WEEK[dayIndex];
-    const wh = state.settings.workingHours[dayName];
-    if (!wh || !wh.enabled) return [];
-
-    const [startH, startM] = wh.start.split(":").map(Number);
-    const [endH, endM] = wh.end.split(":").map(Number);
-    const slots: string[] = [];
-    let h = startH;
-    let m = startM;
-    const endMinutes = endH * 60 + endM;
     const duration = selectedService?.duration ?? state.settings.defaultDuration;
-
-    while (h * 60 + m + duration <= endMinutes) {
-      slots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
-      m += 30;
-      if (m >= 60) { h += 1; m -= 60; }
-    }
-
-    const bookedTimes = state.appointments
-      .filter((a) => a.date === selectedDate && a.status !== "cancelled")
-      .map((a) => a.time);
-
-    return slots.filter((s) => !bookedTimes.includes(s));
+    return generateAvailableSlots(
+      selectedDate,
+      duration,
+      state.settings.workingHours,
+      state.appointments,
+      30
+    );
   }, [selectedDate, state.settings, state.appointments, selectedService]);
 
   // Date options: next 14 days
@@ -106,7 +89,7 @@ export default function PublicBookingScreen() {
       date: selectedDate,
       time: selectedTime,
       duration: selectedService?.duration ?? state.settings.defaultDuration,
-      status: "confirmed",
+      status: "pending",
       notes: notes.trim(),
       createdAt: new Date().toISOString(),
     };
@@ -387,9 +370,9 @@ export default function PublicBookingScreen() {
             <View style={[styles.checkCircle, { backgroundColor: colors.success + "15" }]}>
               <IconSymbol name="checkmark" size={36} color={colors.success} />
             </View>
-            <Text className="text-2xl font-bold text-foreground" style={{ marginTop: 20 }}>Booking Confirmed!</Text>
+            <Text className="text-2xl font-bold text-foreground" style={{ marginTop: 20 }}>Booking Requested!</Text>
             <Text className="text-sm text-muted text-center" style={{ marginTop: 8, maxWidth: 260, lineHeight: 20 }}>
-              Your appointment with {businessName} has been scheduled. You will receive a confirmation shortly.
+              Your appointment request with {businessName} has been submitted. The business owner will review and confirm your booking shortly.
             </Text>
 
             <View style={[styles.doneSummary, { backgroundColor: colors.surface, borderColor: colors.border }]}>

@@ -1,14 +1,11 @@
-import { useRef, useState, useMemo, useCallback } from "react";
+import { useMemo } from "react";
 import {
   Text,
   View,
   Pressable,
   StyleSheet,
-  FlatList,
   Share,
-  Platform,
   useWindowDimensions,
-  Image,
   ScrollView,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
@@ -16,6 +13,8 @@ import { useStore, formatTime, formatDateStr } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter } from "expo-router";
+import { minutesToTime, timeToMinutes } from "@/lib/types";
+import { useEffect } from "react";
 
 export default function HomeScreen() {
   const { state, getServiceById, getClientById, getAppointmentsForDate } = useStore();
@@ -25,14 +24,25 @@ export default function HomeScreen() {
   const hp = Math.round(Math.max(16, width * 0.045));
   const cardW = Math.round((width - hp * 2 - 12) / 2);
 
+  // Redirect to onboarding if not completed
+  useEffect(() => {
+    if (state.loaded && !state.settings.onboardingComplete) {
+      router.replace("/onboarding");
+    }
+  }, [state.loaded, state.settings.onboardingComplete]);
+
   const now = new Date();
   const todayStr = formatDateStr(now);
-  const greeting = now.getHours() < 12 ? "Good Morning" : now.getHours() < 17 ? "Good Afternoon" : "Good Evening";
-  const dateLabel = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+  const greeting =
+    now.getHours() < 12 ? "Good Morning" : now.getHours() < 17 ? "Good Afternoon" : "Good Evening";
+  const dateLabel = now.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
 
   const todayAppts = getAppointmentsForDate(todayStr);
 
-  // Analytics data
   const analytics = useMemo(() => {
     const totalClients = state.clients.length;
     const totalAppointments = state.appointments.filter((a) => a.status !== "cancelled").length;
@@ -43,7 +53,6 @@ export default function HomeScreen() {
         return sum + (svc?.price ?? 0);
       }, 0);
 
-    // Top service by booking count
     const svcCounts: Record<string, number> = {};
     state.appointments
       .filter((a) => a.status !== "cancelled")
@@ -53,7 +62,10 @@ export default function HomeScreen() {
     let topServiceId = "";
     let topCount = 0;
     Object.entries(svcCounts).forEach(([id, count]) => {
-      if (count > topCount) { topServiceId = id; topCount = count; }
+      if (count > topCount) {
+        topServiceId = id;
+        topCount = count;
+      }
     });
     const topService = state.services.find((s) => s.id === topServiceId);
 
@@ -112,21 +124,16 @@ export default function HomeScreen() {
     router.push({ pathname: "/analytics-detail", params: { tab: id } });
   };
 
+  const getEndTime = (time: string, duration: number) => {
+    return formatTime(minutesToTime(timeToMinutes(time) + duration));
+  };
+
   return (
     <ScreenContainer>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: hp, paddingTop: 8, paddingBottom: 100 }}
       >
-        {/* Logo watermark */}
-        <View style={styles.watermarkContainer} pointerEvents="none">
-          <Image
-            source={require("@/assets/images/icon.png")}
-            style={styles.watermark}
-            resizeMode="contain"
-          />
-        </View>
-
         {/* Greeting */}
         <Text style={[styles.greeting, { color: colors.foreground }]}>{greeting}</Text>
         <Text style={[styles.dateLabel, { color: colors.muted }]}>{dateLabel}</Text>
@@ -134,14 +141,28 @@ export default function HomeScreen() {
         {/* Pending badge */}
         {pendingCount > 0 && (
           <Pressable
-            onPress={() => router.push({ pathname: "/(tabs)/calendar", params: { filter: "requests" } })}
+            onPress={() =>
+              router.push({ pathname: "/(tabs)/calendar", params: { filter: "requests" } })
+            }
             style={({ pressed }) => [
               styles.pendingBanner,
-              { backgroundColor: "#FFF3E0", borderColor: "#FF9800", opacity: pressed ? 0.8 : 1 },
+              {
+                backgroundColor: "#FFF3E0",
+                borderColor: "#FF9800",
+                opacity: pressed ? 0.8 : 1,
+              },
             ]}
           >
             <IconSymbol name="questionmark.circle.fill" size={20} color="#FF9800" />
-            <Text style={{ color: "#E65100", fontSize: 14, fontWeight: "600", marginLeft: 8, flex: 1 }}>
+            <Text
+              style={{
+                color: "#E65100",
+                fontSize: 14,
+                fontWeight: "600",
+                marginLeft: 8,
+                flex: 1,
+              }}
+            >
               {pendingCount} appointment request{pendingCount > 1 ? "s" : ""} pending
             </Text>
             <IconSymbol name="chevron.right" size={16} color="#FF9800" />
@@ -149,7 +170,9 @@ export default function HomeScreen() {
         )}
 
         {/* Analytics Slides */}
-        <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 20 }]}>Dashboard</Text>
+        <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 20 }]}>
+          Dashboard
+        </Text>
         <View style={styles.slidesGrid}>
           {slides.map((slide) => (
             <Pressable
@@ -172,7 +195,9 @@ export default function HomeScreen() {
               <Text style={[styles.slideValue, { color: slide.color }]}>{slide.value}</Text>
               <Text style={[styles.slideTitle, { color: slide.color + "CC" }]}>{slide.title}</Text>
               {slide.sub ? (
-                <Text style={{ fontSize: 11, color: slide.color + "99", marginTop: 2 }}>{slide.sub}</Text>
+                <Text style={{ fontSize: 11, color: slide.color + "99", marginTop: 2 }}>
+                  {slide.sub}
+                </Text>
               ) : null}
             </Pressable>
           ))}
@@ -187,15 +212,26 @@ export default function HomeScreen() {
           ]}
         >
           <IconSymbol name="paperplane.fill" size={18} color={colors.primary} />
-          <Text style={[styles.bookingLinkText, { color: colors.primary }]}>Send Booking Link to Client</Text>
+          <Text style={[styles.bookingLinkText, { color: colors.primary }]}>
+            Send Booking Link to Client
+          </Text>
         </Pressable>
 
         {/* Today's Schedule */}
-        <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 24 }]}>Today's Schedule</Text>
+        <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 24 }]}>
+          Today's Schedule
+        </Text>
         {todayAppts.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View
+            style={[
+              styles.emptyCard,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
             <IconSymbol name="calendar" size={36} color={colors.muted + "60"} />
-            <Text style={{ color: colors.muted, fontSize: 14, marginTop: 8 }}>No appointments today</Text>
+            <Text style={{ color: colors.muted, fontSize: 14, marginTop: 8 }}>
+              No appointments today
+            </Text>
             <Pressable
               onPress={() => router.push("/new-booking")}
               style={({ pressed }) => [
@@ -211,35 +247,58 @@ export default function HomeScreen() {
             const svc = getServiceById(appt.serviceId);
             const client = getClientById(appt.clientId);
             const statusColor =
-              appt.status === "confirmed" ? colors.success
-              : appt.status === "pending" ? "#FF9800"
-              : appt.status === "completed" ? colors.primary
-              : colors.error;
+              appt.status === "confirmed"
+                ? colors.success
+                : appt.status === "pending"
+                ? "#FF9800"
+                : appt.status === "completed"
+                ? colors.primary
+                : colors.error;
             return (
               <Pressable
                 key={appt.id}
-                onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })}
+                onPress={() =>
+                  router.push({ pathname: "/appointment-detail", params: { id: appt.id } })
+                }
                 style={({ pressed }) => [
                   styles.apptCard,
-                  { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: svc?.color ?? colors.primary, opacity: pressed ? 0.8 : 1 },
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    borderLeftColor: svc?.color ?? colors.primary,
+                    opacity: pressed ? 0.8 : 1,
+                  },
                 ]}
               >
                 <View style={styles.apptRow}>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.apptTime, { color: colors.foreground }]}>{formatTime(appt.time)}</Text>
-                    <Text style={[styles.apptService, { color: colors.foreground }]}>{svc?.name ?? "Service"}</Text>
-                    <Text style={{ fontSize: 13, color: colors.muted }}>{client?.name ?? "Client"}</Text>
+                    <Text style={[styles.apptTime, { color: colors.foreground }]}>
+                      {formatTime(appt.time)} - {getEndTime(appt.time, appt.duration)}
+                    </Text>
+                    <Text style={[styles.apptService, { color: colors.foreground }]}>
+                      {svc?.name ?? "Service"}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: colors.muted }}>
+                      {client?.name ?? "Client"}
+                    </Text>
                   </View>
                   <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
-                    <Text style={{ fontSize: 11, fontWeight: "600", color: statusColor, textTransform: "capitalize" }}>{appt.status}</Text>
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        fontWeight: "600",
+                        color: statusColor,
+                        textTransform: "capitalize",
+                      }}
+                    >
+                      {appt.status}
+                    </Text>
                   </View>
                 </View>
               </Pressable>
             );
           })
         )}
-
-        {/* FAB */}
       </ScrollView>
       <Pressable
         onPress={() => router.push("/new-booking")}
@@ -255,17 +314,6 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  watermarkContainer: {
-    position: "absolute",
-    top: 60,
-    right: -20,
-    opacity: 0.04,
-    zIndex: -1,
-  },
-  watermark: {
-    width: 200,
-    height: 200,
-  },
   greeting: {
     fontSize: 26,
     fontWeight: "700",

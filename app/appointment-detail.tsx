@@ -1,10 +1,11 @@
-import { Text, View, Pressable, StyleSheet, ScrollView, Alert, Platform } from "react-native";
+import { Text, View, Pressable, StyleSheet, ScrollView, Alert, Platform, Linking } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatTime, formatDateDisplay } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useMemo } from "react";
+import { minutesToTime, timeToMinutes } from "@/lib/types";
 
 export default function AppointmentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -32,18 +33,65 @@ export default function AppointmentDetailScreen() {
 
   const service = getServiceById(appointment.serviceId);
   const client = getClientById(appointment.clientId);
+  const endTime = formatTime(minutesToTime(timeToMinutes(appointment.time) + appointment.duration));
+  const policy = state.settings.cancellationPolicy;
+
+  // Check if cancellation fee applies
+  const getCancellationInfo = () => {
+    if (!policy.enabled) return { feeApplies: false, fee: 0 };
+    const apptDateTime = new Date(`${appointment.date}T${appointment.time}:00`);
+    const now = new Date();
+    const hoursUntil = (apptDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+    const feeApplies = hoursUntil <= policy.hoursBeforeAppointment;
+    const fee = feeApplies ? Math.round((service?.price ?? 0) * policy.feePercentage / 100) : 0;
+    return { feeApplies, fee };
+  };
+
+  const handleAccept = () => {
+    dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status: "confirmed" } });
+    // Open SMS with confirmation message
+    if (client?.phone) {
+      const msg = `Hi ${client.name}, your appointment with ${state.settings.businessName} on ${formatDateDisplay(appointment.date)} at ${formatTime(appointment.time)} - ${endTime} for ${service?.name ?? "service"} has been confirmed. See you then!`;
+      const smsUrl = Platform.OS === "ios"
+        ? `sms:${client.phone}&body=${encodeURIComponent(msg)}`
+        : `sms:${client.phone}?body=${encodeURIComponent(msg)}`;
+      Linking.openURL(smsUrl).catch(() => {});
+    }
+    router.back();
+  };
 
   const handleStatusChange = (status: "completed" | "cancelled") => {
+    const cancInfo = getCancellationInfo();
     const doIt = () => {
       dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status } });
+      // Open SMS with message
+      if (client?.phone) {
+        let msg = "";
+        if (status === "completed") {
+          msg = `Hi ${client.name}, your appointment with ${state.settings.businessName} for ${service?.name ?? "service"} on ${formatDateDisplay(appointment.date)} has been completed. Thank you for visiting us!`;
+        } else {
+          msg = `Hi ${client.name}, your appointment with ${state.settings.businessName} on ${formatDateDisplay(appointment.date)} at ${formatTime(appointment.time)} for ${service?.name ?? "service"} has been cancelled.`;
+          if (cancInfo.feeApplies && cancInfo.fee > 0) {
+            msg += ` A cancellation fee of $${cancInfo.fee} applies as this is within ${policy.hoursBeforeAppointment} hours of the appointment time.`;
+          }
+        }
+        const smsUrl = Platform.OS === "ios"
+          ? `sms:${client.phone}&body=${encodeURIComponent(msg)}`
+          : `sms:${client.phone}?body=${encodeURIComponent(msg)}`;
+        Linking.openURL(smsUrl).catch(() => {});
+      }
       router.back();
     };
     if (Platform.OS === "web") {
       doIt();
     } else {
+      let alertMsg = `Are you sure you want to mark this appointment as ${status}?`;
+      if (status === "cancelled" && cancInfo.feeApplies && cancInfo.fee > 0) {
+        alertMsg += `\n\nA cancellation fee of $${cancInfo.fee} (${policy.feePercentage}%) applies.`;
+      }
       Alert.alert(
         status === "completed" ? "Complete Appointment" : "Cancel Appointment",
-        `Are you sure you want to mark this appointment as ${status}?`,
+        alertMsg,
         [
           { text: "No", style: "cancel" },
           { text: "Yes", onPress: doIt },
@@ -67,6 +115,15 @@ export default function AppointmentDetailScreen() {
     }
   };
 
+  const handleSendMessage = () => {
+    if (!client?.phone) return;
+    const msg = `Hi ${client.name}, this is a reminder about your appointment with ${state.settings.businessName} on ${formatDateDisplay(appointment.date)} at ${formatTime(appointment.time)} - ${endTime} for ${service?.name ?? "service"}. Status: ${appointment.status}. Please let us know if you need any changes.`;
+    const smsUrl = Platform.OS === "ios"
+      ? `sms:${client.phone}&body=${encodeURIComponent(msg)}`
+      : `sms:${client.phone}?body=${encodeURIComponent(msg)}`;
+    Linking.openURL(smsUrl).catch(() => {});
+  };
+
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} className="p-5">
       {/* Header */}
@@ -84,12 +141,8 @@ export default function AppointmentDetailScreen() {
           style={{ backgroundColor: (service?.color ?? colors.primary) + "12" }}
         >
           <View className="flex-row items-center mb-2">
-            <View
-              style={[styles.colorDot, { backgroundColor: service?.color ?? colors.primary }]}
-            />
-            <Text className="text-xl font-bold text-foreground ml-3">
-              {service?.name ?? "Service"}
-            </Text>
+            <View style={[styles.colorDot, { backgroundColor: service?.color ?? colors.primary }]} />
+            <Text className="text-xl font-bold text-foreground ml-3">{service?.name ?? "Service"}</Text>
           </View>
           <Text className="text-sm text-muted">
             {appointment.duration} min · ${service?.price ?? 0}
@@ -107,6 +160,8 @@ export default function AppointmentDetailScreen() {
                   ? colors.success + "20"
                   : appointment.status === "cancelled"
                   ? colors.error + "20"
+                  : appointment.status === "pending"
+                  ? "#FF980020"
                   : colors.primary + "20",
             }}
           >
@@ -118,6 +173,8 @@ export default function AppointmentDetailScreen() {
                     ? colors.success
                     : appointment.status === "cancelled"
                     ? colors.error
+                    : appointment.status === "pending"
+                    ? "#FF9800"
                     : colors.primary,
               }}
             >
@@ -128,16 +185,11 @@ export default function AppointmentDetailScreen() {
 
         {/* Details */}
         <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
-          <DetailRow
-            icon="calendar"
-            label="Date"
-            value={formatDateDisplay(appointment.date)}
-            colors={colors}
-          />
+          <DetailRow icon="calendar" label="Date" value={formatDateDisplay(appointment.date)} colors={colors} />
           <DetailRow
             icon="clock.fill"
             label="Time"
-            value={formatTime(appointment.time)}
+            value={`${formatTime(appointment.time)} - ${endTime}`}
             colors={colors}
           />
           <DetailRow
@@ -147,11 +199,7 @@ export default function AppointmentDetailScreen() {
             colors={colors}
             onPress={
               client
-                ? () =>
-                    router.push({
-                      pathname: "/client-detail" as any,
-                      params: { id: client.id },
-                    })
+                ? () => router.push({ pathname: "/client-detail" as any, params: { id: client.id } })
                 : undefined
             }
           />
@@ -159,6 +207,16 @@ export default function AppointmentDetailScreen() {
             <DetailRow icon="phone.fill" label="Phone" value={client.phone} colors={colors} />
           ) : null}
         </View>
+
+        {/* Cancellation Policy Info */}
+        {policy.enabled && (appointment.status === "confirmed" || appointment.status === "pending") && (
+          <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
+            <Text className="text-xs text-muted mb-1">Cancellation Policy</Text>
+            <Text className="text-sm text-foreground">
+              {policy.feePercentage}% fee if cancelled within {policy.hoursBeforeAppointment} hours of appointment
+            </Text>
+          </View>
+        )}
 
         {/* Notes */}
         {appointment.notes ? (
@@ -168,9 +226,48 @@ export default function AppointmentDetailScreen() {
           </View>
         ) : null}
 
+        {/* Message Client Button */}
+        {client?.phone && (
+          <Pressable
+            onPress={handleSendMessage}
+            style={({ pressed }) => [
+              styles.messageBtn,
+              { borderColor: colors.primary, opacity: pressed ? 0.8 : 1 },
+            ]}
+          >
+            <IconSymbol name="paperplane.fill" size={18} color={colors.primary} />
+            <Text style={[styles.messageBtnText, { color: colors.primary }]}>Message Client</Text>
+          </Pressable>
+        )}
+
         {/* Actions */}
+        {appointment.status === "pending" && (
+          <View className="gap-3 mt-2 mb-4">
+            <Pressable
+              onPress={handleAccept}
+              style={({ pressed }) => [
+                styles.actionButton,
+                { backgroundColor: colors.success, opacity: pressed ? 0.8 : 1 },
+              ]}
+            >
+              <IconSymbol name="checkmark" size={20} color="#FFFFFF" />
+              <Text className="text-white font-semibold ml-2">Accept Appointment</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => handleStatusChange("cancelled")}
+              style={({ pressed }) => [
+                styles.actionButton,
+                { backgroundColor: colors.error, opacity: pressed ? 0.8 : 1 },
+              ]}
+            >
+              <IconSymbol name="xmark" size={20} color="#FFFFFF" />
+              <Text className="text-white font-semibold ml-2">Reject Appointment</Text>
+            </Pressable>
+          </View>
+        )}
+
         {appointment.status === "confirmed" && (
-          <View className="gap-3 mt-2 mb-8">
+          <View className="gap-3 mt-2 mb-4">
             <Pressable
               onPress={() => handleStatusChange("completed")}
               style={({ pressed }) => [
@@ -261,5 +358,19 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 14,
     borderWidth: 1,
+  },
+  messageBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    marginBottom: 12,
+  },
+  messageBtnText: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginLeft: 8,
   },
 });

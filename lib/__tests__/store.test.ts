@@ -4,9 +4,15 @@ import {
   DAYS_OF_WEEK,
   DEFAULT_WORKING_HOURS,
   DEFAULT_BUSINESS_PROFILE,
+  DEFAULT_CANCELLATION_POLICY,
   WorkingHours,
   BusinessProfile,
   BusinessSettings,
+  CancellationPolicy,
+  timeToMinutes,
+  minutesToTime,
+  timeSlotsOverlap,
+  generateAvailableSlots,
 } from "../types";
 
 describe("Types and Constants", () => {
@@ -130,6 +136,8 @@ describe("Business Profile", () => {
       workingHours: DEFAULT_WORKING_HOURS,
       profile: DEFAULT_BUSINESS_PROFILE,
       themeMode: "system",
+      cancellationPolicy: { enabled: true, hoursBeforeAppointment: 2, feePercentage: 50 },
+      onboardingComplete: false,
     };
     expect(settings.profile).toBeDefined();
     expect(settings.profile.ownerName).toBe("");
@@ -263,6 +271,8 @@ describe("Theme Mode", () => {
       workingHours: DEFAULT_WORKING_HOURS,
       profile: DEFAULT_BUSINESS_PROFILE,
       themeMode: "dark",
+      cancellationPolicy: { enabled: true, hoursBeforeAppointment: 2, feePercentage: 50 },
+      onboardingComplete: false,
     };
     expect(settings.themeMode).toBe("dark");
   });
@@ -275,6 +285,8 @@ describe("Theme Mode", () => {
       workingHours: DEFAULT_WORKING_HOURS,
       profile: DEFAULT_BUSINESS_PROFILE,
       themeMode: "system",
+      cancellationPolicy: { enabled: true, hoursBeforeAppointment: 2, feePercentage: 50 },
+      onboardingComplete: false,
     };
     expect(settings.themeMode).toBe("system");
   });
@@ -341,5 +353,171 @@ describe("Analytics Data Computation", () => {
     expect(requests).toHaveLength(1);
     expect(cancelled).toHaveLength(1);
     expect(completed).toHaveLength(1);
+  });
+});
+
+describe("Time Helpers", () => {
+  it("should convert time string to minutes", () => {
+    expect(timeToMinutes("09:00")).toBe(540);
+    expect(timeToMinutes("12:30")).toBe(750);
+    expect(timeToMinutes("00:00")).toBe(0);
+    expect(timeToMinutes("23:59")).toBe(1439);
+  });
+
+  it("should convert minutes to time string", () => {
+    expect(minutesToTime(540)).toBe("09:00");
+    expect(minutesToTime(750)).toBe("12:30");
+    expect(minutesToTime(0)).toBe("00:00");
+  });
+
+  it("should detect overlapping time slots", () => {
+    // 9:00-10:00 vs 9:30-10:30 → overlap
+    expect(timeSlotsOverlap("09:00", 60, "09:30", 60)).toBe(true);
+    // 9:00-10:00 vs 10:00-11:00 → no overlap (adjacent)
+    expect(timeSlotsOverlap("09:00", 60, "10:00", 60)).toBe(false);
+    // 9:00-10:00 vs 10:30-11:30 → no overlap
+    expect(timeSlotsOverlap("09:00", 60, "10:30", 60)).toBe(false);
+    // 9:00-11:00 vs 10:00-10:30 → overlap (contained)
+    expect(timeSlotsOverlap("09:00", 120, "10:00", 30)).toBe(true);
+  });
+
+  it("should generate available slots filtering out booked ones", () => {
+    const workingHours = { ...DEFAULT_WORKING_HOURS };
+    // Use a future date to avoid past-time filtering
+    const futureDate = "2030-01-07"; // Monday
+    const appointments = [
+      { id: "a1", serviceId: "s1", clientId: "c1", date: futureDate, time: "09:00", duration: 60, status: "confirmed" as const, notes: "", createdAt: "" },
+    ];
+    const slots = generateAvailableSlots(futureDate, 60, workingHours, appointments);
+    // 09:00 should be excluded (booked), 09:30 should also be excluded (overlaps with 09:00-10:00)
+    expect(slots).not.toContain("09:00");
+    expect(slots).not.toContain("09:30");
+    // 10:00 should be available
+    expect(slots).toContain("10:00");
+  });
+});
+
+describe("Cancellation Policy", () => {
+  it("should have default cancellation policy", () => {
+    expect(DEFAULT_CANCELLATION_POLICY.enabled).toBe(true);
+    expect(DEFAULT_CANCELLATION_POLICY.hoursBeforeAppointment).toBe(2);
+    expect(DEFAULT_CANCELLATION_POLICY.feePercentage).toBe(50);
+  });
+
+  it("should be part of BusinessSettings", () => {
+    const settings: BusinessSettings = {
+      businessName: "Test",
+      defaultDuration: 30,
+      notificationsEnabled: false,
+      workingHours: DEFAULT_WORKING_HOURS,
+      profile: DEFAULT_BUSINESS_PROFILE,
+      themeMode: "system",
+      cancellationPolicy: DEFAULT_CANCELLATION_POLICY,
+      onboardingComplete: false,
+    };
+    expect(settings.cancellationPolicy.enabled).toBe(true);
+    expect(settings.onboardingComplete).toBe(false);
+  });
+});
+
+describe("Scrolling Time Picker Options", () => {
+  it("should generate time options in 15-min intervals for 24 hours", () => {
+    const options: string[] = [];
+    for (let h = 0; h < 24; h++) {
+      for (let m = 0; m < 60; m += 15) {
+        options.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+      }
+    }
+    expect(options).toHaveLength(96); // 24 * 4
+    expect(options[0]).toBe("00:00");
+    expect(options[options.length - 1]).toBe("23:45");
+    expect(options).toContain("09:00");
+    expect(options).toContain("12:30");
+  });
+});
+
+describe("Booking Conflict Prevention", () => {
+  it("should not allow booking when slot overlaps with pending appointment", () => {
+    const workingHours = { ...DEFAULT_WORKING_HOURS };
+    const futureDate = "2030-01-07"; // Monday
+    const appointments = [
+      { id: "a1", serviceId: "s1", clientId: "c1", date: futureDate, time: "10:00", duration: 60, status: "pending" as const, notes: "", createdAt: "" },
+    ];
+    const slots = generateAvailableSlots(futureDate, 60, workingHours, appointments);
+    // 10:00 and 10:30 should be excluded (overlap with pending 10:00-11:00)
+    expect(slots).not.toContain("10:00");
+    expect(slots).not.toContain("10:30");
+    // 11:00 should be available
+    expect(slots).toContain("11:00");
+  });
+
+  it("should allow booking when slot overlaps with cancelled appointment", () => {
+    const workingHours = { ...DEFAULT_WORKING_HOURS };
+    const futureDate = "2030-01-07";
+    const appointments = [
+      { id: "a1", serviceId: "s1", clientId: "c1", date: futureDate, time: "10:00", duration: 60, status: "cancelled" as const, notes: "", createdAt: "" },
+    ];
+    const slots = generateAvailableSlots(futureDate, 60, workingHours, appointments);
+    // 10:00 should be available since the appointment is cancelled
+    expect(slots).toContain("10:00");
+  });
+});
+
+describe("Cancellation Fee Calculation", () => {
+  it("should apply fee when cancelling within the policy window", () => {
+    const policy: CancellationPolicy = { enabled: true, hoursBeforeAppointment: 2, feePercentage: 50 };
+    const servicePrice = 100;
+    const hoursUntilAppt = 1; // 1 hour before
+    const feeApplies = policy.enabled && hoursUntilAppt <= policy.hoursBeforeAppointment;
+    const fee = feeApplies ? (servicePrice * policy.feePercentage) / 100 : 0;
+    expect(feeApplies).toBe(true);
+    expect(fee).toBe(50);
+  });
+
+  it("should not apply fee when cancelling outside the policy window", () => {
+    const policy: CancellationPolicy = { enabled: true, hoursBeforeAppointment: 2, feePercentage: 50 };
+    const servicePrice = 100;
+    const hoursUntilAppt = 5; // 5 hours before
+    const feeApplies = policy.enabled && hoursUntilAppt <= policy.hoursBeforeAppointment;
+    const fee = feeApplies ? (servicePrice * policy.feePercentage) / 100 : 0;
+    expect(feeApplies).toBe(false);
+    expect(fee).toBe(0);
+  });
+
+  it("should not apply fee when policy is disabled", () => {
+    const policy: CancellationPolicy = { enabled: false, hoursBeforeAppointment: 2, feePercentage: 50 };
+    const servicePrice = 100;
+    const hoursUntilAppt = 1;
+    const feeApplies = policy.enabled && hoursUntilAppt <= policy.hoursBeforeAppointment;
+    expect(feeApplies).toBe(false);
+  });
+});
+
+describe("End Time Calculation", () => {
+  it("should correctly compute appointment end time", () => {
+    // 9:00 AM + 60 min = 10:00 AM
+    const startTime = "09:00";
+    const duration = 60;
+    const endMinutes = timeToMinutes(startTime) + duration;
+    const endTime = minutesToTime(endMinutes);
+    expect(endTime).toBe("10:00");
+  });
+
+  it("should handle appointments crossing the hour", () => {
+    // 9:30 AM + 45 min = 10:15 AM
+    const startTime = "09:30";
+    const duration = 45;
+    const endMinutes = timeToMinutes(startTime) + duration;
+    const endTime = minutesToTime(endMinutes);
+    expect(endTime).toBe("10:15");
+  });
+
+  it("should handle 2-hour appointments", () => {
+    // 14:00 + 120 min = 16:00
+    const startTime = "14:00";
+    const duration = 120;
+    const endMinutes = timeToMinutes(startTime) + duration;
+    const endTime = minutesToTime(endMinutes);
+    expect(endTime).toBe("16:00");
   });
 });

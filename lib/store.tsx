@@ -7,6 +7,7 @@ import {
   BusinessSettings,
   DEFAULT_WORKING_HOURS,
   DEFAULT_BUSINESS_PROFILE,
+  DEFAULT_CANCELLATION_POLICY,
   AppointmentStatus,
 } from "./types";
 
@@ -26,6 +27,8 @@ const initialSettings: BusinessSettings = {
   workingHours: DEFAULT_WORKING_HOURS,
   profile: DEFAULT_BUSINESS_PROFILE,
   themeMode: "system",
+  cancellationPolicy: DEFAULT_CANCELLATION_POLICY,
+  onboardingComplete: false,
 };
 
 const initialState: AppState = {

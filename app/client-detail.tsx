@@ -1,10 +1,11 @@
-import { FlatList, Text, View, Pressable, StyleSheet, TextInput, Alert, Platform } from "react-native";
+import { FlatList, Text, View, Pressable, StyleSheet, TextInput, Alert, Platform, Linking } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatTime, formatDateDisplay } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useMemo, useState } from "react";
+import { minutesToTime, timeToMinutes, Appointment } from "@/lib/types";
 
 export default function ClientDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -70,8 +71,40 @@ export default function ClientDetailScreen() {
     }
   };
 
-  const upcomingAppts = appointments.filter((a) => a.status === "confirmed");
-  const pastAppts = appointments.filter((a) => a.status !== "confirmed");
+  const handleMessageForAppointment = (appt: Appointment) => {
+    if (!client.phone) return;
+    const svc = getServiceById(appt.serviceId);
+    const endTime = formatTime(minutesToTime(timeToMinutes(appt.time) + appt.duration));
+    const biz = state.settings.businessName;
+    let msg = "";
+
+    if (appt.status === "confirmed") {
+      msg = `Hi ${client.name}, your appointment is on ${formatDateDisplay(appt.date)} at ${formatTime(appt.time)} - ${endTime} for ${svc?.name ?? "service"} with ${biz}. Confirmed! See you then.`;
+    } else if (appt.status === "pending") {
+      msg = `Hi ${client.name}, your appointment request for ${formatDateDisplay(appt.date)} at ${formatTime(appt.time)} - ${endTime} for ${svc?.name ?? "service"} with ${biz} is being reviewed. We'll confirm shortly.`;
+    } else if (appt.status === "completed") {
+      msg = `Hi ${client.name}, thank you for your visit to ${biz} on ${formatDateDisplay(appt.date)} for ${svc?.name ?? "service"}. We hope to see you again!`;
+    } else if (appt.status === "cancelled") {
+      msg = `Hi ${client.name}, your appointment with ${biz} on ${formatDateDisplay(appt.date)} at ${formatTime(appt.time)} for ${svc?.name ?? "service"} has been cancelled. Please contact us to reschedule.`;
+    }
+
+    const smsUrl = Platform.OS === "ios"
+      ? `sms:${client.phone}&body=${encodeURIComponent(msg)}`
+      : `sms:${client.phone}?body=${encodeURIComponent(msg)}`;
+    Linking.openURL(smsUrl).catch(() => {});
+  };
+
+  const handleGeneralMessage = () => {
+    if (!client.phone) return;
+    const msg = `Hi ${client.name}, this is ${state.settings.businessName}. We'd love to hear from you! Feel free to book your next appointment anytime.`;
+    const smsUrl = Platform.OS === "ios"
+      ? `sms:${client.phone}&body=${encodeURIComponent(msg)}`
+      : `sms:${client.phone}?body=${encodeURIComponent(msg)}`;
+    Linking.openURL(smsUrl).catch(() => {});
+  };
+
+  const upcomingAppts = appointments.filter((a) => a.status === "confirmed" || a.status === "pending");
+  const pastAppts = appointments.filter((a) => a.status === "completed" || a.status === "cancelled");
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} className="p-5">
@@ -172,9 +205,7 @@ export default function ClientDetailScreen() {
               </View>
             ) : (
               <View className="items-center mb-6">
-                <View
-                  style={[styles.bigAvatar, { backgroundColor: colors.primary + "20" }]}
-                >
+                <View style={[styles.bigAvatar, { backgroundColor: colors.primary + "20" }]}>
                   <Text className="text-2xl font-bold" style={{ color: colors.primary }}>
                     {getInitials(client.name)}
                   </Text>
@@ -198,6 +229,20 @@ export default function ClientDetailScreen() {
                     <Text className="text-sm text-foreground">{client.notes}</Text>
                   </View>
                 ) : null}
+
+                {/* Message Button */}
+                {client.phone ? (
+                  <Pressable
+                    onPress={handleGeneralMessage}
+                    style={({ pressed }) => [
+                      styles.messageBtn,
+                      { borderColor: colors.primary, opacity: pressed ? 0.8 : 1 },
+                    ]}
+                  >
+                    <IconSymbol name="paperplane.fill" size={16} color={colors.primary} />
+                    <Text style={[styles.messageBtnText, { color: colors.primary }]}>Message</Text>
+                  </Pressable>
+                ) : null}
               </View>
             )}
 
@@ -220,6 +265,7 @@ export default function ClientDetailScreen() {
         renderItem={({ item, index }) => {
           const service = getServiceById(item.serviceId);
           const isFirstPast = index === upcomingAppts.length && upcomingAppts.length > 0;
+          const endTime = formatTime(minutesToTime(timeToMinutes(item.time) + item.duration));
           return (
             <View>
               {isFirstPast && (
@@ -227,47 +273,62 @@ export default function ClientDetailScreen() {
                   Past Visits ({pastAppts.length})
                 </Text>
               )}
-              <Pressable
-                onPress={() =>
-                  router.push({
-                    pathname: "/appointment-detail" as any,
-                    params: { id: item.id },
-                  })
-                }
-                style={({ pressed }) => [
+              <View
+                style={[
                   styles.apptRow,
-                  { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+                  { backgroundColor: colors.surface, borderColor: colors.border },
                 ]}
               >
-                <View style={[styles.colorDot, { backgroundColor: service?.color ?? colors.primary }]} />
-                <View style={styles.rowContent}>
-                  <Text className="text-sm font-semibold text-foreground">{service?.name ?? "Service"}</Text>
-                  <Text className="text-xs text-muted">
-                    {formatDateDisplay(item.date)} · {formatTime(item.time)}
-                  </Text>
-                </View>
-                <View
-                  className="rounded-full px-2 py-0.5"
-                  style={{
-                    backgroundColor:
-                      item.status === "completed" ? colors.success + "20" :
-                      item.status === "cancelled" ? colors.error + "20" :
-                      colors.primary + "20",
-                  }}
+                <Pressable
+                  onPress={() =>
+                    router.push({ pathname: "/appointment-detail" as any, params: { id: item.id } })
+                  }
+                  style={({ pressed }) => [{ flex: 1, flexDirection: "row", alignItems: "center", opacity: pressed ? 0.7 : 1 }]}
                 >
-                  <Text
-                    className="text-xs capitalize"
+                  <View style={[styles.colorDot, { backgroundColor: service?.color ?? colors.primary }]} />
+                  <View style={styles.rowContent}>
+                    <Text className="text-sm font-semibold text-foreground">{service?.name ?? "Service"}</Text>
+                    <Text className="text-xs text-muted">
+                      {formatDateDisplay(item.date)} · {formatTime(item.time)} - {endTime}
+                    </Text>
+                  </View>
+                  <View
+                    className="rounded-full px-2 py-0.5"
                     style={{
-                      color:
-                        item.status === "completed" ? colors.success :
-                        item.status === "cancelled" ? colors.error :
-                        colors.primary,
+                      backgroundColor:
+                        item.status === "completed" ? colors.success + "20" :
+                        item.status === "cancelled" ? colors.error + "20" :
+                        item.status === "pending" ? "#FF980020" :
+                        colors.primary + "20",
                     }}
                   >
-                    {item.status}
-                  </Text>
-                </View>
-              </Pressable>
+                    <Text
+                      className="text-xs capitalize"
+                      style={{
+                        color:
+                          item.status === "completed" ? colors.success :
+                          item.status === "cancelled" ? colors.error :
+                          item.status === "pending" ? "#FF9800" :
+                          colors.primary,
+                      }}
+                    >
+                      {item.status}
+                    </Text>
+                  </View>
+                </Pressable>
+                {/* Message icon for this appointment */}
+                {client.phone ? (
+                  <Pressable
+                    onPress={() => handleMessageForAppointment(item)}
+                    style={({ pressed }) => [
+                      styles.msgIcon,
+                      { backgroundColor: colors.primary + "12", opacity: pressed ? 0.6 : 1 },
+                    ]}
+                  >
+                    <IconSymbol name="paperplane.fill" size={14} color={colors.primary} />
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
           );
         }}
@@ -337,5 +398,28 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     marginTop: 20,
+  },
+  messageBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    marginTop: 12,
+  },
+  messageBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginLeft: 6,
+  },
+  msgIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 8,
   },
 });
