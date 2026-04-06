@@ -1,4 +1,4 @@
-import { FlatList, Text, View, Pressable, StyleSheet, TextInput } from "react-native";
+import { FlatList, Text, View, Pressable, StyleSheet, TextInput, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, generateId } from "@/lib/store";
@@ -11,6 +11,8 @@ export default function ClientsScreen() {
   const { state, dispatch } = useStore();
   const colors = useColors();
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const hp = Math.max(16, width * 0.05);
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
@@ -53,8 +55,8 @@ export default function ClientsScreen() {
   };
 
   return (
-    <ScreenContainer className="px-5 pt-2">
-      <View className="flex-row items-center justify-between mb-4">
+    <ScreenContainer className="pt-2" style={{ paddingHorizontal: hp }}>
+      <View style={styles.header}>
         <Text className="text-2xl font-bold text-foreground">Clients</Text>
         <Pressable
           onPress={() => setShowAdd(!showAdd)}
@@ -68,58 +70,51 @@ export default function ClientsScreen() {
       </View>
 
       {/* Search */}
-      <View
-        className="flex-row items-center rounded-xl px-3 mb-4 border"
-        style={{ backgroundColor: colors.surface, borderColor: colors.border }}
-      >
+      <View style={[styles.searchBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <IconSymbol name="magnifyingglass" size={18} color={colors.muted} />
         <TextInput
-          className="flex-1 py-3 px-2 text-sm text-foreground"
+          style={[styles.searchInput, { color: colors.foreground }]}
           placeholder="Search clients..."
           placeholderTextColor={colors.muted}
           value={search}
           onChangeText={setSearch}
-          style={{ color: colors.foreground }}
           returnKeyType="done"
         />
       </View>
 
       {/* Add Client Form */}
       {showAdd && (
-        <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
-          <Text className="text-sm font-semibold text-foreground mb-3">New Client</Text>
+        <View style={[styles.addForm, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text className="text-sm font-semibold text-foreground" style={{ marginBottom: 12 }}>New Client</Text>
           <TextInput
-            className="bg-background rounded-xl px-3 py-3 text-sm mb-2 border border-border"
+            style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
             placeholder="Full Name *"
             placeholderTextColor={colors.muted}
             value={newName}
             onChangeText={setNewName}
-            style={{ color: colors.foreground }}
             returnKeyType="next"
           />
           <TextInput
-            className="bg-background rounded-xl px-3 py-3 text-sm mb-2 border border-border"
+            style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
             placeholder="Phone"
             placeholderTextColor={colors.muted}
             value={newPhone}
             onChangeText={setNewPhone}
             keyboardType="phone-pad"
-            style={{ color: colors.foreground }}
             returnKeyType="next"
           />
           <TextInput
-            className="bg-background rounded-xl px-3 py-3 text-sm mb-3 border border-border"
+            style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground, marginBottom: 14 }]}
             placeholder="Email"
             placeholderTextColor={colors.muted}
             value={newEmail}
             onChangeText={setNewEmail}
             keyboardType="email-address"
             autoCapitalize="none"
-            style={{ color: colors.foreground }}
             returnKeyType="done"
             onSubmitEditing={handleAddClient}
           />
-          <View className="flex-row gap-2">
+          <View style={styles.formActions}>
             <Pressable
               onPress={() => setShowAdd(false)}
               style={({ pressed }) => [
@@ -149,27 +144,18 @@ export default function ClientsScreen() {
         renderItem={({ item }) => (
           <Pressable
             onPress={() =>
-              router.push({
-                pathname: "/client-detail" as any,
-                params: { id: item.id },
-              })
+              router.push({ pathname: "/client-detail" as any, params: { id: item.id } })
             }
             style={({ pressed }) => [
               styles.clientRow,
               { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
             ]}
           >
-            <View
-              style={[styles.avatar, { backgroundColor: colors.primary + "20" }]}
-            >
-              <Text className="text-sm font-bold" style={{ color: colors.primary }}>
-                {getInitials(item.name)}
-              </Text>
+            <View style={[styles.avatar, { backgroundColor: colors.primary + "20" }]}>
+              <Text style={[styles.avatarText, { color: colors.primary }]}>{getInitials(item.name)}</Text>
             </View>
-            <View style={styles.clientInfo}>
-              <Text className="text-base font-semibold text-foreground" numberOfLines={1}>
-                {item.name}
-              </Text>
+            <View style={{ flex: 1 }}>
+              <Text className="text-base font-semibold text-foreground" numberOfLines={1}>{item.name}</Text>
               <Text className="text-xs text-muted" numberOfLines={1}>
                 {item.phone || item.email || "No contact info"}
               </Text>
@@ -178,10 +164,10 @@ export default function ClientsScreen() {
           </Pressable>
         )}
         ListEmptyComponent={
-          <View className="items-center py-12">
+          <View style={styles.emptyContainer}>
             <IconSymbol name="person.2.fill" size={48} color={colors.muted} />
-            <Text className="text-base text-muted mt-3">No clients yet</Text>
-            <Text className="text-sm text-muted mt-1">Tap + to add your first client</Text>
+            <Text className="text-base text-muted" style={{ marginTop: 12 }}>No clients yet</Text>
+            <Text className="text-sm text-muted" style={{ marginTop: 4 }}>Tap + to add your first client</Text>
           </View>
         }
         contentContainerStyle={{ paddingBottom: 80 }}
@@ -191,12 +177,57 @@ export default function ClientsScreen() {
 }
 
 const styles = StyleSheet.create({
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
   addButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    fontSize: 14,
+  },
+  addForm: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+  },
+  input: {
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 14,
+    marginBottom: 8,
+    borderWidth: 1,
+  },
+  formActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  formButton: {
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
   },
   clientRow: {
     flexDirection: "row",
@@ -214,14 +245,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 12,
   },
-  clientInfo: {
-    flex: 1,
+  avatarText: {
+    fontSize: 14,
+    fontWeight: "700",
   },
-  formButton: {
-    paddingVertical: 12,
-    borderRadius: 12,
+  emptyContainer: {
     alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 16,
+    paddingVertical: 48,
   },
 });

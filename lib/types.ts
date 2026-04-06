@@ -36,21 +36,40 @@ export interface WorkingHours {
   end: string; // HH:MM
 }
 
+export interface BusinessProfile {
+  ownerName: string;
+  phone: string;
+  email: string;
+  address: string;
+  description: string;
+  website: string;
+}
+
 export interface BusinessSettings {
   businessName: string;
   defaultDuration: number;
   notificationsEnabled: boolean;
   workingHours: Record<string, WorkingHours>; // key: 'monday', 'tuesday', etc.
+  profile: BusinessProfile;
 }
 
 export const SERVICE_COLORS = [
-  "#2563EB",
-  "#7C3AED",
-  "#DB2777",
-  "#EA580C",
-  "#16A34A",
-  "#0891B2",
+  "#4CAF50",
+  "#2E7D32",
+  "#8BC34A",
+  "#FF9800",
+  "#2196F3",
+  "#9C27B0",
 ];
+
+export const DEFAULT_BUSINESS_PROFILE: BusinessProfile = {
+  ownerName: "",
+  phone: "",
+  email: "",
+  address: "",
+  description: "",
+  website: "",
+};
 
 export const DEFAULT_WORKING_HOURS: Record<string, WorkingHours> = {
   monday: { enabled: true, start: "09:00", end: "17:00" },

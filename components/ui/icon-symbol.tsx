@@ -32,6 +32,8 @@ const MAPPING = {
   "bell.fill": "notifications",
   "star.fill": "star",
   "arrow.left": "arrow-back",
+  "mappin": "place",
+  "globe": "language",
 } as IconMapping;
 
 export function IconSymbol({

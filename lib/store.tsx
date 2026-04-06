@@ -6,6 +6,7 @@ import {
   Appointment,
   BusinessSettings,
   DEFAULT_WORKING_HOURS,
+  DEFAULT_BUSINESS_PROFILE,
   AppointmentStatus,
 } from "./types";
 
@@ -23,6 +24,7 @@ const initialSettings: BusinessSettings = {
   defaultDuration: 60,
   notificationsEnabled: true,
   workingHours: DEFAULT_WORKING_HOURS,
+  profile: DEFAULT_BUSINESS_PROFILE,
 };
 
 const initialState: AppState = {

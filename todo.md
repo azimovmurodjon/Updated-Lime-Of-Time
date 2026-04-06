@@ -15,3 +15,9 @@
 - [x] Build Settings screen with business profile and working hours
 - [x] Generate custom app icon
 - [x] Final polish and delivery
+- [x] Rebrand app to "Lime Of Time" with user's lime-clock logo
+- [x] Update theme colors to lime green palette matching the logo
+- [x] Fix responsive alignment for all screen sizes
+- [x] Add "Send Booking Link" button to share with clients
+- [x] Build public booking page accessible via shared link
+- [x] Add business profile section in Settings (name, phone, email, address, description)

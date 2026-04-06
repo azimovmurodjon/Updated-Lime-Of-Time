@@ -1,4 +1,4 @@
-import { FlatList, Text, View, Pressable, StyleSheet } from "react-native";
+import { FlatList, Text, View, Pressable, StyleSheet, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
@@ -9,18 +9,15 @@ export default function ServicesScreen() {
   const { state } = useStore();
   const colors = useColors();
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const hp = Math.max(16, width * 0.05);
 
   return (
-    <ScreenContainer className="px-5 pt-2">
-      <View className="flex-row items-center justify-between mb-4">
+    <ScreenContainer className="pt-2" style={{ paddingHorizontal: hp }}>
+      <View style={styles.header}>
         <Text className="text-2xl font-bold text-foreground">Services</Text>
         <Pressable
-          onPress={() =>
-            router.push({
-              pathname: "/service-form" as any,
-              params: {},
-            })
-          }
+          onPress={() => router.push({ pathname: "/service-form" as any, params: {} })}
           style={({ pressed }) => [
             styles.addButton,
             { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 },
@@ -37,10 +34,7 @@ export default function ServicesScreen() {
         renderItem={({ item }) => (
           <Pressable
             onPress={() =>
-              router.push({
-                pathname: "/service-form" as any,
-                params: { id: item.id },
-              })
+              router.push({ pathname: "/service-form" as any, params: { id: item.id } })
             }
             style={({ pressed }) => [
               styles.serviceCard,
@@ -52,23 +46,21 @@ export default function ServicesScreen() {
               <Text className="text-base font-semibold text-foreground" numberOfLines={1}>
                 {item.name}
               </Text>
-              <View className="flex-row items-center mt-1">
+              <View style={styles.metaRow}>
                 <IconSymbol name="clock.fill" size={13} color={colors.muted} />
-                <Text className="text-xs text-muted ml-1">{item.duration} min</Text>
-                <Text className="text-xs text-muted mx-2">·</Text>
-                <Text className="text-sm font-semibold" style={{ color: colors.primary }}>
-                  ${item.price}
-                </Text>
+                <Text className="text-xs text-muted" style={{ marginLeft: 4 }}>{item.duration} min</Text>
+                <Text className="text-xs text-muted" style={{ marginHorizontal: 8 }}>·</Text>
+                <Text className="text-sm font-semibold" style={{ color: colors.primary }}>${item.price}</Text>
               </View>
             </View>
-            <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+            <IconSymbol name="chevron.right" size={16} color={colors.muted} style={{ marginRight: 14 }} />
           </Pressable>
         )}
         ListEmptyComponent={
-          <View className="items-center py-12">
+          <View style={styles.emptyContainer}>
             <IconSymbol name="list.bullet" size={48} color={colors.muted} />
-            <Text className="text-base text-muted mt-3">No services yet</Text>
-            <Text className="text-sm text-muted mt-1">Tap + to create your first service</Text>
+            <Text className="text-base text-muted" style={{ marginTop: 12 }}>No services yet</Text>
+            <Text className="text-sm text-muted" style={{ marginTop: 4 }}>Tap + to create your first service</Text>
           </View>
         }
         contentContainerStyle={{ paddingBottom: 80 }}
@@ -78,6 +70,12 @@ export default function ServicesScreen() {
 }
 
 const styles = StyleSheet.create({
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
   addButton: {
     width: 36,
     height: 36,
@@ -99,6 +97,16 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     flex: 1,
-    padding: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    paddingVertical: 48,
   },
 });
