@@ -167,3 +167,8 @@
 - [x] Past days should not be selectable, only future available days
 - [x] Add "Add More" button on confirm step so client can add services/products before final submit
 - [x] Receipt on success page should show all added services, products, total price, total time, and download button
+- [x] Fix client booking page Continue button not advancing to next step
+- [x] Add Products selection to New Booking page for business user
+- [x] Add multiple services and products selection to Gift Cards page
+- [x] Add services and products selection to Discounts page (discount can apply to services, products, or both)
+- [x] Ensure Products are fully integrated across all app sections

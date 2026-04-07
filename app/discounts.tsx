@@ -64,6 +64,7 @@ export default function DiscountsScreen() {
   const [endTime, setEndTime] = useState("12:00");
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[] | null>(null);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[] | null>(null);
   const [showTimePicker, setShowTimePicker] = useState<"start" | "end" | null>(null);
 
   // Calendar state
@@ -101,6 +102,7 @@ export default function DiscountsScreen() {
     setEndTime("12:00");
     setSelectedDates([]);
     setSelectedServiceIds(null);
+    setSelectedProductIds(null);
     setEditingId(null);
     setShowForm(false);
   }, []);
@@ -113,6 +115,7 @@ export default function DiscountsScreen() {
     setEndTime(disc.endTime);
     setSelectedDates(disc.dates ?? []);
     setSelectedServiceIds(disc.serviceIds);
+    setSelectedProductIds(disc.productIds ?? null);
     setShowForm(true);
   }, []);
 
@@ -141,6 +144,7 @@ export default function DiscountsScreen() {
         daysOfWeek: [],
         dates: selectedDates,
         serviceIds: selectedServiceIds,
+        productIds: selectedProductIds,
         active: state.discounts.find((d) => d.id === editingId)?.active ?? true,
         createdAt: state.discounts.find((d) => d.id === editingId)?.createdAt ?? new Date().toISOString(),
       };
@@ -156,6 +160,7 @@ export default function DiscountsScreen() {
         daysOfWeek: [],
         dates: selectedDates,
         serviceIds: selectedServiceIds,
+        productIds: selectedProductIds,
         active: true,
         createdAt: new Date().toISOString(),
       };
@@ -163,7 +168,7 @@ export default function DiscountsScreen() {
       syncToDb({ type: "ADD_DISCOUNT", payload: newDiscount });
     }
     resetForm();
-  }, [name, percentage, startTime, endTime, selectedDates, selectedServiceIds, editingId, state.discounts, dispatch, syncToDb, resetForm]);
+  }, [name, percentage, startTime, endTime, selectedDates, selectedServiceIds, selectedProductIds, editingId, state.discounts, dispatch, syncToDb, resetForm]);
 
   const handleDelete = useCallback(
     (id: string) => {
@@ -202,6 +207,22 @@ export default function DiscountsScreen() {
     });
   }, []);
 
+  const toggleProductFilter = useCallback((productId: string) => {
+    setSelectedProductIds((prev) => {
+      if (!prev) return [productId];
+      if (prev.includes(productId)) {
+        const next = prev.filter((id) => id !== productId);
+        return next.length === 0 ? null : next;
+      }
+      return [...prev, productId];
+    });
+  }, []);
+
+  const availableProducts = useMemo(
+    () => state.products.filter((p) => p.available),
+    [state.products]
+  );
+
   const sortedDiscounts = useMemo(
     () => [...state.discounts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
     [state.discounts]
@@ -213,6 +234,10 @@ export default function DiscountsScreen() {
         item.serviceIds && item.serviceIds.length > 0
           ? item.serviceIds.map((id) => getServiceById(id)?.name ?? "Unknown").join(", ")
           : "All Services";
+      const productNames =
+        item.productIds && item.productIds.length > 0
+          ? item.productIds.map((id) => state.products.find((p) => p.id === id)?.name ?? "Unknown").join(", ")
+          : item.productIds === null ? "All Products" : "No Products";
       const dateLabels = (item.dates ?? []).length > 0
         ? (item.dates ?? []).slice(0, 3).map(formatDateLabel).join(", ") + ((item.dates ?? []).length > 3 ? ` +${(item.dates ?? []).length - 3} more` : "")
         : "No dates selected";
@@ -244,8 +269,14 @@ export default function DiscountsScreen() {
             </View>
             <View style={styles.detailRow}>
               <IconSymbol name="list.bullet" size={14} color={colors.muted} />
-              <Text style={[styles.detailText, { color: colors.muted }]} numberOfLines={1}>{serviceNames}</Text>
+              <Text style={[styles.detailText, { color: colors.muted }]} numberOfLines={1}>Services: {serviceNames}</Text>
             </View>
+            {(item.productIds === null || (item.productIds && item.productIds.length > 0)) && (
+              <View style={styles.detailRow}>
+                <IconSymbol name="bag.fill" size={14} color={colors.muted} />
+                <Text style={[styles.detailText, { color: colors.muted }]} numberOfLines={1}>Products: {productNames}</Text>
+              </View>
+            )}
           </View>
           <View style={styles.cardActions}>
             <Pressable
@@ -266,7 +297,7 @@ export default function DiscountsScreen() {
         </View>
       );
     },
-    [colors, getServiceById, handleEdit, handleDelete, handleToggleActive]
+    [colors, getServiceById, state.products, handleEdit, handleDelete, handleToggleActive]
   );
 
   const formContent = showForm ? (
@@ -392,7 +423,7 @@ export default function DiscountsScreen() {
       </View>
 
       {/* Service Filter */}
-      <Text style={[styles.fieldLabel, { color: colors.muted }]}>Applies To</Text>
+      <Text style={[styles.fieldLabel, { color: colors.muted }]}>Applies To (Services)</Text>
       <View style={styles.serviceWrap}>
         <Pressable
           onPress={() => setSelectedServiceIds(null)}
@@ -426,6 +457,46 @@ export default function DiscountsScreen() {
           </Pressable>
         ))}
       </View>
+
+      {/* Product Filter */}
+      {availableProducts.length > 0 && (
+        <>
+          <Text style={[styles.fieldLabel, { color: colors.muted }]}>Applies To (Products)</Text>
+          <View style={styles.serviceWrap}>
+            <Pressable
+              onPress={() => setSelectedProductIds(null)}
+              style={[
+                styles.serviceChip,
+                {
+                  backgroundColor: selectedProductIds === null ? colors.primary : colors.background,
+                  borderColor: selectedProductIds === null ? colors.primary : colors.border,
+                },
+              ]}
+            >
+              <Text style={{ color: selectedProductIds === null ? "#fff" : colors.foreground, fontSize: 13, fontWeight: "600" }}>
+                All Products
+              </Text>
+            </Pressable>
+            {availableProducts.map((prod) => (
+              <Pressable
+                key={prod.id}
+                onPress={() => toggleProductFilter(prod.id)}
+                style={[
+                  styles.serviceChip,
+                  {
+                    backgroundColor: selectedProductIds?.includes(prod.id) ? colors.primary : colors.background,
+                    borderColor: selectedProductIds?.includes(prod.id) ? colors.primary : colors.border,
+                  },
+                ]}
+              >
+                <Text style={{ color: selectedProductIds?.includes(prod.id) ? "#fff" : colors.foreground, fontSize: 13, fontWeight: "600" }}>
+                  {prod.name}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      )}
 
       {/* Actions */}
       <View style={styles.formActions}>

@@ -13,9 +13,17 @@ import { useStore, generateId, formatDateStr, formatTime, formatDateDisplay } fr
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useMemo, useCallback } from "react";
-import { Appointment, Client, DAYS_OF_WEEK, generateAvailableSlots, minutesToTime, timeToMinutes } from "@/lib/types";
+import { Appointment, Client, Product, DAYS_OF_WEEK, generateAvailableSlots, minutesToTime, timeToMinutes } from "@/lib/types";
 
-type Step = 1 | 2 | 3;
+type Step = 1 | 2 | 3 | 4;
+
+type CartItem = {
+  type: "service" | "product";
+  id: string;
+  name: string;
+  price: number;
+  duration: number;
+};
 
 export default function NewBookingScreen() {
   const { state, dispatch, getServiceById, getClientById, syncToDb } = useStore();
@@ -32,22 +40,34 @@ export default function NewBookingScreen() {
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickName, setQuickName] = useState("");
   const [quickPhone, setQuickPhone] = useState("");
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [addMoreTab, setAddMoreTab] = useState<"services" | "products">("services");
 
   const selectedService = selectedServiceId ? getServiceById(selectedServiceId) : null;
   const selectedClient = selectedClientId ? getClientById(selectedClientId) : null;
-  const duration = selectedService?.duration ?? state.settings.defaultDuration;
+
+  // Total duration includes primary service + cart items
+  const totalDuration = useMemo(() => {
+    const baseDur = selectedService?.duration ?? state.settings.defaultDuration;
+    return baseDur + cart.reduce((sum, item) => sum + item.duration, 0);
+  }, [selectedService, cart, state.settings.defaultDuration]);
+
+  const totalPrice = useMemo(() => {
+    const basePrice = selectedService ? parseFloat(String(selectedService.price)) : 0;
+    return basePrice + cart.reduce((sum, item) => sum + item.price, 0);
+  }, [selectedService, cart]);
 
   // Generate available time slots using the shared helper (with custom schedule)
   const timeSlots = useMemo(() => {
     return generateAvailableSlots(
       selectedDate,
-      duration,
+      totalDuration,
       state.settings.workingHours,
       state.appointments,
       30,
       state.customSchedule
     );
-  }, [selectedDate, state.settings.workingHours, state.appointments, duration, state.customSchedule]);
+  }, [selectedDate, state.settings.workingHours, state.appointments, totalDuration, state.customSchedule]);
 
   // Date options: next 14 days with closed-day and no-slots awareness
   const dateOptions = useMemo(() => {
@@ -69,13 +89,13 @@ export default function NewBookingScreen() {
       }
       let noSlots = false;
       if (!closed) {
-        const slots = generateAvailableSlots(ds, duration, state.settings.workingHours, state.appointments, 30, state.customSchedule);
+        const slots = generateAvailableSlots(ds, totalDuration, state.settings.workingHours, state.appointments, 30, state.customSchedule);
         noSlots = slots.length === 0;
       }
       dates.push({ date: ds, closed, noSlots });
     }
     return dates;
-  }, [state.customSchedule, state.settings.workingHours, state.appointments, duration]);
+  }, [state.customSchedule, state.settings.workingHours, state.appointments, totalDuration]);
 
   const filteredClients = useMemo(() => {
     const q = clientSearch.toLowerCase();
@@ -87,6 +107,20 @@ export default function NewBookingScreen() {
       )
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [state.clients, clientSearch]);
+
+  // Available products (not already in cart)
+  const availableProducts = useMemo(() => {
+    const cartProductIds = cart.filter((c) => c.type === "product").map((c) => c.id);
+    return state.products.filter((p) => p.available && !cartProductIds.includes(p.id));
+  }, [state.products, cart]);
+
+  // Available extra services (not primary, not already in cart)
+  const availableExtraServices = useMemo(() => {
+    const cartServiceIds = cart.filter((c) => c.type === "service").map((c) => c.id);
+    return state.services.filter(
+      (s) => s.id !== selectedServiceId && !cartServiceIds.includes(s.id)
+    );
+  }, [state.services, selectedServiceId, cart]);
 
   const handleQuickAddClient = useCallback(() => {
     if (!quickName.trim()) return;
@@ -107,23 +141,37 @@ export default function NewBookingScreen() {
     setStep(3);
   }, [quickName, quickPhone, dispatch]);
 
+  const addToCart = useCallback((item: CartItem) => {
+    setCart((prev) => [...prev, item]);
+  }, []);
+
+  const removeFromCart = useCallback((index: number) => {
+    setCart((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
   const handleBook = useCallback(() => {
     if (!selectedServiceId || !selectedClientId || !selectedTime) return;
+    // Build notes with extra items
+    let bookNotes = notes.trim();
+    if (cart.length > 0) {
+      const extras = cart.map((c) => `${c.name} ($${c.price.toFixed(2)})`).join(", ");
+      bookNotes = bookNotes ? `${bookNotes}\nAdditional items: ${extras}` : `Additional items: ${extras}`;
+    }
     const appointment: Appointment = {
       id: generateId(),
       serviceId: selectedServiceId,
       clientId: selectedClientId,
       date: selectedDate,
       time: selectedTime,
-      duration,
+      duration: totalDuration,
       status: "confirmed",
-      notes: notes.trim(),
+      notes: bookNotes,
       createdAt: new Date().toISOString(),
     };
     dispatch({ type: "ADD_APPOINTMENT", payload: appointment });
     syncToDb({ type: "ADD_APPOINTMENT", payload: appointment });
     router.back();
-  }, [selectedServiceId, selectedClientId, selectedDate, selectedTime, duration, notes, dispatch, router]);
+  }, [selectedServiceId, selectedClientId, selectedDate, selectedTime, totalDuration, notes, cart, dispatch, router]);
 
   const getInitials = (name: string) => {
     const parts = name.split(" ");
@@ -132,8 +180,10 @@ export default function NewBookingScreen() {
   };
 
   const getEndTime = (time: string) => {
-    return formatTime(minutesToTime(timeToMinutes(time) + duration));
+    return formatTime(minutesToTime(timeToMinutes(time) + totalDuration));
   };
+
+  const TOTAL_STEPS = 4;
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} className="p-5">
@@ -145,12 +195,12 @@ export default function NewBookingScreen() {
           </Pressable>
           <Text className="text-xl font-bold text-foreground ml-4">New Booking</Text>
         </View>
-        <Text className="text-sm text-muted">Step {step}/3</Text>
+        <Text className="text-sm text-muted">Step {step}/{TOTAL_STEPS}</Text>
       </View>
 
       {/* Progress Bar */}
       <View className="flex-row gap-2 mb-5">
-        {[1, 2, 3].map((s) => (
+        {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map((s) => (
           <View
             key={s}
             className="flex-1 h-1 rounded-full"
@@ -265,7 +315,6 @@ export default function NewBookingScreen() {
                   value={clientSearch}
                   onChangeText={setClientSearch}
                   style={{ color: colors.foreground }}
-                  returnKeyType="done"
                 />
               </View>
               <FlatList
@@ -281,20 +330,22 @@ export default function NewBookingScreen() {
                     style={({ pressed }) => [
                       styles.optionCard,
                       {
-                        backgroundColor: selectedClientId === item.id ? colors.primary + "10" : colors.surface,
+                        backgroundColor: selectedClientId === item.id ? colors.primary + "15" : colors.surface,
                         borderColor: selectedClientId === item.id ? colors.primary : colors.border,
                         opacity: pressed ? 0.7 : 1,
                       },
                     ]}
                   >
                     <View style={[styles.avatar, { backgroundColor: colors.primary + "20" }]}>
-                      <Text className="text-xs font-bold" style={{ color: colors.primary }}>
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: colors.primary }}>
                         {getInitials(item.name)}
                       </Text>
                     </View>
                     <View style={styles.optionContent}>
                       <Text className="text-base font-semibold text-foreground">{item.name}</Text>
-                      {item.phone ? <Text className="text-xs text-muted">{item.phone}</Text> : null}
+                      {item.phone ? (
+                        <Text className="text-xs text-muted mt-0.5">{item.phone}</Text>
+                      ) : null}
                     </View>
                     <IconSymbol name="chevron.right" size={16} color={colors.muted} />
                   </Pressable>
@@ -436,7 +487,204 @@ export default function NewBookingScreen() {
             style={{ color: colors.foreground, minHeight: 50, textAlignVertical: "top" }}
           />
 
-          {/* Summary */}
+          {/* Continue to Add More or Book */}
+          {selectedTime && (
+            <Pressable
+              onPress={() => setStep(4)}
+              style={({ pressed }) => [
+                styles.bookButton,
+                {
+                  backgroundColor: colors.primary,
+                  opacity: pressed ? 0.8 : 1,
+                },
+              ]}
+            >
+              <Text className="text-base font-semibold text-white">Continue</Text>
+            </Pressable>
+          )}
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      )}
+
+      {/* Step 4: Add More & Confirm */}
+      {step === 4 && (
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <View className="flex-row items-center justify-between mb-3">
+            <Pressable onPress={() => setStep(3)} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+              <Text className="text-sm" style={{ color: colors.primary }}>← Back</Text>
+            </Pressable>
+            <Text className="text-base font-semibold text-foreground">Review & Add More</Text>
+            <View style={{ width: 40 }} />
+          </View>
+
+          {/* Cart Summary */}
+          <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
+            <Text className="text-xs font-medium text-muted mb-3">Booking Items</Text>
+
+            {/* Primary Service */}
+            {selectedService && (
+              <View style={styles.cartItem}>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <View style={[styles.colorDot, { backgroundColor: selectedService.color, marginRight: 8 }]} />
+                    <Text className="text-sm font-semibold text-foreground">{selectedService.name}</Text>
+                  </View>
+                  <Text className="text-xs text-muted ml-5">{selectedService.duration} min</Text>
+                </View>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text className="text-sm font-bold" style={{ color: colors.primary }}>${parseFloat(String(selectedService.price)).toFixed(2)}</Text>
+                  <Text style={{ fontSize: 10, color: colors.success, fontWeight: "600" }}>PRIMARY</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Cart Items */}
+            {cart.map((item, index) => (
+              <View key={`${item.type}-${item.id}-${index}`} style={styles.cartItem}>
+                <View style={{ flex: 1 }}>
+                  <Text className="text-sm font-semibold text-foreground">{item.name}</Text>
+                  <Text className="text-xs text-muted">
+                    {item.type === "product" ? "Product" : `${item.duration} min`}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Text className="text-sm font-bold" style={{ color: colors.primary }}>${item.price.toFixed(2)}</Text>
+                  <Pressable
+                    onPress={() => removeFromCart(index)}
+                    style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}
+                  >
+                    <IconSymbol name="xmark" size={16} color={colors.error} />
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+
+            {/* Totals */}
+            <View style={[styles.cartItem, { borderTopWidth: 2, borderTopColor: colors.border, marginTop: 4, paddingTop: 10 }]}>
+              <Text className="text-sm font-bold text-foreground">Total ({totalDuration} min)</Text>
+              <Text className="text-base font-bold" style={{ color: colors.primary }}>${totalPrice.toFixed(2)}</Text>
+            </View>
+          </View>
+
+          {/* Add More Section */}
+          <Text className="text-xs font-medium text-muted mb-2 ml-1">Add More (Optional)</Text>
+
+          {/* Segmented Control */}
+          <View style={[styles.segControl, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Pressable
+              onPress={() => setAddMoreTab("services")}
+              style={[
+                styles.segBtn,
+                addMoreTab === "services" && { backgroundColor: colors.primary },
+              ]}
+            >
+              <Text
+                className="text-xs font-semibold"
+                style={{ color: addMoreTab === "services" ? "#FFFFFF" : colors.muted }}
+              >
+                Services
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setAddMoreTab("products")}
+              style={[
+                styles.segBtn,
+                addMoreTab === "products" && { backgroundColor: colors.primary },
+              ]}
+            >
+              <Text
+                className="text-xs font-semibold"
+                style={{ color: addMoreTab === "products" ? "#FFFFFF" : colors.muted }}
+              >
+                Products
+              </Text>
+            </Pressable>
+          </View>
+
+          {/* Extra Services */}
+          {addMoreTab === "services" && (
+            <View className="mb-4">
+              {availableExtraServices.length === 0 ? (
+                <View className="items-center py-6 bg-surface rounded-xl border border-border">
+                  <Text className="text-xs text-muted">No additional services available</Text>
+                </View>
+              ) : (
+                availableExtraServices.map((s) => (
+                  <Pressable
+                    key={s.id}
+                    onPress={() =>
+                      addToCart({
+                        type: "service",
+                        id: s.id,
+                        name: s.name,
+                        price: parseFloat(String(s.price)),
+                        duration: s.duration,
+                      })
+                    }
+                    style={({ pressed }) => [
+                      styles.optionCard,
+                      {
+                        backgroundColor: colors.surface,
+                        borderColor: colors.border,
+                        opacity: pressed ? 0.7 : 1,
+                      },
+                    ]}
+                  >
+                    <View style={[styles.colorDot, { backgroundColor: s.color }]} />
+                    <View style={styles.optionContent}>
+                      <Text className="text-sm font-semibold text-foreground">{s.name}</Text>
+                      <Text className="text-xs text-muted">{s.duration} min</Text>
+                    </View>
+                    <Text className="text-sm font-bold" style={{ color: colors.primary }}>+ ${parseFloat(String(s.price)).toFixed(2)}</Text>
+                  </Pressable>
+                ))
+              )}
+            </View>
+          )}
+
+          {/* Products */}
+          {addMoreTab === "products" && (
+            <View className="mb-4">
+              {availableProducts.length === 0 ? (
+                <View className="items-center py-6 bg-surface rounded-xl border border-border">
+                  <Text className="text-xs text-muted">No products available</Text>
+                </View>
+              ) : (
+                availableProducts.map((p) => (
+                  <Pressable
+                    key={p.id}
+                    onPress={() =>
+                      addToCart({
+                        type: "product",
+                        id: p.id,
+                        name: p.name,
+                        price: parseFloat(String(p.price)),
+                        duration: 0,
+                      })
+                    }
+                    style={({ pressed }) => [
+                      styles.optionCard,
+                      {
+                        backgroundColor: colors.surface,
+                        borderColor: colors.border,
+                        opacity: pressed ? 0.7 : 1,
+                      },
+                    ]}
+                  >
+                    <IconSymbol name="bag.fill" size={18} color={colors.primary} style={{ marginRight: 12 }} />
+                    <View style={styles.optionContent}>
+                      <Text className="text-sm font-semibold text-foreground">{p.name}</Text>
+                      {p.description ? <Text className="text-xs text-muted">{p.description}</Text> : null}
+                    </View>
+                    <Text className="text-sm font-bold" style={{ color: colors.primary }}>+ ${parseFloat(String(p.price)).toFixed(2)}</Text>
+                  </Pressable>
+                ))
+              )}
+            </View>
+          )}
+
+          {/* Booking Summary */}
           {selectedTime && (
             <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
               <Text className="text-xs text-muted mb-2">Booking Summary</Text>
@@ -449,15 +697,18 @@ export default function NewBookingScreen() {
                 />
                 <Text className="text-base font-semibold text-foreground ml-2">
                   {selectedService?.name}
+                  {cart.length > 0 ? ` + ${cart.length} more` : ""}
                 </Text>
               </View>
               <Text className="text-sm text-muted">
                 {selectedClient?.name} · {formatDateDisplay(selectedDate)}
               </Text>
               <Text className="text-sm text-muted">
-                {formatTime(selectedTime)} - {getEndTime(selectedTime)} ({duration} min)
+                {formatTime(selectedTime)} - {getEndTime(selectedTime)} ({totalDuration} min)
               </Text>
-              <Text className="text-sm text-muted">${selectedService?.price}</Text>
+              <Text className="text-sm font-semibold" style={{ color: colors.primary, marginTop: 2 }}>
+                Total: ${totalPrice.toFixed(2)}
+              </Text>
             </View>
           )}
 
@@ -549,5 +800,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     minHeight: 52,
+  },
+  cartItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#e5e7eb",
+  },
+  segControl: {
+    flexDirection: "row",
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 3,
+    marginBottom: 12,
+  },
+  segBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: "center",
   },
 });

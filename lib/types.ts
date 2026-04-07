@@ -48,6 +48,7 @@ export interface Discount {
   daysOfWeek: string[]; // legacy, kept for backward compat
   dates: string[]; // specific dates YYYY-MM-DD (future dates only)
   serviceIds: string[] | null; // null = all services
+  productIds?: string[] | null; // null = all products, [] = no products
   active: boolean;
   createdAt: string;
 }
@@ -55,7 +56,9 @@ export interface Discount {
 export interface GiftCard {
   id: string;
   code: string;
-  serviceLocalId: string;
+  serviceLocalId: string; // primary service (backward compat)
+  serviceIds?: string[]; // multiple services
+  productIds?: string[]; // products included
   recipientName: string;
   recipientPhone: string;
   message: string;

@@ -1063,7 +1063,7 @@ function bookingPage(slug: string, owner: any): string {
       }
       list.innerHTML = services.map(s => {
         const dur = s.duration >= 60 ? (s.duration / 60) + " hr" + (s.duration > 60 ? "s" : "") : s.duration + " min";
-        return '<div class="service-item" id="svc-' + s.localId + '" onclick="selectService(\\'' + s.localId + '\\')">'+
+        return '<div class="service-item" id="svc-' + s.localId + '" onclick="selectService(&apos;' + s.localId + '&apos;)">'+
           '<div class="service-dot" style="background:' + (s.color||'#4a8c3f') + '"></div>'+
           '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div>'+
           '<div class="service-meta">' + dur + '</div></div>'+
@@ -1154,7 +1154,7 @@ function bookingPage(slug: string, owner: any): string {
         if (isSelected) cls += " selected";
         if (isToday && !isDisabled) cls += " today";
         // Working future days get a data-loading attribute, will be updated after slot check
-        html += '<div class="' + cls + '" id="day-' + ds + '" data-date="' + ds + '"' + (!isDisabled ? ' onclick="selectDate(\'' + ds + '\')"' : '') + '><span>' + day + '</span></div>';
+        html += '<div class="' + cls + '" id="day-' + ds + '" data-date="' + ds + '"' + (!isDisabled ? ' onclick="selectDate(&apos;' + ds + '&apos;)"' : '') + '><span>' + day + '</span></div>';
         if (!isPast && isWorking) workingDates.push(ds);
       }
       grid.innerHTML = html;
@@ -1235,7 +1235,7 @@ function bookingPage(slug: string, owner: any): string {
           const ampm = h >= 12 ? "PM" : "AM";
           const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
           const label = h12 + ":" + m + " " + ampm;
-          return '<div class="time-slot" onclick="selectTime(\\'' + t + '\\')" data-time="' + t + '">' + label + '</div>';
+         return '<div class="time-slot" onclick="selectTime(&apos;' + t + '&apos;)" data-time="' + t + '">' + label + '</div>';
         }).join("");
       } catch(e) {
         grid.innerHTML = '<div class="error-msg" style="grid-column:1/-1;">Failed to load times</div>';
@@ -1319,7 +1319,7 @@ function bookingPage(slug: string, owner: any): string {
       }
       el.innerHTML = available.map(s => {
         const dur = s.duration >= 60 ? (s.duration / 60) + " hr" : s.duration + " min";
-        return '<div class="service-item" onclick="addServiceToCart(\\'' + s.localId + '\\')">' +
+        return '<div class="service-item" onclick="addServiceToCart(&apos;' + s.localId + '&apos;)">' +
           '<div class="service-dot" style="background:' + (s.color||'#4a8c3f') + '"></div>' +
           '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div><div class="service-meta">' + dur + '</div></div>' +
           '<div class="service-price">+ $' + parseFloat(s.price).toFixed(2) + '</div></div>';
@@ -1335,7 +1335,7 @@ function bookingPage(slug: string, owner: any): string {
         return;
       }
       el.innerHTML = available.map(p => {
-        return '<div class="product-item" onclick="addProductToCart(\\'' + p.localId + '\\')">' +
+        return '<div class="product-item" onclick="addProductToCart(&apos;' + p.localId + '&apos;)">' +
           '<div style="flex:1;"><div style="font-size:15px;font-weight:600;">' + esc(p.name) + '</div>' +
           (p.description ? '<div style="font-size:12px;color:#888;margin-top:2px;">' + esc(p.description) + '</div>' : '') + '</div>' +
           '<div style="font-size:15px;font-weight:700;color:#2d5a27;">+ $' + parseFloat(p.price).toFixed(2) + '</div></div>';
@@ -1425,7 +1425,7 @@ function bookingPage(slug: string, owner: any): string {
         let notesText = document.getElementById("bookingNotes").value.trim();
         if (cart.length > 0) {
           const extras = cart.map(c => c.name + ' ($' + c.price.toFixed(2) + ')').join(', ');
-          notesText = (notesText ? notesText + '\\n' : '') + 'Additional items: ' + extras;
+          notesText = (notesText ? notesText + String.fromCharCode(10) : '') + 'Additional items: ' + extras;
         }
 
         const res = await fetch(API + "/book", {
@@ -1560,7 +1560,7 @@ function bookingPage(slug: string, owner: any): string {
       lines.push("");
       lines.push("Thank you for your booking!");
 
-      const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+      const blob = new Blob([lines.join(String.fromCharCode(10))], { type: "text/plain" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
