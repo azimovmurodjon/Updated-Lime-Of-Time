@@ -1,0 +1,24 @@
+Research Notes - minSdkVersion 22 Build Error (FINAL)
+
+ROOT CAUSE IDENTIFIED:
+The issue is caused by NDK version 27.1.12297006 which has a bug where it defaults 
+minSdkVersion to 22 for CMake builds regardless of what's set in gradle.properties.
+
+Multiple users on GitHub issue expo/expo#38667 confirmed the fix:
+- Delete NDK 27.1.12297006 from the Android SDK directory
+- This forces the build to use a different NDK version that correctly reads minSdkVersion
+
+For LOCAL builds: Delete the NDK folder
+For EAS CLOUD builds: We need to force a different NDK version
+
+SOLUTION FOR EAS BUILD:
+1. Set ndkVersion in expo-build-properties to "27.2.12479018" (NDK r27c) 
+   which doesn't have this bug
+2. Our custom withMinSdkVersion plugin is good but may not be enough alone
+   because the CMake step reads NDK metadata, not gradle.properties
+3. The key fix is changing the NDK version away from 27.1.12297006
+
+IMPLEMENTATION:
+- Update expo-build-properties in app.config.ts to set ndkVersion: "27.2.12479018"
+- Keep the custom withMinSdkVersion plugin as a safety net
+- Also enhance the plugin to patch ndkVersion in build.gradle
