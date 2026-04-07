@@ -177,3 +177,5 @@
 - [x] When Weekly Hours mode is on, booking uses fixed weekly schedule (e.g. Mon-Fri 8-5)
 - [x] When Custom Days mode is on, booking uses per-day custom schedule
 - [x] Connect schedule mode to public booking page slot generation
+- [x] Fix loadWorkingDays JS function not setting global variables (workingDays/schedMode undefined)
+- [x] Fix working-days API returning all days false when business has weekly hours configured (case mismatch: DB stores lowercase day names, code checked capitalized names)

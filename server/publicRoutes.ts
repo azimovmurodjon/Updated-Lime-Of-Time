@@ -43,7 +43,7 @@ function generateAvailableSlots(
       startMin = timeToMinutes(customDay.startTime || "09:00");
       endMin = timeToMinutes(customDay.endTime || "17:00");
     } else {
-      const wh = workingHours?.[dayName];
+      const wh = workingHours?.[dayName] || workingHours?.[dayName.toLowerCase()];
       if (!wh || !wh.enabled) return [];
       startMin = timeToMinutes(wh.start || "09:00");
       endMin = timeToMinutes(wh.end || "17:00");
@@ -262,7 +262,8 @@ export function registerPublicRoutes(app: Express) {
       // Build weekly working days
       const weeklyDays: Record<string, boolean> = {};
       DAYS_OF_WEEK.forEach((day) => {
-        weeklyDays[day] = !!(wh[day] && wh[day].enabled);
+        const entry = wh[day] || wh[day.toLowerCase()];
+        weeklyDays[day] = !!(entry && entry.enabled);
       });
       // Custom overrides: { date: isOpen }
       const customDays: Record<string, boolean> = {};
@@ -843,7 +844,8 @@ function bookingPage(slug: string, owner: any): string {
   const wh: Record<string, any> = owner.workingHours || {};
   const whJson: Record<string, boolean> = {};
   ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].forEach(d => {
-    whJson[d] = !!(wh[d] && wh[d].enabled);
+    const entry = wh[d] || wh[d.toLowerCase()];
+    whJson[d] = !!(entry && entry.enabled);
   });
   return `<!DOCTYPE html>
 <html lang="en">

@@ -317,7 +317,7 @@ export function generateAvailableSlots(
   const dateObj = new Date(date + "T12:00:00");
   const dayIndex = dateObj.getDay();
   const dayName = DAYS_OF_WEEK[dayIndex];
-  const wh = workingHours[dayName];
+  const wh = workingHours[dayName] || workingHours[dayName.toLowerCase()];
   if (!wh || !wh.enabled) return [];
 
   const startMin = timeToMinutes(wh.start);
