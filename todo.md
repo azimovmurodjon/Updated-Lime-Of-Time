@@ -145,3 +145,7 @@
 - [x] Fix Discounts and Gifts not showing data until switching pages and coming back to dashboard
 - [x] Fix URL/link routing issue for lime-of-time.com
 - [x] Fix double /api prefix in generated links (e.g. /api/api/book/slug) — deployment proxy already adds /api
+- [x] Remove Face ID toggle from Settings page
+- [x] Fix header overlap on New Service, Gift Cards, and Discounts pages (titles and buttons hidden)
+- [x] Fix Face ID logic — stops locking in a loop on every foreground event
+- [x] Add Face ID option to onboarding/start page

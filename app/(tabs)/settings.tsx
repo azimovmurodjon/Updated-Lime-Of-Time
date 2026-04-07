@@ -12,7 +12,6 @@ import {
   Modal,
   Image,
   useWindowDimensions,
-  Platform,
   Linking,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
@@ -25,7 +24,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { formatPhoneNumber, getMapUrl, CustomScheduleDay, formatTimeDisplay, generateAllTimeOptions } from "@/lib/types";
 import { trpc } from "@/lib/trpc";
 import { formatDateStr } from "@/lib/store";
-import { useAppLockContext } from "@/lib/app-lock-provider";
+
 
 const DAYS_OF_WEEK = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
 const DAY_LABELS: Record<string, string> = {
@@ -60,7 +59,6 @@ export default function SettingsScreen() {
   const { width } = useWindowDimensions();
   const hp = Math.round(Math.max(16, width * 0.045));
   const { setThemeMode: setThemeOverrideMode } = useThemeContext();
-  const { biometricAvailable, biometricEnabled, biometricType, toggleBiometric } = useAppLockContext();
   const settings = state.settings;
 
   // Business Name editing
@@ -605,31 +603,6 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Security - Biometric Lock */}
-        {biometricAvailable && Platform.OS !== "web" && (
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.cardLabel, { color: colors.muted }]}>Security</Text>
-            <View style={styles.switchRow}>
-              <View style={styles.switchLabel}>
-                <IconSymbol name={biometricType === "face" ? "faceid" as any : "touchid" as any} size={20} color={colors.primary} />
-                <View style={{ marginLeft: 12, flex: 1 }}>
-                  <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground }}>
-                    {biometricType === "face" ? "Face ID Lock" : "Fingerprint Lock"}
-                  </Text>
-                  <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
-                    Require authentication when opening the app
-                  </Text>
-                </View>
-              </View>
-              <Switch
-                value={biometricEnabled}
-                onValueChange={(val) => { toggleBiometric(val); }}
-                trackColor={{ false: colors.border, true: colors.primary + "60" }}
-                thumbColor={biometricEnabled ? colors.primary : colors.muted}
-              />
-            </View>
-          </View>
-        )}
 
         {/* Cancellation Policy */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>

@@ -67,7 +67,7 @@ export default function ServiceFormScreen() {
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} className="p-5">
       {/* Header - extra top padding to clear status bar on all devices */}
-      <View className="flex-row items-center justify-between mb-6" style={{ paddingTop: 8 }}>
+      <View className="flex-row items-center justify-between mb-6" style={{ paddingTop: 16 }}>
         <View className="flex-row items-center flex-1 mr-3">
           <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, padding: 4 }]}>
             <IconSymbol name="xmark" size={24} color={colors.foreground} />
