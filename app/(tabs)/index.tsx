@@ -199,7 +199,7 @@ export default function HomeScreen() {
 
   const handleShareBookingLink = useCallback(async () => {
     const slug = state.settings.businessName.replace(/\s+/g, "-").toLowerCase();
-    const url = `${PUBLIC_BOOKING_URL}/api/book/${slug}`;
+    const url = `${PUBLIC_BOOKING_URL}/book/${slug}`;
     const profile = state.settings.profile;
     const addressLine = profile.address ? `\n📍 ${profile.address}` : "";
     const phoneLine = profile.phone ? `\n📞 ${profile.phone}` : "";

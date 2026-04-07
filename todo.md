@@ -144,3 +144,4 @@
 - [x] Fix revenue trend chart not showing money numbers
 - [x] Fix Discounts and Gifts not showing data until switching pages and coming back to dashboard
 - [x] Fix URL/link routing issue for lime-of-time.com
+- [x] Fix double /api prefix in generated links (e.g. /api/api/book/slug) — deployment proxy already adds /api
