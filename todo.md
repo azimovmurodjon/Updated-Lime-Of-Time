@@ -118,3 +118,4 @@
 - [x] Create /gift/[code] route for gift card redemption URL
 - [x] Add review link to confirmation and accept SMS messages
 - [x] Add gift card URL to SMS sharing
+- [x] Fix EAS build configuration error for publishing
