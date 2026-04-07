@@ -1,0 +1,18 @@
+Key findings:
+- /api/health works on deployment (Express server IS running)
+- /api/public/business/wellness-suite works and returns real data (public API routes ARE registered)
+- /book/wellness-suite returns "Not Found" (HTML page routes are NOT working)
+- / returns "Not Found" (homepage route not working)
+- Locally, /book/test returns 404 HTML page (styled), / returns 200 with HTML
+
+The issue: The deployment's routing has something intercepting /book/* and / BEFORE Express handles them.
+The Manus deployment likely has a reverse proxy that routes:
+- /api/* -> Express server (port 3000) 
+- Everything else -> Expo Metro web (port 8081)
+
+So /book/wellness-suite goes to Metro which returns "Not Found" because there's no matching Expo route.
+The Express public routes at /book/:slug never get hit because the proxy sends non-/api routes to Metro.
+
+Solution: Move the HTML page routes under /api/ prefix so they go through the Express server.
+e.g., /api/book/:slug, /api/review/:slug, /api/gift/:code
+Then update the Cloudflare redirect to use /api/book/ paths.

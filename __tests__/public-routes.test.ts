@@ -65,20 +65,20 @@ describe("Public Routes - HTML Pages", () => {
     "utf-8"
   );
 
-  it("should serve booking page at GET /book/:slug", () => {
-    expect(content).toContain('app.get("/book/:slug"');
+  it("should serve booking page at GET /api/book/:slug", () => {
+    expect(content).toContain('app.get("/api/book/:slug"');
   });
 
-  it("should serve review page at GET /review/:slug", () => {
-    expect(content).toContain('app.get("/review/:slug"');
+  it("should serve review page at GET /api/review/:slug", () => {
+    expect(content).toContain('app.get("/api/review/:slug"');
   });
 
-  it("should serve gift card page at GET /gift/:code", () => {
-    expect(content).toContain('app.get("/gift/:code"');
+  it("should serve gift card page at GET /api/gift/:code", () => {
+    expect(content).toContain('app.get("/api/gift/:code"');
   });
 
-  it("should serve homepage at GET /", () => {
-    expect(content).toContain('app.get("/"');
+  it("should serve homepage at GET /api/home", () => {
+    expect(content).toContain('app.get("/api/home"');
   });
 });
 

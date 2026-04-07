@@ -420,7 +420,7 @@ export function registerPublicRoutes(app: Express) {
   // ── HTML Pages ─────────────────────────────────────────────────────
 
   /** Booking page */
-  app.get("/book/:slug", async (req: Request, res: Response) => {
+  app.get("/api/book/:slug", async (req: Request, res: Response) => {
     try {
       const owner = await db.getBusinessOwnerBySlug(req.params.slug);
       if (!owner) {
@@ -435,7 +435,7 @@ export function registerPublicRoutes(app: Express) {
   });
 
   /** Review page */
-  app.get("/review/:slug", async (req: Request, res: Response) => {
+  app.get("/api/review/:slug", async (req: Request, res: Response) => {
     try {
       const owner = await db.getBusinessOwnerBySlug(req.params.slug);
       if (!owner) {
@@ -450,12 +450,12 @@ export function registerPublicRoutes(app: Express) {
   });
 
   /** Gift card page */
-  app.get("/gift/:code", async (req: Request, res: Response) => {
+  app.get("/api/gift/:code", async (req: Request, res: Response) => {
     res.send(giftCardPage(req.params.code));
   });
 
-  /** Homepage redirect */
-  app.get("/", (_req: Request, res: Response) => {
+  /** Homepage */
+  app.get("/api/home", (_req: Request, res: Response) => {
     res.send(homePage());
   });
 }
@@ -1403,7 +1403,7 @@ function giftCardPage(code: string): string {
         } else {
           document.getElementById("giftStatus").innerHTML = '<div style="color:#2d5a27;font-weight:600;">✓ Valid — Ready to use!</div>';
           const link = document.getElementById("bookLink");
-          link.href = window.location.origin + "/book/" + data.businessSlug;
+          link.href = window.location.origin + "/api/book/" + data.businessSlug;
           link.style.display = "block";
         }
       } catch(e) {

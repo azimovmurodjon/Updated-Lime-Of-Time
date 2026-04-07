@@ -128,3 +128,4 @@
 - [x] Client can select service, day, time, enter name and submit appointment request via web
 - [x] Business owner receives appointment request in the app from web bookings
 - [x] Provide DNS setup instructions for lime-of-time.com
+- [x] Fix public web routes not being served on Manus deployment (book/review/gift pages return Not Found)
