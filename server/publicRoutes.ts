@@ -743,7 +743,9 @@ function baseStyles(): string {
       .cal-weekdays { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; margin-bottom:4px; text-align:center; }
       .cal-weekdays span { font-size:11px; color:#999; font-weight:500; padding:4px 0; }
       .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; margin-bottom:16px; }
-      .cal-day { aspect-ratio:1; display:flex; align-items:center; justify-content:center; border-radius:10px; cursor:pointer; font-size:14px; font-weight:500; border:2px solid transparent; transition:all 0.15s; }
+      .cal-day { aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:10px; cursor:pointer; font-size:14px; font-weight:500; border:2px solid transparent; transition:all 0.15s; position:relative; }
+      .cal-day .avail-dot { width:5px; height:5px; border-radius:50%; background:#4a8c3f; margin-top:2px; }
+      .cal-day.disabled .avail-dot { display:none; }
       .cal-day:hover:not(.disabled):not(.empty) { background:#f0f7ef; }
       .cal-day.selected { border-color:#4a8c3f; background:#e8f5e3; color:#2d5a27; font-weight:700; }
       .cal-day.disabled { opacity:0.25; cursor:not-allowed; color:#aaa; }
@@ -952,9 +954,12 @@ function bookingPage(slug: string, owner: any): string {
         <label>Notes (optional)</label>
         <textarea id="bookingNotes" placeholder="Any special requests..."></textarea>
       </div>
+      <div style="margin-top:12px;">
+        <button class="btn btn-secondary" onclick="goToStep(3)" style="width:100%;margin-bottom:8px;font-size:13px;">+ Add More Services / Products</button>
+      </div>
       <div id="bookError" class="error-msg" style="display:none"></div>
-      <div style="display:flex;gap:8px;margin-top:16px;">
-        <button class="btn btn-secondary" onclick="goToStep(3)" style="flex:1">Back</button>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button class="btn btn-secondary" onclick="goToStep(2)" style="flex:1">Back</button>
         <button class="btn btn-primary" onclick="submitBooking()" id="btnSubmit" style="flex:1">Confirm Booking</button>
       </div>
     </div>
@@ -964,9 +969,9 @@ function bookingPage(slug: string, owner: any): string {
       <div class="success-icon">✓</div>
       <h2 style="font-size:20px;margin-bottom:8px;">Booking Submitted!</h2>
       <p style="color:#666;font-size:14px;margin-bottom:16px;">Your appointment request has been sent to ${escHtml(owner.businessName)}. They will confirm your booking shortly.</p>
-      <div id="successDetails" class="receipt-box" style="text-align:left;margin-bottom:16px;"></div>
+      <div id="successReceipt" class="receipt-box" style="text-align:left;margin-bottom:16px;"></div>
       <div style="display:flex;gap:8px;">
-        <button class="btn btn-secondary" onclick="saveReceipt()" style="flex:1">Save Receipt</button>
+        <button class="btn btn-secondary" onclick="saveReceipt()" style="flex:1">📥 Save Receipt</button>
         <button class="btn btn-primary" onclick="location.reload()" style="flex:1">Book Another</button>
       </div>
     </div>
@@ -1114,6 +1119,9 @@ function bookingPage(slug: string, owner: any): string {
       renderCalendar();
     }
 
+    // Cache for slot availability per date
+    let slotCache = {};
+
     function renderCalendar() {
       const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
       document.getElementById("calTitle").textContent = months[calMonth] + " " + calYear;
@@ -1128,6 +1136,7 @@ function bookingPage(slug: string, owner: any): string {
       const todayStr = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0") + "-" + String(now.getDate()).padStart(2,"0");
 
       let html = "";
+      let workingDates = [];
       // Empty cells before first day
       for (let i = 0; i < firstDay; i++) {
         html += '<div class="cal-day empty"></div>';
@@ -1136,17 +1145,61 @@ function bookingPage(slug: string, owner: any): string {
         const ds = calYear + "-" + String(calMonth+1).padStart(2,"0") + "-" + String(day).padStart(2,"0");
         const isPast = ds < todayStr;
         const isWorking = isWorkingDay(ds);
-        const isDisabled = isPast || !isWorking;
         const isSelected = ds === selectedDate;
         const isToday = ds === todayStr;
+        // Initially disable all non-working and past days; working days start as loading
+        const isDisabled = isPast || !isWorking;
         let cls = "cal-day";
         if (isDisabled) cls += " disabled";
         if (isSelected) cls += " selected";
         if (isToday && !isDisabled) cls += " today";
-        html += '<div class="' + cls + '" data-date="' + ds + '"' + (!isDisabled ? ' onclick="selectDate(\\'' + ds + '\\')"' : '') + '>' + day + '</div>';
+        // Working future days get a data-loading attribute, will be updated after slot check
+        html += '<div class="' + cls + '" id="day-' + ds + '" data-date="' + ds + '"' + (!isDisabled ? ' onclick="selectDate(\'' + ds + '\')"' : '') + '><span>' + day + '</span></div>';
+        if (!isPast && isWorking) workingDates.push(ds);
       }
       grid.innerHTML = html;
+
+      // Batch-check availability for all working days in this month
+      checkDayAvailability(workingDates);
+
       if (selectedDate) loadSlots(selectedDate);
+    }
+
+    async function checkDayAvailability(dates) {
+      const dur = getTotalDuration();
+      // Fetch slots for each working day in parallel
+      const promises = dates.map(async (ds) => {
+        // Use cache if available
+        if (slotCache[ds + '_' + dur] !== undefined) return { date: ds, count: slotCache[ds + '_' + dur] };
+        try {
+          const res = await fetch(API + "/slots?date=" + ds + "&duration=" + dur);
+          const data = await res.json();
+          const count = data.slots ? data.slots.length : 0;
+          slotCache[ds + '_' + dur] = count;
+          return { date: ds, count };
+        } catch(e) {
+          return { date: ds, count: 0 };
+        }
+      });
+      const results = await Promise.all(promises);
+      results.forEach(r => {
+        const el = document.getElementById("day-" + r.date);
+        if (!el) return;
+        if (r.count === 0) {
+          // No slots available — disable this day
+          el.classList.add("disabled");
+          el.style.cursor = "not-allowed";
+          el.onclick = null;
+          el.removeAttribute("onclick");
+        } else {
+          // Has slots — add green availability dot
+          if (!el.querySelector(".avail-dot")) {
+            const dot = document.createElement("span");
+            dot.className = "avail-dot";
+            el.appendChild(dot);
+          }
+        }
+      });
     }
 
     async function selectDate(date) {
@@ -1398,11 +1451,11 @@ function bookingPage(slug: string, owner: any): string {
           btn.textContent = "Confirm Booking";
           return;
         }
-        // Show success
+        // Show success with detailed receipt
         for (let i = 0; i <= 4; i++) document.getElementById("step-" + i).style.display = "none";
         document.getElementById("step-indicator").style.display = "none";
         document.getElementById("step-5").style.display = "block";
-        document.getElementById("successDetails").innerHTML = document.getElementById("confirmDetails").innerHTML;
+        renderSuccessReceipt();
         window.scrollTo(0, 0);
       } catch(e) {
         errEl.textContent = "Network error. Please try again.";
@@ -1412,10 +1465,102 @@ function bookingPage(slug: string, owner: any): string {
       }
     }
 
+    function renderSuccessReceipt() {
+      const d = new Date(selectedDate + "T12:00:00");
+      const dateStr = d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+      const h = parseInt(selectedTime.split(":")[0]);
+      const m = selectedTime.split(":")[1];
+      const ampm = h >= 12 ? "PM" : "AM";
+      const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      const timeStr = h12 + ":" + m + " " + ampm;
+      const totalDur = getTotalDuration();
+      const endMin = h * 60 + parseInt(m) + totalDur;
+      const endH = Math.floor(endMin / 60);
+      const endM = endMin % 60;
+      const endAmpm = endH >= 12 ? "PM" : "AM";
+      const endH12 = endH === 0 ? 12 : endH > 12 ? endH - 12 : endH;
+      const endStr = endH12 + ":" + String(endM).padStart(2,"0") + " " + endAmpm;
+      const totalPrice = getTotalPrice();
+
+      let html = '<div style="margin-bottom:12px;font-weight:700;font-size:15px;color:#2d5a27;border-bottom:2px solid #e8ece8;padding-bottom:8px;">Booking Receipt</div>';
+
+      // Items list
+      html += '<div style="margin-bottom:12px;">';
+      html += '<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;"><span>\u2022 ' + esc(selectedService.name) + ' (' + selectedService.duration + ' min)</span><span style="font-weight:600;">$' + parseFloat(selectedService.price).toFixed(2) + '</span></div>';
+      cart.forEach(c => {
+        const durLabel = c.duration > 0 ? ' (' + c.duration + ' min)' : '';
+        const typeLabel = c.type === 'product' ? ' [Product]' : '';
+        html += '<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;"><span>\u2022 ' + esc(c.name) + durLabel + typeLabel + '</span><span style="font-weight:600;">$' + c.price.toFixed(2) + '</span></div>';
+      });
+      html += '</div>';
+
+      // Date & Time
+      html += '<div style="border-top:1px solid #e8ece8;padding-top:10px;margin-bottom:10px;">';
+      html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#666;">Date</span><span style="font-weight:600;">' + dateStr + '</span></div>';
+      html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#666;">Time</span><span style="font-weight:600;">' + timeStr + ' \u2014 ' + endStr + '</span></div>';
+      html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#666;">Total Duration</span><span style="font-weight:600;">' + totalDur + ' min</span></div>';
+      html += '</div>';
+
+      // Total
+      let priceDisplay = '$' + totalPrice.toFixed(2);
+      if (appliedGift) {
+        priceDisplay = '<span style="text-decoration:line-through;color:#999;">$' + totalPrice.toFixed(2) + '</span> <span style="color:#2d5a27;">Gift Applied</span>';
+      }
+      html += '<div style="border-top:2px solid #2d5a27;padding-top:10px;display:flex;justify-content:space-between;font-size:16px;font-weight:700;"><span>Total</span><span style="color:#2d5a27;">' + priceDisplay + '</span></div>';
+
+      // Client info
+      html += '<div style="border-top:1px solid #e8ece8;padding-top:10px;margin-top:10px;font-size:12px;color:#888;">';
+      html += 'Client: ' + esc(document.getElementById("clientName").value);
+      const phone = document.getElementById("clientPhone").value;
+      if (phone) html += ' \u2022 ' + phone;
+      html += '</div>';
+
+      document.getElementById("successReceipt").innerHTML = html;
+    }
+
     function saveReceipt() {
-      const el = document.getElementById("successDetails");
-      const receiptText = el.innerText || el.textContent;
-      const blob = new Blob(["BOOKING RECEIPT\\n" + "${escHtml(owner.businessName)}" + "\\n" + "=" .repeat(30) + "\\n\\n" + receiptText + "\\n\\nThank you for your booking!"], { type: "text/plain" });
+      const d = new Date(selectedDate + "T12:00:00");
+      const dateStr = d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+      const h = parseInt(selectedTime.split(":")[0]);
+      const m = selectedTime.split(":")[1];
+      const ampm = h >= 12 ? "PM" : "AM";
+      const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      const timeStr = h12 + ":" + m + " " + ampm;
+      const totalDur = getTotalDuration();
+      const endMin = h * 60 + parseInt(m) + totalDur;
+      const endH = Math.floor(endMin / 60);
+      const endM = endMin % 60;
+      const endAmpm = endH >= 12 ? "PM" : "AM";
+      const endH12 = endH === 0 ? 12 : endH > 12 ? endH - 12 : endH;
+      const endStr = endH12 + ":" + String(endM).padStart(2,"0") + " " + endAmpm;
+      const totalPrice = getTotalPrice();
+
+      let lines = [];
+      lines.push("BOOKING RECEIPT");
+      lines.push("${escHtml(owner.businessName)}");
+      lines.push("=".repeat(35));
+      lines.push("");
+      lines.push("SERVICES & PRODUCTS:");
+      lines.push("  " + selectedService.name + " (" + selectedService.duration + " min) - $" + parseFloat(selectedService.price).toFixed(2));
+      cart.forEach(c => {
+        const durLabel = c.duration > 0 ? " (" + c.duration + " min)" : "";
+        const typeLabel = c.type === "product" ? " [Product]" : "";
+        lines.push("  " + c.name + durLabel + typeLabel + " - $" + c.price.toFixed(2));
+      });
+      lines.push("");
+      lines.push("DATE: " + dateStr);
+      lines.push("TIME: " + timeStr + " - " + endStr);
+      lines.push("DURATION: " + totalDur + " min");
+      lines.push("-".repeat(35));
+      lines.push("TOTAL: $" + totalPrice.toFixed(2) + (appliedGift ? " (Gift Applied)" : ""));
+      lines.push("");
+      lines.push("Client: " + document.getElementById("clientName").value);
+      const phone = document.getElementById("clientPhone").value;
+      if (phone) lines.push("Phone: " + phone);
+      lines.push("");
+      lines.push("Thank you for your booking!");
+
+      const blob = new Blob([lines.join("\n")], { type: "text/plain" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;

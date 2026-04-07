@@ -161,3 +161,9 @@
 - [x] Fix duplicate client prevention with phone number normalization
 - [x] Auto-update client name when same phone submits new request with different name
 - [x] Connect all changes to public HTML booking page served by Express
+- [x] Fix client booking calendar: days with no available time slots should be disabled/unselectable
+- [x] Add green dot indicator on days that have available time slots
+- [x] Ensure monthly calendar with month/year header and prev/next month navigation works on deployed version
+- [x] Past days should not be selectable, only future available days
+- [x] Add "Add More" button on confirm step so client can add services/products before final submit
+- [x] Receipt on success page should show all added services, products, total price, total time, and download button
