@@ -72,6 +72,7 @@ const businessRouter = router({
         notificationsEnabled: z.boolean().optional(),
         themeMode: z.enum(["light", "dark", "system"]).optional(),
         temporaryClosed: z.boolean().optional(),
+        scheduleMode: z.enum(["weekly", "custom"]).optional(),
         workingHours: z.any().optional(),
         cancellationPolicy: z.any().optional(),
         phone: z.string().optional(),

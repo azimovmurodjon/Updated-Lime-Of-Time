@@ -1,0 +1,1 @@
+ALTER TABLE `business_owners` ADD `scheduleMode` enum('weekly','custom') DEFAULT 'weekly' NOT NULL;

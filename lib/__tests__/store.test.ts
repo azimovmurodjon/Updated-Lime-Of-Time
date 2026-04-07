@@ -154,6 +154,7 @@ describe("Business Profile", () => {
       onboardingComplete: false,
       temporaryClosed: false,
       businessLogoUri: "",
+      scheduleMode: "weekly" as const,
     };
     expect(settings.profile).toBeDefined();
     expect(settings.profile.ownerName).toBe("");
@@ -291,6 +292,7 @@ describe("Theme Mode", () => {
       onboardingComplete: false,
       temporaryClosed: false,
       businessLogoUri: "",
+      scheduleMode: "weekly" as const,
     };
     expect(settings.themeMode).toBe("dark");
   });
@@ -307,6 +309,7 @@ describe("Theme Mode", () => {
       onboardingComplete: false,
       temporaryClosed: false,
       businessLogoUri: "",
+      scheduleMode: "weekly" as const,
     };
     expect(settings.themeMode).toBe("system");
   });
@@ -436,6 +439,7 @@ describe("Cancellation Policy", () => {
       onboardingComplete: false,
       temporaryClosed: false,
       businessLogoUri: "",
+      scheduleMode: "weekly" as const,
     };
     expect(settings.cancellationPolicy.enabled).toBe(true);
     expect(settings.onboardingComplete).toBe(false);
@@ -557,6 +561,7 @@ describe("Temporary Closed Feature", () => {
       onboardingComplete: true,
       temporaryClosed: true,
       businessLogoUri: "",
+      scheduleMode: "weekly" as const,
     };
     expect(settings.temporaryClosed).toBe(true);
   });
@@ -573,6 +578,7 @@ describe("Temporary Closed Feature", () => {
       onboardingComplete: false,
       temporaryClosed: false,
       businessLogoUri: "",
+      scheduleMode: "weekly" as const,
     };
     expect(settings.temporaryClosed).toBe(false);
   });
@@ -652,6 +658,7 @@ describe("Business Logo URI", () => {
       onboardingComplete: true,
       temporaryClosed: false,
       businessLogoUri: "file:///data/user/0/com.app/cache/photo.jpg",
+      scheduleMode: "weekly" as const,
     };
     expect(settings.businessLogoUri).toBe("file:///data/user/0/com.app/cache/photo.jpg");
   });
@@ -668,6 +675,7 @@ describe("Business Logo URI", () => {
       onboardingComplete: false,
       temporaryClosed: false,
       businessLogoUri: "",
+      scheduleMode: "weekly" as const,
     };
     expect(settings.businessLogoUri).toBe("");
   });
@@ -686,6 +694,7 @@ describe("Logout and Delete Business", () => {
       onboardingComplete: true,
       temporaryClosed: false,
       businessLogoUri: "",
+      scheduleMode: "weekly" as const,
     };
     // Simulate logout
     const loggedOut = { ...settings, onboardingComplete: false };

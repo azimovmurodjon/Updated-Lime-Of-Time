@@ -116,6 +116,7 @@ export interface BusinessSettings {
   onboardingComplete: boolean;
   temporaryClosed: boolean;
   businessLogoUri: string; // local URI for custom uploaded logo
+  scheduleMode: "weekly" | "custom"; // which schedule drives availability
 }
 
 export const SERVICE_COLORS = [
@@ -268,21 +269,40 @@ function filterSlots(
   });
 }
 
-/** Generate available time slots for a given date, considering working hours, custom schedule overrides, existing appointments, and past-time filtering */
+/** Generate available time slots for a given date, considering working hours, custom schedule overrides, existing appointments, and past-time filtering.
+ *  When scheduleMode is "custom", ONLY custom schedule entries are used (no weekly fallback).
+ *  When scheduleMode is "weekly" (default), custom overrides take precedence for specific dates, then weekly hours are used. */
 export function generateAvailableSlots(
   date: string,
   serviceDuration: number,
   workingHours: Record<string, WorkingHours>,
   appointments: Appointment[],
   stepMinutes: number = 30,
-  customSchedule?: CustomScheduleDay[]
+  customSchedule?: CustomScheduleDay[],
+  scheduleMode: "weekly" | "custom" = "weekly"
 ): string[] {
-  // Check for custom schedule override for this specific date
   const customDay = customSchedule?.find((cs) => cs.date === date);
-  if (customDay) {
-    if (!customDay.isOpen) return []; // Business explicitly closed on this date
+
+  if (scheduleMode === "custom") {
+    // In custom mode, ONLY custom schedule entries matter — no weekly fallback
+    if (!customDay) return []; // No custom entry for this date = closed
+    if (!customDay.isOpen) return []; // Explicitly closed
     if (customDay.startTime && customDay.endTime) {
-      // Use custom hours for this date
+      const startMin = timeToMinutes(customDay.startTime);
+      const endMin = timeToMinutes(customDay.endTime);
+      const slots: string[] = [];
+      for (let min = startMin; min + serviceDuration <= endMin; min += stepMinutes) {
+        slots.push(minutesToTime(min));
+      }
+      return filterSlots(slots, date, serviceDuration, appointments);
+    }
+    return []; // Custom entry exists but no hours set
+  }
+
+  // Weekly mode: custom overrides take precedence for specific dates
+  if (customDay) {
+    if (!customDay.isOpen) return [];
+    if (customDay.startTime && customDay.endTime) {
       const startMin = timeToMinutes(customDay.startTime);
       const endMin = timeToMinutes(customDay.endTime);
       const slots: string[] = [];

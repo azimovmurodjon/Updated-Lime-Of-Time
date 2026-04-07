@@ -262,8 +262,15 @@ export default function SettingsScreen() {
     { key: "system", label: "Auto", icon: "gear" },
   ];
 
+  // ─── Schedule Mode (persisted) ─────────────────────────────────
+  const scheduleTab = settings.scheduleMode ?? "weekly";
+  const setScheduleTab = useCallback((mode: "weekly" | "custom") => {
+    const action = { type: "UPDATE_SETTINGS" as const, payload: { scheduleMode: mode } };
+    dispatch(action);
+    syncToDb(action);
+  }, [dispatch, syncToDb]);
+
   // ─── Custom Schedule State ─────────────────────────────────────
-  const [scheduleTab, setScheduleTab] = useState<"weekly" | "custom">("weekly");
   const [customCalMonth, setCustomCalMonth] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
@@ -685,9 +692,15 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Working Hours / Custom Schedule */}
+        {/* Schedule Mode */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          {/* Tab Switcher */}
+          <Text style={[styles.cardLabel, { color: colors.muted, marginBottom: 4 }]}>Schedule Mode</Text>
+          <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 12, lineHeight: 18 }}>
+            {scheduleTab === "weekly"
+              ? "Using recurring weekly hours. The same hours repeat every week."
+              : "Using custom day-by-day schedule. Only days you explicitly add are available for booking."}
+          </Text>
+          {/* Mode Switcher */}
           <View style={styles.schedTabRow}>
             <Pressable
               onPress={() => setScheduleTab("weekly")}
@@ -762,9 +775,9 @@ export default function SettingsScreen() {
             </View>
           ) : (
             <View>
-              <Text style={[styles.cardLabel, { color: colors.muted }]}>Custom Day Overrides</Text>
+              <Text style={[styles.cardLabel, { color: colors.muted }]}>Custom Day Schedule</Text>
               <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 12, lineHeight: 18 }}>
-                Select dates to set custom hours or mark as closed. Overrides weekly schedule.
+                Add dates with specific hours. Only dates you add here will be available for client booking.
               </Text>
 
               {/* Calendar Navigation */}

@@ -71,7 +71,8 @@ export default function PublicBookingScreen() {
       state.settings.workingHours,
       state.appointments,
       30,
-      state.customSchedule
+      state.customSchedule,
+      state.settings.scheduleMode
     );
   }, [selectedDate, state.settings, state.appointments, selectedService, state.customSchedule]);
 
@@ -87,19 +88,21 @@ export default function PublicBookingScreen() {
       // Check custom schedule override first
       const customDay = state.customSchedule.find((cs) => cs.date === ds);
       let closed = false;
-      if (customDay) {
-        closed = !customDay.isOpen;
+      if (state.settings.scheduleMode === "custom") {
+        closed = !customDay || !customDay.isOpen;
       } else {
-        // Fall back to weekly hours
-        const dayIndex = d.getDay();
-        const dayName = DAYS_OF_WEEK[dayIndex];
-        const wh = state.settings.workingHours[dayName];
-        closed = !wh || !wh.enabled;
+        if (customDay) {
+          closed = !customDay.isOpen;
+        } else {
+          const dayIndex = d.getDay();
+          const dayName = DAYS_OF_WEEK[dayIndex];
+          const wh = state.settings.workingHours[dayName];
+          closed = !wh || !wh.enabled;
+        }
       }
-      // Check if there are available time slots for this date
       let noSlots = false;
       if (!closed) {
-        const slots = generateAvailableSlots(ds, duration, state.settings.workingHours, state.appointments, 30, state.customSchedule);
+        const slots = generateAvailableSlots(ds, duration, state.settings.workingHours, state.appointments, 30, state.customSchedule, state.settings.scheduleMode);
         noSlots = slots.length === 0;
       }
       dates.push({ date: ds, closed, noSlots });

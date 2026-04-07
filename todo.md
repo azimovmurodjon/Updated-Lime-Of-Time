@@ -172,3 +172,8 @@
 - [x] Add multiple services and products selection to Gift Cards page
 - [x] Add services and products selection to Discounts page (discount can apply to services, products, or both)
 - [x] Ensure Products are fully integrated across all app sections
+- [x] Add schedule mode switch to Settings (Weekly Hours vs Custom Days)
+- [x] Only one schedule mode active at a time, switchable anytime
+- [x] When Weekly Hours mode is on, booking uses fixed weekly schedule (e.g. Mon-Fri 8-5)
+- [x] When Custom Days mode is on, booking uses per-day custom schedule
+- [x] Connect schedule mode to public booking page slot generation

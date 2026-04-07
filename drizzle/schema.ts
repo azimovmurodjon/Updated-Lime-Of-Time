@@ -55,6 +55,8 @@ export const businessOwners = mysqlTable("business_owners", {
   themeMode: mysqlEnum("themeMode", ["light", "dark", "system"]).default("system").notNull(),
   /** Temporary closed flag */
   temporaryClosed: boolean("temporaryClosed").default(false).notNull(),
+  /** Schedule mode: weekly (recurring hours) or custom (per-day control) */
+  scheduleMode: mysqlEnum("scheduleMode", ["weekly", "custom"]).default("weekly").notNull(),
   /** Working hours JSON: Record<string, { enabled: boolean, start: string, end: string }> */
   workingHours: json("workingHours"),
   /** Cancellation policy JSON: { enabled, hoursBeforeAppointment, feePercentage } */

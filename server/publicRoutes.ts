@@ -21,25 +21,33 @@ function generateAvailableSlots(
   workingHours: any,
   appointments: any[],
   interval: number,
-  customSchedule: any[]
+  customSchedule: any[],
+  scheduleMode: "weekly" | "custom" = "weekly"
 ): string[] {
   const d = new Date(date + "T00:00:00");
   const dayIndex = d.getDay();
   const dayName = DAYS_OF_WEEK[dayIndex];
 
-  // Check custom schedule override
   const customDay = customSchedule.find((cs: any) => cs.date === date);
   let startMin: number, endMin: number;
 
-  if (customDay) {
-    if (!customDay.isOpen) return [];
+  if (scheduleMode === "custom") {
+    // Custom mode: only dates explicitly in customSchedule are available
+    if (!customDay || !customDay.isOpen) return [];
     startMin = timeToMinutes(customDay.startTime || "09:00");
     endMin = timeToMinutes(customDay.endTime || "17:00");
   } else {
-    const wh = workingHours?.[dayName];
-    if (!wh || !wh.enabled) return [];
-    startMin = timeToMinutes(wh.start || "09:00");
-    endMin = timeToMinutes(wh.end || "17:00");
+    // Weekly mode: use weekly hours, custom days can still override
+    if (customDay) {
+      if (!customDay.isOpen) return [];
+      startMin = timeToMinutes(customDay.startTime || "09:00");
+      endMin = timeToMinutes(customDay.endTime || "17:00");
+    } else {
+      const wh = workingHours?.[dayName];
+      if (!wh || !wh.enabled) return [];
+      startMin = timeToMinutes(wh.start || "09:00");
+      endMin = timeToMinutes(wh.end || "17:00");
+    }
   }
 
   // Get confirmed/pending appointments for this date
@@ -160,13 +168,15 @@ export function registerPublicRoutes(app: Express) {
       }
       const appts = await db.getAppointmentsByOwner(owner.id);
       const schedule = await db.getCustomScheduleByOwner(owner.id);
+      const mode = (owner.scheduleMode as "weekly" | "custom") || "weekly";
       const slots = generateAvailableSlots(
         date,
         duration,
         owner.workingHours,
         appts,
         30,
-        schedule
+        schedule,
+        mode
       );
       res.json({ date, slots });
     } catch (err) {
@@ -259,7 +269,8 @@ export function registerPublicRoutes(app: Express) {
       schedule.forEach((cs: any) => {
         customDays[cs.date] = cs.isOpen ?? true;
       });
-      res.json({ weeklyDays, customDays });
+      const scheduleMode = (owner.scheduleMode as string) || "weekly";
+      res.json({ weeklyDays, customDays, scheduleMode });
     } catch (err) {
       console.error("[Public API] Error fetching working days:", err);
       res.status(500).json({ error: "Internal server error" });
@@ -366,7 +377,8 @@ export function registerPublicRoutes(app: Express) {
       const svc = svcList.find((s) => s.localId === serviceLocalId);
       const dur = duration || svc?.duration || 60;
 
-      const slots = generateAvailableSlots(date, dur, owner.workingHours, appts, 30, schedule);
+      const bookMode = (owner.scheduleMode as "weekly" | "custom") || "weekly";
+      const slots = generateAvailableSlots(date, dur, owner.workingHours, appts, 30, schedule, bookMode);
       if (!slots.includes(time)) {
         res.status(400).json({ error: "Selected time slot is no longer available" });
         return;
@@ -1037,19 +1049,24 @@ function bookingPage(slug: string, owner: any): string {
       } catch(e) { discounts = []; }
     }
 
-    // Load working days (custom overrides)
+    // Load working days (custom overrides + schedule mode)
+    var scheduleMode = "weekly";
     async function loadWorkingDays() {
       try {
         const res = await fetch(API + "/working-days");
         const data = await res.json();
         customDays = data.customDays || {};
+        scheduleMode = data.scheduleMode || "weekly";
       } catch(e) { customDays = {}; }
     }
 
     function isWorkingDay(dateStr) {
-      // Check custom override first
+      if (scheduleMode === "custom") {
+        // Custom mode: only dates explicitly in customDays and marked open are available
+        return customDays.hasOwnProperty(dateStr) && customDays[dateStr] === true;
+      }
+      // Weekly mode: check custom override first, then weekly schedule
       if (customDays.hasOwnProperty(dateStr)) return customDays[dateStr];
-      // Fall back to weekly schedule
       const d = new Date(dateStr + "T12:00:00");
       const dayName = DAYS_MAP[d.getDay()];
       return WEEKLY_DAYS[dayName] || false;
