@@ -138,7 +138,7 @@ export default function NewBookingScreen() {
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} className="p-5">
       {/* Header */}
-      <View className="flex-row items-center justify-between mb-2">
+      <View className="flex-row items-center justify-between mb-2" style={{ paddingTop: 8 }}>
         <View className="flex-row items-center">
           <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
             <IconSymbol name="xmark" size={24} color={colors.foreground} />

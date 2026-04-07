@@ -2,6 +2,25 @@ import { View, Text, StyleSheet } from "react-native";
 import Svg, { Rect, Line, Text as SvgText, Circle, Path, G, Defs, LinearGradient, Stop } from "react-native-svg";
 import { useColors } from "@/hooks/use-colors";
 
+// ─── Helpers ───────────────────────────────────────────────────────
+function formatCurrency(value: number): string {
+  if (value >= 10000) return `$${(value / 1000).toFixed(0)}k`;
+  if (value >= 1000) return `$${(value / 1000).toFixed(1)}k`;
+  return `$${value}`;
+}
+
+function niceGridMax(maxVal: number): number {
+  if (maxVal <= 0) return 100;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(maxVal)));
+  const normalized = maxVal / magnitude;
+  let nice: number;
+  if (normalized <= 1) nice = 1;
+  else if (normalized <= 2) nice = 2;
+  else if (normalized <= 5) nice = 5;
+  else nice = 10;
+  return nice * magnitude;
+}
+
 // ─── Bar Chart ──────────────────────────────────────────────────────
 interface BarChartProps {
   data: { label: string; value: number; color?: string }[];
@@ -10,16 +29,21 @@ interface BarChartProps {
   title?: string;
 }
 
-export function MiniBarChart({ data, height = 160, width: chartW = 280, title }: BarChartProps) {
+export function MiniBarChart({ data, height = 180, width: chartW = 280, title }: BarChartProps) {
   const colors = useColors();
   if (data.length === 0) return null;
 
-  const maxVal = Math.max(...data.map((d) => d.value), 1);
-  const chartH = height - 30;
-  const barW = Math.min(32, (chartW - 20) / data.length - 8);
-  const gap = (chartW - data.length * barW) / (data.length + 1);
+  const rawMax = Math.max(...data.map((d) => d.value), 1);
+  const gridMax = niceGridMax(rawMax);
+  const leftPad = 44; // space for Y-axis labels
+  const bottomPad = 28; // space for X-axis labels
+  const topPad = 24; // space for value labels above bars
+  const chartH = height - bottomPad - topPad;
+  const usableW = chartW - leftPad - 8;
+  const barW = Math.min(32, usableW / data.length - 8);
+  const gap = (usableW - data.length * barW) / (data.length + 1);
 
-  // Nice grid values
+  // Grid lines at 0%, 25%, 50%, 75%, 100%
   const gridLines = [0, 0.25, 0.5, 0.75, 1];
 
   return (
@@ -34,14 +58,14 @@ export function MiniBarChart({ data, height = 160, width: chartW = 280, title }:
             </LinearGradient>
           ))}
         </Defs>
-        {/* Grid lines with labels */}
+        {/* Grid lines with Y-axis labels */}
         {gridLines.map((pct) => {
-          const y = chartH * (1 - pct);
-          const val = Math.round(maxVal * pct);
+          const y = topPad + chartH * (1 - pct);
+          const val = Math.round(gridMax * pct);
           return (
             <G key={pct}>
               <Line
-                x1={0}
+                x1={leftPad}
                 y1={y}
                 x2={chartW}
                 y2={y}
@@ -49,14 +73,23 @@ export function MiniBarChart({ data, height = 160, width: chartW = 280, title }:
                 strokeWidth={0.5}
                 strokeDasharray="4,4"
               />
+              <SvgText
+                x={leftPad - 6}
+                y={y + 4}
+                fontSize={10}
+                fill={colors.muted}
+                textAnchor="end"
+              >
+                {formatCurrency(val)}
+              </SvgText>
             </G>
           );
         })}
         {/* Bars with gradient */}
         {data.map((d, i) => {
-          const barH = Math.max(2, (d.value / maxVal) * (chartH - 10));
-          const x = gap + i * (barW + gap);
-          const y = chartH - barH;
+          const barH = gridMax > 0 ? Math.max(2, (d.value / gridMax) * chartH) : 2;
+          const x = leftPad + gap + i * (barW + gap);
+          const y = topPad + chartH - barH;
           return (
             <G key={i}>
               <Rect
@@ -67,25 +100,27 @@ export function MiniBarChart({ data, height = 160, width: chartW = 280, title }:
                 rx={barW > 16 ? 6 : 4}
                 fill={`url(#barGrad${i})`}
               />
+              {/* X-axis label */}
               <SvgText
                 x={x + barW / 2}
-                y={height - 4}
+                y={height - 6}
                 fontSize={10}
                 fill={colors.muted}
                 textAnchor="middle"
               >
                 {d.label}
               </SvgText>
+              {/* Value label above bar */}
               {d.value > 0 && (
                 <SvgText
                   x={x + barW / 2}
                   y={y - 6}
-                  fontSize={10}
+                  fontSize={11}
                   fill={colors.foreground}
                   textAnchor="middle"
                   fontWeight="700"
                 >
-                  {d.value >= 1000 ? `$${(d.value / 1000).toFixed(1)}k` : `$${d.value}`}
+                  {formatCurrency(d.value)}
                 </SvgText>
               )}
             </G>
@@ -105,20 +140,23 @@ interface LineChartProps {
   color?: string;
 }
 
-export function MiniLineChart({ data, height = 140, width: chartW = 280, title, color }: LineChartProps) {
+export function MiniLineChart({ data, height = 160, width: chartW = 280, title, color }: LineChartProps) {
   const colors = useColors();
   if (data.length < 2) return null;
 
-  const chartH = height - 30;
-  const maxVal = Math.max(...data.map((d) => d.value), 1);
+  const leftPad = 44;
+  const bottomPad = 28;
+  const topPad = 16;
+  const chartH = height - bottomPad - topPad;
+  const rawMax = Math.max(...data.map((d) => d.value), 1);
+  const gridMax = niceGridMax(rawMax);
   const lineColor = color || colors.primary;
-  const padding = 14;
-  const usableW = chartW - padding * 2;
+  const usableW = chartW - leftPad - 14;
   const stepX = usableW / (data.length - 1);
 
   const points = data.map((d, i) => ({
-    x: padding + i * stepX,
-    y: chartH - (d.value / maxVal) * (chartH - 20) + 5,
+    x: leftPad + 7 + i * stepX,
+    y: topPad + chartH - (d.value / gridMax) * chartH,
   }));
 
   // Build smooth bezier path
@@ -132,7 +170,10 @@ export function MiniLineChart({ data, height = 140, width: chartW = 280, title, 
   }
 
   // Area fill path
-  const areaD = pathD + ` L ${points[points.length - 1].x} ${chartH} L ${points[0].x} ${chartH} Z`;
+  const areaD = pathD + ` L ${points[points.length - 1].x} ${topPad + chartH} L ${points[0].x} ${topPad + chartH} Z`;
+
+  // Grid lines
+  const gridLines = [0, 0.5, 1];
 
   return (
     <View style={styles.chartContainer}>
@@ -144,19 +185,33 @@ export function MiniLineChart({ data, height = 140, width: chartW = 280, title, 
             <Stop offset="1" stopColor={lineColor} stopOpacity="0.02" />
           </LinearGradient>
         </Defs>
-        {/* Grid lines */}
-        {[0, 0.5, 1].map((pct) => (
-          <Line
-            key={pct}
-            x1={0}
-            y1={chartH * (1 - pct) + 5}
-            x2={chartW}
-            y2={chartH * (1 - pct) + 5}
-            stroke={colors.border}
-            strokeWidth={0.5}
-            strokeDasharray="4,4"
-          />
-        ))}
+        {/* Grid lines with Y-axis labels */}
+        {gridLines.map((pct) => {
+          const y = topPad + chartH * (1 - pct);
+          const val = Math.round(gridMax * pct);
+          return (
+            <G key={pct}>
+              <Line
+                x1={leftPad}
+                y1={y}
+                x2={chartW}
+                y2={y}
+                stroke={colors.border}
+                strokeWidth={0.5}
+                strokeDasharray="4,4"
+              />
+              <SvgText
+                x={leftPad - 6}
+                y={y + 4}
+                fontSize={10}
+                fill={colors.muted}
+                textAnchor="end"
+              >
+                {formatCurrency(val)}
+              </SvgText>
+            </G>
+          );
+        })}
         {/* Area fill with gradient */}
         <Path d={areaD} fill="url(#areaGrad)" />
         {/* Line */}
@@ -168,12 +223,12 @@ export function MiniLineChart({ data, height = 140, width: chartW = 280, title, 
             <Circle cx={p.x} cy={p.y} r={2} fill="#fff" />
           </G>
         ))}
-        {/* Labels */}
+        {/* X-axis Labels */}
         {data.map((d, i) => (
           <SvgText
             key={i}
             x={points[i].x}
-            y={height - 4}
+            y={height - 6}
             fontSize={10}
             fill={colors.muted}
             textAnchor="middle"

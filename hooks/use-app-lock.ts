@@ -4,23 +4,37 @@ import * as LocalAuthentication from "expo-local-authentication";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const BIOMETRIC_ENABLED_KEY = "@bookease_biometric_enabled";
+/** Minimum time in background (ms) before re-locking on foreground */
+const BACKGROUND_LOCK_THRESHOLD = 2000;
 
 /**
  * Hook that manages app lock with biometric authentication.
  * When enabled, prompts Face ID / fingerprint when the app returns from background.
- * The lock triggers immediately when the app comes back to foreground.
  */
 export function useAppLock() {
   const [isLocked, setIsLocked] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricType, setBiometricType] = useState<"face" | "fingerprint" | "none">("none");
-  const appStateRef = useRef(AppState.currentState);
-  const hasCheckedInitial = useRef(false);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
 
-  // Check biometric hardware availability
+  const appStateRef = useRef(AppState.currentState);
+  const hasRunInitialAuth = useRef(false);
+  const biometricEnabledRef = useRef(false);
+  const isAuthenticating = useRef(false);
+  const backgroundTimestamp = useRef<number>(0);
+
+  // Keep ref in sync with state
   useEffect(() => {
-    if (Platform.OS === "web") return;
+    biometricEnabledRef.current = biometricEnabled;
+  }, [biometricEnabled]);
+
+  // Check biometric hardware availability AND load saved preference
+  useEffect(() => {
+    if (Platform.OS === "web") {
+      setSettingsLoaded(true);
+      return;
+    }
 
     (async () => {
       try {
@@ -39,11 +53,16 @@ export function useAppLock() {
 
         // Load saved preference
         const saved = await AsyncStorage.getItem(BIOMETRIC_ENABLED_KEY);
-        if (saved === "true") {
+        if (saved === "true" && hasHardware && isEnrolled) {
           setBiometricEnabled(true);
+          biometricEnabledRef.current = true;
+          // Set locked immediately so the lock screen shows before auth prompt
+          setIsLocked(true);
         }
       } catch (err) {
         console.warn("[AppLock] Error checking biometrics:", err);
+      } finally {
+        setSettingsLoaded(true);
       }
     })();
   }, []);
@@ -51,6 +70,10 @@ export function useAppLock() {
   // Authenticate with biometrics
   const authenticate = useCallback(async (): Promise<boolean> => {
     if (Platform.OS === "web") return true;
+
+    // Prevent concurrent auth prompts
+    if (isAuthenticating.current) return false;
+    isAuthenticating.current = true;
 
     try {
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
@@ -79,15 +102,13 @@ export function useAppLock() {
         return true;
       }
 
-      if (result.error === "user_cancel") {
-        // User cancelled — keep locked
-        return false;
-      }
-
+      // User cancelled or failed — keep locked, they can tap "Unlock" button to retry
       return false;
     } catch (err) {
       console.warn("[AppLock] Authentication error:", err);
       return false;
+    } finally {
+      isAuthenticating.current = false;
     }
   }, [biometricType]);
 
@@ -99,12 +120,14 @@ export function useAppLock() {
         const success = await authenticate();
         if (success) {
           setBiometricEnabled(true);
+          biometricEnabledRef.current = true;
           await AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, "true");
           return true;
         }
         return false;
       } else {
         setBiometricEnabled(false);
+        biometricEnabledRef.current = false;
         await AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, "false");
         setIsLocked(false);
         return true;
@@ -113,46 +136,56 @@ export function useAppLock() {
     [authenticate]
   );
 
+  // Initial authentication on first mount AFTER settings are loaded
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    if (!settingsLoaded) return;
+    if (!biometricEnabled) return;
+    if (hasRunInitialAuth.current) return;
+    hasRunInitialAuth.current = true;
+
+    // isLocked was already set to true during load, now prompt
+    const timer = setTimeout(async () => {
+      await authenticate();
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [settingsLoaded, biometricEnabled, authenticate]);
+
   // Listen for app state changes to lock/unlock
   useEffect(() => {
-    if (Platform.OS === "web" || !biometricEnabled) return;
+    if (Platform.OS === "web") return;
 
     const subscription = AppState.addEventListener("change", async (nextState) => {
       const prevState = appStateRef.current;
       appStateRef.current = nextState;
 
+      // Track when we go to background
+      if (nextState === "background" || nextState === "inactive") {
+        backgroundTimestamp.current = Date.now();
+        return;
+      }
+
       // App came to foreground from background/inactive
       if (
         (prevState === "background" || prevState === "inactive") &&
-        nextState === "active"
+        nextState === "active" &&
+        biometricEnabledRef.current
       ) {
-        setIsLocked(true);
-        // Small delay to let the app fully render before showing biometric prompt
-        setTimeout(async () => {
-          const success = await authenticate();
-          if (!success) {
-            setIsLocked(true);
-          }
-        }, 300);
+        // Only lock if we were in background long enough
+        const elapsed = Date.now() - backgroundTimestamp.current;
+        if (elapsed >= BACKGROUND_LOCK_THRESHOLD) {
+          setIsLocked(true);
+          // Small delay to let the app fully render before showing biometric prompt
+          setTimeout(async () => {
+            await authenticate();
+          }, 500);
+        }
       }
     });
 
     return () => subscription.remove();
-  }, [biometricEnabled, authenticate]);
-
-  // Initial authentication on first mount if biometric is enabled
-  useEffect(() => {
-    if (Platform.OS === "web" || !biometricEnabled || hasCheckedInitial.current) return;
-    hasCheckedInitial.current = true;
-
-    (async () => {
-      setIsLocked(true);
-      const success = await authenticate();
-      if (!success) {
-        setIsLocked(true);
-      }
-    })();
-  }, [biometricEnabled, authenticate]);
+  }, [authenticate]);
 
   return {
     isLocked,

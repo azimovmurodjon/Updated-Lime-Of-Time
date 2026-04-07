@@ -199,7 +199,7 @@ export default function HomeScreen() {
 
   const handleShareBookingLink = useCallback(async () => {
     const slug = state.settings.businessName.replace(/\s+/g, "-").toLowerCase();
-    const url = `${PUBLIC_BOOKING_URL}/book/${slug}`;  // Cloudflare redirect adds /api prefix
+    const url = `${PUBLIC_BOOKING_URL}/api/book/${slug}`;
     const profile = state.settings.profile;
     const addressLine = profile.address ? `\n📍 ${profile.address}` : "";
     const phoneLine = profile.phone ? `\n📞 ${profile.phone}` : "";
@@ -511,7 +511,7 @@ export default function HomeScreen() {
               Last 6 months
             </Text>
           </View>
-          <MiniBarChart data={analytics.monthlyData} height={160} width={contentWidth - 32} />
+          <MiniBarChart data={analytics.monthlyData} height={200} width={contentWidth - 32} />
         </View>
 
         {/* ─── Service Breakdown + Status (side by side) ──────── */}

@@ -139,3 +139,8 @@
 - [x] Issue 8: Enhance splash screen with app logo for polished first impression
 - [x] Issue 9: Improve Home Page UI — modernize charts with better graph presentation and readability
 - [x] Issue 10: Validate all outgoing/shared links (lime-of-time.com/book, /gift, /review) route correctly every time
+- [x] Fix Face ID functionality not working properly
+- [x] Fix header overlap/layout on modal pages (Edit Service shows Chrome/back button overlapping title, Save button cut off)
+- [x] Fix revenue trend chart not showing money numbers
+- [x] Fix Discounts and Gifts not showing data until switching pages and coming back to dashboard
+- [x] Fix URL/link routing issue for lime-of-time.com

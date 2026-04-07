@@ -718,16 +718,16 @@ describe("Public Booking URL", () => {
     const PUBLIC_BOOKING_URL = "https://lime-of-time.com";
     const businessName = "My Salon";
     const slug = businessName.toLowerCase().replace(/\s+/g, "-");
-    const link = `${PUBLIC_BOOKING_URL}/book/${slug}`;
-    expect(link).toBe("https://lime-of-time.com/book/my-salon");
+    const link = `${PUBLIC_BOOKING_URL}/api/book/${slug}`;
+    expect(link).toBe("https://lime-of-time.com/api/book/my-salon");
   });
 
   it("should generate correct review link with slug", () => {
     const PUBLIC_BOOKING_URL = "https://lime-of-time.com";
     const businessName = "My Salon";
     const slug = businessName.toLowerCase().replace(/\s+/g, "-");
-    const link = `${PUBLIC_BOOKING_URL}/review/${slug}`;
-    expect(link).toBe("https://lime-of-time.com/review/my-salon");
+    const link = `${PUBLIC_BOOKING_URL}/api/review/${slug}`;
+    expect(link).toBe("https://lime-of-time.com/api/review/my-salon");
   });
 });
 

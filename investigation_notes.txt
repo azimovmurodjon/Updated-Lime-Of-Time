@@ -1,44 +1,21 @@
-Investigation Notes for 10 Issues
-==================================
+INVESTIGATION NOTES - Current Batch of Issues (Round 2)
 
-Issue 3: Pages only function after opening Client Info
-ROOT CAUSE: The bootstrap in store.tsx loads data from DB on mount. If the DB fetch fails or is slow,
-the AsyncStorage fallback may not include discounts/giftCards/customSchedule (only services, clients,
-appointments, reviews, settings are persisted to AsyncStorage). The discounts and giftCards are loaded
-from DB but NOT persisted to AsyncStorage cache. So if DB fetch fails on cold start, those are empty.
-Also, the AsyncStorage fallback doesn't load discounts, giftCards, or customSchedule at all.
-FIX: Persist discounts, giftCards, customSchedule to AsyncStorage as well. Also ensure the bootstrap
-always dispatches LOAD_DATA even on partial failure.
+1. HEADER OVERLAP ON MODAL PAGES (Edit Service screenshot)
+   - Status bar text overlaps with custom header on iOS
+   - Fix: Add more top padding to header rows on modal screens
 
-Issue 4: System theme synchronization
-ROOT CAUSE: ThemeProvider uses useSystemColorScheme() only for initial value. It never listens for
-system theme changes. Also, settings.tsx setThemeMode forces "system" to "light" explicitly:
-  setThemeOverride(mode === "system" ? "light" : mode)
-FIX: Add Appearance.addChangeListener in ThemeProvider. When themeMode is "system", follow system changes.
-Connect ThemeProvider to store's themeMode setting.
+2. FACE ID NOT WORKING
+   - Initial auth effect may run before biometricEnabled loads from AsyncStorage
+   - Fix: Add dependency on loaded state, ensure auth runs after settings load
 
-Issue 5 & 10: Link reliability / outgoing link validation
-ROOT CAUSE: The shared links use lime-of-time.com/book/slug but the Cloudflare redirect needs to add /api.
-The booking link in index.tsx uses PUBLIC_BOOKING_URL + /book/slug (no /api prefix).
-The review links in types.ts already use /api/review/slug.
-The gift card links in gift-cards.tsx already use /api/gift/code.
-INCONSISTENCY: index.tsx shareBookingLink uses /book/ (no /api), but review/gift already have /api.
-FIX: Either update Cloudflare to add /api prefix (already discussed with user), OR change the booking
-link to also include /api. Best approach: update Cloudflare redirect to add /api prefix, and keep
-the user-facing URLs clean (lime-of-time.com/book/slug).
+3. REVENUE CHART NOT SHOWING MONEY NUMBERS
+   - Value text y position may go above SVG viewport when bars are tall
+   - Fix: Clamp y position, increase chart height
 
-Issue 6 & 7: Face ID login and logout/re-auth
-ROOT CAUSE: No biometric auth exists. use-auth.ts has no Face ID. Settings logout just clears
-AsyncStorage and routes to onboarding. No AppState listener for background->foreground re-auth.
-FIX: Install expo-local-authentication, add config plugin, create useAppLock hook with AppState
-listener, add biometric prompt on app resume, integrate with settings logout flow.
+4. DISCOUNTS AND GIFTS NOT SHOWING DATA UNTIL PAGE SWITCH
+   - Data loads from DB but screens may not re-render properly
+   - Fix: Ensure proper state dependency in screens
 
-Issue 1 & 2: Responsive layout
-ROOT CAUSE: Various screens use useWindowDimensions for spacing but may not recalculate properly
-after app close/reopen. Need to audit all screens for consistent responsive patterns.
-
-Issue 8: Splash screen
-ROOT CAUSE: Already configured in app.config.ts with splash-icon.png. May need enhancement.
-
-Issue 9: Home page UI/charts
-ROOT CAUSE: Charts are simple View-based implementations. Need visual polish.
+5. URL/LINK ROUTING
+   - Cloudflare needs /api prefix in redirect expression
+   - Fix: Update Cloudflare expression and provide clear instructions

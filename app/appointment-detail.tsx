@@ -172,7 +172,7 @@ export default function AppointmentDetailScreen() {
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} className="p-5">
       {/* Header */}
-      <View className="flex-row items-center mb-6">
+      <View className="flex-row items-center mb-6" style={{ paddingTop: 8 }}>
         <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
           <IconSymbol name="arrow.left" size={24} color={colors.foreground} />
         </Pressable>
