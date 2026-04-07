@@ -185,6 +185,8 @@ export default function PublicBookingScreen() {
       status: "pending",
       notes: notes.trim(),
       createdAt: new Date().toISOString(),
+      totalPrice: priceInfo.final,
+      giftApplied: priceInfo.isGift,
     };
     dispatch({ type: "ADD_APPOINTMENT", payload: appointment });
     syncToDb({ type: "ADD_APPOINTMENT", payload: appointment });
@@ -197,7 +199,7 @@ export default function PublicBookingScreen() {
     }
 
     setStep("done");
-  }, [selectedServiceId, selectedTime, clientName, clientPhone, clientEmail, notes, selectedDate, selectedService, state, dispatch, appliedGiftCard, syncToDb]);
+  }, [selectedServiceId, selectedTime, clientName, clientPhone, clientEmail, notes, selectedDate, selectedService, state, dispatch, appliedGiftCard, syncToDb, priceInfo]);
 
   const openMap = useCallback(() => {
     if (profile.address) {

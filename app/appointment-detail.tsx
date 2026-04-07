@@ -197,31 +197,42 @@ export default function AppointmentDetailScreen() {
         </View>
 
         {/* Itemized Charges */}
-        <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
-          <Text className="text-xs text-muted mb-2">Charges</Text>
-          <View className="flex-row justify-between py-1">
-            <Text className="text-sm text-foreground">{service ? getServiceDisplayName(service) : "Service"}</Text>
-            <Text className="text-sm font-semibold text-foreground">${(service?.price ?? 0).toFixed(2)}</Text>
-          </View>
-          {(appointment.extraItems ?? []).map((item, idx) => (
-            <View key={idx} className="flex-row justify-between py-1">
-              <Text className="text-sm text-foreground">{item.name} ({item.type === "product" ? "Product" : "Service"})</Text>
-              <Text className="text-sm font-semibold text-foreground">${item.price.toFixed(2)}</Text>
+        {(() => {
+          const svcPrice = service?.price ?? 0;
+          const extras = appointment.extraItems ?? [];
+          const extrasTotal = extras.reduce((s, e) => s + (e.price || 0), 0);
+          const giftDeduction = appointment.giftApplied ? svcPrice : 0;
+          const computedTotal = appointment.totalPrice != null
+            ? appointment.totalPrice
+            : svcPrice + extrasTotal - giftDeduction;
+          return (
+            <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
+              <Text className="text-xs text-muted mb-2">Charges</Text>
+              <View className="flex-row justify-between py-1">
+                <Text className="text-sm text-foreground">{service ? getServiceDisplayName(service) : "Service"}</Text>
+                <Text className="text-sm font-semibold text-foreground">${svcPrice.toFixed(2)}</Text>
+              </View>
+              {extras.map((item, idx) => (
+                <View key={idx} className="flex-row justify-between py-1">
+                  <Text className="text-sm text-foreground">{item.name} ({item.type === "product" ? "Product" : "Service"})</Text>
+                  <Text className="text-sm font-semibold text-foreground">${(item.price || 0).toFixed(2)}</Text>
+                </View>
+              ))}
+              {appointment.giftApplied && (
+                <View className="flex-row justify-between py-1">
+                  <Text className="text-sm" style={{ color: colors.success }}>Gift Card Applied</Text>
+                  <Text className="text-sm font-semibold" style={{ color: colors.success }}>-${giftDeduction.toFixed(2)}</Text>
+                </View>
+              )}
+              <View style={{ borderTopWidth: 1, borderTopColor: colors.border, marginTop: 6, paddingTop: 6 }} className="flex-row justify-between">
+                <Text className="text-sm font-bold text-foreground">Total Charged</Text>
+                <Text className="text-sm font-bold" style={{ color: colors.primary }}>
+                  ${computedTotal.toFixed(2)}
+                </Text>
+              </View>
             </View>
-          ))}
-          {appointment.giftApplied && (
-            <View className="flex-row justify-between py-1">
-              <Text className="text-sm" style={{ color: colors.success }}>Gift Card Applied</Text>
-              <Text className="text-sm font-semibold" style={{ color: colors.success }}>-${(service?.price ?? 0).toFixed(2)}</Text>
-            </View>
-          )}
-          <View style={{ borderTopWidth: 1, borderTopColor: colors.border, marginTop: 6, paddingTop: 6 }} className="flex-row justify-between">
-            <Text className="text-sm font-bold text-foreground">Total</Text>
-            <Text className="text-sm font-bold" style={{ color: colors.primary }}>
-              ${(appointment.totalPrice != null ? appointment.totalPrice : (service?.price ?? 0)).toFixed(2)}
-            </Text>
-          </View>
-        </View>
+          );
+        })()}
 
         {/* Status */}
         <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">

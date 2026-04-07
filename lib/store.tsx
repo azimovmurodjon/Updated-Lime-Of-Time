@@ -265,6 +265,63 @@ function dbClientToLocal(c: any): Client {
 }
 
 function dbAppointmentToLocal(a: any): Appointment {
+  const notes = a.notes ?? "";
+  // Parse pricing info from enriched notes ("--- Pricing ---" block)
+  let totalPrice: number | undefined;
+  let extraItems: { type: "service" | "product"; id: string; name: string; price: number; duration: number }[] | undefined;
+  let giftApplied: boolean | undefined;
+  let cleanNotes = notes;
+
+  const pricingIdx = notes.indexOf("--- Pricing ---");
+  if (pricingIdx >= 0) {
+    const pricingBlock = notes.slice(pricingIdx + "--- Pricing ---".length).trim();
+    cleanNotes = notes.slice(0, pricingIdx).trim();
+    // Also strip "Additional items:" line from clean notes
+    cleanNotes = cleanNotes.replace(/\nAdditional items:.*$/m, "").trim();
+
+    const lines = pricingBlock.split("\n").map((l: string) => l.trim()).filter(Boolean);
+    const extras: { type: "service" | "product"; id: string; name: string; price: number; duration: number }[] = [];
+    for (const line of lines) {
+      const totalMatch = line.match(/^Total Charged:\s*\$([\d.]+)/);
+      if (totalMatch) {
+        totalPrice = parseFloat(totalMatch[1]);
+        continue;
+      }
+      const giftMatch = line.match(/^Gift Card:\s*-\$/);
+      if (giftMatch) {
+        giftApplied = true;
+        continue;
+      }
+      const extraMatch = line.match(/^(Product|Extra|Service):\s*(.+?)\s*\u2014\s*\$([\d.]+)/);
+      if (extraMatch) {
+        extras.push({
+          type: extraMatch[1] === "Product" ? "product" : "service",
+          id: "",
+          name: extraMatch[2],
+          price: parseFloat(extraMatch[3]),
+          duration: 0,
+        });
+      }
+    }
+    if (extras.length > 0) extraItems = extras;
+  } else {
+    // Try to parse "Additional items:" from notes for older bookings
+    const addlMatch = notes.match(/Additional items:\s*(.+)/);
+    if (addlMatch) {
+      const itemsStr = addlMatch[1];
+      const items = itemsStr.split(",").map((s: string) => s.trim());
+      const extras: { type: "service" | "product"; id: string; name: string; price: number; duration: number }[] = [];
+      for (const item of items) {
+        const m = item.match(/^(.+?)\s*\(\$([\d.]+)\)$/);
+        if (m) {
+          extras.push({ type: "service", id: "", name: m[1].trim(), price: parseFloat(m[2]), duration: 0 });
+        }
+      }
+      if (extras.length > 0) extraItems = extras;
+      cleanNotes = notes.replace(/\nAdditional items:.*$/m, "").trim();
+    }
+  }
+
   return {
     id: a.localId,
     serviceId: a.serviceLocalId,
@@ -273,8 +330,11 @@ function dbAppointmentToLocal(a: any): Appointment {
     time: a.time,
     duration: a.duration,
     status: a.status as AppointmentStatus,
-    notes: a.notes ?? "",
+    notes: cleanNotes,
     createdAt: a.createdAt ? new Date(a.createdAt).toISOString() : new Date().toISOString(),
+    totalPrice,
+    extraItems,
+    giftApplied,
   };
 }
 
@@ -613,6 +673,25 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           }
           case "ADD_APPOINTMENT": {
             const appt = action.payload as Appointment;
+            // Enrich notes with pricing info for DB persistence
+            let enrichedNotes = appt.notes || "";
+            const svc = state.services.find(s => s.id === appt.serviceId);
+            const svcPrice = svc?.price ?? 0;
+            const extras = appt.extraItems ?? [];
+            if (extras.length > 0 || appt.giftApplied) {
+              const pricingLines: string[] = [];
+              pricingLines.push(`Service: ${svc?.name ?? "Service"} \u2014 $${svcPrice.toFixed(2)}`);
+              extras.forEach(e => {
+                pricingLines.push(`${e.type === "product" ? "Product" : "Extra"}: ${e.name} \u2014 $${(e.price || 0).toFixed(2)}`);
+              });
+              if (appt.giftApplied) {
+                pricingLines.push(`Gift Card: -$${svcPrice.toFixed(2)}`);
+              }
+              pricingLines.push(`Total Charged: $${(appt.totalPrice ?? svcPrice).toFixed(2)}`);
+              enrichedNotes = (enrichedNotes ? enrichedNotes + "\n" : "") + "--- Pricing ---\n" + pricingLines.join("\n");
+            } else if (appt.totalPrice != null && appt.totalPrice !== svcPrice) {
+              enrichedNotes = (enrichedNotes ? enrichedNotes + "\n" : "") + `--- Pricing ---\nService: ${svc?.name ?? "Service"} \u2014 $${svcPrice.toFixed(2)}\nTotal Charged: $${appt.totalPrice.toFixed(2)}`;
+            }
             await createApptMut.mutateAsync({
               businessOwnerId: ownerId,
               localId: appt.id,
@@ -622,7 +701,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               time: appt.time,
               duration: appt.duration,
               status: appt.status,
-              notes: appt.notes || undefined,
+              notes: enrichedNotes || undefined,
             });
             break;
           }

@@ -956,11 +956,11 @@ describe("Professional Message Generators", () => {
     expect(msg).toContain("(412) 555-1234");
   });
 
-  it("should generate accept message with map link", () => {
+  it("should generate accept message with location", () => {
     const msg = generateAcceptMessage(bizName, address, clientName, serviceName, duration, date, time, phone);
     expect(msg).toContain("accepted");
-    expect(msg).toContain("maps.google.com");
     expect(msg).toContain("4661 McKnight Road");
+    expect(msg).not.toContain("Map:");
   });
 
   it("should generate reject message", () => {
@@ -983,10 +983,11 @@ describe("Professional Message Generators", () => {
     expect(msg).not.toContain("Cancellation Fee");
   });
 
-  it("should generate reminder message with map link", () => {
+  it("should generate reminder message with location", () => {
     const msg = generateReminderMessage(bizName, address, clientName, serviceName, duration, date, time, phone);
     expect(msg).toContain("reminder");
-    expect(msg).toContain("maps.google.com");
+    expect(msg).toContain("4661 McKnight Road");
+    expect(msg).not.toContain("Map:");
     expect(msg).toContain("10:30 AM");
   });
 });

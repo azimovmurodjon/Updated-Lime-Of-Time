@@ -187,3 +187,6 @@
 - [x] Gift link page: add Copy button for gift code string to paste in booking page gift field
 - [x] Gift link: auto-fill gift code when client clicks shared link (pre-populate gift field on booking page)
 - [x] Push notifications: send real-time notification to business owner phone when client submits appointment request
+- [x] Remove "Map:" line from SMS acceptance message (keep Location line, remove raw URL)
+- [x] Fix charges calculation: appointment detail should show full total (service + extras + products - gift - discount), not just base service price
+- [x] Ensure income/revenue analytics reflect full charged amount including extras, gift deductions, and discounts across entire app
