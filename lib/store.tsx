@@ -885,6 +885,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const weekCount = weekAppts.length;
     const weekRevenue = weekAppts.reduce((sum, a) => {
+      if (a.totalPrice != null) return sum + a.totalPrice;
       const svc = state.services.find((s) => s.id === a.serviceId);
       return sum + (svc?.price ?? 0);
     }, 0);

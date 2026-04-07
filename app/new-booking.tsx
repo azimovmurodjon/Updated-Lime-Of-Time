@@ -174,6 +174,8 @@ export default function NewBookingScreen() {
       status: "confirmed",
       notes: bookNotes,
       createdAt: new Date().toISOString(),
+      totalPrice,
+      extraItems: cart.length > 0 ? cart.map((c) => ({ type: c.type, id: c.id, name: c.name, price: c.price, duration: c.duration })) : undefined,
     };
     dispatch({ type: "ADD_APPOINTMENT", payload: appointment });
     syncToDb({ type: "ADD_APPOINTMENT", payload: appointment });

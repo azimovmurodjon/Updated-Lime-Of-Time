@@ -1,5 +1,6 @@
 import { Express, Request, Response } from "express";
 import * as db from "./db";
+import { notifyOwner } from "./_core/notification";
 
 // ─── Helper: Generate available time slots ──────────────────────────
 const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -329,7 +330,7 @@ export function registerPublicRoutes(app: Express) {
         return;
       }
 
-      const { clientName, clientPhone, clientEmail, serviceLocalId, date, time, duration, notes, giftCode } = req.body;
+      const { clientName, clientPhone, clientEmail, serviceLocalId, date, time, duration, notes, giftCode, totalPrice, extraItems, giftApplied } = req.body;
 
       if (!clientName || !serviceLocalId || !date || !time) {
         res.status(400).json({ error: "Missing required fields: clientName, serviceLocalId, date, time" });
@@ -385,6 +386,26 @@ export function registerPublicRoutes(app: Express) {
         return;
       }
 
+      // Build enriched notes with pricing details
+      let enrichedNotes = notes || "";
+      const svcPrice = svc ? parseFloat(String(svc.price)) : 0;
+      const extras: { name: string; price: number; type: string }[] = Array.isArray(extraItems) ? extraItems : [];
+      const extrasTotal = extras.reduce((s: number, e: { price: number }) => s + (e.price || 0), 0);
+      const finalTotal = totalPrice != null ? parseFloat(String(totalPrice)) : svcPrice + extrasTotal;
+
+      if (extras.length > 0 || giftApplied) {
+        const pricingLines: string[] = [];
+        pricingLines.push(`Service: ${svc?.name ?? "Service"} — $${svcPrice.toFixed(2)}`);
+        extras.forEach((e: { name: string; price: number; type: string }) => {
+          pricingLines.push(`${e.type === "product" ? "Product" : "Extra"}: ${e.name} — $${(e.price || 0).toFixed(2)}`);
+        });
+        if (giftApplied) {
+          pricingLines.push(`Gift Card: -$${svcPrice.toFixed(2)}`);
+        }
+        pricingLines.push(`Total Charged: $${finalTotal.toFixed(2)}`);
+        enrichedNotes = (enrichedNotes ? enrichedNotes + "\n" : "") + "--- Pricing ---\n" + pricingLines.join("\n");
+      }
+
       // Create appointment
       const appointmentLocalId = `web-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       await db.createAppointment({
@@ -396,7 +417,7 @@ export function registerPublicRoutes(app: Express) {
         time,
         duration: dur,
         status: "pending",
-        notes: notes || null,
+        notes: enrichedNotes || null,
       });
 
       // Redeem gift card if provided
@@ -408,6 +429,18 @@ export function registerPublicRoutes(app: Express) {
             redeemedAt: new Date(),
           });
         }
+      }
+
+      // Send push notification to business owner
+      try {
+        const svcName = svc?.name ?? "Service";
+        await notifyOwner({
+          title: `New Booking Request`,
+          content: `${clientName} requested ${svcName} on ${date} at ${time}. Please review and confirm.`,
+        });
+      } catch (notifErr) {
+        console.warn("[Public API] Failed to send booking notification:", notifErr);
+        // Don't fail the booking if notification fails
       }
 
       res.json({
@@ -1392,6 +1425,16 @@ function bookingPage(slug: string, owner: any): string {
       return total;
     }
 
+    function getChargedPrice() {
+      // If gift applied, only the base service is free; extras are still charged
+      let total = getTotalPrice();
+      if (appliedGift && selectedService) {
+        total -= parseFloat(selectedService.price);
+        if (total < 0) total = 0;
+      }
+      return total;
+    }
+
     // ── Confirmation (Step 4) ──
     function renderConfirmation() {
       const details = document.getElementById("confirmDetails");
@@ -1418,9 +1461,14 @@ function bookingPage(slug: string, owner: any): string {
       });
 
       let totalPrice = getTotalPrice();
+      let chargedPrice = getChargedPrice();
       let priceHtml = '$' + totalPrice.toFixed(2);
       if (appliedGift) {
-        priceHtml = '<span style="text-decoration:line-through;color:#999;">$' + totalPrice.toFixed(2) + '</span> <strong style="color:#2d5a27;">Gift Applied</strong>';
+        if (chargedPrice > 0) {
+          priceHtml = '<span style="text-decoration:line-through;color:#999;">$' + parseFloat(selectedService.price).toFixed(2) + '</span> <span style="color:#2d5a27;">Gift</span> + <strong>$' + chargedPrice.toFixed(2) + '</strong> extra';
+        } else {
+          priceHtml = '<span style="text-decoration:line-through;color:#999;">$' + totalPrice.toFixed(2) + '</span> <strong style="color:#2d5a27;">Gift Applied — Free!</strong>';
+        }
       }
 
       details.innerHTML = itemsHtml +
@@ -1447,6 +1495,8 @@ function bookingPage(slug: string, owner: any): string {
           notesText = (notesText ? notesText + String.fromCharCode(10) : '') + 'Additional items: ' + extras;
         }
 
+        const chargedPrice = getChargedPrice();
+        const extraItems = cart.map(c => ({ name: c.name, price: c.price, type: c.type }));
         const res = await fetch(API + "/book", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1460,6 +1510,9 @@ function bookingPage(slug: string, owner: any): string {
             duration: totalDur,
             notes: notesText,
             giftCode: appliedGift ? document.getElementById("giftCode").value.trim() : null,
+            totalPrice: chargedPrice,
+            extraItems: extraItems,
+            giftApplied: !!appliedGift,
           }),
         });
         const data = await res.json();
@@ -1521,9 +1574,14 @@ function bookingPage(slug: string, owner: any): string {
       html += '</div>';
 
       // Total
+      let chargedPriceR = getChargedPrice();
       let priceDisplay = '$' + totalPrice.toFixed(2);
       if (appliedGift) {
-        priceDisplay = '<span style="text-decoration:line-through;color:#999;">$' + totalPrice.toFixed(2) + '</span> <span style="color:#2d5a27;">Gift Applied</span>';
+        if (chargedPriceR > 0) {
+          priceDisplay = '<span style="text-decoration:line-through;color:#999;">$' + parseFloat(selectedService.price).toFixed(2) + '</span> Gift + <span style="font-weight:700;">$' + chargedPriceR.toFixed(2) + '</span>';
+        } else {
+          priceDisplay = '<span style="text-decoration:line-through;color:#999;">$' + totalPrice.toFixed(2) + '</span> <span style="color:#2d5a27;">Gift Applied</span>';
+        }
       }
       html += '<div style="border-top:2px solid #2d5a27;padding-top:10px;display:flex;justify-content:space-between;font-size:16px;font-weight:700;"><span>Total</span><span style="color:#2d5a27;">' + priceDisplay + '</span></div>';
 
@@ -1571,7 +1629,14 @@ function bookingPage(slug: string, owner: any): string {
       lines.push("TIME: " + timeStr + " - " + endStr);
       lines.push("DURATION: " + totalDur + " min");
       lines.push("-".repeat(35));
-      lines.push("TOTAL: $" + totalPrice.toFixed(2) + (appliedGift ? " (Gift Applied)" : ""));
+      const chargedPriceT = getChargedPrice();
+      if (appliedGift && chargedPriceT > 0) {
+        lines.push("TOTAL: $" + chargedPriceT.toFixed(2) + " (Gift covered $" + parseFloat(selectedService.price).toFixed(2) + ")");
+      } else if (appliedGift) {
+        lines.push("TOTAL: $0.00 (Gift Applied)");
+      } else {
+        lines.push("TOTAL: $" + totalPrice.toFixed(2));
+      }
       lines.push("");
       lines.push("Client: " + document.getElementById("clientName").value);
       const phone = document.getElementById("clientPhone").value;
@@ -1627,11 +1692,26 @@ function bookingPage(slug: string, owner: any): string {
     // Alias for backward compat
     const escHtml = esc;
 
+    // Auto-fill gift code from URL parameter (when coming from gift card page)
+    function autoFillGift() {
+      const params = new URLSearchParams(window.location.search);
+      const giftParam = params.get("gift");
+      if (giftParam) {
+        const giftInput = document.getElementById("giftCode");
+        if (giftInput) {
+          giftInput.value = giftParam;
+          // Auto-apply after services load
+          setTimeout(() => applyGiftCode(), 1500);
+        }
+      }
+    }
+
     // Init
     loadServices();
     loadProducts();
     loadDiscounts();
     loadWorkingDays();
+    autoFillGift();
   </script>
 </body>
 </html>`;
@@ -1821,7 +1901,10 @@ function giftCardPage(code: string): string {
       <div id="giftService" style="font-size:16px;font-weight:600;margin-bottom:4px;"></div>
       <div id="giftValue" style="font-size:24px;font-weight:700;color:#2d5a27;margin-bottom:12px;"></div>
       <div id="giftMessage" style="font-size:14px;color:#666;font-style:italic;margin-bottom:12px;padding:12px;background:#f8fbf8;border-radius:10px;display:none;"></div>
-      <div id="giftCode" style="font-size:18px;font-weight:700;letter-spacing:2px;color:#4a8c3f;background:#f0f7ef;padding:12px;border-radius:10px;margin-bottom:12px;"></div>
+      <div style="display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:12px;">
+        <div id="giftCodeDisplay" style="font-size:18px;font-weight:700;letter-spacing:2px;color:#4a8c3f;background:#f0f7ef;padding:12px;border-radius:10px;flex:1;"></div>
+        <button id="copyBtn" onclick="copyGiftCode()" style="background:#4a8c3f;color:#fff;border:none;border-radius:10px;padding:12px 16px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;">Copy</button>
+      </div>
       <div id="giftExpiry" style="font-size:12px;color:#888;margin-bottom:16px;"></div>
       <div id="giftStatus"></div>
       <a id="bookLink" class="btn btn-primary" style="display:none;text-decoration:none;margin-top:12px;">Book Now</a>
@@ -1850,7 +1933,7 @@ function giftCardPage(code: string): string {
         document.getElementById("giftBusiness").textContent = data.businessName;
         document.getElementById("giftService").textContent = data.serviceName + " (" + data.serviceDuration + " min)";
         document.getElementById("giftValue").textContent = "Value: $" + parseFloat(data.servicePrice).toFixed(2);
-        document.getElementById("giftCode").textContent = data.code;
+        document.getElementById("giftCodeDisplay").textContent = data.code;
 
         if (data.recipientName) {
           document.getElementById("giftRecipient").textContent = "For: " + data.recipientName;
@@ -1869,13 +1952,42 @@ function giftCardPage(code: string): string {
         } else {
           document.getElementById("giftStatus").innerHTML = '<div style="color:#2d5a27;font-weight:600;">✓ Valid — Ready to use!</div>';
           const link = document.getElementById("bookLink");
-          link.href = window.location.origin + "/api/book/" + data.businessSlug;
+          link.href = window.location.origin + "/api/book/" + data.businessSlug + "?gift=" + encodeURIComponent(data.code);
           link.style.display = "block";
         }
       } catch(e) {
         document.getElementById("loading").style.display = "none";
         document.getElementById("giftError").style.display = "block";
       }
+    }
+
+    function copyGiftCode() {
+      const code = document.getElementById("giftCodeDisplay").textContent;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(code).then(() => {
+          const btn = document.getElementById("copyBtn");
+          btn.textContent = "Copied!";
+          btn.style.background = "#2d5a27";
+          setTimeout(() => { btn.textContent = "Copy"; btn.style.background = "#4a8c3f"; }, 2000);
+        }).catch(() => fallbackCopy(code));
+      } else {
+        fallbackCopy(code);
+      }
+    }
+
+    function fallbackCopy(text) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      const btn = document.getElementById("copyBtn");
+      btn.textContent = "Copied!";
+      btn.style.background = "#2d5a27";
+      setTimeout(() => { btn.textContent = "Copy"; btn.style.background = "#4a8c3f"; }, 2000);
     }
 
     function escHtml(str) {

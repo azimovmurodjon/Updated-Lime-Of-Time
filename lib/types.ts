@@ -18,6 +18,14 @@ export interface Client {
 
 export type AppointmentStatus = "pending" | "confirmed" | "completed" | "cancelled";
 
+export interface AppointmentExtraItem {
+  type: "service" | "product";
+  id: string;
+  name: string;
+  price: number;
+  duration: number;
+}
+
 export interface Appointment {
   id: string;
   serviceId: string;
@@ -28,6 +36,12 @@ export interface Appointment {
   status: AppointmentStatus;
   notes: string;
   createdAt: string;
+  /** Total price including primary service + extra items. Falls back to service price if not set. */
+  totalPrice?: number;
+  /** Structured list of extra items (services/products) added to this appointment */
+  extraItems?: AppointmentExtraItem[];
+  /** Whether a gift card was applied to this appointment */
+  giftApplied?: boolean;
 }
 
 export interface Review {

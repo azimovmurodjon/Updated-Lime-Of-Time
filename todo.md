@@ -179,3 +179,11 @@
 - [x] Connect schedule mode to public booking page slot generation
 - [x] Fix loadWorkingDays JS function not setting global variables (workingDays/schedMode undefined)
 - [x] Fix working-days API returning all days false when business has weekly hours configured (case mismatch: DB stores lowercase day names, code checked capitalized names)
+- [x] Fix client booking page (public HTML) calendar not showing available days when Weekly Hours mode is selected (works in-app but not on web)
+- [x] Fix revenue calculation: extra items (multi-service/product bookings) not adding to total income and weekly income properly
+- [x] Fix business-side appointment detail: show full itemized charges (services, products, prices) not just in notes
+- [x] Fix Face ID: after initial enable, auto-login without re-asking every time user opens app (added toggle to Settings, cold-start-only prompt)
+- [x] Fix gift card: extra services added by client beyond the gift should be charged (gift only covers what was shared)
+- [x] Gift link page: add Copy button for gift code string to paste in booking page gift field
+- [x] Gift link: auto-fill gift code when client clicks shared link (pre-populate gift field on booking page)
+- [x] Push notifications: send real-time notification to business owner phone when client submits appointment request

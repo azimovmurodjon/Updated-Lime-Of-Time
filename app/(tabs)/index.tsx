@@ -82,6 +82,7 @@ export default function HomeScreen() {
     const totalAppointments = activeAppts.length;
     const completedAppts = state.appointments.filter((a) => a.status === "completed");
     const totalRevenue = completedAppts.reduce((sum, a) => {
+      if (a.totalPrice != null) return sum + a.totalPrice;
       const svc = state.services.find((s) => s.id === a.serviceId);
       return sum + (svc?.price ?? 0);
     }, 0);
@@ -96,6 +97,7 @@ export default function HomeScreen() {
       (a) => a.date >= weekStr && a.date <= endWeekStr
     );
     const weekRevenue = weekAppts.reduce((sum, a) => {
+      if (a.totalPrice != null) return sum + a.totalPrice;
       const svc = state.services.find((s) => s.id === a.serviceId);
       return sum + (svc?.price ?? 0);
     }, 0);
@@ -109,6 +111,7 @@ export default function HomeScreen() {
         a.date >= formatDateStr(prevWeekStart) && a.date <= formatDateStr(prevWeekEnd)
     );
     const prevWeekRevenue = prevWeekAppts.reduce((sum, a) => {
+      if (a.totalPrice != null) return sum + a.totalPrice;
       const svc = state.services.find((s) => s.id === a.serviceId);
       return sum + (svc?.price ?? 0);
     }, 0);
@@ -131,6 +134,7 @@ export default function HomeScreen() {
       const mRev = completedAppts
         .filter((a) => a.date >= mStart && a.date <= mEnd)
         .reduce((sum, a) => {
+          if (a.totalPrice != null) return sum + a.totalPrice;
           const svc = state.services.find((s) => s.id === a.serviceId);
           return sum + (svc?.price ?? 0);
         }, 0);
