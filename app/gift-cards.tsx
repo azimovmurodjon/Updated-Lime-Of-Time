@@ -89,6 +89,8 @@ export default function GiftCardsScreen() {
       serviceLocalId: selectedServiceIds[0] || "",
       serviceIds: selectedServiceIds,
       productIds: selectedProductIds,
+      originalValue: totalValue,
+      remainingBalance: totalValue,
       recipientName: recipientName.trim(),
       recipientPhone: recipientPhone.trim(),
       message: message.trim(),
@@ -268,15 +270,20 @@ export default function GiftCardsScreen() {
                   {it.type === "product" ? "📦 " : "✂️ "}{it.name} — {it.price}
                 </Text>
               ))}
-              {items.length > 1 && (
+              {total > 0 && (
                 <Text style={{ fontSize: 13, fontWeight: "700", color: colors.primary, marginTop: 4 }}>
-                  Total: ${total.toFixed(2)}
+                  Value: ${total.toFixed(2)}
+                </Text>
+              )}
+              {!item.redeemed && item.remainingBalance != null && item.remainingBalance < total && (
+                <Text style={{ fontSize: 13, fontWeight: "600", color: colors.success, marginTop: 2 }}>
+                  Balance: ${item.remainingBalance.toFixed(2)}
                 </Text>
               )}
             </View>
             <View style={[styles.badge, { backgroundColor: item.redeemed ? colors.success + "20" : isExpired ? colors.error + "20" : colors.primary + "20" }]}>
               <Text style={[styles.badgeText, { color: item.redeemed ? colors.success : isExpired ? colors.error : colors.primary }]}>
-                {item.redeemed ? "Redeemed" : isExpired ? "Expired" : "Active"}
+                {item.redeemed ? "Redeemed" : isExpired ? "Expired" : (item.remainingBalance != null && item.remainingBalance < (item.originalValue ?? total)) ? "Partially Used" : "Active"}
               </Text>
             </View>
           </View>

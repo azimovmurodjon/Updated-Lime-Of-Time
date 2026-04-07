@@ -73,6 +73,10 @@ export interface GiftCard {
   serviceLocalId: string; // primary service (backward compat)
   serviceIds?: string[]; // multiple services
   productIds?: string[]; // products included
+  /** Total monetary value of the gift card when created */
+  originalValue: number;
+  /** Remaining balance (decreases with each use, 0 = fully redeemed) */
+  remainingBalance: number;
   recipientName: string;
   recipientPhone: string;
   message: string;

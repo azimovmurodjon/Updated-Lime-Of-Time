@@ -190,3 +190,11 @@
 - [x] Remove "Map:" line from SMS acceptance message (keep Location line, remove raw URL)
 - [x] Fix charges calculation: appointment detail should show full total (service + extras + products - gift - discount), not just base service price
 - [x] Ensure income/revenue analytics reflect full charged amount including extras, gift deductions, and discounts across entire app
+- [x] Redesign gift card to support monetary balance (sum of selected services/products)
+- [x] Gift card creation: allow selecting multiple services and products
+- [x] Gift card balance tracking: deduct from balance on each use, allow reuse until balance is $0
+- [x] Client booking page: pre-select gifted services/products when gift code applied
+- [x] Client booking page: deduct gift balance from total, charge remainder
+- [x] In-app booking: support gift balance deduction and partial use
+- [x] Server-side: update gift balance after each booking use
+- [x] Appointment detail and analytics: show gift deduction correctly with balance-based gifts

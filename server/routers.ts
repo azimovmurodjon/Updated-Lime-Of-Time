@@ -391,6 +391,7 @@ const giftCardsRouter = router({
         businessOwnerId: z.number(),
         redeemed: z.boolean().optional(),
         redeemedAt: z.string().optional(),
+        message: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {

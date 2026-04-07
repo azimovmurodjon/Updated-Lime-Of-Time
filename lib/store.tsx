@@ -365,13 +365,34 @@ function dbDiscountToLocal(d: any): Discount {
 }
 
 function dbGiftCardToLocal(g: any): GiftCard {
+  // Parse extended data from message field (JSON block at end)
+  let serviceIds: string[] | undefined;
+  let productIds: string[] | undefined;
+  let originalValue = 0;
+  let remainingBalance = 0;
+  const msg = g.message ?? "";
+  const jsonMatch = msg.match(/\n---GIFT_DATA---\n(.+)$/s);
+  if (jsonMatch) {
+    try {
+      const data = JSON.parse(jsonMatch[1]);
+      serviceIds = data.serviceIds;
+      productIds = data.productIds;
+      originalValue = data.originalValue ?? 0;
+      remainingBalance = data.remainingBalance ?? originalValue;
+    } catch {}
+  }
+  const cleanMessage = msg.replace(/\n---GIFT_DATA---\n.+$/s, "");
   return {
     id: g.localId,
     code: g.code,
     serviceLocalId: g.serviceLocalId,
+    serviceIds,
+    productIds,
+    originalValue,
+    remainingBalance,
     recipientName: g.recipientName ?? "",
     recipientPhone: g.recipientPhone ?? "",
-    message: g.message ?? "",
+    message: cleanMessage,
     redeemed: g.redeemed ?? false,
     redeemedAt: g.redeemedAt ? new Date(g.redeemedAt).toISOString() : undefined,
     expiresAt: g.expiresAt ?? undefined,
@@ -820,6 +841,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           }
           case "ADD_GIFT_CARD": {
             const gc = action.payload as GiftCard;
+            // Encode extended data (serviceIds, productIds, balance) in message field
+            const giftDataBlock = `\n---GIFT_DATA---\n${JSON.stringify({
+              serviceIds: gc.serviceIds,
+              productIds: gc.productIds,
+              originalValue: gc.originalValue,
+              remainingBalance: gc.remainingBalance,
+            })}`;
+            const msgWithData = (gc.message || "") + giftDataBlock;
             await createGiftCardMut.mutateAsync({
               businessOwnerId: ownerId,
               localId: gc.id,
@@ -827,18 +856,27 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               serviceLocalId: gc.serviceLocalId,
               recipientName: gc.recipientName || undefined,
               recipientPhone: gc.recipientPhone || undefined,
-              message: gc.message || undefined,
+              message: msgWithData,
               expiresAt: gc.expiresAt || undefined,
             });
             break;
           }
           case "UPDATE_GIFT_CARD": {
             const gc = action.payload as GiftCard;
+            // Re-encode extended data in message field for balance updates
+            const updGiftDataBlock = `\n---GIFT_DATA---\n${JSON.stringify({
+              serviceIds: gc.serviceIds,
+              productIds: gc.productIds,
+              originalValue: gc.originalValue,
+              remainingBalance: gc.remainingBalance,
+            })}`;
+            const updMsgWithData = (gc.message || "") + updGiftDataBlock;
             await updateGiftCardMut.mutateAsync({
               localId: gc.id,
               businessOwnerId: ownerId,
               redeemed: gc.redeemed,
               redeemedAt: gc.redeemedAt,
+              message: updMsgWithData,
             });
             break;
           }

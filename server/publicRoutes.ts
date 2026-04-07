@@ -298,18 +298,64 @@ export function registerPublicRoutes(app: Express) {
       const card = cards[0];
       const owner = await db.getBusinessOwnerById(card.businessOwnerId);
       const svcList = await db.getServicesByOwner(card.businessOwnerId);
+      const prodList = await db.getProductsByOwner(card.businessOwnerId);
       const svc = svcList.find((s) => s.localId === card.serviceLocalId);
+
+      // Parse extended data from message field
+      let serviceIds: string[] = [];
+      let productIds: string[] = [];
+      let originalValue = 0;
+      let remainingBalance = 0;
+      const rawMsg = card.message ?? "";
+      const jsonMatch = rawMsg.match(/\n---GIFT_DATA---\n(.+)$/s);
+      if (jsonMatch) {
+        try {
+          const data = JSON.parse(jsonMatch[1]);
+          serviceIds = data.serviceIds ?? [];
+          productIds = data.productIds ?? [];
+          originalValue = data.originalValue ?? 0;
+          remainingBalance = data.remainingBalance ?? originalValue;
+        } catch {}
+      }
+      // If no extended data, fall back to single service
+      if (serviceIds.length === 0 && card.serviceLocalId) {
+        serviceIds = [card.serviceLocalId];
+        if (svc) {
+          originalValue = parseFloat(String(svc.price));
+          remainingBalance = card.redeemed ? 0 : originalValue;
+        }
+      }
+      const cleanMessage = rawMsg.replace(/\n---GIFT_DATA---\n.+$/s, "");
+
+      // Build items list for the client
+      const giftItems: { localId: string; name: string; price: number; type: string }[] = [];
+      for (const sid of serviceIds) {
+        const s = svcList.find((sv) => sv.localId === sid);
+        if (s) giftItems.push({ localId: s.localId, name: s.name, price: parseFloat(String(s.price)), type: "service" });
+      }
+      for (const pid of productIds) {
+        const p = prodList.find((pr) => pr.localId === pid);
+        if (p) giftItems.push({ localId: p.localId, name: p.name, price: parseFloat(String(p.price)), type: "product" });
+      }
+
       res.json({
         code: card.code,
         redeemed: card.redeemed,
         expiresAt: card.expiresAt,
         recipientName: card.recipientName,
-        message: card.message,
+        message: cleanMessage,
         serviceName: svc?.name || "Service",
         servicePrice: svc?.price || "0",
         serviceDuration: svc?.duration || 60,
+        serviceLocalId: card.serviceLocalId,
         businessName: owner?.businessName || "Business",
         businessSlug: owner?.businessName.toLowerCase().replace(/\s+/g, "-") || "",
+        // Balance-based gift card fields
+        originalValue,
+        remainingBalance,
+        serviceIds,
+        productIds,
+        items: giftItems,
       });
     } catch (err) {
       console.error("[Public API] Error fetching gift card:", err);
@@ -330,7 +376,7 @@ export function registerPublicRoutes(app: Express) {
         return;
       }
 
-      const { clientName, clientPhone, clientEmail, serviceLocalId, date, time, duration, notes, giftCode, totalPrice, extraItems, giftApplied } = req.body;
+      const { clientName, clientPhone, clientEmail, serviceLocalId, date, time, duration, notes, giftCode, totalPrice, extraItems, giftApplied, giftUsedAmount } = req.body;
 
       if (!clientName || !serviceLocalId || !date || !time) {
         res.status(400).json({ error: "Missing required fields: clientName, serviceLocalId, date, time" });
@@ -400,7 +446,8 @@ export function registerPublicRoutes(app: Express) {
           pricingLines.push(`${e.type === "product" ? "Product" : "Extra"}: ${e.name} — $${(e.price || 0).toFixed(2)}`);
         });
         if (giftApplied) {
-          pricingLines.push(`Gift Card: -$${svcPrice.toFixed(2)}`);
+          const giftAmt = giftUsedAmount ? parseFloat(String(giftUsedAmount)) : svcPrice;
+          pricingLines.push(`Gift Card: -$${giftAmt.toFixed(2)}`);
         }
         pricingLines.push(`Total Charged: $${finalTotal.toFixed(2)}`);
         enrichedNotes = (enrichedNotes ? enrichedNotes + "\n" : "") + "--- Pricing ---\n" + pricingLines.join("\n");
@@ -420,13 +467,23 @@ export function registerPublicRoutes(app: Express) {
         notes: enrichedNotes || null,
       });
 
-      // Redeem gift card if provided
+      // Deduct from gift card balance
       if (giftCode) {
         const card = await db.getGiftCardByCode(giftCode, owner.id);
-        if (card && !card.redeemed) {
+        if (card) {
+          // Parse existing balance from message JSON
+          let meta: any = {};
+          try { meta = JSON.parse(card.message || "{}"); } catch (_) {}
+          const svcPriceNum = svc ? parseFloat(String(svc.price)) : 0;
+          const currentBalance = meta.remainingBalance ?? meta.originalValue ?? svcPriceNum;
+          const usedAmt = giftUsedAmount ? parseFloat(String(giftUsedAmount)) : Math.min(currentBalance, svcPrice + extrasTotal);
+          const newBalance = Math.max(0, currentBalance - usedAmt);
+          const fullyRedeemed = newBalance <= 0;
+          meta.remainingBalance = newBalance;
           await db.updateGiftCard(card.localId, owner.id, {
-            redeemed: true,
-            redeemedAt: new Date(),
+            redeemed: fullyRedeemed,
+            redeemedAt: fullyRedeemed ? new Date() : undefined,
+            message: JSON.stringify(meta),
           });
         }
       }
@@ -1426,13 +1483,22 @@ function bookingPage(slug: string, owner: any): string {
     }
 
     function getChargedPrice() {
-      // If gift applied, only the base service is free; extras are still charged
+      // Gift card applies as a balance-based discount against the total
       let total = getTotalPrice();
-      if (appliedGift && selectedService) {
-        total -= parseFloat(selectedService.price);
+      if (appliedGift) {
+        const balance = appliedGift.remainingBalance || 0;
+        total -= balance;
         if (total < 0) total = 0;
       }
       return total;
+    }
+
+    function getGiftUsedAmount() {
+      // How much of the gift balance is being used for this booking
+      if (!appliedGift) return 0;
+      const total = getTotalPrice();
+      const balance = appliedGift.remainingBalance || 0;
+      return Math.min(balance, total);
     }
 
     // ── Confirmation (Step 4) ──
@@ -1462,10 +1528,11 @@ function bookingPage(slug: string, owner: any): string {
 
       let totalPrice = getTotalPrice();
       let chargedPrice = getChargedPrice();
+      let giftUsed = getGiftUsedAmount();
       let priceHtml = '$' + totalPrice.toFixed(2);
       if (appliedGift) {
         if (chargedPrice > 0) {
-          priceHtml = '<span style="text-decoration:line-through;color:#999;">$' + parseFloat(selectedService.price).toFixed(2) + '</span> <span style="color:#2d5a27;">Gift</span> + <strong>$' + chargedPrice.toFixed(2) + '</strong> extra';
+          priceHtml = '<span style="text-decoration:line-through;color:#999;">$' + totalPrice.toFixed(2) + '</span> <span style="color:#2d5a27;">Gift -$' + giftUsed.toFixed(2) + '</span> = <strong>$' + chargedPrice.toFixed(2) + '</strong>';
         } else {
           priceHtml = '<span style="text-decoration:line-through;color:#999;">$' + totalPrice.toFixed(2) + '</span> <strong style="color:#2d5a27;">Gift Applied — Free!</strong>';
         }
@@ -1513,6 +1580,7 @@ function bookingPage(slug: string, owner: any): string {
             totalPrice: chargedPrice,
             extraItems: extraItems,
             giftApplied: !!appliedGift,
+            giftUsedAmount: appliedGift ? getGiftUsedAmount() : 0,
           }),
         });
         const data = await res.json();
@@ -1575,10 +1643,11 @@ function bookingPage(slug: string, owner: any): string {
 
       // Total
       let chargedPriceR = getChargedPrice();
+      let giftUsedR = getGiftUsedAmount();
       let priceDisplay = '$' + totalPrice.toFixed(2);
       if (appliedGift) {
         if (chargedPriceR > 0) {
-          priceDisplay = '<span style="text-decoration:line-through;color:#999;">$' + parseFloat(selectedService.price).toFixed(2) + '</span> Gift + <span style="font-weight:700;">$' + chargedPriceR.toFixed(2) + '</span>';
+          priceDisplay = '<span style="text-decoration:line-through;color:#999;">$' + totalPrice.toFixed(2) + '</span> Gift -$' + giftUsedR.toFixed(2) + ' = <span style="font-weight:700;">$' + chargedPriceR.toFixed(2) + '</span>';
         } else {
           priceDisplay = '<span style="text-decoration:line-through;color:#999;">$' + totalPrice.toFixed(2) + '</span> <span style="color:#2d5a27;">Gift Applied</span>';
         }
@@ -1630,10 +1699,15 @@ function bookingPage(slug: string, owner: any): string {
       lines.push("DURATION: " + totalDur + " min");
       lines.push("-".repeat(35));
       const chargedPriceT = getChargedPrice();
+      const giftUsedT = getGiftUsedAmount();
       if (appliedGift && chargedPriceT > 0) {
-        lines.push("TOTAL: $" + chargedPriceT.toFixed(2) + " (Gift covered $" + parseFloat(selectedService.price).toFixed(2) + ")");
+        lines.push("SUBTOTAL: $" + totalPrice.toFixed(2));
+        lines.push("GIFT CARD: -$" + giftUsedT.toFixed(2));
+        lines.push("TOTAL DUE: $" + chargedPriceT.toFixed(2));
       } else if (appliedGift) {
-        lines.push("TOTAL: $0.00 (Gift Applied)");
+        lines.push("SUBTOTAL: $" + totalPrice.toFixed(2));
+        lines.push("GIFT CARD: -$" + giftUsedT.toFixed(2));
+        lines.push("TOTAL DUE: $0.00");
       } else {
         lines.push("TOTAL: $" + totalPrice.toFixed(2));
       }
@@ -1665,8 +1739,8 @@ function bookingPage(slug: string, owner: any): string {
           return;
         }
         const data = await res.json();
-        if (data.redeemed) {
-          msg.innerHTML = '<span style="color:#dc2626;">This gift card has already been redeemed</span>';
+        if (data.redeemed && data.remainingBalance <= 0) {
+          msg.innerHTML = '<span style="color:#dc2626;">This gift card has been fully redeemed</span>';
           appliedGift = null;
           return;
         }
@@ -1675,10 +1749,34 @@ function bookingPage(slug: string, owner: any): string {
           appliedGift = null;
           return;
         }
-        msg.innerHTML = '<span style="color:#2d5a27;">\u2713 Gift card applied! Free ' + esc(data.serviceName) + '</span>';
+        const balance = data.remainingBalance || 0;
+        if (balance <= 0) {
+          msg.innerHTML = '<span style="color:#dc2626;">This gift card has no remaining balance</span>';
+          appliedGift = null;
+          return;
+        }
+        msg.innerHTML = '<span style="color:#2d5a27;">\u2713 Gift card applied! Balance: $' + balance.toFixed(2) + '</span>';
         appliedGift = data;
+        // Pre-select the primary gifted service
         const svc = services.find(s => s.localId === data.serviceLocalId || s.name === data.serviceName);
         if (svc) selectService(svc.localId);
+        // Pre-add gifted extra services and products to cart
+        if (data.serviceIds && data.serviceIds.length > 1) {
+          data.serviceIds.slice(1).forEach(sid => {
+            if (!cart.find(c => c.id === sid)) {
+              const s = services.find(sv => sv.localId === sid);
+              if (s) cart.push({ type: 'service', id: s.localId, name: s.name, price: parseFloat(s.price), duration: s.duration });
+            }
+          });
+        }
+        if (data.productIds && data.productIds.length > 0) {
+          data.productIds.forEach(pid => {
+            if (!cart.find(c => c.id === pid)) {
+              const p = products.find(pr => pr.localId === pid);
+              if (p) cart.push({ type: 'product', id: p.localId, name: p.name, price: parseFloat(p.price), duration: 0 });
+            }
+          });
+        }
       } catch(e) {
         msg.innerHTML = '<span style="color:#dc2626;">Failed to verify gift code</span>';
         appliedGift = null;
@@ -1931,8 +2029,22 @@ function giftCardPage(code: string): string {
         const data = await res.json();
         document.getElementById("giftDetails").style.display = "block";
         document.getElementById("giftBusiness").textContent = data.businessName;
-        document.getElementById("giftService").textContent = data.serviceName + " (" + data.serviceDuration + " min)";
-        document.getElementById("giftValue").textContent = "Value: $" + parseFloat(data.servicePrice).toFixed(2);
+        // Show all gifted items if available
+        if (data.items && data.items.length > 0) {
+          document.getElementById("giftService").innerHTML = data.items.map(function(it) {
+            const icon = it.type === 'product' ? '📦' : '✂️';
+            return icon + ' ' + it.name + ' — $' + it.price.toFixed(2);
+          }).join('<br>');
+        } else {
+          document.getElementById("giftService").textContent = data.serviceName + " (" + data.serviceDuration + " min)";
+        }
+        const origVal = data.originalValue || parseFloat(data.servicePrice);
+        const remBal = data.remainingBalance != null ? data.remainingBalance : origVal;
+        if (remBal < origVal) {
+          document.getElementById("giftValue").innerHTML = 'Original: $' + origVal.toFixed(2) + '<br><strong style="color:#2d5a27;">Balance: $' + remBal.toFixed(2) + '</strong>';
+        } else {
+          document.getElementById("giftValue").textContent = "Value: $" + origVal.toFixed(2);
+        }
         document.getElementById("giftCodeDisplay").textContent = data.code;
 
         if (data.recipientName) {
@@ -1947,8 +2059,10 @@ function giftCardPage(code: string): string {
           document.getElementById("giftExpiry").textContent = "Expires: " + new Date(data.expiresAt + "T23:59:59").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
         }
 
-        if (data.redeemed) {
-          document.getElementById("giftStatus").innerHTML = '<div style="color:#dc2626;font-weight:600;">This gift card has already been redeemed</div>';
+        if (data.redeemed && remBal <= 0) {
+          document.getElementById("giftStatus").innerHTML = '<div style="color:#dc2626;font-weight:600;">This gift card has been fully redeemed</div>';
+        } else if (remBal <= 0) {
+          document.getElementById("giftStatus").innerHTML = '<div style="color:#dc2626;font-weight:600;">No remaining balance</div>';
         } else {
           document.getElementById("giftStatus").innerHTML = '<div style="color:#2d5a27;font-weight:600;">✓ Valid — Ready to use!</div>';
           const link = document.getElementById("bookLink");

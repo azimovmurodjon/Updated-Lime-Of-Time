@@ -201,10 +201,11 @@ export default function AppointmentDetailScreen() {
           const svcPrice = service?.price ?? 0;
           const extras = appointment.extraItems ?? [];
           const extrasTotal = extras.reduce((s, e) => s + (e.price || 0), 0);
-          const giftDeduction = appointment.giftApplied ? svcPrice : 0;
+          const giftUsedAmount = (appointment as any).giftUsedAmount ?? 0;
+          const giftDeduction = appointment.giftApplied ? (giftUsedAmount > 0 ? giftUsedAmount : svcPrice) : 0;
           const computedTotal = appointment.totalPrice != null
             ? appointment.totalPrice
-            : svcPrice + extrasTotal - giftDeduction;
+            : Math.max(0, svcPrice + extrasTotal - giftDeduction);
           return (
             <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
               <Text className="text-xs text-muted mb-2">Charges</Text>
