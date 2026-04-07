@@ -142,6 +142,17 @@ export async function deleteBusinessOwner(id: number): Promise<void> {
   await db.delete(businessOwners).where(eq(businessOwners.id, id));
 }
 
+export async function getBusinessOwnerBySlug(slug: string): Promise<BusinessOwner | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  // Get all business owners and match by slug (business name lowercased, spaces to hyphens)
+  const result = await db.select().from(businessOwners);
+  return result.find((owner) => {
+    const ownerSlug = owner.businessName.toLowerCase().replace(/\s+/g, "-");
+    return ownerSlug === slug.toLowerCase();
+  });
+}
+
 // ─── Services ────────────────────────────────────────────────────────
 
 export async function getServicesByOwner(businessOwnerId: number) {

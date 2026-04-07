@@ -1,24 +1,33 @@
-Research Notes - minSdkVersion 22 Build Error (FINAL)
+Architecture Analysis for Public Booking Pages
 
-ROOT CAUSE IDENTIFIED:
-The issue is caused by NDK version 27.1.12297006 which has a bug where it defaults 
-minSdkVersion to 22 for CMake builds regardless of what's set in gradle.properties.
+CURRENT STATE:
+1. The app generates booking links like: https://lime-of-time.com/book/business-name
+2. These are Expo Router routes: app/book/[slug].tsx, app/review/[slug].tsx, app/gift/[code].tsx
+3. The booking page (app/booking.tsx) is a full React Native screen that:
+   - Shows business info (name, address, phone, email)
+   - Lets client enter name, phone, email
+   - Select a service
+   - Pick a date and available time slot
+   - Apply gift codes/discounts
+   - Submit appointment (creates pending appointment in DB)
+4. The server (Express on port 3000) only serves tRPC API routes, no HTML pages
+5. The Expo web build is served by Metro dev server on port 8081
 
-Multiple users on GitHub issue expo/expo#38667 confirmed the fix:
-- Delete NDK 27.1.12297006 from the Android SDK directory
-- This forces the build to use a different NDK version that correctly reads minSdkVersion
+KEY INSIGHT:
+The booking pages are already built as Expo Router screens. When the app is published/deployed,
+the web output (Expo web) can serve these pages. The published app at manussched-dw4mhfnu.manus.space
+already has a web version that includes these routes.
 
-For LOCAL builds: Delete the NDK folder
-For EAS CLOUD builds: We need to force a different NDK version
-
-SOLUTION FOR EAS BUILD:
-1. Set ndkVersion in expo-build-properties to "27.2.12479018" (NDK r27c) 
-   which doesn't have this bug
-2. Our custom withMinSdkVersion plugin is good but may not be enough alone
-   because the CMake step reads NDK metadata, not gradle.properties
-3. The key fix is changing the NDK version away from 27.1.12297006
-
-IMPLEMENTATION:
-- Update expo-build-properties in app.config.ts to set ndkVersion: "27.2.12479018"
-- Keep the custom withMinSdkVersion plugin as a safety net
-- Also enhance the plugin to patch ndkVersion in build.gradle
+WHAT NEEDS TO HAPPEN:
+1. The published Manus app already serves a web version at the deployment domain
+2. We need to update PUBLIC_BOOKING_URL from "https://lime-of-time.com" to the actual 
+   deployed domain (manussched-dw4mhfnu.manus.space) OR the user's custom domain
+3. The booking/review/gift routes already work in the web version of the Expo app
+4. The user needs to either:
+   a. Use the Manus deployment domain directly for booking links
+   b. Set up a custom domain (lime-of-time.com) pointing to the deployment
+   
+APPROACH:
+- Update PUBLIC_BOOKING_URL to use the actual deployed domain
+- The web version of the Expo app already renders these pages
+- Test that the routes work on the web version

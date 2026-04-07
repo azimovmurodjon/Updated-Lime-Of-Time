@@ -121,3 +121,10 @@
 - [x] Fix EAS build configuration error for publishing
 - [x] Fix Android build minSdkVersion from 22 to 24
 - [x] Fix Android EAS build minSdkVersion 22 error - expo-build-properties plugin not applied during cloud build
+- [x] Add public REST API endpoints for booking data (business info, services, slots, submit appointment)
+- [x] Build standalone HTML booking page served by Express server
+- [x] Build standalone HTML review page served by Express server
+- [x] Build standalone HTML gift card redemption page served by Express server
+- [x] Client can select service, day, time, enter name and submit appointment request via web
+- [x] Business owner receives appointment request in the app from web bookings
+- [x] Provide DNS setup instructions for lime-of-time.com
