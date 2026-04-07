@@ -149,3 +149,15 @@
 - [x] Fix header overlap on New Service, Gift Cards, and Discounts pages (titles and buttons hidden)
 - [x] Fix Face ID logic — stops locking in a loop on every foreground event
 - [x] Add Face ID option to onboarding/start page
+- [x] Fix client booking calendar to match business working days/hours and custom schedule
+- [x] Client calendar should display current month/year like business side
+- [x] Non-working days should not be selectable on client booking calendar
+- [x] Add Products model (DB schema, store, tRPC routes) for business products
+- [x] Add Products management UI in Services tab
+- [x] Add multi-service/product selection with "Add More" on client booking page
+- [x] Update total appointment time when multiple services selected
+- [x] Add "Save Receipt" button to booking confirmation
+- [x] Receipt should show all selected services, products, pricing, and total
+- [x] Fix duplicate client prevention with phone number normalization
+- [x] Auto-update client name when same phone submits new request with different name
+- [x] Connect all changes to public HTML booking page served by Express

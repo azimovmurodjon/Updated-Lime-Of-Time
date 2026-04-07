@@ -100,7 +100,7 @@ describe("Public Routes - Booking Page Features", () => {
   });
 
   it("booking page should have date and time selection step", () => {
-    expect(content).toContain("dateGrid");
+    expect(content).toContain("calGrid");
     expect(content).toContain("timeGrid");
     expect(content).toContain("selectDate");
     expect(content).toContain("selectTime");

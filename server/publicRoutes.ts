@@ -224,6 +224,48 @@ export function registerPublicRoutes(app: Express) {
     }
   });
 
+  /** Get products for a business */
+  app.get("/api/public/business/:slug/products", async (req: Request, res: Response) => {
+    try {
+      const owner = await db.getBusinessOwnerBySlug(req.params.slug);
+      if (!owner) { res.status(404).json({ error: "Business not found" }); return; }
+      const productsList = await db.getProductsByOwner(owner.id);
+      res.json(productsList.filter((p) => p.available).map((p) => ({
+        localId: p.localId,
+        name: p.name,
+        price: p.price,
+        description: p.description,
+      })));
+    } catch (err) {
+      console.error("[Public API] Error fetching products:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  /** Get working days info for calendar */
+  app.get("/api/public/business/:slug/working-days", async (req: Request, res: Response) => {
+    try {
+      const owner = await db.getBusinessOwnerBySlug(req.params.slug);
+      if (!owner) { res.status(404).json({ error: "Business not found" }); return; }
+      const schedule = await db.getCustomScheduleByOwner(owner.id);
+      const wh: Record<string, any> = owner.workingHours || {};
+      // Build weekly working days
+      const weeklyDays: Record<string, boolean> = {};
+      DAYS_OF_WEEK.forEach((day) => {
+        weeklyDays[day] = !!(wh[day] && wh[day].enabled);
+      });
+      // Custom overrides: { date: isOpen }
+      const customDays: Record<string, boolean> = {};
+      schedule.forEach((cs: any) => {
+        customDays[cs.date] = cs.isOpen ?? true;
+      });
+      res.json({ weeklyDays, customDays });
+    } catch (err) {
+      console.error("[Public API] Error fetching working days:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   /** Get gift card by code */
   app.get("/api/public/gift/:code", async (req: Request, res: Response) => {
     try {
@@ -282,20 +324,25 @@ export function registerPublicRoutes(app: Express) {
         return;
       }
 
-      // Check if client already exists by phone
+      // Normalize phone for consistent matching
       let clientLocalId: string;
-      const strippedPhone = (clientPhone || "").replace(/\D/g, "");
-      if (strippedPhone) {
-        const existingClient = await db.getClientByPhone(strippedPhone, owner.id);
+      const rawDigits = (clientPhone || "").replace(/\D/g, "");
+      const normalizedPhone = rawDigits.length === 11 && rawDigits.startsWith("1") ? rawDigits.slice(1) : rawDigits;
+      if (normalizedPhone.length >= 10) {
+        const existingClient = await db.getClientByPhone(normalizedPhone, owner.id);
         if (existingClient) {
           clientLocalId = existingClient.localId;
+          // Update client name if different
+          if (existingClient.name !== clientName) {
+            await db.updateClient(existingClient.localId, owner.id, { name: clientName, email: clientEmail || undefined });
+          }
         } else {
           clientLocalId = `web-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
           await db.createClient({
             businessOwnerId: owner.id,
             localId: clientLocalId,
             name: clientName,
-            phone: strippedPhone,
+            phone: normalizedPhone,
             email: clientEmail || null,
             notes: "Added via web booking",
           });
@@ -306,7 +353,7 @@ export function registerPublicRoutes(app: Express) {
           businessOwnerId: owner.id,
           localId: clientLocalId,
           name: clientName,
-          phone: clientPhone || null,
+          phone: normalizedPhone || null,
           email: clientEmail || null,
           notes: "Added via web booking",
         });
@@ -376,20 +423,25 @@ export function registerPublicRoutes(app: Express) {
         return;
       }
 
-      // Find or create client
+      // Normalize phone for consistent matching
       let clientLocalId: string;
-      const strippedPhone = (clientPhone || "").replace(/\D/g, "");
-      if (strippedPhone) {
-        const existingClient = await db.getClientByPhone(strippedPhone, owner.id);
+      const rawReviewDigits = (clientPhone || "").replace(/\D/g, "");
+      const normalizedReviewPhone = rawReviewDigits.length === 11 && rawReviewDigits.startsWith("1") ? rawReviewDigits.slice(1) : rawReviewDigits;
+      if (normalizedReviewPhone.length >= 10) {
+        const existingClient = await db.getClientByPhone(normalizedReviewPhone, owner.id);
         if (existingClient) {
           clientLocalId = existingClient.localId;
+          // Update client name if different
+          if (existingClient.name !== clientName) {
+            await db.updateClient(existingClient.localId, owner.id, { name: clientName });
+          }
         } else {
           clientLocalId = `web-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
           await db.createClient({
             businessOwnerId: owner.id,
             localId: clientLocalId,
             name: clientName,
-            phone: strippedPhone,
+            phone: normalizedReviewPhone,
           });
         }
       } else {
@@ -684,6 +736,30 @@ function baseStyles(): string {
       .review-date { font-size: 11px; color: #aaa; margin-top: 4px; }
       .loading { text-align: center; padding: 40px; color: #888; }
       .error-msg { color: #dc2626; font-size: 13px; margin-top: 8px; text-align: center; }
+      .cal-nav { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+      .cal-nav button { background:none; border:1px solid #dde3dd; border-radius:8px; padding:6px 12px; cursor:pointer; font-size:14px; color:#2d5a27; }
+      .cal-nav button:hover { background:#f0f7ef; }
+      .cal-nav .cal-title { font-size:16px; font-weight:700; color:#1a1a1a; }
+      .cal-weekdays { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; margin-bottom:4px; text-align:center; }
+      .cal-weekdays span { font-size:11px; color:#999; font-weight:500; padding:4px 0; }
+      .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; margin-bottom:16px; }
+      .cal-day { aspect-ratio:1; display:flex; align-items:center; justify-content:center; border-radius:10px; cursor:pointer; font-size:14px; font-weight:500; border:2px solid transparent; transition:all 0.15s; }
+      .cal-day:hover:not(.disabled):not(.empty) { background:#f0f7ef; }
+      .cal-day.selected { border-color:#4a8c3f; background:#e8f5e3; color:#2d5a27; font-weight:700; }
+      .cal-day.disabled { opacity:0.25; cursor:not-allowed; color:#aaa; }
+      .cal-day.empty { cursor:default; }
+      .cal-day.today { font-weight:700; color:#4a8c3f; }
+      .cart-items { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
+      .cart-item { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:#f8fbf8; border-radius:10px; font-size:13px; }
+      .cart-item .cart-remove { color:#dc2626; cursor:pointer; font-size:18px; padding:0 4px; }
+      .cart-total { display:flex; justify-content:space-between; padding:10px 0; border-top:2px solid #e8ece8; font-size:15px; font-weight:700; }
+      .product-item { display:flex; align-items:center; padding:12px; border:2px solid #e8ece8; border-radius:12px; cursor:pointer; transition:border-color 0.2s, background 0.2s; margin-bottom:6px; }
+      .product-item:hover { background:#f8fbf8; }
+      .product-item.selected { border-color:#4a8c3f; background:#f0f7ef; }
+      .seg-control { display:flex; background:#f0f0f0; border-radius:10px; padding:3px; margin-bottom:12px; }
+      .seg-btn { flex:1; text-align:center; padding:8px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.15s; color:#666; }
+      .seg-btn.active { background:#fff; color:#2d5a27; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+      .receipt-box { background:#fff; border:1px solid #e8ece8; border-radius:12px; padding:20px; }
       @media (max-width: 360px) {
         .time-grid { grid-template-columns: repeat(2, 1fr); }
       }
@@ -750,6 +826,11 @@ function errorPage(): string {
 }
 
 function bookingPage(slug: string, owner: any): string {
+  const wh: Record<string, any> = owner.workingHours || {};
+  const whJson: Record<string, boolean> = {};
+  ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].forEach(d => {
+    whJson[d] = !!(wh[d] && wh[d].enabled);
+  });
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -771,6 +852,7 @@ function bookingPage(slug: string, owner: any): string {
       <div class="step-dot" id="dot-1"></div>
       <div class="step-dot" id="dot-2"></div>
       <div class="step-dot" id="dot-3"></div>
+      <div class="step-dot" id="dot-4"></div>
     </div>
 
     <!-- Business Info Card -->
@@ -822,10 +904,16 @@ function bookingPage(slug: string, owner: any): string {
       </div>
     </div>
 
-    <!-- Step 2: Select Date & Time -->
+    <!-- Step 2: Select Date & Time (Monthly Calendar) -->
     <div id="step-2" class="card" style="display:none">
       <h2>Select Date & Time</h2>
-      <div id="dateGrid" class="date-grid"></div>
+      <div class="cal-nav">
+        <button onclick="changeMonth(-1)" id="calPrev">&larr;</button>
+        <span class="cal-title" id="calTitle"></span>
+        <button onclick="changeMonth(1)">&rarr;</button>
+      </div>
+      <div class="cal-weekdays"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
+      <div id="calGrid" class="cal-grid"></div>
       <div id="timeSection" style="display:none">
         <h2 style="margin-bottom:12px;">Available Times</h2>
         <div id="timeGrid" class="time-grid"></div>
@@ -838,8 +926,26 @@ function bookingPage(slug: string, owner: any): string {
       </div>
     </div>
 
-    <!-- Step 3: Confirm -->
+    <!-- Step 3: Add More Services/Products -->
     <div id="step-3" class="card" style="display:none">
+      <h2>Add More (Optional)</h2>
+      <p style="font-size:13px;color:#888;margin-bottom:12px;">Add extra services or products to your booking.</p>
+      <div id="cartSummary" class="cart-items"></div>
+      <div class="seg-control" id="addMoreSeg">
+        <div class="seg-btn active" onclick="switchAddTab('services')">Services</div>
+        <div class="seg-btn" onclick="switchAddTab('products')">Products</div>
+      </div>
+      <div id="addServiceList" class="service-list"></div>
+      <div id="addProductList" style="display:none"></div>
+      <div id="cartTotal" class="cart-total" style="display:none"></div>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button class="btn btn-secondary" onclick="goToStep(2)" style="flex:1">Back</button>
+        <button class="btn btn-primary" onclick="goToStep(4)" style="flex:1">Continue to Confirm</button>
+      </div>
+    </div>
+
+    <!-- Step 4: Confirm -->
+    <div id="step-4" class="card" style="display:none">
       <h2>Confirm Booking</h2>
       <div id="confirmDetails"></div>
       <div class="input-group" style="margin-top:12px;">
@@ -848,31 +954,46 @@ function bookingPage(slug: string, owner: any): string {
       </div>
       <div id="bookError" class="error-msg" style="display:none"></div>
       <div style="display:flex;gap:8px;margin-top:16px;">
-        <button class="btn btn-secondary" onclick="goToStep(2)" style="flex:1">Back</button>
+        <button class="btn btn-secondary" onclick="goToStep(3)" style="flex:1">Back</button>
         <button class="btn btn-primary" onclick="submitBooking()" id="btnSubmit" style="flex:1">Confirm Booking</button>
       </div>
     </div>
 
-    <!-- Step 4: Success -->
-    <div id="step-4" class="card" style="display:none;text-align:center;">
+    <!-- Step 5: Success -->
+    <div id="step-5" class="card" style="display:none;text-align:center;">
       <div class="success-icon">✓</div>
       <h2 style="font-size:20px;margin-bottom:8px;">Booking Submitted!</h2>
       <p style="color:#666;font-size:14px;margin-bottom:16px;">Your appointment request has been sent to ${escHtml(owner.businessName)}. They will confirm your booking shortly.</p>
-      <div id="successDetails" style="text-align:left;margin-bottom:16px;"></div>
-      <button class="btn btn-primary" onclick="location.reload()">Book Another</button>
+      <div id="successDetails" class="receipt-box" style="text-align:left;margin-bottom:16px;"></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-secondary" onclick="saveReceipt()" style="flex:1">Save Receipt</button>
+        <button class="btn btn-primary" onclick="location.reload()" style="flex:1">Book Another</button>
+      </div>
     </div>
   </div>
 
   <script>
     const SLUG = "${slug}";
     const API = window.location.origin + "/api/public/business/" + SLUG;
+    const WEEKLY_DAYS = ${JSON.stringify(whJson)};
+    const DAYS_MAP = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
     let services = [];
+    let products = [];
     let discounts = [];
+    let customDays = {};
     let selectedService = null;
     let selectedDate = null;
     let selectedTime = null;
     let appliedGift = null;
     let currentStep = 0;
+    let calMonth, calYear;
+    // Cart: extra items added via "Add More"
+    let cart = []; // { type: 'service'|'product', id, name, price, duration }
+
+    // Init calendar to current month
+    const nowDate = new Date();
+    calMonth = nowDate.getMonth();
+    calYear = nowDate.getFullYear();
 
     // Format phone as user types
     document.getElementById("clientPhone").addEventListener("input", function(e) {
@@ -895,12 +1016,38 @@ function bookingPage(slug: string, owner: any): string {
       }
     }
 
+    // Load products
+    async function loadProducts() {
+      try {
+        const res = await fetch(API + "/products");
+        products = await res.json();
+      } catch(e) { products = []; }
+    }
+
     // Load discounts
     async function loadDiscounts() {
       try {
         const res = await fetch(API + "/discounts");
         discounts = await res.json();
       } catch(e) { discounts = []; }
+    }
+
+    // Load working days (custom overrides)
+    async function loadWorkingDays() {
+      try {
+        const res = await fetch(API + "/working-days");
+        const data = await res.json();
+        customDays = data.customDays || {};
+      } catch(e) { customDays = {}; }
+    }
+
+    function isWorkingDay(dateStr) {
+      // Check custom override first
+      if (customDays.hasOwnProperty(dateStr)) return customDays[dateStr];
+      // Fall back to weekly schedule
+      const d = new Date(dateStr + "T12:00:00");
+      const dayName = DAYS_MAP[d.getDay()];
+      return WEEKLY_DAYS[dayName] || false;
     }
 
     function renderServices() {
@@ -911,24 +1058,23 @@ function bookingPage(slug: string, owner: any): string {
       }
       list.innerHTML = services.map(s => {
         const dur = s.duration >= 60 ? (s.duration / 60) + " hr" + (s.duration > 60 ? "s" : "") : s.duration + " min";
-        return '<div class="service-item" id="svc-' + s.localId + '" onclick="selectService(\\'' + s.localId + '\\')">' +
-          '<div class="service-dot" style="background:' + s.color + '"></div>' +
-          '<div class="service-info"><div class="service-name">' + escHtml(s.name) + '</div>' +
-          '<div class="service-meta">' + dur + '</div></div>' +
+        return '<div class="service-item" id="svc-' + s.localId + '" onclick="selectService(\\'' + s.localId + '\\')">'+
+          '<div class="service-dot" style="background:' + (s.color||'#4a8c3f') + '"></div>'+
+          '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div>'+
+          '<div class="service-meta">' + dur + '</div></div>'+
           '<div class="service-price">$' + parseFloat(s.price).toFixed(2) + '</div></div>';
       }).join("");
     }
 
     function selectService(id) {
       selectedService = services.find(s => s.localId === id);
-      document.querySelectorAll(".service-item").forEach(el => el.classList.remove("selected"));
-      document.getElementById("svc-" + id).classList.add("selected");
+      document.querySelectorAll("#serviceList .service-item").forEach(el => el.classList.remove("selected"));
+      const el = document.getElementById("svc-" + id);
+      if (el) el.classList.add("selected");
       document.getElementById("btnToDate").disabled = false;
-      // If gift card applied, auto-select its service
     }
 
     function goToStep(step) {
-      // Validate
       if (step === 1 && currentStep === 0) {
         const name = document.getElementById("clientName").value.trim();
         if (!name) { alert("Please enter your name"); return; }
@@ -936,40 +1082,68 @@ function bookingPage(slug: string, owner: any): string {
       if (step === 2 && !selectedService) { alert("Please select a service"); return; }
       if (step === 3 && (!selectedDate || !selectedTime)) { alert("Please select a date and time"); return; }
 
-      // Hide all steps
-      for (let i = 0; i <= 4; i++) {
+      for (let i = 0; i <= 5; i++) {
         const el = document.getElementById("step-" + i);
         if (el) el.style.display = "none";
       }
       document.getElementById("step-" + step).style.display = "block";
       currentStep = step;
 
-      // Update dots
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < 5; i++) {
         const dot = document.getElementById("dot-" + i);
-        dot.className = "step-dot" + (i < step ? " done" : i === step ? " active" : "");
+        if (dot) dot.className = "step-dot" + (i < step ? " done" : i === step ? " active" : "");
       }
 
-      if (step === 2) renderDates();
-      if (step === 3) renderConfirmation();
+      if (step === 2) renderCalendar();
+      if (step === 3) renderAddMore();
+      if (step === 4) renderConfirmation();
 
-      // Scroll to top
       window.scrollTo(0, 0);
     }
 
-    function renderDates() {
-      const grid = document.getElementById("dateGrid");
-      const today = new Date();
-      const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    // ── Monthly Calendar ──
+    function changeMonth(delta) {
+      calMonth += delta;
+      if (calMonth > 11) { calMonth = 0; calYear++; }
+      if (calMonth < 0) { calMonth = 11; calYear--; }
+      // Don't go before current month
+      const now = new Date();
+      if (calYear < now.getFullYear() || (calYear === now.getFullYear() && calMonth < now.getMonth())) {
+        calMonth = now.getMonth(); calYear = now.getFullYear();
+      }
+      renderCalendar();
+    }
+
+    function renderCalendar() {
+      const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+      document.getElementById("calTitle").textContent = months[calMonth] + " " + calYear;
+
+      // Disable prev button if current month
+      const now = new Date();
+      document.getElementById("calPrev").disabled = (calYear === now.getFullYear() && calMonth === now.getMonth());
+
+      const grid = document.getElementById("calGrid");
+      const firstDay = new Date(calYear, calMonth, 1).getDay();
+      const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+      const todayStr = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0") + "-" + String(now.getDate()).padStart(2,"0");
+
       let html = "";
-      for (let i = 0; i < 28; i++) {
-        const d = new Date(today);
-        d.setDate(today.getDate() + i);
-        const ds = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+      // Empty cells before first day
+      for (let i = 0; i < firstDay; i++) {
+        html += '<div class="cal-day empty"></div>';
+      }
+      for (let day = 1; day <= daysInMonth; day++) {
+        const ds = calYear + "-" + String(calMonth+1).padStart(2,"0") + "-" + String(day).padStart(2,"0");
+        const isPast = ds < todayStr;
+        const isWorking = isWorkingDay(ds);
+        const isDisabled = isPast || !isWorking;
         const isSelected = ds === selectedDate;
-        html += '<div class="date-cell' + (isSelected ? " selected" : "") + '" onclick="selectDate(\\'' + ds + '\\')" data-date="' + ds + '">' +
-          '<span class="day-name">' + days[d.getDay()] + '</span>' +
-          '<span class="day-num">' + d.getDate() + '</span></div>';
+        const isToday = ds === todayStr;
+        let cls = "cal-day";
+        if (isDisabled) cls += " disabled";
+        if (isSelected) cls += " selected";
+        if (isToday && !isDisabled) cls += " today";
+        html += '<div class="' + cls + '" data-date="' + ds + '"' + (!isDisabled ? ' onclick="selectDate(\\'' + ds + '\\')"' : '') + '>' + day + '</div>';
       }
       grid.innerHTML = html;
       if (selectedDate) loadSlots(selectedDate);
@@ -979,7 +1153,7 @@ function bookingPage(slug: string, owner: any): string {
       selectedDate = date;
       selectedTime = null;
       document.getElementById("btnToConfirm").disabled = true;
-      document.querySelectorAll(".date-cell").forEach(el => {
+      document.querySelectorAll(".cal-day").forEach(el => {
         el.classList.toggle("selected", el.dataset.date === date);
       });
       await loadSlots(date);
@@ -994,7 +1168,7 @@ function bookingPage(slug: string, owner: any): string {
       noSlots.style.display = "none";
 
       try {
-        const dur = selectedService ? selectedService.duration : 60;
+        const dur = getTotalDuration();
         const res = await fetch(API + "/slots?date=" + date + "&duration=" + dur);
         const data = await res.json();
         if (data.slots.length === 0) {
@@ -1039,16 +1213,114 @@ function bookingPage(slug: string, owner: any): string {
       if (match) {
         const orig = parseFloat(selectedService.price);
         const disc = orig * (1 - match.percentage / 100);
-        info.innerHTML = '<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:12px;font-size:13px;">' +
-          '🎉 <strong>' + match.name + '</strong> — ' + match.percentage + '% off! ' +
-          '<span style="text-decoration:line-through;color:#999;">$' + orig.toFixed(2) + '</span> → ' +
-          '<strong style="color:#2d5a27;">$' + disc.toFixed(2) + '</strong></div>';
+        info.innerHTML = '<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:12px;font-size:13px;">\ud83c\udf89 <strong>' + match.name + '</strong> \u2014 ' + match.percentage + '% off! <span style="text-decoration:line-through;color:#999;">$' + orig.toFixed(2) + '</span> \u2192 <strong style="color:#2d5a27;">$' + disc.toFixed(2) + '</strong></div>';
         info.style.display = "block";
       } else {
         info.style.display = "none";
       }
     }
 
+    // ── Add More (Step 3) ──
+    function renderAddMore() {
+      renderCartSummary();
+      renderAddServiceList();
+      renderAddProductList();
+    }
+
+    function switchAddTab(tab) {
+      document.querySelectorAll("#addMoreSeg .seg-btn").forEach((el,i) => {
+        el.classList.toggle("active", (tab === "services" && i === 0) || (tab === "products" && i === 1));
+      });
+      document.getElementById("addServiceList").style.display = tab === "services" ? "flex" : "none";
+      document.getElementById("addProductList").style.display = tab === "products" ? "block" : "none";
+    }
+
+    function renderCartSummary() {
+      const el = document.getElementById("cartSummary");
+      // Primary service always in cart
+      let items = [{type:'service', name: selectedService.name, price: parseFloat(selectedService.price), duration: selectedService.duration}];
+      items = items.concat(cart);
+      el.innerHTML = items.map((item, i) => {
+        const priceStr = "$" + item.price.toFixed(2);
+        const durStr = item.duration ? " (" + item.duration + " min)" : "";
+        const removeBtn = i > 0 ? '<span class="cart-remove" onclick="removeCartItem(' + (i-1) + ')">&times;</span>' : '<span style="font-size:11px;color:#4a8c3f;font-weight:600;">PRIMARY</span>';
+        return '<div class="cart-item"><span>' + esc(item.name) + durStr + '</span><span style="display:flex;align-items:center;gap:8px;"><span style="font-weight:600;">' + priceStr + '</span>' + removeBtn + '</span></div>';
+      }).join("");
+
+      // Total
+      const total = items.reduce((s, it) => s + it.price, 0);
+      const totalDur = items.reduce((s, it) => s + (it.duration || 0), 0);
+      const totalEl = document.getElementById("cartTotal");
+      totalEl.style.display = "flex";
+      totalEl.innerHTML = '<span>Total' + (totalDur > 0 ? ' (' + totalDur + ' min)' : '') + '</span><span style="color:#2d5a27;">$' + total.toFixed(2) + '</span>';
+    }
+
+    function renderAddServiceList() {
+      const el = document.getElementById("addServiceList");
+      // Show services not already in cart (excluding primary)
+      const cartSvcIds = cart.filter(c => c.type === 'service').map(c => c.id);
+      const available = services.filter(s => s.localId !== selectedService.localId && !cartSvcIds.includes(s.localId));
+      if (available.length === 0) {
+        el.innerHTML = '<div style="text-align:center;color:#888;padding:16px;font-size:13px;">No additional services available</div>';
+        return;
+      }
+      el.innerHTML = available.map(s => {
+        const dur = s.duration >= 60 ? (s.duration / 60) + " hr" : s.duration + " min";
+        return '<div class="service-item" onclick="addServiceToCart(\\'' + s.localId + '\\')">' +
+          '<div class="service-dot" style="background:' + (s.color||'#4a8c3f') + '"></div>' +
+          '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div><div class="service-meta">' + dur + '</div></div>' +
+          '<div class="service-price">+ $' + parseFloat(s.price).toFixed(2) + '</div></div>';
+      }).join("");
+    }
+
+    function renderAddProductList() {
+      const el = document.getElementById("addProductList");
+      const cartProdIds = cart.filter(c => c.type === 'product').map(c => c.id);
+      const available = products.filter(p => !cartProdIds.includes(p.localId));
+      if (available.length === 0) {
+        el.innerHTML = '<div style="text-align:center;color:#888;padding:16px;font-size:13px;">No products available</div>';
+        return;
+      }
+      el.innerHTML = available.map(p => {
+        return '<div class="product-item" onclick="addProductToCart(\\'' + p.localId + '\\')">' +
+          '<div style="flex:1;"><div style="font-size:15px;font-weight:600;">' + esc(p.name) + '</div>' +
+          (p.description ? '<div style="font-size:12px;color:#888;margin-top:2px;">' + esc(p.description) + '</div>' : '') + '</div>' +
+          '<div style="font-size:15px;font-weight:700;color:#2d5a27;">+ $' + parseFloat(p.price).toFixed(2) + '</div></div>';
+      }).join("");
+    }
+
+    function addServiceToCart(id) {
+      const s = services.find(sv => sv.localId === id);
+      if (!s) return;
+      cart.push({ type: 'service', id: s.localId, name: s.name, price: parseFloat(s.price), duration: s.duration });
+      renderAddMore();
+    }
+
+    function addProductToCart(id) {
+      const p = products.find(pr => pr.localId === id);
+      if (!p) return;
+      cart.push({ type: 'product', id: p.localId, name: p.name, price: parseFloat(p.price), duration: 0 });
+      renderAddMore();
+    }
+
+    function removeCartItem(idx) {
+      cart.splice(idx, 1);
+      renderAddMore();
+    }
+
+    function getTotalDuration() {
+      let dur = selectedService ? selectedService.duration : 60;
+      cart.forEach(c => { dur += (c.duration || 0); });
+      return dur;
+    }
+
+    function getTotalPrice() {
+      let total = selectedService ? parseFloat(selectedService.price) : 0;
+      cart.forEach(c => { total += c.price; });
+      return total;
+    }
+
+    // ── Confirmation (Step 4) ──
     function renderConfirmation() {
       const details = document.getElementById("confirmDetails");
       const d = new Date(selectedDate + "T12:00:00");
@@ -1058,26 +1330,33 @@ function bookingPage(slug: string, owner: any): string {
       const ampm = h >= 12 ? "PM" : "AM";
       const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
       const timeStr = h12 + ":" + m + " " + ampm;
-      const dur = selectedService.duration;
-      const endMin = parseInt(selectedTime.split(":")[0]) * 60 + parseInt(selectedTime.split(":")[1]) + dur;
+      const totalDur = getTotalDuration();
+      const endMin = h * 60 + parseInt(m) + totalDur;
       const endH = Math.floor(endMin / 60);
       const endM = endMin % 60;
       const endAmpm = endH >= 12 ? "PM" : "AM";
       const endH12 = endH === 0 ? 12 : endH > 12 ? endH - 12 : endH;
       const endStr = endH12 + ":" + String(endM).padStart(2,"0") + " " + endAmpm;
 
-      let priceHtml = "$" + parseFloat(selectedService.price).toFixed(2);
+      // Build items list
+      let itemsHtml = '<div class="confirm-row"><span class="confirm-label">Service</span><span class="confirm-value">' + esc(selectedService.name) + ' — $' + parseFloat(selectedService.price).toFixed(2) + '</span></div>';
+      cart.forEach(c => {
+        const label = c.type === 'product' ? 'Product' : 'Service';
+        itemsHtml += '<div class="confirm-row"><span class="confirm-label">' + label + '</span><span class="confirm-value">' + esc(c.name) + ' — $' + c.price.toFixed(2) + '</span></div>';
+      });
+
+      let totalPrice = getTotalPrice();
+      let priceHtml = '$' + totalPrice.toFixed(2);
       if (appliedGift) {
-        priceHtml = '<span style="text-decoration:line-through;color:#999;">$' + parseFloat(selectedService.price).toFixed(2) + '</span> <strong style="color:#2d5a27;">FREE (Gift Card)</strong>';
+        priceHtml = '<span style="text-decoration:line-through;color:#999;">$' + totalPrice.toFixed(2) + '</span> <strong style="color:#2d5a27;">Gift Applied</strong>';
       }
 
-      details.innerHTML =
-        '<div class="confirm-row"><span class="confirm-label">Service</span><span class="confirm-value">' + escHtml(selectedService.name) + '</span></div>' +
+      details.innerHTML = itemsHtml +
         '<div class="confirm-row"><span class="confirm-label">Date</span><span class="confirm-value">' + dateStr + '</span></div>' +
-        '<div class="confirm-row"><span class="confirm-label">Time</span><span class="confirm-value">' + timeStr + ' - ' + endStr + '</span></div>' +
-        '<div class="confirm-row"><span class="confirm-label">Duration</span><span class="confirm-value">' + dur + ' min</span></div>' +
-        '<div class="confirm-row"><span class="confirm-label">Price</span><span class="confirm-value">' + priceHtml + '</span></div>' +
-        '<div class="confirm-row"><span class="confirm-label">Name</span><span class="confirm-value">' + escHtml(document.getElementById("clientName").value) + '</span></div>';
+        '<div class="confirm-row"><span class="confirm-label">Time</span><span class="confirm-value">' + timeStr + ' — ' + endStr + '</span></div>' +
+        '<div class="confirm-row"><span class="confirm-label">Duration</span><span class="confirm-value">' + totalDur + ' min</span></div>' +
+        '<div class="confirm-row" style="border-top:2px solid #e8ece8;padding-top:10px;"><span class="confirm-label" style="font-weight:700;">Total</span><span class="confirm-value">' + priceHtml + '</span></div>' +
+        '<div class="confirm-row"><span class="confirm-label">Name</span><span class="confirm-value">' + esc(document.getElementById("clientName").value) + '</span></div>';
     }
 
     async function submitBooking() {
@@ -1088,6 +1367,14 @@ function bookingPage(slug: string, owner: any): string {
       errEl.style.display = "none";
 
       try {
+        const totalDur = getTotalDuration();
+        // Build notes with extra items
+        let notesText = document.getElementById("bookingNotes").value.trim();
+        if (cart.length > 0) {
+          const extras = cart.map(c => c.name + ' ($' + c.price.toFixed(2) + ')').join(', ');
+          notesText = (notesText ? notesText + '\\n' : '') + 'Additional items: ' + extras;
+        }
+
         const res = await fetch(API + "/book", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1098,8 +1385,8 @@ function bookingPage(slug: string, owner: any): string {
             serviceLocalId: selectedService.localId,
             date: selectedDate,
             time: selectedTime,
-            duration: selectedService.duration,
-            notes: document.getElementById("bookingNotes").value.trim(),
+            duration: totalDur,
+            notes: notesText,
             giftCode: appliedGift ? document.getElementById("giftCode").value.trim() : null,
           }),
         });
@@ -1112,9 +1399,9 @@ function bookingPage(slug: string, owner: any): string {
           return;
         }
         // Show success
-        for (let i = 0; i <= 3; i++) document.getElementById("step-" + i).style.display = "none";
+        for (let i = 0; i <= 4; i++) document.getElementById("step-" + i).style.display = "none";
         document.getElementById("step-indicator").style.display = "none";
-        document.getElementById("step-4").style.display = "block";
+        document.getElementById("step-5").style.display = "block";
         document.getElementById("successDetails").innerHTML = document.getElementById("confirmDetails").innerHTML;
         window.scrollTo(0, 0);
       } catch(e) {
@@ -1123,6 +1410,18 @@ function bookingPage(slug: string, owner: any): string {
         btn.disabled = false;
         btn.textContent = "Confirm Booking";
       }
+    }
+
+    function saveReceipt() {
+      const el = document.getElementById("successDetails");
+      const receiptText = el.innerText || el.textContent;
+      const blob = new Blob(["BOOKING RECEIPT\\n" + "${escHtml(owner.businessName)}" + "\\n" + "=" .repeat(30) + "\\n\\n" + receiptText + "\\n\\nThank you for your booking!"], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "booking-receipt.txt";
+      a.click();
+      URL.revokeObjectURL(url);
     }
 
     async function applyGiftCode() {
@@ -1147,9 +1446,8 @@ function bookingPage(slug: string, owner: any): string {
           appliedGift = null;
           return;
         }
-        msg.innerHTML = '<span style="color:#2d5a27;">✓ Gift card applied! Free ' + escHtml(data.serviceName) + '</span>';
+        msg.innerHTML = '<span style="color:#2d5a27;">\u2713 Gift card applied! Free ' + esc(data.serviceName) + '</span>';
         appliedGift = data;
-        // Auto-select the service
         const svc = services.find(s => s.localId === data.serviceLocalId || s.name === data.serviceName);
         if (svc) selectService(svc.localId);
       } catch(e) {
@@ -1158,14 +1456,18 @@ function bookingPage(slug: string, owner: any): string {
       }
     }
 
-    function escHtml(str) {
+    function esc(str) {
       if (!str) return "";
       return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
     }
+    // Alias for backward compat
+    const escHtml = esc;
 
     // Init
     loadServices();
+    loadProducts();
     loadDiscounts();
+    loadWorkingDays();
   </script>
 </body>
 </html>`;

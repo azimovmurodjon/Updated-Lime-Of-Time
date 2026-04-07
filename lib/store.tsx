@@ -8,6 +8,7 @@ import {
   Discount,
   GiftCard,
   CustomScheduleDay,
+  Product,
   BusinessSettings,
   DEFAULT_WORKING_HOURS,
   DEFAULT_BUSINESS_PROFILE,
@@ -25,6 +26,7 @@ interface AppState {
   discounts: Discount[];
   giftCards: GiftCard[];
   customSchedule: CustomScheduleDay[];
+  products: Product[];
   settings: BusinessSettings;
   loaded: boolean;
   /** DB id of the current business owner – null until bootstrap completes */
@@ -54,6 +56,7 @@ const initialState: AppState = {
   discounts: [],
   giftCards: [],
   customSchedule: [],
+  products: [],
   settings: initialSettings,
   loaded: false,
   businessOwnerId: null,
@@ -86,6 +89,9 @@ type Action =
   | { type: "DELETE_GIFT_CARD"; payload: string }
   | { type: "SET_CUSTOM_SCHEDULE"; payload: CustomScheduleDay }
   | { type: "DELETE_CUSTOM_SCHEDULE"; payload: string }
+  | { type: "ADD_PRODUCT"; payload: Product }
+  | { type: "UPDATE_PRODUCT"; payload: Product }
+  | { type: "DELETE_PRODUCT"; payload: string }
   | { type: "RESET_ALL_DATA" };
 
 function reducer(state: AppState, action: Action): AppState {
@@ -187,6 +193,17 @@ function reducer(state: AppState, action: Action): AppState {
     }
     case "DELETE_CUSTOM_SCHEDULE":
       return { ...state, customSchedule: state.customSchedule.filter((cs) => cs.date !== action.payload) };
+    case "ADD_PRODUCT":
+      return { ...state, products: [...state.products, action.payload] };
+    case "UPDATE_PRODUCT":
+      return {
+        ...state,
+        products: state.products.map((p) =>
+          p.id === action.payload.id ? action.payload : p
+        ),
+      };
+    case "DELETE_PRODUCT":
+      return { ...state, products: state.products.filter((p) => p.id !== action.payload) };
     case "RESET_ALL_DATA":
       return { ...initialState, loaded: true };
     default:
@@ -220,6 +237,7 @@ const STORAGE_KEYS = {
   discounts: "@bookease_discounts",
   giftCards: "@bookease_gift_cards",
   customSchedule: "@bookease_custom_schedule",
+  products: "@bookease_products",
 };
 
 /** Convert DB rows to local frontend models */
@@ -300,6 +318,17 @@ function dbGiftCardToLocal(g: any): GiftCard {
   };
 }
 
+function dbProductToLocal(p: any): Product {
+  return {
+    id: p.localId,
+    name: p.name,
+    price: typeof p.price === "string" ? parseFloat(p.price) : p.price,
+    description: p.description ?? "",
+    available: p.available ?? true,
+    createdAt: p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString(),
+  };
+}
+
 function dbCustomScheduleToLocal(cs: any): CustomScheduleDay {
   return {
     date: cs.date,
@@ -362,6 +391,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const deleteGiftCardMut = trpc.giftCards.delete.useMutation();
   const upsertScheduleMut = trpc.customSchedule.upsert.useMutation();
   const deleteScheduleMut = trpc.customSchedule.delete.useMutation();
+  const createProductMut = trpc.products.create.useMutation();
+  const updateProductMut = trpc.products.update.useMutation();
+  const deleteProductMut = trpc.products.delete.useMutation();
 
   // ─── Bootstrap: Load from DB or fallback to AsyncStorage ────────
   useEffect(() => {
@@ -387,6 +419,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                   discounts: (fullData.discounts || []).map(dbDiscountToLocal),
                   giftCards: (fullData.giftCards || []).map(dbGiftCardToLocal),
                   customSchedule: (fullData.customSchedule || []).map(dbCustomScheduleToLocal),
+                  products: (fullData.products || []).map(dbProductToLocal),
                   settings: { ...initialSettings, ...settingsFromDb },
                   businessOwnerId: ownerId,
                 },
@@ -400,7 +433,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 { ...initialSettings, ...settingsFromDb },
                 (fullData.discounts || []).map(dbDiscountToLocal),
                 (fullData.giftCards || []).map(dbGiftCardToLocal),
-                (fullData.customSchedule || []).map(dbCustomScheduleToLocal)
+                (fullData.customSchedule || []).map(dbCustomScheduleToLocal),
+                (fullData.products || []).map(dbProductToLocal)
               );
               return;
             }
@@ -410,7 +444,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Fallback: load from AsyncStorage
-        const [servicesRaw, clientsRaw, appointmentsRaw, reviewsRaw, settingsRaw, discountsRaw, giftCardsRaw, customScheduleRaw] =
+        const [servicesRaw, clientsRaw, appointmentsRaw, reviewsRaw, settingsRaw, discountsRaw, giftCardsRaw, customScheduleRaw, productsRaw] =
           await Promise.all([
             AsyncStorage.getItem(STORAGE_KEYS.services),
             AsyncStorage.getItem(STORAGE_KEYS.clients),
@@ -420,6 +454,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             AsyncStorage.getItem(STORAGE_KEYS.discounts),
             AsyncStorage.getItem(STORAGE_KEYS.giftCards),
             AsyncStorage.getItem(STORAGE_KEYS.customSchedule),
+            AsyncStorage.getItem(STORAGE_KEYS.products),
           ]);
         
         const loadedSettings = settingsRaw
@@ -436,6 +471,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             discounts: discountsRaw ? JSON.parse(discountsRaw) : [],
             giftCards: giftCardsRaw ? JSON.parse(giftCardsRaw) : [],
             customSchedule: customScheduleRaw ? JSON.parse(customScheduleRaw) : [],
+            products: productsRaw ? JSON.parse(productsRaw) : [],
             settings: loadedSettings,
             businessOwnerId: storedOwnerId ? parseInt(storedOwnerId, 10) : null,
           },
@@ -486,6 +522,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!state.loaded) return;
     AsyncStorage.setItem(STORAGE_KEYS.customSchedule, JSON.stringify(state.customSchedule));
   }, [state.customSchedule, state.loaded]);
+
+  useEffect(() => {
+    if (!state.loaded) return;
+    AsyncStorage.setItem(STORAGE_KEYS.products, JSON.stringify(state.products));
+  }, [state.products, state.loaded]);
 
   useEffect(() => {
     if (state.businessOwnerId !== null) {
@@ -744,6 +785,37 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             });
             break;
           }
+          case "ADD_PRODUCT": {
+            const prod = action.payload as Product;
+            await createProductMut.mutateAsync({
+              businessOwnerId: ownerId,
+              localId: prod.id,
+              name: prod.name,
+              price: String(prod.price),
+              description: prod.description || undefined,
+              available: prod.available,
+            });
+            break;
+          }
+          case "UPDATE_PRODUCT": {
+            const prod = action.payload as Product;
+            await updateProductMut.mutateAsync({
+              localId: prod.id,
+              businessOwnerId: ownerId,
+              name: prod.name,
+              price: String(prod.price),
+              description: prod.description || undefined,
+              available: prod.available,
+            });
+            break;
+          }
+          case "DELETE_PRODUCT": {
+            await deleteProductMut.mutateAsync({
+              localId: action.payload as string,
+              businessOwnerId: ownerId,
+            });
+            break;
+          }
           default:
             break;
         }
@@ -851,7 +923,8 @@ async function persistToAsyncStorage(
   settings: BusinessSettings,
   discounts?: Discount[],
   giftCards?: GiftCard[],
-  customSchedule?: CustomScheduleDay[]
+  customSchedule?: CustomScheduleDay[],
+  products?: Product[]
 ) {
   try {
     const ops = [
@@ -864,6 +937,7 @@ async function persistToAsyncStorage(
     if (discounts) ops.push(AsyncStorage.setItem(STORAGE_KEYS.discounts, JSON.stringify(discounts)));
     if (giftCards) ops.push(AsyncStorage.setItem(STORAGE_KEYS.giftCards, JSON.stringify(giftCards)));
     if (customSchedule) ops.push(AsyncStorage.setItem(STORAGE_KEYS.customSchedule, JSON.stringify(customSchedule)));
+    if (products) ops.push(AsyncStorage.setItem(STORAGE_KEYS.products, JSON.stringify(products)));
     await Promise.all(ops);
   } catch (err) {
     console.warn("[Store] Failed to persist to AsyncStorage:", err);

@@ -65,6 +65,15 @@ export interface GiftCard {
   createdAt: string;
 }
 
+export interface Product {
+  id: string;
+  name: string;
+  price: number;
+  description: string;
+  available: boolean;
+  createdAt: string;
+}
+
 export interface CustomScheduleDay {
   date: string; // YYYY-MM-DD
   isOpen: boolean;
@@ -150,7 +159,24 @@ export const DAYS_OF_WEEK = [
   "saturday",
 ] as const;
 
-// ─── Phone Formatting ──────────────────────────────────────────────
+// ─── Phone Normalization ────────────────────────────────────────────────
+/** Normalize a phone number to 10-digit US format for consistent matching.
+ *  "4124820000" -> "4124820000"
+ *  "+14124820000" -> "4124820000"
+ *  "14124820000" -> "4124820000"
+ *  "(412) 482-0000" -> "4124820000" */
+export function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("1")) {
+    return digits.slice(1);
+  }
+  if (digits.length === 10) {
+    return digits;
+  }
+  return digits;
+}
+
+// ─── Phone Formatting ────────────────────────────────────────────────────
 /** Format a phone number to (000) 000-0000 or +1 (000) 000-0000 format.
  *  Handles US numbers with or without country code (+1 or leading 1). */
 export function formatPhoneNumber(value: string): string {

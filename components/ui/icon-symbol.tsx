@@ -68,6 +68,8 @@ const MAPPING = {
   "faceid": "face",
   "touchid": "fingerprint",
   "copy": "content-copy",
+  "bag.fill": "shopping-bag",
+  "shippingbox.fill": "inventory",
 } as unknown as IconMapping;
 
 export function IconSymbol({
