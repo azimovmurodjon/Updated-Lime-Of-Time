@@ -1,6 +1,7 @@
 import { Express, Request, Response } from "express";
 import * as db from "./db";
 import { sendBookingNotificationEmail } from "./email";
+import { notifyOwner } from "./_core/notification";
 
 // ─── Helper: Generate available time slots ──────────────────────────
 const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -516,6 +517,17 @@ export function registerPublicRoutes(app: Express) {
         } catch (emailErr) {
           console.warn("[Public API] Failed to send email notification:", emailErr);
         }
+      }
+
+      // Send push notification to business owner's device
+      try {
+        const extrasLabel = extras.length > 0 ? ` + ${extras.length} extra item${extras.length > 1 ? "s" : ""}` : "";
+        await notifyOwner({
+          title: `New Booking Request`,
+          content: `${clientName} requested ${svc?.name ?? "a service"}${extrasLabel} on ${date} at ${time} — $${finalTotal.toFixed(2)}`,
+        });
+      } catch (pushErr) {
+        console.warn("[Public API] Failed to send push notification:", pushErr);
       }
 
       res.json({
