@@ -102,7 +102,7 @@ export default function GiftCardsScreen() {
     dispatch({ type: "ADD_GIFT_CARD", payload: newCard });
     syncToDb({ type: "ADD_GIFT_CARD", payload: newCard });
     resetForm();
-  }, [selectedServiceIds, selectedProductIds, recipientName, recipientPhone, message, expiresInDays, dispatch, syncToDb, resetForm]);
+  }, [selectedServiceIds, selectedProductIds, recipientName, recipientPhone, message, expiresInDays, totalValue, dispatch, syncToDb, resetForm]);
 
   const handleRedeem = useCallback(
     (card: GiftCard) => {
@@ -163,6 +163,11 @@ export default function GiftCardsScreen() {
         const p = state.products.find((pr) => pr.id === pid);
         if (p) items.push({ name: p.name, price: `$${parseFloat(String(p.price)).toFixed(2)}`, type: "product" });
       }
+      // For old single-service cards with no serviceIds, try serviceLocalId directly
+      if (items.length === 0 && card.serviceLocalId) {
+        const s = getServiceById(card.serviceLocalId);
+        if (s) items.push({ name: s.name, price: `$${parseFloat(String(s.price)).toFixed(2)}`, type: "service" });
+      }
       return items;
     },
     [getServiceById, state.products]
@@ -170,6 +175,11 @@ export default function GiftCardsScreen() {
 
   const getCardTotal = useCallback(
     (card: GiftCard) => {
+      // Use stored originalValue first (reliable), fall back to catalog lookup
+      if (card.originalValue != null && card.originalValue > 0) {
+        return card.originalValue;
+      }
+      // Fallback: recalculate from catalog for old cards without stored value
       let total = 0;
       const svcIds = card.serviceIds ?? (card.serviceLocalId ? [card.serviceLocalId] : []);
       for (const sid of svcIds) {
@@ -179,6 +189,11 @@ export default function GiftCardsScreen() {
       for (const pid of card.productIds ?? []) {
         const p = state.products.find((pr) => pr.id === pid);
         if (p) total += parseFloat(String(p.price));
+      }
+      // For old single-service cards with no serviceIds, try serviceLocalId directly
+      if (total === 0 && card.serviceLocalId) {
+        const s = getServiceById(card.serviceLocalId);
+        if (s) total = parseFloat(String(s.price));
       }
       return total;
     },

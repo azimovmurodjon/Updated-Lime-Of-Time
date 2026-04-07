@@ -270,6 +270,7 @@ function dbAppointmentToLocal(a: any): Appointment {
   let totalPrice: number | undefined;
   let extraItems: { type: "service" | "product"; id: string; name: string; price: number; duration: number }[] | undefined;
   let giftApplied: boolean | undefined;
+  let giftUsedAmount: number | undefined;
   let cleanNotes = notes;
 
   const pricingIdx = notes.indexOf("--- Pricing ---");
@@ -287,9 +288,10 @@ function dbAppointmentToLocal(a: any): Appointment {
         totalPrice = parseFloat(totalMatch[1]);
         continue;
       }
-      const giftMatch = line.match(/^Gift Card:\s*-\$/);
+      const giftMatch = line.match(/^Gift Card:\s*-\$([\d.]+)/);
       if (giftMatch) {
         giftApplied = true;
+        giftUsedAmount = parseFloat(giftMatch[1]);
         continue;
       }
       const extraMatch = line.match(/^(Product|Extra|Service):\s*(.+?)\s*\u2014\s*\$([\d.]+)/);
@@ -335,7 +337,8 @@ function dbAppointmentToLocal(a: any): Appointment {
     totalPrice,
     extraItems,
     giftApplied,
-  };
+    giftUsedAmount,
+  } as Appointment;
 }
 
 function dbReviewToLocal(r: any): Review {
@@ -370,6 +373,7 @@ function dbGiftCardToLocal(g: any): GiftCard {
   let productIds: string[] | undefined;
   let originalValue = 0;
   let remainingBalance = 0;
+  let hasGiftData = false;
   const msg = g.message ?? "";
   const jsonMatch = msg.match(/\n---GIFT_DATA---\n(.+)$/s);
   if (jsonMatch) {
@@ -379,7 +383,13 @@ function dbGiftCardToLocal(g: any): GiftCard {
       productIds = data.productIds;
       originalValue = data.originalValue ?? 0;
       remainingBalance = data.remainingBalance ?? originalValue;
+      hasGiftData = true;
     } catch {}
+  }
+  // For old cards without GIFT_DATA block, serviceIds defaults to serviceLocalId
+  if (!hasGiftData && g.serviceLocalId) {
+    serviceIds = [g.serviceLocalId];
+    // originalValue and remainingBalance stay 0 — will be resolved at display time via catalog lookup
   }
   const cleanMessage = msg.replace(/\n---GIFT_DATA---\n.+$/s, "");
   return {
@@ -706,7 +716,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 pricingLines.push(`${e.type === "product" ? "Product" : "Extra"}: ${e.name} \u2014 $${(e.price || 0).toFixed(2)}`);
               });
               if (appt.giftApplied) {
-                pricingLines.push(`Gift Card: -$${svcPrice.toFixed(2)}`);
+                const giftAmt = appt.giftUsedAmount ?? svcPrice;
+                pricingLines.push(`Gift Card: -$${giftAmt.toFixed(2)}`);
               }
               pricingLines.push(`Total Charged: $${(appt.totalPrice ?? svcPrice).toFixed(2)}`);
               enrichedNotes = (enrichedNotes ? enrichedNotes + "\n" : "") + "--- Pricing ---\n" + pricingLines.join("\n");

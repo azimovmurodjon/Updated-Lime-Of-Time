@@ -197,6 +197,7 @@ export default function PublicBookingScreen() {
       createdAt: new Date().toISOString(),
       totalPrice: priceInfo.final,
       giftApplied: priceInfo.isGift,
+      giftUsedAmount: priceInfo.giftUsed > 0 ? priceInfo.giftUsed : undefined,
     };
     dispatch({ type: "ADD_APPOINTMENT", payload: appointment });
     syncToDb({ type: "ADD_APPOINTMENT", payload: appointment });

@@ -471,19 +471,28 @@ export function registerPublicRoutes(app: Express) {
       if (giftCode) {
         const card = await db.getGiftCardByCode(giftCode, owner.id);
         if (card) {
-          // Parse existing balance from message JSON
+          // Parse existing balance from message field (may contain GIFT_DATA block)
           let meta: any = {};
-          try { meta = JSON.parse(card.message || "{}"); } catch (_) {}
+          const msgStr = card.message || "";
+          const giftDataMatch = msgStr.match(/\n---GIFT_DATA---\n(.+)$/s);
+          if (giftDataMatch) {
+            try { meta = JSON.parse(giftDataMatch[1]); } catch (_) {}
+          } else {
+            try { meta = JSON.parse(msgStr); } catch (_) {}
+          }
           const svcPriceNum = svc ? parseFloat(String(svc.price)) : 0;
           const currentBalance = meta.remainingBalance ?? meta.originalValue ?? svcPriceNum;
           const usedAmt = giftUsedAmount ? parseFloat(String(giftUsedAmount)) : Math.min(currentBalance, svcPrice + extrasTotal);
           const newBalance = Math.max(0, currentBalance - usedAmt);
           const fullyRedeemed = newBalance <= 0;
           meta.remainingBalance = newBalance;
+          // Preserve the GIFT_DATA format: clean message + separator + JSON
+          const cleanMsg = msgStr.replace(/\n---GIFT_DATA---\n.+$/s, "");
+          const updatedMsg = cleanMsg + "\n---GIFT_DATA---\n" + JSON.stringify(meta);
           await db.updateGiftCard(card.localId, owner.id, {
             redeemed: fullyRedeemed,
             redeemedAt: fullyRedeemed ? new Date() : undefined,
-            message: JSON.stringify(meta),
+            message: updatedMsg,
           });
         }
       }

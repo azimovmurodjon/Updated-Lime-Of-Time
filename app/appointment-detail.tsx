@@ -201,8 +201,21 @@ export default function AppointmentDetailScreen() {
           const svcPrice = service?.price ?? 0;
           const extras = appointment.extraItems ?? [];
           const extrasTotal = extras.reduce((s, e) => s + (e.price || 0), 0);
-          const giftUsedAmount = (appointment as any).giftUsedAmount ?? 0;
-          const giftDeduction = appointment.giftApplied ? (giftUsedAmount > 0 ? giftUsedAmount : svcPrice) : 0;
+          const giftUsedAmount = appointment.giftUsedAmount ?? 0;
+          // Use stored giftUsedAmount; if not available but gift was applied,
+          // infer deduction from the difference between subtotal and stored totalPrice
+          let giftDeduction = 0;
+          if (appointment.giftApplied) {
+            if (giftUsedAmount > 0) {
+              giftDeduction = giftUsedAmount;
+            } else if (appointment.totalPrice != null) {
+              // Infer: subtotal - totalPrice = gift deduction
+              giftDeduction = Math.max(0, svcPrice + extrasTotal - appointment.totalPrice);
+            } else {
+              // Last resort: assume full service price was covered by gift
+              giftDeduction = svcPrice;
+            }
+          }
           const computedTotal = appointment.totalPrice != null
             ? appointment.totalPrice
             : Math.max(0, svcPrice + extrasTotal - giftDeduction);

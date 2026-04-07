@@ -42,6 +42,8 @@ export interface Appointment {
   extraItems?: AppointmentExtraItem[];
   /** Whether a gift card was applied to this appointment */
   giftApplied?: boolean;
+  /** Amount deducted from gift card balance for this appointment */
+  giftUsedAmount?: number;
 }
 
 export interface Review {
