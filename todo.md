@@ -119,3 +119,4 @@
 - [x] Add review link to confirmation and accept SMS messages
 - [x] Add gift card URL to SMS sharing
 - [x] Fix EAS build configuration error for publishing
+- [x] Fix Android build minSdkVersion from 22 to 24
