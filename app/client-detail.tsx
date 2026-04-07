@@ -22,7 +22,6 @@ import {
   timeToMinutes,
   Appointment,
   getServiceDisplayName,
-  getMapUrl,
   stripPhoneFormat,
   formatPhoneNumber,
   formatDateLong,
@@ -158,14 +157,14 @@ export default function ClientDetailScreen() {
           return generateReminderMessage(bizName, addr, client.name, svcName, appt.duration, appt.date, appt.time, bizPhone);
         case "upcoming": {
           const endTime = formatTimeDisplay(minutesToTime(timeToMinutes(appt.time) + appt.duration));
-          const mapUrl = getMapUrl(addr);
-          return `Dear ${client.name},\n\nYou have an upcoming appointment request pending confirmation.\n\n📋 Service: ${svcName}\n📅 Date: ${formatDateLong(appt.date)}\n⏰ Time: ${formatTimeDisplay(appt.time)} - ${endTime}\n📍 Location: ${addr}\n🗺️ Map: ${mapUrl}\n🏢 Business: ${bizName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(bizPhone))}\n\nWe will confirm your appointment shortly. Thank you for your patience!\n\n${bizName}`;
+          const bookingSlug = bizName.replace(/\s+/g, "-").toLowerCase();
+          return `Dear ${client.name},\n\nYou have an upcoming appointment request pending confirmation.\n\n📋 Service: ${svcName}\n📅 Date: ${formatDateLong(appt.date)}\n⏰ Time: ${formatTimeDisplay(appt.time)} - ${endTime}\n📍 Location: ${addr}\n🏢 Business: ${bizName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(bizPhone))}\n\n📎 Book again: https://lime-of-time.com/book/${bookingSlug}\n\nWe will confirm your appointment shortly. Thank you for your patience!\n\n${bizName}`;
         }
         case "cancelled":
           return generateCancellationMessage(bizName, client.name, svcName, appt.date, appt.time, "", bizPhone);
         case "completed": {
-          const mapUrl = getMapUrl(addr);
-          return `Dear ${client.name},\n\nThank you for visiting ${bizName}! Your appointment for ${svcName} on ${formatDateLong(appt.date)} has been completed.\n\nWe hope you had a wonderful experience and we'd love to see you again!\n\n📍 Location: ${addr}\n🗺️ Map: ${mapUrl}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(bizPhone))}\n\nBest regards,\n${bizName}`;
+          const completedSlug = bizName.replace(/\s+/g, "-").toLowerCase();
+          return `Dear ${client.name},\n\nThank you for visiting ${bizName}! Your appointment for ${svcName} on ${formatDateLong(appt.date)} has been completed.\n\nWe hope you had a wonderful experience and we'd love to see you again!\n\n📍 Location: ${addr}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(bizPhone))}\n\n📎 Book again: https://lime-of-time.com/book/${completedSlug}\n\nBest regards,\n${bizName}`;
         }
         default:
           return "";
@@ -192,8 +191,9 @@ export default function ClientDetailScreen() {
       return;
     }
     const addr = profile.address;
-    const mapUrl = addr ? `\n\n📍 Location: ${addr}\n🗺️ Map: ${getMapUrl(addr)}` : "";
-    const message = `Dear ${client.name},\n\nThank you for being a valued client of ${biz.businessName}! We'd love to schedule your next appointment.${mapUrl}\n\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(profile.phone))}\n\nBest regards,\n${biz.businessName}`;
+    const followUpSlug = biz.businessName.replace(/\s+/g, "-").toLowerCase();
+    const locationLine = addr ? `\n\n📍 Location: ${addr}` : "";
+    const message = `Dear ${client.name},\n\nThank you for being a valued client of ${biz.businessName}! We'd love to schedule your next appointment.${locationLine}\n\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(profile.phone))}\n\n📎 Book now: https://lime-of-time.com/book/${followUpSlug}\n\nBest regards,\n${biz.businessName}`;
     openSMS(client.phone, message);
   }, [client, biz.businessName, profile, openSMS]);
 

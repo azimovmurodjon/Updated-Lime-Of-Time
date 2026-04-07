@@ -470,7 +470,6 @@ export function generateAcceptMessage(
   clientPhone?: string
 ): string {
   const endTime = formatTimeDisplay(minutesToTime(timeToMinutes(time) + serviceDuration));
-  const mapUrl = getMapUrl(address);
   const slug = businessName.replace(/\s+/g, "-").toLowerCase();
   const reviewParams = new URLSearchParams();
   if (clientName) reviewParams.set("name", clientName);
@@ -519,7 +518,6 @@ export function generateReminderMessage(
   businessPhone: string
 ): string {
   const endTime = formatTimeDisplay(minutesToTime(timeToMinutes(time) + serviceDuration));
-  const mapUrl = getMapUrl(address);
   return `Dear ${clientName},\n\nThis is a friendly reminder about your upcoming appointment.\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${address}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early. If you need to reschedule or cancel, please contact us as soon as possible.\n\nSee you soon!\n${businessName}`;
 }
 

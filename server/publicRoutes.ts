@@ -1,6 +1,5 @@
 import { Express, Request, Response } from "express";
 import * as db from "./db";
-import { notifyOwner } from "./_core/notification";
 import { sendBookingNotificationEmail } from "./email";
 
 // ─── Helper: Generate available time slots ──────────────────────────
@@ -496,17 +495,6 @@ export function registerPublicRoutes(app: Express) {
             message: updatedMsg,
           });
         }
-      }
-
-      // Send push notification to business owner
-      try {
-        const svcName = svc?.name ?? "Service";
-        await notifyOwner({
-          title: `New Booking Request`,
-          content: `${clientName} requested ${svcName} on ${date} at ${time}. Please review and confirm.`,
-        });
-      } catch (notifErr) {
-        console.warn("[Public API] Failed to send booking notification:", notifErr);
       }
 
       // Send branded email notification via Resend
