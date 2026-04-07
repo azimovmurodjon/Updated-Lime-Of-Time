@@ -1888,6 +1888,23 @@ function reviewPage(slug: string, owner: any): string {
     const API = window.location.origin + "/api/public/business/" + SLUG;
     let rating = 0;
 
+    // Pre-fill name and phone from URL parameters
+    (function prefillFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const name = params.get("name");
+      const phone = params.get("phone");
+      if (name) {
+        document.getElementById("reviewerName").value = decodeURIComponent(name);
+      }
+      if (phone) {
+        let v = phone.replace(/\\D/g, "");
+        if (v.length >= 10) v = v.slice(v.length - 10);
+        if (v.length >= 7) document.getElementById("reviewerPhone").value = "(" + v.slice(0,3) + ") " + v.slice(3,6) + "-" + v.slice(6);
+        else if (v.length >= 4) document.getElementById("reviewerPhone").value = "(" + v.slice(0,3) + ") " + v.slice(3);
+        else if (v.length > 0) document.getElementById("reviewerPhone").value = "(" + v;
+      }
+    })();
+
     document.getElementById("reviewerPhone").addEventListener("input", function(e) {
       let v = e.target.value.replace(/\\D/g, "");
       if (v.length > 10) v = v.slice(0, 10);

@@ -199,3 +199,4 @@
 - [x] Server-side: update gift balance after each booking use
 - [x] Appointment detail and analytics: show gift deduction correctly with balance-based gifts
 - [x] Fix gift card page money calculation broken after balance-based redesign (fixed: server GIFT_DATA parsing, giftUsedAmount tracking, old card fallback, appointment detail deduction display)
+- [x] Pre-fill client name and phone number on review page when client opens review link from SMS

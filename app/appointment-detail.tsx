@@ -82,7 +82,8 @@ export default function AppointmentDetailScreen() {
         appointment.duration,
         appointment.date,
         appointment.time,
-        profile.phone
+        profile.phone,
+        client.phone
       );
       openSms(client.phone, msg);
     }
