@@ -1,6 +1,7 @@
 import { Express, Request, Response } from "express";
 import * as db from "./db";
 import { notifyOwner } from "./_core/notification";
+import { sendBookingNotificationEmail } from "./email";
 
 // ─── Helper: Generate available time slots ──────────────────────────
 const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -506,7 +507,27 @@ export function registerPublicRoutes(app: Express) {
         });
       } catch (notifErr) {
         console.warn("[Public API] Failed to send booking notification:", notifErr);
-        // Don't fail the booking if notification fails
+      }
+
+      // Send branded email notification via Resend
+      if (owner.email) {
+        try {
+          await sendBookingNotificationEmail(owner.email, owner.businessName, {
+            clientName,
+            clientPhone: clientPhone || undefined,
+            serviceName: svc?.name ?? "Service",
+            date,
+            time,
+            duration: dur,
+            totalPrice: finalTotal,
+            extras: extras.length > 0 ? extras : undefined,
+            giftApplied: !!giftApplied,
+            giftUsedAmount: giftUsedAmount ? parseFloat(String(giftUsedAmount)) : undefined,
+            notes: enrichedNotes || undefined,
+          });
+        } catch (emailErr) {
+          console.warn("[Public API] Failed to send email notification:", emailErr);
+        }
       }
 
       res.json({

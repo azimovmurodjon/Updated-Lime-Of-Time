@@ -199,4 +199,7 @@
 - [x] Server-side: update gift balance after each booking use
 - [x] Appointment detail and analytics: show gift deduction correctly with balance-based gifts
 - [x] Fix gift card page money calculation broken after balance-based redesign (fixed: server GIFT_DATA parsing, giftUsedAmount tracking, old card fallback, appointment detail deduction display)
-- [x] Pre-fill client name and phone number on review page when client opens review link from SMS
+- [x] Pre-fill client name and phone number on review page when client opens review link from SMS (already implemented: SMS includes ?name=&phone= params, review page reads and pre-fills)
+- [x] Integrate Resend email service for branded appointment notifications from noreply@lime-of-time.com
+- [x] Design branded HTML email template with Lime Of Time logo
+- [x] Send email notification to business owner when client submits booking request
