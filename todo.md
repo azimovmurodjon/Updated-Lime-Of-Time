@@ -111,3 +111,10 @@
 - [x] Make booking days unselectable when no available time slots exist
 - [x] Release cancelled appointment time slots for rebooking by other clients
 - [x] Change all limeoftime.com references to lime-of-time.com
+- [x] Ensure backend serves public booking/review web pages for lime-of-time.com
+- [x] Verify public web routes work correctly from server
+- [x] Create /book/[slug] route for public booking URL
+- [x] Create /review/[slug] route for public review URL
+- [x] Create /gift/[code] route for gift card redemption URL
+- [x] Add review link to confirmation and accept SMS messages
+- [x] Add gift card URL to SMS sharing

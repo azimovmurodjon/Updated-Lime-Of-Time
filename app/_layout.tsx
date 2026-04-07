@@ -98,6 +98,9 @@ export default function RootLayout() {
               <Stack.Screen name="analytics-detail" options={{ presentation: "card" }} />
               <Stack.Screen name="discounts" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="gift-cards" options={{ presentation: "fullScreenModal" }} />
+              <Stack.Screen name="book/[slug]" options={{ presentation: "fullScreenModal" }} />
+              <Stack.Screen name="review/[slug]" options={{ presentation: "fullScreenModal" }} />
+              <Stack.Screen name="gift/[code]" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="oauth/callback" />
             </Stack>
             <StatusBar style="auto" />
