@@ -138,7 +138,7 @@ export default function GiftCardsScreen() {
       ? `\nThis gift card expires on ${new Date(card.expiresAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.`
       : "";
     const personalMsg = card.message ? `\n\n"${card.message}"` : "";
-    const giftUrl = `https://lime-of-time.com/api/gift/${card.code}`;
+    const giftUrl = `https://lime-of-time.com/gift/${card.code}`;  // Cloudflare redirect adds /api prefix
     const body = `🎁 You've received a Gift Card from ${businessName}!\n\nService: ${serviceName} ($${servicePrice})\nGift Code: ${card.code}${personalMsg}${expiryText}\n\nRedeem here: ${giftUrl}\n\n— ${businessName}`;
     const phone = card.recipientPhone ? stripPhoneFormat(card.recipientPhone) : "";
     const smsUrl = Platform.OS === "ios"

@@ -217,6 +217,9 @@ const STORAGE_KEYS = {
   reviews: "@bookease_reviews",
   settings: "@bookease_settings",
   businessOwnerId: "@bookease_business_owner_id",
+  discounts: "@bookease_discounts",
+  giftCards: "@bookease_gift_cards",
+  customSchedule: "@bookease_custom_schedule",
 };
 
 /** Convert DB rows to local frontend models */
@@ -394,7 +397,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 (fullData.clients || []).map(dbClientToLocal),
                 (fullData.appointments || []).map(dbAppointmentToLocal),
                 (fullData.reviews || []).map(dbReviewToLocal),
-                { ...initialSettings, ...settingsFromDb }
+                { ...initialSettings, ...settingsFromDb },
+                (fullData.discounts || []).map(dbDiscountToLocal),
+                (fullData.giftCards || []).map(dbGiftCardToLocal),
+                (fullData.customSchedule || []).map(dbCustomScheduleToLocal)
               );
               return;
             }
@@ -404,13 +410,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Fallback: load from AsyncStorage
-        const [servicesRaw, clientsRaw, appointmentsRaw, reviewsRaw, settingsRaw] =
+        const [servicesRaw, clientsRaw, appointmentsRaw, reviewsRaw, settingsRaw, discountsRaw, giftCardsRaw, customScheduleRaw] =
           await Promise.all([
             AsyncStorage.getItem(STORAGE_KEYS.services),
             AsyncStorage.getItem(STORAGE_KEYS.clients),
             AsyncStorage.getItem(STORAGE_KEYS.appointments),
             AsyncStorage.getItem(STORAGE_KEYS.reviews),
             AsyncStorage.getItem(STORAGE_KEYS.settings),
+            AsyncStorage.getItem(STORAGE_KEYS.discounts),
+            AsyncStorage.getItem(STORAGE_KEYS.giftCards),
+            AsyncStorage.getItem(STORAGE_KEYS.customSchedule),
           ]);
         
         const loadedSettings = settingsRaw
@@ -424,6 +433,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             clients: clientsRaw ? JSON.parse(clientsRaw) : [],
             appointments: appointmentsRaw ? JSON.parse(appointmentsRaw) : [],
             reviews: reviewsRaw ? JSON.parse(reviewsRaw) : [],
+            discounts: discountsRaw ? JSON.parse(discountsRaw) : [],
+            giftCards: giftCardsRaw ? JSON.parse(giftCardsRaw) : [],
+            customSchedule: customScheduleRaw ? JSON.parse(customScheduleRaw) : [],
             settings: loadedSettings,
             businessOwnerId: storedOwnerId ? parseInt(storedOwnerId, 10) : null,
           },
@@ -459,6 +471,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!state.loaded) return;
     AsyncStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(state.settings));
   }, [state.settings, state.loaded]);
+
+  useEffect(() => {
+    if (!state.loaded) return;
+    AsyncStorage.setItem(STORAGE_KEYS.discounts, JSON.stringify(state.discounts));
+  }, [state.discounts, state.loaded]);
+
+  useEffect(() => {
+    if (!state.loaded) return;
+    AsyncStorage.setItem(STORAGE_KEYS.giftCards, JSON.stringify(state.giftCards));
+  }, [state.giftCards, state.loaded]);
+
+  useEffect(() => {
+    if (!state.loaded) return;
+    AsyncStorage.setItem(STORAGE_KEYS.customSchedule, JSON.stringify(state.customSchedule));
+  }, [state.customSchedule, state.loaded]);
 
   useEffect(() => {
     if (state.businessOwnerId !== null) {
@@ -821,16 +848,23 @@ async function persistToAsyncStorage(
   clients: Client[],
   appointments: Appointment[],
   reviews: Review[],
-  settings: BusinessSettings
+  settings: BusinessSettings,
+  discounts?: Discount[],
+  giftCards?: GiftCard[],
+  customSchedule?: CustomScheduleDay[]
 ) {
   try {
-    await Promise.all([
+    const ops = [
       AsyncStorage.setItem(STORAGE_KEYS.services, JSON.stringify(services)),
       AsyncStorage.setItem(STORAGE_KEYS.clients, JSON.stringify(clients)),
       AsyncStorage.setItem(STORAGE_KEYS.appointments, JSON.stringify(appointments)),
       AsyncStorage.setItem(STORAGE_KEYS.reviews, JSON.stringify(reviews)),
       AsyncStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(settings)),
-    ]);
+    ];
+    if (discounts) ops.push(AsyncStorage.setItem(STORAGE_KEYS.discounts, JSON.stringify(discounts)));
+    if (giftCards) ops.push(AsyncStorage.setItem(STORAGE_KEYS.giftCards, JSON.stringify(giftCards)));
+    if (customSchedule) ops.push(AsyncStorage.setItem(STORAGE_KEYS.customSchedule, JSON.stringify(customSchedule)));
+    await Promise.all(ops);
   } catch (err) {
     console.warn("[Store] Failed to persist to AsyncStorage:", err);
   }

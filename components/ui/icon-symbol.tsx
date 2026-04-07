@@ -63,6 +63,10 @@ const MAPPING = {
   "power": "power-settings-new",
   "info.circle.fill": "info",
   "arrow.clockwise": "refresh",
+  "lock.fill": "lock",
+  "lock.open.fill": "lock-open",
+  "faceid": "face",
+  "touchid": "fingerprint",
   "copy": "content-copy",
 } as unknown as IconMapping;
 

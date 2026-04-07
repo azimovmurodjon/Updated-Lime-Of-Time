@@ -109,11 +109,11 @@ const config: ExpoConfig = {
       "expo-splash-screen",
       {
         image: "./assets/images/splash-icon.png",
-        imageWidth: 200,
+        imageWidth: 280,
         resizeMode: "contain",
-        backgroundColor: "#ffffff",
+        backgroundColor: "#F0FFF0",
         dark: {
-          backgroundColor: "#000000",
+          backgroundColor: "#1a2e1a",
         },
       },
     ],
@@ -133,6 +133,12 @@ const config: ExpoConfig = {
       {
         minSdkVersion: 24,
         ndkVersion: "27.2.12479018",
+      },
+    ],
+    [
+      "expo-local-authentication",
+      {
+        faceIDPermission: "Allow $(PRODUCT_NAME) to use Face ID to unlock the app.",
       },
     ],
   ],

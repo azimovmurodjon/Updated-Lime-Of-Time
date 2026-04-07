@@ -18,105 +18,9 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter } from "expo-router";
 import { minutesToTime, timeToMinutes, PUBLIC_BOOKING_URL } from "@/lib/types";
 import * as ImagePicker from "expo-image-picker";
+import { MiniBarChart, MiniDonutChart } from "@/components/mini-chart";
 
-// ─── Simple chart components (no SVG dependency) ────────────────────
-
-function BarChart({
-  data,
-  colors: themeColors,
-  height = 120,
-}: {
-  data: { label: string; value: number; color: string }[];
-  colors: any;
-  height?: number;
-}) {
-  const maxVal = Math.max(...data.map((d) => d.value), 1);
-  return (
-    <View style={{ height, flexDirection: "row", alignItems: "flex-end", gap: 6, width: "100%" }}>
-      {data.map((d, i) => {
-        const barH = Math.max(4, (d.value / maxVal) * (height - 24));
-        return (
-          <View key={i} style={{ flex: 1, alignItems: "center" }}>
-            <Text style={{ fontSize: 10, fontWeight: "700", color: d.color, marginBottom: 4 }}>
-              {d.value > 0 ? d.value : ""}
-            </Text>
-            <View
-              style={{
-                width: "80%",
-                maxWidth: 32,
-                height: barH,
-                backgroundColor: d.color,
-                borderRadius: 6,
-              }}
-            />
-            <Text
-              style={{ fontSize: 9, color: themeColors.muted, marginTop: 4 }}
-              numberOfLines={1}
-            >
-              {d.label}
-            </Text>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
-function MiniDonut({
-  segments,
-  size = 80,
-  strokeWidth = 14,
-  colors: themeColors,
-}: {
-  segments: { value: number; color: string; label: string }[];
-  size?: number;
-  strokeWidth?: number;
-  colors: any;
-}) {
-  const total = segments.reduce((s, seg) => s + seg.value, 0);
-  if (total === 0) {
-    return (
-      <View
-        style={{
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          borderWidth: strokeWidth,
-          borderColor: themeColors.border,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Text style={{ fontSize: 11, color: themeColors.muted }}>N/A</Text>
-      </View>
-    );
-  }
-  return (
-    <View style={{ width: size, height: size }}>
-      <View
-        style={{
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          overflow: "hidden",
-          borderWidth: 2,
-          borderColor: themeColors.border,
-        }}
-      >
-        {segments.map((seg, i) => {
-          const pct = (seg.value / total) * 100;
-          return (
-            <View
-              key={i}
-              style={{ width: "100%", height: `${pct}%`, backgroundColor: seg.color }}
-            />
-          );
-        })}
-      </View>
-    </View>
-  );
-}
-
+// ─── Progress Bar (inline, lightweight) ────────────────────────────
 function ProgressBar({
   value,
   max,
@@ -295,7 +199,7 @@ export default function HomeScreen() {
 
   const handleShareBookingLink = useCallback(async () => {
     const slug = state.settings.businessName.replace(/\s+/g, "-").toLowerCase();
-    const url = `${PUBLIC_BOOKING_URL}/book/${slug}`;
+    const url = `${PUBLIC_BOOKING_URL}/book/${slug}`;  // Cloudflare redirect adds /api prefix
     const profile = state.settings.profile;
     const addressLine = profile.address ? `\n📍 ${profile.address}` : "";
     const phoneLine = profile.phone ? `\n📞 ${profile.phone}` : "";
@@ -607,7 +511,7 @@ export default function HomeScreen() {
               Last 6 months
             </Text>
           </View>
-          <BarChart data={analytics.monthlyData} colors={colors} height={130} />
+          <MiniBarChart data={analytics.monthlyData} height={160} width={contentWidth - 32} />
         </View>
 
         {/* ─── Service Breakdown + Status (side by side) ──────── */}
@@ -632,33 +536,12 @@ export default function HomeScreen() {
               By Service
             </Text>
             {analytics.serviceBreakdown.length > 0 ? (
-              <View style={styles.donutSection}>
-                <MiniDonut
-                  segments={analytics.serviceBreakdown}
-                  size={70}
-                  colors={colors}
-                />
-                <View style={styles.legendList}>
-                  {analytics.serviceBreakdown.slice(0, 3).map((s, i) => (
-                    <View key={i} style={styles.legendRow}>
-                      <View
-                        style={[styles.legendDot, { backgroundColor: s.color }]}
-                      />
-                      <Text
-                        style={[styles.legendLabel, { color: colors.muted }]}
-                        numberOfLines={1}
-                      >
-                        {s.label}
-                      </Text>
-                      <Text
-                        style={[styles.legendValue, { color: colors.foreground }]}
-                      >
-                        {s.value}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
+              <MiniDonutChart
+                data={analytics.serviceBreakdown.slice(0, 4)}
+                size={70}
+                compact
+                centerValue={String(analytics.serviceBreakdown.reduce((s, d) => s + d.value, 0))}
+              />
             ) : (
               <Text
                 style={{
@@ -1059,32 +942,7 @@ const styles = StyleSheet.create({
   sideBySideRow: {
     flexDirection: "row",
   },
-  donutSection: {
-    alignItems: "center",
-  },
-  legendList: {
-    marginTop: 10,
-    gap: 4,
-    width: "100%",
-  },
-  legendRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  legendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  legendLabel: {
-    fontSize: 11,
-    flex: 1,
-  },
-  legendValue: {
-    fontSize: 11,
-    fontWeight: "700",
-  },
+
   statusList: {
     gap: 10,
   },

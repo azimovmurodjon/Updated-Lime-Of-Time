@@ -1,0 +1,5 @@
+Status check: App compiles fine, no TypeScript errors, no LSP errors.
+The preview shows the onboarding screen (phone number entry) which is expected for a fresh session.
+Charts have been upgraded to SVG-based components from mini-chart.tsx.
+Theme sync, store bootstrap, Face ID, and link fixes are all in place.
+Next: Need to audit responsive layout across all screens and fix the splash screen.

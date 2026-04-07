@@ -129,3 +129,13 @@
 - [x] Business owner receives appointment request in the app from web bookings
 - [x] Provide DNS setup instructions for lime-of-time.com
 - [x] Fix public web routes not being served on Manus deployment (book/review/gift pages return Not Found)
+- [x] Issue 1: Fix resolution and responsive layout issues across the entire app (especially on iOS after closing/reopening)
+- [x] Issue 2: Ensure consistent resolution handling on all pages (no shifting, clipping, scaling, or broken alignment)
+- [x] Issue 3: Fix pages only functioning after opening Client Info — Discount, Gift, New Service pages should work from initial app launch
+- [x] Issue 4: Fix system theme synchronization — app should update live when device switches between Light/Dark mode
+- [x] Issue 5: Fix link reliability — shared booking links work inconsistently
+- [x] Issue 6: Add Face ID login support for authentication
+- [x] Issue 7: Implement logout and Face ID re-auth flow — business owner logged out on app close, Face ID prompt on reopen
+- [x] Issue 8: Enhance splash screen with app logo for polished first impression
+- [x] Issue 9: Improve Home Page UI — modernize charts with better graph presentation and readability
+- [x] Issue 10: Validate all outgoing/shared links (lime-of-time.com/book, /gift, /review) route correctly every time
