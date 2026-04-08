@@ -18,14 +18,6 @@ export interface Client {
 
 export type AppointmentStatus = "pending" | "confirmed" | "completed" | "cancelled";
 
-export interface AppointmentExtraItem {
-  type: "service" | "product";
-  id: string;
-  name: string;
-  price: number;
-  duration: number;
-}
-
 export interface Appointment {
   id: string;
   serviceId: string;
@@ -36,14 +28,6 @@ export interface Appointment {
   status: AppointmentStatus;
   notes: string;
   createdAt: string;
-  /** Total price including primary service + extra items. Falls back to service price if not set. */
-  totalPrice?: number;
-  /** Structured list of extra items (services/products) added to this appointment */
-  extraItems?: AppointmentExtraItem[];
-  /** Whether a gift card was applied to this appointment */
-  giftApplied?: boolean;
-  /** Amount deducted from gift card balance for this appointment */
-  giftUsedAmount?: number;
 }
 
 export interface Review {
@@ -64,7 +48,6 @@ export interface Discount {
   daysOfWeek: string[]; // legacy, kept for backward compat
   dates: string[]; // specific dates YYYY-MM-DD (future dates only)
   serviceIds: string[] | null; // null = all services
-  productIds?: string[] | null; // null = all products, [] = no products
   active: boolean;
   createdAt: string;
 }
@@ -72,28 +55,13 @@ export interface Discount {
 export interface GiftCard {
   id: string;
   code: string;
-  serviceLocalId: string; // primary service (backward compat)
-  serviceIds?: string[]; // multiple services
-  productIds?: string[]; // products included
-  /** Total monetary value of the gift card when created */
-  originalValue: number;
-  /** Remaining balance (decreases with each use, 0 = fully redeemed) */
-  remainingBalance: number;
+  serviceLocalId: string;
   recipientName: string;
   recipientPhone: string;
   message: string;
   redeemed: boolean;
   redeemedAt?: string;
   expiresAt?: string;
-  createdAt: string;
-}
-
-export interface Product {
-  id: string;
-  name: string;
-  price: number;
-  description: string;
-  available: boolean;
   createdAt: string;
 }
 
@@ -136,7 +104,6 @@ export interface BusinessSettings {
   onboardingComplete: boolean;
   temporaryClosed: boolean;
   businessLogoUri: string; // local URI for custom uploaded logo
-  scheduleMode: "weekly" | "custom"; // which schedule drives availability
 }
 
 export const SERVICE_COLORS = [
@@ -183,24 +150,7 @@ export const DAYS_OF_WEEK = [
   "saturday",
 ] as const;
 
-// ─── Phone Normalization ────────────────────────────────────────────────
-/** Normalize a phone number to 10-digit US format for consistent matching.
- *  "4124820000" -> "4124820000"
- *  "+14124820000" -> "4124820000"
- *  "14124820000" -> "4124820000"
- *  "(412) 482-0000" -> "4124820000" */
-export function normalizePhone(phone: string): string {
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length === 11 && digits.startsWith("1")) {
-    return digits.slice(1);
-  }
-  if (digits.length === 10) {
-    return digits;
-  }
-  return digits;
-}
-
-// ─── Phone Formatting ────────────────────────────────────────────────────
+// ─── Phone Formatting ──────────────────────────────────────────────
 /** Format a phone number to (000) 000-0000 or +1 (000) 000-0000 format.
  *  Handles US numbers with or without country code (+1 or leading 1). */
 export function formatPhoneNumber(value: string): string {
@@ -289,40 +239,21 @@ function filterSlots(
   });
 }
 
-/** Generate available time slots for a given date, considering working hours, custom schedule overrides, existing appointments, and past-time filtering.
- *  When scheduleMode is "custom", ONLY custom schedule entries are used (no weekly fallback).
- *  When scheduleMode is "weekly" (default), custom overrides take precedence for specific dates, then weekly hours are used. */
+/** Generate available time slots for a given date, considering working hours, custom schedule overrides, existing appointments, and past-time filtering */
 export function generateAvailableSlots(
   date: string,
   serviceDuration: number,
   workingHours: Record<string, WorkingHours>,
   appointments: Appointment[],
   stepMinutes: number = 30,
-  customSchedule?: CustomScheduleDay[],
-  scheduleMode: "weekly" | "custom" = "weekly"
+  customSchedule?: CustomScheduleDay[]
 ): string[] {
+  // Check for custom schedule override for this specific date
   const customDay = customSchedule?.find((cs) => cs.date === date);
-
-  if (scheduleMode === "custom") {
-    // In custom mode, ONLY custom schedule entries matter — no weekly fallback
-    if (!customDay) return []; // No custom entry for this date = closed
-    if (!customDay.isOpen) return []; // Explicitly closed
-    if (customDay.startTime && customDay.endTime) {
-      const startMin = timeToMinutes(customDay.startTime);
-      const endMin = timeToMinutes(customDay.endTime);
-      const slots: string[] = [];
-      for (let min = startMin; min + serviceDuration <= endMin; min += stepMinutes) {
-        slots.push(minutesToTime(min));
-      }
-      return filterSlots(slots, date, serviceDuration, appointments);
-    }
-    return []; // Custom entry exists but no hours set
-  }
-
-  // Weekly mode: custom overrides take precedence for specific dates
   if (customDay) {
-    if (!customDay.isOpen) return [];
+    if (!customDay.isOpen) return []; // Business explicitly closed on this date
     if (customDay.startTime && customDay.endTime) {
+      // Use custom hours for this date
       const startMin = timeToMinutes(customDay.startTime);
       const endMin = timeToMinutes(customDay.endTime);
       const slots: string[] = [];
@@ -337,7 +268,7 @@ export function generateAvailableSlots(
   const dateObj = new Date(date + "T12:00:00");
   const dayIndex = dateObj.getDay();
   const dayName = DAYS_OF_WEEK[dayIndex];
-  const wh = workingHours[dayName] || workingHours[dayName.toLowerCase()];
+  const wh = workingHours[dayName];
   if (!wh || !wh.enabled) return [];
 
   const startMin = timeToMinutes(wh.start);
@@ -445,16 +376,10 @@ export function generateConfirmationMessage(
   serviceDuration: number,
   date: string,
   time: string,
-  businessPhone: string,
-  clientPhone?: string
+  businessPhone: string
 ): string {
   const endTime = formatTimeDisplay(minutesToTime(timeToMinutes(time) + serviceDuration));
-  const slug = businessName.replace(/\s+/g, "-").toLowerCase();
-  const reviewParams = new URLSearchParams();
-  if (clientName) reviewParams.set("name", clientName);
-  if (clientPhone) reviewParams.set("phone", stripPhoneFormat(clientPhone));
-  const reviewUrl = `${PUBLIC_BOOKING_URL}/review/${slug}${reviewParams.toString() ? "?" + reviewParams.toString() : ""}`;
-  return `Dear ${clientName},\n\nYour appointment has been confirmed!\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${address}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early. If you need to reschedule or cancel, please contact us at least 2 hours before your appointment.\n\n⭐ After your visit, leave a review: ${reviewUrl}\n\nThank you for choosing ${businessName}!`;
+  return `Dear ${clientName},\n\nYour appointment has been confirmed!\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${address}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early. If you need to reschedule or cancel, please contact us at least 2 hours before your appointment.\n\nThank you for choosing ${businessName}!`;
 }
 
 /** Generate professional appointment request accepted message */
@@ -466,16 +391,11 @@ export function generateAcceptMessage(
   serviceDuration: number,
   date: string,
   time: string,
-  businessPhone: string,
-  clientPhone?: string
+  businessPhone: string
 ): string {
   const endTime = formatTimeDisplay(minutesToTime(timeToMinutes(time) + serviceDuration));
-  const slug = businessName.replace(/\s+/g, "-").toLowerCase();
-  const reviewParams = new URLSearchParams();
-  if (clientName) reviewParams.set("name", clientName);
-  if (clientPhone) reviewParams.set("phone", stripPhoneFormat(clientPhone));
-  const reviewUrl = `${PUBLIC_BOOKING_URL}/review/${slug}${reviewParams.toString() ? "?" + reviewParams.toString() : ""}`;
-  return `Dear ${clientName},\n\nGreat news! Your appointment request has been accepted.\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${address}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early. If you need to reschedule or cancel, please contact us at least 2 hours before your appointment.\n\n⭐ After your visit, leave a review: ${reviewUrl}\n\nWe look forward to seeing you!\n${businessName}`;
+  const mapUrl = getMapUrl(address);
+  return `Dear ${clientName},\n\nGreat news! Your appointment request has been accepted.\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${address}\n🗺️ Map: ${mapUrl}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early. If you need to reschedule or cancel, please contact us at least 2 hours before your appointment.\n\nWe look forward to seeing you!\n${businessName}`;
 }
 
 /** Generate professional appointment rejection message */
@@ -518,7 +438,8 @@ export function generateReminderMessage(
   businessPhone: string
 ): string {
   const endTime = formatTimeDisplay(minutesToTime(timeToMinutes(time) + serviceDuration));
-  return `Dear ${clientName},\n\nThis is a friendly reminder about your upcoming appointment.\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${address}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early. If you need to reschedule or cancel, please contact us as soon as possible.\n\nSee you soon!\n${businessName}`;
+  const mapUrl = getMapUrl(address);
+  return `Dear ${clientName},\n\nThis is a friendly reminder about your upcoming appointment.\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${address}\n🗺️ Map: ${mapUrl}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early. If you need to reschedule or cancel, please contact us as soon as possible.\n\nSee you soon!\n${businessName}`;
 }
 
 /** Public booking URL base */

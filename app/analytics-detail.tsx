@@ -45,7 +45,6 @@ export default function AnalyticsDetailScreen() {
         const totalSpent = state.appointments
           .filter((a) => a.clientId === c.id && a.status === "completed")
           .reduce((sum, a) => {
-            if (a.totalPrice != null) return sum + a.totalPrice;
             const svc = getServiceById(a.serviceId);
             return sum + (svc?.price ?? 0);
           }, 0);
@@ -87,9 +86,7 @@ export default function AnalyticsDetailScreen() {
         if (svc) {
           if (!byService[svc.id])
             byService[svc.id] = { name: svc.name, revenue: 0, count: 0, color: svc.color };
-          // Use totalPrice if available (includes extras), else fall back to service price
-          const apptRevenue = a.totalPrice != null ? a.totalPrice : svc.price;
-          byService[svc.id].revenue += apptRevenue;
+          byService[svc.id].revenue += svc.price;
           byService[svc.id].count++;
         }
       });
@@ -134,7 +131,6 @@ export default function AnalyticsDetailScreen() {
 
         // Revenue calculations
         const yearRevenue = completedAppts.reduce((sum, a) => {
-          if (a.totalPrice != null) return sum + a.totalPrice;
           const svc = getServiceById(a.serviceId);
           return sum + (svc?.price ?? 0);
         }, 0);
@@ -143,8 +139,8 @@ export default function AnalyticsDetailScreen() {
         const monthlyRevenue: Record<string, number> = {};
         completedAppts.forEach((a) => {
           const monthKey = a.date.substring(0, 7);
-          const apptPrice = a.totalPrice != null ? a.totalPrice : (getServiceById(a.serviceId)?.price ?? 0);
-          monthlyRevenue[monthKey] = (monthlyRevenue[monthKey] || 0) + apptPrice;
+          const svc = getServiceById(a.serviceId);
+          monthlyRevenue[monthKey] = (monthlyRevenue[monthKey] || 0) + (svc?.price ?? 0);
         });
 
         // Service revenue breakdown
@@ -154,7 +150,7 @@ export default function AnalyticsDetailScreen() {
           if (svc) {
             if (!serviceRevenue[svc.id])
               serviceRevenue[svc.id] = { name: svc.name, revenue: 0, count: 0 };
-            serviceRevenue[svc.id].revenue += a.totalPrice != null ? a.totalPrice : svc.price;
+            serviceRevenue[svc.id].revenue += svc.price;
             serviceRevenue[svc.id].count++;
           }
         });
@@ -173,7 +169,7 @@ export default function AnalyticsDetailScreen() {
                 revenue: 0,
                 visits: 0,
               };
-            clientRevenue[client.id].revenue += a.totalPrice != null ? a.totalPrice : (svc?.price ?? 0);
+            clientRevenue[client.id].revenue += svc?.price ?? 0;
             clientRevenue[client.id].visits++;
           }
         });
@@ -286,7 +282,6 @@ export default function AnalyticsDetailScreen() {
             const cSpent = cAppts
               .filter((a) => a.status === "completed")
               .reduce((sum, a) => {
-                if (a.totalPrice != null) return sum + a.totalPrice;
                 const svc = getServiceById(a.serviceId);
                 return sum + (svc?.price ?? 0);
               }, 0);
@@ -309,7 +304,7 @@ export default function AnalyticsDetailScreen() {
               const svc = getServiceById(a.serviceId);
               const endMin = timeToMinutes(a.time) + a.duration;
               const endTime = minutesToTime(endMin);
-              csvContent += `"${a.date}","${a.time}","${endTime}","${client?.name ?? "Unknown"}","${svc?.name ?? "Unknown"}","${a.duration}","$${a.totalPrice != null ? a.totalPrice : (svc?.price ?? 0)}","${a.status}","${a.notes.replace(/"/g, '""')}"\n`;
+              csvContent += `"${a.date}","${a.time}","${endTime}","${client?.name ?? "Unknown"}","${svc?.name ?? "Unknown"}","${a.duration}","$${svc?.price ?? 0}","${a.status}","${a.notes.replace(/"/g, '""')}"\n`;
             });
         } else if (reportType === "topservice") {
           fileName = `${businessName.replace(/\s+/g, "_")}_Service_Report_${currentYear}.csv`;

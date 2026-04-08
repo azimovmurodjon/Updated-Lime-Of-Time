@@ -9,7 +9,6 @@ import {
   discounts,
   giftCards,
   customSchedule,
-  products,
 } from "./schema";
 
 export const usersRelations = relations(users, ({ one }) => ({
@@ -31,7 +30,6 @@ export const businessOwnersRelations = relations(businessOwners, ({ one, many })
   discounts: many(discounts),
   giftCards: many(giftCards),
   customSchedule: many(customSchedule),
-  products: many(products),
 }));
 
 export const servicesRelations = relations(services, ({ one }) => ({
@@ -79,13 +77,6 @@ export const giftCardsRelations = relations(giftCards, ({ one }) => ({
 export const customScheduleRelations = relations(customSchedule, ({ one }) => ({
   businessOwner: one(businessOwners, {
     fields: [customSchedule.businessOwnerId],
-    references: [businessOwners.id],
-  }),
-}));
-
-export const productsRelations = relations(products, ({ one }) => ({
-  businessOwner: one(businessOwners, {
-    fields: [products.businessOwnerId],
     references: [businessOwners.id],
   }),
 }));

@@ -1,6 +1,5 @@
 import { eq, and } from "drizzle-orm";
-import { drizzle, type MySql2Database } from "drizzle-orm/mysql2";
-import mysql from "mysql2/promise";
+import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
   users,
@@ -21,61 +20,21 @@ import {
   InsertGiftCard,
   customSchedule,
   InsertCustomSchedule,
-  products,
-  InsertProduct,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
-let _db: MySql2Database | null = null;
-let _pool: mysql.Pool | null = null;
+let _db: ReturnType<typeof drizzle> | null = null;
 
-async function createDb(): Promise<MySql2Database | null> {
-  if (!ENV.databaseUrl) {
-    console.warn("[Database] DATABASE_URL is missing");
-    return null;
-  }
-
-  try {
-    if (!_pool) {
-      _pool = mysql.createPool(ENV.databaseUrl);
+export async function getDb() {
+  if (!_db && process.env.DATABASE_URL) {
+    try {
+      _db = drizzle(process.env.DATABASE_URL);
+    } catch (error) {
+      console.warn("[Database] Failed to connect:", error);
+      _db = null;
     }
-
-    await _pool.query("SELECT 1");
-    console.log("[Database] Connection established successfully");
-
-    return drizzle(_pool);
-  } catch (error) {
-    console.error("[Database] Failed to connect:", error);
-    _db = null;
-    _pool = null;
-    return null;
   }
-}
-
-export async function getDb(): Promise<MySql2Database | null> {
-  if (_db) return _db;
-  _db = await createDb();
   return _db;
-}
-
-export async function checkDatabaseHealth(): Promise<{ ok: boolean; error?: string }> {
-  try {
-    if (!ENV.databaseUrl) {
-      return { ok: false, error: "DATABASE_URL is missing" };
-    }
-
-    if (!_pool) {
-      _pool = mysql.createPool(ENV.databaseUrl);
-    }
-
-    await _pool.query("SELECT 1");
-    return { ok: true };
-  } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Unknown database error",
-    };
-  }
 }
 
 // ─── Users ───────────────────────────────────────────────────────────
@@ -84,20 +43,16 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) {
     throw new Error("User openId is required for upsert");
   }
-
   const db = await getDb();
   if (!db) {
     console.warn("[Database] Cannot upsert user: database not available");
     return;
   }
-
   try {
     const values: InsertUser = { openId: user.openId };
     const updateSet: Record<string, unknown> = {};
-
     const textFields = ["name", "email", "loginMethod"] as const;
     type TextField = (typeof textFields)[number];
-
     const assignNullable = (field: TextField) => {
       const value = user[field];
       if (value === undefined) return;
@@ -105,14 +60,11 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       values[field] = normalized;
       updateSet[field] = normalized;
     };
-
     textFields.forEach(assignNullable);
-
     if (user.lastSignedIn !== undefined) {
       values.lastSignedIn = user.lastSignedIn;
       updateSet.lastSignedIn = user.lastSignedIn;
     }
-
     if (user.role !== undefined) {
       values.role = user.role;
       updateSet.role = user.role;
@@ -120,10 +72,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       values.role = "admin";
       updateSet.role = "admin";
     }
-
     if (!values.lastSignedIn) values.lastSignedIn = new Date();
     if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
-
     await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
   } catch (error) {
     console.error("[Database] Failed to upsert user:", error);
@@ -134,7 +84,6 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) return undefined;
-
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
@@ -144,33 +93,28 @@ export async function getUserByOpenId(openId: string) {
 export async function getBusinessOwnerByPhone(phone: string): Promise<BusinessOwner | undefined> {
   const db = await getDb();
   if (!db) return undefined;
-
   const result = await db
     .select()
     .from(businessOwners)
     .where(eq(businessOwners.phone, phone))
     .limit(1);
-
   return result.length > 0 ? result[0] : undefined;
 }
 
 export async function getBusinessOwnerById(id: number): Promise<BusinessOwner | undefined> {
   const db = await getDb();
   if (!db) return undefined;
-
   const result = await db
     .select()
     .from(businessOwners)
     .where(eq(businessOwners.id, id))
     .limit(1);
-
   return result.length > 0 ? result[0] : undefined;
 }
 
 export async function createBusinessOwner(data: InsertBusinessOwner): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
   const [result] = await db.insert(businessOwners).values(data);
   return result.insertId;
 }
@@ -181,14 +125,13 @@ export async function updateBusinessOwner(
 ): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
   await db.update(businessOwners).set(data).where(eq(businessOwners.id, id));
 }
 
 export async function deleteBusinessOwner(id: number): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
+  // Delete all related data first
   await db.delete(reviews).where(eq(reviews.businessOwnerId, id));
   await db.delete(appointments).where(eq(appointments.businessOwnerId, id));
   await db.delete(clients).where(eq(clients.businessOwnerId, id));
@@ -196,20 +139,7 @@ export async function deleteBusinessOwner(id: number): Promise<void> {
   await db.delete(discounts).where(eq(discounts.businessOwnerId, id));
   await db.delete(giftCards).where(eq(giftCards.businessOwnerId, id));
   await db.delete(customSchedule).where(eq(customSchedule.businessOwnerId, id));
-  await db.delete(products).where(eq(products.businessOwnerId, id));
   await db.delete(businessOwners).where(eq(businessOwners.id, id));
-}
-
-export async function getBusinessOwnerBySlug(slug: string): Promise<BusinessOwner | undefined> {
-  const db = await getDb();
-  if (!db) return undefined;
-
-  const result = await db.select().from(businessOwners);
-
-  return result.find((owner) => {
-    const ownerSlug = owner.businessName.toLowerCase().replace(/\s+/g, "-");
-    return ownerSlug === slug.toLowerCase();
-  });
 }
 
 // ─── Services ────────────────────────────────────────────────────────
@@ -217,14 +147,12 @@ export async function getBusinessOwnerBySlug(slug: string): Promise<BusinessOwne
 export async function getServicesByOwner(businessOwnerId: number) {
   const db = await getDb();
   if (!db) return [];
-
   return db.select().from(services).where(eq(services.businessOwnerId, businessOwnerId));
 }
 
 export async function createService(data: InsertService): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
   const [result] = await db.insert(services).values(data);
   return result.insertId;
 }
@@ -236,7 +164,6 @@ export async function updateService(
 ): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
   await db
     .update(services)
     .set(data)
@@ -246,7 +173,6 @@ export async function updateService(
 export async function deleteService(localId: string, businessOwnerId: number): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
   await db
     .delete(services)
     .where(and(eq(services.localId, localId), eq(services.businessOwnerId, businessOwnerId)));
@@ -255,13 +181,11 @@ export async function deleteService(localId: string, businessOwnerId: number): P
 export async function getServiceByLocalId(localId: string, businessOwnerId: number) {
   const db = await getDb();
   if (!db) return undefined;
-
   const result = await db
     .select()
     .from(services)
     .where(and(eq(services.localId, localId), eq(services.businessOwnerId, businessOwnerId)))
     .limit(1);
-
   return result.length > 0 ? result[0] : undefined;
 }
 
@@ -270,14 +194,12 @@ export async function getServiceByLocalId(localId: string, businessOwnerId: numb
 export async function getClientsByOwner(businessOwnerId: number) {
   const db = await getDb();
   if (!db) return [];
-
   return db.select().from(clients).where(eq(clients.businessOwnerId, businessOwnerId));
 }
 
 export async function createClient(data: InsertClient): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
   const [result] = await db.insert(clients).values(data);
   return result.insertId;
 }
@@ -289,7 +211,6 @@ export async function updateClient(
 ): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
   await db
     .update(clients)
     .set(data)
@@ -299,13 +220,12 @@ export async function updateClient(
 export async function deleteClient(localId: string, businessOwnerId: number): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
+  // Delete related reviews and appointments first
   await db
     .delete(reviews)
     .where(
       and(eq(reviews.clientLocalId, localId), eq(reviews.businessOwnerId, businessOwnerId))
     );
-
   await db
     .delete(appointments)
     .where(
@@ -314,38 +234,20 @@ export async function deleteClient(localId: string, businessOwnerId: number): Pr
         eq(appointments.businessOwnerId, businessOwnerId)
       )
     );
-
   await db
     .delete(clients)
     .where(and(eq(clients.localId, localId), eq(clients.businessOwnerId, businessOwnerId)));
 }
 
-export function normalizePhone(phone: string): string {
-  const digits = phone.replace(/\D/g, "");
-
-  if (digits.length === 11 && digits.startsWith("1")) {
-    return digits.slice(1);
-  }
-
-  if (digits.length === 10) {
-    return digits;
-  }
-
-  return digits;
-}
-
 export async function getClientByPhone(phone: string, businessOwnerId: number) {
   const db = await getDb();
   if (!db) return undefined;
-
-  const normalized = normalizePhone(phone);
-
-  const allClients = await db
+  const result = await db
     .select()
     .from(clients)
-    .where(eq(clients.businessOwnerId, businessOwnerId));
-
-  return allClients.find((c) => c.phone && normalizePhone(c.phone) === normalized) || undefined;
+    .where(and(eq(clients.phone, phone), eq(clients.businessOwnerId, businessOwnerId)))
+    .limit(1);
+  return result.length > 0 ? result[0] : undefined;
 }
 
 // ─── Appointments ────────────────────────────────────────────────────
@@ -353,7 +255,6 @@ export async function getClientByPhone(phone: string, businessOwnerId: number) {
 export async function getAppointmentsByOwner(businessOwnerId: number) {
   const db = await getDb();
   if (!db) return [];
-
   return db
     .select()
     .from(appointments)
@@ -363,7 +264,6 @@ export async function getAppointmentsByOwner(businessOwnerId: number) {
 export async function createAppointment(data: InsertAppointment): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
   const [result] = await db.insert(appointments).values(data);
   return result.insertId;
 }
@@ -375,7 +275,6 @@ export async function updateAppointment(
 ): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
   await db
     .update(appointments)
     .set(data)
@@ -393,7 +292,6 @@ export async function deleteAppointment(
 ): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
   await db
     .delete(appointments)
     .where(
@@ -409,25 +307,27 @@ export async function deleteAppointment(
 export async function getReviewsByOwner(businessOwnerId: number) {
   const db = await getDb();
   if (!db) return [];
-
   return db.select().from(reviews).where(eq(reviews.businessOwnerId, businessOwnerId));
 }
 
 export async function createReview(data: InsertReview): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
   const [result] = await db.insert(reviews).values(data);
   return result.insertId;
 }
 
-export async function deleteReview(localId: string, businessOwnerId: number): Promise<void> {
+export async function deleteReview(
+  localId: string,
+  businessOwnerId: number
+): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
   await db
     .delete(reviews)
-    .where(and(eq(reviews.localId, localId), eq(reviews.businessOwnerId, businessOwnerId)));
+    .where(
+      and(eq(reviews.localId, localId), eq(reviews.businessOwnerId, businessOwnerId))
+    );
 }
 
 // ─── Discounts ──────────────────────────────────────────────────────
@@ -435,14 +335,12 @@ export async function deleteReview(localId: string, businessOwnerId: number): Pr
 export async function getDiscountsByOwner(businessOwnerId: number) {
   const db = await getDb();
   if (!db) return [];
-
   return db.select().from(discounts).where(eq(discounts.businessOwnerId, businessOwnerId));
 }
 
 export async function createDiscount(data: InsertDiscount): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
   const [result] = await db.insert(discounts).values(data);
   return result.insertId;
 }
@@ -454,7 +352,6 @@ export async function updateDiscount(
 ): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
   await db
     .update(discounts)
     .set(data)
@@ -464,7 +361,6 @@ export async function updateDiscount(
 export async function deleteDiscount(localId: string, businessOwnerId: number): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
   await db
     .delete(discounts)
     .where(and(eq(discounts.localId, localId), eq(discounts.businessOwnerId, businessOwnerId)));
@@ -475,14 +371,12 @@ export async function deleteDiscount(localId: string, businessOwnerId: number): 
 export async function getGiftCardsByOwner(businessOwnerId: number) {
   const db = await getDb();
   if (!db) return [];
-
   return db.select().from(giftCards).where(eq(giftCards.businessOwnerId, businessOwnerId));
 }
 
 export async function createGiftCard(data: InsertGiftCard): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
   const [result] = await db.insert(giftCards).values(data);
   return result.insertId;
 }
@@ -494,7 +388,6 @@ export async function updateGiftCard(
 ): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
   await db
     .update(giftCards)
     .set(data)
@@ -504,7 +397,6 @@ export async function updateGiftCard(
 export async function deleteGiftCard(localId: string, businessOwnerId: number): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
   await db
     .delete(giftCards)
     .where(and(eq(giftCards.localId, localId), eq(giftCards.businessOwnerId, businessOwnerId)));
@@ -513,13 +405,11 @@ export async function deleteGiftCard(localId: string, businessOwnerId: number): 
 export async function getGiftCardByCode(code: string, businessOwnerId: number) {
   const db = await getDb();
   if (!db) return undefined;
-
   const result = await db
     .select()
     .from(giftCards)
     .where(and(eq(giftCards.code, code), eq(giftCards.businessOwnerId, businessOwnerId)))
     .limit(1);
-
   return result.length > 0 ? result[0] : undefined;
 }
 
@@ -528,11 +418,7 @@ export async function getGiftCardByCode(code: string, businessOwnerId: number) {
 export async function getCustomScheduleByOwner(businessOwnerId: number) {
   const db = await getDb();
   if (!db) return [];
-
-  return db
-    .select()
-    .from(customSchedule)
-    .where(eq(customSchedule.businessOwnerId, businessOwnerId));
+  return db.select().from(customSchedule).where(eq(customSchedule.businessOwnerId, businessOwnerId));
 }
 
 export async function upsertCustomScheduleDay(
@@ -544,20 +430,17 @@ export async function upsertCustomScheduleDay(
 ): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
+  // Check if entry exists
   const existing = await db
     .select()
     .from(customSchedule)
     .where(and(eq(customSchedule.businessOwnerId, businessOwnerId), eq(customSchedule.date, date)))
     .limit(1);
-
   if (existing.length > 0) {
     await db
       .update(customSchedule)
       .set({ isOpen, startTime: startTime ?? null, endTime: endTime ?? null })
-      .where(
-        and(eq(customSchedule.businessOwnerId, businessOwnerId), eq(customSchedule.date, date))
-      );
+      .where(and(eq(customSchedule.businessOwnerId, businessOwnerId), eq(customSchedule.date, date)));
   } else {
     await db.insert(customSchedule).values({
       businessOwnerId,
@@ -575,66 +458,15 @@ export async function deleteCustomScheduleDay(
 ): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
   await db
     .delete(customSchedule)
     .where(and(eq(customSchedule.businessOwnerId, businessOwnerId), eq(customSchedule.date, date)));
 }
 
-// ─── Products ───────────────────────────────────────────────────────
-
-export async function getProductsByOwner(businessOwnerId: number) {
-  const db = await getDb();
-  if (!db) return [];
-
-  return db.select().from(products).where(eq(products.businessOwnerId, businessOwnerId));
-}
-
-export async function createProduct(data: InsertProduct): Promise<number> {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-
-  const [result] = await db.insert(products).values(data);
-  return result.insertId;
-}
-
-export async function updateProduct(
-  localId: string,
-  businessOwnerId: number,
-  data: Partial<InsertProduct>
-): Promise<void> {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-
-  await db
-    .update(products)
-    .set(data)
-    .where(and(eq(products.localId, localId), eq(products.businessOwnerId, businessOwnerId)));
-}
-
-export async function deleteProduct(localId: string, businessOwnerId: number): Promise<void> {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-
-  await db
-    .delete(products)
-    .where(and(eq(products.localId, localId), eq(products.businessOwnerId, businessOwnerId)));
-}
-
-// ─── Bootstrap: Load all data for a business owner ──────────────────
+// ─── Bootstrap: Load all data for a business owner ───────────────────
 
 export async function getFullBusinessData(businessOwnerId: number) {
-  const [
-    owner,
-    svcList,
-    clientList,
-    apptList,
-    reviewList,
-    discountList,
-    giftCardList,
-    scheduleList,
-    productList,
-  ] = await Promise.all([
+  const [owner, svcList, clientList, apptList, reviewList, discountList, giftCardList, scheduleList] = await Promise.all([
     getBusinessOwnerById(businessOwnerId),
     getServicesByOwner(businessOwnerId),
     getClientsByOwner(businessOwnerId),
@@ -643,9 +475,7 @@ export async function getFullBusinessData(businessOwnerId: number) {
     getDiscountsByOwner(businessOwnerId),
     getGiftCardsByOwner(businessOwnerId),
     getCustomScheduleByOwner(businessOwnerId),
-    getProductsByOwner(businessOwnerId),
   ]);
-
   return {
     owner,
     services: svcList,
@@ -655,6 +485,5 @@ export async function getFullBusinessData(businessOwnerId: number) {
     discounts: discountList,
     giftCards: giftCardList,
     customSchedule: scheduleList,
-    products: productList,
   };
 }

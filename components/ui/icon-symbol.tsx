@@ -63,13 +63,7 @@ const MAPPING = {
   "power": "power-settings-new",
   "info.circle.fill": "info",
   "arrow.clockwise": "refresh",
-  "lock.fill": "lock",
-  "lock.open.fill": "lock-open",
-  "faceid": "face",
-  "touchid": "fingerprint",
   "copy": "content-copy",
-  "bag.fill": "shopping-bag",
-  "shippingbox.fill": "inventory",
 } as unknown as IconMapping;
 
 export function IconSymbol({

@@ -6,8 +6,6 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
-import { registerPublicRoutes } from "../publicRoutes";
-import { checkDatabaseHealth } from "../db";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -32,6 +30,7 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
 
+  // Enable CORS for all routes - reflect the request origin to support credentials
   app.use((req, res, next) => {
     const origin = req.headers.origin;
     if (origin) {
@@ -40,15 +39,15 @@ async function startServer() {
     res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     res.header(
       "Access-Control-Allow-Headers",
-      "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+      "Origin, X-Requested-With, Content-Type, Accept, Authorization",
     );
     res.header("Access-Control-Allow-Credentials", "true");
 
+    // Handle preflight requests
     if (req.method === "OPTIONS") {
       res.sendStatus(200);
       return;
     }
-
     next();
   });
 
@@ -61,31 +60,19 @@ async function startServer() {
     res.json({ ok: true, timestamp: Date.now() });
   });
 
-  app.get("/api/db-health", async (_req, res) => {
-    const result = await checkDatabaseHealth();
-
-    if (!result.ok) {
-      return res.status(500).json(result);
-    }
-
-    return res.json(result);
-  });
-
   app.use(
     "/api/trpc",
     createExpressMiddleware({
       router: appRouter,
       createContext,
-    })
+    }),
   );
 
-  registerPublicRoutes(app);
-
-  const preferredPort = parseInt(process.env.PORT || "3000", 10);
+  const preferredPort = parseInt(process.env.PORT || "3000");
   const port = await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
-    console.log(`Port ${preferredPort} is busy, using port ${port}`);
+    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
   server.listen(port, () => {
@@ -93,6 +80,4 @@ async function startServer() {
   });
 }
 
-startServer().catch((error) => {
-  console.error("[api] Failed to start server:", error);
-});
+startServer().catch(console.error);

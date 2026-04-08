@@ -16,7 +16,7 @@ import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import {
   formatPhoneNumber,
   stripPhoneFormat,
@@ -25,9 +25,8 @@ import {
 } from "@/lib/types";
 import { trpc } from "@/lib/trpc";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useAppLockContext } from "@/lib/app-lock-provider";
 
-type Step = 1 | 2 | 3;
+type Step = 1 | 2;
 
 export default function OnboardingScreen() {
   const { dispatch } = useStore();
@@ -37,7 +36,6 @@ export default function OnboardingScreen() {
   const hp = Math.max(16, width * 0.05);
 
   const [step, setStep] = useState<Step>(1);
-  const { biometricAvailable, biometricType, toggleBiometric } = useAppLockContext();
   const [phone, setPhone] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [address, setAddress] = useState("");
@@ -85,12 +83,7 @@ export default function OnboardingScreen() {
             },
           });
         }
-        // Check if biometrics available and offer setup
-        if (biometricAvailable && Platform.OS !== "web") {
-          setStep(3);
-        } else {
-          router.replace("/(tabs)");
-        }
+        router.replace("/(tabs)");
         return;
       }
     } catch (err) {
@@ -139,12 +132,7 @@ export default function OnboardingScreen() {
           },
         },
       });
-      // Check if biometrics available and offer setup
-      if (biometricAvailable && Platform.OS !== "web") {
-        setStep(3);
-      } else {
-        router.replace("/(tabs)");
-      }
+      router.replace("/(tabs)");
     } catch (err) {
       console.warn("[Onboarding] Failed to create business:", err);
       // Fallback: save locally only
@@ -163,31 +151,11 @@ export default function OnboardingScreen() {
           },
         },
       });
-      if (biometricAvailable && Platform.OS !== "web") {
-        setStep(3);
-      } else {
-        router.replace("/(tabs)");
-      }
+      router.replace("/(tabs)");
     } finally {
       setLoading(false);
     }
   };
-
-  const handleEnableFaceId = useCallback(async () => {
-    setLoading(true);
-    try {
-      await toggleBiometric(true);
-    } catch (err) {
-      console.warn("[Onboarding] Face ID setup failed:", err);
-    } finally {
-      setLoading(false);
-      router.replace("/(tabs)");
-    }
-  }, [toggleBiometric, router]);
-
-  const handleSkipFaceId = useCallback(() => {
-    router.replace("/(tabs)");
-  }, [router]);
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]}>
@@ -212,7 +180,7 @@ export default function OnboardingScreen() {
 
           {/* Progress */}
           <View style={[styles.progressRow, { paddingHorizontal: 0 }]}>
-            {[1, 2, 3].map((s) => (
+            {[1, 2].map((s) => (
               <View
                 key={s}
                 style={[
@@ -453,71 +421,6 @@ export default function OnboardingScreen() {
             </View>
           )}
 
-          {step === 3 && (
-            <View style={styles.stepContainer}>
-              <View style={{ alignItems: "center", marginBottom: 24 }}>
-                <View style={{
-                  width: 80,
-                  height: 80,
-                  borderRadius: 40,
-                  backgroundColor: colors.primary + "15",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginBottom: 16,
-                }}>
-                  <Text style={{ fontSize: 40 }}>
-                    {biometricType === "face" ? "🔐" : "👆"}
-                  </Text>
-                </View>
-                <Text style={[styles.stepTitle, { color: colors.foreground, textAlign: "center" }]}>
-                  {biometricType === "face" ? "Enable Face ID?" : "Enable Fingerprint?"}
-                </Text>
-                <Text style={[styles.stepSubtitle, { color: colors.muted, textAlign: "center" }]}>
-                  Secure your app with {biometricType === "face" ? "Face ID" : "fingerprint"} authentication. You'll be prompted to unlock when you open the app.
-                </Text>
-              </View>
-
-              <Pressable
-                onPress={handleEnableFaceId}
-                style={({ pressed }) => [
-                  styles.primaryBtn,
-                  {
-                    backgroundColor: !loading ? colors.primary : colors.muted,
-                    opacity: pressed && !loading ? 0.8 : 1,
-                  },
-                ]}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#FFF" size="small" />
-                ) : (
-                  <Text style={styles.primaryBtnText}>
-                    Enable {biometricType === "face" ? "Face ID" : "Fingerprint"}
-                  </Text>
-                )}
-              </Pressable>
-
-              <Pressable
-                onPress={handleSkipFaceId}
-                style={({ pressed }) => [
-                  {
-                    width: "100%" as const,
-                    paddingVertical: 16,
-                    alignItems: "center" as const,
-                    justifyContent: "center" as const,
-                    marginTop: 12,
-                    opacity: pressed ? 0.6 : 1,
-                  },
-                ]}
-                disabled={loading}
-              >
-                <Text style={{ fontSize: 16, fontWeight: "600", color: colors.muted }}>
-                  Skip for now
-                </Text>
-              </Pressable>
-            </View>
-          )}
-
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
@@ -536,7 +439,6 @@ function ownerToSettings(owner: any) {
     temporaryClosed: owner.temporaryClosed ?? false,
     onboardingComplete: owner.onboardingComplete ?? false,
     businessLogoUri: owner.businessLogoUri ?? "",
-    scheduleMode: owner.scheduleMode ?? "weekly",
     workingHours: owner.workingHours ?? DEFAULT_WORKING_HOURS,
     cancellationPolicy: owner.cancellationPolicy ?? DEFAULT_CANCELLATION_POLICY,
     profile: {

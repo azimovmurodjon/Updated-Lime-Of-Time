@@ -55,8 +55,6 @@ export const businessOwners = mysqlTable("business_owners", {
   themeMode: mysqlEnum("themeMode", ["light", "dark", "system"]).default("system").notNull(),
   /** Temporary closed flag */
   temporaryClosed: boolean("temporaryClosed").default(false).notNull(),
-  /** Schedule mode: weekly (recurring hours) or custom (per-day control) */
-  scheduleMode: mysqlEnum("scheduleMode", ["weekly", "custom"]).default("weekly").notNull(),
   /** Working hours JSON: Record<string, { enabled: boolean, start: string, end: string }> */
   workingHours: json("workingHours"),
   /** Cancellation policy JSON: { enabled, hoursBeforeAppointment, feePercentage } */
@@ -230,22 +228,3 @@ export const customSchedule = mysqlTable("custom_schedule", {
 
 export type DbCustomSchedule = typeof customSchedule.$inferSelect;
 export type InsertCustomSchedule = typeof customSchedule.$inferInsert;
-
-// ─── Products ──────────────────────────────────────────────────────
-export const products = mysqlTable("products", {
-  id: int("id").autoincrement().primaryKey(),
-  /** Foreign key to business_owners */
-  businessOwnerId: int("businessOwnerId").notNull(),
-  /** Local client-generated ID for backward compat */
-  localId: varchar("localId", { length: 64 }).notNull(),
-  name: varchar("name", { length: 255 }).notNull(),
-  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
-  description: text("description"),
-  /** Whether the product is currently available */
-  available: boolean("available").default(true).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
-
-export type DbProduct = typeof products.$inferSelect;
-export type InsertProduct = typeof products.$inferInsert;

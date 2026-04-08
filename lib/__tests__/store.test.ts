@@ -154,7 +154,6 @@ describe("Business Profile", () => {
       onboardingComplete: false,
       temporaryClosed: false,
       businessLogoUri: "",
-      scheduleMode: "weekly" as const,
     };
     expect(settings.profile).toBeDefined();
     expect(settings.profile.ownerName).toBe("");
@@ -292,7 +291,6 @@ describe("Theme Mode", () => {
       onboardingComplete: false,
       temporaryClosed: false,
       businessLogoUri: "",
-      scheduleMode: "weekly" as const,
     };
     expect(settings.themeMode).toBe("dark");
   });
@@ -309,7 +307,6 @@ describe("Theme Mode", () => {
       onboardingComplete: false,
       temporaryClosed: false,
       businessLogoUri: "",
-      scheduleMode: "weekly" as const,
     };
     expect(settings.themeMode).toBe("system");
   });
@@ -439,7 +436,6 @@ describe("Cancellation Policy", () => {
       onboardingComplete: false,
       temporaryClosed: false,
       businessLogoUri: "",
-      scheduleMode: "weekly" as const,
     };
     expect(settings.cancellationPolicy.enabled).toBe(true);
     expect(settings.onboardingComplete).toBe(false);
@@ -561,7 +557,6 @@ describe("Temporary Closed Feature", () => {
       onboardingComplete: true,
       temporaryClosed: true,
       businessLogoUri: "",
-      scheduleMode: "weekly" as const,
     };
     expect(settings.temporaryClosed).toBe(true);
   });
@@ -578,7 +573,6 @@ describe("Temporary Closed Feature", () => {
       onboardingComplete: false,
       temporaryClosed: false,
       businessLogoUri: "",
-      scheduleMode: "weekly" as const,
     };
     expect(settings.temporaryClosed).toBe(false);
   });
@@ -658,7 +652,6 @@ describe("Business Logo URI", () => {
       onboardingComplete: true,
       temporaryClosed: false,
       businessLogoUri: "file:///data/user/0/com.app/cache/photo.jpg",
-      scheduleMode: "weekly" as const,
     };
     expect(settings.businessLogoUri).toBe("file:///data/user/0/com.app/cache/photo.jpg");
   });
@@ -675,7 +668,6 @@ describe("Business Logo URI", () => {
       onboardingComplete: false,
       temporaryClosed: false,
       businessLogoUri: "",
-      scheduleMode: "weekly" as const,
     };
     expect(settings.businessLogoUri).toBe("");
   });
@@ -694,7 +686,6 @@ describe("Logout and Delete Business", () => {
       onboardingComplete: true,
       temporaryClosed: false,
       businessLogoUri: "",
-      scheduleMode: "weekly" as const,
     };
     // Simulate logout
     const loggedOut = { ...settings, onboardingComplete: false };
@@ -956,11 +947,11 @@ describe("Professional Message Generators", () => {
     expect(msg).toContain("(412) 555-1234");
   });
 
-  it("should generate accept message with location", () => {
+  it("should generate accept message with map link", () => {
     const msg = generateAcceptMessage(bizName, address, clientName, serviceName, duration, date, time, phone);
     expect(msg).toContain("accepted");
+    expect(msg).toContain("maps.google.com");
     expect(msg).toContain("4661 McKnight Road");
-    expect(msg).not.toContain("Map:");
   });
 
   it("should generate reject message", () => {
@@ -983,11 +974,10 @@ describe("Professional Message Generators", () => {
     expect(msg).not.toContain("Cancellation Fee");
   });
 
-  it("should generate reminder message with location", () => {
+  it("should generate reminder message with map link", () => {
     const msg = generateReminderMessage(bizName, address, clientName, serviceName, duration, date, time, phone);
     expect(msg).toContain("reminder");
-    expect(msg).toContain("4661 McKnight Road");
-    expect(msg).not.toContain("Map:");
+    expect(msg).toContain("maps.google.com");
     expect(msg).toContain("10:30 AM");
   });
 });

@@ -8,7 +8,6 @@ import {
   Discount,
   GiftCard,
   CustomScheduleDay,
-  Product,
   BusinessSettings,
   DEFAULT_WORKING_HOURS,
   DEFAULT_BUSINESS_PROFILE,
@@ -26,7 +25,6 @@ interface AppState {
   discounts: Discount[];
   giftCards: GiftCard[];
   customSchedule: CustomScheduleDay[];
-  products: Product[];
   settings: BusinessSettings;
   loaded: boolean;
   /** DB id of the current business owner – null until bootstrap completes */
@@ -46,7 +44,6 @@ const initialSettings: BusinessSettings = {
   onboardingComplete: false,
   temporaryClosed: false,
   businessLogoUri: "",
-  scheduleMode: "weekly",
 };
 
 const initialState: AppState = {
@@ -57,7 +54,6 @@ const initialState: AppState = {
   discounts: [],
   giftCards: [],
   customSchedule: [],
-  products: [],
   settings: initialSettings,
   loaded: false,
   businessOwnerId: null,
@@ -90,9 +86,6 @@ type Action =
   | { type: "DELETE_GIFT_CARD"; payload: string }
   | { type: "SET_CUSTOM_SCHEDULE"; payload: CustomScheduleDay }
   | { type: "DELETE_CUSTOM_SCHEDULE"; payload: string }
-  | { type: "ADD_PRODUCT"; payload: Product }
-  | { type: "UPDATE_PRODUCT"; payload: Product }
-  | { type: "DELETE_PRODUCT"; payload: string }
   | { type: "RESET_ALL_DATA" };
 
 function reducer(state: AppState, action: Action): AppState {
@@ -194,17 +187,6 @@ function reducer(state: AppState, action: Action): AppState {
     }
     case "DELETE_CUSTOM_SCHEDULE":
       return { ...state, customSchedule: state.customSchedule.filter((cs) => cs.date !== action.payload) };
-    case "ADD_PRODUCT":
-      return { ...state, products: [...state.products, action.payload] };
-    case "UPDATE_PRODUCT":
-      return {
-        ...state,
-        products: state.products.map((p) =>
-          p.id === action.payload.id ? action.payload : p
-        ),
-      };
-    case "DELETE_PRODUCT":
-      return { ...state, products: state.products.filter((p) => p.id !== action.payload) };
     case "RESET_ALL_DATA":
       return { ...initialState, loaded: true };
     default:
@@ -235,10 +217,6 @@ const STORAGE_KEYS = {
   reviews: "@bookease_reviews",
   settings: "@bookease_settings",
   businessOwnerId: "@bookease_business_owner_id",
-  discounts: "@bookease_discounts",
-  giftCards: "@bookease_gift_cards",
-  customSchedule: "@bookease_custom_schedule",
-  products: "@bookease_products",
 };
 
 /** Convert DB rows to local frontend models */
@@ -265,65 +243,6 @@ function dbClientToLocal(c: any): Client {
 }
 
 function dbAppointmentToLocal(a: any): Appointment {
-  const notes = a.notes ?? "";
-  // Parse pricing info from enriched notes ("--- Pricing ---" block)
-  let totalPrice: number | undefined;
-  let extraItems: { type: "service" | "product"; id: string; name: string; price: number; duration: number }[] | undefined;
-  let giftApplied: boolean | undefined;
-  let giftUsedAmount: number | undefined;
-  let cleanNotes = notes;
-
-  const pricingIdx = notes.indexOf("--- Pricing ---");
-  if (pricingIdx >= 0) {
-    const pricingBlock = notes.slice(pricingIdx + "--- Pricing ---".length).trim();
-    cleanNotes = notes.slice(0, pricingIdx).trim();
-    // Also strip "Additional items:" line from clean notes
-    cleanNotes = cleanNotes.replace(/\nAdditional items:.*$/m, "").trim();
-
-    const lines = pricingBlock.split("\n").map((l: string) => l.trim()).filter(Boolean);
-    const extras: { type: "service" | "product"; id: string; name: string; price: number; duration: number }[] = [];
-    for (const line of lines) {
-      const totalMatch = line.match(/^Total Charged:\s*\$([\d.]+)/);
-      if (totalMatch) {
-        totalPrice = parseFloat(totalMatch[1]);
-        continue;
-      }
-      const giftMatch = line.match(/^Gift Card:\s*-\$([\d.]+)/);
-      if (giftMatch) {
-        giftApplied = true;
-        giftUsedAmount = parseFloat(giftMatch[1]);
-        continue;
-      }
-      const extraMatch = line.match(/^(Product|Extra|Service):\s*(.+?)\s*\u2014\s*\$([\d.]+)/);
-      if (extraMatch) {
-        extras.push({
-          type: extraMatch[1] === "Product" ? "product" : "service",
-          id: "",
-          name: extraMatch[2],
-          price: parseFloat(extraMatch[3]),
-          duration: 0,
-        });
-      }
-    }
-    if (extras.length > 0) extraItems = extras;
-  } else {
-    // Try to parse "Additional items:" from notes for older bookings
-    const addlMatch = notes.match(/Additional items:\s*(.+)/);
-    if (addlMatch) {
-      const itemsStr = addlMatch[1];
-      const items = itemsStr.split(",").map((s: string) => s.trim());
-      const extras: { type: "service" | "product"; id: string; name: string; price: number; duration: number }[] = [];
-      for (const item of items) {
-        const m = item.match(/^(.+?)\s*\(\$([\d.]+)\)$/);
-        if (m) {
-          extras.push({ type: "service", id: "", name: m[1].trim(), price: parseFloat(m[2]), duration: 0 });
-        }
-      }
-      if (extras.length > 0) extraItems = extras;
-      cleanNotes = notes.replace(/\nAdditional items:.*$/m, "").trim();
-    }
-  }
-
   return {
     id: a.localId,
     serviceId: a.serviceLocalId,
@@ -332,13 +251,9 @@ function dbAppointmentToLocal(a: any): Appointment {
     time: a.time,
     duration: a.duration,
     status: a.status as AppointmentStatus,
-    notes: cleanNotes,
+    notes: a.notes ?? "",
     createdAt: a.createdAt ? new Date(a.createdAt).toISOString() : new Date().toISOString(),
-    totalPrice,
-    extraItems,
-    giftApplied,
-    giftUsedAmount,
-  } as Appointment;
+  };
 }
 
 function dbReviewToLocal(r: any): Review {
@@ -368,56 +283,17 @@ function dbDiscountToLocal(d: any): Discount {
 }
 
 function dbGiftCardToLocal(g: any): GiftCard {
-  // Parse extended data from message field (JSON block at end)
-  let serviceIds: string[] | undefined;
-  let productIds: string[] | undefined;
-  let originalValue = 0;
-  let remainingBalance = 0;
-  let hasGiftData = false;
-  const msg = g.message ?? "";
-  const jsonMatch = msg.match(/\n---GIFT_DATA---\n(.+)$/s);
-  if (jsonMatch) {
-    try {
-      const data = JSON.parse(jsonMatch[1]);
-      serviceIds = data.serviceIds;
-      productIds = data.productIds;
-      originalValue = data.originalValue ?? 0;
-      remainingBalance = data.remainingBalance ?? originalValue;
-      hasGiftData = true;
-    } catch {}
-  }
-  // For old cards without GIFT_DATA block, serviceIds defaults to serviceLocalId
-  if (!hasGiftData && g.serviceLocalId) {
-    serviceIds = [g.serviceLocalId];
-    // originalValue and remainingBalance stay 0 — will be resolved at display time via catalog lookup
-  }
-  const cleanMessage = msg.replace(/\n---GIFT_DATA---\n.+$/s, "");
   return {
     id: g.localId,
     code: g.code,
     serviceLocalId: g.serviceLocalId,
-    serviceIds,
-    productIds,
-    originalValue,
-    remainingBalance,
     recipientName: g.recipientName ?? "",
     recipientPhone: g.recipientPhone ?? "",
-    message: cleanMessage,
+    message: g.message ?? "",
     redeemed: g.redeemed ?? false,
     redeemedAt: g.redeemedAt ? new Date(g.redeemedAt).toISOString() : undefined,
     expiresAt: g.expiresAt ?? undefined,
     createdAt: g.createdAt ? new Date(g.createdAt).toISOString() : new Date().toISOString(),
-  };
-}
-
-function dbProductToLocal(p: any): Product {
-  return {
-    id: p.localId,
-    name: p.name,
-    price: typeof p.price === "string" ? parseFloat(p.price) : p.price,
-    description: p.description ?? "",
-    available: p.available ?? true,
-    createdAt: p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString(),
   };
 }
 
@@ -439,7 +315,6 @@ function dbOwnerToSettings(owner: any): Partial<BusinessSettings> {
     temporaryClosed: owner.temporaryClosed ?? false,
     onboardingComplete: owner.onboardingComplete ?? false,
     businessLogoUri: owner.businessLogoUri ?? "",
-    scheduleMode: owner.scheduleMode ?? "weekly",
     workingHours: owner.workingHours ?? DEFAULT_WORKING_HOURS,
     cancellationPolicy: owner.cancellationPolicy ?? DEFAULT_CANCELLATION_POLICY,
     profile: {
@@ -484,9 +359,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const deleteGiftCardMut = trpc.giftCards.delete.useMutation();
   const upsertScheduleMut = trpc.customSchedule.upsert.useMutation();
   const deleteScheduleMut = trpc.customSchedule.delete.useMutation();
-  const createProductMut = trpc.products.create.useMutation();
-  const updateProductMut = trpc.products.update.useMutation();
-  const deleteProductMut = trpc.products.delete.useMutation();
 
   // ─── Bootstrap: Load from DB or fallback to AsyncStorage ────────
   useEffect(() => {
@@ -512,7 +384,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                   discounts: (fullData.discounts || []).map(dbDiscountToLocal),
                   giftCards: (fullData.giftCards || []).map(dbGiftCardToLocal),
                   customSchedule: (fullData.customSchedule || []).map(dbCustomScheduleToLocal),
-                  products: (fullData.products || []).map(dbProductToLocal),
                   settings: { ...initialSettings, ...settingsFromDb },
                   businessOwnerId: ownerId,
                 },
@@ -523,11 +394,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 (fullData.clients || []).map(dbClientToLocal),
                 (fullData.appointments || []).map(dbAppointmentToLocal),
                 (fullData.reviews || []).map(dbReviewToLocal),
-                { ...initialSettings, ...settingsFromDb },
-                (fullData.discounts || []).map(dbDiscountToLocal),
-                (fullData.giftCards || []).map(dbGiftCardToLocal),
-                (fullData.customSchedule || []).map(dbCustomScheduleToLocal),
-                (fullData.products || []).map(dbProductToLocal)
+                { ...initialSettings, ...settingsFromDb }
               );
               return;
             }
@@ -537,17 +404,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Fallback: load from AsyncStorage
-        const [servicesRaw, clientsRaw, appointmentsRaw, reviewsRaw, settingsRaw, discountsRaw, giftCardsRaw, customScheduleRaw, productsRaw] =
+        const [servicesRaw, clientsRaw, appointmentsRaw, reviewsRaw, settingsRaw] =
           await Promise.all([
             AsyncStorage.getItem(STORAGE_KEYS.services),
             AsyncStorage.getItem(STORAGE_KEYS.clients),
             AsyncStorage.getItem(STORAGE_KEYS.appointments),
             AsyncStorage.getItem(STORAGE_KEYS.reviews),
             AsyncStorage.getItem(STORAGE_KEYS.settings),
-            AsyncStorage.getItem(STORAGE_KEYS.discounts),
-            AsyncStorage.getItem(STORAGE_KEYS.giftCards),
-            AsyncStorage.getItem(STORAGE_KEYS.customSchedule),
-            AsyncStorage.getItem(STORAGE_KEYS.products),
           ]);
         
         const loadedSettings = settingsRaw
@@ -561,10 +424,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             clients: clientsRaw ? JSON.parse(clientsRaw) : [],
             appointments: appointmentsRaw ? JSON.parse(appointmentsRaw) : [],
             reviews: reviewsRaw ? JSON.parse(reviewsRaw) : [],
-            discounts: discountsRaw ? JSON.parse(discountsRaw) : [],
-            giftCards: giftCardsRaw ? JSON.parse(giftCardsRaw) : [],
-            customSchedule: customScheduleRaw ? JSON.parse(customScheduleRaw) : [],
-            products: productsRaw ? JSON.parse(productsRaw) : [],
             settings: loadedSettings,
             businessOwnerId: storedOwnerId ? parseInt(storedOwnerId, 10) : null,
           },
@@ -600,26 +459,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!state.loaded) return;
     AsyncStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(state.settings));
   }, [state.settings, state.loaded]);
-
-  useEffect(() => {
-    if (!state.loaded) return;
-    AsyncStorage.setItem(STORAGE_KEYS.discounts, JSON.stringify(state.discounts));
-  }, [state.discounts, state.loaded]);
-
-  useEffect(() => {
-    if (!state.loaded) return;
-    AsyncStorage.setItem(STORAGE_KEYS.giftCards, JSON.stringify(state.giftCards));
-  }, [state.giftCards, state.loaded]);
-
-  useEffect(() => {
-    if (!state.loaded) return;
-    AsyncStorage.setItem(STORAGE_KEYS.customSchedule, JSON.stringify(state.customSchedule));
-  }, [state.customSchedule, state.loaded]);
-
-  useEffect(() => {
-    if (!state.loaded) return;
-    AsyncStorage.setItem(STORAGE_KEYS.products, JSON.stringify(state.products));
-  }, [state.products, state.loaded]);
 
   useEffect(() => {
     if (state.businessOwnerId !== null) {
@@ -704,26 +543,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           }
           case "ADD_APPOINTMENT": {
             const appt = action.payload as Appointment;
-            // Enrich notes with pricing info for DB persistence
-            let enrichedNotes = appt.notes || "";
-            const svc = state.services.find(s => s.id === appt.serviceId);
-            const svcPrice = svc?.price ?? 0;
-            const extras = appt.extraItems ?? [];
-            if (extras.length > 0 || appt.giftApplied) {
-              const pricingLines: string[] = [];
-              pricingLines.push(`Service: ${svc?.name ?? "Service"} \u2014 $${svcPrice.toFixed(2)}`);
-              extras.forEach(e => {
-                pricingLines.push(`${e.type === "product" ? "Product" : "Extra"}: ${e.name} \u2014 $${(e.price || 0).toFixed(2)}`);
-              });
-              if (appt.giftApplied) {
-                const giftAmt = appt.giftUsedAmount ?? svcPrice;
-                pricingLines.push(`Gift Card: -$${giftAmt.toFixed(2)}`);
-              }
-              pricingLines.push(`Total Charged: $${(appt.totalPrice ?? svcPrice).toFixed(2)}`);
-              enrichedNotes = (enrichedNotes ? enrichedNotes + "\n" : "") + "--- Pricing ---\n" + pricingLines.join("\n");
-            } else if (appt.totalPrice != null && appt.totalPrice !== svcPrice) {
-              enrichedNotes = (enrichedNotes ? enrichedNotes + "\n" : "") + `--- Pricing ---\nService: ${svc?.name ?? "Service"} \u2014 $${svcPrice.toFixed(2)}\nTotal Charged: $${appt.totalPrice.toFixed(2)}`;
-            }
             await createApptMut.mutateAsync({
               businessOwnerId: ownerId,
               localId: appt.id,
@@ -733,7 +552,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               time: appt.time,
               duration: appt.duration,
               status: appt.status,
-              notes: enrichedNotes || undefined,
+              notes: appt.notes || undefined,
             });
             break;
           }
@@ -802,7 +621,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             if (settings.notificationsEnabled !== undefined) updateData.notificationsEnabled = settings.notificationsEnabled;
             if (settings.themeMode !== undefined) updateData.themeMode = settings.themeMode;
             if (settings.temporaryClosed !== undefined) updateData.temporaryClosed = settings.temporaryClosed;
-            if (settings.scheduleMode !== undefined) updateData.scheduleMode = settings.scheduleMode;
             if (settings.workingHours !== undefined) updateData.workingHours = settings.workingHours;
             if (settings.cancellationPolicy !== undefined) updateData.cancellationPolicy = settings.cancellationPolicy;
             // Only update if there's something besides id
@@ -852,14 +670,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           }
           case "ADD_GIFT_CARD": {
             const gc = action.payload as GiftCard;
-            // Encode extended data (serviceIds, productIds, balance) in message field
-            const giftDataBlock = `\n---GIFT_DATA---\n${JSON.stringify({
-              serviceIds: gc.serviceIds,
-              productIds: gc.productIds,
-              originalValue: gc.originalValue,
-              remainingBalance: gc.remainingBalance,
-            })}`;
-            const msgWithData = (gc.message || "") + giftDataBlock;
             await createGiftCardMut.mutateAsync({
               businessOwnerId: ownerId,
               localId: gc.id,
@@ -867,27 +677,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               serviceLocalId: gc.serviceLocalId,
               recipientName: gc.recipientName || undefined,
               recipientPhone: gc.recipientPhone || undefined,
-              message: msgWithData,
+              message: gc.message || undefined,
               expiresAt: gc.expiresAt || undefined,
             });
             break;
           }
           case "UPDATE_GIFT_CARD": {
             const gc = action.payload as GiftCard;
-            // Re-encode extended data in message field for balance updates
-            const updGiftDataBlock = `\n---GIFT_DATA---\n${JSON.stringify({
-              serviceIds: gc.serviceIds,
-              productIds: gc.productIds,
-              originalValue: gc.originalValue,
-              remainingBalance: gc.remainingBalance,
-            })}`;
-            const updMsgWithData = (gc.message || "") + updGiftDataBlock;
             await updateGiftCardMut.mutateAsync({
               localId: gc.id,
               businessOwnerId: ownerId,
               redeemed: gc.redeemed,
               redeemedAt: gc.redeemedAt,
-              message: updMsgWithData,
             });
             break;
           }
@@ -913,37 +714,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             await deleteScheduleMut.mutateAsync({
               businessOwnerId: ownerId,
               date: action.payload as string,
-            });
-            break;
-          }
-          case "ADD_PRODUCT": {
-            const prod = action.payload as Product;
-            await createProductMut.mutateAsync({
-              businessOwnerId: ownerId,
-              localId: prod.id,
-              name: prod.name,
-              price: String(prod.price),
-              description: prod.description || undefined,
-              available: prod.available,
-            });
-            break;
-          }
-          case "UPDATE_PRODUCT": {
-            const prod = action.payload as Product;
-            await updateProductMut.mutateAsync({
-              localId: prod.id,
-              businessOwnerId: ownerId,
-              name: prod.name,
-              price: String(prod.price),
-              description: prod.description || undefined,
-              available: prod.available,
-            });
-            break;
-          }
-          case "DELETE_PRODUCT": {
-            await deleteProductMut.mutateAsync({
-              localId: action.payload as string,
-              businessOwnerId: ownerId,
             });
             break;
           }
@@ -1013,7 +783,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const weekCount = weekAppts.length;
     const weekRevenue = weekAppts.reduce((sum, a) => {
-      if (a.totalPrice != null) return sum + a.totalPrice;
       const svc = state.services.find((s) => s.id === a.serviceId);
       return sum + (svc?.price ?? 0);
     }, 0);
@@ -1052,25 +821,16 @@ async function persistToAsyncStorage(
   clients: Client[],
   appointments: Appointment[],
   reviews: Review[],
-  settings: BusinessSettings,
-  discounts?: Discount[],
-  giftCards?: GiftCard[],
-  customSchedule?: CustomScheduleDay[],
-  products?: Product[]
+  settings: BusinessSettings
 ) {
   try {
-    const ops = [
+    await Promise.all([
       AsyncStorage.setItem(STORAGE_KEYS.services, JSON.stringify(services)),
       AsyncStorage.setItem(STORAGE_KEYS.clients, JSON.stringify(clients)),
       AsyncStorage.setItem(STORAGE_KEYS.appointments, JSON.stringify(appointments)),
       AsyncStorage.setItem(STORAGE_KEYS.reviews, JSON.stringify(reviews)),
       AsyncStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(settings)),
-    ];
-    if (discounts) ops.push(AsyncStorage.setItem(STORAGE_KEYS.discounts, JSON.stringify(discounts)));
-    if (giftCards) ops.push(AsyncStorage.setItem(STORAGE_KEYS.giftCards, JSON.stringify(giftCards)));
-    if (customSchedule) ops.push(AsyncStorage.setItem(STORAGE_KEYS.customSchedule, JSON.stringify(customSchedule)));
-    if (products) ops.push(AsyncStorage.setItem(STORAGE_KEYS.products, JSON.stringify(products)));
-    await Promise.all(ops);
+    ]);
   } catch (err) {
     console.warn("[Store] Failed to persist to AsyncStorage:", err);
   }

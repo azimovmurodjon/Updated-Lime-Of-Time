@@ -66,13 +66,13 @@ export default function ServiceFormScreen() {
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} className="p-5">
-      {/* Header - extra top padding to clear status bar on all devices */}
-      <View className="flex-row items-center justify-between mb-6" style={{ paddingTop: 16 }}>
-        <View className="flex-row items-center flex-1 mr-3">
-          <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, padding: 4 }]}>
+      {/* Header */}
+      <View className="flex-row items-center justify-between mb-6">
+        <View className="flex-row items-center">
+          <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
             <IconSymbol name="xmark" size={24} color={colors.foreground} />
           </Pressable>
-          <Text className="text-xl font-bold text-foreground ml-4" numberOfLines={1} style={{ flex: 1 }}>
+          <Text className="text-xl font-bold text-foreground ml-4">
             {isEdit ? "Edit Service" : "New Service"}
           </Text>
         </View>
@@ -202,7 +202,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     minHeight: 36,
-    minWidth: 70,
   },
   durationChip: {
     paddingHorizontal: 16,
