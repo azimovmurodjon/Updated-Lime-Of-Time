@@ -215,3 +215,5 @@
 - [x] Fix Unmatched Route error when app opens via limeoftime:/// — added root index.tsx redirect to (tabs)
 - [x] Fix persistent Unmatched Route on TestFlight — registered index in Stack, added +not-found catch-all redirect
 - [x] Fix app crash on TestFlight launch — added missing native module plugins (expo-secure-store, expo-local-authentication, expo-clipboard, expo-image-picker) to app.config.ts
+- [x] Remove expo-local-authentication native module to fix iOS 26 beta crash (TurboModule auto-registration crashes LAContext)
+- [x] Replace biometric lock with passcode-based lock or disable lock feature temporarily
