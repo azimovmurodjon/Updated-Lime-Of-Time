@@ -212,3 +212,4 @@
 - [x] Fix Android APK build: minSdkVersion 22 error — withMinSdkVersion plugin not forcing minSdkVersion 24 in native Gradle files
 - [x] Fix: TestFlight/native builds cannot connect to production API server — hardcoded production URL as fallback for native builds
 - [x] Fix Unmatched Route error on TestFlight launch — fixed deep link scheme from manuslimeoftime to limeoftime
+- [x] Fix Unmatched Route error when app opens via limeoftime:/// — added root index.tsx redirect to (tabs)
