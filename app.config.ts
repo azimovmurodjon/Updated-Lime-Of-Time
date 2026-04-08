@@ -21,6 +21,7 @@ const bundleId =
       return /^[a-zA-Z]/.test(segment) ? segment : "x" + segment;
     })
     .join(".") || "space.manus.app";
+
 // Extract timestamp from bundle ID and prefix with "manus" for deep link scheme
 // e.g., "space.manus.my.app.t20240115103045" -> "manus20240115103045"
 const timestamp = bundleId.split(".").pop()?.replace(/^t/, "") ?? "";
@@ -41,19 +42,21 @@ const env = {
 const config: ExpoConfig = {
   name: env.appName,
   slug: env.appSlug,
-  version: "1.0.0",
+  version: "1.0.6",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: env.scheme,
   userInterfaceStyle: "automatic",
   newArchEnabled: true,
+
   ios: {
     supportsTablet: true,
     bundleIdentifier: env.iosBundleId,
-    "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
+    infoPlist: {
+      ITSAppUsesNonExemptEncryption: false,
+    },
   },
+
   android: {
     adaptiveIcon: {
       backgroundColor: "#F0FFF0",
@@ -79,23 +82,27 @@ const config: ExpoConfig = {
       },
     ],
   },
+
   web: {
     bundler: "metro",
     output: "static",
     favicon: "./assets/images/favicon.png",
   },
+
   plugins: [
     "expo-router",
     [
       "expo-contacts",
       {
-        contactsPermission: "Allow $(PRODUCT_NAME) to access your contacts to import clients.",
+        contactsPermission:
+          "Allow $(PRODUCT_NAME) to access your contacts to import clients.",
       },
     ],
     [
       "expo-audio",
       {
-        microphonePermission: "Allow $(PRODUCT_NAME) to access your microphone.",
+        microphonePermission:
+          "Allow $(PRODUCT_NAME) to access your microphone.",
       },
     ],
     [
@@ -138,13 +145,22 @@ const config: ExpoConfig = {
     [
       "expo-local-authentication",
       {
-        faceIDPermission: "Allow $(PRODUCT_NAME) to use Face ID to unlock the app.",
+        faceIDPermission:
+          "Allow $(PRODUCT_NAME) to use Face ID to unlock the app.",
       },
     ],
   ],
+
   experiments: {
     typedRoutes: true,
     reactCompiler: true,
+  },
+
+  extra: {
+    router: {},
+    eas: {
+      projectId: "031e5de6-3a21-4c81-97b3-e50ec17148ac",
+    },
   },
 };
 
