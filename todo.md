@@ -214,3 +214,4 @@
 - [x] Fix Unmatched Route error on TestFlight launch — fixed deep link scheme from manuslimeoftime to limeoftime
 - [x] Fix Unmatched Route error when app opens via limeoftime:/// — added root index.tsx redirect to (tabs)
 - [x] Fix persistent Unmatched Route on TestFlight — registered index in Stack, added +not-found catch-all redirect
+- [x] Fix app crash on TestFlight launch — added missing native module plugins (expo-secure-store, expo-local-authentication, expo-clipboard, expo-image-picker) to app.config.ts
