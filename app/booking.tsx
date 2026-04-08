@@ -31,6 +31,7 @@ import {
   isDateInPast,
   getApplicableDiscount,
   Discount,
+  GiftCard,
 } from "@/lib/types";
 
 type BookingStep = "info" | "service" | "datetime" | "confirm" | "done";
@@ -71,7 +72,8 @@ export default function PublicBookingScreen() {
       state.settings.workingHours,
       state.appointments,
       30,
-      state.customSchedule
+      state.customSchedule,
+      state.settings.scheduleMode
     );
   }, [selectedDate, state.settings, state.appointments, selectedService, state.customSchedule]);
 
@@ -87,19 +89,21 @@ export default function PublicBookingScreen() {
       // Check custom schedule override first
       const customDay = state.customSchedule.find((cs) => cs.date === ds);
       let closed = false;
-      if (customDay) {
-        closed = !customDay.isOpen;
+      if (state.settings.scheduleMode === "custom") {
+        closed = !customDay || !customDay.isOpen;
       } else {
-        // Fall back to weekly hours
-        const dayIndex = d.getDay();
-        const dayName = DAYS_OF_WEEK[dayIndex];
-        const wh = state.settings.workingHours[dayName];
-        closed = !wh || !wh.enabled;
+        if (customDay) {
+          closed = !customDay.isOpen;
+        } else {
+          const dayIndex = d.getDay();
+          const dayName = DAYS_OF_WEEK[dayIndex];
+          const wh = state.settings.workingHours[dayName];
+          closed = !wh || !wh.enabled;
+        }
       }
-      // Check if there are available time slots for this date
       let noSlots = false;
       if (!closed) {
-        const slots = generateAvailableSlots(ds, duration, state.settings.workingHours, state.appointments, 30, state.customSchedule);
+        const slots = generateAvailableSlots(ds, duration, state.settings.workingHours, state.appointments, 30, state.customSchedule, state.settings.scheduleMode);
         noSlots = slots.length === 0;
       }
       dates.push({ date: ds, closed, noSlots });
@@ -116,13 +120,19 @@ export default function PublicBookingScreen() {
   // Gift card validation
   const handleApplyGiftCode = useCallback(() => {
     if (!giftCode.trim()) return;
-    const card = state.giftCards.find((g) => g.code.toUpperCase() === giftCode.trim().toUpperCase() && !g.redeemed);
+    // Find card with remaining balance (not fully redeemed)
+    const card = state.giftCards.find((g) => g.code.toUpperCase() === giftCode.trim().toUpperCase() && (g.remainingBalance > 0 || (!g.redeemed)));
     if (!card) {
       setGiftApplied(null);
       return;
     }
     // Check expiry
     if (card.expiresAt && new Date(card.expiresAt) < new Date()) {
+      setGiftApplied(null);
+      return;
+    }
+    // Check balance
+    if (card.remainingBalance <= 0) {
       setGiftApplied(null);
       return;
     }
@@ -135,18 +145,21 @@ export default function PublicBookingScreen() {
 
   const appliedGiftCard = giftApplied ? state.giftCards.find((g) => g.id === giftApplied) : null;
 
-  // Calculate final price
+  // Calculate final price with balance-based gift deduction
   const priceInfo = useMemo(() => {
-    if (!selectedService) return { original: 0, final: 0, discountPct: 0, isGift: false };
+    if (!selectedService) return { original: 0, final: 0, discountPct: 0, isGift: false, giftUsed: 0 };
     const original = selectedService.price;
     if (appliedGiftCard) {
-      return { original, final: 0, discountPct: 100, isGift: true };
+      const balance = appliedGiftCard.remainingBalance ?? 0;
+      const giftUsed = Math.min(balance, original);
+      const finalPrice = Math.max(0, original - balance);
+      return { original, final: Math.round(finalPrice * 100) / 100, discountPct: 0, isGift: true, giftUsed };
     }
     if (applicableDiscount) {
       const discounted = original * (1 - applicableDiscount.percentage / 100);
-      return { original, final: Math.round(discounted * 100) / 100, discountPct: applicableDiscount.percentage, isGift: false };
+      return { original, final: Math.round(discounted * 100) / 100, discountPct: applicableDiscount.percentage, isGift: false, giftUsed: 0 };
     }
-    return { original, final: original, discountPct: 0, isGift: false };
+    return { original, final: original, discountPct: 0, isGift: false, giftUsed: 0 };
   }, [selectedService, applicableDiscount, appliedGiftCard]);
 
   const handleConfirmBooking = useCallback(() => {
@@ -182,19 +195,30 @@ export default function PublicBookingScreen() {
       status: "pending",
       notes: notes.trim(),
       createdAt: new Date().toISOString(),
+      totalPrice: priceInfo.final,
+      giftApplied: priceInfo.isGift,
+      giftUsedAmount: priceInfo.giftUsed > 0 ? priceInfo.giftUsed : undefined,
     };
     dispatch({ type: "ADD_APPOINTMENT", payload: appointment });
     syncToDb({ type: "ADD_APPOINTMENT", payload: appointment });
 
-    // Redeem gift card if applied
+    // Deduct from gift card balance
     if (appliedGiftCard) {
-      const updatedGift = { ...appliedGiftCard, redeemed: true, redeemedAt: new Date().toISOString() };
+      const giftUsed = priceInfo.giftUsed;
+      const newBalance = Math.max(0, (appliedGiftCard.remainingBalance ?? 0) - giftUsed);
+      const fullyRedeemed = newBalance <= 0;
+      const updatedGift: GiftCard = {
+        ...appliedGiftCard,
+        remainingBalance: newBalance,
+        redeemed: fullyRedeemed,
+        redeemedAt: fullyRedeemed ? new Date().toISOString() : appliedGiftCard.redeemedAt,
+      };
       dispatch({ type: "UPDATE_GIFT_CARD", payload: updatedGift });
       syncToDb({ type: "UPDATE_GIFT_CARD", payload: updatedGift });
     }
 
     setStep("done");
-  }, [selectedServiceId, selectedTime, clientName, clientPhone, clientEmail, notes, selectedDate, selectedService, state, dispatch, appliedGiftCard, syncToDb]);
+  }, [selectedServiceId, selectedTime, clientName, clientPhone, clientEmail, notes, selectedDate, selectedService, state, dispatch, appliedGiftCard, syncToDb, priceInfo]);
 
   const openMap = useCallback(() => {
     if (profile.address) {
@@ -476,7 +500,8 @@ export default function PublicBookingScreen() {
               <View style={[styles.discountBanner, { backgroundColor: colors.success + "15", borderColor: colors.success + "40" }]}>
                 <Text style={{ fontSize: 13, fontWeight: "600", color: colors.success }}>Gift Card Applied!</Text>
                 <Text style={{ fontSize: 12, color: colors.success, marginTop: 2 }}>
-                  Free service: {state.services.find((s) => s.id === appliedGiftCard.serviceLocalId)?.name ?? "Service"}
+                  Balance: ${(appliedGiftCard.remainingBalance ?? 0).toFixed(2)}
+                  {priceInfo.giftUsed > 0 ? ` (using $${priceInfo.giftUsed.toFixed(2)})` : ""}
                 </Text>
               </View>
             )}

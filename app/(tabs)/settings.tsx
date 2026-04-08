@@ -12,8 +12,8 @@ import {
   Modal,
   Image,
   useWindowDimensions,
-  Platform,
   Linking,
+  Platform,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatTime } from "@/lib/store";
@@ -25,6 +25,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { formatPhoneNumber, getMapUrl, CustomScheduleDay, formatTimeDisplay, generateAllTimeOptions } from "@/lib/types";
 import { trpc } from "@/lib/trpc";
 import { formatDateStr } from "@/lib/store";
+import { useAppLockContext } from "@/lib/app-lock-provider";
+
 
 const DAYS_OF_WEEK = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
 const DAY_LABELS: Record<string, string> = {
@@ -58,7 +60,8 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const hp = Math.round(Math.max(16, width * 0.045));
-  const { setColorScheme: setThemeOverride } = useThemeContext();
+  const { setThemeMode: setThemeOverrideMode } = useThemeContext();
+  const { biometricAvailable, biometricEnabled, biometricType, toggleBiometric } = useAppLockContext();
   const settings = state.settings;
 
   // Business Name editing
@@ -152,9 +155,9 @@ export default function SettingsScreen() {
       const action = { type: "UPDATE_SETTINGS" as const, payload: { themeMode: mode } };
       dispatch(action);
       syncToDb(action);
-      setThemeOverride(mode === "system" ? "light" : mode);
+      setThemeOverrideMode(mode);
     },
-    [dispatch, setThemeOverride, syncToDb]
+    [dispatch, setThemeOverrideMode, syncToDb]
   );
 
   const policy = settings.cancellationPolicy;
@@ -262,8 +265,15 @@ export default function SettingsScreen() {
     { key: "system", label: "Auto", icon: "gear" },
   ];
 
+  // ─── Schedule Mode (persisted) ─────────────────────────────────
+  const scheduleTab = settings.scheduleMode ?? "weekly";
+  const setScheduleTab = useCallback((mode: "weekly" | "custom") => {
+    const action = { type: "UPDATE_SETTINGS" as const, payload: { scheduleMode: mode } };
+    dispatch(action);
+    syncToDb(action);
+  }, [dispatch, syncToDb]);
+
   // ─── Custom Schedule State ─────────────────────────────────────
-  const [scheduleTab, setScheduleTab] = useState<"weekly" | "custom">("weekly");
   const [customCalMonth, setCustomCalMonth] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
@@ -603,6 +613,7 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+
         {/* Cancellation Policy */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.switchRow}>
@@ -684,9 +695,42 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Working Hours / Custom Schedule */}
+        {/* Face ID / Biometric Lock */}
+        {Platform.OS !== "web" && biometricAvailable && (
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={styles.switchRow}>
+              <View style={styles.switchLabel}>
+                <IconSymbol name="lock.fill" size={20} color={colors.primary} />
+                <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground, marginLeft: 12 }}>
+                  {biometricType === "face" ? "Face ID" : "Fingerprint"} Lock
+                </Text>
+              </View>
+              <Switch
+                value={biometricEnabled}
+                onValueChange={async (val) => {
+                  await toggleBiometric(val);
+                }}
+                trackColor={{ false: colors.border, true: colors.primary + "60" }}
+                thumbColor={biometricEnabled ? colors.primary : colors.muted}
+              />
+            </View>
+            <Text style={{ fontSize: 12, color: colors.muted, marginTop: 4, marginLeft: 32 }}>
+              {biometricEnabled
+                ? "App will require authentication on launch"
+                : "Enable to secure your app on launch"}
+            </Text>
+          </View>
+        )}
+
+        {/* Schedule Mode */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          {/* Tab Switcher */}
+          <Text style={[styles.cardLabel, { color: colors.muted, marginBottom: 4 }]}>Schedule Mode</Text>
+          <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 12, lineHeight: 18 }}>
+            {scheduleTab === "weekly"
+              ? "Using recurring weekly hours. The same hours repeat every week."
+              : "Using custom day-by-day schedule. Only days you explicitly add are available for booking."}
+          </Text>
+          {/* Mode Switcher */}
           <View style={styles.schedTabRow}>
             <Pressable
               onPress={() => setScheduleTab("weekly")}
@@ -761,9 +805,9 @@ export default function SettingsScreen() {
             </View>
           ) : (
             <View>
-              <Text style={[styles.cardLabel, { color: colors.muted }]}>Custom Day Overrides</Text>
+              <Text style={[styles.cardLabel, { color: colors.muted }]}>Custom Day Schedule</Text>
               <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 12, lineHeight: 18 }}>
-                Select dates to set custom hours or mark as closed. Overrides weekly schedule.
+                Add dates with specific hours. Only dates you add here will be available for client booking.
               </Text>
 
               {/* Calendar Navigation */}

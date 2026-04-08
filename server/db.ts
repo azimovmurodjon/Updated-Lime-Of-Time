@@ -20,6 +20,8 @@ import {
   InsertGiftCard,
   customSchedule,
   InsertCustomSchedule,
+  products,
+  InsertProduct,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -142,6 +144,17 @@ export async function deleteBusinessOwner(id: number): Promise<void> {
   await db.delete(businessOwners).where(eq(businessOwners.id, id));
 }
 
+export async function getBusinessOwnerBySlug(slug: string): Promise<BusinessOwner | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  // Get all business owners and match by slug (business name lowercased, spaces to hyphens)
+  const result = await db.select().from(businessOwners);
+  return result.find((owner) => {
+    const ownerSlug = owner.businessName.toLowerCase().replace(/\s+/g, "-");
+    return ownerSlug === slug.toLowerCase();
+  });
+}
+
 // ─── Services ────────────────────────────────────────────────────────
 
 export async function getServicesByOwner(businessOwnerId: number) {
@@ -239,15 +252,35 @@ export async function deleteClient(localId: string, businessOwnerId: number): Pr
     .where(and(eq(clients.localId, localId), eq(clients.businessOwnerId, businessOwnerId)));
 }
 
+/** Normalize a phone number to 10-digit US format for consistent matching.
+ *  "4124820000" -> "4124820000"
+ *  "+14124820000" -> "4124820000"
+ *  "14124820000" -> "4124820000"
+ *  "(412) 482-0000" -> "4124820000" */
+export function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  // US number with country code 1 prefix
+  if (digits.length === 11 && digits.startsWith("1")) {
+    return digits.slice(1);
+  }
+  // Already 10 digits
+  if (digits.length === 10) {
+    return digits;
+  }
+  // Return as-is for non-standard lengths
+  return digits;
+}
+
 export async function getClientByPhone(phone: string, businessOwnerId: number) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db
+  const normalized = normalizePhone(phone);
+  // Fetch all clients for this business and match by normalized phone
+  const allClients = await db
     .select()
     .from(clients)
-    .where(and(eq(clients.phone, phone), eq(clients.businessOwnerId, businessOwnerId)))
-    .limit(1);
-  return result.length > 0 ? result[0] : undefined;
+    .where(eq(clients.businessOwnerId, businessOwnerId));
+  return allClients.find((c) => c.phone && normalizePhone(c.phone) === normalized) || undefined;
 }
 
 // ─── Appointments ────────────────────────────────────────────────────
@@ -463,10 +496,46 @@ export async function deleteCustomScheduleDay(
     .where(and(eq(customSchedule.businessOwnerId, businessOwnerId), eq(customSchedule.date, date)));
 }
 
+// ─── Products ────────────────────────────────────────────────────────────────
+
+export async function getProductsByOwner(businessOwnerId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(products).where(eq(products.businessOwnerId, businessOwnerId));
+}
+
+export async function createProduct(data: InsertProduct): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(products).values(data);
+  return result.insertId;
+}
+
+export async function updateProduct(
+  localId: string,
+  businessOwnerId: number,
+  data: Partial<InsertProduct>
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .update(products)
+    .set(data)
+    .where(and(eq(products.localId, localId), eq(products.businessOwnerId, businessOwnerId)));
+}
+
+export async function deleteProduct(localId: string, businessOwnerId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .delete(products)
+    .where(and(eq(products.localId, localId), eq(products.businessOwnerId, businessOwnerId)));
+}
+
 // ─── Bootstrap: Load all data for a business owner ───────────────────
 
 export async function getFullBusinessData(businessOwnerId: number) {
-  const [owner, svcList, clientList, apptList, reviewList, discountList, giftCardList, scheduleList] = await Promise.all([
+  const [owner, svcList, clientList, apptList, reviewList, discountList, giftCardList, scheduleList, productList] = await Promise.all([
     getBusinessOwnerById(businessOwnerId),
     getServicesByOwner(businessOwnerId),
     getClientsByOwner(businessOwnerId),
@@ -475,6 +544,7 @@ export async function getFullBusinessData(businessOwnerId: number) {
     getDiscountsByOwner(businessOwnerId),
     getGiftCardsByOwner(businessOwnerId),
     getCustomScheduleByOwner(businessOwnerId),
+    getProductsByOwner(businessOwnerId),
   ]);
   return {
     owner,
@@ -485,5 +555,6 @@ export async function getFullBusinessData(businessOwnerId: number) {
     discounts: discountList,
     giftCards: giftCardList,
     customSchedule: scheduleList,
+    products: productList,
   };
 }

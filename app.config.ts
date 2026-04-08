@@ -121,11 +121,14 @@ const config: ExpoConfig = {
       "expo-build-properties",
       {
         android: {
-          buildArchs: ["armeabi-v7a", "arm64-v8a"],
           minSdkVersion: 24,
+          ndkVersion: "27.2.12479018",
+          compileSdkVersion: 36,
+          targetSdkVersion: 36,
         },
       },
     ],
+    "./plugins/withMinSdkVersion",
   ],
   experiments: {
     typedRoutes: true,

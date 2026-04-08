@@ -82,7 +82,8 @@ export default function AppointmentDetailScreen() {
         appointment.duration,
         appointment.date,
         appointment.time,
-        profile.phone
+        profile.phone,
+        client.phone
       );
       openSms(client.phone, msg);
     }
@@ -172,7 +173,7 @@ export default function AppointmentDetailScreen() {
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} className="p-5">
       {/* Header */}
-      <View className="flex-row items-center mb-6">
+      <View className="flex-row items-center mb-6" style={{ paddingTop: 8 }}>
         <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
           <IconSymbol name="arrow.left" size={24} color={colors.foreground} />
         </Pressable>
@@ -195,6 +196,58 @@ export default function AppointmentDetailScreen() {
             {appointment.duration} min · ${service?.price ?? 0}
           </Text>
         </View>
+
+        {/* Itemized Charges */}
+        {(() => {
+          const svcPrice = service?.price ?? 0;
+          const extras = appointment.extraItems ?? [];
+          const extrasTotal = extras.reduce((s, e) => s + (e.price || 0), 0);
+          const giftUsedAmount = appointment.giftUsedAmount ?? 0;
+          // Use stored giftUsedAmount; if not available but gift was applied,
+          // infer deduction from the difference between subtotal and stored totalPrice
+          let giftDeduction = 0;
+          if (appointment.giftApplied) {
+            if (giftUsedAmount > 0) {
+              giftDeduction = giftUsedAmount;
+            } else if (appointment.totalPrice != null) {
+              // Infer: subtotal - totalPrice = gift deduction
+              giftDeduction = Math.max(0, svcPrice + extrasTotal - appointment.totalPrice);
+            } else {
+              // Last resort: assume full service price was covered by gift
+              giftDeduction = svcPrice;
+            }
+          }
+          const computedTotal = appointment.totalPrice != null
+            ? appointment.totalPrice
+            : Math.max(0, svcPrice + extrasTotal - giftDeduction);
+          return (
+            <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
+              <Text className="text-xs text-muted mb-2">Charges</Text>
+              <View className="flex-row justify-between py-1">
+                <Text className="text-sm text-foreground">{service ? getServiceDisplayName(service) : "Service"}</Text>
+                <Text className="text-sm font-semibold text-foreground">${svcPrice.toFixed(2)}</Text>
+              </View>
+              {extras.map((item, idx) => (
+                <View key={idx} className="flex-row justify-between py-1">
+                  <Text className="text-sm text-foreground">{item.name} ({item.type === "product" ? "Product" : "Service"})</Text>
+                  <Text className="text-sm font-semibold text-foreground">${(item.price || 0).toFixed(2)}</Text>
+                </View>
+              ))}
+              {appointment.giftApplied && (
+                <View className="flex-row justify-between py-1">
+                  <Text className="text-sm" style={{ color: colors.success }}>Gift Card Applied</Text>
+                  <Text className="text-sm font-semibold" style={{ color: colors.success }}>-${giftDeduction.toFixed(2)}</Text>
+                </View>
+              )}
+              <View style={{ borderTopWidth: 1, borderTopColor: colors.border, marginTop: 6, paddingTop: 6 }} className="flex-row justify-between">
+                <Text className="text-sm font-bold text-foreground">Total Charged</Text>
+                <Text className="text-sm font-bold" style={{ color: colors.primary }}>
+                  ${computedTotal.toFixed(2)}
+                </Text>
+              </View>
+            </View>
+          );
+        })()}
 
         {/* Status */}
         <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">

@@ -29,6 +29,20 @@
       "when": 1775515564414,
       "tag": "0003_steep_yellowjacket",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1775575173428,
+      "tag": "0004_wet_nighthawk",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1775581582038,
+      "tag": "0005_clean_vindicator",
+      "breakpoints": true
     }
   ]
 }
