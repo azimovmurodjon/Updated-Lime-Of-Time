@@ -1,14 +1,34 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Platform } from "react-native";
-import * as LocalAuthentication from "expo-local-authentication";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const BIOMETRIC_ENABLED_KEY = "@bookease_biometric_enabled";
 
 /**
+ * Lazily import LocalAuthentication to avoid crashing on iOS 26 beta
+ * where LAContext initialization can SIGABRT during TurboModule setup.
+ */
+let LocalAuthentication: typeof import("expo-local-authentication") | null = null;
+
+async function getLocalAuth() {
+  if (!LocalAuthentication) {
+    try {
+      LocalAuthentication = await import("expo-local-authentication");
+    } catch (err) {
+      console.warn("[AppLock] Failed to import expo-local-authentication:", err);
+      return null;
+    }
+  }
+  return LocalAuthentication;
+}
+
+/**
  * Hook that manages app lock with biometric authentication.
  * When enabled, prompts Face ID / fingerprint ONLY on initial app launch (cold start).
  * Does NOT re-lock on every foreground transition to avoid the lock loop issue.
+ *
+ * IMPORTANT: Biometric hardware check is deferred to avoid crash on iOS 26 beta
+ * where LAContext initialization can cause SIGABRT.
  */
 export function useAppLock() {
   const [isLocked, setIsLocked] = useState(false);
@@ -20,7 +40,7 @@ export function useAppLock() {
   const hasRunInitialAuth = useRef(false);
   const isAuthenticating = useRef(false);
 
-  // Check biometric hardware availability AND load saved preference
+  // Load saved preference first, then check biometric hardware with delay
   useEffect(() => {
     if (Platform.OS === "web") {
       setSettingsLoaded(true);
@@ -29,33 +49,68 @@ export function useAppLock() {
 
     (async () => {
       try {
-        const hasHardware = await LocalAuthentication.hasHardwareAsync();
-        const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-        setBiometricAvailable(hasHardware && isEnrolled);
-
-        if (hasHardware && isEnrolled) {
-          const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
-          if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
-            setBiometricType("face");
-          } else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
-            setBiometricType("fingerprint");
-          }
-        }
-
-        // Load saved preference
+        // First, just load the saved preference (no native module calls)
         const saved = await AsyncStorage.getItem(BIOMETRIC_ENABLED_KEY);
-        if (saved === "true" && hasHardware && isEnrolled) {
+        const wasEnabled = saved === "true";
+
+        if (wasEnabled) {
+          // Optimistically set these so the lock screen shows
           setBiometricEnabled(true);
-          // Set locked immediately so the lock screen shows before auth prompt
           setIsLocked(true);
         }
       } catch (err) {
-        console.warn("[AppLock] Error checking biometrics:", err);
+        console.warn("[AppLock] Error loading preference:", err);
       } finally {
         setSettingsLoaded(true);
       }
     })();
   }, []);
+
+  // Deferred biometric hardware check — runs after a delay to avoid
+  // crashing during app initialization on iOS 26 beta
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    if (!settingsLoaded) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        const LA = await getLocalAuth();
+        if (!LA) {
+          // Module failed to load — disable biometrics gracefully
+          setBiometricAvailable(false);
+          setBiometricType("none");
+          if (biometricEnabled) {
+            // Can't verify biometrics, unlock the app
+            setIsLocked(false);
+          }
+          return;
+        }
+
+        const hasHardware = await LA.hasHardwareAsync();
+        const isEnrolled = await LA.isEnrolledAsync();
+        setBiometricAvailable(hasHardware && isEnrolled);
+
+        if (hasHardware && isEnrolled) {
+          const types = await LA.supportedAuthenticationTypesAsync();
+          if (types.includes(LA.AuthenticationType.FACIAL_RECOGNITION)) {
+            setBiometricType("face");
+          } else if (types.includes(LA.AuthenticationType.FINGERPRINT)) {
+            setBiometricType("fingerprint");
+          }
+        } else if (biometricEnabled) {
+          // Hardware not available but was enabled — unlock gracefully
+          setIsLocked(false);
+        }
+      } catch (err) {
+        console.warn("[AppLock] Error checking biometrics:", err);
+        // On error, unlock the app so user isn't stuck
+        setIsLocked(false);
+        setBiometricAvailable(false);
+      }
+    }, 1500); // 1.5s delay to let the app fully initialize first
+
+    return () => clearTimeout(timer);
+  }, [settingsLoaded, biometricEnabled]);
 
   // Authenticate with biometrics
   const authenticate = useCallback(async (): Promise<boolean> => {
@@ -66,8 +121,14 @@ export function useAppLock() {
     isAuthenticating.current = true;
 
     try {
-      const hasHardware = await LocalAuthentication.hasHardwareAsync();
-      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+      const LA = await getLocalAuth();
+      if (!LA) {
+        setIsLocked(false);
+        return true;
+      }
+
+      const hasHardware = await LA.hasHardwareAsync();
+      const isEnrolled = await LA.isEnrolledAsync();
 
       if (!hasHardware || !isEnrolled) {
         setIsLocked(false);
@@ -81,7 +142,7 @@ export function useAppLock() {
           ? "Unlock with Fingerprint"
           : "Authenticate to continue";
 
-      const result = await LocalAuthentication.authenticateAsync({
+      const result = await LA.authenticateAsync({
         promptMessage,
         disableDeviceFallback: false,
         cancelLabel: "Cancel",
@@ -96,7 +157,9 @@ export function useAppLock() {
       return false;
     } catch (err) {
       console.warn("[AppLock] Authentication error:", err);
-      return false;
+      // On error, unlock so user isn't stuck
+      setIsLocked(false);
+      return true;
     } finally {
       isAuthenticating.current = false;
     }
@@ -130,6 +193,7 @@ export function useAppLock() {
     if (Platform.OS === "web") return;
     if (!settingsLoaded) return;
     if (!biometricEnabled) return;
+    if (!biometricAvailable) return; // Wait until hardware check completes
     if (hasRunInitialAuth.current) return;
     hasRunInitialAuth.current = true;
 
@@ -139,10 +203,7 @@ export function useAppLock() {
     }, 600);
 
     return () => clearTimeout(timer);
-  }, [settingsLoaded, biometricEnabled, authenticate]);
-
-  // NOTE: Removed the AppState listener that re-locked on every foreground transition.
-  // This was causing the "non-stop locking" issue. Now Face ID only prompts on cold launch.
+  }, [settingsLoaded, biometricEnabled, biometricAvailable, authenticate]);
 
   return {
     isLocked,
