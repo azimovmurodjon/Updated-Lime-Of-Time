@@ -1,5 +1,5 @@
 import { eq, and } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle, type MySql2Database } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
 import {
   InsertUser,
@@ -26,12 +26,10 @@ import {
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
-type DbInstance = ReturnType<typeof drizzle>;
-
-let _db: DbInstance | null = null;
+let _db: MySql2Database | null = null;
 let _pool: mysql.Pool | null = null;
 
-async function createDb(): Promise<DbInstance | null> {
+async function createDb(): Promise<MySql2Database | null> {
   if (!ENV.databaseUrl) {
     console.warn("[Database] DATABASE_URL is missing");
     return null;
@@ -54,7 +52,7 @@ async function createDb(): Promise<DbInstance | null> {
   }
 }
 
-export async function getDb(): Promise<DbInstance | null> {
+export async function getDb(): Promise<MySql2Database | null> {
   if (_db) return _db;
   _db = await createDb();
   return _db;
@@ -322,12 +320,6 @@ export async function deleteClient(localId: string, businessOwnerId: number): Pr
     .where(and(eq(clients.localId, localId), eq(clients.businessOwnerId, businessOwnerId)));
 }
 
-/** Normalize a phone number to 10-digit US format for consistent matching.
- *  "4124820000" -> "4124820000"
- *  "+14124820000" -> "4124820000"
- *  "14124820000" -> "4124820000"
- *  "(412) 482-0000" -> "4124820000"
- */
 export function normalizePhone(phone: string): string {
   const digits = phone.replace(/\D/g, "");
 
