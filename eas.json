@@ -24,7 +24,7 @@
       "env": {
         "EAS_BUILD_NO_EXPO_GO_WARNING": "true",
         "APP_ENV": "preview",
-        "EXPO_PUBLIC_API_BASE_URL": "http://10.0.0.130:3000"
+        "EXPO_PUBLIC_API_BASE_URL": "https://manussched-dw4mhfnu.manus.space"
       }
     },
     "production": {
@@ -35,7 +35,7 @@
       "env": {
         "EAS_BUILD_NO_EXPO_GO_WARNING": "true",
         "APP_ENV": "production",
-        "EXPO_PUBLIC_API_BASE_URL": "https://lime-of-time.com"
+        "EXPO_PUBLIC_API_BASE_URL": "https://manussched-dw4mhfnu.manus.space"
       }
     }
   },
