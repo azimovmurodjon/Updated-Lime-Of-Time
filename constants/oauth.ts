@@ -45,8 +45,8 @@ export function getApiBaseUrl(): string {
     }
   }
 
-  // Fallback to empty (will use relative URL)
-  return "";
+  // Native builds (iOS/Android): use the deployed production server
+  return "https://manussched-dw4mhfnu.manus.space";
 }
 
 export const SESSION_TOKEN_KEY = "app_session_token";

@@ -210,3 +210,4 @@
 - [x] Fix DB record: updated business name from "Hair Cut" to "Tech Store" in production database
 - [x] Kept user's useful changes: ITSAppUsesNonExemptEncryption flag, eas.json, .gitignore
 - [x] Fix Android APK build: minSdkVersion 22 error — withMinSdkVersion plugin not forcing minSdkVersion 24 in native Gradle files
+- [x] Fix: TestFlight/native builds cannot connect to production API server — hardcoded production URL as fallback for native builds
