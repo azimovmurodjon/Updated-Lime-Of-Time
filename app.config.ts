@@ -86,7 +86,6 @@ const config: ExpoConfig = {
     "expo-router",
     "expo-secure-store",
     "expo-local-authentication",
-    "expo-clipboard",
     "expo-image-picker",
     [
       "expo-contacts",
