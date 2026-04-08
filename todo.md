@@ -209,3 +209,4 @@
 - [x] Fix public links broken after VS Code push: restored deleted publicRoutes.ts, email.ts, products, and all other accidentally removed code
 - [x] Fix DB record: updated business name from "Hair Cut" to "Tech Store" in production database
 - [x] Kept user's useful changes: ITSAppUsesNonExemptEncryption flag, eas.json, .gitignore
+- [x] Fix Android APK build: minSdkVersion 22 error — withMinSdkVersion plugin not forcing minSdkVersion 24 in native Gradle files

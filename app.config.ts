@@ -128,7 +128,13 @@ const config: ExpoConfig = {
         },
       },
     ],
-    "./plugins/withMinSdkVersion",
+    [
+      "./plugins/withMinSdkVersion",
+      {
+        minSdkVersion: 24,
+        ndkVersion: "27.2.12479018",
+      },
+    ],
   ],
   experiments: {
     typedRoutes: true,

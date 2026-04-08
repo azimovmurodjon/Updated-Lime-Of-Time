@@ -112,6 +112,13 @@ function withMinSdkVersion(config, { minSdkVersion = 24, ndkVersion = "27.2.1247
       value: ndkVersion,
     });
     
+    // Also set newArchEnabled minSdkVersion to prevent CMake from using 22
+    config.modResults.push({
+      type: "property",
+      key: "android.minSdk",
+      value: String(minSdkVersion),
+    });
+    
     return config;
   });
 
