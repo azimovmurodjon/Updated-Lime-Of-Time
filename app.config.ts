@@ -137,6 +137,12 @@ const config: ExpoConfig = {
       },
     ],
   ],
+  extra: {
+    eas: {
+      projectId: "031e5de6-3a21-4c81-97b3-e50ec17148ac",
+    },
+  },
+  owner: "azimovmurodjon",
   experiments: {
     typedRoutes: true,
     reactCompiler: true,
