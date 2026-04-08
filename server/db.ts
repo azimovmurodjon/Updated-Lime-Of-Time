@@ -537,7 +537,10 @@ export async function getCustomScheduleByOwner(businessOwnerId: number) {
   const db = await getDb();
   if (!db) return [];
 
-  return db.select().from(customSchedule).where(eq(customSchedule.businessOwnerId, businessOwnerId));
+  return db
+    .select()
+    .from(customSchedule)
+    .where(eq(customSchedule.businessOwnerId, businessOwnerId));
 }
 
 export async function upsertCustomScheduleDay(
@@ -560,7 +563,9 @@ export async function upsertCustomScheduleDay(
     await db
       .update(customSchedule)
       .set({ isOpen, startTime: startTime ?? null, endTime: endTime ?? null })
-      .where(and(eq(customSchedule.businessOwnerId, businessOwnerId), eq(customSchedule.date, date)));
+      .where(
+        and(eq(customSchedule.businessOwnerId, businessOwnerId), eq(customSchedule.date, date))
+      );
   } else {
     await db.insert(customSchedule).values({
       businessOwnerId,
