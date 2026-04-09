@@ -206,5 +206,3 @@
 - [x] Remove Map line from SMS messages (accept, reminder, follow-up) and replace with booking link
 - [x] Remove old Manus notification email for new booking requests — only use branded Resend email from lime-of-time.com
 - [x] Enable push notification to business owner when new appointment request is submitted (app notification only, no email)
-- [x] Update app.config.ts version to 1.0.8 and buildNumber to 5
-- [x] Fix public booking/review links to properly connect to the database (verified: links already connected via Cloudflare redirect; issue was business data not synced to DB until onboarding completes on deployed version)

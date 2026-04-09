@@ -6,7 +6,22 @@ import type { ExpoConfig } from "expo/config";
 // e.g., "my-app" created at 2024-01-15 10:30:45 -> "space.manus.my.app.t20240115103045"
 // Bundle ID can only contain letters, numbers, and dots
 // Android requires each dot-separated segment to start with a letter
-const bundleId = "com.azimov.limeoftime";
+const rawBundleId = "space.manus.manus.scheduler.t20260406102824";
+const bundleId =
+  rawBundleId
+    .replace(/[-_]/g, ".") // Replace hyphens/underscores with dots
+    .replace(/[^a-zA-Z0-9.]/g, "") // Remove invalid chars
+    .replace(/\.+/g, ".") // Collapse consecutive dots
+    .replace(/^\.+|\.+$/g, "") // Trim leading/trailing dots
+    .toLowerCase()
+    .split(".")
+    .map((segment) => {
+      // Android requires each segment to start with a letter
+      // Prefix with 'x' if segment starts with a digit
+      return /^[a-zA-Z]/.test(segment) ? segment : "x" + segment;
+    })
+    .join(".") || "space.manus.app";
+
 // Extract timestamp from bundle ID and prefix with "manus" for deep link scheme
 // e.g., "space.manus.my.app.t20240115103045" -> "manus20240115103045"
 const timestamp = bundleId.split(".").pop()?.replace(/^t/, "") ?? "";
@@ -18,7 +33,8 @@ const env = {
   appSlug: "manus-scheduler",
   // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
   // Leave empty to use the default icon from assets/images/icon.png
-  logoUrl: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/jHoNjHdLsUGgpFhz.png",
+  logoUrl:
+    "https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/jHoNjHdLsUGgpFhz.png",
   scheme: schemeFromBundleId,
   iosBundleId: bundleId,
   androidPackage: bundleId,
@@ -27,20 +43,27 @@ const env = {
 const config: ExpoConfig = {
   name: env.appName,
   slug: env.appSlug,
-  version: "1.0.8",
+  version: "1.0.9",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: env.scheme,
   userInterfaceStyle: "automatic",
   newArchEnabled: true,
+
+  extra: {
+    eas: {
+      projectId: "031e5de6-3a21-4c81-97b3-e50ec17148ac",
+    },
+  },
+
   ios: {
     supportsTablet: true,
-    bundleIdentifier: "com.azimov.limeoftime",
-    buildNumber: "5",
+    bundleIdentifier: env.iosBundleId,
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
     },
   },
+
   android: {
     adaptiveIcon: {
       backgroundColor: "#F0FFF0",
@@ -66,23 +89,27 @@ const config: ExpoConfig = {
       },
     ],
   },
+
   web: {
     bundler: "metro",
     output: "static",
     favicon: "./assets/images/favicon.png",
   },
+
   plugins: [
     "expo-router",
     [
       "expo-contacts",
       {
-        contactsPermission: "Allow $(PRODUCT_NAME) to access your contacts to import clients.",
+        contactsPermission:
+          "Allow $(PRODUCT_NAME) to access your contacts to import clients.",
       },
     ],
     [
       "expo-audio",
       {
-        microphonePermission: "Allow $(PRODUCT_NAME) to access your microphone.",
+        microphonePermission:
+          "Allow $(PRODUCT_NAME) to access your microphone.",
       },
     ],
     [
@@ -125,16 +152,12 @@ const config: ExpoConfig = {
     [
       "expo-local-authentication",
       {
-        faceIDPermission: "Allow $(PRODUCT_NAME) to use Face ID to unlock the app.",
+        faceIDPermission:
+          "Allow $(PRODUCT_NAME) to use Face ID to unlock the app.",
       },
     ],
   ],
-  extra: {
-    eas: {
-      projectId: "031e5de6-3a21-4c81-97b3-e50ec17148ac",
-    },
-  },
-  owner: "azimovmurodjon",
+
   experiments: {
     typedRoutes: true,
     reactCompiler: true,
