@@ -8,34 +8,24 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EAS_BUILD_NO_EXPO_GO_WARNING": "true",
-        "APP_ENV": "development",
-        "EXPO_PUBLIC_API_BASE_URL": "http://10.0.0.130:3000"
+        "EAS_BUILD_NO_EXPO_GO_WARNING": "true"
       }
     },
     "preview": {
       "distribution": "internal",
-      "ios": {
-        "simulator": false
-      },
       "android": {
         "buildType": "apk"
       },
       "env": {
-        "EAS_BUILD_NO_EXPO_GO_WARNING": "true",
-        "APP_ENV": "preview",
-        "EXPO_PUBLIC_API_BASE_URL": "https://manussched-dw4mhfnu.manus.space"
+        "EAS_BUILD_NO_EXPO_GO_WARNING": "true"
       }
     },
     "production": {
-      "ios": {},
       "android": {
         "buildType": "apk"
       },
       "env": {
-        "EAS_BUILD_NO_EXPO_GO_WARNING": "true",
-        "APP_ENV": "production",
-        "EXPO_PUBLIC_API_BASE_URL": "https://manussched-dw4mhfnu.manus.space"
+        "EAS_BUILD_NO_EXPO_GO_WARNING": "true"
       }
     }
   },

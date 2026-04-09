@@ -1,8 +1,11 @@
 import * as Linking from "expo-linking";
 import * as ReactNative from "react-native";
 
-// Deep link scheme for the app
-const schemeFromBundleId = "limeoftime";
+// Extract scheme from bundle ID (last segment timestamp, prefixed with "manus")
+// e.g., "space.manus.my.app.t20240115103045" -> "manus20240115103045"
+const bundleId = "space.manus.manus.scheduler.t20260406102824";
+const timestamp = bundleId.split(".").pop()?.replace(/^t/, "") ?? "";
+const schemeFromBundleId = `manus${timestamp}`;
 
 const env = {
   portal: process.env.EXPO_PUBLIC_OAUTH_PORTAL_URL ?? "",
@@ -42,8 +45,8 @@ export function getApiBaseUrl(): string {
     }
   }
 
-  // Native builds (iOS/Android): use the deployed production server
-  return "https://manussched-dw4mhfnu.manus.space";
+  // Fallback to empty (will use relative URL)
+  return "";
 }
 
 export const SESSION_TOKEN_KEY = "app_session_token";
