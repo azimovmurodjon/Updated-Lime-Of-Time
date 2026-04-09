@@ -487,7 +487,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const createProductMut = trpc.products.create.useMutation();
   const updateProductMut = trpc.products.update.useMutation();
   const deleteProductMut = trpc.products.delete.useMutation();
-  const createBusinessMut = trpc.business.create.useMutation();
 
   // ─── Bootstrap: Load from DB or fallback to AsyncStorage ────────
   useEffect(() => {
@@ -531,11 +530,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 (fullData.products || []).map(dbProductToLocal)
               );
               return;
-            } else {
-              // DB record missing for stored ID – clear stale ID so recovery sync can re-create
-              console.warn("[Store] Stored owner ID", ownerId, "not found in DB, clearing stale ID");
-              await AsyncStorage.removeItem(STORAGE_KEYS.businessOwnerId);
-              // Fall through to AsyncStorage fallback + recovery sync below
             }
           } catch (err) {
             console.warn("[Store] Failed to load from DB, falling back to local:", err);
@@ -559,204 +553,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const loadedSettings = settingsRaw
           ? { ...initialSettings, ...JSON.parse(settingsRaw) }
           : initialSettings;
-
-        const localServices: Service[] = servicesRaw ? JSON.parse(servicesRaw) : [];
-        const localClients: Client[] = clientsRaw ? JSON.parse(clientsRaw) : [];
-        const localAppointments: Appointment[] = appointmentsRaw ? JSON.parse(appointmentsRaw) : [];
-        const localReviews: Review[] = reviewsRaw ? JSON.parse(reviewsRaw) : [];
-        const localDiscounts: Discount[] = discountsRaw ? JSON.parse(discountsRaw) : [];
-        const localGiftCards: GiftCard[] = giftCardsRaw ? JSON.parse(giftCardsRaw) : [];
-        const localCustomSchedule: CustomScheduleDay[] = customScheduleRaw ? JSON.parse(customScheduleRaw) : [];
-        const localProducts: Product[] = productsRaw ? JSON.parse(productsRaw) : [];
-
-        // ─── Recovery Sync: push local-only business to DB ──────────
-        // If onboarding completed but no businessOwnerId was stored,
-        // the initial DB save during onboarding must have failed.
-        // Attempt to create the business in DB now and push all local data.
-        // Check if we need recovery: either no storedOwnerId originally, or it was cleared above
-        const currentStoredId = await AsyncStorage.getItem(STORAGE_KEYS.businessOwnerId);
-        let recoveredOwnerId: number | null = currentStoredId ? parseInt(currentStoredId, 10) : null;
-        if (!currentStoredId && loadedSettings.onboardingComplete && loadedSettings.businessName && loadedSettings.businessName !== "My Business") {
-          try {
-            console.log("[Store] Recovery sync: creating business in DB...");
-            const phone = loadedSettings.profile?.phone?.replace(/\D/g, "") || "0000000000";
-            const newOwner = await createBusinessMut.mutateAsync({
-              phone,
-              businessName: loadedSettings.businessName,
-              ownerName: loadedSettings.profile?.ownerName || undefined,
-              email: loadedSettings.profile?.email || undefined,
-              address: loadedSettings.profile?.address || undefined,
-              website: loadedSettings.profile?.website || undefined,
-              description: loadedSettings.profile?.description || undefined,
-              workingHours: loadedSettings.workingHours,
-              cancellationPolicy: loadedSettings.cancellationPolicy,
-            });
-            recoveredOwnerId = newOwner.id;
-            await AsyncStorage.setItem(STORAGE_KEYS.businessOwnerId, String(newOwner.id));
-            console.log("[Store] Recovery sync: business created with ID", newOwner.id);
-
-            // Push all local data to DB
-            const oid = newOwner.id;
-
-            // Update business settings that aren't part of create
-            try {
-              await updateBusinessMut.mutateAsync({
-                id: oid,
-                defaultDuration: loadedSettings.defaultDuration,
-                notificationsEnabled: loadedSettings.notificationsEnabled,
-                themeMode: loadedSettings.themeMode,
-                temporaryClosed: loadedSettings.temporaryClosed,
-                scheduleMode: loadedSettings.scheduleMode,
-                businessLogoUri: loadedSettings.businessLogoUri || undefined,
-              });
-            } catch (e) { console.warn("[Recovery] business settings update failed:", e); }
-
-            // Push services
-            for (const svc of localServices) {
-              try {
-                await createServiceMut.mutateAsync({
-                  businessOwnerId: oid,
-                  localId: svc.id,
-                  name: svc.name,
-                  duration: svc.duration,
-                  price: String(svc.price),
-                  color: svc.color,
-                });
-              } catch (e) { console.warn("[Recovery] service push failed:", svc.id, e); }
-            }
-
-            // Push clients
-            for (const cl of localClients) {
-              try {
-                await createClientMut.mutateAsync({
-                  businessOwnerId: oid,
-                  localId: cl.id,
-                  name: cl.name,
-                  phone: cl.phone || undefined,
-                  email: cl.email || undefined,
-                  notes: cl.notes || undefined,
-                });
-              } catch (e) { console.warn("[Recovery] client push failed:", cl.id, e); }
-            }
-
-            // Push appointments
-            for (const appt of localAppointments) {
-              try {
-                await createApptMut.mutateAsync({
-                  businessOwnerId: oid,
-                  localId: appt.id,
-                  serviceLocalId: appt.serviceId,
-                  clientLocalId: appt.clientId,
-                  date: appt.date,
-                  time: appt.time,
-                  duration: appt.duration,
-                  status: appt.status,
-                  notes: appt.notes || undefined,
-                });
-              } catch (e) { console.warn("[Recovery] appointment push failed:", appt.id, e); }
-            }
-
-            // Push reviews
-            for (const rev of localReviews) {
-              try {
-                await createReviewMut.mutateAsync({
-                  businessOwnerId: oid,
-                  localId: rev.id,
-                  clientLocalId: rev.clientId,
-                  appointmentLocalId: rev.appointmentId || undefined,
-                  rating: rev.rating,
-                  comment: rev.comment || undefined,
-                });
-              } catch (e) { console.warn("[Recovery] review push failed:", rev.id, e); }
-            }
-
-            // Push discounts
-            for (const disc of localDiscounts) {
-              try {
-                await createDiscountMut.mutateAsync({
-                  businessOwnerId: oid,
-                  localId: disc.id,
-                  name: disc.name,
-                  percentage: disc.percentage,
-                  startTime: disc.startTime,
-                  endTime: disc.endTime,
-                  daysOfWeek: disc.daysOfWeek,
-                  dates: disc.dates ?? [],
-                  serviceIds: disc.serviceIds,
-                  active: disc.active,
-                });
-              } catch (e) { console.warn("[Recovery] discount push failed:", disc.id, e); }
-            }
-
-            // Push gift cards (encode extended data in message field)
-            for (const gc of localGiftCards) {
-              try {
-                const giftDataBlock = `\n---GIFT_DATA---\n${JSON.stringify({
-                  serviceIds: gc.serviceIds,
-                  productIds: gc.productIds,
-                  originalValue: gc.originalValue,
-                  remainingBalance: gc.remainingBalance,
-                })}`;
-                const msgWithData = (gc.message || "") + giftDataBlock;
-                await createGiftCardMut.mutateAsync({
-                  businessOwnerId: oid,
-                  localId: gc.id,
-                  code: gc.code,
-                  serviceLocalId: gc.serviceLocalId,
-                  recipientName: gc.recipientName || undefined,
-                  recipientPhone: gc.recipientPhone || undefined,
-                  message: msgWithData,
-                  expiresAt: gc.expiresAt || undefined,
-                });
-              } catch (e) { console.warn("[Recovery] gift card push failed:", gc.id, e); }
-            }
-
-            // Push custom schedule
-            for (const cs of localCustomSchedule) {
-              try {
-                await upsertScheduleMut.mutateAsync({
-                  businessOwnerId: oid,
-                  date: cs.date,
-                  isOpen: cs.isOpen,
-                  startTime: cs.startTime,
-                  endTime: cs.endTime,
-                });
-              } catch (e) { console.warn("[Recovery] schedule push failed:", cs.date, e); }
-            }
-
-            // Push products
-            for (const prod of localProducts) {
-              try {
-                await createProductMut.mutateAsync({
-                  businessOwnerId: oid,
-                  localId: prod.id,
-                  name: prod.name,
-                  price: String(prod.price),
-                  description: prod.description || undefined,
-                  available: prod.available,
-                });
-              } catch (e) { console.warn("[Recovery] product push failed:", prod.id, e); }
-            }
-
-            console.log("[Store] Recovery sync complete");
-          } catch (err) {
-            console.warn("[Store] Recovery sync failed, will retry on next app launch:", err);
-          }
-        }
-
+        
         dispatch({
           type: "LOAD_DATA",
           payload: {
-            services: localServices,
-            clients: localClients,
-            appointments: localAppointments,
-            reviews: localReviews,
-            discounts: localDiscounts,
-            giftCards: localGiftCards,
-            customSchedule: localCustomSchedule,
-            products: localProducts,
+            services: servicesRaw ? JSON.parse(servicesRaw) : [],
+            clients: clientsRaw ? JSON.parse(clientsRaw) : [],
+            appointments: appointmentsRaw ? JSON.parse(appointmentsRaw) : [],
+            reviews: reviewsRaw ? JSON.parse(reviewsRaw) : [],
+            discounts: discountsRaw ? JSON.parse(discountsRaw) : [],
+            giftCards: giftCardsRaw ? JSON.parse(giftCardsRaw) : [],
+            customSchedule: customScheduleRaw ? JSON.parse(customScheduleRaw) : [],
+            products: productsRaw ? JSON.parse(productsRaw) : [],
             settings: loadedSettings,
-            businessOwnerId: recoveredOwnerId,
+            businessOwnerId: storedOwnerId ? parseInt(storedOwnerId, 10) : null,
           },
         });
       } catch {

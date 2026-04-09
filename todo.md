@@ -206,4 +206,3 @@
 - [x] Remove Map line from SMS messages (accept, reminder, follow-up) and replace with booking link
 - [x] Remove old Manus notification email for new booking requests — only use branded Resend email from lime-of-time.com
 - [x] Enable push notification to business owner when new appointment request is submitted (app notification only, no email)
-- [x] Fix public booking links to connect to DB (lime-of-time.com/book/[slug] returns proper data)
