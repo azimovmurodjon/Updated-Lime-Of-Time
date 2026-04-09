@@ -206,8 +206,3 @@
 - [x] Remove Map line from SMS messages (accept, reminder, follow-up) and replace with booking link
 - [x] Remove old Manus notification email for new booking requests — only use branded Resend email from lime-of-time.com
 - [x] Enable push notification to business owner when new appointment request is submitted (app notification only, no email)
-- [x] Rollback to working checkpoint eb61b29b
-- [x] Remove expo-local-authentication from package.json, app.config.ts plugins, and use-app-lock.ts
-- [x] Disable New Architecture (newArchEnabled: false) for iOS 26 beta compatibility
-- [x] Set correct bundle ID (com.azimov.limeoftime) and EAS project config
-- [x] Bump buildNumber to 10 to avoid App Store Connect conflicts
