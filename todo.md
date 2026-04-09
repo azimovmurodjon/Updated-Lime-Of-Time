@@ -217,3 +217,4 @@
 - [x] Fix app crash on TestFlight launch — added missing native module plugins (expo-secure-store, expo-local-authentication, expo-clipboard, expo-image-picker) to app.config.ts
 - [x] Remove expo-local-authentication native module to fix iOS 26 beta crash (TurboModule auto-registration crashes LAContext)
 - [x] Replace biometric lock with passcode-based lock or disable lock feature temporarily
+- [x] Disable New Architecture (newArchEnabled: false) to fix TurboModule crash on iOS 26 beta
