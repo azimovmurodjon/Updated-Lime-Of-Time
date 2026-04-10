@@ -6,6 +6,9 @@ import {
   TextInput,
   FlatList,
   ScrollView,
+  Linking,
+  Platform,
+  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -13,7 +16,7 @@ import { useStore, generateId, formatDateStr, formatTime, formatDateDisplay } fr
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useMemo, useCallback } from "react";
-import { Appointment, Client, Product, Discount, DAYS_OF_WEEK, generateAvailableSlots, minutesToTime, timeToMinutes, getApplicableDiscount } from "@/lib/types";
+import { Appointment, Client, Product, Discount, DAYS_OF_WEEK, generateAvailableSlots, minutesToTime, timeToMinutes, getApplicableDiscount, generateConfirmationMessage, getServiceDisplayName, stripPhoneFormat } from "@/lib/types";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -243,8 +246,35 @@ export default function NewBookingScreen() {
       dispatch({ type: "ADD_APPOINTMENT", payload: appointment });
       syncToDb({ type: "ADD_APPOINTMENT", payload: appointment });
     }
+
+    // Send confirmation SMS to client
+    if (selectedClient?.phone) {
+      const svc = selectedService;
+      const biz = state.settings;
+      const profile = biz.profile;
+      const msg = generateConfirmationMessage(
+        biz.businessName,
+        profile.address,
+        selectedClient.name,
+        svc ? getServiceDisplayName(svc) : "Service",
+        totalDuration,
+        selectedDate,
+        selectedTime,
+        profile.phone,
+        selectedClient.phone
+      );
+      const rawPhone = stripPhoneFormat(selectedClient.phone);
+      if (Platform.OS === "web") {
+        Alert.alert("SMS Message", msg);
+      } else {
+        const separator = Platform.OS === "ios" ? "&" : "?";
+        const url = `sms:${rawPhone}${separator}body=${encodeURIComponent(msg)}`;
+        Linking.openURL(url).catch(() => Alert.alert("SMS", msg));
+      }
+    }
+
     router.back();
-  }, [selectedServiceId, selectedClientId, selectedDate, selectedTime, totalDuration, notes, cart, recurring, dispatch, router, appliedDiscount, discountAmount, totalPrice, subtotal, selectedStaffId, selectedLocationId, syncToDb]);
+  }, [selectedServiceId, selectedClientId, selectedDate, selectedTime, totalDuration, notes, cart, recurring, dispatch, router, appliedDiscount, discountAmount, totalPrice, subtotal, selectedStaffId, selectedLocationId, syncToDb, selectedService, selectedClient, state.settings]);
 
   const getInitials = (name: string) => {
     const parts = name.split(" ");

@@ -425,3 +425,11 @@
 - [x] 30-min reminder notification tap → navigate to appointment-detail with appointment info
 - [x] 1-hour reminder notification tap → navigate to appointment-detail with appointment info
 - [x] Waitlist notification tap → navigate to calendar/requests view
+
+## Phase: SMS + Booking Link Fixes
+
+- [x] Fix SMS not sending after confirming a booking from the app (regression)
+- [x] Fix booking link missing /api/ prefix — should be /api/book/slug not /book/slug
+- [x] Verify public client booking web page works properly for all businesses
+- [x] Fix booking page JavaScript syntax error caused by unescaped quotes in selectLocation onclick handler
+- [x] Fix manage page slot button quote escaping for selectSlot onclick handler

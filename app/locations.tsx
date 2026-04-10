@@ -13,7 +13,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Location, LOCATION_COLORS, getMapUrl } from "@/lib/types";
+import { Location, LOCATION_COLORS, getMapUrl, PUBLIC_BOOKING_URL } from "@/lib/types";
 
 export default function LocationsScreen() {
   const { state } = useStore();
@@ -127,7 +127,7 @@ export default function LocationsScreen() {
               const slug = state.settings.customSlug;
               // Copy to clipboard or open
               if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                navigator.clipboard.writeText(`Book at ${item.name}: /book/${slug}?location=${item.id}`);
+                navigator.clipboard.writeText(`Book at ${item.name}: ${PUBLIC_BOOKING_URL}/api/book/${slug}?location=${item.id}`);
               }
             }}
             style={({ pressed }) => [styles.bookingLinkRow, { borderTopColor: colors.border, opacity: pressed ? 0.6 : 1 }]}

@@ -518,7 +518,7 @@ export function generateConfirmationMessage(
   const reviewParams = new URLSearchParams();
   if (clientName) reviewParams.set("name", clientName);
   if (clientPhone) reviewParams.set("phone", stripPhoneFormat(clientPhone));
-  const reviewUrl = `${PUBLIC_BOOKING_URL}/review/${slug}${reviewParams.toString() ? "?" + reviewParams.toString() : ""}`;
+  const reviewUrl = `${PUBLIC_BOOKING_URL}/api/review/${slug}${reviewParams.toString() ? "?" + reviewParams.toString() : ""}`;
   return `Dear ${clientName},\n\nYour appointment has been confirmed!\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${address}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early. If you need to reschedule or cancel, please contact us at least 2 hours before your appointment.\n\n⭐ After your visit, leave a review: ${reviewUrl}\n\nThank you for choosing ${businessName}!`;
 }
 
@@ -540,8 +540,8 @@ export function generateAcceptMessage(
   const reviewParams = new URLSearchParams();
   if (clientName) reviewParams.set("name", clientName);
   if (clientPhone) reviewParams.set("phone", stripPhoneFormat(clientPhone));
-  const reviewUrl = `${PUBLIC_BOOKING_URL}/review/${slug}${reviewParams.toString() ? "?" + reviewParams.toString() : ""}`;
-  const manageUrl = appointmentId ? `${PUBLIC_BOOKING_URL}/manage/${slug}/${appointmentId}` : "";
+  const reviewUrl = `${PUBLIC_BOOKING_URL}/api/review/${slug}${reviewParams.toString() ? "?" + reviewParams.toString() : ""}`;
+  const manageUrl = appointmentId ? `${PUBLIC_BOOKING_URL}/api/manage/${slug}/${appointmentId}` : "";
   return `Dear ${clientName},\n\nGreat news! Your appointment request has been accepted.\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${address}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early.${manageUrl ? `\n\n🔄 Need to reschedule or cancel? Use this link (available 24+ hours before your appointment):\n${manageUrl}` : ""}\n\n⭐ After your visit, leave a review: ${reviewUrl}\n\nWe look forward to seeing you!\n${businessName}`;
 }
 
@@ -589,4 +589,21 @@ export function generateReminderMessage(
 }
 
 /** Public booking URL base */
-export const PUBLIC_BOOKING_URL = "https://lime-of-time.com";
+export const PUBLIC_BOOKING_URL = "https://manussched-dw4mhfnu.manus.space";
+
+/** Generate the correct public booking link for a business */
+export function getBookingUrl(businessName: string, customSlug?: string): string {
+  const slug = customSlug || businessName.replace(/\s+/g, "-").toLowerCase();
+  return `${PUBLIC_BOOKING_URL}/api/book/${slug}`;
+}
+
+/** Generate the correct public review link for a business */
+export function getReviewUrl(businessName: string, customSlug?: string): string {
+  const slug = customSlug || businessName.replace(/\s+/g, "-").toLowerCase();
+  return `${PUBLIC_BOOKING_URL}/api/review/${slug}`;
+}
+
+/** Generate the correct public gift card link */
+export function getGiftUrl(code: string): string {
+  return `${PUBLIC_BOOKING_URL}/api/gift/${code}`;
+}

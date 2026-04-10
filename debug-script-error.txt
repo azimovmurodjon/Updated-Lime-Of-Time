@@ -1,0 +1,22 @@
+ROOT CAUSE FOUND:
+
+The booking page HTML is generated inside a TypeScript template literal (backtick string) starting at line 1393.
+
+On line 1690, the JavaScript code inside the template literal has:
+  html += '<div onclick="selectLocation(\'' + loc.localId + '\')" ...
+
+The \' escape sequences are meant to produce literal single quotes in the JavaScript output.
+But because this code is inside a TypeScript template literal (backticks), the backslash-quote
+sequences are being interpreted by TypeScript FIRST, converting \' to just '.
+
+So the rendered output becomes:
+  html += '<div onclick="selectLocation('' + loc.localId + '')" ...
+
+Which is invalid JavaScript because the string '<div onclick="selectLocation(' is followed
+by an unexpected ' which starts a new string.
+
+FIX: Use \\' instead of \' so that TypeScript outputs \' in the rendered HTML, which the
+browser then interprets as escaped single quotes. Or better yet, use a different quoting
+strategy to avoid the issue entirely.
+
+Need to search for ALL similar escaping issues in the template literal.

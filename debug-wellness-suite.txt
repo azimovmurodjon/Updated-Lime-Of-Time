@@ -1,0 +1,3 @@
+The business name in the database is "Wellness Suites" (with an 's'), which generates the slug "wellness-suites". The user was trying to access "wellness-suite" (without 's'), which is why it returned "Business not found". The slug generation is correct — the issue is the user typed the wrong slug. The booking link from the app should use the correct slug derived from the actual business name.
+
+Two businesses exist: "Yahoo com" and "Wellness Suites".

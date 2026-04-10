@@ -1405,7 +1405,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
   <meta name="twitter:title" content="Book with ${escHtml(owner.businessName)}">
   <meta name="twitter:description" content="Book an appointment with ${escHtml(owner.businessName)}. Easy online scheduling.">
   <meta name="robots" content="index, follow">
-  <link rel="canonical" href="https://lime-of-time.com/book/${escHtml(owner.businessName.toLowerCase().replace(/\s+/g, '-'))}">
+  <link rel="canonical" href="https://manussched-dw4mhfnu.manus.space/api/book/${escHtml(owner.businessName.toLowerCase().replace(/\s+/g, '-'))}">
   ${baseStyles()}
 </head>
 <body>
@@ -1687,7 +1687,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         var isSelected = selectedLocation === loc.localId;
         var border = isSelected ? '#4CAF50' : '#e0e0e0';
         var bg = isSelected ? '#E8F5E9' : '#fff';
-        html += '<div onclick="selectLocation(\'' + loc.localId + '\')" style="padding:12px;border:2px solid ' + border + ';border-radius:10px;margin-bottom:8px;cursor:pointer;background:' + bg + ';transition:all 0.2s;">';
+        html += '<div onclick="selectLocation(&apos;' + loc.localId + '&apos;)" style="padding:12px;border:2px solid ' + border + ';border-radius:10px;margin-bottom:8px;cursor:pointer;background:' + bg + ';transition:all 0.2s;">';
         html += '<div style="font-weight:600;font-size:14px;">' + escText(loc.name) + '</div>';
         if (loc.address) html += '<div style="font-size:12px;color:#666;margin-top:2px;">' + escText(loc.address) + '</div>';
         if (loc.phone) html += '<div style="font-size:12px;color:#666;">' + escText(loc.phone) + '</div>';
@@ -3243,7 +3243,7 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any)
             var m = s.split(':')[1];
             var ampm = h >= 12 ? 'PM' : 'AM';
             var h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-            return '<button class="slot-btn" data-time="' + s + '" onclick="selectSlot(this, \\'' + s + '\\')">' + h12 + ':' + m + ' ' + ampm + '</button>';
+            return '<button class="slot-btn" data-time="' + s + '" onclick="selectSlot(this, &apos;' + s + '&apos;)">' + h12 + ':' + m + ' ' + ampm + '</button>';
           }).join('') + '</div>';
         } else {
           container.innerHTML = '<div class="slot-loading">No available times for this date.</div>';
