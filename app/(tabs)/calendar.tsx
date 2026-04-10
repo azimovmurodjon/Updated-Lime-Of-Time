@@ -142,7 +142,9 @@ export default function CalendarScreen() {
       appt.duration,
       appt.date,
       appt.time,
-      state.settings.profile.phone
+      state.settings.profile.phone,
+      client?.phone,
+      appt.id
     );
 
     if (client?.phone) {

@@ -274,3 +274,32 @@
 - [x] Add staff to business detail page in admin
 - [x] Add staff count to admin dashboard overview
 - [x] Ensure all new data visible in admin DB explorer (staff_members table added)
+
+## Phase: PDF Export, Reviews, Cancel/Reschedule, Staff Booking, Staff Calendar
+
+### PDF Export
+- [x] Replace CSV export with professional PDF document generation
+- [x] PDF should include business branding, formatted tables, and clean layout
+
+### Reviews in Business Settings
+- [x] Add reviews section to business settings/profile screen
+- [x] Reviews are read-only (business cannot delete client reviews)
+- [x] Display star ratings, client name, date, and review text
+
+### Cancel/Reschedule Improvements
+- [x] Auto-populate client phone number on manage appointment page
+- [x] Pending appointments: client can only cancel (no reschedule option)
+- [x] Accepted appointments: client can request reschedule
+- [x] Reschedule only allowed 24+ hours before appointment time
+- [x] Business acceptance SMS must include reschedule link at the end
+- [x] Acceptance message must include client's approved message text
+
+### Staff Selection in Client Booking
+- [x] Show staff member selection step in client booking page
+- [x] Filter available time slots based on selected staff member's schedule
+- [x] Include selected staff name in booking confirmation
+
+### Staff Calendar View
+- [x] Build per-staff calendar view screen for business owners
+- [x] Show individual staff member appointments on their calendar
+- [x] Timeline and calendar view modes with stats

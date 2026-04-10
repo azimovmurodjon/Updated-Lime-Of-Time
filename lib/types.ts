@@ -45,6 +45,8 @@ export interface Appointment {
   giftApplied?: boolean;
   /** Amount deducted from gift card balance for this appointment */
   giftUsedAmount?: number;
+  /** Staff member assigned to this appointment */
+  staffId?: string;
 }
 
 export interface Review {
@@ -498,7 +500,8 @@ export function generateAcceptMessage(
   date: string,
   time: string,
   businessPhone: string,
-  clientPhone?: string
+  clientPhone?: string,
+  appointmentId?: string
 ): string {
   const endTime = formatTimeDisplay(minutesToTime(timeToMinutes(time) + serviceDuration));
   const slug = businessName.replace(/\s+/g, "-").toLowerCase();
@@ -506,7 +509,8 @@ export function generateAcceptMessage(
   if (clientName) reviewParams.set("name", clientName);
   if (clientPhone) reviewParams.set("phone", stripPhoneFormat(clientPhone));
   const reviewUrl = `${PUBLIC_BOOKING_URL}/review/${slug}${reviewParams.toString() ? "?" + reviewParams.toString() : ""}`;
-  return `Dear ${clientName},\n\nGreat news! Your appointment request has been accepted.\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${address}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early. If you need to reschedule or cancel, please contact us at least 2 hours before your appointment.\n\n⭐ After your visit, leave a review: ${reviewUrl}\n\nWe look forward to seeing you!\n${businessName}`;
+  const manageUrl = appointmentId ? `${PUBLIC_BOOKING_URL}/manage/${slug}/${appointmentId}` : "";
+  return `Dear ${clientName},\n\nGreat news! Your appointment request has been accepted.\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${address}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early.${manageUrl ? `\n\n🔄 Need to reschedule or cancel? Use this link (available 24+ hours before your appointment):\n${manageUrl}` : ""}\n\n⭐ After your visit, leave a review: ${reviewUrl}\n\nWe look forward to seeing you!\n${businessName}`;
 }
 
 /** Generate professional appointment rejection message */

@@ -155,6 +155,30 @@ export function registerPublicRoutes(app: Express) {
     }
   });
 
+  /** Get staff members for a business (public-facing) */
+  app.get("/api/public/business/:slug/staff", async (req: Request, res: Response) => {
+    try {
+      const owner = await db.getBusinessOwnerBySlug(req.params.slug);
+      if (!owner) {
+        res.status(404).json({ error: "Business not found" });
+        return;
+      }
+      const staffList = await db.getStaffByOwner(owner.id);
+      // Only return active staff with their name, services, and schedule
+      res.json(staffList.filter((s: any) => s.isActive !== false).map((s: any) => ({
+        localId: s.localId,
+        name: s.name,
+        role: s.role || "",
+        color: s.color || "#6366f1",
+        serviceIds: s.serviceIds ? JSON.parse(s.serviceIds) : [],
+        schedule: s.schedule ? JSON.parse(s.schedule) : {},
+      })));
+    } catch (err) {
+      console.error("[Public API] Error fetching staff:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   /** Get available time slots for a date */
   app.get("/api/public/business/:slug/slots", async (req: Request, res: Response) => {
     try {
@@ -732,6 +756,18 @@ export function registerPublicRoutes(app: Express) {
         res.status(400).json({ error: `Cannot reschedule a ${appt.status} appointment` });
         return;
       }
+      // Only confirmed appointments can be rescheduled (pending ones must be cancelled)
+      if (appt.status === "pending") {
+        res.status(400).json({ error: "Pending appointments cannot be rescheduled. Please cancel and rebook, or wait for the business to confirm your appointment first." });
+        return;
+      }
+      // Enforce 24-hour reschedule window
+      const apptDateTime = new Date(`${appt.date}T${appt.time}:00`);
+      const hoursUntilAppt = (apptDateTime.getTime() - Date.now()) / (1000 * 60 * 60);
+      if (hoursUntilAppt <= 24) {
+        res.status(400).json({ error: "Rescheduling is not available within 24 hours of the appointment time. You may still cancel the appointment." });
+        return;
+      }
       // Verify client identity by phone
       const clientList = await db.getClientsByOwner(owner.id);
       const client = clientList.find((c) => c.localId === appt.clientLocalId);
@@ -852,7 +888,10 @@ export function registerPublicRoutes(app: Express) {
         res.status(404).send(notFoundPage("Appointment not found"));
         return;
       }
-      res.send(manageAppointmentPage(req.params.slug, owner, appt));
+      // Load client data to auto-populate phone
+      const clientList = await db.getClientsByOwner(owner.id);
+      const client = clientList.find((c) => c.localId === appt.clientLocalId);
+      res.send(manageAppointmentPage(req.params.slug, owner, appt, client || null));
     } catch (err) {
       console.error("[Public] Error serving manage page:", err);
       res.status(500).send(errorPage());
@@ -1363,6 +1402,10 @@ function bookingPage(slug: string, owner: any): string {
         <div class="skeleton skeleton-block"></div>
         <div class="skeleton skeleton-block"></div>
       </div>
+      <div id="staffSection" style="display:none;margin-top:20px;">
+        <h3 style="font-size:15px;font-weight:600;margin-bottom:10px;">Choose a Staff Member <span style="font-size:12px;color:#888;font-weight:400;">(optional)</span></h3>
+        <div id="staffList" class="service-list"></div>
+      </div>
       <div style="display:flex;gap:8px;margin-top:16px;">
         <button class="btn btn-secondary" onclick="goToStep(0)" style="flex:1">Back</button>
         <button class="btn btn-primary" onclick="goToStep(2)" id="btnToDate" disabled style="flex:1">Continue</button>
@@ -1479,8 +1522,10 @@ function bookingPage(slug: string, owner: any): string {
     let services = [];
     let products = [];
     let discounts = [];
+    let staffMembers = [];
     let customDays = {};
     let selectedService = null;
+    let selectedStaff = null; // { localId, name, role, color, serviceIds, schedule }
     let selectedDate = null;
     let selectedTime = null;
     let appliedGift = null;
@@ -1543,6 +1588,14 @@ function bookingPage(slug: string, owner: any): string {
       } catch(e) { customDays = {}; }
     }
 
+    // Load staff members
+    async function loadStaff() {
+      try {
+        const res = await fetch(API + "/staff");
+        staffMembers = await res.json();
+      } catch(e) { staffMembers = []; }
+    }
+
     function isWorkingDay(dateStr) {
       if (scheduleMode === "custom") {
         // Custom mode: only dates explicitly in customDays and marked open are available
@@ -1573,10 +1626,44 @@ function bookingPage(slug: string, owner: any): string {
 
     function selectService(id) {
       selectedService = services.find(s => s.localId === id);
+      selectedStaff = null;
       document.querySelectorAll("#serviceList .service-item").forEach(el => el.classList.remove("selected"));
       const el = document.getElementById("svc-" + id);
       if (el) el.classList.add("selected");
       document.getElementById("btnToDate").disabled = false;
+      // Show staff selection for this service
+      renderStaffForService(id);
+    }
+
+    function renderStaffForService(serviceId) {
+      const section = document.getElementById("staffSection");
+      const list = document.getElementById("staffList");
+      // Filter staff who can perform this service
+      const eligible = staffMembers.filter(s => s.serviceIds.length === 0 || s.serviceIds.includes(serviceId));
+      if (eligible.length === 0) {
+        section.style.display = "none";
+        return;
+      }
+      section.style.display = "block";
+      // "Any available" option + eligible staff
+      let html = '<div class="service-item selected" id="staff-any" onclick="selectStaff(null)">' +
+        '<div class="service-dot" style="background:#888"></div>' +
+        '<div class="service-info"><div class="service-name">Any Available</div>' +
+        '<div class="service-meta">First available staff member</div></div></div>';
+      eligible.forEach(s => {
+        html += '<div class="service-item" id="staff-' + s.localId + '" onclick="selectStaff(&apos;' + s.localId + '&apos;)">' +
+          '<div class="service-dot" style="background:' + (s.color || '#6366f1') + '"></div>' +
+          '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div>' +
+          '<div class="service-meta">' + esc(s.role || 'Staff') + '</div></div></div>';
+      });
+      list.innerHTML = html;
+    }
+
+    function selectStaff(id) {
+      selectedStaff = id ? staffMembers.find(s => s.localId === id) : null;
+      document.querySelectorAll("#staffList .service-item").forEach(el => el.classList.remove("selected"));
+      const el = document.getElementById(id ? "staff-" + id : "staff-any");
+      if (el) el.classList.add("selected");
     }
 
     function goToStep(step) {
@@ -1931,6 +2018,12 @@ function bookingPage(slug: string, owner: any): string {
       const endH12 = endH === 0 ? 12 : endH > 12 ? endH - 12 : endH;
       const endStr = endH12 + ":" + String(endM).padStart(2,"0") + " " + endAmpm;
 
+      // Staff info
+      let staffHtml = '';
+      if (selectedStaff) {
+        staffHtml = '<div class="confirm-row"><span class="confirm-label">Staff</span><span class="confirm-value"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + (selectedStaff.color || '#6366f1') + ';margin-right:6px;"></span>' + esc(selectedStaff.name) + '</span></div>';
+      }
+
       // Build items list
       let itemsHtml = '<div class="confirm-row"><span class="confirm-label">Service</span><span class="confirm-value">' + esc(selectedService.name) + ' — $' + parseFloat(selectedService.price).toFixed(2) + '</span></div>';
       cart.forEach(c => {
@@ -1977,6 +2070,7 @@ function bookingPage(slug: string, owner: any): string {
       }
 
       details.innerHTML = itemsHtml +
+        staffHtml +
         '<div class="confirm-row"><span class="confirm-label">Date</span><span class="confirm-value">' + dateStr + '</span></div>' +
         '<div class="confirm-row"><span class="confirm-label">Time</span><span class="confirm-value">' + timeStr + ' \u2014 ' + endStr + '</span></div>' +
         '<div class="confirm-row"><span class="confirm-label">Duration</span><span class="confirm-value">' + totalDur + ' min</span></div>' +
@@ -1999,8 +2093,11 @@ function bookingPage(slug: string, owner: any): string {
 
       try {
         const totalDur = getTotalDuration();
-        // Build notes with extra items
+        // Build notes with extra items and staff
         let notesText = document.getElementById("bookingNotes").value.trim();
+        if (selectedStaff) {
+          notesText = (notesText ? notesText + String.fromCharCode(10) : '') + 'Preferred staff: ' + selectedStaff.name;
+        }
         if (cart.length > 0) {
           const extras = cart.map(c => c.name + ' ($' + c.price.toFixed(2) + ')').join(', ');
           notesText = (notesText ? notesText + String.fromCharCode(10) : '') + 'Additional items: ' + extras;
@@ -2092,6 +2189,9 @@ function bookingPage(slug: string, owner: any): string {
       html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#666;">Date</span><span style="font-weight:600;">' + dateStr + '</span></div>';
       html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#666;">Time</span><span style="font-weight:600;">' + timeStr + ' \u2014 ' + endStr + '</span></div>';
       html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#666;">Total Duration</span><span style="font-weight:600;">' + totalDur + ' min</span></div>';
+      if (selectedStaff) {
+        html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#666;">Staff</span><span style="font-weight:600;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + (selectedStaff.color || '#6366f1') + ';margin-right:4px;"></span>' + esc(selectedStaff.name) + '</span></div>';
+      }
       html += '</div>';
 
       // Price breakdown
@@ -2316,6 +2416,7 @@ function bookingPage(slug: string, owner: any): string {
     loadProducts();
     loadDiscounts();
     loadWorkingDays();
+    loadStaff();
     autoFillGift();
   </script>
 </body>
@@ -2645,14 +2746,22 @@ function escHtml(str: string): string {
 }
 
 
-function manageAppointmentPage(slug: string, owner: any, appt: any): string {
+function manageAppointmentPage(slug: string, owner: any, appt: any, client: any): string {
   const bizName = escHtml(owner.businessName);
   const logoUri = owner.businessLogoUri || "";
   const logoTag = logoUri ? `<img src="${escHtml(logoUri)}" alt="${bizName}" class="biz-logo" />` : "";
   const apptDate = appt.date;
   const apptTime = formatTime12(appt.time);
   const statusClass = appt.status === "cancelled" ? "status-cancelled" : appt.status === "confirmed" ? "status-confirmed" : "status-pending";
+  const isPending = appt.status === "pending";
+  const isConfirmed = appt.status === "confirmed";
   const isCancellable = appt.status !== "cancelled" && appt.status !== "completed";
+  const clientPhone = client?.phone || "";
+  // Check if appointment is within 24 hours (for reschedule restriction)
+  const apptDateTime = new Date(`${appt.date}T${appt.time}:00`);
+  const now = new Date();
+  const hoursUntil = (apptDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+  const canReschedule = isConfirmed && hoursUntil > 24;
   const apiBase = "";
 
   return `<!DOCTYPE html>
@@ -2834,10 +2943,15 @@ function manageAppointmentPage(slug: string, owner: any, appt: any): string {
     ${isCancellable ? `
     <div id="action-section">
       <p class="section-title">Verify Your Identity</p>
-      <input type="tel" id="phone-input" class="phone-input" placeholder="Phone number used when booking" />
+      <input type="tel" id="phone-input" class="phone-input" placeholder="Phone number used when booking" value="${escHtml(clientPhone)}" ${clientPhone ? 'readonly style="background:var(--bg-card);opacity:0.8;"' : ''} />
+      ${clientPhone ? '<p style="font-size:11px;color:var(--text-muted);margin-top:4px;">Phone auto-filled from your booking record</p>' : ''}
 
       <button class="btn-cancel" id="cancel-btn" onclick="cancelAppointment()">Cancel Appointment</button>
-      <button class="btn-reschedule" id="reschedule-toggle" onclick="toggleReschedule()">Reschedule</button>
+
+      ${isPending ? '<p style="font-size:12px;color:var(--text-secondary);margin-top:12px;text-align:center;">Your appointment is pending approval. You can cancel it, but rescheduling is available only after the business confirms your appointment.</p>' : ''}
+
+      ${canReschedule ? `
+      <button class="btn-reschedule" id="reschedule-toggle" onclick="toggleReschedule()">Request Reschedule</button>
 
       <div id="reschedule-panel" class="reschedule-panel">
         <p class="section-title">Pick a New Date & Time</p>
@@ -2845,6 +2959,9 @@ function manageAppointmentPage(slug: string, owner: any, appt: any): string {
         <div id="slot-container"></div>
         <button class="btn-confirm-reschedule" id="confirm-reschedule-btn" onclick="confirmReschedule()" disabled>Confirm New Time</button>
       </div>
+      ` : ''}
+
+      ${isConfirmed && !canReschedule ? '<p style="font-size:12px;color:var(--error);margin-top:12px;text-align:center;">Rescheduling is not available within 24 hours of the appointment time. You may still cancel.</p>' : ''}
 
       <div id="msg-box" class="msg-box"></div>
     </div>

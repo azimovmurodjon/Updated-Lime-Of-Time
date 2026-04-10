@@ -1082,11 +1082,11 @@ export default function SettingsScreen() {
           <View style={styles.switchRow}>
             <View style={styles.switchLabel}>
               <IconSymbol name="square.and.arrow.up.fill" size={20} color={colors.primary} />
-              <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground, marginLeft: 12 }}>Export Data</Text>
+              <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground, marginLeft: 12 }}>Export Data (PDF)</Text>
             </View>
           </View>
           <Text style={{ fontSize: 12, color: colors.muted, marginTop: 4, marginBottom: 12 }}>
-            Download your business data as CSV files
+            Generate professional PDF reports for your business data
           </Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             {(["Clients", "Appointments", "Services", "Revenue"] as const).map((label) => (
@@ -1094,41 +1094,22 @@ export default function SettingsScreen() {
                 key={label}
                 onPress={async () => {
                   try {
-                    const FileSystem = await import("expo-file-system/legacy");
-                    const Sharing = await import("expo-sharing");
-                    let csv = "";
+                    const { generateClientsPdf, generateAppointmentsPdf, generateServicesPdf, generateRevenuePdf, exportPdf } = await import("@/lib/pdf-export");
+                    const accent = colors.primary;
+                    const bizName = state.settings.businessName;
+                    let html = "";
                     if (label === "Clients") {
-                      csv = "Name,Phone,Email,Notes,Created\n" + state.clients.map((c) => `"${c.name}","${c.phone}","${c.email}","${(c.notes || "").replace(/"/g, '""')}","${c.createdAt}"`).join("\n");
+                      html = generateClientsPdf(bizName, state.clients, accent);
                     } else if (label === "Appointments") {
-                      csv = "Date,Time,Duration,Service,Client,Status,Total,Notes\n" + state.appointments.map((a) => {
-                        const svc = state.services.find((s) => s.id === a.serviceId);
-                        const client = state.clients.find((c) => c.id === a.clientId);
-                        return `"${a.date}","${a.time}",${a.duration},"${svc?.name || ""}","${client?.name || ""}","${a.status}",${a.totalPrice ?? svc?.price ?? 0},"${(a.notes || "").replace(/"/g, '""')}"`;
-                      }).join("\n");
+                      html = generateAppointmentsPdf(bizName, state.appointments, state.services, state.clients, accent);
                     } else if (label === "Services") {
-                      csv = "Name,Duration,Price,Category,Color\n" + state.services.map((s) => `"${s.name}",${s.duration},${s.price},"${s.category || ""}","${s.color}"`).join("\n");
+                      html = generateServicesPdf(bizName, state.services, state.appointments, accent);
                     } else {
-                      const completed = state.appointments.filter((a) => a.status === "completed");
-                      csv = "Month,Revenue,Appointments\n";
-                      const months: Record<string, { rev: number; count: number }> = {};
-                      completed.forEach((a) => {
-                        const m = a.date.substring(0, 7);
-                        if (!months[m]) months[m] = { rev: 0, count: 0 };
-                        const svc = state.services.find((s) => s.id === a.serviceId);
-                        months[m].rev += a.totalPrice ?? svc?.price ?? 0;
-                        months[m].count++;
-                      });
-                      csv += Object.entries(months).sort(([a], [b]) => a.localeCompare(b)).map(([m, d]) => `"${m}",${d.rev.toFixed(2)},${d.count}`).join("\n");
+                      html = generateRevenuePdf(bizName, state.appointments, state.services, accent);
                     }
-                    const path = FileSystem.documentDirectory + `${label.toLowerCase()}_export.csv`;
-                    await FileSystem.writeAsStringAsync(path, csv);
-                    if (Platform.OS === "web") {
-                      Alert.alert("Export", `${label} data exported successfully`);
-                    } else {
-                      await Sharing.shareAsync(path, { mimeType: "text/csv", dialogTitle: `Export ${label}` });
-                    }
+                    await exportPdf(html, `${bizName}_${label}_Report.pdf`);
                   } catch (err) {
-                    Alert.alert("Export Error", "Failed to export data");
+                    Alert.alert("Export Error", "Failed to generate PDF report");
                   }
                 }}
                 style={({ pressed }) => [styles.durationChip, {
@@ -1141,6 +1122,66 @@ export default function SettingsScreen() {
               </Pressable>
             ))}
           </View>
+        </View>
+
+        {/* Client Reviews (Read-Only) */}
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.switchRow}>
+            <View style={styles.switchLabel}>
+              <IconSymbol name="star.fill" size={20} color="#f59e0b" />
+              <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground, marginLeft: 12 }}>Client Reviews</Text>
+            </View>
+            {state.reviews.length > 0 && (
+              <View style={{ backgroundColor: colors.primary + "15", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12 }}>
+                <Text style={{ fontSize: 12, fontWeight: "600", color: colors.primary }}>
+                  {(state.reviews.reduce((s, r) => s + r.rating, 0) / state.reviews.length).toFixed(1)} ★ ({state.reviews.length})
+                </Text>
+              </View>
+            )}
+          </View>
+          <Text style={{ fontSize: 12, color: colors.muted, marginTop: 4, marginBottom: 12 }}>
+            Honest reviews from your clients — these cannot be removed
+          </Text>
+          {state.reviews.length === 0 ? (
+            <View style={{ alignItems: "center", paddingVertical: 20 }}>
+              <Text style={{ fontSize: 13, color: colors.muted }}>No reviews yet</Text>
+              <Text style={{ fontSize: 11, color: colors.muted, marginTop: 4 }}>Reviews will appear here after clients leave feedback</Text>
+            </View>
+          ) : (
+            <View style={{ gap: 12 }}>
+              {state.reviews
+                .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+                .slice(0, 20)
+                .map((review) => {
+                  const client = state.clients.find((c) => c.id === review.clientId);
+                  const stars = Array.from({ length: 5 }, (_, i) => i < review.rating ? "★" : "☆").join("");
+                  return (
+                    <View key={review.id} style={{ backgroundColor: colors.background, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border }}>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                          <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primary + "20", alignItems: "center", justifyContent: "center" }}>
+                            <Text style={{ fontSize: 14, fontWeight: "600", color: colors.primary }}>{(client?.name || "?")[0].toUpperCase()}</Text>
+                          </View>
+                          <View>
+                            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>{client?.name || "Anonymous"}</Text>
+                            <Text style={{ fontSize: 10, color: colors.muted }}>{new Date(review.createdAt).toLocaleDateString()}</Text>
+                          </View>
+                        </View>
+                        <Text style={{ fontSize: 14, color: "#f59e0b" }}>{stars}</Text>
+                      </View>
+                      {review.comment ? (
+                        <Text style={{ fontSize: 12, color: colors.foreground, lineHeight: 18, marginTop: 4 }}>{review.comment}</Text>
+                      ) : null}
+                    </View>
+                  );
+                })}
+              {state.reviews.length > 20 && (
+                <Text style={{ textAlign: "center", fontSize: 12, color: colors.muted, paddingVertical: 8 }}>
+                  Showing 20 of {state.reviews.length} reviews
+                </Text>
+              )}
+            </View>
+          )}
         </View>
 
         {/* Log Out */}

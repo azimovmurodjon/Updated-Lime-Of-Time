@@ -1,0 +1,459 @@
+import { useState, useMemo, useCallback } from "react";
+import {
+  Text,
+  View,
+  Pressable,
+  StyleSheet,
+  ScrollView,
+  useWindowDimensions,
+} from "react-native";
+import { ScreenContainer } from "@/components/screen-container";
+import { useStore, formatTime, formatDateStr, formatDateDisplay } from "@/lib/store";
+import { useColors } from "@/hooks/use-colors";
+import { IconSymbol } from "@/components/ui/icon-symbol";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import {
+  StaffMember,
+  Appointment,
+  isDateInPast,
+  getServiceDisplayName,
+  formatTimeDisplay,
+  minutesToTime,
+  timeToMinutes,
+  DAYS_OF_WEEK,
+} from "@/lib/types";
+
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const DAY_HEADERS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const DAY_MAP = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+
+export default function StaffCalendarScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { state, getServiceById, getClientById, getStaffById } = useStore();
+  const colors = useColors();
+  const router = useRouter();
+  const { width } = useWindowDimensions();
+  const hp = Math.round(Math.max(16, width * 0.045));
+
+  const staff = getStaffById(id ?? "");
+  const now = new Date();
+  const [currentMonth, setCurrentMonth] = useState(now.getMonth());
+  const [currentYear, setCurrentYear] = useState(now.getFullYear());
+  const [selectedDate, setSelectedDate] = useState(formatDateStr(now));
+  const [viewMode, setViewMode] = useState<"calendar" | "timeline">("calendar");
+
+  const cellSize = Math.floor((width - hp * 2) / 7);
+  const todayStr = formatDateStr(now);
+
+  // Calendar grid
+  const calendarDays = useMemo(() => {
+    const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const days: (number | null)[] = [];
+    for (let i = 0; i < firstDay; i++) days.push(null);
+    for (let i = 1; i <= daysInMonth; i++) days.push(i);
+    return days;
+  }, [currentMonth, currentYear]);
+
+  // All appointments for this staff member (matched by notes containing "Preferred staff: <name>")
+  const staffAppointments = useMemo(() => {
+    if (!staff) return [];
+    return state.appointments.filter((a) => {
+      // Match by staffId field
+      if (a.staffId === staff.id) return true;
+      // Also match by notes containing staff name (for bookings from the web page)
+      if (a.notes && a.notes.includes(`Preferred staff: ${staff.name}`)) return true;
+      return false;
+    });
+  }, [state.appointments, staff]);
+
+  // Day statuses for dots
+  const dayStatuses = useMemo(() => {
+    const statuses: Record<string, Set<string>> = {};
+    staffAppointments.forEach((a) => {
+      if (!statuses[a.date]) statuses[a.date] = new Set();
+      statuses[a.date].add(a.status);
+    });
+    return statuses;
+  }, [staffAppointments]);
+
+  // Selected date appointments
+  const selectedDateAppts = useMemo(() => {
+    return staffAppointments
+      .filter((a) => a.date === selectedDate)
+      .sort((a, b) => a.time.localeCompare(b.time));
+  }, [staffAppointments, selectedDate]);
+
+  // Staff working hours for the selected date
+  const selectedDaySchedule = useMemo(() => {
+    if (!staff?.workingHours) return null;
+    const d = new Date(selectedDate + "T12:00:00");
+    const dayName = DAY_MAP[d.getDay()];
+    return staff.workingHours[dayName] ?? null;
+  }, [staff, selectedDate]);
+
+  // Stats
+  const stats = useMemo(() => {
+    const upcoming = staffAppointments.filter((a) => a.status === "confirmed" && a.date >= todayStr).length;
+    const pending = staffAppointments.filter((a) => a.status === "pending").length;
+    const completed = staffAppointments.filter((a) => a.status === "completed").length;
+    const totalRevenue = staffAppointments
+      .filter((a) => a.status === "confirmed" || a.status === "completed")
+      .reduce((sum, a) => {
+        const svc = getServiceById(a.serviceId);
+        return sum + (a.totalPrice ?? svc?.price ?? 0);
+      }, 0);
+    return { upcoming, pending, completed, totalRevenue };
+  }, [staffAppointments, todayStr, getServiceById]);
+
+  // Timeline hours (8am - 8pm)
+  const timelineHours = useMemo(() => {
+    const hours: string[] = [];
+    for (let h = 8; h <= 20; h++) {
+      hours.push(`${String(h).padStart(2, "0")}:00`);
+    }
+    return hours;
+  }, []);
+
+  const prevMonth = () => {
+    if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear(currentYear - 1); }
+    else setCurrentMonth(currentMonth - 1);
+  };
+  const nextMonth = () => {
+    if (currentMonth === 11) { setCurrentMonth(0); setCurrentYear(currentYear + 1); }
+    else setCurrentMonth(currentMonth + 1);
+  };
+
+  const getEndTime = (time: string, duration: number): string => {
+    return formatTimeDisplay(minutesToTime(timeToMinutes(time) + duration));
+  };
+
+  if (!staff) {
+    return (
+      <ScreenContainer edges={["top", "bottom", "left", "right"]} className="p-6">
+        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}>
+          <Pressable onPress={() => router.back()} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, marginRight: 12 })}>
+            <IconSymbol name="chevron.left" size={24} color={colors.foreground} />
+          </Pressable>
+          <Text style={{ fontSize: 20, fontWeight: "700", color: colors.foreground }}>Staff Calendar</Text>
+        </View>
+        <Text style={{ color: colors.muted, textAlign: "center", marginTop: 40 }}>Staff member not found</Text>
+      </ScreenContainer>
+    );
+  }
+
+  // Assigned services
+  const assignedServices = staff.serviceIds
+    ? state.services.filter((s) => staff.serviceIds!.includes(s.id))
+    : state.services;
+
+  return (
+    <ScreenContainer edges={["top", "bottom", "left", "right"]}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+        {/* Header */}
+        <View style={{ paddingHorizontal: hp, paddingTop: 4 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
+            <Pressable onPress={() => router.back()} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, marginRight: 12 })}>
+              <IconSymbol name="chevron.left" size={24} color={colors.foreground} />
+            </Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: staff.color || "#6366f1", alignItems: "center", justifyContent: "center", marginRight: 10 }}>
+                <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 16 }}>{staff.name.charAt(0).toUpperCase()}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 20, fontWeight: "700", color: colors.foreground }}>{staff.name}</Text>
+                <Text style={{ fontSize: 13, color: colors.muted }}>{staff.role || "Staff Member"}</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Stats Row */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: hp, marginBottom: 12 }}>
+          <View style={[styles.statCard, { backgroundColor: colors.success + "15", borderColor: colors.success + "30" }]}>
+            <Text style={{ fontSize: 18, fontWeight: "700", color: colors.success }}>{stats.upcoming}</Text>
+            <Text style={{ fontSize: 11, color: colors.muted }}>Upcoming</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: "#FF9800" + "15", borderColor: "#FF9800" + "30" }]}>
+            <Text style={{ fontSize: 18, fontWeight: "700", color: "#FF9800" }}>{stats.pending}</Text>
+            <Text style={{ fontSize: 11, color: colors.muted }}>Pending</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: colors.primary + "15", borderColor: colors.primary + "30" }]}>
+            <Text style={{ fontSize: 18, fontWeight: "700", color: colors.primary }}>{stats.completed}</Text>
+            <Text style={{ fontSize: 11, color: colors.muted }}>Completed</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: colors.foreground + "08", borderColor: colors.border }]}>
+            <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground }}>${stats.totalRevenue.toFixed(0)}</Text>
+            <Text style={{ fontSize: 11, color: colors.muted }}>Revenue</Text>
+          </View>
+        </ScrollView>
+
+        {/* View Mode Toggle */}
+        <View style={{ flexDirection: "row", paddingHorizontal: hp, marginBottom: 12, gap: 8 }}>
+          <Pressable
+            onPress={() => setViewMode("calendar")}
+            style={({ pressed }) => [styles.viewToggle, { backgroundColor: viewMode === "calendar" ? colors.primary : colors.surface, borderColor: viewMode === "calendar" ? colors.primary : colors.border, opacity: pressed ? 0.7 : 1 }]}
+          >
+            <Text style={{ fontSize: 13, fontWeight: "600", color: viewMode === "calendar" ? "#FFF" : colors.foreground }}>Calendar</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setViewMode("timeline")}
+            style={({ pressed }) => [styles.viewToggle, { backgroundColor: viewMode === "timeline" ? colors.primary : colors.surface, borderColor: viewMode === "timeline" ? colors.primary : colors.border, opacity: pressed ? 0.7 : 1 }]}
+          >
+            <Text style={{ fontSize: 13, fontWeight: "600", color: viewMode === "timeline" ? "#FFF" : colors.foreground }}>Timeline</Text>
+          </Pressable>
+        </View>
+
+        {/* Month Header */}
+        <View style={[styles.monthHeader, { paddingHorizontal: hp }]}>
+          <Pressable onPress={prevMonth} style={({ pressed }) => [styles.navBtn, { opacity: pressed ? 0.5 : 1 }]}>
+            <IconSymbol name="chevron.left" size={22} color={colors.foreground} />
+          </Pressable>
+          <Text style={[styles.monthTitle, { color: colors.foreground }]}>
+            {MONTH_NAMES[currentMonth]} {currentYear}
+          </Text>
+          <Pressable onPress={nextMonth} style={({ pressed }) => [styles.navBtn, { opacity: pressed ? 0.5 : 1 }]}>
+            <IconSymbol name="chevron.right" size={22} color={colors.foreground} />
+          </Pressable>
+        </View>
+
+        {/* Day Headers */}
+        <View style={[styles.dayHeaderRow, { paddingHorizontal: hp }]}>
+          {DAY_HEADERS.map((d) => (
+            <View key={d} style={{ width: cellSize, alignItems: "center" }}>
+              <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted }}>{d}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Calendar Grid */}
+        <View style={[styles.calendarGrid, { paddingHorizontal: hp }]}>
+          {calendarDays.map((day, idx) => {
+            if (day === null) return <View key={`e-${idx}`} style={{ width: cellSize, height: cellSize }} />;
+            const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+            const isSelected = dateStr === selectedDate;
+            const isToday = dateStr === todayStr;
+            const statuses = dayStatuses[dateStr];
+
+            // Check if staff works this day
+            const d = new Date(dateStr + "T12:00:00");
+            const dayName = DAY_MAP[d.getDay()];
+            const isWorkingDay = staff.workingHours
+              ? (staff.workingHours[dayName]?.enabled ?? false)
+              : true;
+
+            return (
+              <Pressable
+                key={dateStr}
+                onPress={() => setSelectedDate(dateStr)}
+                style={({ pressed }) => [
+                  styles.dayCell,
+                  {
+                    width: cellSize,
+                    height: cellSize,
+                    backgroundColor: isSelected ? (staff.color || colors.primary) : "transparent",
+                    borderRadius: cellSize / 2,
+                    opacity: !isWorkingDay ? 0.3 : pressed ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <Text
+                  style={{
+                    fontSize: 15,
+                    fontWeight: isToday || isSelected ? "700" : "400",
+                    color: isSelected ? "#FFF" : isToday ? (staff.color || colors.primary) : colors.foreground,
+                  }}
+                >
+                  {day}
+                </Text>
+                <View style={styles.dotsRow}>
+                  {statuses?.has("confirmed") && <View style={[styles.dot, { backgroundColor: "#1B5E20" }]} />}
+                  {statuses?.has("pending") && <View style={[styles.dot, { backgroundColor: "#FF9800" }]} />}
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* Working Hours for Selected Day */}
+        {selectedDaySchedule && (
+          <View style={{ paddingHorizontal: hp, marginTop: 8, marginBottom: 4 }}>
+            <View style={[styles.scheduleBar, { backgroundColor: (staff.color || colors.primary) + "12", borderColor: (staff.color || colors.primary) + "30" }]}>
+              <Text style={{ fontSize: 12, fontWeight: "600", color: staff.color || colors.primary }}>
+                {selectedDaySchedule.enabled
+                  ? `Working: ${formatTimeDisplay(selectedDaySchedule.start)} - ${formatTimeDisplay(selectedDaySchedule.end)}`
+                  : "Day Off"}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* View Content */}
+        {viewMode === "calendar" ? (
+          /* Calendar View: Appointment List */
+          <View style={{ paddingHorizontal: hp, marginTop: 8 }}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+              {formatDateDisplay(selectedDate)}
+            </Text>
+            {selectedDateAppts.length === 0 ? (
+              <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Text style={{ color: colors.muted, fontSize: 13 }}>No appointments on this day</Text>
+              </View>
+            ) : (
+              selectedDateAppts.map((appt) => {
+                const svc = getServiceById(appt.serviceId);
+                const client = getClientById(appt.clientId);
+                const statusColor =
+                  appt.status === "confirmed" ? "#1B5E20"
+                  : appt.status === "pending" ? "#FF9800"
+                  : appt.status === "completed" ? colors.primary
+                  : "#F44336";
+                return (
+                  <Pressable
+                    key={appt.id}
+                    onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })}
+                    style={({ pressed }) => [styles.apptCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: svc?.color ?? (staff.color || colors.primary), opacity: pressed ? 0.8 : 1 }]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>
+                        {formatTime(appt.time)} - {getEndTime(appt.time, appt.duration)}
+                      </Text>
+                      <Text style={{ fontSize: 13, fontWeight: "500", color: colors.foreground, marginTop: 2 }}>
+                        {svc ? getServiceDisplayName(svc) : "Service"}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: colors.muted }}>{client?.name}</Text>
+                    </View>
+                    <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
+                      <Text style={{ fontSize: 11, fontWeight: "600", color: statusColor, textTransform: "capitalize" }}>{appt.status}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })
+            )}
+          </View>
+        ) : (
+          /* Timeline View */
+          <View style={{ paddingHorizontal: hp, marginTop: 8 }}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+              {formatDateDisplay(selectedDate)} — Timeline
+            </Text>
+            <View style={[styles.timelineContainer, { borderColor: colors.border }]}>
+              {timelineHours.map((hour) => {
+                const hourNum = parseInt(hour.split(":")[0]);
+                const apptsInHour = selectedDateAppts.filter((a) => {
+                  const startMin = timeToMinutes(a.time);
+                  const endMin = startMin + a.duration;
+                  const hourStart = hourNum * 60;
+                  const hourEnd = (hourNum + 1) * 60;
+                  return startMin < hourEnd && endMin > hourStart;
+                });
+                const isWorkingHour = selectedDaySchedule?.enabled
+                  ? timeToMinutes(hour) >= timeToMinutes(selectedDaySchedule.start) && timeToMinutes(hour) < timeToMinutes(selectedDaySchedule.end)
+                  : true;
+
+                return (
+                  <View key={hour} style={[styles.timelineRow, { borderBottomColor: colors.border }]}>
+                    <View style={[styles.timelineLabel, { opacity: isWorkingHour ? 1 : 0.4 }]}>
+                      <Text style={{ fontSize: 11, fontWeight: "500", color: colors.muted }}>
+                        {formatTimeDisplay(hour)}
+                      </Text>
+                    </View>
+                    <View style={[styles.timelineSlot, { backgroundColor: isWorkingHour ? "transparent" : colors.surface + "60" }]}>
+                      {apptsInHour.map((appt) => {
+                        const svc = getServiceById(appt.serviceId);
+                        const client = getClientById(appt.clientId);
+                        return (
+                          <Pressable
+                            key={appt.id}
+                            onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })}
+                            style={({ pressed }) => [
+                              styles.timelineAppt,
+                              {
+                                backgroundColor: (svc?.color ?? staff.color ?? colors.primary) + "20",
+                                borderLeftColor: svc?.color ?? staff.color ?? colors.primary,
+                                opacity: pressed ? 0.7 : 1,
+                              },
+                            ]}
+                          >
+                            <Text style={{ fontSize: 12, fontWeight: "600", color: colors.foreground }} numberOfLines={1}>
+                              {formatTime(appt.time)} {svc ? getServiceDisplayName(svc) : "Service"}
+                            </Text>
+                            <Text style={{ fontSize: 11, color: colors.muted }} numberOfLines={1}>{client?.name}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* Assigned Services */}
+        <View style={{ paddingHorizontal: hp, marginTop: 20 }}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Assigned Services</Text>
+          {assignedServices.length === 0 ? (
+            <Text style={{ color: colors.muted, fontSize: 13 }}>No services assigned</Text>
+          ) : (
+            assignedServices.map((svc) => (
+              <View key={svc.id} style={[styles.serviceChip, { backgroundColor: (svc.color || colors.primary) + "15", borderColor: (svc.color || colors.primary) + "30" }]}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: svc.color || colors.primary, marginRight: 8 }} />
+                <Text style={{ fontSize: 13, fontWeight: "500", color: colors.foreground, flex: 1 }}>{getServiceDisplayName(svc)}</Text>
+                <Text style={{ fontSize: 12, color: colors.muted }}>{svc.duration} min · ${svc.price}</Text>
+              </View>
+            ))
+          )}
+        </View>
+
+        {/* Weekly Schedule */}
+        {staff.workingHours && (
+          <View style={{ paddingHorizontal: hp, marginTop: 20 }}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Weekly Schedule</Text>
+            {DAYS_OF_WEEK.map((day) => {
+              const schedule = staff.workingHours?.[day];
+              const isEnabled = schedule?.enabled ?? false;
+              return (
+                <View key={day} style={[styles.scheduleRow, { borderBottomColor: colors.border }]}>
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground, width: 90, textTransform: "capitalize" }}>{day}</Text>
+                  {isEnabled && schedule ? (
+                    <Text style={{ fontSize: 13, color: colors.foreground }}>
+                      {formatTimeDisplay(schedule.start)} - {formatTimeDisplay(schedule.end)}
+                    </Text>
+                  ) : (
+                    <Text style={{ fontSize: 13, color: colors.muted }}>Day Off</Text>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </ScrollView>
+    </ScreenContainer>
+  );
+}
+
+const styles = StyleSheet.create({
+  statCard: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, borderWidth: 1, marginRight: 10, alignItems: "center", minWidth: 80 },
+  viewToggle: { flex: 1, paddingVertical: 8, borderRadius: 10, borderWidth: 1, alignItems: "center" },
+  monthHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8 },
+  monthTitle: { fontSize: 18, fontWeight: "700" },
+  navBtn: { padding: 8 },
+  dayHeaderRow: { flexDirection: "row", marginBottom: 4 },
+  calendarGrid: { flexDirection: "row", flexWrap: "wrap", width: "100%" },
+  dayCell: { alignItems: "center", justifyContent: "center" },
+  dotsRow: { flexDirection: "row", gap: 2, position: "absolute", bottom: 4 },
+  dot: { width: 5, height: 5, borderRadius: 2.5 },
+  scheduleBar: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, alignItems: "center" },
+  sectionTitle: { fontSize: 16, fontWeight: "700", marginBottom: 8 },
+  emptyState: { alignItems: "center", paddingVertical: 24, borderRadius: 14, borderWidth: 1 },
+  apptCard: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12, borderWidth: 1, borderLeftWidth: 4, marginBottom: 8 },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  timelineContainer: { borderWidth: 1, borderRadius: 12, overflow: "hidden" },
+  timelineRow: { flexDirection: "row", minHeight: 48, borderBottomWidth: 0.5 },
+  timelineLabel: { width: 60, paddingVertical: 8, paddingHorizontal: 6, justifyContent: "flex-start", alignItems: "flex-end" },
+  timelineSlot: { flex: 1, paddingVertical: 4, paddingHorizontal: 6 },
+  timelineAppt: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderLeftWidth: 3, marginBottom: 2 },
+  serviceChip: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, marginBottom: 6 },
+  scheduleRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 0.5 },
+});

@@ -237,6 +237,7 @@ interface StoreContextType {
   dispatch: React.Dispatch<Action>;
   getServiceById: (id: string) => Service | undefined;
   getClientById: (id: string) => Client | undefined;
+  getStaffById: (id: string) => StaffMember | undefined;
   getAppointmentsForDate: (date: string) => Appointment[];
   getAppointmentsForClient: (clientId: string) => Appointment[];
   getReviewsForClient: (clientId: string) => Review[];
@@ -1062,6 +1063,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [state.clients]
   );
 
+  const getStaffById = useCallback(
+    (id: string) => state.staff.find((s) => s.id === id),
+    [state.staff]
+  );
+
   const getAppointmentsForDate = useCallback(
     (date: string) =>
       state.appointments
@@ -1121,6 +1127,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         dispatch,
         getServiceById,
         getClientById,
+        getStaffById,
         getAppointmentsForDate,
         getAppointmentsForClient,
         getReviewsForClient,

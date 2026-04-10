@@ -170,6 +170,20 @@ export default function StaffScreen() {
           </Text>
         </Pressable>
         <Pressable
+          onPress={() =>
+            router.push({ pathname: "/staff-calendar" as any, params: { id: item.id } })
+          }
+          style={({ pressed }) => [
+            styles.footerBtn,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
+        >
+          <IconSymbol name="calendar" size={16} color={item.color || colors.primary} />
+          <Text style={{ color: item.color || colors.primary, fontSize: 13, fontWeight: "500", marginLeft: 4 }}>
+            Calendar
+          </Text>
+        </Pressable>
+        <Pressable
           onPress={() => handleDelete(item)}
           style={({ pressed }) => [
             styles.footerBtn,
