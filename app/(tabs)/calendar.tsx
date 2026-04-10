@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   Text,
   View,
@@ -14,7 +14,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatTime, formatDateStr, formatDateDisplay } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import {
   Appointment,
   isDateInPast,
@@ -43,6 +43,7 @@ export default function CalendarScreen() {
   const { state, dispatch, getServiceById, getClientById, getStaffById, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
+  const params = useLocalSearchParams<{ filter?: string }>();
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
   const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
@@ -51,7 +52,15 @@ export default function CalendarScreen() {
   const [currentMonth, setCurrentMonth] = useState(now.getMonth());
   const [currentYear, setCurrentYear] = useState(now.getFullYear());
   const [selectedDate, setSelectedDate] = useState(formatDateStr(now));
-  const [activeFilter, setActiveFilter] = useState<FilterKey>("upcoming");
+  const initialFilter = (params.filter as FilterKey) || "upcoming";
+  const [activeFilter, setActiveFilter] = useState<FilterKey>(initialFilter);
+
+  // Update filter when navigated to with a filter param
+  useEffect(() => {
+    if (params.filter && FILTERS.some((f) => f.key === params.filter)) {
+      setActiveFilter(params.filter as FilterKey);
+    }
+  }, [params.filter]);
   const [calLocationFilter, setCalLocationFilter] = useState<string | null>(null);
   const activeLocations = useMemo(() => state.locations.filter((l) => l.active), [state.locations]);
   const hasMultiLoc = activeLocations.length > 1;

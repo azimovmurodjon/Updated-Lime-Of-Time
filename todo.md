@@ -408,3 +408,20 @@
 - [x] Each business card/page shows all its data (clients, appointments, services, staff, locations, revenue)
 - [x] Update admin dashboard logo to Lime Of Time logo (attached image)
 - [x] Improve admin dashboard navigation and information hierarchy
+
+## Phase: Notification Fixes — Business Name + Deep Navigation
+
+### Notification Sender Name
+- [x] Replace generic titles with business name in all push notification titles (server-side notifyOwner calls)
+- [x] Use business name in local reminder notification titles instead of generic text
+
+### Notification Tap Navigation (Deep Linking)
+- [x] Add notification response listener (addNotificationResponseReceivedListener) to handle taps
+- [x] Handle getLastNotificationResponseAsync for cold-start notification taps
+- [x] Include navigation data (type, appointmentId, screen) in all notification payloads
+- [x] New booking request notification tap → navigate to appointment-detail with the requested appointment
+- [x] Appointment cancelled notification tap → navigate to appointment-detail
+- [x] Appointment rescheduled notification tap → navigate to appointment-detail
+- [x] 30-min reminder notification tap → navigate to appointment-detail with appointment info
+- [x] 1-hour reminder notification tap → navigate to appointment-detail with appointment info
+- [x] Waitlist notification tap → navigate to calendar/requests view

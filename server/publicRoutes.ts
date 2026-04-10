@@ -589,7 +589,7 @@ export function registerPublicRoutes(app: Express) {
       try {
         const extrasLabel = extras.length > 0 ? ` + ${extras.length} extra item${extras.length > 1 ? "s" : ""}` : "";
         await notifyOwner({
-          title: `New Booking Request`,
+          title: `${owner.businessName} — New Booking Request`,
           content: `${clientName} requested ${svc?.name ?? "a service"}${extrasLabel} on ${date} at ${time} — $${finalTotal.toFixed(2)}`,
         });
       } catch (pushErr) {
@@ -759,7 +759,7 @@ export function registerPublicRoutes(app: Express) {
         const svcList = await db.getServicesByOwner(owner.id);
         const svc = svcList.find((s) => s.localId === appt.serviceLocalId);
         await notifyOwner({
-          title: "Appointment Cancelled",
+          title: `${owner.businessName} — Appointment Cancelled`,
           content: `${client?.name || "A client"} cancelled their ${svc?.name || "appointment"} on ${appt.date} at ${appt.time}`,
         });
       } catch (pushErr) {
@@ -853,7 +853,7 @@ export function registerPublicRoutes(app: Express) {
         const svcList = await db.getServicesByOwner(owner.id);
         const svc = svcList.find((s) => s.localId === appt.serviceLocalId);
         await notifyOwner({
-          title: "Appointment Rescheduled",
+          title: `${owner.businessName} — Appointment Rescheduled`,
           content: `${client?.name || "A client"} rescheduled their ${svc?.name || "appointment"} to ${newDate} at ${newTime}`,
         });
       } catch (pushErr) {
@@ -895,7 +895,7 @@ export function registerPublicRoutes(app: Express) {
         const svcList = await db.getServicesByOwner(owner.id);
         const svc = svcList.find((s) => s.localId === serviceLocalId);
         await notifyOwner({
-          title: "New Waitlist Entry",
+          title: `${owner.businessName} — New Waitlist Entry`,
           content: `${clientName} joined the waitlist for ${svc?.name || "a service"} on ${preferredDate}`,
         });
       } catch (pushErr) {
