@@ -232,10 +232,25 @@ const appointmentsRouter = router({
         duration: z.number(),
         status: z.enum(["pending", "confirmed", "completed", "cancelled"]).default("pending"),
         notes: z.string().optional(),
+        totalPrice: z.number().optional(),
+        extraItems: z.any().optional(),
+        discountPercent: z.number().optional(),
+        discountAmount: z.number().optional(),
+        discountName: z.string().optional(),
+        giftApplied: z.boolean().optional(),
+        giftUsedAmount: z.number().optional(),
+        staffId: z.string().optional(),
+        locationId: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
-      const id = await db.createAppointment(input);
+      // Convert numeric fields to string for decimal DB columns
+      const dbInput: any = { ...input };
+      if (input.totalPrice != null) dbInput.totalPrice = String(input.totalPrice);
+      if (input.discountAmount != null) dbInput.discountAmount = String(input.discountAmount);
+      if (input.giftUsedAmount != null) dbInput.giftUsedAmount = String(input.giftUsedAmount);
+      if (input.extraItems) dbInput.extraItems = input.extraItems;
+      const id = await db.createAppointment(dbInput);
       return { id, localId: input.localId };
     }),
 
@@ -249,11 +264,24 @@ const appointmentsRouter = router({
         time: z.string().optional(),
         duration: z.number().optional(),
         notes: z.string().optional(),
+        totalPrice: z.number().optional(),
+        extraItems: z.any().optional(),
+        discountPercent: z.number().optional(),
+        discountAmount: z.number().optional(),
+        discountName: z.string().optional(),
+        giftApplied: z.boolean().optional(),
+        giftUsedAmount: z.number().optional(),
+        staffId: z.string().optional(),
+        locationId: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
       const { localId, businessOwnerId, ...data } = input;
-      await db.updateAppointment(localId, businessOwnerId, data);
+      const dbData: any = { ...data };
+      if (data.totalPrice != null) dbData.totalPrice = String(data.totalPrice);
+      if (data.discountAmount != null) dbData.discountAmount = String(data.discountAmount);
+      if (data.giftUsedAmount != null) dbData.giftUsedAmount = String(data.giftUsedAmount);
+      await db.updateAppointment(localId, businessOwnerId, dbData);
       return { success: true };
     }),
 
@@ -567,6 +595,62 @@ const staffRouter = router({
     }),
 });
 
+// ─── Locations Router ─────────────────────────────────────────────────
+
+const locationsRouter = router({
+  list: publicProcedure
+    .input(z.object({ businessOwnerId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getLocationsByOwner(input.businessOwnerId);
+    }),
+
+  create: publicProcedure
+    .input(
+      z.object({
+        businessOwnerId: z.number(),
+        localId: z.string(),
+        name: z.string().min(1),
+        address: z.string().optional(),
+        phone: z.string().optional(),
+        email: z.string().optional(),
+        isDefault: z.boolean().default(false),
+        active: z.boolean().default(true),
+        workingHours: z.any().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const id = await db.createLocation(input);
+      return { id, localId: input.localId };
+    }),
+
+  update: publicProcedure
+    .input(
+      z.object({
+        localId: z.string(),
+        businessOwnerId: z.number(),
+        name: z.string().optional(),
+        address: z.string().optional(),
+        phone: z.string().optional(),
+        email: z.string().optional(),
+        isDefault: z.boolean().optional(),
+        active: z.boolean().optional(),
+        workingHours: z.any().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { localId, businessOwnerId, ...data } = input;
+      await db.updateLocation(localId, businessOwnerId, data);
+      return { success: true };
+    }),
+
+  delete: publicProcedure
+    .input(z.object({ localId: z.string(), businessOwnerId: z.number() }))
+    .mutation(async ({ input }) => {
+      await db.deleteLocation(input.localId, input.businessOwnerId);
+      return { success: true };
+    }),
+});
+
 // ─── Root Router ─────────────────────────────────────────────────────
 
 export const appRouter = router({
@@ -589,6 +673,7 @@ export const appRouter = router({
   customSchedule: customScheduleRouter,
   products: productsRouter,
   staff: staffRouter,
+  locations: locationsRouter,
 });
 
 export type AppRouter = typeof appRouter;

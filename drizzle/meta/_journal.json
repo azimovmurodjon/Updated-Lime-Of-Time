@@ -71,6 +71,20 @@
       "when": 1775799151915,
       "tag": "0009_careless_blockbuster",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1775804572889,
+      "tag": "0010_hard_otto_octavius",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1775805625116,
+      "tag": "0011_yummy_iceman",
+      "breakpoints": true
     }
   ]
 }

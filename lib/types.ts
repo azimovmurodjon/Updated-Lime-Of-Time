@@ -47,6 +47,14 @@ export interface Appointment {
   giftUsedAmount?: number;
   /** Staff member assigned to this appointment */
   staffId?: string;
+  /** Discount percentage applied (0-100) */
+  discountPercent?: number;
+  /** Discount amount deducted */
+  discountAmount?: number;
+  /** Discount name/label */
+  discountName?: string;
+  /** Location assigned to this appointment */
+  locationId?: string;
 }
 
 export interface Review {
@@ -99,6 +107,27 @@ export interface Product {
   available: boolean;
   createdAt: string;
 }
+
+export interface Location {
+  id: string;
+  name: string;
+  address: string;
+  phone: string;
+  email: string;
+  isDefault: boolean;
+  active: boolean;
+  workingHours: Record<string, WorkingHours> | null; // null = use business hours
+  createdAt: string;
+}
+
+export const LOCATION_COLORS = [
+  "#3B82F6", // blue
+  "#10B981", // emerald
+  "#F59E0B", // amber
+  "#EF4444", // red
+  "#8B5CF6", // violet
+  "#EC4899", // pink
+];
 
 export interface StaffMember {
   id: string;

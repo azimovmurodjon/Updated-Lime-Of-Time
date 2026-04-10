@@ -10,6 +10,7 @@ import {
   CustomScheduleDay,
   Product,
   StaffMember,
+  Location,
   BusinessSettings,
   DEFAULT_WORKING_HOURS,
   DEFAULT_BUSINESS_PROFILE,
@@ -29,6 +30,7 @@ interface AppState {
   customSchedule: CustomScheduleDay[];
   products: Product[];
   staff: StaffMember[];
+  locations: Location[];
   settings: BusinessSettings;
   loaded: boolean;
   /** DB id of the current business owner – null until bootstrap completes */
@@ -63,6 +65,7 @@ const initialState: AppState = {
   customSchedule: [],
   products: [],
   staff: [],
+  locations: [],
   settings: initialSettings,
   loaded: false,
   businessOwnerId: null,
@@ -101,6 +104,9 @@ type Action =
   | { type: "ADD_STAFF"; payload: StaffMember }
   | { type: "UPDATE_STAFF"; payload: StaffMember }
   | { type: "DELETE_STAFF"; payload: string }
+  | { type: "ADD_LOCATION"; payload: Location }
+  | { type: "UPDATE_LOCATION"; payload: Location }
+  | { type: "DELETE_LOCATION"; payload: string }
   | { type: "RESET_ALL_DATA" };
 
 function reducer(state: AppState, action: Action): AppState {
@@ -224,6 +230,17 @@ function reducer(state: AppState, action: Action): AppState {
       };
     case "DELETE_STAFF":
       return { ...state, staff: state.staff.filter((s) => s.id !== action.payload) };
+    case "ADD_LOCATION":
+      return { ...state, locations: [...state.locations, action.payload] };
+    case "UPDATE_LOCATION":
+      return {
+        ...state,
+        locations: state.locations.map((l) =>
+          l.id === action.payload.id ? action.payload : l
+        ),
+      };
+    case "DELETE_LOCATION":
+      return { ...state, locations: state.locations.filter((l) => l.id !== action.payload) };
     case "RESET_ALL_DATA":
       return { ...initialState, loaded: true };
     default:
@@ -238,6 +255,7 @@ interface StoreContextType {
   getServiceById: (id: string) => Service | undefined;
   getClientById: (id: string) => Client | undefined;
   getStaffById: (id: string) => StaffMember | undefined;
+  getLocationById: (id: string) => Location | undefined;
   getAppointmentsForDate: (date: string) => Appointment[];
   getAppointmentsForClient: (clientId: string) => Appointment[];
   getReviewsForClient: (clientId: string) => Review[];
@@ -260,6 +278,7 @@ const STORAGE_KEYS = {
   customSchedule: "@bookease_custom_schedule",
   products: "@bookease_products",
   staff: "@bookease_staff",
+  locations: "@bookease_locations",
 };
 
 /** Convert DB rows to local frontend models */
@@ -288,15 +307,20 @@ function dbClientToLocal(c: any): Client {
 
 function dbAppointmentToLocal(a: any): Appointment {
   const notes = a.notes ?? "";
-  // Parse pricing info from enriched notes ("--- Pricing ---" block)
-  let totalPrice: number | undefined;
-  let extraItems: { type: "service" | "product"; id: string; name: string; price: number; duration: number }[] | undefined;
-  let giftApplied: boolean | undefined;
-  let giftUsedAmount: number | undefined;
+  // Prefer structured DB columns over notes parsing
+  let totalPrice: number | undefined = a.totalPrice != null ? parseFloat(String(a.totalPrice)) : undefined;
+  let extraItems: { type: "service" | "product"; id: string; name: string; price: number; duration: number }[] | undefined = Array.isArray(a.extraItems) ? a.extraItems : undefined;
+  let giftApplied: boolean | undefined = a.giftApplied === true || a.giftApplied === 1 ? true : undefined;
+  let giftUsedAmount: number | undefined = a.giftUsedAmount != null ? parseFloat(String(a.giftUsedAmount)) : undefined;
+  let discountPercent: number | undefined = a.discountPercent != null ? a.discountPercent : undefined;
+  let discountAmount: number | undefined = a.discountAmount != null ? parseFloat(String(a.discountAmount)) : undefined;
+  let discountName: string | undefined = a.discountName ?? undefined;
   let cleanNotes = notes;
+  const hasDbPricing = totalPrice != null;
 
+  // Only parse notes for pricing if DB columns are empty (backward compat for old appointments)
   const pricingIdx = notes.indexOf("--- Pricing ---");
-  if (pricingIdx >= 0) {
+  if (!hasDbPricing && pricingIdx >= 0) {
     const pricingBlock = notes.slice(pricingIdx + "--- Pricing ---".length).trim();
     cleanNotes = notes.slice(0, pricingIdx).trim();
     // Also strip "Additional items:" line from clean notes
@@ -316,6 +340,19 @@ function dbAppointmentToLocal(a: any): Appointment {
         giftUsedAmount = parseFloat(giftMatch[1]);
         continue;
       }
+      const discountMatch = line.match(/^Discount:\s*(.+?)\s*\((\d+)%\s*off\):\s*-\$([\d.]+)/);
+      if (discountMatch) {
+        discountName = discountMatch[1];
+        discountPercent = parseInt(discountMatch[2], 10);
+        discountAmount = parseFloat(discountMatch[3]);
+        continue;
+      }
+      // Also match simpler discount format: "Discount: -$X.XX"
+      const simpleDiscountMatch = line.match(/^Discount:\s*-\$([\d.]+)/);
+      if (simpleDiscountMatch && !discountAmount) {
+        discountAmount = parseFloat(simpleDiscountMatch[1]);
+        continue;
+      }
       const extraMatch = line.match(/^(Product|Extra|Service):\s*(.+?)\s*\u2014\s*\$([\d.]+)/);
       if (extraMatch) {
         extras.push({
@@ -328,7 +365,7 @@ function dbAppointmentToLocal(a: any): Appointment {
       }
     }
     if (extras.length > 0) extraItems = extras;
-  } else {
+  } else if (!hasDbPricing) {
     // Try to parse "Additional items:" from notes for older bookings
     const addlMatch = notes.match(/Additional items:\s*(.+)/);
     if (addlMatch) {
@@ -346,6 +383,13 @@ function dbAppointmentToLocal(a: any): Appointment {
     }
   }
 
+  // Strip pricing block from notes for display regardless
+  const pricingStripIdx = cleanNotes.indexOf("--- Pricing ---");
+  if (pricingStripIdx >= 0) {
+    cleanNotes = cleanNotes.slice(0, pricingStripIdx).trim();
+  }
+  cleanNotes = cleanNotes.replace(/\nAdditional items:.*$/m, "").trim();
+
   return {
     id: a.localId,
     serviceId: a.serviceLocalId,
@@ -360,6 +404,10 @@ function dbAppointmentToLocal(a: any): Appointment {
     extraItems,
     giftApplied,
     giftUsedAmount,
+    discountPercent,
+    discountAmount,
+    discountName,
+    staffId: a.staffId ?? undefined,
   } as Appointment;
 }
 
@@ -458,6 +506,20 @@ function dbStaffToLocal(s: any): StaffMember {
   };
 }
 
+function dbLocationToLocal(l: any): Location {
+  return {
+    id: l.localId,
+    name: l.name,
+    address: l.address ?? "",
+    phone: l.phone ?? "",
+    email: l.email ?? "",
+    isDefault: l.isDefault ?? false,
+    active: l.active ?? true,
+    workingHours: l.workingHours ?? null,
+    createdAt: l.createdAt ? new Date(l.createdAt).toISOString() : new Date().toISOString(),
+  };
+}
+
 function dbCustomScheduleToLocal(cs: any): CustomScheduleDay {
   return {
     date: cs.date,
@@ -529,6 +591,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const createStaffMut = trpc.staff.create.useMutation();
   const updateStaffMut = trpc.staff.update.useMutation();
   const deleteStaffMut = trpc.staff.delete.useMutation();
+  const createLocationMut = trpc.locations.create.useMutation();
+  const updateLocationMut = trpc.locations.update.useMutation();
+  const deleteLocationMut = trpc.locations.delete.useMutation();
 
   // ─── Bootstrap: Load from DB or fallback to AsyncStorage ────────
   useEffect(() => {
@@ -556,6 +621,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                   customSchedule: (fullData.customSchedule || []).map(dbCustomScheduleToLocal),
                   products: (fullData.products || []).map(dbProductToLocal),
                   staff: (fullData.staff || []).map(dbStaffToLocal),
+                  locations: (fullData.locations || []).map(dbLocationToLocal),
                   settings: { ...initialSettings, ...settingsFromDb },
                   businessOwnerId: ownerId,
                 },
@@ -571,7 +637,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 (fullData.giftCards || []).map(dbGiftCardToLocal),
                 (fullData.customSchedule || []).map(dbCustomScheduleToLocal),
                 (fullData.products || []).map(dbProductToLocal),
-                (fullData.staff || []).map(dbStaffToLocal)
+                (fullData.staff || []).map(dbStaffToLocal),
+                (fullData.locations || []).map(dbLocationToLocal)
               );
               return;
             }
@@ -581,7 +648,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Fallback: load from AsyncStorage
-        const [servicesRaw, clientsRaw, appointmentsRaw, reviewsRaw, settingsRaw, discountsRaw, giftCardsRaw, customScheduleRaw, productsRaw, staffRaw] =
+        const [servicesRaw, clientsRaw, appointmentsRaw, reviewsRaw, settingsRaw, discountsRaw, giftCardsRaw, customScheduleRaw, productsRaw, staffRaw, locationsRaw] =
           await Promise.all([
             AsyncStorage.getItem(STORAGE_KEYS.services),
             AsyncStorage.getItem(STORAGE_KEYS.clients),
@@ -593,6 +660,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             AsyncStorage.getItem(STORAGE_KEYS.customSchedule),
             AsyncStorage.getItem(STORAGE_KEYS.products),
             AsyncStorage.getItem(STORAGE_KEYS.staff),
+            AsyncStorage.getItem(STORAGE_KEYS.locations),
           ]);
         
         const loadedSettings = settingsRaw
@@ -611,6 +679,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             customSchedule: customScheduleRaw ? JSON.parse(customScheduleRaw) : [],
             products: productsRaw ? JSON.parse(productsRaw) : [],
             staff: staffRaw ? JSON.parse(staffRaw) : [],
+            locations: locationsRaw ? JSON.parse(locationsRaw) : [],
             settings: loadedSettings,
             businessOwnerId: storedOwnerId ? parseInt(storedOwnerId, 10) : null,
           },
@@ -671,6 +740,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!state.loaded) return;
     AsyncStorage.setItem(STORAGE_KEYS.staff, JSON.stringify(state.staff));
   }, [state.staff, state.loaded]);
+
+  useEffect(() => {
+    if (!state.loaded) return;
+    AsyncStorage.setItem(STORAGE_KEYS.locations, JSON.stringify(state.locations));
+  }, [state.locations, state.loaded]);
 
   useEffect(() => {
     if (state.businessOwnerId !== null) {
@@ -762,12 +836,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             const svc = state.services.find(s => s.id === appt.serviceId);
             const svcPrice = svc?.price ?? 0;
             const extras = appt.extraItems ?? [];
-            if (extras.length > 0 || appt.giftApplied) {
+            const hasDiscount = (appt.discountAmount ?? 0) > 0;
+            if (extras.length > 0 || appt.giftApplied || hasDiscount) {
               const pricingLines: string[] = [];
               pricingLines.push(`Service: ${svc?.name ?? "Service"} \u2014 $${svcPrice.toFixed(2)}`);
               extras.forEach(e => {
                 pricingLines.push(`${e.type === "product" ? "Product" : "Extra"}: ${e.name} \u2014 $${(e.price || 0).toFixed(2)}`);
               });
+              if (hasDiscount) {
+                const dName = appt.discountName || "Discount";
+                const dPct = appt.discountPercent ?? 0;
+                const dAmt = appt.discountAmount ?? 0;
+                pricingLines.push(`Discount: ${dName} (${dPct}% off): -$${dAmt.toFixed(2)}`);
+              }
               if (appt.giftApplied) {
                 const giftAmt = appt.giftUsedAmount ?? svcPrice;
                 pricingLines.push(`Gift Card: -$${giftAmt.toFixed(2)}`);
@@ -787,6 +868,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               duration: appt.duration,
               status: appt.status,
               notes: enrichedNotes || undefined,
+              totalPrice: appt.totalPrice,
+              extraItems: appt.extraItems,
+              discountPercent: appt.discountPercent,
+              discountAmount: appt.discountAmount,
+              discountName: appt.discountName,
+              giftApplied: appt.giftApplied,
+              giftUsedAmount: appt.giftUsedAmount,
+              staffId: appt.staffId,
             });
             break;
           }
@@ -800,6 +889,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               time: appt.time,
               duration: appt.duration,
               notes: appt.notes || undefined,
+              totalPrice: appt.totalPrice,
+              extraItems: appt.extraItems,
+              discountPercent: appt.discountPercent,
+              discountAmount: appt.discountAmount,
+              discountName: appt.discountName,
+              giftApplied: appt.giftApplied,
+              giftUsedAmount: appt.giftUsedAmount,
+              staffId: appt.staffId,
             });
             break;
           }
@@ -1041,6 +1138,43 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             });
             break;
           }
+          case "ADD_LOCATION": {
+            const loc = action.payload as Location;
+            await createLocationMut.mutateAsync({
+              businessOwnerId: ownerId,
+              localId: loc.id,
+              name: loc.name,
+              address: loc.address || undefined,
+              phone: loc.phone || undefined,
+              email: loc.email || undefined,
+              isDefault: loc.isDefault,
+              active: loc.active,
+              workingHours: loc.workingHours,
+            });
+            break;
+          }
+          case "UPDATE_LOCATION": {
+            const loc = action.payload as Location;
+            await updateLocationMut.mutateAsync({
+              localId: loc.id,
+              businessOwnerId: ownerId,
+              name: loc.name,
+              address: loc.address || undefined,
+              phone: loc.phone || undefined,
+              email: loc.email || undefined,
+              isDefault: loc.isDefault,
+              active: loc.active,
+              workingHours: loc.workingHours,
+            });
+            break;
+          }
+          case "DELETE_LOCATION": {
+            await deleteLocationMut.mutateAsync({
+              localId: action.payload as string,
+              businessOwnerId: ownerId,
+            });
+            break;
+          }
           default:
             break;
         }
@@ -1066,6 +1200,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const getStaffById = useCallback(
     (id: string) => state.staff.find((s) => s.id === id),
     [state.staff]
+  );
+
+  const getLocationById = useCallback(
+    (id: string) => state.locations.find((l) => l.id === id),
+    [state.locations]
   );
 
   const getAppointmentsForDate = useCallback(
@@ -1128,6 +1267,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         getServiceById,
         getClientById,
         getStaffById,
+        getLocationById,
         getAppointmentsForDate,
         getAppointmentsForClient,
         getReviewsForClient,
@@ -1157,7 +1297,8 @@ async function persistToAsyncStorage(
   giftCards?: GiftCard[],
   customSchedule?: CustomScheduleDay[],
   products?: Product[],
-  staff?: StaffMember[]
+  staff?: StaffMember[],
+  locations?: Location[]
 ) {
   try {
     const ops = [
@@ -1172,6 +1313,7 @@ async function persistToAsyncStorage(
     if (customSchedule) ops.push(AsyncStorage.setItem(STORAGE_KEYS.customSchedule, JSON.stringify(customSchedule)));
     if (products) ops.push(AsyncStorage.setItem(STORAGE_KEYS.products, JSON.stringify(products)));
     if (staff) ops.push(AsyncStorage.setItem(STORAGE_KEYS.staff, JSON.stringify(staff)));
+    if (locations) ops.push(AsyncStorage.setItem(STORAGE_KEYS.locations, JSON.stringify(locations)));
     await Promise.all(ops);
   } catch (err) {
     console.warn("[Store] Failed to persist to AsyncStorage:", err);

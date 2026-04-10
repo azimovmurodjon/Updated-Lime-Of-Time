@@ -20,7 +20,7 @@ import {
 
 export default function AppointmentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { state, dispatch, getServiceById, getClientById, syncToDb } = useStore();
+  const { state, dispatch, getServiceById, getClientById, getStaffById, getLocationById, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
 
@@ -44,6 +44,8 @@ export default function AppointmentDetailScreen() {
 
   const service = getServiceById(appointment.serviceId);
   const client = getClientById(appointment.clientId);
+  const assignedStaff = appointment.staffId ? getStaffById(appointment.staffId) : null;
+  const assignedLocation = appointment.locationId ? getLocationById(appointment.locationId) : null;
   const endTimeStr = formatTime(minutesToTime(timeToMinutes(appointment.time) + appointment.duration));
   const policy = state.settings.cancellationPolicy;
   const biz = state.settings;
@@ -203,24 +205,27 @@ export default function AppointmentDetailScreen() {
           const svcPrice = service?.price ?? 0;
           const extras = appointment.extraItems ?? [];
           const extrasTotal = extras.reduce((s, e) => s + (e.price || 0), 0);
+          const subtotal = svcPrice + extrasTotal;
+          // Discount
+          const discountAmt = appointment.discountAmount ?? 0;
+          const discountPct = appointment.discountPercent ?? 0;
+          const discountLabel = appointment.discountName || (discountPct > 0 ? `${discountPct}% Off` : "Discount");
+          const afterDiscount = Math.max(0, subtotal - discountAmt);
+          // Gift card
           const giftUsedAmount = appointment.giftUsedAmount ?? 0;
-          // Use stored giftUsedAmount; if not available but gift was applied,
-          // infer deduction from the difference between subtotal and stored totalPrice
           let giftDeduction = 0;
           if (appointment.giftApplied) {
             if (giftUsedAmount > 0) {
               giftDeduction = giftUsedAmount;
             } else if (appointment.totalPrice != null) {
-              // Infer: subtotal - totalPrice = gift deduction
-              giftDeduction = Math.max(0, svcPrice + extrasTotal - appointment.totalPrice);
+              giftDeduction = Math.max(0, afterDiscount - appointment.totalPrice);
             } else {
-              // Last resort: assume full service price was covered by gift
-              giftDeduction = svcPrice;
+              giftDeduction = afterDiscount;
             }
           }
           const computedTotal = appointment.totalPrice != null
             ? appointment.totalPrice
-            : Math.max(0, svcPrice + extrasTotal - giftDeduction);
+            : Math.max(0, afterDiscount - giftDeduction);
           return (
             <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
               <Text className="text-xs text-muted mb-2">Charges</Text>
@@ -234,7 +239,19 @@ export default function AppointmentDetailScreen() {
                   <Text className="text-sm font-semibold text-foreground">${(item.price || 0).toFixed(2)}</Text>
                 </View>
               ))}
-              {appointment.giftApplied && (
+              {extras.length > 0 && (
+                <View style={{ borderTopWidth: 1, borderTopColor: colors.border + "40", marginTop: 4, paddingTop: 4 }} className="flex-row justify-between py-1">
+                  <Text className="text-sm text-muted">Subtotal</Text>
+                  <Text className="text-sm text-muted">${subtotal.toFixed(2)}</Text>
+                </View>
+              )}
+              {discountAmt > 0 && (
+                <View className="flex-row justify-between py-1">
+                  <Text className="text-sm" style={{ color: '#F59E0B' }}>{discountLabel}</Text>
+                  <Text className="text-sm font-semibold" style={{ color: '#F59E0B' }}>-${discountAmt.toFixed(2)}</Text>
+                </View>
+              )}
+              {appointment.giftApplied && giftDeduction > 0 && (
                 <View className="flex-row justify-between py-1">
                   <Text className="text-sm" style={{ color: colors.success }}>Gift Card Applied</Text>
                   <Text className="text-sm font-semibold" style={{ color: colors.success }}>-${giftDeduction.toFixed(2)}</Text>
@@ -246,6 +263,14 @@ export default function AppointmentDetailScreen() {
                   ${computedTotal.toFixed(2)}
                 </Text>
               </View>
+              {(discountAmt > 0 || giftDeduction > 0) && (
+                <View className="flex-row justify-between py-1">
+                  <Text className="text-xs" style={{ color: colors.success }}>You Saved</Text>
+                  <Text className="text-xs font-semibold" style={{ color: colors.success }}>
+                    ${(discountAmt + giftDeduction).toFixed(2)}
+                  </Text>
+                </View>
+              )}
             </View>
           );
         })()}
@@ -297,7 +322,27 @@ export default function AppointmentDetailScreen() {
           {client?.phone ? (
             <DetailRow icon="phone.fill" label="Phone" value={client.phone} colors={colors} />
           ) : null}
-          {profile.address ? (
+          {assignedStaff ? (
+            <DetailRow
+              icon="person.fill"
+              label="Staff"
+              value={assignedStaff.name + (assignedStaff.role ? ` · ${assignedStaff.role}` : "")}
+              colors={colors}
+            />
+          ) : null}
+          {assignedLocation ? (
+            <DetailRow
+              icon="location.fill"
+              label="Location"
+              value={assignedLocation.name + (assignedLocation.address ? ` · ${assignedLocation.address}` : "")}
+              colors={colors}
+              onPress={() => {
+                if (assignedLocation.address) {
+                  Linking.openURL(getMapUrl(assignedLocation.address)).catch(() => {});
+                }
+              }}
+            />
+          ) : profile.address ? (
             <DetailRow
               icon="mappin"
               label="Location"

@@ -134,6 +134,24 @@ export const appointments = mysqlTable("appointments", {
     .default("pending")
     .notNull(),
   notes: text("notes"),
+  /** Total price charged for the appointment (after discounts/gifts) */
+  totalPrice: decimal("totalPrice", { precision: 10, scale: 2 }),
+  /** Extra items JSON: array of { type, id, name, price, duration } */
+  extraItems: json("extraItems"),
+  /** Discount percentage applied (0-100) */
+  discountPercent: int("discountPercent"),
+  /** Discount dollar amount */
+  discountAmount: decimal("discountAmount", { precision: 10, scale: 2 }),
+  /** Name of the discount applied */
+  discountName: varchar("discountName", { length: 255 }),
+  /** Whether a gift card was applied */
+  giftApplied: boolean("giftApplied").default(false),
+  /** Dollar amount used from gift card */
+  giftUsedAmount: decimal("giftUsedAmount", { precision: 10, scale: 2 }),
+  /** Staff member localId assigned to this appointment */
+  staffId: varchar("staffId", { length: 64 }),
+  /** Location localId for multi-location businesses */
+  locationId: varchar("locationId", { length: 64 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -325,3 +343,31 @@ export const staffMembers = mysqlTable("staff_members", {
 
 export type DbStaffMember = typeof staffMembers.$inferSelect;
 export type InsertStaffMember = typeof staffMembers.$inferInsert;
+
+// ─── Locations (Multi-Location) ─────────────────────────────────────
+export const locations = mysqlTable("locations", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Foreign key to business_owners */
+  businessOwnerId: int("businessOwnerId").notNull(),
+  /** Local client-generated ID for backward compat */
+  localId: varchar("localId", { length: 64 }).notNull(),
+  /** Location name (e.g. "Main Office", "Downtown Branch") */
+  name: varchar("name", { length: 255 }).notNull(),
+  /** Full address */
+  address: text("address"),
+  /** Phone number for this location */
+  phone: varchar("phone", { length: 20 }),
+  /** Email for this location */
+  email: varchar("email", { length: 320 }),
+  /** Whether this is the default/primary location */
+  isDefault: boolean("isDefault").default(false).notNull(),
+  /** Whether this location is currently active */
+  active: boolean("active").default(true).notNull(),
+  /** Individual working hours JSON: Record<string, { enabled: boolean, start: string, end: string }> */
+  workingHours: json("workingHours"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DbLocation = typeof locations.$inferSelect;
+export type InsertLocation = typeof locations.$inferInsert;

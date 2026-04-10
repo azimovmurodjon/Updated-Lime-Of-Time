@@ -261,8 +261,8 @@
 - [x] Build staff management UI screen (add/edit/remove staff)
 - [x] Staff service assignments (which staff can perform which services)
 - [x] Staff individual schedules (working hours per staff member)
-- [ ] Integrate staff into booking flow (select staff when booking)
-- [ ] Show staff on calendar views
+- [x] Integrate staff into booking flow (select staff when booking)
+- [x] Show staff on calendar views
 
 ### Discount Fix
 - [x] Fix discount calculation on client booking page checkout (100% off = $0 total)
@@ -303,3 +303,58 @@
 - [x] Build per-staff calendar view screen for business owners
 - [x] Show individual staff member appointments on their calendar
 - [x] Timeline and calendar view modes with stats
+
+## Phase: Multi-Location Management + Remaining Items
+
+### Multi-Location Management
+- [x] Add locations DB schema (name, address, phone, email, working hours per location)
+- [x] Add locations tRPC routes (CRUD operations)
+- [x] Add locations to app store and types
+- [x] Build location management UI screen (add/edit/remove locations)
+- [ ] Each location has its own separate staff assignments
+- [ ] Each location has its own separate scheduling/working hours
+- [ ] Each location has its own separate services and pricing
+- [ ] Location selector on dashboard — switch between locations to view stats
+- [ ] Location-specific booking links (e.g. lime-of-time.com/book/business/location)
+- [ ] Client booking page shows location selector when business has multiple locations
+- [ ] Location-specific calendar view for business owner
+- [ ] Location-specific analytics and revenue tracking
+- [ ] Admin dashboard integration — view all locations per business
+
+### Remaining Staff Items
+- [x] Integrate staff into in-app booking flow (select staff when creating appointment from app)
+- [x] Show staff assignments on main calendar view (color-coded by staff member)
+
+## Phase: Multi-Location, Staff Fixes, Settings Restructure, Bug Fixes
+
+### Bug Fixes
+- [x] Fix phone number matching for cancel/reschedule (auto-filled phone shows mismatch error)
+- [x] Fix charges/discount display in app — total charges from client must show correctly
+- [x] Fix discount calculation accuracy across the entire app
+
+### Settings Restructure
+- [x] Move Reviews to a separate screen (not inside Settings)
+- [x] Move Data Export to a separate screen
+- [x] Move Staff Management to a separate screen (already done)
+- [x] Move Discounts/Gift Cards to separate screens (already done)
+- [x] Simplify Settings to only show core business settings
+- [x] Create a "More" or organized navigation for all sub-features
+
+### Multi-Location Management
+- [x] Add locations DB schema (name, address, phone, email, working hours per location)
+- [x] Add locations tRPC routes (CRUD operations)
+- [x] Add locations to app store and types
+- [x] Build location management UI screen (add/edit/remove locations)
+- [ ] Each location has its own separate staff assignments
+- [ ] Each location has its own separate scheduling/working hours
+- [ ] Each location has its own separate services and pricing
+- [ ] Location selector on dashboard — switch between locations to view stats
+- [ ] Location-specific booking links
+- [ ] Client booking page shows location selector when business has multiple locations
+- [ ] Location-specific calendar view for business owner
+- [ ] Location-specific analytics and revenue tracking
+- [ ] Admin dashboard integration — view all locations per business
+
+### Remaining Staff Items
+- [x] Integrate staff into in-app booking flow (select staff when creating appointment from app)
+- [x] Show staff assignments on main calendar view (color-coded by staff member)

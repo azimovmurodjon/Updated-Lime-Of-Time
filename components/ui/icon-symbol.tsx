@@ -75,6 +75,15 @@ const MAPPING = {
   "person.3.fill": "groups",
   "briefcase.fill": "work",
   "paintbrush.fill": "brush",
+  "building.2.fill": "business",
+  "exclamationmark.triangle.fill": "warning",
+  "arrow.right.square.fill": "logout",
+  "arrow.up.right.square": "open-in-new",
+  "location.fill": "location-on",
+  "building.fill": "apartment",
+  "gear": "settings",
+  "doc.on.doc.fill": "file-copy",
+  "rectangle.stack.fill": "layers",
 } as unknown as IconMapping;
 
 export function IconSymbol({

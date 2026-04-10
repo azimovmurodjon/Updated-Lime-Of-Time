@@ -404,7 +404,7 @@ export function registerPublicRoutes(app: Express) {
         return;
       }
 
-      const { clientName, clientPhone, clientEmail, serviceLocalId, date, time, duration, notes, giftCode, totalPrice, extraItems, giftApplied, giftUsedAmount } = req.body;
+      const { clientName, clientPhone, clientEmail, serviceLocalId, date, time, duration, notes, giftCode, totalPrice, extraItems, giftApplied, giftUsedAmount, discountName, discountPercentage, discountAmount, subtotal } = req.body;
 
       if (!clientName || !serviceLocalId || !date || !time) {
         res.status(400).json({ error: "Missing required fields: clientName, serviceLocalId, date, time" });
@@ -468,12 +468,19 @@ export function registerPublicRoutes(app: Express) {
       const extrasTotal = extras.reduce((s: number, e: { price: number }) => s + (e.price || 0), 0);
       const finalTotal = totalPrice != null ? parseFloat(String(totalPrice)) : svcPrice + extrasTotal;
 
-      if (extras.length > 0 || giftApplied) {
+      const hasDiscount = discountAmount && parseFloat(String(discountAmount)) > 0;
+      if (extras.length > 0 || giftApplied || hasDiscount) {
         const pricingLines: string[] = [];
-        pricingLines.push(`Service: ${svc?.name ?? "Service"} — $${svcPrice.toFixed(2)}`);
+        pricingLines.push(`Service: ${svc?.name ?? "Service"} \u2014 $${svcPrice.toFixed(2)}`);
         extras.forEach((e: { name: string; price: number; type: string }) => {
-          pricingLines.push(`${e.type === "product" ? "Product" : "Extra"}: ${e.name} — $${(e.price || 0).toFixed(2)}`);
+          pricingLines.push(`${e.type === "product" ? "Product" : "Extra"}: ${e.name} \u2014 $${(e.price || 0).toFixed(2)}`);
         });
+        if (hasDiscount) {
+          const dName = discountName || "Discount";
+          const dPct = discountPercentage ? parseInt(String(discountPercentage), 10) : 0;
+          const dAmt = parseFloat(String(discountAmount));
+          pricingLines.push(`Discount: ${dName} (${dPct}% off): -$${dAmt.toFixed(2)}`);
+        }
         if (giftApplied) {
           const giftAmt = giftUsedAmount ? parseFloat(String(giftUsedAmount)) : svcPrice;
           pricingLines.push(`Gift Card: -$${giftAmt.toFixed(2)}`);
@@ -494,6 +501,13 @@ export function registerPublicRoutes(app: Express) {
         duration: dur,
         status: "pending",
         notes: enrichedNotes || null,
+        totalPrice: finalTotal,
+        discountPercent: discountPercentage ? parseInt(String(discountPercentage), 10) : null,
+        discountAmount: hasDiscount ? parseFloat(String(discountAmount)) : null,
+        discountName: discountName || null,
+        extraItems: extras.length > 0 ? JSON.stringify(extras) : null,
+        giftApplied: !!giftApplied,
+        giftUsedAmount: giftUsedAmount ? parseFloat(String(giftUsedAmount)) : null,
       });
 
       // Deduct from gift card balance
@@ -699,15 +713,22 @@ export function registerPublicRoutes(app: Express) {
       // Verify client identity by phone
       const clientList = await db.getClientsByOwner(owner.id);
       const client = clientList.find((c) => c.localId === appt.clientLocalId);
-      if (client && clientPhone) {
-        const rawDigits = clientPhone.replace(/\D/g, "");
-        const normalizedInput = rawDigits.length === 11 && rawDigits.startsWith("1") ? rawDigits.slice(1) : rawDigits;
-        const normalizedStored = (client.phone || "").replace(/\D/g, "");
-        if (normalizedInput !== normalizedStored) {
+      const normPhone = (p: string) => {
+        const d = p.replace(/\D/g, "");
+        return d.length >= 10 ? d.slice(-10) : d;
+      };
+      // If client has a phone on record, require verification
+      if (client && client.phone && client.phone.trim()) {
+        if (!clientPhone || !clientPhone.trim()) {
+          res.status(403).json({ error: "Please enter your phone number to verify your identity." });
+          return;
+        }
+        if (normPhone(clientPhone) !== normPhone(client.phone)) {
           res.status(403).json({ error: "Phone number does not match. Please enter the phone number used when booking." });
           return;
         }
       }
+      // If client has no phone on record, allow action without phone verification
       await db.updateAppointment(appointmentId, owner.id, { status: "cancelled" });
       // Notify business owner
       try {
@@ -771,11 +792,17 @@ export function registerPublicRoutes(app: Express) {
       // Verify client identity by phone
       const clientList = await db.getClientsByOwner(owner.id);
       const client = clientList.find((c) => c.localId === appt.clientLocalId);
-      if (client && clientPhone) {
-        const rawDigits = clientPhone.replace(/\D/g, "");
-        const normalizedInput = rawDigits.length === 11 && rawDigits.startsWith("1") ? rawDigits.slice(1) : rawDigits;
-        const normalizedStored = (client.phone || "").replace(/\D/g, "");
-        if (normalizedInput !== normalizedStored) {
+      const normPhone2 = (p: string) => {
+        const d = p.replace(/\D/g, "");
+        return d.length >= 10 ? d.slice(-10) : d;
+      };
+      // If client has a phone on record, require verification
+      if (client && client.phone && client.phone.trim()) {
+        if (!clientPhone || !clientPhone.trim()) {
+          res.status(403).json({ error: "Please enter your phone number to verify your identity." });
+          return;
+        }
+        if (normPhone2(clientPhone) !== normPhone2(client.phone)) {
           res.status(403).json({ error: "Phone number does not match. Please enter the phone number used when booking." });
           return;
         }

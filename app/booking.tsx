@@ -197,6 +197,9 @@ export default function PublicBookingScreen() {
       notes: notes.trim(),
       createdAt: new Date().toISOString(),
       totalPrice: priceInfo.final,
+      discountPercent: priceInfo.discountPct > 0 ? priceInfo.discountPct : undefined,
+      discountAmount: priceInfo.discountPct > 0 ? Math.round((priceInfo.original - priceInfo.final) * 100) / 100 : undefined,
+      discountName: applicableDiscount ? applicableDiscount.name : undefined,
       giftApplied: priceInfo.isGift,
       giftUsedAmount: priceInfo.giftUsed > 0 ? priceInfo.giftUsed : undefined,
     };

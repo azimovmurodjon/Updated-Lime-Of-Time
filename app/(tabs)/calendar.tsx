@@ -40,7 +40,7 @@ const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "Ju
 const DAY_HEADERS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 export default function CalendarScreen() {
-  const { state, dispatch, getServiceById, getClientById, syncToDb } = useStore();
+  const { state, dispatch, getServiceById, getClientById, getStaffById, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -293,6 +293,7 @@ export default function CalendarScreen() {
             selectedDateAppts.map((appt) => {
               const svc = getServiceById(appt.serviceId);
               const client = getClientById(appt.clientId);
+              const staff = appt.staffId ? getStaffById(appt.staffId) : null;
               const statusColor =
                 appt.status === "confirmed" ? "#1B5E20"
                 : appt.status === "pending" ? "#FF9800"
@@ -311,7 +312,15 @@ export default function CalendarScreen() {
                     <Text style={{ fontSize: 13, fontWeight: "500", color: colors.foreground, marginTop: 2 }}>
                       {svc ? getServiceDisplayName(svc) : "Service"}
                     </Text>
-                    <Text style={{ fontSize: 12, color: colors.muted }}>{client?.name}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 1 }}>
+                      <Text style={{ fontSize: 12, color: colors.muted }}>{client?.name}</Text>
+                      {staff && (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginLeft: 4 }}>
+                          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: staff.color || colors.primary }} />
+                          <Text style={{ fontSize: 11, color: staff.color || colors.primary, fontWeight: "500" }}>{staff.name}</Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
                   <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
                     <Text style={{ fontSize: 11, fontWeight: "600", color: statusColor, textTransform: "capitalize" }}>{appt.status}</Text>
@@ -366,6 +375,7 @@ export default function CalendarScreen() {
             filteredAppointments.map((appt) => {
               const svc = getServiceById(appt.serviceId);
               const client = getClientById(appt.clientId);
+              const staffMember = appt.staffId ? getStaffById(appt.staffId) : null;
               const isRequest = appt.status === "pending";
               return (
                 <View
@@ -384,7 +394,15 @@ export default function CalendarScreen() {
                         <Text style={{ fontSize: 13, color: colors.foreground, marginTop: 2 }}>
                           {svc ? getServiceDisplayName(svc) : "Service"}
                         </Text>
-                        <Text style={{ fontSize: 12, color: colors.muted }}>{client?.name} {client?.phone ? `· ${client.phone}` : ""}</Text>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 1 }}>
+                          <Text style={{ fontSize: 12, color: colors.muted }}>{client?.name} {client?.phone ? `· ${client.phone}` : ""}</Text>
+                          {staffMember && (
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginLeft: 4 }}>
+                              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: staffMember.color || colors.primary }} />
+                              <Text style={{ fontSize: 11, color: staffMember.color || colors.primary, fontWeight: "500" }}>{staffMember.name}</Text>
+                            </View>
+                          )}
+                        </View>
                       </View>
                     </View>
                   </Pressable>

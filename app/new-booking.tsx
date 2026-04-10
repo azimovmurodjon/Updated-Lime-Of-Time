@@ -43,6 +43,30 @@ export default function NewBookingScreen() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [addMoreTab, setAddMoreTab] = useState<"services" | "products">("services");
   const [recurring, setRecurring] = useState<"none" | "weekly" | "biweekly" | "monthly">("none");
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(() => {
+    const defaultLoc = state.locations.find((l) => l.isDefault && l.active);
+    return defaultLoc?.id ?? null;
+  });
+
+  const activeLocations = useMemo(
+    () => state.locations.filter((l) => l.active),
+    [state.locations]
+  );
+
+  const activeStaff = useMemo(() => {
+    return state.staff.filter((s) => {
+      if (!s.active) return false;
+      if (!selectedServiceId) return true;
+      if (!s.serviceIds || s.serviceIds.length === 0) return true; // null = all services
+      return s.serviceIds.includes(selectedServiceId);
+    });
+  }, [state.staff, selectedServiceId]);
+
+  const selectedStaff = useMemo(() => {
+    if (!selectedStaffId) return null;
+    return state.staff.find((s) => s.id === selectedStaffId) ?? null;
+  }, [state.staff, selectedStaffId]);
 
   const selectedService = selectedServiceId ? getServiceById(selectedServiceId) : null;
   const selectedClient = selectedClientId ? getClientById(selectedClientId) : null;
@@ -197,6 +221,8 @@ export default function NewBookingScreen() {
         createdAt: new Date().toISOString(),
         totalPrice,
         extraItems: cart.length > 0 ? cart.map((c) => ({ type: c.type, id: c.id, name: c.name, price: c.price, duration: c.duration })) : undefined,
+        staffId: selectedStaffId ?? undefined,
+        locationId: selectedLocationId ?? undefined,
       };
       dispatch({ type: "ADD_APPOINTMENT", payload: appointment });
       syncToDb({ type: "ADD_APPOINTMENT", payload: appointment });
@@ -598,6 +624,116 @@ export default function NewBookingScreen() {
             </View>
           </View>
 
+          {/* Staff Selector */}
+          {activeStaff.length > 0 && (
+            <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
+              <Text className="text-xs font-medium text-muted mb-3">Assign Staff (Optional)</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable
+                    onPress={() => setSelectedStaffId(null)}
+                    style={({ pressed }) => [{
+                      paddingHorizontal: 14,
+                      paddingVertical: 10,
+                      borderRadius: 12,
+                      borderWidth: 1.5,
+                      backgroundColor: !selectedStaffId ? colors.primary + "15" : colors.background,
+                      borderColor: !selectedStaffId ? colors.primary : colors.border,
+                      opacity: pressed ? 0.7 : 1,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                    }]}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: "600", color: !selectedStaffId ? colors.primary : colors.foreground }}>Any Available</Text>
+                  </Pressable>
+                  {activeStaff.map((member) => (
+                    <Pressable
+                      key={member.id}
+                      onPress={() => setSelectedStaffId(member.id)}
+                      style={({ pressed }) => [{
+                        paddingHorizontal: 14,
+                        paddingVertical: 10,
+                        borderRadius: 12,
+                        borderWidth: 1.5,
+                        backgroundColor: selectedStaffId === member.id ? (member.color || colors.primary) + "15" : colors.background,
+                        borderColor: selectedStaffId === member.id ? (member.color || colors.primary) : colors.border,
+                        opacity: pressed ? 0.7 : 1,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                      }]}
+                    >
+                      <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: member.color || colors.primary, alignItems: "center", justifyContent: "center" }}>
+                        <Text style={{ color: "#FFF", fontSize: 12, fontWeight: "700" }}>{member.name.charAt(0).toUpperCase()}</Text>
+                      </View>
+                      <Text style={{ fontSize: 13, fontWeight: "600", color: selectedStaffId === member.id ? (member.color || colors.primary) : colors.foreground }}>{member.name}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+          )}
+
+          {/* Location Selector */}
+          {activeLocations.length > 0 && (
+            <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
+              <Text className="text-xs font-medium text-muted mb-3">Location (Optional)</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable
+                    onPress={() => setSelectedLocationId(null)}
+                    style={({ pressed }) => [{
+                      paddingHorizontal: 14,
+                      paddingVertical: 10,
+                      borderRadius: 12,
+                      borderWidth: 1.5,
+                      backgroundColor: !selectedLocationId ? colors.primary + "15" : colors.background,
+                      borderColor: !selectedLocationId ? colors.primary : colors.border,
+                      opacity: pressed ? 0.7 : 1,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                    }]}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: "600", color: !selectedLocationId ? colors.primary : colors.foreground }}>No Location</Text>
+                  </Pressable>
+                  {activeLocations.map((loc) => (
+                    <Pressable
+                      key={loc.id}
+                      onPress={() => setSelectedLocationId(loc.id)}
+                      style={({ pressed }) => [{
+                        paddingHorizontal: 14,
+                        paddingVertical: 10,
+                        borderRadius: 12,
+                        borderWidth: 1.5,
+                        backgroundColor: selectedLocationId === loc.id ? colors.primary + "15" : colors.background,
+                        borderColor: selectedLocationId === loc.id ? colors.primary : colors.border,
+                        opacity: pressed ? 0.7 : 1,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                      }]}
+                    >
+                      <IconSymbol name="location.fill" size={14} color={selectedLocationId === loc.id ? colors.primary : colors.muted} />
+                      <View>
+                        <Text style={{ fontSize: 13, fontWeight: "600", color: selectedLocationId === loc.id ? colors.primary : colors.foreground }}>{loc.name}</Text>
+                        {!!loc.address && (
+                          <Text style={{ fontSize: 11, color: colors.muted, marginTop: 1 }} numberOfLines={1}>{loc.address}</Text>
+                        )}
+                      </View>
+                      {loc.isDefault && (
+                        <View style={{ backgroundColor: colors.primary + "20", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                          <Text style={{ fontSize: 9, fontWeight: "700", color: colors.primary }}>DEFAULT</Text>
+                        </View>
+                      )}
+                    </Pressable>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+          )}
+
           {/* Add More Section */}
           <Text className="text-xs font-medium text-muted mb-2 ml-1">Add More (Optional)</Text>
 
@@ -734,6 +870,14 @@ export default function NewBookingScreen() {
               <Text className="text-sm text-muted">
                 {selectedClient?.name} · {formatDateDisplay(selectedDate)}
               </Text>
+              {selectedStaff && (
+                <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2, gap: 4 }}>
+                  <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: selectedStaff.color || colors.primary, alignItems: "center", justifyContent: "center" }}>
+                    <Text style={{ color: "#FFF", fontSize: 8, fontWeight: "700" }}>{selectedStaff.name.charAt(0)}</Text>
+                  </View>
+                  <Text className="text-sm text-muted">{selectedStaff.name}</Text>
+                </View>
+              )}
               <Text className="text-sm text-muted">
                 {formatTime(selectedTime)} - {getEndTime(selectedTime)} ({totalDuration} min)
               </Text>
