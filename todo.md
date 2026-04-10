@@ -433,3 +433,18 @@
 - [x] Verify public client booking web page works properly for all businesses
 - [x] Fix booking page JavaScript syntax error caused by unescaped quotes in selectLocation onclick handler
 - [x] Fix manage page slot button quote escaping for selectSlot onclick handler
+
+## Phase: Admin Dashboard Delete Functionality
+
+- [x] Cascade delete business — deleting a business removes all related data (clients, appointments, services, staff, locations, discounts, gift cards, reviews, products, working days, notifications)
+- [x] Add individual delete buttons on admin Clients page
+- [x] Add individual delete buttons on admin Appointments page
+- [x] Add individual delete buttons on admin Services page
+- [x] Add individual delete buttons on admin Staff page
+- [x] Add individual delete buttons on admin Locations page
+- [x] Add individual delete buttons on admin Discounts page
+- [x] Add individual delete buttons on admin Gift Cards page
+- [x] Add individual delete buttons on admin Reviews page
+- [x] Add individual delete buttons on admin Products page
+- [x] Add confirmation dialog before any delete action
+- [x] Ensure all delete APIs are protected by admin auth

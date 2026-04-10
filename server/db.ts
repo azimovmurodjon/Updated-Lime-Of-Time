@@ -139,7 +139,7 @@ export async function updateBusinessOwner(
 export async function deleteBusinessOwner(id: number): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  // Delete all related data first
+  // Delete all related data first (cascade)
   await db.delete(reviews).where(eq(reviews.businessOwnerId, id));
   await db.delete(appointments).where(eq(appointments.businessOwnerId, id));
   await db.delete(clients).where(eq(clients.businessOwnerId, id));
@@ -147,7 +147,74 @@ export async function deleteBusinessOwner(id: number): Promise<void> {
   await db.delete(discounts).where(eq(discounts.businessOwnerId, id));
   await db.delete(giftCards).where(eq(giftCards.businessOwnerId, id));
   await db.delete(customSchedule).where(eq(customSchedule.businessOwnerId, id));
+  await db.delete(products).where(eq(products.businessOwnerId, id));
+  await db.delete(staffMembers).where(eq(staffMembers.businessOwnerId, id));
+  await db.delete(locations).where(eq(locations.businessOwnerId, id));
+  await db.delete(waitlist).where(eq(waitlist.businessOwnerId, id));
+  // Finally delete the business owner itself
   await db.delete(businessOwners).where(eq(businessOwners.id, id));
+}
+
+// ─── Admin: Delete individual record by DB id ───────────────────────
+
+export async function deleteClientById(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Get client info first to cascade
+  const [client] = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
+  if (client) {
+    await db.delete(reviews).where(and(eq(reviews.clientLocalId, client.localId), eq(reviews.businessOwnerId, client.businessOwnerId)));
+    await db.delete(appointments).where(and(eq(appointments.clientLocalId, client.localId), eq(appointments.businessOwnerId, client.businessOwnerId)));
+  }
+  await db.delete(clients).where(eq(clients.id, id));
+}
+
+export async function deleteAppointmentById(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(appointments).where(eq(appointments.id, id));
+}
+
+export async function deleteServiceById(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(services).where(eq(services.id, id));
+}
+
+export async function deleteStaffMemberById(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(staffMembers).where(eq(staffMembers.id, id));
+}
+
+export async function deleteLocationById(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(locations).where(eq(locations.id, id));
+}
+
+export async function deleteDiscountById(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(discounts).where(eq(discounts.id, id));
+}
+
+export async function deleteGiftCardById(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(giftCards).where(eq(giftCards.id, id));
+}
+
+export async function deleteReviewById(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(reviews).where(eq(reviews.id, id));
+}
+
+export async function deleteProductById(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(products).where(eq(products.id, id));
 }
 
 export async function getBusinessOwnerBySlug(slug: string): Promise<BusinessOwner | undefined> {

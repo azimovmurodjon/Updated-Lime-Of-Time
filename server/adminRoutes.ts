@@ -371,6 +371,167 @@ export function registerAdminRoutes(app: Express): void {
   app.get("/api/admin/settings", requireAuth, (_req: Request, res: Response) => {
     res.send(settingsPage());
   });
+
+  // ── Individual Delete Routes ─────────────────────────────────────
+  app.post("/api/admin/delete/client/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await db.deleteClientById(parseInt(req.params.id));
+      res.redirect(req.headers.referer || "/api/admin/clients");
+    } catch (err) {
+      console.error("[Admin] Delete client error:", err);
+      res.status(500).send(errorPage("Failed to delete client"));
+    }
+  });
+
+  app.post("/api/admin/delete/appointment/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await db.deleteAppointmentById(parseInt(req.params.id));
+      res.redirect(req.headers.referer || "/api/admin/appointments");
+    } catch (err) {
+      console.error("[Admin] Delete appointment error:", err);
+      res.status(500).send(errorPage("Failed to delete appointment"));
+    }
+  });
+
+  app.post("/api/admin/delete/service/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await db.deleteServiceById(parseInt(req.params.id));
+      res.redirect(req.headers.referer || "/api/admin/businesses");
+    } catch (err) {
+      console.error("[Admin] Delete service error:", err);
+      res.status(500).send(errorPage("Failed to delete service"));
+    }
+  });
+
+  app.post("/api/admin/delete/staff/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await db.deleteStaffMemberById(parseInt(req.params.id));
+      res.redirect(req.headers.referer || "/api/admin/staff");
+    } catch (err) {
+      console.error("[Admin] Delete staff error:", err);
+      res.status(500).send(errorPage("Failed to delete staff member"));
+    }
+  });
+
+  app.post("/api/admin/delete/location/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await db.deleteLocationById(parseInt(req.params.id));
+      res.redirect(req.headers.referer || "/api/admin/businesses");
+    } catch (err) {
+      console.error("[Admin] Delete location error:", err);
+      res.status(500).send(errorPage("Failed to delete location"));
+    }
+  });
+
+  app.post("/api/admin/delete/discount/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await db.deleteDiscountById(parseInt(req.params.id));
+      res.redirect(req.headers.referer || "/api/admin/discounts");
+    } catch (err) {
+      console.error("[Admin] Delete discount error:", err);
+      res.status(500).send(errorPage("Failed to delete discount"));
+    }
+  });
+
+  app.post("/api/admin/delete/giftcard/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await db.deleteGiftCardById(parseInt(req.params.id));
+      res.redirect(req.headers.referer || "/api/admin/giftcards");
+    } catch (err) {
+      console.error("[Admin] Delete gift card error:", err);
+      res.status(500).send(errorPage("Failed to delete gift card"));
+    }
+  });
+
+  app.post("/api/admin/delete/review/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await db.deleteReviewById(parseInt(req.params.id));
+      res.redirect(req.headers.referer || "/api/admin/reviews");
+    } catch (err) {
+      console.error("[Admin] Delete review error:", err);
+      res.status(500).send(errorPage("Failed to delete review"));
+    }
+  });
+
+  app.post("/api/admin/delete/product/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await db.deleteProductById(parseInt(req.params.id));
+      res.redirect(req.headers.referer || "/api/admin/products");
+    } catch (err) {
+      console.error("[Admin] Delete product error:", err);
+      res.status(500).send(errorPage("Failed to delete product"));
+    }
+  });
+
+  // ── Discounts Page ────────────────────────────────────────────────
+  app.get("/api/admin/discounts", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
+      const allDisc = await dbase.select().from(discounts);
+      const allBiz = await dbase.select().from(businessOwners);
+      res.send(discountsPage(allDisc, allBiz));
+    } catch (err) {
+      console.error("[Admin] Discounts error:", err);
+      res.status(500).send(errorPage("Failed to load discounts"));
+    }
+  });
+
+  // ── Gift Cards Page ───────────────────────────────────────────────
+  app.get("/api/admin/giftcards", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
+      const allGC = await dbase.select().from(giftCards);
+      const allBiz = await dbase.select().from(businessOwners);
+      res.send(giftCardsPage(allGC, allBiz));
+    } catch (err) {
+      console.error("[Admin] Gift cards error:", err);
+      res.status(500).send(errorPage("Failed to load gift cards"));
+    }
+  });
+
+  // ── Reviews Page ──────────────────────────────────────────────────
+  app.get("/api/admin/reviews", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
+      const allRev = await dbase.select().from(reviews);
+      const allBiz = await dbase.select().from(businessOwners);
+      res.send(reviewsPage(allRev, allBiz));
+    } catch (err) {
+      console.error("[Admin] Reviews error:", err);
+      res.status(500).send(errorPage("Failed to load reviews"));
+    }
+  });
+
+  // ── Products Page ─────────────────────────────────────────────────
+  app.get("/api/admin/products", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
+      const allProd = await dbase.select().from(products);
+      const allBiz = await dbase.select().from(businessOwners);
+      res.send(productsPage(allProd, allBiz));
+    } catch (err) {
+      console.error("[Admin] Products error:", err);
+      res.status(500).send(errorPage("Failed to load products"));
+    }
+  });
+
+  // ── Locations Page ────────────────────────────────────────────────
+  app.get("/api/admin/locations", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
+      const allLoc = await dbase.select().from(locations);
+      const allBiz = await dbase.select().from(businessOwners);
+      res.send(locationsPage(allLoc, allBiz));
+    } catch (err) {
+      console.error("[Admin] Locations error:", err);
+      res.status(500).send(errorPage("Failed to load locations"));
+    }
+  });
 }
 
 // ─── HTML Templates ─────────────────────────────────────────────────
@@ -483,6 +644,10 @@ function adminStyles(): string {
       .confirm-box p { color: var(--text-muted); font-size: 14px; margin-bottom: 20px; }
       .confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
+      .btn-delete-sm { background: none; border: 1px solid var(--danger); color: var(--danger); padding: 3px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: all .15s; }
+      .btn-delete-sm:hover { background: var(--danger); color: #fff; }
+      .delete-form { display: inline; }
+
       @media (max-width: 768px) {
         .sidebar { display: none; }
         .main { margin-left: 0; padding: 16px; }
@@ -499,6 +664,11 @@ function sidebarHtml(activePage: string): string {
     { href: "/api/admin/clients", icon: "👥", label: "Clients", key: "clients" },
     { href: "/api/admin/appointments", icon: "📅", label: "Appointments", key: "appointments" },
     { href: "/api/admin/staff", icon: "👤", label: "Staff", key: "staff" },
+    { href: "/api/admin/locations", icon: "📍", label: "Locations", key: "locations" },
+    { href: "/api/admin/discounts", icon: "🏷️", label: "Discounts", key: "discounts" },
+    { href: "/api/admin/giftcards", icon: "🎁", label: "Gift Cards", key: "giftcards" },
+    { href: "/api/admin/reviews", icon: "⭐", label: "Reviews", key: "reviews" },
+    { href: "/api/admin/products", icon: "📦", label: "Products", key: "products" },
     { href: "/api/admin/analytics", icon: "📈", label: "Analytics", key: "analytics" },
     { href: "/api/admin/db", icon: "🗄️", label: "DB Explorer", key: "db" },
     { href: "/api/admin/settings", icon: "⚙️", label: "Settings", key: "settings" },
@@ -826,9 +996,9 @@ function businessDetailPage(data: any): string {
     <div class="card">
       <h3>Services (${data.services.length})</h3>
       <table>
-        <thead><tr><th>Name</th><th>Duration</th><th>Price</th><th>Color</th></tr></thead>
+        <thead><tr><th>Name</th><th>Duration</th><th>Price</th><th>Color</th><th>Actions</th></tr></thead>
         <tbody>
-          ${data.services.map((s: any) => `<tr><td>${s.name}</td><td>${s.duration} min</td><td>${fmtCurrency(parseFloat(s.price))}</td><td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${s.color};vertical-align:middle;"></span> ${s.color}</td></tr>`).join("")}
+          ${data.services.map((s: any) => `<tr><td>${s.name}</td><td>${s.duration} min</td><td>${fmtCurrency(parseFloat(s.price))}</td><td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${s.color};vertical-align:middle;"></span> ${s.color}</td><td><form class="delete-form" method="POST" action="/api/admin/delete/service/${s.id}" onsubmit="return confirm('Delete service ${escHtml(s.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`).join("")}
         </tbody>
       </table>
     </div>` : ""}
@@ -837,9 +1007,9 @@ function businessDetailPage(data: any): string {
     <div class="card">
       <h3>Clients (${data.clients.length})</h3>
       <table>
-        <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Created</th></tr></thead>
+        <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Created</th><th>Actions</th></tr></thead>
         <tbody>
-          ${data.clients.map((c: any) => `<tr><td>${c.name}</td><td>${c.phone || "N/A"}</td><td>${c.email || "N/A"}</td><td>${fmtDate(c.createdAt)}</td></tr>`).join("")}
+          ${data.clients.map((c: any) => `<tr><td>${c.name}</td><td>${c.phone || "N/A"}</td><td>${c.email || "N/A"}</td><td>${fmtDate(c.createdAt)}</td><td><form class="delete-form" method="POST" action="/api/admin/delete/client/${c.id}" onsubmit="return confirm('Delete client ${escHtml(c.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`).join("")}
         </tbody>
       </table>
     </div>` : ""}
@@ -848,7 +1018,7 @@ function businessDetailPage(data: any): string {
     <div class="card">
       <h3>Staff Members (${data.staffMembers.length})</h3>
       <table>
-        <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Color</th><th>Services</th></tr></thead>
+        <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Color</th><th>Services</th><th>Actions</th></tr></thead>
         <tbody>
           ${data.staffMembers.map((s: any) => {
             let svcNames = "All";
@@ -859,7 +1029,7 @@ function businessDetailPage(data: any): string {
                 return svc ? svc.name : id;
               }).join(", ");
             } catch {}
-            return `<tr><td style="font-weight:600;">${s.name}</td><td>${s.email || "N/A"}</td><td>${s.phone || "N/A"}</td><td><span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:${s.color || '#4a8c3f'};vertical-align:middle;"></span></td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${svcNames}</td></tr>`;
+            return `<tr><td style="font-weight:600;">${s.name}</td><td>${s.email || "N/A"}</td><td>${s.phone || "N/A"}</td><td><span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:${s.color || '#4a8c3f'};vertical-align:middle;"></span></td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${svcNames}</td><td><form class="delete-form" method="POST" action="/api/admin/delete/staff/${s.id}" onsubmit="return confirm('Delete staff ${escHtml(s.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`;
           }).join("")}
         </tbody>
       </table>
@@ -869,9 +1039,9 @@ function businessDetailPage(data: any): string {
     <div class="card">
       <h3>Locations (${data.locations.length})</h3>
       <table>
-        <thead><tr><th>Name</th><th>Address</th><th>Phone</th><th>Email</th><th>Status</th></tr></thead>
+        <thead><tr><th>Name</th><th>Address</th><th>Phone</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>
-          ${data.locations.map((loc: any) => `<tr><td style="font-weight:600;">${loc.name}</td><td>${loc.address || "N/A"}</td><td>${loc.phone || "N/A"}</td><td>${loc.email || "N/A"}</td><td>${loc.isActive ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-danger">Inactive</span>'}</td></tr>`).join("")}
+          ${data.locations.map((loc: any) => `<tr><td style="font-weight:600;">${loc.name}</td><td>${loc.address || "N/A"}</td><td>${loc.phone || "N/A"}</td><td>${loc.email || "N/A"}</td><td>${loc.isActive ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-danger">Inactive</span>'}</td><td><form class="delete-form" method="POST" action="/api/admin/delete/location/${loc.id}" onsubmit="return confirm('Delete location ${escHtml(loc.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`).join("")}
         </tbody>
       </table>
     </div>` : ""}
@@ -880,11 +1050,11 @@ function businessDetailPage(data: any): string {
     <div class="card">
       <h3>Appointments (${data.appointments.length})</h3>
       <table>
-        <thead><tr><th>Date</th><th>Time</th><th>Duration</th><th>Status</th><th>Notes</th></tr></thead>
+        <thead><tr><th>Date</th><th>Time</th><th>Duration</th><th>Status</th><th>Notes</th><th>Actions</th></tr></thead>
         <tbody>
           ${data.appointments.map((a: any) => {
             const bc = a.status === "confirmed" ? "badge-success" : a.status === "pending" ? "badge-warning" : a.status === "cancelled" ? "badge-danger" : "badge-info";
-            return `<tr><td>${a.date}</td><td>${a.time}</td><td>${a.duration} min</td><td><span class="badge ${bc}">${a.status}</span></td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.notes || ""}</td></tr>`;
+            return `<tr><td>${a.date}</td><td>${a.time}</td><td>${a.duration} min</td><td><span class="badge ${bc}">${a.status}</span></td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.notes || ""}</td><td><form class="delete-form" method="POST" action="/api/admin/delete/appointment/${a.id}" onsubmit="return confirm('Delete this appointment?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`;
           }).join("")}
         </tbody>
       </table>
@@ -917,7 +1087,7 @@ function clientsPage(allClients: any[], allBiz: any[]): string {
       ${allClients.length === 0
         ? '<div class="empty-state"><div class="empty-icon">👥</div><p>No clients yet</p></div>'
         : `<table>
-            <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Business</th><th>Created</th></tr></thead>
+            <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Business</th><th>Created</th><th>Actions</th></tr></thead>
             <tbody>
               ${allClients.map((c: any) => `<tr>
                 <td style="font-weight:500;">${c.name}</td>
@@ -925,6 +1095,7 @@ function clientsPage(allClients: any[], allBiz: any[]): string {
                 <td>${c.email || "N/A"}</td>
                 <td><a href="/api/admin/businesses/${c.businessOwnerId}">${bizMap.get(c.businessOwnerId) || "Unknown"}</a></td>
                 <td>${fmtDate(c.createdAt)}</td>
+                <td><form class="delete-form" method="POST" action="/api/admin/delete/client/${c.id}" onsubmit="return confirm('Delete client ${escHtml(c.name)}? This will also delete their appointments and reviews.')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
               </tr>`).join("")}
             </tbody>
           </table>`
@@ -953,7 +1124,7 @@ function appointmentsPage(allAppts: any[], allBiz: any[], allCli: any[], allSvc:
       ${allAppts.length === 0
         ? '<div class="empty-state"><div class="empty-icon">📅</div><p>No appointments found</p></div>'
         : `<table>
-            <thead><tr><th>Date</th><th>Time</th><th>Client</th><th>Service</th><th>Business</th><th>Duration</th><th>Status</th></tr></thead>
+            <thead><tr><th>Date</th><th>Time</th><th>Client</th><th>Service</th><th>Business</th><th>Duration</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               ${allAppts.map((a: any) => {
                 const bc = a.status === "confirmed" ? "badge-success" : a.status === "pending" ? "badge-warning" : a.status === "cancelled" ? "badge-danger" : "badge-info";
@@ -965,6 +1136,7 @@ function appointmentsPage(allAppts: any[], allBiz: any[], allCli: any[], allSvc:
                   <td><a href="/api/admin/businesses/${a.businessOwnerId}">${bizMap.get(a.businessOwnerId) || "Unknown"}</a></td>
                   <td>${a.duration} min</td>
                   <td><span class="badge ${bc}">${a.status}</span></td>
+                  <td><form class="delete-form" method="POST" action="/api/admin/delete/appointment/${a.id}" onsubmit="return confirm('Delete this appointment?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
                 </tr>`;
               }).join("")}
             </tbody>
@@ -1195,6 +1367,7 @@ function staffPage(allStaff: any[], allBiz: any[], allSvc: any[]): string {
               <th>Services</th>
               <th>Working Days</th>
               <th>Created</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -1226,6 +1399,7 @@ function staffPage(allStaff: any[], allBiz: any[], allSvc: any[]): string {
                 <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(serviceNames)}">${escHtml(serviceNames)}</td>
                 <td>${workingDays}</td>
                 <td>${created}</td>
+                <td><form class="delete-form" method="POST" action="/api/admin/delete/staff/${s.id}" onsubmit="return confirm('Delete staff member ${escHtml(s.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
               </tr>`;
             }).join("")}
           </tbody>
@@ -1246,6 +1420,157 @@ function staffPage(allStaff: any[], allBiz: any[], allSvc: any[]): string {
   }
 
   return adminLayout("Staff Management", "staff", content);
+}
+
+// ─── Discounts Page ────────────────────────────────────────────────
+function discountsPage(allDisc: any[], allBiz: any[]): string {
+  const bizMap = new Map(allBiz.map((b: any) => [b.id, b.businessName]));
+  return adminLayout("Discounts", "discounts", `
+    <div class="page-header">
+      <h2>All Discounts</h2>
+      <span class="badge badge-info">${allDisc.length} total</span>
+    </div>
+    <div class="card">
+      ${allDisc.length === 0
+        ? '<div class="empty-state"><div class="empty-icon">🏷️</div><p>No discounts yet</p></div>'
+        : `<table>
+            <thead><tr><th>Name</th><th>Type</th><th>Value</th><th>Code</th><th>Business</th><th>Active</th><th>Actions</th></tr></thead>
+            <tbody>
+              ${allDisc.map((d: any) => `<tr>
+                <td style="font-weight:500;">${d.name || "Unnamed"}</td>
+                <td>${d.type || "percent"}</td>
+                <td>${d.type === "fixed" ? fmtCurrency(parseFloat(d.value || "0")) : (d.value || "0") + "%"}</td>
+                <td><code>${d.code || "N/A"}</code></td>
+                <td><a href="/api/admin/businesses/${d.businessOwnerId}">${bizMap.get(d.businessOwnerId) || "Unknown"}</a></td>
+                <td>${d.isActive !== false ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-danger">Inactive</span>'}</td>
+                <td><form class="delete-form" method="POST" action="/api/admin/delete/discount/${d.id}" onsubmit="return confirm('Delete this discount?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+              </tr>`).join("")}
+            </tbody>
+          </table>`
+      }
+    </div>
+  `);
+}
+
+// ─── Gift Cards Page ───────────────────────────────────────────────
+function giftCardsPage(allGC: any[], allBiz: any[]): string {
+  const bizMap = new Map(allBiz.map((b: any) => [b.id, b.businessName]));
+  return adminLayout("Gift Cards", "giftcards", `
+    <div class="page-header">
+      <h2>All Gift Cards</h2>
+      <span class="badge badge-info">${allGC.length} total</span>
+    </div>
+    <div class="card">
+      ${allGC.length === 0
+        ? '<div class="empty-state"><div class="empty-icon">🎁</div><p>No gift cards yet</p></div>'
+        : `<table>
+            <thead><tr><th>Code</th><th>Amount</th><th>Balance</th><th>Business</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody>
+              ${allGC.map((g: any) => {
+                const isUsed = parseFloat(g.balance || g.amount || "0") <= 0;
+                return `<tr>
+                  <td><code style="font-weight:600;">${g.code}</code></td>
+                  <td>${fmtCurrency(parseFloat(g.amount || "0"))}</td>
+                  <td>${fmtCurrency(parseFloat(g.balance || g.amount || "0"))}</td>
+                  <td><a href="/api/admin/businesses/${g.businessOwnerId}">${bizMap.get(g.businessOwnerId) || "Unknown"}</a></td>
+                  <td>${isUsed ? '<span class="badge badge-danger">Used</span>' : '<span class="badge badge-success">Active</span>'}</td>
+                  <td>${fmtDate(g.createdAt)}</td>
+                  <td><form class="delete-form" method="POST" action="/api/admin/delete/giftcard/${g.id}" onsubmit="return confirm('Delete this gift card?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+                </tr>`;
+              }).join("")}
+            </tbody>
+          </table>`
+      }
+    </div>
+  `);
+}
+
+// ─── Reviews Page ──────────────────────────────────────────────────
+function reviewsPage(allRev: any[], allBiz: any[]): string {
+  const bizMap = new Map(allBiz.map((b: any) => [b.id, b.businessName]));
+  return adminLayout("Reviews", "reviews", `
+    <div class="page-header">
+      <h2>All Reviews</h2>
+      <span class="badge badge-info">${allRev.length} total</span>
+    </div>
+    <div class="card">
+      ${allRev.length === 0
+        ? '<div class="empty-state"><div class="empty-icon">⭐</div><p>No reviews yet</p></div>'
+        : `<table>
+            <thead><tr><th>Rating</th><th>Comment</th><th>Client</th><th>Business</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody>
+              ${allRev.map((r: any) => `<tr>
+                <td>${"⭐".repeat(Math.min(r.rating, 5))}</td>
+                <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.comment || '<span style="color:var(--text-muted);">No comment</span>'}</td>
+                <td>${r.clientName || r.clientLocalId || "Anonymous"}</td>
+                <td><a href="/api/admin/businesses/${r.businessOwnerId}">${bizMap.get(r.businessOwnerId) || "Unknown"}</a></td>
+                <td>${fmtDate(r.createdAt)}</td>
+                <td><form class="delete-form" method="POST" action="/api/admin/delete/review/${r.id}" onsubmit="return confirm('Delete this review?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+              </tr>`).join("")}
+            </tbody>
+          </table>`
+      }
+    </div>
+  `);
+}
+
+// ─── Products Page ─────────────────────────────────────────────────
+function productsPage(allProd: any[], allBiz: any[]): string {
+  const bizMap = new Map(allBiz.map((b: any) => [b.id, b.businessName]));
+  return adminLayout("Products", "products", `
+    <div class="page-header">
+      <h2>All Products</h2>
+      <span class="badge badge-info">${allProd.length} total</span>
+    </div>
+    <div class="card">
+      ${allProd.length === 0
+        ? '<div class="empty-state"><div class="empty-icon">📦</div><p>No products yet</p></div>'
+        : `<table>
+            <thead><tr><th>Name</th><th>Price</th><th>Stock</th><th>Business</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody>
+              ${allProd.map((p: any) => `<tr>
+                <td style="font-weight:500;">${p.name}</td>
+                <td>${fmtCurrency(parseFloat(p.price || "0"))}</td>
+                <td>${p.stock !== null && p.stock !== undefined ? p.stock : '<span style="color:var(--text-muted);">N/A</span>'}</td>
+                <td><a href="/api/admin/businesses/${p.businessOwnerId}">${bizMap.get(p.businessOwnerId) || "Unknown"}</a></td>
+                <td>${fmtDate(p.createdAt)}</td>
+                <td><form class="delete-form" method="POST" action="/api/admin/delete/product/${p.id}" onsubmit="return confirm('Delete product ${escHtml(p.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+              </tr>`).join("")}
+            </tbody>
+          </table>`
+      }
+    </div>
+  `);
+}
+
+// ─── Locations Page ────────────────────────────────────────────────
+function locationsPage(allLoc: any[], allBiz: any[]): string {
+  const bizMap = new Map(allBiz.map((b: any) => [b.id, b.businessName]));
+  return adminLayout("Locations", "locations", `
+    <div class="page-header">
+      <h2>All Locations</h2>
+      <span class="badge badge-info">${allLoc.length} total</span>
+    </div>
+    <div class="card">
+      ${allLoc.length === 0
+        ? '<div class="empty-state"><div class="empty-icon">📍</div><p>No locations yet</p></div>'
+        : `<table>
+            <thead><tr><th>Name</th><th>Address</th><th>Phone</th><th>Email</th><th>Business</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+              ${allLoc.map((loc: any) => `<tr>
+                <td style="font-weight:500;">${escHtml(loc.name)}</td>
+                <td>${loc.address ? escHtml(loc.address) : "N/A"}</td>
+                <td>${loc.phone || "N/A"}</td>
+                <td>${loc.email || "N/A"}</td>
+                <td><a href="/api/admin/businesses/${loc.businessOwnerId}">${bizMap.get(loc.businessOwnerId) || "Unknown"}</a></td>
+                <td>${loc.isActive !== false ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-danger">Inactive</span>'}</td>
+                <td><form class="delete-form" method="POST" action="/api/admin/delete/location/${loc.id}" onsubmit="return confirm('Delete location ${escHtml(loc.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+              </tr>`).join("")}
+            </tbody>
+          </table>`
+      }
+    </div>
+  `);
 }
 
 function escHtml(str: string): string {
