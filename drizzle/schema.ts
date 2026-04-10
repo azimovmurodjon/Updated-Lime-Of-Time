@@ -295,3 +295,33 @@ export const dataDeletionRequests = mysqlTable("data_deletion_requests", {
 
 export type DbDataDeletionRequest = typeof dataDeletionRequests.$inferSelect;
 export type InsertDataDeletionRequest = typeof dataDeletionRequests.$inferInsert;
+
+// ─── Staff Members ─────────────────────────────────────────────────
+export const staffMembers = mysqlTable("staff_members", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Foreign key to business_owners */
+  businessOwnerId: int("businessOwnerId").notNull(),
+  /** Local client-generated ID for backward compat */
+  localId: varchar("localId", { length: 64 }).notNull(),
+  /** Staff member name */
+  name: varchar("name", { length: 255 }).notNull(),
+  /** Staff member phone */
+  phone: varchar("phone", { length: 20 }),
+  /** Staff member email */
+  email: varchar("email", { length: 320 }),
+  /** Role/title (e.g. "Stylist", "Therapist", "Manager") */
+  role: varchar("role", { length: 100 }),
+  /** Profile color for calendar display */
+  color: varchar("color", { length: 20 }),
+  /** Service localIds this staff member can perform (JSON array) */
+  serviceIds: json("serviceIds"),
+  /** Individual working hours JSON: Record<string, { enabled: boolean, start: string, end: string }> */
+  workingHours: json("workingHours"),
+  /** Whether the staff member is currently active */
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DbStaffMember = typeof staffMembers.$inferSelect;
+export type InsertStaffMember = typeof staffMembers.$inferInsert;

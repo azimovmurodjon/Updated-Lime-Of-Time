@@ -1484,6 +1484,7 @@ function bookingPage(slug: string, owner: any): string {
     let selectedDate = null;
     let selectedTime = null;
     let appliedGift = null;
+    let appliedDiscount = null; // { name, percentage }
     let currentStep = 0;
     let calMonth, calYear;
     // Cart: extra items added via "Add More"
@@ -1763,11 +1764,13 @@ function bookingPage(slug: string, owner: any): string {
         return true;
       });
       if (match) {
+        appliedDiscount = { name: match.name, percentage: match.percentage };
         const orig = parseFloat(selectedService.price);
         const disc = orig * (1 - match.percentage / 100);
         info.innerHTML = '<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:12px;font-size:13px;">\ud83c\udf89 <strong>' + match.name + '</strong> \u2014 ' + match.percentage + '% off! <span style="text-decoration:line-through;color:#999;">$' + orig.toFixed(2) + '</span> \u2192 <strong style="color:#2d5a27;">$' + disc.toFixed(2) + '</strong></div>';
         info.style.display = "block";
       } else {
+        appliedDiscount = null;
         info.style.display = "none";
       }
     }
@@ -1799,12 +1802,18 @@ function bookingPage(slug: string, owner: any): string {
         return '<div class="cart-item"><span>' + esc(item.name) + durStr + '</span><span style="display:flex;align-items:center;gap:8px;"><span style="font-weight:600;">' + priceStr + '</span>' + removeBtn + '</span></div>';
       }).join("");
 
-      // Total
+      // Total with discount
       const total = items.reduce((s, it) => s + it.price, 0);
       const totalDur = items.reduce((s, it) => s + (it.duration || 0), 0);
       const totalEl = document.getElementById("cartTotal");
       totalEl.style.display = "flex";
-      totalEl.innerHTML = '<span>Total' + (totalDur > 0 ? ' (' + totalDur + ' min)' : '') + '</span><span style="color:#2d5a27;">$' + total.toFixed(2) + '</span>';
+      const discAmt = getDiscountAmount();
+      if (appliedDiscount && discAmt > 0) {
+        const afterDisc = total - discAmt;
+        totalEl.innerHTML = '<span>Total' + (totalDur > 0 ? ' (' + totalDur + ' min)' : '') + '</span><span><span style="text-decoration:line-through;color:#999;font-size:12px;">$' + total.toFixed(2) + '</span> <span style="color:#2d5a27;font-weight:700;">$' + afterDisc.toFixed(2) + '</span></span>';
+      } else {
+        totalEl.innerHTML = '<span>Total' + (totalDur > 0 ? ' (' + totalDur + ' min)' : '') + '</span><span style="color:#2d5a27;">$' + total.toFixed(2) + '</span>';
+      }
     }
 
     function renderAddServiceList() {
@@ -1872,9 +1881,22 @@ function bookingPage(slug: string, owner: any): string {
       return total;
     }
 
+    function getDiscountAmount() {
+      // Calculate discount amount based on appliedDiscount
+      if (!appliedDiscount || !selectedService) return 0;
+      // Discount applies to the primary service price only
+      const servicePrice = parseFloat(selectedService.price);
+      return servicePrice * (appliedDiscount.percentage / 100);
+    }
+
+    function getDiscountedTotal() {
+      // Total after percentage discount, before gift card
+      return getTotalPrice() - getDiscountAmount();
+    }
+
     function getChargedPrice() {
-      // Gift card applies as a balance-based discount against the total
-      let total = getTotalPrice();
+      // Apply discount first, then gift card
+      let total = getDiscountedTotal();
       if (appliedGift) {
         const balance = appliedGift.remainingBalance || 0;
         total -= balance;
@@ -1884,9 +1906,9 @@ function bookingPage(slug: string, owner: any): string {
     }
 
     function getGiftUsedAmount() {
-      // How much of the gift balance is being used for this booking
+      // How much of the gift balance is being used for this booking (after discount)
       if (!appliedGift) return 0;
-      const total = getTotalPrice();
+      const total = getDiscountedTotal();
       const balance = appliedGift.remainingBalance || 0;
       return Math.min(balance, total);
     }
@@ -1917,22 +1939,48 @@ function bookingPage(slug: string, owner: any): string {
       });
 
       let totalPrice = getTotalPrice();
+      let discountAmt = getDiscountAmount();
+      let discountedTotal = getDiscountedTotal();
       let chargedPrice = getChargedPrice();
       let giftUsed = getGiftUsedAmount();
-      let priceHtml = '$' + totalPrice.toFixed(2);
-      if (appliedGift) {
-        if (chargedPrice > 0) {
-          priceHtml = '<span style="text-decoration:line-through;color:#999;">$' + totalPrice.toFixed(2) + '</span> <span style="color:#2d5a27;">Gift -$' + giftUsed.toFixed(2) + '</span> = <strong>$' + chargedPrice.toFixed(2) + '</strong>';
-        } else {
-          priceHtml = '<span style="text-decoration:line-through;color:#999;">$' + totalPrice.toFixed(2) + '</span> <strong style="color:#2d5a27;">Gift Applied — Free!</strong>';
-        }
+
+      // Build price breakdown HTML
+      let breakdownHtml = '';
+
+      // Subtotal row
+      breakdownHtml += '<div class="confirm-row" style="border-top:2px solid #e8ece8;padding-top:10px;"><span class="confirm-label">Subtotal</span><span class="confirm-value">$' + totalPrice.toFixed(2) + '</span></div>';
+
+      // Discount row (if applicable)
+      if (appliedDiscount && discountAmt > 0) {
+        breakdownHtml += '<div class="confirm-row"><span class="confirm-label" style="color:#b45309;">\ud83c\udf89 ' + esc(appliedDiscount.name) + ' (' + appliedDiscount.percentage + '% off)</span><span class="confirm-value" style="color:#b45309;">-$' + discountAmt.toFixed(2) + '</span></div>';
+      }
+
+      // Gift card row (if applicable)
+      if (appliedGift && giftUsed > 0) {
+        breakdownHtml += '<div class="confirm-row"><span class="confirm-label" style="color:#2d5a27;">\ud83c\udf81 Gift Card Applied</span><span class="confirm-value" style="color:#2d5a27;">-$' + giftUsed.toFixed(2) + '</span></div>';
+      }
+
+      // Total to pay
+      let totalLabel = 'Total to Pay';
+      let totalColor = '#2d5a27';
+      let totalStr = '$' + chargedPrice.toFixed(2);
+      if (chargedPrice === 0 && (discountAmt > 0 || giftUsed > 0)) {
+        totalStr = 'FREE';
+        totalLabel = 'Total';
+      }
+      breakdownHtml += '<div class="confirm-row" style="border-top:1px solid #e8ece8;padding-top:8px;margin-top:4px;"><span class="confirm-label" style="font-weight:700;font-size:15px;">' + totalLabel + '</span><span class="confirm-value" style="font-weight:700;font-size:15px;color:' + totalColor + ';">' + totalStr + '</span></div>';
+
+      // Savings summary
+      const totalSaved = discountAmt + giftUsed;
+      if (totalSaved > 0) {
+        breakdownHtml += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;margin-top:8px;font-size:12px;color:#166534;text-align:center;">You save <strong>$' + totalSaved.toFixed(2) + '</strong> on this booking!</div>';
       }
 
       details.innerHTML = itemsHtml +
         '<div class="confirm-row"><span class="confirm-label">Date</span><span class="confirm-value">' + dateStr + '</span></div>' +
-        '<div class="confirm-row"><span class="confirm-label">Time</span><span class="confirm-value">' + timeStr + ' — ' + endStr + '</span></div>' +
+        '<div class="confirm-row"><span class="confirm-label">Time</span><span class="confirm-value">' + timeStr + ' \u2014 ' + endStr + '</span></div>' +
         '<div class="confirm-row"><span class="confirm-label">Duration</span><span class="confirm-value">' + totalDur + ' min</span></div>' +
-        '<div class="confirm-row" style="border-top:2px solid #e8ece8;padding-top:10px;"><span class="confirm-label" style="font-weight:700;">Total</span><span class="confirm-value">' + priceHtml + '</span></div>' +
+        breakdownHtml +
         '<div class="confirm-row"><span class="confirm-label">Name</span><span class="confirm-value">' + esc(document.getElementById("clientName").value) + '</span></div>';
     }
 
@@ -1977,6 +2025,10 @@ function bookingPage(slug: string, owner: any): string {
             extraItems: extraItems,
             giftApplied: !!appliedGift,
             giftUsedAmount: appliedGift ? getGiftUsedAmount() : 0,
+            discountName: appliedDiscount ? appliedDiscount.name : null,
+            discountPercentage: appliedDiscount ? appliedDiscount.percentage : 0,
+            discountAmount: getDiscountAmount(),
+            subtotal: getTotalPrice(),
           }),
         });
         const data = await res.json();
@@ -2042,18 +2094,36 @@ function bookingPage(slug: string, owner: any): string {
       html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#666;">Total Duration</span><span style="font-weight:600;">' + totalDur + ' min</span></div>';
       html += '</div>';
 
-      // Total
+      // Price breakdown
       let chargedPriceR = getChargedPrice();
       let giftUsedR = getGiftUsedAmount();
-      let priceDisplay = '$' + totalPrice.toFixed(2);
-      if (appliedGift) {
-        if (chargedPriceR > 0) {
-          priceDisplay = '<span style="text-decoration:line-through;color:#999;">$' + totalPrice.toFixed(2) + '</span> Gift -$' + giftUsedR.toFixed(2) + ' = <span style="font-weight:700;">$' + chargedPriceR.toFixed(2) + '</span>';
-        } else {
-          priceDisplay = '<span style="text-decoration:line-through;color:#999;">$' + totalPrice.toFixed(2) + '</span> <span style="color:#2d5a27;">Gift Applied</span>';
-        }
+      let discountAmtR = getDiscountAmount();
+
+      html += '<div style="border-top:2px solid #2d5a27;padding-top:10px;">';
+      // Subtotal
+      html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span>Subtotal</span><span>$' + totalPrice.toFixed(2) + '</span></div>';
+
+      // Discount line
+      if (appliedDiscount && discountAmtR > 0) {
+        html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:#b45309;"><span>\ud83c\udf89 ' + esc(appliedDiscount.name) + ' (' + appliedDiscount.percentage + '% off)</span><span>-$' + discountAmtR.toFixed(2) + '</span></div>';
       }
-      html += '<div style="border-top:2px solid #2d5a27;padding-top:10px;display:flex;justify-content:space-between;font-size:16px;font-weight:700;"><span>Total</span><span style="color:#2d5a27;">' + priceDisplay + '</span></div>';
+
+      // Gift card line
+      if (appliedGift && giftUsedR > 0) {
+        html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:#2d5a27;"><span>\ud83c\udf81 Gift Card</span><span>-$' + giftUsedR.toFixed(2) + '</span></div>';
+      }
+
+      // Final total
+      let finalStr = '$' + chargedPriceR.toFixed(2);
+      if (chargedPriceR === 0 && (discountAmtR > 0 || giftUsedR > 0)) finalStr = 'FREE';
+      html += '<div style="display:flex;justify-content:space-between;padding:8px 0 0;font-size:16px;font-weight:700;border-top:1px solid #e8ece8;margin-top:4px;"><span>Total to Pay</span><span style="color:#2d5a27;">' + finalStr + '</span></div>';
+
+      // Savings badge
+      const totalSavedR = discountAmtR + giftUsedR;
+      if (totalSavedR > 0) {
+        html += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:6px 10px;margin-top:8px;font-size:11px;color:#166534;text-align:center;">You saved <strong>$' + totalSavedR.toFixed(2) + '</strong> on this booking!</div>';
+      }
+      html += '</div>';
 
       // Client info
       html += '<div style="border-top:1px solid #e8ece8;padding-top:10px;margin-top:10px;font-size:12px;color:#888;">';
@@ -2101,16 +2171,18 @@ function bookingPage(slug: string, owner: any): string {
       lines.push("-".repeat(35));
       const chargedPriceT = getChargedPrice();
       const giftUsedT = getGiftUsedAmount();
-      if (appliedGift && chargedPriceT > 0) {
-        lines.push("SUBTOTAL: $" + totalPrice.toFixed(2));
+      const discountAmtT = getDiscountAmount();
+      lines.push("SUBTOTAL: $" + totalPrice.toFixed(2));
+      if (appliedDiscount && discountAmtT > 0) {
+        lines.push("DISCOUNT: " + appliedDiscount.name + " (" + appliedDiscount.percentage + "% off): -$" + discountAmtT.toFixed(2));
+      }
+      if (appliedGift && giftUsedT > 0) {
         lines.push("GIFT CARD: -$" + giftUsedT.toFixed(2));
-        lines.push("TOTAL DUE: $" + chargedPriceT.toFixed(2));
-      } else if (appliedGift) {
-        lines.push("SUBTOTAL: $" + totalPrice.toFixed(2));
-        lines.push("GIFT CARD: -$" + giftUsedT.toFixed(2));
-        lines.push("TOTAL DUE: $0.00");
-      } else {
-        lines.push("TOTAL: $" + totalPrice.toFixed(2));
+      }
+      lines.push("TOTAL DUE: $" + chargedPriceT.toFixed(2));
+      const totalSavedT = discountAmtT + giftUsedT;
+      if (totalSavedT > 0) {
+        lines.push("YOU SAVED: $" + totalSavedT.toFixed(2));
       }
       lines.push("");
       lines.push("Client: " + document.getElementById("clientName").value);

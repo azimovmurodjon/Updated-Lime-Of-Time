@@ -251,3 +251,26 @@
 
 ### Notifications
 - [x] Rich push notifications with appointment details
+
+## Phase: Staff Management + Discount Fix + Admin Integration
+
+### Staff/Team Management
+- [x] Add staff DB schema (name, phone, email, role, services, schedule)
+- [x] Add staff tRPC routes (CRUD operations)
+- [x] Add staff to app store and types
+- [x] Build staff management UI screen (add/edit/remove staff)
+- [x] Staff service assignments (which staff can perform which services)
+- [x] Staff individual schedules (working hours per staff member)
+- [ ] Integrate staff into booking flow (select staff when booking)
+- [ ] Show staff on calendar views
+
+### Discount Fix
+- [x] Fix discount calculation on client booking page checkout (100% off = $0 total)
+- [x] Show discount breakdown on booking confirmation/receipt
+- [x] Ensure discount applies correctly to multi-service bookings
+
+### Admin Dashboard Integration
+- [x] Add staff management section to admin dashboard
+- [x] Add staff to business detail page in admin
+- [x] Add staff count to admin dashboard overview
+- [x] Ensure all new data visible in admin DB explorer (staff_members table added)

@@ -509,6 +509,64 @@ const productsRouter = router({
     }),
 });
 
+// ─── Staff Router ─────────────────────────────────────────────────────
+
+const staffRouter = router({
+  list: publicProcedure
+    .input(z.object({ businessOwnerId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getStaffByOwner(input.businessOwnerId);
+    }),
+
+  create: publicProcedure
+    .input(
+      z.object({
+        businessOwnerId: z.number(),
+        localId: z.string(),
+        name: z.string().min(1),
+        phone: z.string().optional(),
+        email: z.string().optional(),
+        role: z.string().optional(),
+        color: z.string().optional(),
+        serviceIds: z.any().optional(),
+        workingHours: z.any().optional(),
+        active: z.boolean().default(true),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const id = await db.createStaffMember(input);
+      return { id, localId: input.localId };
+    }),
+
+  update: publicProcedure
+    .input(
+      z.object({
+        localId: z.string(),
+        businessOwnerId: z.number(),
+        name: z.string().optional(),
+        phone: z.string().optional(),
+        email: z.string().optional(),
+        role: z.string().optional(),
+        color: z.string().optional(),
+        serviceIds: z.any().optional(),
+        workingHours: z.any().optional(),
+        active: z.boolean().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { localId, businessOwnerId, ...data } = input;
+      await db.updateStaffMember(localId, businessOwnerId, data);
+      return { success: true };
+    }),
+
+  delete: publicProcedure
+    .input(z.object({ localId: z.string(), businessOwnerId: z.number() }))
+    .mutation(async ({ input }) => {
+      await db.deleteStaffMember(input.localId, input.businessOwnerId);
+      return { success: true };
+    }),
+});
+
 // ─── Root Router ─────────────────────────────────────────────────────
 
 export const appRouter = router({
@@ -530,6 +588,7 @@ export const appRouter = router({
   giftCards: giftCardsRouter,
   customSchedule: customScheduleRouter,
   products: productsRouter,
+  staff: staffRouter,
 });
 
 export type AppRouter = typeof appRouter;

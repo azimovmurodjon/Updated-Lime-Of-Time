@@ -720,6 +720,25 @@ export default function HomeScreen() {
             </Text>
           </Pressable>
           <Pressable
+            onPress={() => router.push("/staff" as any)}
+            style={({ pressed }) => [
+              styles.quickAction,
+              {
+                backgroundColor: "#3B82F610",
+                borderColor: "#3B82F630",
+                opacity: pressed ? 0.8 : 1,
+              },
+            ]}
+          >
+            <IconSymbol name="person.3.fill" size={22} color="#3B82F6" />
+            <Text style={[styles.quickActionLabel, { color: "#3B82F6" }]}>
+              Staff
+            </Text>
+            <Text style={[styles.quickActionCount, { color: "#3B82F6" }]}>
+              {state.staff.filter((s) => s.active).length}
+            </Text>
+          </Pressable>
+          <Pressable
             onPress={handleShareBookingLink}
             style={({ pressed }) => [
               styles.quickAction,

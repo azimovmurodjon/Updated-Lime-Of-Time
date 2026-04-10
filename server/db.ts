@@ -24,6 +24,8 @@ import {
   InsertProduct,
   waitlist,
   InsertWaitlist,
+  staffMembers,
+  InsertStaffMember,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -544,7 +546,7 @@ export async function deleteProduct(localId: string, businessOwnerId: number): P
 // ─── Bootstrap: Load all data for a business owner ───────────────────
 
 export async function getFullBusinessData(businessOwnerId: number) {
-  const [owner, svcList, clientList, apptList, reviewList, discountList, giftCardList, scheduleList, productList] = await Promise.all([
+  const [owner, svcList, clientList, apptList, reviewList, discountList, giftCardList, scheduleList, productList, staffList] = await Promise.all([
     getBusinessOwnerById(businessOwnerId),
     getServicesByOwner(businessOwnerId),
     getClientsByOwner(businessOwnerId),
@@ -554,6 +556,7 @@ export async function getFullBusinessData(businessOwnerId: number) {
     getGiftCardsByOwner(businessOwnerId),
     getCustomScheduleByOwner(businessOwnerId),
     getProductsByOwner(businessOwnerId),
+    getStaffByOwner(businessOwnerId),
   ]);
   return {
     owner,
@@ -565,6 +568,7 @@ export async function getFullBusinessData(businessOwnerId: number) {
     giftCards: giftCardList,
     customSchedule: scheduleList,
     products: productList,
+    staff: staffList,
   };
 }
 
@@ -633,4 +637,50 @@ export async function getAppointmentByLocalId(localId: string, businessOwnerId: 
       )
     );
   return rows[0];
+}
+
+// ─── Staff Members ─────────────────────────────────────────────────
+
+export async function getStaffByOwner(businessOwnerId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(staffMembers).where(eq(staffMembers.businessOwnerId, businessOwnerId));
+}
+
+export async function createStaffMember(data: InsertStaffMember): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(staffMembers).values(data);
+  return result[0].insertId;
+}
+
+export async function updateStaffMember(
+  localId: string,
+  businessOwnerId: number,
+  data: Partial<InsertStaffMember>
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .update(staffMembers)
+    .set(data)
+    .where(
+      and(
+        eq(staffMembers.localId, localId),
+        eq(staffMembers.businessOwnerId, businessOwnerId)
+      )
+    );
+}
+
+export async function deleteStaffMember(localId: string, businessOwnerId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .delete(staffMembers)
+    .where(
+      and(
+        eq(staffMembers.localId, localId),
+        eq(staffMembers.businessOwnerId, businessOwnerId)
+      )
+    );
 }

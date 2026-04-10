@@ -9,6 +9,7 @@ import {
   GiftCard,
   CustomScheduleDay,
   Product,
+  StaffMember,
   BusinessSettings,
   DEFAULT_WORKING_HOURS,
   DEFAULT_BUSINESS_PROFILE,
@@ -27,6 +28,7 @@ interface AppState {
   giftCards: GiftCard[];
   customSchedule: CustomScheduleDay[];
   products: Product[];
+  staff: StaffMember[];
   settings: BusinessSettings;
   loaded: boolean;
   /** DB id of the current business owner – null until bootstrap completes */
@@ -60,6 +62,7 @@ const initialState: AppState = {
   giftCards: [],
   customSchedule: [],
   products: [],
+  staff: [],
   settings: initialSettings,
   loaded: false,
   businessOwnerId: null,
@@ -95,6 +98,9 @@ type Action =
   | { type: "ADD_PRODUCT"; payload: Product }
   | { type: "UPDATE_PRODUCT"; payload: Product }
   | { type: "DELETE_PRODUCT"; payload: string }
+  | { type: "ADD_STAFF"; payload: StaffMember }
+  | { type: "UPDATE_STAFF"; payload: StaffMember }
+  | { type: "DELETE_STAFF"; payload: string }
   | { type: "RESET_ALL_DATA" };
 
 function reducer(state: AppState, action: Action): AppState {
@@ -207,6 +213,17 @@ function reducer(state: AppState, action: Action): AppState {
       };
     case "DELETE_PRODUCT":
       return { ...state, products: state.products.filter((p) => p.id !== action.payload) };
+    case "ADD_STAFF":
+      return { ...state, staff: [...state.staff, action.payload] };
+    case "UPDATE_STAFF":
+      return {
+        ...state,
+        staff: state.staff.map((s) =>
+          s.id === action.payload.id ? action.payload : s
+        ),
+      };
+    case "DELETE_STAFF":
+      return { ...state, staff: state.staff.filter((s) => s.id !== action.payload) };
     case "RESET_ALL_DATA":
       return { ...initialState, loaded: true };
     default:
@@ -241,6 +258,7 @@ const STORAGE_KEYS = {
   giftCards: "@bookease_gift_cards",
   customSchedule: "@bookease_custom_schedule",
   products: "@bookease_products",
+  staff: "@bookease_staff",
 };
 
 /** Convert DB rows to local frontend models */
@@ -424,6 +442,21 @@ function dbProductToLocal(p: any): Product {
   };
 }
 
+function dbStaffToLocal(s: any): StaffMember {
+  return {
+    id: s.localId,
+    name: s.name,
+    phone: s.phone ?? "",
+    email: s.email ?? "",
+    role: s.role ?? "",
+    color: s.color ?? "#3B82F6",
+    serviceIds: s.serviceIds ?? null,
+    workingHours: s.workingHours ?? null,
+    active: s.active ?? true,
+    createdAt: s.createdAt ? new Date(s.createdAt).toISOString() : new Date().toISOString(),
+  };
+}
+
 function dbCustomScheduleToLocal(cs: any): CustomScheduleDay {
   return {
     date: cs.date,
@@ -492,6 +525,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const createProductMut = trpc.products.create.useMutation();
   const updateProductMut = trpc.products.update.useMutation();
   const deleteProductMut = trpc.products.delete.useMutation();
+  const createStaffMut = trpc.staff.create.useMutation();
+  const updateStaffMut = trpc.staff.update.useMutation();
+  const deleteStaffMut = trpc.staff.delete.useMutation();
 
   // ─── Bootstrap: Load from DB or fallback to AsyncStorage ────────
   useEffect(() => {
@@ -518,6 +554,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                   giftCards: (fullData.giftCards || []).map(dbGiftCardToLocal),
                   customSchedule: (fullData.customSchedule || []).map(dbCustomScheduleToLocal),
                   products: (fullData.products || []).map(dbProductToLocal),
+                  staff: (fullData.staff || []).map(dbStaffToLocal),
                   settings: { ...initialSettings, ...settingsFromDb },
                   businessOwnerId: ownerId,
                 },
@@ -532,7 +569,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 (fullData.discounts || []).map(dbDiscountToLocal),
                 (fullData.giftCards || []).map(dbGiftCardToLocal),
                 (fullData.customSchedule || []).map(dbCustomScheduleToLocal),
-                (fullData.products || []).map(dbProductToLocal)
+                (fullData.products || []).map(dbProductToLocal),
+                (fullData.staff || []).map(dbStaffToLocal)
               );
               return;
             }
@@ -542,7 +580,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Fallback: load from AsyncStorage
-        const [servicesRaw, clientsRaw, appointmentsRaw, reviewsRaw, settingsRaw, discountsRaw, giftCardsRaw, customScheduleRaw, productsRaw] =
+        const [servicesRaw, clientsRaw, appointmentsRaw, reviewsRaw, settingsRaw, discountsRaw, giftCardsRaw, customScheduleRaw, productsRaw, staffRaw] =
           await Promise.all([
             AsyncStorage.getItem(STORAGE_KEYS.services),
             AsyncStorage.getItem(STORAGE_KEYS.clients),
@@ -553,6 +591,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             AsyncStorage.getItem(STORAGE_KEYS.giftCards),
             AsyncStorage.getItem(STORAGE_KEYS.customSchedule),
             AsyncStorage.getItem(STORAGE_KEYS.products),
+            AsyncStorage.getItem(STORAGE_KEYS.staff),
           ]);
         
         const loadedSettings = settingsRaw
@@ -570,6 +609,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             giftCards: giftCardsRaw ? JSON.parse(giftCardsRaw) : [],
             customSchedule: customScheduleRaw ? JSON.parse(customScheduleRaw) : [],
             products: productsRaw ? JSON.parse(productsRaw) : [],
+            staff: staffRaw ? JSON.parse(staffRaw) : [],
             settings: loadedSettings,
             businessOwnerId: storedOwnerId ? parseInt(storedOwnerId, 10) : null,
           },
@@ -625,6 +665,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!state.loaded) return;
     AsyncStorage.setItem(STORAGE_KEYS.products, JSON.stringify(state.products));
   }, [state.products, state.loaded]);
+
+  useEffect(() => {
+    if (!state.loaded) return;
+    AsyncStorage.setItem(STORAGE_KEYS.staff, JSON.stringify(state.staff));
+  }, [state.staff, state.loaded]);
 
   useEffect(() => {
     if (state.businessOwnerId !== null) {
@@ -956,6 +1001,45 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             });
             break;
           }
+          case "ADD_STAFF": {
+            const staff = action.payload as StaffMember;
+            await createStaffMut.mutateAsync({
+              businessOwnerId: ownerId,
+              localId: staff.id,
+              name: staff.name,
+              phone: staff.phone || undefined,
+              email: staff.email || undefined,
+              role: staff.role || undefined,
+              color: staff.color || undefined,
+              serviceIds: staff.serviceIds,
+              workingHours: staff.workingHours,
+              active: staff.active,
+            });
+            break;
+          }
+          case "UPDATE_STAFF": {
+            const staff = action.payload as StaffMember;
+            await updateStaffMut.mutateAsync({
+              localId: staff.id,
+              businessOwnerId: ownerId,
+              name: staff.name,
+              phone: staff.phone || undefined,
+              email: staff.email || undefined,
+              role: staff.role || undefined,
+              color: staff.color || undefined,
+              serviceIds: staff.serviceIds,
+              workingHours: staff.workingHours,
+              active: staff.active,
+            });
+            break;
+          }
+          case "DELETE_STAFF": {
+            await deleteStaffMut.mutateAsync({
+              localId: action.payload as string,
+              businessOwnerId: ownerId,
+            });
+            break;
+          }
           default:
             break;
         }
@@ -1065,7 +1149,8 @@ async function persistToAsyncStorage(
   discounts?: Discount[],
   giftCards?: GiftCard[],
   customSchedule?: CustomScheduleDay[],
-  products?: Product[]
+  products?: Product[],
+  staff?: StaffMember[]
 ) {
   try {
     const ops = [
@@ -1079,6 +1164,7 @@ async function persistToAsyncStorage(
     if (giftCards) ops.push(AsyncStorage.setItem(STORAGE_KEYS.giftCards, JSON.stringify(giftCards)));
     if (customSchedule) ops.push(AsyncStorage.setItem(STORAGE_KEYS.customSchedule, JSON.stringify(customSchedule)));
     if (products) ops.push(AsyncStorage.setItem(STORAGE_KEYS.products, JSON.stringify(products)));
+    if (staff) ops.push(AsyncStorage.setItem(STORAGE_KEYS.staff, JSON.stringify(staff)));
     await Promise.all(ops);
   } catch (err) {
     console.warn("[Store] Failed to persist to AsyncStorage:", err);

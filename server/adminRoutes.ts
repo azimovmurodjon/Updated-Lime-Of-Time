@@ -12,6 +12,7 @@ import {
   customSchedule,
   products,
   users,
+  staffMembers,
 } from "../drizzle/schema";
 import { sql } from "drizzle-orm";
 
@@ -123,6 +124,7 @@ export function registerAdminRoutes(app: Express): void {
       const [allGiftCards] = await dbase.select({ count: sql<number>`COUNT(*)` }).from(giftCards);
       const [allDiscounts] = await dbase.select({ count: sql<number>`COUNT(*)` }).from(discounts);
       const [allProducts] = await dbase.select({ count: sql<number>`COUNT(*)` }).from(products);
+      const [allStaff] = await dbase.select({ count: sql<number>`COUNT(*)` }).from(staffMembers);
       const [allUsers] = await dbase.select({ count: sql<number>`COUNT(*)` }).from(users);
 
       // Recent businesses
@@ -149,6 +151,7 @@ export function registerAdminRoutes(app: Express): void {
           totalGiftCards: allGiftCards.count,
           totalDiscounts: allDiscounts.count,
           totalProducts: allProducts.count,
+          totalStaff: allStaff.count,
           totalUsers: allUsers.count,
           recentBusinesses,
           recentAppts,
@@ -252,6 +255,7 @@ export function registerAdminRoutes(app: Express): void {
         gift_cards: giftCards,
         custom_schedule: customSchedule,
         products,
+        staff_members: staffMembers,
         users,
       };
 
@@ -340,6 +344,21 @@ export function registerAdminRoutes(app: Express): void {
     } catch (err) {
       console.error("[Admin] Analytics error:", err);
       res.status(500).send(errorPage("Failed to load analytics"));
+    }
+  });
+
+  // ── Staff Management ──────────────────────────────────────────────
+  app.get("/api/admin/staff", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
+      const allStaff = await dbase.select().from(staffMembers);
+      const allBiz = await dbase.select().from(businessOwners);
+      const allSvc = await dbase.select().from(services);
+      res.send(staffPage(allStaff, allBiz, allSvc));
+    } catch (err) {
+      console.error("[Admin] Staff error:", err);
+      res.status(500).send(errorPage("Failed to load staff"));
     }
   });
 
@@ -474,6 +493,7 @@ function sidebarHtml(activePage: string): string {
     { href: "/api/admin/businesses", icon: "🏢", label: "Businesses", key: "businesses" },
     { href: "/api/admin/clients", icon: "👥", label: "Clients", key: "clients" },
     { href: "/api/admin/appointments", icon: "📅", label: "Appointments", key: "appointments" },
+    { href: "/api/admin/staff", icon: "👤", label: "Staff", key: "staff" },
     { href: "/api/admin/analytics", icon: "📈", label: "Analytics", key: "analytics" },
     { href: "/api/admin/db", icon: "🗄️", label: "DB Explorer", key: "db" },
     { href: "/api/admin/settings", icon: "⚙️", label: "Settings", key: "settings" },
@@ -579,6 +599,7 @@ function dashboardPage(data: {
   totalGiftCards: number;
   totalDiscounts: number;
   totalProducts: number;
+  totalStaff: number;
   totalUsers: number;
   recentBusinesses: any[];
   recentAppts: any[];
@@ -629,6 +650,11 @@ function dashboardPage(data: {
         <div class="stat-icon">🏷️</div>
         <div class="stat-label">Discounts</div>
         <div class="stat-value">${data.totalDiscounts}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">👤</div>
+        <div class="stat-label">Staff Members</div>
+        <div class="stat-value">${data.totalStaff}</div>
       </div>
       <div class="stat-card">
         <div class="stat-icon">🔑</div>
@@ -770,6 +796,7 @@ function businessDetailPage(data: any): string {
         <div class="detail-item"><div class="detail-label">Discounts</div><div class="detail-value">${data.discounts.length}</div></div>
         <div class="detail-item"><div class="detail-label">Gift Cards</div><div class="detail-value">${data.giftCards.length}</div></div>
         <div class="detail-item"><div class="detail-label">Products</div><div class="detail-value">${data.products.length}</div></div>
+        <div class="detail-item"><div class="detail-label">Staff Members</div><div class="detail-value">${(data.staffMembers || []).length}</div></div>
       </div>
     </div>
 
@@ -791,6 +818,27 @@ function businessDetailPage(data: any): string {
         <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Created</th></tr></thead>
         <tbody>
           ${data.clients.map((c: any) => `<tr><td>${c.name}</td><td>${c.phone || "N/A"}</td><td>${c.email || "N/A"}</td><td>${fmtDate(c.createdAt)}</td></tr>`).join("")}
+        </tbody>
+      </table>
+    </div>` : ""}
+
+    ${(data.staffMembers || []).length > 0 ? `
+    <div class="card">
+      <h3>Staff Members (${data.staffMembers.length})</h3>
+      <table>
+        <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Color</th><th>Services</th></tr></thead>
+        <tbody>
+          ${data.staffMembers.map((s: any) => {
+            let svcNames = "All";
+            try {
+              const ids = JSON.parse(s.serviceIds || "[]");
+              if (ids.length > 0) svcNames = ids.map((id: string) => {
+                const svc = data.services.find((sv: any) => sv.localId === id);
+                return svc ? svc.name : id;
+              }).join(", ");
+            } catch {}
+            return `<tr><td style="font-weight:600;">${s.name}</td><td>${s.email || "N/A"}</td><td>${s.phone || "N/A"}</td><td><span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:${s.color || '#4a8c3f'};vertical-align:middle;"></span></td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${svcNames}</td></tr>`;
+          }).join("")}
         </tbody>
       </table>
     </div>` : ""}
@@ -1059,4 +1107,119 @@ function settingsPage(): string {
       </div>
     </div>
   `);
+}
+
+function staffPage(allStaff: any[], allBiz: any[], allSvc: any[]): string {
+  const bizMap = new Map(allBiz.map((b) => [b.id, b.businessName || b.name || "Unknown"]));
+  const svcMap = new Map(allSvc.map((s) => [s.localId, s.name]));
+
+  const staffByBiz: Record<string, any[]> = {};
+  allStaff.forEach((s) => {
+    const bizName = bizMap.get(s.ownerId) || "Unknown Business";
+    if (!staffByBiz[bizName]) staffByBiz[bizName] = [];
+    staffByBiz[bizName].push(s);
+  });
+
+  let content = `
+    <div class="page-header">
+      <h2>Staff Management</h2>
+      <span style="font-size:13px; color:var(--text-muted);">${allStaff.length} staff member${allStaff.length !== 1 ? "s" : ""} across ${Object.keys(staffByBiz).length} business${Object.keys(staffByBiz).length !== 1 ? "es" : ""}</span>
+    </div>
+
+    <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+      <div class="stat-card">
+        <div class="stat-icon">\ud83d\udc64</div>
+        <div class="stat-label">Total Staff</div>
+        <div class="stat-value">${allStaff.length}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">\ud83c\udfe2</div>
+        <div class="stat-label">Businesses with Staff</div>
+        <div class="stat-value">${Object.keys(staffByBiz).length}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">\ud83d\udee0\ufe0f</div>
+        <div class="stat-label">Avg Services/Staff</div>
+        <div class="stat-value">${allStaff.length > 0 ? (allStaff.reduce((sum, s) => {
+          try { const ids = JSON.parse(s.serviceIds || "[]"); return sum + ids.length; } catch { return sum; }
+        }, 0) / allStaff.length).toFixed(1) : "0"}</div>
+      </div>
+    </div>
+  `;
+
+  // Staff table grouped by business
+  Object.entries(staffByBiz).sort((a, b) => a[0].localeCompare(b[0])).forEach(([bizName, members]) => {
+    content += `
+      <div class="card" style="margin-top:16px;">
+        <h3 style="margin-bottom:12px;">\ud83c\udfe2 ${escHtml(bizName)} <span style="font-size:12px;color:var(--text-muted);font-weight:400;">(${members.length} staff)</span></h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Color</th>
+              <th>Services</th>
+              <th>Working Days</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${members.map((s) => {
+              let serviceNames = "All";
+              try {
+                const ids = JSON.parse(s.serviceIds || "[]");
+                if (ids.length > 0) {
+                  serviceNames = ids.map((id: string) => svcMap.get(id) || id).join(", ");
+                }
+              } catch {}
+
+              let workingDays = "N/A";
+              try {
+                const wh = JSON.parse(s.workingHours || "{}");
+                const days = Object.entries(wh)
+                  .filter(([_, v]: [string, any]) => v && v.enabled)
+                  .map(([d]) => d.charAt(0).toUpperCase() + d.slice(0, 3));
+                workingDays = days.length > 0 ? days.join(", ") : "None";
+              } catch {}
+
+              const created = s.createdAt ? new Date(s.createdAt).toLocaleDateString() : "N/A";
+
+              return `<tr>
+                <td style="font-weight:600;">${escHtml(s.name)}</td>
+                <td>${s.email ? escHtml(s.email) : '<span style="color:var(--text-muted);">—</span>'}</td>
+                <td>${s.phone ? escHtml(s.phone) : '<span style="color:var(--text-muted);">—</span>'}</td>
+                <td><span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:${s.color || '#4a8c3f'};vertical-align:middle;"></span> ${s.color || '#4a8c3f'}</td>
+                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(serviceNames)}">${escHtml(serviceNames)}</td>
+                <td>${workingDays}</td>
+                <td>${created}</td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  });
+
+  if (allStaff.length === 0) {
+    content += `
+      <div class="card" style="margin-top:16px;">
+        <div class="empty-state">
+          <p>No staff members have been added yet.</p>
+          <p style="font-size:12px;color:var(--text-muted);margin-top:8px;">Business owners can add staff from their mobile app under Settings > Staff Management.</p>
+        </div>
+      </div>
+    `;
+  }
+
+  return adminLayout("Staff Management", "staff", content);
+}
+
+function escHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }

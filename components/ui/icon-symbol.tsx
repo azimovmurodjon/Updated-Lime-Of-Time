@@ -71,6 +71,10 @@ const MAPPING = {
   "copy": "content-copy",
   "bag.fill": "shopping-bag",
   "shippingbox.fill": "inventory",
+  "person.badge.plus": "person-add",
+  "person.3.fill": "groups",
+  "briefcase.fill": "work",
+  "paintbrush.fill": "brush",
 } as unknown as IconMapping;
 
 export function IconSymbol({

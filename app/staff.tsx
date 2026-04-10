@@ -1,0 +1,383 @@
+import { useState, useMemo } from "react";
+import {
+  FlatList,
+  Text,
+  View,
+  Pressable,
+  StyleSheet,
+  Alert,
+  useWindowDimensions,
+} from "react-native";
+import { useRouter } from "expo-router";
+import { ScreenContainer } from "@/components/screen-container";
+import { useStore } from "@/lib/store";
+import { useColors } from "@/hooks/use-colors";
+import { IconSymbol } from "@/components/ui/icon-symbol";
+import { StaffMember } from "@/lib/types";
+
+export default function StaffScreen() {
+  const { state, dispatch, syncToDb } = useStore();
+  const colors = useColors();
+  const router = useRouter();
+  const { width } = useWindowDimensions();
+  const hp = Math.max(16, width * 0.05);
+  const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
+
+  const filteredStaff = useMemo(() => {
+    switch (filter) {
+      case "active":
+        return state.staff.filter((s) => s.active);
+      case "inactive":
+        return state.staff.filter((s) => !s.active);
+      default:
+        return state.staff;
+    }
+  }, [state.staff, filter]);
+
+  const getServiceNames = (member: StaffMember) => {
+    if (!member.serviceIds || member.serviceIds.length === 0) return "All Services";
+    return member.serviceIds
+      .map((id) => state.services.find((s) => s.id === id)?.name)
+      .filter(Boolean)
+      .join(", ") || "No services assigned";
+  };
+
+  const handleDelete = (member: StaffMember) => {
+    Alert.alert(
+      "Delete Staff Member",
+      `Are you sure you want to remove ${member.name}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            const action = { type: "DELETE_STAFF" as const, payload: member.id };
+            dispatch(action);
+            syncToDb(action);
+          },
+        },
+      ]
+    );
+  };
+
+  const handleToggleActive = (member: StaffMember) => {
+    const updated = { ...member, active: !member.active };
+    const action = { type: "UPDATE_STAFF" as const, payload: updated };
+    dispatch(action);
+    syncToDb(action);
+  };
+
+  const renderStaffCard = ({ item }: { item: StaffMember }) => (
+    <Pressable
+      onPress={() => router.push({ pathname: "/staff-form" as any, params: { id: item.id } })}
+      style={({ pressed }) => [
+        styles.card,
+        {
+          backgroundColor: colors.surface,
+          borderColor: colors.border,
+          opacity: pressed ? 0.85 : item.active ? 1 : 0.6,
+        },
+      ]}
+    >
+      <View style={styles.cardHeader}>
+        <View style={styles.cardLeft}>
+          <View style={[styles.avatar, { backgroundColor: item.color || colors.primary }]}>
+            <Text style={styles.avatarText}>
+              {item.name.charAt(0).toUpperCase()}
+            </Text>
+          </View>
+          <View style={styles.cardInfo}>
+            <Text
+              className="text-base font-semibold text-foreground"
+              numberOfLines={1}
+            >
+              {item.name}
+            </Text>
+            {item.role ? (
+              <Text className="text-sm text-muted" numberOfLines={1}>
+                {item.role}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+        <View style={styles.cardActions}>
+          <Pressable
+            onPress={() => handleToggleActive(item)}
+            style={({ pressed }) => [
+              styles.toggleBtn,
+              {
+                backgroundColor: item.active ? colors.success + "20" : colors.error + "20",
+                opacity: pressed ? 0.7 : 1,
+              },
+            ]}
+          >
+            <Text
+              style={{
+                fontSize: 11,
+                fontWeight: "600",
+                color: item.active ? colors.success : colors.error,
+              }}
+            >
+              {item.active ? "Active" : "Inactive"}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+
+      <View style={[styles.cardDetails, { borderTopColor: colors.border }]}>
+        {item.phone ? (
+          <View style={styles.detailRow}>
+            <IconSymbol name="phone.fill" size={14} color={colors.muted} />
+            <Text className="text-xs text-muted ml-1">{item.phone}</Text>
+          </View>
+        ) : null}
+        {item.email ? (
+          <View style={styles.detailRow}>
+            <IconSymbol name="envelope.fill" size={14} color={colors.muted} />
+            <Text className="text-xs text-muted ml-1" numberOfLines={1}>
+              {item.email}
+            </Text>
+          </View>
+        ) : null}
+        <View style={styles.detailRow}>
+          <IconSymbol name="list.bullet" size={14} color={colors.muted} />
+          <Text className="text-xs text-muted ml-1" numberOfLines={1}>
+            {getServiceNames(item)}
+          </Text>
+        </View>
+        <View style={styles.detailRow}>
+          <IconSymbol name="clock.fill" size={14} color={colors.muted} />
+          <Text className="text-xs text-muted ml-1">
+            {item.workingHours ? "Custom Schedule" : "Business Hours"}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.cardFooter}>
+        <Pressable
+          onPress={() =>
+            router.push({ pathname: "/staff-form" as any, params: { id: item.id } })
+          }
+          style={({ pressed }) => [
+            styles.footerBtn,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
+        >
+          <IconSymbol name="pencil" size={16} color={colors.primary} />
+          <Text style={{ color: colors.primary, fontSize: 13, fontWeight: "500", marginLeft: 4 }}>
+            Edit
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => handleDelete(item)}
+          style={({ pressed }) => [
+            styles.footerBtn,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
+        >
+          <IconSymbol name="trash.fill" size={16} color={colors.error} />
+          <Text style={{ color: colors.error, fontSize: 13, fontWeight: "500", marginLeft: 4 }}>
+            Remove
+          </Text>
+        </Pressable>
+      </View>
+    </Pressable>
+  );
+
+  return (
+    <ScreenContainer edges={["top", "left", "right"]} className="pt-2" style={{ paddingHorizontal: hp }}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Pressable
+          onPress={() => router.back()}
+          style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]}
+        >
+          <IconSymbol name="arrow.left" size={22} color={colors.foreground} />
+        </Pressable>
+        <Text className="text-2xl font-bold text-foreground" style={{ flex: 1 }}>
+          Staff ({state.staff.length})
+        </Text>
+        <Pressable
+          onPress={() => router.push({ pathname: "/staff-form" as any })}
+          style={({ pressed }) => [
+            styles.addButton,
+            { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 },
+          ]}
+        >
+          <IconSymbol name="plus" size={20} color="#FFFFFF" />
+        </Pressable>
+      </View>
+
+      {/* Filter Chips */}
+      <View style={styles.filterRow}>
+        {(["all", "active", "inactive"] as const).map((f) => (
+          <Pressable
+            key={f}
+            onPress={() => setFilter(f)}
+            style={({ pressed }) => [
+              styles.chip,
+              {
+                backgroundColor: filter === f ? colors.primary : colors.surface,
+                borderColor: filter === f ? colors.primary : colors.border,
+                opacity: pressed ? 0.8 : 1,
+              },
+            ]}
+          >
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: "600",
+                color: filter === f ? "#FFFFFF" : colors.foreground,
+              }}
+            >
+              {f.charAt(0).toUpperCase() + f.slice(1)}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {filteredStaff.length === 0 ? (
+        <View style={styles.emptyState}>
+          <IconSymbol name="person.3.fill" size={48} color={colors.muted} />
+          <Text className="text-lg font-semibold text-foreground mt-4">
+            {filter === "all" ? "No Staff Members" : `No ${filter} Staff`}
+          </Text>
+          <Text className="text-sm text-muted mt-1 text-center" style={{ maxWidth: 260 }}>
+            {filter === "all"
+              ? "Add your team members to assign services and manage individual schedules."
+              : `No staff members are currently ${filter}.`}
+          </Text>
+          {filter === "all" && (
+            <Pressable
+              onPress={() => router.push({ pathname: "/staff-form" as any })}
+              style={({ pressed }) => [
+                styles.emptyBtn,
+                { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 },
+              ]}
+            >
+              <Text style={{ color: "#FFFFFF", fontWeight: "600", fontSize: 15 }}>
+                Add Staff Member
+              </Text>
+            </Pressable>
+          )}
+        </View>
+      ) : (
+        <FlatList
+          data={filteredStaff}
+          keyExtractor={(item) => item.id}
+          renderItem={renderStaffCard}
+          contentContainerStyle={{ paddingBottom: 100 }}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
+    </ScreenContainer>
+  );
+}
+
+const styles = StyleSheet.create({
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+    gap: 12,
+  },
+  backBtn: {
+    padding: 4,
+  },
+  addButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 16,
+  },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  card: {
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 12,
+    overflow: "hidden",
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 14,
+  },
+  cardLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  avatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  cardInfo: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  cardActions: {
+    marginLeft: 8,
+  },
+  toggleBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  cardDetails: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderTopWidth: 0.5,
+    gap: 6,
+  },
+  detailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  cardFooter: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingVertical: 10,
+    borderTopWidth: 0.5,
+    borderTopColor: "rgba(0,0,0,0.05)",
+  },
+  footerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingBottom: 80,
+  },
+  emptyBtn: {
+    marginTop: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
+  },
+});
