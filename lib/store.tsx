@@ -290,6 +290,7 @@ function dbServiceToLocal(s: any): Service {
     price: typeof s.price === "string" ? parseFloat(s.price) : s.price,
     color: s.color,
     category: s.category ?? undefined,
+    locationIds: s.locationIds ?? null,
     createdAt: s.createdAt ? new Date(s.createdAt).toISOString() : new Date().toISOString(),
   };
 }
@@ -486,6 +487,7 @@ function dbProductToLocal(p: any): Product {
     name: p.name,
     price: typeof p.price === "string" ? parseFloat(p.price) : p.price,
     description: p.description ?? "",
+    brand: p.brand ?? undefined,
     available: p.available ?? true,
     createdAt: p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString(),
   };
@@ -500,6 +502,7 @@ function dbStaffToLocal(s: any): StaffMember {
     role: s.role ?? "",
     color: s.color ?? "#3B82F6",
     serviceIds: s.serviceIds ?? null,
+    locationIds: s.locationIds ?? null,
     workingHours: s.workingHours ?? null,
     active: s.active ?? true,
     createdAt: s.createdAt ? new Date(s.createdAt).toISOString() : new Date().toISOString(),
@@ -770,6 +773,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               price: String(svc.price),
               color: svc.color,
               category: svc.category,
+              locationIds: svc.locationIds,
             });
             break;
           }
@@ -787,6 +791,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 price: String(svc.price),
                 color: svc.color,
                 category: svc.category,
+                locationIds: svc.locationIds,
               });
             }
             break;
@@ -1076,6 +1081,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               name: prod.name,
               price: String(prod.price),
               description: prod.description || undefined,
+              brand: prod.brand || undefined,
               available: prod.available,
             });
             break;
@@ -1088,6 +1094,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               name: prod.name,
               price: String(prod.price),
               description: prod.description || undefined,
+              brand: prod.brand || undefined,
               available: prod.available,
             });
             break;
@@ -1110,6 +1117,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               role: staff.role || undefined,
               color: staff.color || undefined,
               serviceIds: staff.serviceIds,
+              locationIds: staff.locationIds,
               workingHours: staff.workingHours,
               active: staff.active,
             });
@@ -1126,6 +1134,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               role: staff.role || undefined,
               color: staff.color || undefined,
               serviceIds: staff.serviceIds,
+              locationIds: staff.locationIds,
               workingHours: staff.workingHours,
               active: staff.active,
             });

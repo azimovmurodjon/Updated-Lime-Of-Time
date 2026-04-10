@@ -27,7 +27,8 @@ export default function GiftCodeScreen() {
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const hp = Math.max(16, width * 0.05);
+  const isTablet = width >= 768;
+  const hp = isTablet ? 32 : Math.max(16, width * 0.05);
 
   const giftCard = useMemo(() => {
     return state.giftCards.find((g) => g.code === code);

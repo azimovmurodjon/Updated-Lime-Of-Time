@@ -87,6 +87,8 @@ export const services = mysqlTable("services", {
   color: varchar("color", { length: 20 }).notNull(),
   /** Service category for grouping */
   category: varchar("category", { length: 100 }),
+  /** Location localIds this service is available at (JSON array, null = all) */
+  locationIds: json("locationIds"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -265,6 +267,8 @@ export const products = mysqlTable("products", {
   name: varchar("name", { length: 255 }).notNull(),
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
   description: text("description"),
+  /** Product brand for grouping */
+  brand: varchar("brand", { length: 128 }),
   /** Whether the product is currently available */
   available: boolean("available").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -333,6 +337,8 @@ export const staffMembers = mysqlTable("staff_members", {
   color: varchar("color", { length: 20 }),
   /** Service localIds this staff member can perform (JSON array) */
   serviceIds: json("serviceIds"),
+  /** Location localIds this staff member is assigned to (JSON array, null = all) */
+  locationIds: json("locationIds"),
   /** Individual working hours JSON: Record<string, { enabled: boolean, start: string, end: string }> */
   workingHours: json("workingHours"),
   /** Whether the staff member is currently active */

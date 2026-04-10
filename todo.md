@@ -358,3 +358,53 @@
 ### Remaining Staff Items
 - [x] Integrate staff into in-app booking flow (select staff when creating appointment from app)
 - [x] Show staff assignments on main calendar view (color-coded by staff member)
+
+## Phase: Multi-Location Deep Integration + Categories + Brands + Fixes + Admin Redesign
+
+### Service Categories Integration
+- [x] Add service categories to all service selection UIs (discounts, gift cards, appointment creation, client booking)
+- [x] Group services by category in selection lists with collapsible headers
+- [x] Ensure categories work in business-side new booking service picker
+- [x] Ensure categories work in client-side web booking service picker
+- [x] Ensure categories work in discount creation service picker
+- [x] Ensure categories work in gift card creation service picker
+
+### Product Brands
+- [x] Add brand field to Product type and DB schema
+- [x] Add brand input to product creation/edit form
+- [x] Group products by brand in all product selection UIs
+- [x] Ensure brands work in business-side new booking product picker
+- [x] Ensure brands work in client-side web booking product picker
+- [x] Ensure brands work in gift card creation product picker
+
+### Cancellation Fee Visibility
+- [x] Show cancellation fee policy on client booking page before appointment submission
+- [x] Show cancellation fee warning when client cancels within the restricted time window
+- [x] Display cancellation policy as a link/notice on the client-facing pages
+
+### Discount Fixes
+- [x] Fix day-specific percentage discounts not visible on client booking page
+- [x] Add discount application to business-side new booking flow (apply active discounts when creating appointment from app)
+- [x] Ensure discount breakdown shows correctly in all booking confirmation views
+
+### Multi-Location Deep Integration
+- [x] Wire location-specific staff assignments (staff linked to locations)
+- [x] Wire location-specific scheduling/working hours into booking slot generation
+- [x] Wire location-specific services and pricing
+- [x] Add location selector/switcher on dashboard to filter stats by location
+- [x] Create location-specific booking links (lime-of-time.com/book/business/location)
+- [x] Add location selector to client booking page when business has multiple locations
+- [x] Add location filter to calendar view for business owner
+- [x] Add location-specific analytics and revenue tracking
+- [x] Add locations to admin dashboard — view all locations per business
+
+### Phone/Tablet Responsive Design
+- [x] Optimize all app screens for tablet landscape and portrait modes
+- [x] Ensure consistent padding, font sizes, and layout on both phone and tablet resolutions
+- [x] Test and fix dashboard, calendar, settings, booking screens for tablet
+
+### Admin Dashboard Redesign
+- [x] Separate businesses into individual detail views instead of combined lists
+- [x] Each business card/page shows all its data (clients, appointments, services, staff, locations, revenue)
+- [x] Update admin dashboard logo to Lime Of Time logo (attached image)
+- [x] Improve admin dashboard navigation and information hierarchy

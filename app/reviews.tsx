@@ -36,7 +36,7 @@ export default function ReviewsScreen() {
   }, [state.reviews, sort]);
 
   return (
-    <ScreenContainer edges={["top", "left", "right"]}>
+    <ScreenContainer tabletMaxWidth={900} edges={["top", "left", "right"]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]}>

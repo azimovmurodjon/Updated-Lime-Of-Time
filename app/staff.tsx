@@ -20,7 +20,8 @@ export default function StaffScreen() {
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const hp = Math.max(16, width * 0.05);
+  const isTablet = width >= 768;
+  const hp = isTablet ? 32 : Math.max(16, width * 0.05);
   const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
 
   const filteredStaff = useMemo(() => {
@@ -200,7 +201,7 @@ export default function StaffScreen() {
   );
 
   return (
-    <ScreenContainer edges={["top", "left", "right"]} className="pt-2" style={{ paddingHorizontal: hp }}>
+    <ScreenContainer tabletMaxWidth={900} edges={["top", "left", "right"]} className="pt-2" style={{ paddingHorizontal: hp }}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable

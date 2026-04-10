@@ -179,6 +179,29 @@ export function registerPublicRoutes(app: Express) {
     }
   });
 
+  /** Get locations for a business */
+  app.get("/api/public/business/:slug/locations", async (req: Request, res: Response) => {
+    try {
+      const owner = await db.getBusinessOwnerBySlug(req.params.slug);
+      if (!owner) {
+        res.status(404).json({ error: "Business not found" });
+        return;
+      }
+      const locs = await db.getLocationsByOwner(owner.id);
+      res.json(locs.filter((l: any) => l.active !== false).map((l: any) => ({
+        localId: l.localId,
+        name: l.name,
+        address: l.address || "",
+        phone: l.phone || "",
+        email: l.email || "",
+        active: l.active,
+      })));
+    } catch (err) {
+      console.error("[Public API] Error fetching locations:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   /** Get available time slots for a date */
   app.get("/api/public/business/:slug/slots", async (req: Request, res: Response) => {
     try {
@@ -404,7 +427,7 @@ export function registerPublicRoutes(app: Express) {
         return;
       }
 
-      const { clientName, clientPhone, clientEmail, serviceLocalId, date, time, duration, notes, giftCode, totalPrice, extraItems, giftApplied, giftUsedAmount, discountName, discountPercentage, discountAmount, subtotal } = req.body;
+      const { clientName, clientPhone, clientEmail, serviceLocalId, date, time, duration, notes, giftCode, totalPrice, extraItems, giftApplied, giftUsedAmount, discountName, discountPercentage, discountAmount, subtotal, locationId } = req.body;
 
       if (!clientName || !serviceLocalId || !date || !time) {
         res.status(400).json({ error: "Missing required fields: clientName, serviceLocalId, date, time" });
@@ -501,13 +524,14 @@ export function registerPublicRoutes(app: Express) {
         duration: dur,
         status: "pending",
         notes: enrichedNotes || null,
-        totalPrice: finalTotal,
+        totalPrice: finalTotal != null ? String(finalTotal) : null,
         discountPercent: discountPercentage ? parseInt(String(discountPercentage), 10) : null,
-        discountAmount: hasDiscount ? parseFloat(String(discountAmount)) : null,
+        discountAmount: hasDiscount ? String(parseFloat(String(discountAmount))) : null,
         discountName: discountName || null,
         extraItems: extras.length > 0 ? JSON.stringify(extras) : null,
         giftApplied: !!giftApplied,
-        giftUsedAmount: giftUsedAmount ? parseFloat(String(giftUsedAmount)) : null,
+        giftUsedAmount: giftUsedAmount ? String(parseFloat(String(giftUsedAmount))) : null,
+        locationId: locationId || null,
       });
 
       // Deduct from gift card balance
@@ -550,7 +574,7 @@ export function registerPublicRoutes(app: Express) {
             date,
             time,
             duration: dur,
-            totalPrice: finalTotal,
+            totalPrice: finalTotal ?? undefined,
             extras: extras.length > 0 ? extras : undefined,
             giftApplied: !!giftApplied,
             giftUsedAmount: giftUsedAmount ? parseFloat(String(giftUsedAmount)) : undefined,
@@ -935,7 +959,23 @@ export function registerPublicRoutes(app: Express) {
         res.status(404).send(notFoundPage("Business not found"));
         return;
       }
-      res.send(bookingPage(req.params.slug, owner));
+      const locationId = (req.query.location as string) || null;
+      res.send(bookingPage(req.params.slug, owner, locationId));
+    } catch (err) {
+      console.error("[Public] Error serving booking page:", err);
+      res.status(500).send(errorPage());
+    }
+  });
+
+  // Location-specific booking link: /api/book/:slug/:locationId
+  app.get("/api/book/:slug/:locationId", async (req: Request, res: Response) => {
+    try {
+      const owner = await db.getBusinessOwnerBySlug(req.params.slug);
+      if (!owner) {
+        res.status(404).send(notFoundPage("Business not found"));
+        return;
+      }
+      res.send(bookingPage(req.params.slug, owner, req.params.locationId));
     } catch (err) {
       console.error("[Public] Error serving booking page:", err);
       res.status(500).send(errorPage());
@@ -1343,7 +1383,7 @@ function errorPage(): string {
 </html>`;
 }
 
-function bookingPage(slug: string, owner: any): string {
+function bookingPage(slug: string, owner: any, preselectedLocationId?: string | null): string {
   const wh: Record<string, any> = owner.workingHours || {};
   const whJson: Record<string, boolean> = {};
   ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].forEach(d => {
@@ -1423,6 +1463,7 @@ function bookingPage(slug: string, owner: any): string {
 
     <!-- Step 1: Select Service -->
     <div id="step-1" class="card" style="display:none">
+      <div id="locationSelector" style="display:none;"></div>
       <h2>Select a Service</h2>
       <div id="serviceList" class="service-list">
         <div class="skeleton skeleton-block"></div>
@@ -1546,13 +1587,16 @@ function bookingPage(slug: string, owner: any): string {
     const API = window.location.origin + "/api/public/business/" + SLUG;
     const WEEKLY_DAYS = ${JSON.stringify(whJson)};
     const DAYS_MAP = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    const CANCEL_POLICY = ${JSON.stringify(owner.cancellationPolicy || { enabled: false, hoursBeforeAppointment: 2, feePercentage: 50 })};
     let services = [];
     let products = [];
     let discounts = [];
     let staffMembers = [];
+    let locations = [];
     let customDays = {};
     let selectedService = null;
-    let selectedStaff = null; // { localId, name, role, color, serviceIds, schedule }
+    let selectedStaff = null;
+    let selectedLocation = ${preselectedLocationId ? `"${preselectedLocationId}"` : 'null'};
     let selectedDate = null;
     let selectedTime = null;
     let appliedGift = null;
@@ -1623,6 +1667,43 @@ function bookingPage(slug: string, owner: any): string {
       } catch(e) { staffMembers = []; }
     }
 
+    async function loadLocations() {
+      try {
+        const res = await fetch(API + "/locations");
+        locations = await res.json();
+        locations = locations.filter(l => l.active !== false);
+      } catch(e) { locations = []; }
+    }
+
+    function escText(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+    function renderLocationSelector() {
+      if (locations.length <= 1) return;
+      var container = document.getElementById('locationSelector');
+      if (!container) return;
+      container.style.display = 'block';
+      var html = '<div style="margin-bottom:16px;"><h3 style="font-size:16px;font-weight:600;margin-bottom:8px;">Select Location</h3>';
+      locations.forEach(function(loc) {
+        var isSelected = selectedLocation === loc.localId;
+        var border = isSelected ? '#4CAF50' : '#e0e0e0';
+        var bg = isSelected ? '#E8F5E9' : '#fff';
+        html += '<div onclick="selectLocation(\'' + loc.localId + '\')" style="padding:12px;border:2px solid ' + border + ';border-radius:10px;margin-bottom:8px;cursor:pointer;background:' + bg + ';transition:all 0.2s;">';
+        html += '<div style="font-weight:600;font-size:14px;">' + escText(loc.name) + '</div>';
+        if (loc.address) html += '<div style="font-size:12px;color:#666;margin-top:2px;">' + escText(loc.address) + '</div>';
+        if (loc.phone) html += '<div style="font-size:12px;color:#666;">' + escText(loc.phone) + '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    function selectLocation(locId) {
+      selectedLocation = locId;
+      renderLocationSelector();
+      // Re-filter services for this location
+      renderServices();
+    }
+
     function isWorkingDay(dateStr) {
       if (scheduleMode === "custom") {
         // Custom mode: only dates explicitly in customDays and marked open are available
@@ -1641,14 +1722,37 @@ function bookingPage(slug: string, owner: any): string {
         list.innerHTML = '<div style="text-align:center;color:#888;padding:20px;">No services available</div>';
         return;
       }
-      list.innerHTML = services.map(s => {
-        const dur = s.duration >= 60 ? (s.duration / 60) + " hr" + (s.duration > 60 ? "s" : "") : s.duration + " min";
-        return '<div class="service-item" id="svc-' + s.localId + '" onclick="selectService(&apos;' + s.localId + '&apos;)">'+
-          '<div class="service-dot" style="background:' + (s.color||'#4a8c3f') + '"></div>'+
-          '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div>'+
-          '<div class="service-meta">' + dur + '</div></div>'+
-          '<div class="service-price">$' + parseFloat(s.price).toFixed(2) + '</div></div>';
-      }).join("");
+      // Group by category
+      const catMap = {};
+      services.forEach(s => {
+        const cat = (s.category || '').trim() || 'General';
+        if (!catMap[cat]) catMap[cat] = [];
+        catMap[cat].push(s);
+      });
+      const cats = Object.keys(catMap).sort((a, b) => {
+        if (a === 'General') return 1;
+        if (b === 'General') return -1;
+        return a.localeCompare(b);
+      });
+      const hasMultiCat = cats.length > 1;
+      let html = '';
+      cats.forEach(cat => {
+        if (hasMultiCat) {
+          html += '<div style="display:flex;align-items:center;gap:6px;margin:12px 0 6px;">' +
+            '<div style="width:6px;height:6px;border-radius:50%;background:var(--accent)"></div>' +
+            '<span style="font-size:13px;font-weight:700;color:#333;">' + esc(cat) + '</span>' +
+            '<span style="font-size:12px;color:#888;">(' + catMap[cat].length + ')</span></div>';
+        }
+        catMap[cat].forEach(s => {
+          const dur = s.duration >= 60 ? (s.duration / 60) + " hr" + (s.duration > 60 ? "s" : "") : s.duration + " min";
+          html += '<div class="service-item" id="svc-' + s.localId + '" onclick="selectService(&apos;' + s.localId + '&apos;)" style="' + (hasMultiCat ? 'margin-left:4px;' : '') + '">'+
+            '<div class="service-dot" style="background:' + (s.color||'#4a8c3f') + '"></div>'+
+            '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div>'+
+            '<div class="service-meta">' + dur + '</div></div>'+
+            '<div class="service-price">$' + parseFloat(s.price).toFixed(2) + '</div></div>';
+        });
+      });
+      list.innerHTML = html;
     }
 
     function selectService(id) {
@@ -1932,20 +2036,39 @@ function bookingPage(slug: string, owner: any): string {
 
     function renderAddServiceList() {
       const el = document.getElementById("addServiceList");
-      // Show services not already in cart (excluding primary)
       const cartSvcIds = cart.filter(c => c.type === 'service').map(c => c.id);
       const available = services.filter(s => s.localId !== selectedService.localId && !cartSvcIds.includes(s.localId));
       if (available.length === 0) {
         el.innerHTML = '<div style="text-align:center;color:#888;padding:16px;font-size:13px;">No additional services available</div>';
         return;
       }
-      el.innerHTML = available.map(s => {
-        const dur = s.duration >= 60 ? (s.duration / 60) + " hr" : s.duration + " min";
-        return '<div class="service-item" onclick="addServiceToCart(&apos;' + s.localId + '&apos;)">' +
-          '<div class="service-dot" style="background:' + (s.color||'#4a8c3f') + '"></div>' +
-          '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div><div class="service-meta">' + dur + '</div></div>' +
-          '<div class="service-price">+ $' + parseFloat(s.price).toFixed(2) + '</div></div>';
-      }).join("");
+      // Group by category
+      const catMap = {};
+      available.forEach(s => {
+        const cat = (s.category || '').trim() || 'General';
+        if (!catMap[cat]) catMap[cat] = [];
+        catMap[cat].push(s);
+      });
+      const cats = Object.keys(catMap).sort((a, b) => {
+        if (a === 'General') return 1;
+        if (b === 'General') return -1;
+        return a.localeCompare(b);
+      });
+      const hasMultiCat = cats.length > 1;
+      let html = '';
+      cats.forEach(cat => {
+        if (hasMultiCat) {
+          html += '<div style="display:flex;align-items:center;gap:6px;margin:10px 0 4px;"><span style="font-size:12px;font-weight:700;color:#555;">' + esc(cat) + '</span></div>';
+        }
+        catMap[cat].forEach(s => {
+          const dur = s.duration >= 60 ? (s.duration / 60) + " hr" : s.duration + " min";
+          html += '<div class="service-item" onclick="addServiceToCart(&apos;' + s.localId + '&apos;)">' +
+            '<div class="service-dot" style="background:' + (s.color||'#4a8c3f') + '"></div>' +
+            '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div><div class="service-meta">' + dur + '</div></div>' +
+            '<div class="service-price">+ $' + parseFloat(s.price).toFixed(2) + '</div></div>';
+        });
+      });
+      el.innerHTML = html;
     }
 
     function renderAddProductList() {
@@ -1956,12 +2079,33 @@ function bookingPage(slug: string, owner: any): string {
         el.innerHTML = '<div style="text-align:center;color:#888;padding:16px;font-size:13px;">No products available</div>';
         return;
       }
-      el.innerHTML = available.map(p => {
-        return '<div class="product-item" onclick="addProductToCart(&apos;' + p.localId + '&apos;)">' +
-          '<div style="flex:1;"><div style="font-size:15px;font-weight:600;">' + esc(p.name) + '</div>' +
-          (p.description ? '<div style="font-size:12px;color:#888;margin-top:2px;">' + esc(p.description) + '</div>' : '') + '</div>' +
-          '<div style="font-size:15px;font-weight:700;color:#2d5a27;">+ $' + parseFloat(p.price).toFixed(2) + '</div></div>';
-      }).join("");
+      // Group by brand
+      const brandMap = {};
+      available.forEach(p => {
+        const brand = (p.brand || '').trim() || 'Other';
+        if (!brandMap[brand]) brandMap[brand] = [];
+        brandMap[brand].push(p);
+      });
+      const brands = Object.keys(brandMap).sort((a, b) => {
+        if (a === 'Other') return 1;
+        if (b === 'Other') return -1;
+        return a.localeCompare(b);
+      });
+      const hasMultiBrand = brands.length > 1;
+      let html = '';
+      brands.forEach(brand => {
+        if (hasMultiBrand) {
+          html += '<div style="display:flex;align-items:center;gap:6px;margin:10px 0 4px;"><span style="font-size:12px;font-weight:700;color:#555;">' + esc(brand) + '</span></div>';
+        }
+        brandMap[brand].forEach(p => {
+          html += '<div class="product-item" onclick="addProductToCart(&apos;' + p.localId + '&apos;)">' +
+            '<div style="flex:1;"><div style="font-size:15px;font-weight:600;">' + esc(p.name) + '</div>' +
+            (p.description ? '<div style="font-size:12px;color:#888;margin-top:2px;">' + esc(p.description) + '</div>' : '') +
+            (hasMultiBrand ? '' : (p.brand ? '<div style="font-size:11px;color:#888;margin-top:1px;">' + esc(p.brand) + '</div>' : '')) + '</div>' +
+            '<div style="font-size:15px;font-weight:700;color:#2d5a27;">+ $' + parseFloat(p.price).toFixed(2) + '</div></div>';
+        });
+      });
+      el.innerHTML = html;
     }
 
     function addServiceToCart(id) {
@@ -2096,13 +2240,21 @@ function bookingPage(slug: string, owner: any): string {
         breakdownHtml += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;margin-top:8px;font-size:12px;color:#166534;text-align:center;">You save <strong>$' + totalSaved.toFixed(2) + '</strong> on this booking!</div>';
       }
 
+      // Cancellation policy notice
+      let cancelHtml = '';
+      if (CANCEL_POLICY && CANCEL_POLICY.enabled) {
+        cancelHtml = '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;margin-top:10px;font-size:12px;color:#991b1b;">' +
+          '<strong>Cancellation Policy:</strong> Cancellations made less than <strong>' + CANCEL_POLICY.hoursBeforeAppointment + ' hour' + (CANCEL_POLICY.hoursBeforeAppointment !== 1 ? 's' : '') + '</strong> before the appointment may incur a <strong>' + CANCEL_POLICY.feePercentage + '% cancellation fee</strong> ($' + (chargedPrice * CANCEL_POLICY.feePercentage / 100).toFixed(2) + ').</div>';
+      }
+
       details.innerHTML = itemsHtml +
         staffHtml +
         '<div class="confirm-row"><span class="confirm-label">Date</span><span class="confirm-value">' + dateStr + '</span></div>' +
         '<div class="confirm-row"><span class="confirm-label">Time</span><span class="confirm-value">' + timeStr + ' \u2014 ' + endStr + '</span></div>' +
         '<div class="confirm-row"><span class="confirm-label">Duration</span><span class="confirm-value">' + totalDur + ' min</span></div>' +
         breakdownHtml +
-        '<div class="confirm-row"><span class="confirm-label">Name</span><span class="confirm-value">' + esc(document.getElementById("clientName").value) + '</span></div>';
+        '<div class="confirm-row"><span class="confirm-label">Name</span><span class="confirm-value">' + esc(document.getElementById("clientName").value) + '</span></div>' +
+        cancelHtml;
     }
 
     async function submitBooking() {
@@ -2153,6 +2305,7 @@ function bookingPage(slug: string, owner: any): string {
             discountPercentage: appliedDiscount ? appliedDiscount.percentage : 0,
             discountAmount: getDiscountAmount(),
             subtotal: getTotalPrice(),
+            locationId: selectedLocation || null,
           }),
         });
         const data = await res.json();
@@ -2444,6 +2597,7 @@ function bookingPage(slug: string, owner: any): string {
     loadDiscounts();
     loadWorkingDays();
     loadStaff();
+    loadLocations().then(() => { renderLocationSelector(); });
     autoFillGift();
   </script>
 </body>
@@ -2973,6 +3127,22 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any)
       <input type="tel" id="phone-input" class="phone-input" placeholder="Phone number used when booking" value="${escHtml(clientPhone)}" ${clientPhone ? 'readonly style="background:var(--bg-card);opacity:0.8;"' : ''} />
       ${clientPhone ? '<p style="font-size:11px;color:var(--text-muted);margin-top:4px;">Phone auto-filled from your booking record</p>' : ''}
 
+      ${(() => {
+        const cp = owner.cancellationPolicy;
+        if (cp && cp.enabled) {
+          const apptDt = new Date(`${appt.date}T${appt.time}:00`);
+          const nowDt = new Date();
+          const hrsUntil = (apptDt.getTime() - nowDt.getTime()) / (1000 * 60 * 60);
+          if (hrsUntil <= cp.hoursBeforeAppointment) {
+            const svcPrice = parseFloat(appt.totalPrice || appt.price || '0');
+            const fee = (svcPrice * cp.feePercentage / 100).toFixed(2);
+            return `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:12px;margin-bottom:12px;font-size:13px;color:#991b1b;"><strong>⚠️ Late Cancellation Fee:</strong> This appointment is within <strong>${cp.hoursBeforeAppointment} hour${cp.hoursBeforeAppointment !== 1 ? 's' : ''}</strong> of the scheduled time. A <strong>${cp.feePercentage}% cancellation fee ($${fee})</strong> may apply.</div>`;
+          } else {
+            return `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px;margin-bottom:12px;font-size:12px;color:#166534;">Free cancellation available (more than ${cp.hoursBeforeAppointment} hours before appointment).</div>`;
+          }
+        }
+        return '';
+      })()}
       <button class="btn-cancel" id="cancel-btn" onclick="cancelAppointment()">Cancel Appointment</button>
 
       ${isPending ? '<p style="font-size:12px;color:var(--text-secondary);margin-top:12px;text-align:center;">Your appointment is pending approval. You can cancel it, but rescheduling is available only after the business confirms your appointment.</p>' : ''}

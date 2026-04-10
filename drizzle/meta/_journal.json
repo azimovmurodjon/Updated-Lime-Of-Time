@@ -85,6 +85,20 @@
       "when": 1775805625116,
       "tag": "0011_yummy_iceman",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1775832424793,
+      "tag": "0012_glossy_deathstrike",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1775833821575,
+      "tag": "0013_serious_kang",
+      "breakpoints": true
     }
   ]
 }

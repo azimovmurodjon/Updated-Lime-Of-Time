@@ -34,13 +34,24 @@ export default function ProductFormScreen() {
   const [name, setName] = useState(existing?.name ?? "");
   const [price, setPrice] = useState(existing ? String(existing.price) : "");
   const [description, setDescription] = useState(existing?.description ?? "");
+  const [brand, setBrand] = useState(existing?.brand ?? "");
   const [available, setAvailable] = useState(existing?.available ?? true);
+
+  // Collect existing brands for suggestions
+  const existingBrands = React.useMemo(() => {
+    const brands = new Set<string>();
+    state.products.forEach((p) => {
+      if (p.brand && p.brand.trim()) brands.add(p.brand.trim());
+    });
+    return Array.from(brands).sort();
+  }, [state.products]);
 
   useEffect(() => {
     if (existing) {
       setName(existing.name);
       setPrice(String(existing.price));
       setDescription(existing.description);
+      setBrand(existing.brand ?? "");
       setAvailable(existing.available);
     }
   }, [existing?.id]);
@@ -62,6 +73,7 @@ export default function ProductFormScreen() {
         name: name.trim(),
         price: parsedPrice,
         description: description.trim(),
+        brand: brand.trim() || undefined,
         available,
       };
       dispatch({ type: "UPDATE_PRODUCT", payload: updated });
@@ -72,6 +84,7 @@ export default function ProductFormScreen() {
         name: name.trim(),
         price: parsedPrice,
         description: description.trim(),
+        brand: brand.trim() || undefined,
         available,
         createdAt: new Date().toISOString(),
       };
@@ -188,6 +201,54 @@ export default function ProductFormScreen() {
             ]}
             returnKeyType="done"
           />
+
+          {/* Brand */}
+          <Text
+            className="text-sm font-medium text-muted"
+            style={{ marginBottom: 6, marginTop: 16 }}
+          >
+            Brand
+          </Text>
+          <TextInput
+            value={brand}
+            onChangeText={setBrand}
+            placeholder="e.g. Olaplex, Redken, Paul Mitchell"
+            placeholderTextColor={colors.muted}
+            style={[
+              styles.input,
+              {
+                backgroundColor: colors.surface,
+                color: colors.foreground,
+                borderColor: colors.border,
+              },
+            ]}
+            returnKeyType="next"
+          />
+          {existingBrands.length > 0 && (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+              {existingBrands.map((b) => (
+                <Pressable
+                  key={b}
+                  onPress={() => setBrand(b)}
+                  style={({ pressed }) => [
+                    {
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 16,
+                      borderWidth: 1,
+                      borderColor: brand === b ? colors.primary : colors.border,
+                      backgroundColor: brand === b ? colors.primary + "15" : colors.surface,
+                      opacity: pressed ? 0.7 : 1,
+                    },
+                  ]}
+                >
+                  <Text style={{ fontSize: 13, color: brand === b ? colors.primary : colors.muted }}>
+                    {b}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
 
           {/* Description */}
           <Text

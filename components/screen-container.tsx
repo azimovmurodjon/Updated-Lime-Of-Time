@@ -1,4 +1,4 @@
-import { View, type ViewProps } from "react-native";
+import { View, useWindowDimensions, type ViewProps } from "react-native";
 import { SafeAreaView, type Edge } from "react-native-safe-area-context";
 
 import { cn } from "@/lib/utils";
@@ -21,22 +21,16 @@ export interface ScreenContainerProps extends ViewProps {
    * Additional className for the SafeAreaView (content layer).
    */
   safeAreaClassName?: string;
+  /**
+   * Max width for content on tablets. Set to 0 to disable.
+   * Default: 680 (good for forms and detail screens)
+   */
+  tabletMaxWidth?: number;
 }
 
 /**
  * A container component that properly handles SafeArea and background colors.
- *
- * The outer View extends to full screen (including status bar area) with the background color,
- * while the inner SafeAreaView ensures content is within safe bounds.
- *
- * Usage:
- * ```tsx
- * <ScreenContainer className="p-4">
- *   <Text className="text-2xl font-bold text-foreground">
- *     Welcome
- *   </Text>
- * </ScreenContainer>
- * ```
+ * On tablets (width >= 768), content is centered with a max-width for readability.
  */
 export function ScreenContainer({
   children,
@@ -44,9 +38,14 @@ export function ScreenContainer({
   className,
   containerClassName,
   safeAreaClassName,
+  tabletMaxWidth = 680,
   style,
   ...props
 }: ScreenContainerProps) {
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+  const shouldConstrain = isTablet && tabletMaxWidth > 0;
+
   return (
     <View
       className={cn(
@@ -61,7 +60,18 @@ export function ScreenContainer({
         className={cn("flex-1", safeAreaClassName)}
         style={style}
       >
-        <View className={cn("flex-1", className)}>{children}</View>
+        {shouldConstrain ? (
+          <View className="flex-1 items-center">
+            <View
+              className={cn("flex-1 w-full", className)}
+              style={{ maxWidth: tabletMaxWidth }}
+            >
+              {children}
+            </View>
+          </View>
+        ) : (
+          <View className={cn("flex-1", className)}>{children}</View>
+        )}
       </SafeAreaView>
     </View>
   );

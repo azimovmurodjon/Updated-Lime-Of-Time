@@ -20,18 +20,18 @@ describe("PDF Export Feature", () => {
     expect(content).toContain("generateRevenuePdf");
   });
 
-  it("settings screen should dynamically import pdf-export", () => {
+  it("data-export screen should dynamically import pdf-export", () => {
     const content = fs.readFileSync(
-      path.join(__dirname, "..", "app", "(tabs)", "settings.tsx"),
+      path.join(__dirname, "..", "app", "data-export.tsx"),
       "utf-8"
     );
     expect(content).toContain("pdf-export");
     expect(content).toContain("exportPdf");
   });
 
-  it("settings screen should have PDF export buttons for all report types", () => {
+  it("data-export screen should have PDF export buttons for all report types", () => {
     const content = fs.readFileSync(
-      path.join(__dirname, "..", "app", "(tabs)", "settings.tsx"),
+      path.join(__dirname, "..", "app", "data-export.tsx"),
       "utf-8"
     );
     // Export buttons use labels: Clients, Appointments, Services, Revenue
@@ -39,7 +39,6 @@ describe("PDF Export Feature", () => {
     expect(content).toContain('"Appointments"');
     expect(content).toContain('"Services"');
     expect(content).toContain('"Revenue"');
-    expect(content).toContain("Export Data (PDF)");
   });
 });
 

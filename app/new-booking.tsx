@@ -13,7 +13,7 @@ import { useStore, generateId, formatDateStr, formatTime, formatDateDisplay } fr
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useMemo, useCallback } from "react";
-import { Appointment, Client, Product, DAYS_OF_WEEK, generateAvailableSlots, minutesToTime, timeToMinutes } from "@/lib/types";
+import { Appointment, Client, Product, Discount, DAYS_OF_WEEK, generateAvailableSlots, minutesToTime, timeToMinutes, getApplicableDiscount } from "@/lib/types";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -77,10 +77,23 @@ export default function NewBookingScreen() {
     return baseDur + cart.reduce((sum, item) => sum + item.duration, 0);
   }, [selectedService, cart, state.settings.defaultDuration]);
 
-  const totalPrice = useMemo(() => {
+  const subtotal = useMemo(() => {
     const basePrice = selectedService ? parseFloat(String(selectedService.price)) : 0;
     return basePrice + cart.reduce((sum, item) => sum + item.price, 0);
   }, [selectedService, cart]);
+
+  // Auto-detect applicable discount
+  const appliedDiscount = useMemo(() => {
+    if (!selectedServiceId || !selectedDate || !selectedTime) return null;
+    return getApplicableDiscount(state.discounts, selectedDate, selectedTime, selectedServiceId);
+  }, [state.discounts, selectedDate, selectedTime, selectedServiceId]);
+
+  const discountAmount = useMemo(() => {
+    if (!appliedDiscount || !selectedService) return 0;
+    return parseFloat(String(selectedService.price)) * (appliedDiscount.percentage / 100);
+  }, [appliedDiscount, selectedService]);
+
+  const totalPrice = subtotal - discountAmount;
 
   // Generate available time slots using the shared helper (with custom schedule)
   const timeSlots = useMemo(() => {
@@ -223,12 +236,15 @@ export default function NewBookingScreen() {
         extraItems: cart.length > 0 ? cart.map((c) => ({ type: c.type, id: c.id, name: c.name, price: c.price, duration: c.duration })) : undefined,
         staffId: selectedStaffId ?? undefined,
         locationId: selectedLocationId ?? undefined,
+        discountPercent: appliedDiscount?.percentage,
+        discountAmount: discountAmount > 0 ? discountAmount : undefined,
+        discountName: appliedDiscount?.name,
       };
       dispatch({ type: "ADD_APPOINTMENT", payload: appointment });
       syncToDb({ type: "ADD_APPOINTMENT", payload: appointment });
     }
     router.back();
-  }, [selectedServiceId, selectedClientId, selectedDate, selectedTime, totalDuration, notes, cart, recurring, dispatch, router]);
+  }, [selectedServiceId, selectedClientId, selectedDate, selectedTime, totalDuration, notes, cart, recurring, dispatch, router, appliedDiscount, discountAmount, totalPrice, subtotal, selectedStaffId, selectedLocationId, syncToDb]);
 
   const getInitials = (name: string) => {
     const parts = name.split(" ");
@@ -266,46 +282,68 @@ export default function NewBookingScreen() {
         ))}
       </View>
 
-      {/* Step 1: Select Service */}
+      {/* Step 1: Select Service (grouped by category) */}
       {step === 1 && (
-        <FlatList
-          data={state.services}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          ListHeaderComponent={
-            <Text className="text-base font-semibold text-foreground mb-3">Select a Service</Text>
-          }
-          renderItem={({ item }) => (
-            <Pressable
-              onPress={() => {
-                setSelectedServiceId(item.id);
-                setStep(2);
-              }}
-              style={({ pressed }) => [
-                styles.optionCard,
-                {
-                  backgroundColor: selectedServiceId === item.id ? item.color + "15" : colors.surface,
-                  borderColor: selectedServiceId === item.id ? item.color : colors.border,
-                  opacity: pressed ? 0.7 : 1,
-                },
-              ]}
-            >
-              <View style={[styles.colorDot, { backgroundColor: item.color }]} />
-              <View style={styles.optionContent}>
-                <Text className="text-base font-semibold text-foreground">{item.name}</Text>
-                <Text className="text-xs text-muted mt-0.5">{item.duration} min · ${item.price}</Text>
-              </View>
-              <IconSymbol name="chevron.right" size={16} color={colors.muted} />
-            </Pressable>
-          )}
-          ListEmptyComponent={
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+          <Text className="text-base font-semibold text-foreground mb-3">Select a Service</Text>
+          {state.services.length === 0 ? (
             <View className="items-center py-12">
               <Text className="text-base text-muted">No services available</Text>
               <Text className="text-sm text-muted mt-1">Create a service first</Text>
             </View>
-          }
-          contentContainerStyle={{ paddingBottom: 40 }}
-        />
+          ) : (
+            (() => {
+              const groups = new Map<string, typeof state.services>();
+              state.services.forEach((s) => {
+                const cat = s.category?.trim() || "General";
+                if (!groups.has(cat)) groups.set(cat, []);
+                groups.get(cat)!.push(s);
+              });
+              const entries = Array.from(groups.entries()).sort((a, b) => {
+                if (a[0] === "General") return 1;
+                if (b[0] === "General") return -1;
+                return a[0].localeCompare(b[0]);
+              });
+              const hasMultiCat = entries.length > 1;
+              return entries.map(([cat, svcs]) => (
+                <View key={cat} style={{ marginBottom: hasMultiCat ? 12 : 0 }}>
+                  {hasMultiCat && (
+                    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6, gap: 6 }}>
+                      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary }} />
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground }}>{cat}</Text>
+                      <Text style={{ fontSize: 12, color: colors.muted }}>({svcs.length})</Text>
+                    </View>
+                  )}
+                  {svcs.map((item) => (
+                    <Pressable
+                      key={item.id}
+                      onPress={() => {
+                        setSelectedServiceId(item.id);
+                        setStep(2);
+                      }}
+                      style={({ pressed }) => [
+                        styles.optionCard,
+                        {
+                          backgroundColor: selectedServiceId === item.id ? item.color + "15" : colors.surface,
+                          borderColor: selectedServiceId === item.id ? item.color : colors.border,
+                          opacity: pressed ? 0.7 : 1,
+                          marginLeft: hasMultiCat ? 4 : 0,
+                        },
+                      ]}
+                    >
+                      <View style={[styles.colorDot, { backgroundColor: item.color }]} />
+                      <View style={styles.optionContent}>
+                        <Text className="text-base font-semibold text-foreground">{item.name}</Text>
+                        <Text className="text-xs text-muted mt-0.5">{item.duration} min · ${item.price}</Text>
+                      </View>
+                      <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+                    </Pressable>
+                  ))}
+                </View>
+              ));
+            })()
+          )}
+        </ScrollView>
       )}
 
       {/* Step 2: Select Client */}
@@ -617,6 +655,20 @@ export default function NewBookingScreen() {
               </View>
             ))}
 
+            {/* Subtotal */}
+            {discountAmount > 0 && (
+              <View style={[styles.cartItem, { borderTopWidth: 1, borderTopColor: colors.border, marginTop: 4, paddingTop: 8 }]}>
+                <Text className="text-sm text-muted">Subtotal</Text>
+                <Text className="text-sm text-muted">${subtotal.toFixed(2)}</Text>
+              </View>
+            )}
+            {/* Discount */}
+            {appliedDiscount && discountAmount > 0 && (
+              <View style={[styles.cartItem]}>
+                <Text className="text-sm font-medium" style={{ color: colors.warning }}>{appliedDiscount.name} ({appliedDiscount.percentage}% off)</Text>
+                <Text className="text-sm font-medium" style={{ color: colors.warning }}>-${discountAmount.toFixed(2)}</Text>
+              </View>
+            )}
             {/* Totals */}
             <View style={[styles.cartItem, { borderTopWidth: 2, borderTopColor: colors.border, marginTop: 4, paddingTop: 10 }]}>
               <Text className="text-sm font-bold text-foreground">Total ({totalDuration} min)</Text>
@@ -769,7 +821,7 @@ export default function NewBookingScreen() {
             </Pressable>
           </View>
 
-          {/* Extra Services */}
+          {/* Extra Services (grouped by category) */}
           {addMoreTab === "services" && (
             <View className="mb-4">
               {availableExtraServices.length === 0 ? (
@@ -777,40 +829,54 @@ export default function NewBookingScreen() {
                   <Text className="text-xs text-muted">No additional services available</Text>
                 </View>
               ) : (
-                availableExtraServices.map((s) => (
-                  <Pressable
-                    key={s.id}
-                    onPress={() =>
-                      addToCart({
-                        type: "service",
-                        id: s.id,
-                        name: s.name,
-                        price: parseFloat(String(s.price)),
-                        duration: s.duration,
-                      })
-                    }
-                    style={({ pressed }) => [
-                      styles.optionCard,
-                      {
-                        backgroundColor: colors.surface,
-                        borderColor: colors.border,
-                        opacity: pressed ? 0.7 : 1,
-                      },
-                    ]}
-                  >
-                    <View style={[styles.colorDot, { backgroundColor: s.color }]} />
-                    <View style={styles.optionContent}>
-                      <Text className="text-sm font-semibold text-foreground">{s.name}</Text>
-                      <Text className="text-xs text-muted">{s.duration} min</Text>
+                (() => {
+                  const svcGroups = new Map<string, typeof availableExtraServices>();
+                  availableExtraServices.forEach((s) => {
+                    const cat = s.category?.trim() || "General";
+                    if (!svcGroups.has(cat)) svcGroups.set(cat, []);
+                    svcGroups.get(cat)!.push(s);
+                  });
+                  const svcEntries = Array.from(svcGroups.entries()).sort((a, b) => {
+                    if (a[0] === "General") return 1;
+                    if (b[0] === "General") return -1;
+                    return a[0].localeCompare(b[0]);
+                  });
+                  const hasMultiCat = svcEntries.length > 1;
+                  return svcEntries.map(([cat, svcs]) => (
+                    <View key={cat} style={{ marginBottom: hasMultiCat ? 8 : 0 }}>
+                      {hasMultiCat && (
+                        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4, gap: 6 }}>
+                          <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: colors.primary }} />
+                          <Text style={{ fontSize: 12, fontWeight: "700", color: colors.foreground }}>{cat}</Text>
+                        </View>
+                      )}
+                      {svcs.map((s) => (
+                        <Pressable
+                          key={s.id}
+                          onPress={() =>
+                            addToCart({ type: "service", id: s.id, name: s.name, price: parseFloat(String(s.price)), duration: s.duration })
+                          }
+                          style={({ pressed }) => [
+                            styles.optionCard,
+                            { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1, marginLeft: hasMultiCat ? 4 : 0 },
+                          ]}
+                        >
+                          <View style={[styles.colorDot, { backgroundColor: s.color }]} />
+                          <View style={styles.optionContent}>
+                            <Text className="text-sm font-semibold text-foreground">{s.name}</Text>
+                            <Text className="text-xs text-muted">{s.duration} min</Text>
+                          </View>
+                          <Text className="text-sm font-bold" style={{ color: colors.primary }}>+ ${parseFloat(String(s.price)).toFixed(2)}</Text>
+                        </Pressable>
+                      ))}
                     </View>
-                    <Text className="text-sm font-bold" style={{ color: colors.primary }}>+ ${parseFloat(String(s.price)).toFixed(2)}</Text>
-                  </Pressable>
-                ))
+                  ));
+                })()
               )}
             </View>
           )}
 
-          {/* Products */}
+          {/* Products (grouped by brand) */}
           {addMoreTab === "products" && (
             <View className="mb-4">
               {availableProducts.length === 0 ? (
@@ -818,35 +884,49 @@ export default function NewBookingScreen() {
                   <Text className="text-xs text-muted">No products available</Text>
                 </View>
               ) : (
-                availableProducts.map((p) => (
-                  <Pressable
-                    key={p.id}
-                    onPress={() =>
-                      addToCart({
-                        type: "product",
-                        id: p.id,
-                        name: p.name,
-                        price: parseFloat(String(p.price)),
-                        duration: 0,
-                      })
-                    }
-                    style={({ pressed }) => [
-                      styles.optionCard,
-                      {
-                        backgroundColor: colors.surface,
-                        borderColor: colors.border,
-                        opacity: pressed ? 0.7 : 1,
-                      },
-                    ]}
-                  >
-                    <IconSymbol name="bag.fill" size={18} color={colors.primary} style={{ marginRight: 12 }} />
-                    <View style={styles.optionContent}>
-                      <Text className="text-sm font-semibold text-foreground">{p.name}</Text>
-                      {p.description ? <Text className="text-xs text-muted">{p.description}</Text> : null}
+                (() => {
+                  const prodGroups = new Map<string, typeof availableProducts>();
+                  availableProducts.forEach((p) => {
+                    const br = p.brand?.trim() || "Other";
+                    if (!prodGroups.has(br)) prodGroups.set(br, []);
+                    prodGroups.get(br)!.push(p);
+                  });
+                  const prodEntries = Array.from(prodGroups.entries()).sort((a, b) => {
+                    if (a[0] === "Other") return 1;
+                    if (b[0] === "Other") return -1;
+                    return a[0].localeCompare(b[0]);
+                  });
+                  const hasMultiBrand = prodEntries.length > 1;
+                  return prodEntries.map(([brand, prods]) => (
+                    <View key={brand} style={{ marginBottom: hasMultiBrand ? 8 : 0 }}>
+                      {hasMultiBrand && (
+                        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4, gap: 6 }}>
+                          <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: colors.warning }} />
+                          <Text style={{ fontSize: 12, fontWeight: "700", color: colors.foreground }}>{brand}</Text>
+                        </View>
+                      )}
+                      {prods.map((p) => (
+                        <Pressable
+                          key={p.id}
+                          onPress={() =>
+                            addToCart({ type: "product", id: p.id, name: p.name, price: parseFloat(String(p.price)), duration: 0 })
+                          }
+                          style={({ pressed }) => [
+                            styles.optionCard,
+                            { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1, marginLeft: hasMultiBrand ? 4 : 0 },
+                          ]}
+                        >
+                          <IconSymbol name="bag.fill" size={18} color={colors.primary} style={{ marginRight: 12 }} />
+                          <View style={styles.optionContent}>
+                            <Text className="text-sm font-semibold text-foreground">{p.name}</Text>
+                            {p.brand && !hasMultiBrand ? <Text className="text-xs text-muted">{p.brand}</Text> : p.description ? <Text className="text-xs text-muted">{p.description}</Text> : null}
+                          </View>
+                          <Text className="text-sm font-bold" style={{ color: colors.primary }}>+ ${parseFloat(String(p.price)).toFixed(2)}</Text>
+                        </Pressable>
+                      ))}
                     </View>
-                    <Text className="text-sm font-bold" style={{ color: colors.primary }}>+ ${parseFloat(String(p.price)).toFixed(2)}</Text>
-                  </Pressable>
-                ))
+                  ));
+                })()
               )}
             </View>
           )}
@@ -881,9 +961,19 @@ export default function NewBookingScreen() {
               <Text className="text-sm text-muted">
                 {formatTime(selectedTime)} - {getEndTime(selectedTime)} ({totalDuration} min)
               </Text>
-              <Text className="text-sm font-semibold" style={{ color: colors.primary, marginTop: 2 }}>
-                Total: ${totalPrice.toFixed(2)}
-              </Text>
+              {appliedDiscount && discountAmount > 0 ? (
+                <View style={{ marginTop: 2 }}>
+                  <Text style={{ fontSize: 12, color: colors.warning }}>{appliedDiscount.name} ({appliedDiscount.percentage}% off)</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text style={{ fontSize: 12, color: colors.muted, textDecorationLine: "line-through" }}>${subtotal.toFixed(2)}</Text>
+                    <Text className="text-sm font-semibold" style={{ color: colors.primary }}>Total: ${totalPrice.toFixed(2)}</Text>
+                  </View>
+                </View>
+              ) : (
+                <Text className="text-sm font-semibold" style={{ color: colors.primary, marginTop: 2 }}>
+                  Total: ${totalPrice.toFixed(2)}
+                </Text>
+              )}
             </View>
           )}
 

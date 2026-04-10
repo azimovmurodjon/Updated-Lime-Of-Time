@@ -13,7 +13,8 @@ export default function ClientsScreen() {
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const hp = Math.round(Math.max(16, width * 0.045));
+  const isTablet = width >= 768;
+  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
@@ -128,7 +129,7 @@ export default function ClientsScreen() {
   };
 
   return (
-    <ScreenContainer>
+    <ScreenContainer tabletMaxWidth={0}>
       <View style={{ paddingHorizontal: hp }}>
         <View style={styles.header}>
           <Text style={{ fontSize: 24, fontWeight: "700", color: colors.foreground }}>Clients</Text>

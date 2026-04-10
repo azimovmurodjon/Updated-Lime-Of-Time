@@ -34,7 +34,8 @@ export default function OnboardingScreen() {
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const hp = Math.max(16, width * 0.05);
+  const isTablet = width >= 768;
+  const hp = isTablet ? 32 : Math.max(16, width * 0.05);
 
   const [step, setStep] = useState<Step>(1);
   const { biometricAvailable, biometricType, toggleBiometric } = useAppLockContext();

@@ -44,13 +44,25 @@ export default function CalendarScreen() {
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const hp = Math.round(Math.max(16, width * 0.045));
+  const isTablet = width >= 768;
+  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
 
   const now = new Date();
   const [currentMonth, setCurrentMonth] = useState(now.getMonth());
   const [currentYear, setCurrentYear] = useState(now.getFullYear());
   const [selectedDate, setSelectedDate] = useState(formatDateStr(now));
   const [activeFilter, setActiveFilter] = useState<FilterKey>("upcoming");
+  const [calLocationFilter, setCalLocationFilter] = useState<string | null>(null);
+  const activeLocations = useMemo(() => state.locations.filter((l) => l.active), [state.locations]);
+  const hasMultiLoc = activeLocations.length > 1;
+
+  const locFilter = useCallback(
+    (appts: Appointment[]) => {
+      if (!calLocationFilter) return appts;
+      return appts.filter((a) => a.locationId === calLocationFilter);
+    },
+    [calLocationFilter]
+  );
 
   const cellSize = Math.floor((width - hp * 2) / 7);
 
@@ -88,34 +100,35 @@ export default function CalendarScreen() {
 
   // Filter appointments
   const filteredAppointments = useMemo(() => {
+    const base = locFilter(state.appointments);
     switch (activeFilter) {
       case "upcoming":
-        return state.appointments
+        return base
           .filter((a) => a.status === "confirmed" && a.date >= todayStr)
           .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
       case "requests":
-        return state.appointments
+        return base
           .filter((a) => a.status === "pending")
           .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
       case "cancelled":
-        return state.appointments
+        return base
           .filter((a) => a.status === "cancelled")
           .sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
       case "completed":
-        return state.appointments
+        return base
           .filter((a) => a.status === "completed")
           .sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
       default:
         return [];
     }
-  }, [state.appointments, activeFilter, todayStr]);
+  }, [state.appointments, activeFilter, todayStr, locFilter]);
 
   // Selected date appointments
   const selectedDateAppts = useMemo(() => {
-    return state.appointments
+    return locFilter(state.appointments)
       .filter((a) => a.date === selectedDate)
       .sort((a, b) => a.time.localeCompare(b.time));
-  }, [state.appointments, selectedDate]);
+  }, [state.appointments, selectedDate, locFilter]);
 
   const openSmsWithMessage = useCallback((phone: string, message: string) => {
     if (Platform.OS === "web") {
@@ -196,7 +209,7 @@ export default function CalendarScreen() {
   };
 
   return (
-    <ScreenContainer>
+    <ScreenContainer tabletMaxWidth={0}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
         {/* Header */}
         <View style={{ paddingHorizontal: hp, paddingTop: 4 }}>
@@ -365,6 +378,45 @@ export default function CalendarScreen() {
               );
             })}
           </ScrollView>
+
+          {/* Location Filter */}
+          {hasMultiLoc && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+              <View style={{ flexDirection: "row", gap: 6 }}>
+                <Pressable
+                  onPress={() => setCalLocationFilter(null)}
+                  style={({ pressed }) => [{
+                    paddingHorizontal: 10,
+                    paddingVertical: 5,
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    backgroundColor: !calLocationFilter ? colors.primary + "15" : colors.surface,
+                    borderColor: !calLocationFilter ? colors.primary : colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                  }]}
+                >
+                  <Text style={{ fontSize: 11, fontWeight: "600", color: !calLocationFilter ? colors.primary : colors.muted }}>All</Text>
+                </Pressable>
+                {activeLocations.map((loc) => (
+                  <Pressable
+                    key={loc.id}
+                    onPress={() => setCalLocationFilter(loc.id)}
+                    style={({ pressed }) => [{
+                      paddingHorizontal: 10,
+                      paddingVertical: 5,
+                      borderRadius: 14,
+                      borderWidth: 1,
+                      backgroundColor: calLocationFilter === loc.id ? colors.primary + "15" : colors.surface,
+                      borderColor: calLocationFilter === loc.id ? colors.primary : colors.border,
+                      opacity: pressed ? 0.7 : 1,
+                    }]}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: "600", color: calLocationFilter === loc.id ? colors.primary : colors.muted }}>{loc.name}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+          )}
 
           {/* Filtered List */}
           {filteredAppointments.length === 0 ? (

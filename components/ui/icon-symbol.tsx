@@ -84,6 +84,7 @@ const MAPPING = {
   "gear": "settings",
   "doc.on.doc.fill": "file-copy",
   "rectangle.stack.fill": "layers",
+  "chevron.down": "expand-more",
 } as unknown as IconMapping;
 
 export function IconSymbol({

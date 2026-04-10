@@ -5,6 +5,7 @@ export interface Service {
   price: number;
   color: string;
   category?: string; // service category for grouping
+  locationIds?: string[] | null; // null = all locations
   createdAt: string;
 }
 
@@ -104,6 +105,7 @@ export interface Product {
   name: string;
   price: number;
   description: string;
+  brand?: string; // product brand for grouping
   available: boolean;
   createdAt: string;
 }
@@ -137,6 +139,7 @@ export interface StaffMember {
   role: string;
   color: string;
   serviceIds: string[] | null; // null = all services
+  locationIds: string[] | null; // null = all locations
   workingHours: Record<string, WorkingHours> | null; // null = use business hours
   active: boolean;
   createdAt: string;

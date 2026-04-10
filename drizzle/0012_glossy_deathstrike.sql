@@ -1,0 +1,1 @@
+ALTER TABLE `products` ADD `brand` varchar(128);

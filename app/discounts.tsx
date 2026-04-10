@@ -54,7 +54,8 @@ export default function DiscountsScreen() {
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const hp = Math.round(Math.max(16, width * 0.045));
+  const isTablet = width >= 768;
+  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -439,23 +440,46 @@ export default function DiscountsScreen() {
             All Services
           </Text>
         </Pressable>
-        {state.services.map((svc) => (
-          <Pressable
-            key={svc.id}
-            onPress={() => toggleServiceFilter(svc.id)}
-            style={[
-              styles.serviceChip,
-              {
-                backgroundColor: selectedServiceIds?.includes(svc.id) ? svc.color : colors.background,
-                borderColor: selectedServiceIds?.includes(svc.id) ? svc.color : colors.border,
-              },
-            ]}
-          >
-            <Text style={{ color: selectedServiceIds?.includes(svc.id) ? "#fff" : colors.foreground, fontSize: 13, fontWeight: "600" }}>
-              {svc.name}
-            </Text>
-          </Pressable>
-        ))}
+        {(() => {
+          const catMap = new Map<string, typeof state.services>();
+          state.services.forEach((s) => {
+            const cat = s.category?.trim() || "General";
+            if (!catMap.has(cat)) catMap.set(cat, []);
+            catMap.get(cat)!.push(s);
+          });
+          const catEntries = Array.from(catMap.entries()).sort((a, b) => {
+            if (a[0] === "General") return 1;
+            if (b[0] === "General") return -1;
+            return a[0].localeCompare(b[0]);
+          });
+          const hasMultiCat = catEntries.length > 1;
+          return catEntries.map(([cat, svcs]) => (
+            <View key={cat}>
+              {hasMultiCat && (
+                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, marginTop: 6, marginBottom: 2 }}>{cat}</Text>
+              )}
+              <View style={styles.serviceWrap}>
+                {svcs.map((svc) => (
+                  <Pressable
+                    key={svc.id}
+                    onPress={() => toggleServiceFilter(svc.id)}
+                    style={[
+                      styles.serviceChip,
+                      {
+                        backgroundColor: selectedServiceIds?.includes(svc.id) ? svc.color : colors.background,
+                        borderColor: selectedServiceIds?.includes(svc.id) ? svc.color : colors.border,
+                      },
+                    ]}
+                  >
+                    <Text style={{ color: selectedServiceIds?.includes(svc.id) ? "#fff" : colors.foreground, fontSize: 13, fontWeight: "600" }}>
+                      {svc.name}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ));
+        })()}
       </View>
 
       {/* Product Filter */}
@@ -477,23 +501,46 @@ export default function DiscountsScreen() {
                 All Products
               </Text>
             </Pressable>
-            {availableProducts.map((prod) => (
-              <Pressable
-                key={prod.id}
-                onPress={() => toggleProductFilter(prod.id)}
-                style={[
-                  styles.serviceChip,
-                  {
-                    backgroundColor: selectedProductIds?.includes(prod.id) ? colors.primary : colors.background,
-                    borderColor: selectedProductIds?.includes(prod.id) ? colors.primary : colors.border,
-                  },
-                ]}
-              >
-                <Text style={{ color: selectedProductIds?.includes(prod.id) ? "#fff" : colors.foreground, fontSize: 13, fontWeight: "600" }}>
-                  {prod.name}
-                </Text>
-              </Pressable>
-            ))}
+            {(() => {
+              const brandMap = new Map<string, typeof availableProducts>();
+              availableProducts.forEach((p) => {
+                const br = p.brand?.trim() || "Other";
+                if (!brandMap.has(br)) brandMap.set(br, []);
+                brandMap.get(br)!.push(p);
+              });
+              const brandEntries = Array.from(brandMap.entries()).sort((a, b) => {
+                if (a[0] === "Other") return 1;
+                if (b[0] === "Other") return -1;
+                return a[0].localeCompare(b[0]);
+              });
+              const hasMultiBrand = brandEntries.length > 1;
+              return brandEntries.map(([brand, prods]) => (
+                <View key={brand}>
+                  {hasMultiBrand && (
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, marginTop: 6, marginBottom: 2 }}>{brand}</Text>
+                  )}
+                  <View style={styles.serviceWrap}>
+                    {prods.map((prod) => (
+                      <Pressable
+                        key={prod.id}
+                        onPress={() => toggleProductFilter(prod.id)}
+                        style={[
+                          styles.serviceChip,
+                          {
+                            backgroundColor: selectedProductIds?.includes(prod.id) ? colors.primary : colors.background,
+                            borderColor: selectedProductIds?.includes(prod.id) ? colors.primary : colors.border,
+                          },
+                        ]}
+                      >
+                        <Text style={{ color: selectedProductIds?.includes(prod.id) ? "#fff" : colors.foreground, fontSize: 13, fontWeight: "600" }}>
+                          {prod.name}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              ));
+            })()}
           </View>
         </>
       )}
@@ -519,7 +566,7 @@ export default function DiscountsScreen() {
   ) : null;
 
   return (
-    <ScreenContainer edges={["top", "left", "right"]}>
+    <ScreenContainer tabletMaxWidth={900} edges={["top", "left", "right"]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.headerBackBtn, pressed && { opacity: 0.6 }]}>

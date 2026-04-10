@@ -25,8 +25,16 @@ export default function AnalyticsDetailScreen() {
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const hp = Math.round(Math.max(16, width * 0.045));
+  const isTablet = width >= 768;
+  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
   const [generating, setGenerating] = useState(false);
+  const [locFilter, setLocFilter] = useState<string | null>(null);
+  const activeLocs = useMemo(() => state.locations.filter((l) => l.active), [state.locations]);
+  const hasMultiLoc = activeLocs.length > 1;
+  const filteredAppts = useMemo(() => {
+    if (!locFilter) return state.appointments;
+    return state.appointments.filter((a) => a.locationId === locFilter);
+  }, [state.appointments, locFilter]);
 
   const titles: Record<string, string> = {
     clients: "Total Clients",
@@ -39,10 +47,10 @@ export default function AnalyticsDetailScreen() {
   const clientsData = useMemo(() => {
     return state.clients
       .map((c) => {
-        const apptCount = state.appointments.filter(
+        const apptCount = filteredAppts.filter(
           (a) => a.clientId === c.id && a.status !== "cancelled"
         ).length;
-        const totalSpent = state.appointments
+        const totalSpent = filteredAppts
           .filter((a) => a.clientId === c.id && a.status === "completed")
           .reduce((sum, a) => {
             if (a.totalPrice != null) return sum + a.totalPrice;
@@ -52,7 +60,7 @@ export default function AnalyticsDetailScreen() {
         return { ...c, apptCount, totalSpent };
       })
       .sort((a, b) => b.apptCount - a.apptCount);
-  }, [state.clients, state.appointments, state.services]);
+  }, [state.clients, filteredAppts, state.services]);
 
   // Appointments analytics - by month
   const appointmentsData = useMemo(() => {
@@ -60,7 +68,7 @@ export default function AnalyticsDetailScreen() {
       string,
       { confirmed: number; completed: number; cancelled: number; pending: number }
     > = {};
-    state.appointments.forEach((a) => {
+    filteredAppts.forEach((a) => {
       const monthKey = a.date.substring(0, 7);
       if (!months[monthKey])
         months[monthKey] = { confirmed: 0, completed: 0, cancelled: 0, pending: 0 };
@@ -72,7 +80,7 @@ export default function AnalyticsDetailScreen() {
     return Object.entries(months)
       .sort(([a], [b]) => b.localeCompare(a))
       .map(([month, counts]) => ({ month, ...counts }));
-  }, [state.appointments]);
+  }, [filteredAppts]);
 
   // Revenue analytics - by service
   const revenueData = useMemo(() => {
@@ -80,7 +88,7 @@ export default function AnalyticsDetailScreen() {
       string,
       { name: string; revenue: number; count: number; color: string }
     > = {};
-    state.appointments
+    filteredAppts
       .filter((a) => a.status === "completed")
       .forEach((a) => {
         const svc = getServiceById(a.serviceId);
@@ -94,14 +102,14 @@ export default function AnalyticsDetailScreen() {
         }
       });
     return Object.values(byService).sort((a, b) => b.revenue - a.revenue);
-  }, [state.appointments, state.services]);
+  }, [filteredAppts, state.services]);
 
   const totalRevenue = revenueData.reduce((s, r) => s + r.revenue, 0);
 
   // Top service analytics
   const serviceRanking = useMemo(() => {
     const counts: Record<string, number> = {};
-    state.appointments
+    filteredAppts
       .filter((a) => a.status !== "cancelled")
       .forEach((a) => {
         counts[a.serviceId] = (counts[a.serviceId] || 0) + 1;
@@ -109,7 +117,7 @@ export default function AnalyticsDetailScreen() {
     return state.services
       .map((s) => ({ ...s, bookings: counts[s.id] || 0 }))
       .sort((a, b) => b.bookings - a.bookings);
-  }, [state.services, state.appointments]);
+  }, [state.services, filteredAppts]);
 
   const maxBar = Math.max(...serviceRanking.map((s) => s.bookings), 1);
 
@@ -382,7 +390,7 @@ export default function AnalyticsDetailScreen() {
   };
 
   return (
-    <ScreenContainer edges={["top", "bottom", "left", "right"]}>
+    <ScreenContainer tabletMaxWidth={900} edges={["top", "bottom", "left", "right"]}>
       <View
         style={[
           styles.header,
@@ -405,6 +413,39 @@ export default function AnalyticsDetailScreen() {
         contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
       >
+        {/* Location Filter */}
+        {hasMultiLoc && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12, marginBottom: 4 }}>
+            <View style={{ flexDirection: "row", gap: 6 }}>
+              <Pressable
+                onPress={() => setLocFilter(null)}
+                style={({ pressed }) => [{
+                  paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1,
+                  backgroundColor: !locFilter ? colors.primary + "15" : colors.surface,
+                  borderColor: !locFilter ? colors.primary : colors.border,
+                  opacity: pressed ? 0.7 : 1,
+                }]}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "600", color: !locFilter ? colors.primary : colors.muted }}>All Locations</Text>
+              </Pressable>
+              {activeLocs.map((loc) => (
+                <Pressable
+                  key={loc.id}
+                  onPress={() => setLocFilter(loc.id)}
+                  style={({ pressed }) => [{
+                    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1,
+                    backgroundColor: locFilter === loc.id ? colors.primary + "15" : colors.surface,
+                    borderColor: locFilter === loc.id ? colors.primary : colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                  }]}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: locFilter === loc.id ? colors.primary : colors.muted }}>{loc.name}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </ScrollView>
+        )}
+
         {/* ─── Report Generation Button ─── */}
         <Pressable
           onPress={() => generateYearEndReport(getReportType())}

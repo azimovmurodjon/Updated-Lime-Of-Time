@@ -20,7 +20,8 @@ export default function LocationsScreen() {
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const hp = Math.max(16, width * 0.05);
+  const isTablet = width >= 768;
+  const hp = isTablet ? 32 : Math.max(16, width * 0.05);
 
   const sortedLocations = useMemo(
     () =>
@@ -118,12 +119,31 @@ export default function LocationsScreen() {
             {item.workingHours ? "Custom schedule" : "Uses business hours"}
           </Text>
         </View>
+
+        {/* Booking link */}
+        {!!state.settings.customSlug && item.active && (
+          <Pressable
+            onPress={() => {
+              const slug = state.settings.customSlug;
+              // Copy to clipboard or open
+              if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                navigator.clipboard.writeText(`Book at ${item.name}: /book/${slug}?location=${item.id}`);
+              }
+            }}
+            style={({ pressed }) => [styles.bookingLinkRow, { borderTopColor: colors.border, opacity: pressed ? 0.6 : 1 }]}
+          >
+            <IconSymbol name="link" size={13} color={colors.primary} />
+            <Text style={{ fontSize: 12, color: colors.primary, flex: 1 }} numberOfLines={1}>
+              Booking link for this location
+            </Text>
+          </Pressable>
+        )}
       </Pressable>
     );
   };
 
   return (
-    <ScreenContainer edges={["top", "left", "right"]} className="pt-2" style={{ paddingHorizontal: hp }}>
+    <ScreenContainer tabletMaxWidth={900} edges={["top", "left", "right"]} className="pt-2" style={{ paddingHorizontal: hp }}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable
@@ -233,6 +253,14 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   scheduleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderTopWidth: 0.5,
+  },
+  bookingLinkRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,

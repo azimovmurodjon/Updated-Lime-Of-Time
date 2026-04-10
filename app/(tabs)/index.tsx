@@ -51,10 +51,15 @@ export default function HomeScreen() {
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const hp = Math.round(Math.max(16, width * 0.045));
+  const isTablet = width >= 768;
+  const isLargeTablet = width >= 1024;
+  const hp = isLargeTablet ? 48 : isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
   const contentWidth = width - hp * 2;
-  const cardGap = 12;
-  const cardW = Math.floor((contentWidth - cardGap) / 2);
+  const cardGap = isTablet ? 16 : 12;
+  // On tablet: 3 or 4 columns for KPI cards; on phone: 2 columns
+  const kpiCols = isLargeTablet ? 4 : isTablet ? 2 : 2;
+  const cardW = Math.floor((contentWidth - cardGap * (kpiCols - 1)) / kpiCols);
+  const fs = isTablet ? 1.1 : 1;
 
   useEffect(() => {
     if (state.loaded && !state.settings.onboardingComplete) {
@@ -107,6 +112,19 @@ export default function HomeScreen() {
     }
   }, [tutorialStep, TUTORIAL_STEPS.length, dismissTutorial, tutorialFade]);
 
+  // ─── Location Filter ──────────────────────────────────────
+  const [selectedLocationFilter, setSelectedLocationFilter] = useState<string | null>(null);
+  const activeLocations = useMemo(() => state.locations.filter((l) => l.active), [state.locations]);
+  const hasMultipleLocations = activeLocations.length > 1;
+
+  const filterByLocation = useCallback(
+    (appointments: any[]) => {
+      if (!selectedLocationFilter) return appointments;
+      return appointments.filter((a: any) => a.locationId === selectedLocationFilter);
+    },
+    [selectedLocationFilter]
+  );
+
   const now = new Date();
   const todayStr = formatDateStr(now);
   const greeting =
@@ -121,14 +139,15 @@ export default function HomeScreen() {
     day: "numeric",
   });
 
-  const todayAppts = getAppointmentsForDate(todayStr);
+  const todayAppts = useMemo(() => filterByLocation(getAppointmentsForDate(todayStr)), [todayStr, selectedLocationFilter, filterByLocation]);
 
   // ─── Analytics ──────────────────────────────────────────────────
   const analytics = useMemo(() => {
     const totalClients = state.clients.length;
-    const activeAppts = state.appointments.filter((a) => a.status !== "cancelled");
+    const filteredAppts = filterByLocation(state.appointments);
+    const activeAppts = filteredAppts.filter((a) => a.status !== "cancelled");
     const totalAppointments = activeAppts.length;
-    const completedAppts = state.appointments.filter((a) => a.status === "completed");
+    const completedAppts = filteredAppts.filter((a) => a.status === "completed");
     const totalRevenue = completedAppts.reduce((sum, a) => {
       if (a.totalPrice != null) return sum + a.totalPrice;
       const svc = state.services.find((s) => s.id === a.serviceId);
@@ -235,7 +254,7 @@ export default function HomeScreen() {
       topService,
       topCount,
     };
-  }, [state.clients, state.appointments, state.services]);
+  }, [state.clients, state.appointments, state.services, filterByLocation]);
 
   const pendingCount = analytics.statusCounts.pending;
   const revenueChange =
@@ -298,7 +317,7 @@ export default function HomeScreen() {
     : require("@/assets/images/icon.png");
 
   return (
-    <ScreenContainer>
+    <ScreenContainer tabletMaxWidth={0}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
@@ -337,6 +356,45 @@ export default function HomeScreen() {
         </View>
 
         <Text style={[styles.dateLabel, { color: colors.muted }]}>{dateLabel}</Text>
+
+        {/* Location Filter */}
+        {hasMultipleLocations && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8, marginBottom: 4 }}>
+            <View style={{ flexDirection: "row", gap: 6 }}>
+              <Pressable
+                onPress={() => setSelectedLocationFilter(null)}
+                style={({ pressed }) => [{
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  backgroundColor: !selectedLocationFilter ? colors.primary + "15" : colors.surface,
+                  borderColor: !selectedLocationFilter ? colors.primary : colors.border,
+                  opacity: pressed ? 0.7 : 1,
+                }]}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "600", color: !selectedLocationFilter ? colors.primary : colors.muted }}>All Locations</Text>
+              </Pressable>
+              {activeLocations.map((loc) => (
+                <Pressable
+                  key={loc.id}
+                  onPress={() => setSelectedLocationFilter(loc.id)}
+                  style={({ pressed }) => [{
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    backgroundColor: selectedLocationFilter === loc.id ? colors.primary + "15" : colors.surface,
+                    borderColor: selectedLocationFilter === loc.id ? colors.primary : colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                  }]}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: selectedLocationFilter === loc.id ? colors.primary : colors.muted }}>{loc.name}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </ScrollView>
+        )}
 
         {/* Pending badge */}
         {pendingCount > 0 && (

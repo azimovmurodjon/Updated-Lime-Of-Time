@@ -13,8 +13,10 @@ import {
   products,
   users,
   staffMembers,
+  locations,
 } from "../drizzle/schema";
 import { sql } from "drizzle-orm";
+import { ADMIN_LOGO_BASE64 } from "./admin-logo-data";
 
 // ─── Admin Auth ─────────────────────────────────────────────────────
 const ADMIN_USER = process.env.ADMIN_USERNAME || "Admin";
@@ -126,6 +128,7 @@ export function registerAdminRoutes(app: Express): void {
       const [allProducts] = await dbase.select({ count: sql<number>`COUNT(*)` }).from(products);
       const [allStaff] = await dbase.select({ count: sql<number>`COUNT(*)` }).from(staffMembers);
       const [allUsers] = await dbase.select({ count: sql<number>`COUNT(*)` }).from(users);
+      const [allLocations] = await dbase.select({ count: sql<number>`COUNT(*)` }).from(locations);
 
       // Recent businesses
       const recentBusinesses = await dbase
@@ -153,6 +156,7 @@ export function registerAdminRoutes(app: Express): void {
           totalProducts: allProducts.count,
           totalStaff: allStaff.count,
           totalUsers: allUsers.count,
+          totalLocations: allLocations.count,
           recentBusinesses,
           recentAppts,
         })
@@ -257,6 +261,7 @@ export function registerAdminRoutes(app: Express): void {
         products,
         staff_members: staffMembers,
         users,
+        locations,
       };
 
       const selectedTable = tableMap[table];
@@ -501,8 +506,13 @@ function sidebarHtml(activePage: string): string {
   return `
     <div class="sidebar">
       <div class="sidebar-logo">
-        <h1>🍋 Lime Of Time</h1>
-        <p>Admin Dashboard</p>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <img src="${ADMIN_LOGO_BASE64}" alt="Lime Of Time" style="width:36px;height:36px;border-radius:8px;" />
+          <div>
+            <h1 style="font-size:16px;">Lime Of Time</h1>
+            <p style="font-size:11px;color:var(--text-muted);margin-top:2px;">Admin Dashboard</p>
+          </div>
+        </div>
       </div>
       ${items
         .map(
@@ -556,7 +566,8 @@ function loginPage(error?: string): string {
 <body>
   <div class="login-container">
     <div class="login-card">
-      <h1>🍋 Lime Of Time</h1>
+      <div style="text-align:center;margin-bottom:8px;"><img src="${ADMIN_LOGO_BASE64}" alt="Lime Of Time" style="width:64px;height:64px;border-radius:12px;" /></div>
+      <h1>Lime Of Time</h1>
       <p>Admin Dashboard Login</p>
       ${error ? `<div class="error-msg">${error}</div>` : ""}
       <form method="POST" action="/api/admin/login">
@@ -601,6 +612,7 @@ function dashboardPage(data: {
   totalProducts: number;
   totalStaff: number;
   totalUsers: number;
+  totalLocations: number;
   recentBusinesses: any[];
   recentAppts: any[];
 }): string {
@@ -655,6 +667,11 @@ function dashboardPage(data: {
         <div class="stat-icon">👤</div>
         <div class="stat-label">Staff Members</div>
         <div class="stat-value">${data.totalStaff}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📍</div>
+        <div class="stat-label">Locations</div>
+        <div class="stat-value">${data.totalLocations}</div>
       </div>
       <div class="stat-card">
         <div class="stat-icon">🔑</div>
@@ -719,44 +736,48 @@ function businessesPage(businesses: any[]): string {
       <h2>All Businesses</h2>
       <span class="badge badge-info">${businesses.length} total</span>
     </div>
-    <div class="card">
-      ${businesses.length === 0
-        ? '<div class="empty-state"><div class="empty-icon">🏢</div><p>No businesses registered yet</p></div>'
-        : `<table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Business Name</th>
-                <th>Phone</th>
-                <th>Email</th>
-                <th>Address</th>
-                <th>Status</th>
-                <th>Created</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${businesses
-                .map(
-                  (b: any) =>
-                    `<tr>
-                      <td>${b.id}</td>
-                      <td><a href="/api/admin/businesses/${b.id}" style="font-weight:600;">${b.businessName}</a></td>
-                      <td>${b.phone || "N/A"}</td>
-                      <td>${b.email || "N/A"}</td>
-                      <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${b.address || "N/A"}</td>
-                      <td>${b.temporaryClosed ? '<span class="badge badge-danger">Closed</span>' : '<span class="badge badge-success">Open</span>'}</td>
-                      <td>${fmtDate(b.createdAt)}</td>
-                      <td>
-                        <a href="/api/admin/businesses/${b.id}" class="btn btn-secondary btn-sm">View</a>
-                      </td>
-                    </tr>`
-                )
-                .join("")}
-            </tbody>
-          </table>`
-      }
-    </div>
+    <style>
+      .biz-cards { display:grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap:16px; }
+      .biz-card { background:var(--card-bg); border:1px solid var(--border); border-radius:12px; padding:20px; transition:box-shadow .2s; }
+      .biz-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.15); }
+      .biz-card-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; }
+      .biz-card-name { font-size:18px; font-weight:700; color:var(--text); margin:0; }
+      .biz-card-name a { color:inherit; text-decoration:none; }
+      .biz-card-name a:hover { color:var(--primary); }
+      .biz-card-meta { display:grid; grid-template-columns:1fr 1fr; gap:8px 16px; font-size:13px; color:var(--text-muted); margin-bottom:14px; }
+      .biz-card-meta .meta-label { font-weight:600; color:var(--text); font-size:12px; text-transform:uppercase; letter-spacing:.5px; }
+      .biz-card-meta .meta-value { margin-top:2px; }
+      .biz-card-footer { display:flex; justify-content:space-between; align-items:center; padding-top:12px; border-top:1px solid var(--border); }
+      .biz-card-stats { display:flex; gap:12px; font-size:12px; color:var(--text-muted); }
+      .biz-card-stats span { display:flex; align-items:center; gap:3px; }
+    </style>
+    ${businesses.length === 0
+      ? '<div class="card"><div class="empty-state"><div class="empty-icon">🏢</div><p>No businesses registered yet</p></div></div>'
+      : `<div class="biz-cards">
+          ${businesses.map((b: any) => `
+            <div class="biz-card">
+              <div class="biz-card-header">
+                <h3 class="biz-card-name"><a href="/api/admin/businesses/${b.id}">${b.businessName}</a></h3>
+                ${b.temporaryClosed ? '<span class="badge badge-danger">Closed</span>' : '<span class="badge badge-success">Open</span>'}
+              </div>
+              <div class="biz-card-meta">
+                <div><div class="meta-label">📞 Phone</div><div class="meta-value">${b.phone || "N/A"}</div></div>
+                <div><div class="meta-label">✉️ Email</div><div class="meta-value">${b.email || "N/A"}</div></div>
+                <div><div class="meta-label">📍 Address</div><div class="meta-value" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;">${b.address || "N/A"}</div></div>
+                <div><div class="meta-label">🌐 Website</div><div class="meta-value">${b.website || "N/A"}</div></div>
+                <div><div class="meta-label">📅 Schedule</div><div class="meta-value">${b.scheduleMode || "weekly"}</div></div>
+                <div><div class="meta-label">🕐 Created</div><div class="meta-value">${fmtDate(b.createdAt)}</div></div>
+              </div>
+              <div class="biz-card-footer">
+                <div class="biz-card-stats">
+                  <span>ID: ${b.id}</span>
+                </div>
+                <a href="/api/admin/businesses/${b.id}" class="btn btn-secondary btn-sm">View Details →</a>
+              </div>
+            </div>
+          `).join("")}
+        </div>`
+    }
   `);
 }
 
@@ -797,6 +818,7 @@ function businessDetailPage(data: any): string {
         <div class="detail-item"><div class="detail-label">Gift Cards</div><div class="detail-value">${data.giftCards.length}</div></div>
         <div class="detail-item"><div class="detail-label">Products</div><div class="detail-value">${data.products.length}</div></div>
         <div class="detail-item"><div class="detail-label">Staff Members</div><div class="detail-value">${(data.staffMembers || []).length}</div></div>
+        <div class="detail-item"><div class="detail-label">Locations</div><div class="detail-value">${(data.locations || []).length}</div></div>
       </div>
     </div>
 
@@ -839,6 +861,17 @@ function businessDetailPage(data: any): string {
             } catch {}
             return `<tr><td style="font-weight:600;">${s.name}</td><td>${s.email || "N/A"}</td><td>${s.phone || "N/A"}</td><td><span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:${s.color || '#4a8c3f'};vertical-align:middle;"></span></td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${svcNames}</td></tr>`;
           }).join("")}
+        </tbody>
+      </table>
+    </div>` : ""}
+
+    ${(data.locations || []).length > 0 ? `
+    <div class="card">
+      <h3>Locations (${data.locations.length})</h3>
+      <table>
+        <thead><tr><th>Name</th><th>Address</th><th>Phone</th><th>Email</th><th>Status</th></tr></thead>
+        <tbody>
+          ${data.locations.map((loc: any) => `<tr><td style="font-weight:600;">${loc.name}</td><td>${loc.address || "N/A"}</td><td>${loc.phone || "N/A"}</td><td>${loc.email || "N/A"}</td><td>${loc.isActive ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-danger">Inactive</span>'}</td></tr>`).join("")}
         </tbody>
       </table>
     </div>` : ""}

@@ -30,7 +30,8 @@ export default function SettingsScreen() {
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const hp = Math.round(Math.max(16, width * 0.045));
+  const isTablet = width >= 768;
+  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
   const { setThemeMode: setThemeOverrideMode } = useThemeContext();
   const { biometricAvailable, biometricEnabled, biometricType, toggleBiometric } = useAppLockContext();
   const settings = state.settings;
@@ -211,7 +212,7 @@ export default function SettingsScreen() {
   ];
 
   return (
-    <ScreenContainer>
+    <ScreenContainer tabletMaxWidth={0}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: hp, paddingTop: 8, paddingBottom: 100 }}>
         {/* Header */}
         <View style={styles.headerRow}>
@@ -500,25 +501,28 @@ export default function SettingsScreen() {
 
         {/* Navigation Cards to Sub-Screens */}
         <Text style={{ fontSize: 12, fontWeight: "500", color: colors.muted, marginBottom: 10, marginTop: 4 }}>Manage</Text>
-        {navItems.map((item) => (
-          <Pressable
-            key={item.title}
-            onPress={() => router.push(item.route as any)}
-            style={({ pressed }) => [
-              styles.navCard,
-              { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.8 : 1 },
-            ]}
-          >
-            <View style={[styles.navIcon, { backgroundColor: item.color + "15" }]}>
-              <IconSymbol name={item.icon} size={22} color={item.color} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{item.title}</Text>
-              <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{item.subtitle}</Text>
-            </View>
-            <IconSymbol name="chevron.right" size={16} color={colors.muted} />
-          </Pressable>
-        ))}
+        <View style={isTablet ? { flexDirection: "row", flexWrap: "wrap", gap: 10 } : undefined}>
+          {navItems.map((item) => (
+            <Pressable
+              key={item.title}
+              onPress={() => router.push(item.route as any)}
+              style={({ pressed }) => [
+                styles.navCard,
+                { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.8 : 1 },
+                isTablet && { width: "48.5%" as any },
+              ]}
+            >
+              <View style={[styles.navIcon, { backgroundColor: item.color + "15" }]}>
+                <IconSymbol name={item.icon} size={22} color={item.color} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{item.title}</Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{item.subtitle}</Text>
+              </View>
+              <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+            </Pressable>
+          ))}
+        </View>
 
         {/* Log Out */}
         <Pressable

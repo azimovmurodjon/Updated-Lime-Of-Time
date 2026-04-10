@@ -121,6 +121,7 @@ const servicesRouter = router({
         price: z.string(),
         color: z.string(),
         category: z.string().optional(),
+        locationIds: z.any().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -138,6 +139,7 @@ const servicesRouter = router({
         price: z.string().optional(),
         color: z.string().optional(),
         category: z.string().optional(),
+        locationIds: z.any().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -504,6 +506,7 @@ const productsRouter = router({
         name: z.string().min(1),
         price: z.string(),
         description: z.string().optional(),
+        brand: z.string().optional(),
         available: z.boolean().default(true),
       })
     )
@@ -520,6 +523,7 @@ const productsRouter = router({
         name: z.string().optional(),
         price: z.string().optional(),
         description: z.string().optional(),
+        brand: z.string().optional(),
         available: z.boolean().optional(),
       })
     )
@@ -557,6 +561,7 @@ const staffRouter = router({
         role: z.string().optional(),
         color: z.string().optional(),
         serviceIds: z.any().optional(),
+        locationIds: z.any().optional(),
         workingHours: z.any().optional(),
         active: z.boolean().default(true),
       })
@@ -577,6 +582,7 @@ const staffRouter = router({
         role: z.string().optional(),
         color: z.string().optional(),
         serviceIds: z.any().optional(),
+        locationIds: z.any().optional(),
         workingHours: z.any().optional(),
         active: z.boolean().optional(),
       })

@@ -35,7 +35,8 @@ export default function GiftCardsScreen() {
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const hp = Math.round(Math.max(16, width * 0.045));
+  const isTablet = width >= 768;
+  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
 
   const [showForm, setShowForm] = useState(false);
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
@@ -486,7 +487,7 @@ export default function GiftCardsScreen() {
   ) : null;
 
   return (
-    <ScreenContainer edges={["top", "left", "right"]}>
+    <ScreenContainer tabletMaxWidth={900} edges={["top", "left", "right"]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.headerBackBtn, pressed && { opacity: 0.6 }]}>
@@ -575,40 +576,90 @@ export default function GiftCardsScreen() {
             </View>
 
             <ScrollView style={{ maxHeight: 340 }}>
-              {pickerTab === "services" && state.services.map((item) => {
-                const isActive = selectedServiceIds.includes(item.id);
-                return (
-                  <Pressable
-                    key={item.id}
-                    onPress={() => toggleService(item.id)}
-                    style={[styles.serviceOption, { backgroundColor: isActive ? colors.primary + "15" : "transparent", borderColor: isActive ? colors.primary : colors.border }]}
-                  >
-                    <View style={[styles.serviceColorDot, { backgroundColor: item.color }]} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: colors.foreground, fontWeight: "600", fontSize: 15, lineHeight: 20 }}>{item.name}</Text>
-                      <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>${parseFloat(String(item.price)).toFixed(2)} · {item.duration} min</Text>
-                    </View>
-                    {isActive && <IconSymbol name="checkmark" size={18} color={colors.primary} />}
-                  </Pressable>
-                );
-              })}
-              {pickerTab === "products" && availableProducts.map((item) => {
-                const isActive = selectedProductIds.includes(item.id);
-                return (
-                  <Pressable
-                    key={item.id}
-                    onPress={() => toggleProduct(item.id)}
-                    style={[styles.serviceOption, { backgroundColor: isActive ? colors.primary + "15" : "transparent", borderColor: isActive ? colors.primary : colors.border }]}
-                  >
-                    <IconSymbol name="bag.fill" size={16} color={colors.primary} />
-                    <View style={{ flex: 1, marginLeft: 4 }}>
-                      <Text style={{ color: colors.foreground, fontWeight: "600", fontSize: 15, lineHeight: 20 }}>{item.name}</Text>
-                      <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>${parseFloat(String(item.price)).toFixed(2)}</Text>
-                    </View>
-                    {isActive && <IconSymbol name="checkmark" size={18} color={colors.primary} />}
-                  </Pressable>
-                );
-              })}
+              {/* Services grouped by category */}
+              {pickerTab === "services" && (() => {
+                const catMap = new Map<string, typeof state.services>();
+                state.services.forEach((s) => {
+                  const cat = s.category?.trim() || "General";
+                  if (!catMap.has(cat)) catMap.set(cat, []);
+                  catMap.get(cat)!.push(s);
+                });
+                const catEntries = Array.from(catMap.entries()).sort((a, b) => {
+                  if (a[0] === "General") return 1;
+                  if (b[0] === "General") return -1;
+                  return a[0].localeCompare(b[0]);
+                });
+                const hasMultiCat = catEntries.length > 1;
+                return catEntries.map(([cat, svcs]) => (
+                  <View key={cat}>
+                    {hasMultiCat && (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 4, paddingTop: 8, paddingBottom: 4 }}>
+                        <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: colors.primary }} />
+                        <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted }}>{cat}</Text>
+                      </View>
+                    )}
+                    {svcs.map((item) => {
+                      const isActive = selectedServiceIds.includes(item.id);
+                      return (
+                        <Pressable
+                          key={item.id}
+                          onPress={() => toggleService(item.id)}
+                          style={[styles.serviceOption, { backgroundColor: isActive ? colors.primary + "15" : "transparent", borderColor: isActive ? colors.primary : colors.border, marginLeft: hasMultiCat ? 4 : 0 }]}
+                        >
+                          <View style={[styles.serviceColorDot, { backgroundColor: item.color }]} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: colors.foreground, fontWeight: "600", fontSize: 15, lineHeight: 20 }}>{item.name}</Text>
+                            <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>${parseFloat(String(item.price)).toFixed(2)} · {item.duration} min</Text>
+                          </View>
+                          {isActive && <IconSymbol name="checkmark" size={18} color={colors.primary} />}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                ));
+              })()}
+              {/* Products grouped by brand */}
+              {pickerTab === "products" && (() => {
+                const brandMap = new Map<string, typeof availableProducts>();
+                availableProducts.forEach((p) => {
+                  const br = p.brand?.trim() || "Other";
+                  if (!brandMap.has(br)) brandMap.set(br, []);
+                  brandMap.get(br)!.push(p);
+                });
+                const brandEntries = Array.from(brandMap.entries()).sort((a, b) => {
+                  if (a[0] === "Other") return 1;
+                  if (b[0] === "Other") return -1;
+                  return a[0].localeCompare(b[0]);
+                });
+                const hasMultiBrand = brandEntries.length > 1;
+                return brandEntries.map(([brand, prods]) => (
+                  <View key={brand}>
+                    {hasMultiBrand && (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 4, paddingTop: 8, paddingBottom: 4 }}>
+                        <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: colors.warning }} />
+                        <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted }}>{brand}</Text>
+                      </View>
+                    )}
+                    {prods.map((item) => {
+                      const isActive = selectedProductIds.includes(item.id);
+                      return (
+                        <Pressable
+                          key={item.id}
+                          onPress={() => toggleProduct(item.id)}
+                          style={[styles.serviceOption, { backgroundColor: isActive ? colors.primary + "15" : "transparent", borderColor: isActive ? colors.primary : colors.border, marginLeft: hasMultiBrand ? 4 : 0 }]}
+                        >
+                          <IconSymbol name="bag.fill" size={16} color={colors.primary} />
+                          <View style={{ flex: 1, marginLeft: 4 }}>
+                            <Text style={{ color: colors.foreground, fontWeight: "600", fontSize: 15, lineHeight: 20 }}>{item.name}</Text>
+                            <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>${parseFloat(String(item.price)).toFixed(2)}{item.brand ? ` · ${item.brand}` : ""}</Text>
+                          </View>
+                          {isActive && <IconSymbol name="checkmark" size={18} color={colors.primary} />}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                ));
+              })()}
               {pickerTab === "services" && state.services.length === 0 && (
                 <Text style={{ color: colors.muted, textAlign: "center", padding: 20, fontSize: 14 }}>No services available.</Text>
               )}
