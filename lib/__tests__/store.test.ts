@@ -155,6 +155,8 @@ describe("Business Profile", () => {
       temporaryClosed: false,
       businessLogoUri: "",
       scheduleMode: "weekly" as const,
+      bufferTime: 0,
+      customSlug: "",
     };
     expect(settings.profile).toBeDefined();
     expect(settings.profile.ownerName).toBe("");
@@ -293,6 +295,8 @@ describe("Theme Mode", () => {
       temporaryClosed: false,
       businessLogoUri: "",
       scheduleMode: "weekly" as const,
+      bufferTime: 0,
+      customSlug: "",
     };
     expect(settings.themeMode).toBe("dark");
   });
@@ -310,6 +314,8 @@ describe("Theme Mode", () => {
       temporaryClosed: false,
       businessLogoUri: "",
       scheduleMode: "weekly" as const,
+      bufferTime: 0,
+      customSlug: "",
     };
     expect(settings.themeMode).toBe("system");
   });
@@ -440,6 +446,8 @@ describe("Cancellation Policy", () => {
       temporaryClosed: false,
       businessLogoUri: "",
       scheduleMode: "weekly" as const,
+      bufferTime: 0,
+      customSlug: "",
     };
     expect(settings.cancellationPolicy.enabled).toBe(true);
     expect(settings.onboardingComplete).toBe(false);
@@ -562,6 +570,8 @@ describe("Temporary Closed Feature", () => {
       temporaryClosed: true,
       businessLogoUri: "",
       scheduleMode: "weekly" as const,
+      bufferTime: 0,
+      customSlug: "",
     };
     expect(settings.temporaryClosed).toBe(true);
   });
@@ -579,6 +589,8 @@ describe("Temporary Closed Feature", () => {
       temporaryClosed: false,
       businessLogoUri: "",
       scheduleMode: "weekly" as const,
+      bufferTime: 0,
+      customSlug: "",
     };
     expect(settings.temporaryClosed).toBe(false);
   });
@@ -659,6 +671,8 @@ describe("Business Logo URI", () => {
       temporaryClosed: false,
       businessLogoUri: "file:///data/user/0/com.app/cache/photo.jpg",
       scheduleMode: "weekly" as const,
+      bufferTime: 0,
+      customSlug: "",
     };
     expect(settings.businessLogoUri).toBe("file:///data/user/0/com.app/cache/photo.jpg");
   });
@@ -676,6 +690,8 @@ describe("Business Logo URI", () => {
       temporaryClosed: false,
       businessLogoUri: "",
       scheduleMode: "weekly" as const,
+      bufferTime: 0,
+      customSlug: "",
     };
     expect(settings.businessLogoUri).toBe("");
   });
@@ -695,6 +711,8 @@ describe("Logout and Delete Business", () => {
       temporaryClosed: false,
       businessLogoUri: "",
       scheduleMode: "weekly" as const,
+      bufferTime: 0,
+      customSlug: "",
     };
     // Simulate logout
     const loggedOut = { ...settings, onboardingComplete: false };

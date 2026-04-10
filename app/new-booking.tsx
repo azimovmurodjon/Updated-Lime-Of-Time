@@ -42,6 +42,7 @@ export default function NewBookingScreen() {
   const [quickPhone, setQuickPhone] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [addMoreTab, setAddMoreTab] = useState<"services" | "products">("services");
+  const [recurring, setRecurring] = useState<"none" | "weekly" | "biweekly" | "monthly">("none");
 
   const selectedService = selectedServiceId ? getServiceById(selectedServiceId) : null;
   const selectedClient = selectedClientId ? getClientById(selectedClientId) : null;
@@ -66,9 +67,10 @@ export default function NewBookingScreen() {
       state.appointments,
       30,
       state.customSchedule,
-      state.settings.scheduleMode
+      state.settings.scheduleMode,
+      state.settings.bufferTime ?? 0
     );
-  }, [selectedDate, state.settings.workingHours, state.appointments, totalDuration, state.customSchedule, state.settings.scheduleMode]);
+  }, [selectedDate, state.settings.workingHours, state.appointments, totalDuration, state.customSchedule, state.settings.scheduleMode, state.settings.bufferTime]);
 
   // Date options: next 14 days with closed-day and no-slots awareness
   const dateOptions = useMemo(() => {
@@ -96,7 +98,7 @@ export default function NewBookingScreen() {
       }
       let noSlots = false;
       if (!closed) {
-        const slots = generateAvailableSlots(ds, totalDuration, state.settings.workingHours, state.appointments, 30, state.customSchedule, state.settings.scheduleMode);
+        const slots = generateAvailableSlots(ds, totalDuration, state.settings.workingHours, state.appointments, 30, state.customSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
         noSlots = slots.length === 0;
       }
       dates.push({ date: ds, closed, noSlots });
@@ -164,23 +166,43 @@ export default function NewBookingScreen() {
       const extras = cart.map((c) => `${c.name} ($${c.price.toFixed(2)})`).join(", ");
       bookNotes = bookNotes ? `${bookNotes}\nAdditional items: ${extras}` : `Additional items: ${extras}`;
     }
-    const appointment: Appointment = {
-      id: generateId(),
-      serviceId: selectedServiceId,
-      clientId: selectedClientId,
-      date: selectedDate,
-      time: selectedTime,
-      duration: totalDuration,
-      status: "confirmed",
-      notes: bookNotes,
-      createdAt: new Date().toISOString(),
-      totalPrice,
-      extraItems: cart.length > 0 ? cart.map((c) => ({ type: c.type, id: c.id, name: c.name, price: c.price, duration: c.duration })) : undefined,
-    };
-    dispatch({ type: "ADD_APPOINTMENT", payload: appointment });
-    syncToDb({ type: "ADD_APPOINTMENT", payload: appointment });
+    if (recurring !== "none") {
+      bookNotes = bookNotes ? `${bookNotes}\nRecurring: ${recurring}` : `Recurring: ${recurring}`;
+    }
+
+    // Calculate dates for recurring appointments
+    const dates: string[] = [selectedDate];
+    if (recurring !== "none") {
+      const baseDate = new Date(selectedDate + "T12:00:00");
+      const count = recurring === "weekly" ? 8 : recurring === "biweekly" ? 6 : 4; // weeks ahead
+      for (let i = 1; i < count; i++) {
+        const nextDate = new Date(baseDate);
+        if (recurring === "weekly") nextDate.setDate(baseDate.getDate() + 7 * i);
+        else if (recurring === "biweekly") nextDate.setDate(baseDate.getDate() + 14 * i);
+        else nextDate.setMonth(baseDate.getMonth() + i);
+        dates.push(formatDateStr(nextDate));
+      }
+    }
+
+    for (const date of dates) {
+      const appointment: Appointment = {
+        id: generateId(),
+        serviceId: selectedServiceId,
+        clientId: selectedClientId,
+        date,
+        time: selectedTime,
+        duration: totalDuration,
+        status: "confirmed",
+        notes: bookNotes,
+        createdAt: new Date().toISOString(),
+        totalPrice,
+        extraItems: cart.length > 0 ? cart.map((c) => ({ type: c.type, id: c.id, name: c.name, price: c.price, duration: c.duration })) : undefined,
+      };
+      dispatch({ type: "ADD_APPOINTMENT", payload: appointment });
+      syncToDb({ type: "ADD_APPOINTMENT", payload: appointment });
+    }
     router.back();
-  }, [selectedServiceId, selectedClientId, selectedDate, selectedTime, totalDuration, notes, cart, dispatch, router]);
+  }, [selectedServiceId, selectedClientId, selectedDate, selectedTime, totalDuration, notes, cart, recurring, dispatch, router]);
 
   const getInitials = (name: string) => {
     const parts = name.split(" ");
@@ -721,6 +743,37 @@ export default function NewBookingScreen() {
             </View>
           )}
 
+          {/* Recurring Option */}
+          <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
+            <Text className="text-xs text-muted mb-2">Repeat Appointment</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {(["none", "weekly", "biweekly", "monthly"] as const).map((opt) => (
+                <Pressable
+                  key={opt}
+                  onPress={() => setRecurring(opt)}
+                  style={({ pressed }) => [{
+                    paddingHorizontal: 14,
+                    paddingVertical: 8,
+                    borderRadius: 10,
+                    borderWidth: 1,
+                    backgroundColor: recurring === opt ? colors.primary : colors.background,
+                    borderColor: recurring === opt ? colors.primary : colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                  }]}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: "500", color: recurring === opt ? "#FFFFFF" : colors.foreground }}>
+                    {opt === "none" ? "One-time" : opt === "weekly" ? "Weekly" : opt === "biweekly" ? "Bi-weekly" : "Monthly"}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            {recurring !== "none" && (
+              <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6 }}>
+                {recurring === "weekly" ? "8 appointments" : recurring === "biweekly" ? "6 appointments" : "4 appointments"} will be created
+              </Text>
+            )}
+          </View>
+
           {/* Book Button */}
           <Pressable
             onPress={handleBook}
@@ -733,7 +786,9 @@ export default function NewBookingScreen() {
             ]}
             disabled={!selectedTime}
           >
-            <Text className="text-base font-semibold text-white">Confirm Booking</Text>
+            <Text className="text-base font-semibold text-white">
+              {recurring !== "none" ? `Book ${recurring === "weekly" ? 8 : recurring === "biweekly" ? 6 : 4} Appointments` : "Confirm Booking"}
+            </Text>
           </Pressable>
 
           <View style={{ height: 40 }} />

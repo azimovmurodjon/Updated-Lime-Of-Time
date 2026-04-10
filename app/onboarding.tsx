@@ -539,6 +539,8 @@ function ownerToSettings(owner: any) {
     scheduleMode: owner.scheduleMode ?? "weekly",
     workingHours: owner.workingHours ?? DEFAULT_WORKING_HOURS,
     cancellationPolicy: owner.cancellationPolicy ?? DEFAULT_CANCELLATION_POLICY,
+    bufferTime: owner.bufferTime ?? 0,
+    customSlug: owner.customSlug ?? "",
     profile: {
       ownerName: owner.ownerName ?? "",
       phone: owner.phone ?? "",

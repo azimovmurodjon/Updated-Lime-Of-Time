@@ -73,7 +73,8 @@ export default function PublicBookingScreen() {
       state.appointments,
       30,
       state.customSchedule,
-      state.settings.scheduleMode
+      state.settings.scheduleMode,
+      state.settings.bufferTime ?? 0
     );
   }, [selectedDate, state.settings, state.appointments, selectedService, state.customSchedule]);
 
@@ -103,7 +104,7 @@ export default function PublicBookingScreen() {
       }
       let noSlots = false;
       if (!closed) {
-        const slots = generateAvailableSlots(ds, duration, state.settings.workingHours, state.appointments, 30, state.customSchedule, state.settings.scheduleMode);
+        const slots = generateAvailableSlots(ds, duration, state.settings.workingHours, state.appointments, 30, state.customSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
         noSlots = slots.length === 0;
       }
       dates.push({ date: ds, closed, noSlots });

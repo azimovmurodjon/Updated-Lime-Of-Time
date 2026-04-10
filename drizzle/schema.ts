@@ -61,6 +61,10 @@ export const businessOwners = mysqlTable("business_owners", {
   workingHours: json("workingHours"),
   /** Cancellation policy JSON: { enabled, hoursBeforeAppointment, feePercentage } */
   cancellationPolicy: json("cancellationPolicy"),
+  /** Buffer time between appointments in minutes (0 = no buffer) */
+  bufferTime: int("bufferTime").default(0).notNull(),
+  /** Custom booking slug (overrides auto-generated slug from business name) */
+  customSlug: varchar("customSlug", { length: 100 }),
   /** Onboarding completed */
   onboardingComplete: boolean("onboardingComplete").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -81,6 +85,8 @@ export const services = mysqlTable("services", {
   duration: int("duration").notNull(), // minutes
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
   color: varchar("color", { length: 20 }).notNull(),
+  /** Service category for grouping */
+  category: varchar("category", { length: 100 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -249,3 +255,43 @@ export const products = mysqlTable("products", {
 
 export type DbProduct = typeof products.$inferSelect;
 export type InsertProduct = typeof products.$inferInsert;
+
+// ─── Waitlist ──────────────────────────────────────────────────────
+export const waitlist = mysqlTable("waitlist", {
+  id: int("id").autoincrement().primaryKey(),
+  businessOwnerId: int("businessOwnerId").notNull(),
+  /** Client name */
+  clientName: varchar("clientName", { length: 255 }).notNull(),
+  /** Client phone */
+  clientPhone: varchar("clientPhone", { length: 20 }),
+  /** Client email */
+  clientEmail: varchar("clientEmail", { length: 320 }),
+  /** Service localId the client wants */
+  serviceLocalId: varchar("serviceLocalId", { length: 64 }).notNull(),
+  /** Preferred date YYYY-MM-DD */
+  preferredDate: varchar("preferredDate", { length: 10 }).notNull(),
+  /** Status */
+  status: mysqlEnum("status", ["waiting", "notified", "booked", "expired"]).default("waiting").notNull(),
+  /** Notes from the client */
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DbWaitlist = typeof waitlist.$inferSelect;
+export type InsertWaitlist = typeof waitlist.$inferInsert;
+
+// ─── Data Deletion Requests ─────────────────────────────────────────
+export const dataDeletionRequests = mysqlTable("data_deletion_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  email: varchar("email", { length: 320 }),
+  phone: varchar("phone", { length: 20 }),
+  requestType: mysqlEnum("request_type", ["full", "client_data", "business_data"]).default("full").notNull(),
+  reason: text("reason"),
+  status: mysqlEnum("status", ["pending", "processing", "completed", "rejected"]).default("pending").notNull(),
+  processedAt: timestamp("processedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DbDataDeletionRequest = typeof dataDeletionRequests.$inferSelect;
+export type InsertDataDeletionRequest = typeof dataDeletionRequests.$inferInsert;

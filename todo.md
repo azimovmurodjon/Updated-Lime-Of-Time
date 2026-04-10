@@ -206,3 +206,48 @@
 - [x] Remove Map line from SMS messages (accept, reminder, follow-up) and replace with booking link
 - [x] Remove old Manus notification email for new booking requests — only use branded Resend email from lime-of-time.com
 - [x] Enable push notification to business owner when new appointment request is submitted (app notification only, no email)
+
+## Phase: Free Features Implementation (33 items)
+
+### Admin Dashboard
+- [x] Build admin dashboard with login (username/password from env vars)
+- [x] Admin overview: total businesses, clients, appointments, revenue stats
+- [x] Admin business management: view/edit/delete all businesses
+- [x] Admin client management: view all clients across businesses
+- [x] Admin appointment management: view/filter all appointments
+- [x] Admin DB explorer: view/query all tables
+- [x] Admin settings: manage admin credentials, feature flags
+- [x] Admin analytics: user growth, appointment trends, geographic distribution
+
+### Legal Protection
+- [x] Generate Privacy Policy page (accessible from app Settings and booking page)
+- [x] Generate Terms of Service page (linked from onboarding and booking page)
+- [x] Generate End User License Agreement page
+- [x] Add client consent checkbox on booking page with timestamp/IP logging
+- [x] Generate Business Owner Agreement shown during onboarding
+- [x] Add cookie consent banner on booking page
+- [x] Add data deletion request feature in app Settings
+
+### Booking Page Improvements
+- [x] Display business logo on booking page
+- [x] Add SEO meta tags and Open Graph to booking page
+- [x] Add dark mode support to booking page
+- [x] Add skeleton loading states to booking page
+- [x] Improve booking page accessibility (WCAG compliance)
+
+### Core App Features
+- [x] Client self-service cancel/reschedule from booking link
+- [x] Recurring/repeat appointments
+- [x] Revenue analytics dashboard improvements
+- [x] Waitlist for fully booked slots
+- [x] Client notes and history improvements
+- [x] Buffer time between appointments
+- [x] Intake forms / pre-appointment questionnaire
+- [x] Service categories and grouping
+- [x] Blocked dates / holidays management
+- [x] Custom booking slug
+- [x] Export data (CSV/PDF)
+- [x] Onboarding tutorial / walkthrough
+
+### Notifications
+- [x] Rich push notifications with appointment details

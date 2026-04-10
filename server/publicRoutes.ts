@@ -24,7 +24,8 @@ function generateAvailableSlots(
   appointments: any[],
   interval: number,
   customSchedule: any[],
-  scheduleMode: "weekly" | "custom" = "weekly"
+  scheduleMode: "weekly" | "custom" = "weekly",
+  bufferTime: number = 0
 ): string[] {
   const d = new Date(date + "T00:00:00");
   const dayIndex = d.getDay();
@@ -72,7 +73,7 @@ function generateAvailableSlots(
     // Check for conflicts
     const slotEnd = t + duration;
     const conflict = bookedSlots.some(
-      (b: any) => t < b.end && slotEnd > b.start
+      (b: any) => t < (b.end + bufferTime) && slotEnd > (b.start - bufferTime)
     );
     if (!conflict) {
       slots.push(minutesToTime(t));
@@ -171,6 +172,7 @@ export function registerPublicRoutes(app: Express) {
       const appts = await db.getAppointmentsByOwner(owner.id);
       const schedule = await db.getCustomScheduleByOwner(owner.id);
       const mode = (owner.scheduleMode as "weekly" | "custom") || "weekly";
+      const buffer = (owner as any).bufferTime || 0;
       const slots = generateAvailableSlots(
         date,
         duration,
@@ -178,7 +180,8 @@ export function registerPublicRoutes(app: Express) {
         appts,
         30,
         schedule,
-        mode
+        mode,
+        buffer
       );
       res.json({ date, slots });
     } catch (err) {
@@ -427,7 +430,8 @@ export function registerPublicRoutes(app: Express) {
       const dur = duration || svc?.duration || 60;
 
       const bookMode = (owner.scheduleMode as "weekly" | "custom") || "weekly";
-      const slots = generateAvailableSlots(date, dur, owner.workingHours, appts, 30, schedule, bookMode);
+      const bookBuffer = (owner as any).bufferTime || 0;
+      const slots = generateAvailableSlots(date, dur, owner.workingHours, appts, 30, schedule, bookMode, bookBuffer);
       if (!slots.includes(time)) {
         res.status(400).json({ error: "Selected time slot is no longer available" });
         return;
@@ -533,6 +537,7 @@ export function registerPublicRoutes(app: Express) {
       res.json({
         success: true,
         appointmentId: appointmentLocalId,
+        manageUrl: `/api/manage/${req.params.slug}/${appointmentLocalId}`,
         message: "Appointment request submitted! The business will confirm your booking.",
       });
     } catch (err) {
@@ -602,6 +607,258 @@ export function registerPublicRoutes(app: Express) {
     }
   });
 
+  // ── Cancel / Reschedule ────────────────────────────────────────────
+
+  /** Get appointment details for cancel/reschedule page */
+  app.get("/api/public/appointment/:appointmentId", async (req: Request, res: Response) => {
+    try {
+      const { appointmentId } = req.params;
+      const { slug } = req.query;
+      if (!slug) {
+        res.status(400).json({ error: "slug query parameter is required" });
+        return;
+      }
+      const owner = await db.getBusinessOwnerBySlug(slug as string);
+      if (!owner) {
+        res.status(404).json({ error: "Business not found" });
+        return;
+      }
+      const appt = await db.getAppointmentByLocalId(appointmentId, owner.id);
+      if (!appt) {
+        res.status(404).json({ error: "Appointment not found" });
+        return;
+      }
+      const svcList = await db.getServicesByOwner(owner.id);
+      const svc = svcList.find((s) => s.localId === appt.serviceLocalId);
+      const clientList = await db.getClientsByOwner(owner.id);
+      const client = clientList.find((c) => c.localId === appt.clientLocalId);
+      res.json({
+        localId: appt.localId,
+        date: appt.date,
+        time: appt.time,
+        duration: appt.duration,
+        status: appt.status,
+        serviceName: svc?.name || "Service",
+        serviceLocalId: appt.serviceLocalId,
+        clientName: client?.name || "Client",
+        businessName: owner.businessName,
+      });
+    } catch (err) {
+      console.error("[Public API] Error fetching appointment:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  /** Cancel an appointment from client side */
+  app.post("/api/public/appointment/:appointmentId/cancel", async (req: Request, res: Response) => {
+    try {
+      const { appointmentId } = req.params;
+      const { slug, clientPhone } = req.body;
+      if (!slug) {
+        res.status(400).json({ error: "slug is required" });
+        return;
+      }
+      const owner = await db.getBusinessOwnerBySlug(slug);
+      if (!owner) {
+        res.status(404).json({ error: "Business not found" });
+        return;
+      }
+      const appt = await db.getAppointmentByLocalId(appointmentId, owner.id);
+      if (!appt) {
+        res.status(404).json({ error: "Appointment not found" });
+        return;
+      }
+      if (appt.status === "cancelled" || appt.status === "completed") {
+        res.status(400).json({ error: `Appointment is already ${appt.status}` });
+        return;
+      }
+      // Verify client identity by phone
+      const clientList = await db.getClientsByOwner(owner.id);
+      const client = clientList.find((c) => c.localId === appt.clientLocalId);
+      if (client && clientPhone) {
+        const rawDigits = clientPhone.replace(/\D/g, "");
+        const normalizedInput = rawDigits.length === 11 && rawDigits.startsWith("1") ? rawDigits.slice(1) : rawDigits;
+        const normalizedStored = (client.phone || "").replace(/\D/g, "");
+        if (normalizedInput !== normalizedStored) {
+          res.status(403).json({ error: "Phone number does not match. Please enter the phone number used when booking." });
+          return;
+        }
+      }
+      await db.updateAppointment(appointmentId, owner.id, { status: "cancelled" });
+      // Notify business owner
+      try {
+        const svcList = await db.getServicesByOwner(owner.id);
+        const svc = svcList.find((s) => s.localId === appt.serviceLocalId);
+        await notifyOwner({
+          title: "Appointment Cancelled",
+          content: `${client?.name || "A client"} cancelled their ${svc?.name || "appointment"} on ${appt.date} at ${appt.time}`,
+        });
+      } catch (pushErr) {
+        console.warn("[Public API] Failed to send cancellation notification:", pushErr);
+      }
+      // Check waitlist for this slot
+      const waitlistEntries = await db.getWaitlistForDateAndService(owner.id, appt.date, appt.serviceLocalId);
+      if (waitlistEntries.length > 0) {
+        // Mark first waitlist entry as notified
+        await db.updateWaitlistEntry(waitlistEntries[0].id, { status: "notified" });
+      }
+      res.json({ success: true, message: "Appointment cancelled successfully." });
+    } catch (err) {
+      console.error("[Public API] Error cancelling appointment:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  /** Reschedule an appointment from client side */
+  app.post("/api/public/appointment/:appointmentId/reschedule", async (req: Request, res: Response) => {
+    try {
+      const { appointmentId } = req.params;
+      const { slug, clientPhone, newDate, newTime } = req.body;
+      if (!slug || !newDate || !newTime) {
+        res.status(400).json({ error: "slug, newDate, and newTime are required" });
+        return;
+      }
+      const owner = await db.getBusinessOwnerBySlug(slug);
+      if (!owner) {
+        res.status(404).json({ error: "Business not found" });
+        return;
+      }
+      const appt = await db.getAppointmentByLocalId(appointmentId, owner.id);
+      if (!appt) {
+        res.status(404).json({ error: "Appointment not found" });
+        return;
+      }
+      if (appt.status === "cancelled" || appt.status === "completed") {
+        res.status(400).json({ error: `Cannot reschedule a ${appt.status} appointment` });
+        return;
+      }
+      // Verify client identity by phone
+      const clientList = await db.getClientsByOwner(owner.id);
+      const client = clientList.find((c) => c.localId === appt.clientLocalId);
+      if (client && clientPhone) {
+        const rawDigits = clientPhone.replace(/\D/g, "");
+        const normalizedInput = rawDigits.length === 11 && rawDigits.startsWith("1") ? rawDigits.slice(1) : rawDigits;
+        const normalizedStored = (client.phone || "").replace(/\D/g, "");
+        if (normalizedInput !== normalizedStored) {
+          res.status(403).json({ error: "Phone number does not match. Please enter the phone number used when booking." });
+          return;
+        }
+      }
+      // Verify new slot is available
+      const appts = await db.getAppointmentsByOwner(owner.id);
+      const schedule = await db.getCustomScheduleByOwner(owner.id);
+      const mode = (owner.scheduleMode as "weekly" | "custom") || "weekly";
+      const bufferVal = (owner as any).bufferTime || 0;
+      // Exclude current appointment from conflict check
+      const otherAppts = appts.filter((a: any) => a.localId !== appointmentId);
+      const slots = generateAvailableSlots(newDate, appt.duration, owner.workingHours, otherAppts, 30, schedule, mode, bufferVal);
+      if (!slots.includes(newTime)) {
+        res.status(400).json({ error: "Selected time slot is not available" });
+        return;
+      }
+      await db.updateAppointment(appointmentId, owner.id, {
+        date: newDate,
+        time: newTime,
+        status: "pending",
+      });
+      // Notify business owner
+      try {
+        const svcList = await db.getServicesByOwner(owner.id);
+        const svc = svcList.find((s) => s.localId === appt.serviceLocalId);
+        await notifyOwner({
+          title: "Appointment Rescheduled",
+          content: `${client?.name || "A client"} rescheduled their ${svc?.name || "appointment"} to ${newDate} at ${newTime}`,
+        });
+      } catch (pushErr) {
+        console.warn("[Public API] Failed to send reschedule notification:", pushErr);
+      }
+      res.json({ success: true, message: "Appointment rescheduled successfully. The business will confirm your new time." });
+    } catch (err) {
+      console.error("[Public API] Error rescheduling appointment:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ── Waitlist ───────────────────────────────────────────────────────
+
+  /** Join waitlist for a fully booked slot */
+  app.post("/api/public/business/:slug/waitlist", async (req: Request, res: Response) => {
+    try {
+      const owner = await db.getBusinessOwnerBySlug(req.params.slug);
+      if (!owner) {
+        res.status(404).json({ error: "Business not found" });
+        return;
+      }
+      const { clientName, clientPhone, clientEmail, serviceLocalId, preferredDate, notes } = req.body;
+      if (!clientName || !serviceLocalId || !preferredDate) {
+        res.status(400).json({ error: "Missing required fields: clientName, serviceLocalId, preferredDate" });
+        return;
+      }
+      await db.createWaitlistEntry({
+        businessOwnerId: owner.id,
+        clientName,
+        clientPhone: clientPhone || null,
+        clientEmail: clientEmail || null,
+        serviceLocalId,
+        preferredDate,
+        notes: notes || null,
+      });
+      // Notify business owner
+      try {
+        const svcList = await db.getServicesByOwner(owner.id);
+        const svc = svcList.find((s) => s.localId === serviceLocalId);
+        await notifyOwner({
+          title: "New Waitlist Entry",
+          content: `${clientName} joined the waitlist for ${svc?.name || "a service"} on ${preferredDate}`,
+        });
+      } catch (pushErr) {
+        console.warn("[Public API] Failed to send waitlist notification:", pushErr);
+      }
+      res.json({ success: true, message: "You've been added to the waitlist! We'll notify you if a spot opens up." });
+    } catch (err) {
+      console.error("[Public API] Error adding to waitlist:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  /** Get waitlist entries for admin/business owner */
+  app.get("/api/public/business/:slug/waitlist", async (req: Request, res: Response) => {
+    try {
+      const owner = await db.getBusinessOwnerBySlug(req.params.slug);
+      if (!owner) {
+        res.status(404).json({ error: "Business not found" });
+        return;
+      }
+      const entries = await db.getWaitlistByOwner(owner.id);
+      res.json(entries);
+    } catch (err) {
+      console.error("[Public API] Error fetching waitlist:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ── Manage Appointment Page (client self-service) ─────────────────
+
+  /** Client appointment management page */
+  app.get("/api/manage/:slug/:appointmentId", async (req: Request, res: Response) => {
+    try {
+      const owner = await db.getBusinessOwnerBySlug(req.params.slug);
+      if (!owner) {
+        res.status(404).send(notFoundPage("Business not found"));
+        return;
+      }
+      const appt = await db.getAppointmentByLocalId(req.params.appointmentId, owner.id);
+      if (!appt) {
+        res.status(404).send(notFoundPage("Appointment not found"));
+        return;
+      }
+      res.send(manageAppointmentPage(req.params.slug, owner, appt));
+    } catch (err) {
+      console.error("[Public] Error serving manage page:", err);
+      res.status(500).send(errorPage());
+    }
+  });
+
   // ── HTML Pages ─────────────────────────────────────────────────────
 
   /** Booking page */
@@ -651,10 +908,38 @@ function baseStyles(): string {
   return `
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
+      :root {
+        --bg: #f5f7f5; --bg-card: #fff; --bg-card-hover: #f8fbf8;
+        --bg-input: #fafcfa; --bg-selected: #e8f5e3; --bg-selected-hover: #f0f7ef;
+        --text: #1a1a1a; --text-secondary: #666; --text-muted: #888; --text-hint: #999; --text-light: #aaa;
+        --accent: #4a8c3f; --accent-dark: #2d5a27; --accent-bg: #e8f0e6; --accent-bg-light: #f0f7ef;
+        --border: #e8ece8; --border-input: #dde3dd; --border-heavy: #e8ece8;
+        --btn-disabled: #b8d4b3;
+        --error: #dc2626; --error-bg: #fef2f2; --error-border: #fecaca;
+        --discount-bg: #fef3c7; --discount-text: #92400e;
+        --star: #f59e0b;
+        --shadow: rgba(0,0,0,0.04);
+        --skeleton-from: #e8ece8; --skeleton-to: #f5f7f5;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0f1210; --bg-card: #1a1f1a; --bg-card-hover: #222822;
+          --bg-input: #1e241e; --bg-selected: #1e3a1a; --bg-selected-hover: #243024;
+          --text: #e8ece8; --text-secondary: #a8b0a8; --text-muted: #8a928a; --text-hint: #6a726a; --text-light: #5a625a;
+          --accent: #5ca84f; --accent-dark: #7cc070; --accent-bg: #1e3a1a; --accent-bg-light: #243024;
+          --border: #2a322a; --border-input: #3a423a; --border-heavy: #2a322a;
+          --btn-disabled: #3a4a38;
+          --error: #f87171; --error-bg: #2a1515; --error-border: #5a2020;
+          --discount-bg: #3a3018; --discount-text: #fbbf24;
+          --star: #fbbf24;
+          --shadow: rgba(0,0,0,0.2);
+          --skeleton-from: #2a322a; --skeleton-to: #1a1f1a;
+        }
+      }
       body {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-        background: #f5f7f5;
-        color: #1a1a1a;
+        background: var(--bg);
+        color: var(--text);
         min-height: 100vh;
       }
       .container {
@@ -667,33 +952,40 @@ function baseStyles(): string {
         text-align: center;
         padding: 24px 0 16px;
       }
+      .header .biz-logo {
+        width: 64px; height: 64px;
+        border-radius: 16px;
+        object-fit: cover;
+        margin-bottom: 8px;
+        border: 2px solid var(--border);
+      }
       .header h1 {
         font-size: 22px;
         font-weight: 700;
-        color: #2d5a27;
+        color: var(--accent-dark);
         margin-bottom: 4px;
       }
       .header .subtitle {
         font-size: 12px;
-        color: #8a8a8a;
+        color: var(--text-muted);
       }
       .card {
-        background: #fff;
+        background: var(--bg-card);
         border-radius: 16px;
         padding: 20px;
         margin-bottom: 16px;
-        border: 1px solid #e8ece8;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        border: 1px solid var(--border);
+        box-shadow: 0 1px 3px var(--shadow);
       }
       .card h2 {
         font-size: 16px;
         font-weight: 600;
-        color: #1a1a1a;
+        color: var(--text);
         margin-bottom: 12px;
       }
       .biz-info { display: flex; flex-direction: column; gap: 6px; }
-      .biz-info-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #666; }
-      .biz-info-row a { color: #4a8c3f; text-decoration: underline; }
+      .biz-info-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
+      .biz-info-row a { color: var(--accent); text-decoration: underline; }
       .btn {
         display: block;
         width: 100%;
@@ -707,30 +999,35 @@ function baseStyles(): string {
         transition: opacity 0.15s, transform 0.1s;
       }
       .btn:active { opacity: 0.85; transform: scale(0.98); }
-      .btn-primary { background: #4a8c3f; color: #fff; }
-      .btn-primary:disabled { background: #b8d4b3; cursor: not-allowed; }
-      .btn-secondary { background: #e8f0e6; color: #2d5a27; }
+      .btn-primary { background: var(--accent); color: #fff; }
+      .btn-primary:disabled { background: var(--btn-disabled); cursor: not-allowed; }
+      .btn-secondary { background: var(--accent-bg); color: var(--accent-dark); }
       .input-group { margin-bottom: 14px; }
       .input-group label {
         display: block;
         font-size: 13px;
         font-weight: 500;
-        color: #555;
+        color: var(--text-secondary);
         margin-bottom: 6px;
       }
       .input-group input, .input-group textarea {
         width: 100%;
         padding: 12px 14px;
-        border: 1.5px solid #dde3dd;
+        border: 1.5px solid var(--border-input);
         border-radius: 10px;
         font-size: 15px;
-        background: #fafcfa;
+        background: var(--bg-input);
+        color: var(--text);
         outline: none;
         transition: border-color 0.2s;
         font-family: inherit;
       }
       .input-group input:focus, .input-group textarea:focus {
-        border-color: #4a8c3f;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(74,140,63,0.15);
+      }
+      .input-group input::placeholder, .input-group textarea::placeholder {
+        color: var(--text-hint);
       }
       .input-group textarea { resize: vertical; min-height: 80px; }
       .service-list { display: flex; flex-direction: column; gap: 8px; }
@@ -738,13 +1035,13 @@ function baseStyles(): string {
         display: flex;
         align-items: center;
         padding: 14px;
-        border: 2px solid #e8ece8;
+        border: 2px solid var(--border);
         border-radius: 12px;
         cursor: pointer;
         transition: border-color 0.2s, background 0.2s;
       }
-      .service-item:hover { background: #f8fbf8; }
-      .service-item.selected { border-color: #4a8c3f; background: #f0f7ef; }
+      .service-item:hover { background: var(--bg-card-hover); }
+      .service-item.selected { border-color: var(--accent); background: var(--accent-bg-light); }
       .service-dot {
         width: 12px; height: 12px;
         border-radius: 50%;
@@ -752,9 +1049,9 @@ function baseStyles(): string {
         flex-shrink: 0;
       }
       .service-info { flex: 1; }
-      .service-name { font-size: 15px; font-weight: 600; color: #1a1a1a; }
-      .service-meta { font-size: 12px; color: #888; margin-top: 2px; }
-      .service-price { font-size: 15px; font-weight: 700; color: #2d5a27; }
+      .service-name { font-size: 15px; font-weight: 600; color: var(--text); }
+      .service-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+      .service-price { font-size: 15px; font-weight: 700; color: var(--accent-dark); }
       .date-grid {
         display: grid;
         grid-template-columns: repeat(7, 1fr);
@@ -774,10 +1071,10 @@ function baseStyles(): string {
         border: 2px solid transparent;
         transition: all 0.15s;
       }
-      .date-cell:hover:not(.disabled) { background: #f0f7ef; }
-      .date-cell.selected { border-color: #4a8c3f; background: #e8f5e3; color: #2d5a27; }
+      .date-cell:hover:not(.disabled) { background: var(--accent-bg-light); }
+      .date-cell.selected { border-color: var(--accent); background: var(--bg-selected); color: var(--accent-dark); }
       .date-cell.disabled { opacity: 0.3; cursor: not-allowed; }
-      .date-cell .day-name { font-size: 10px; color: #999; font-weight: 400; }
+      .date-cell .day-name { font-size: 10px; color: var(--text-hint); font-weight: 400; }
       .date-cell .day-num { font-size: 15px; }
       .time-grid {
         display: grid;
@@ -787,15 +1084,15 @@ function baseStyles(): string {
       .time-slot {
         padding: 10px;
         text-align: center;
-        border: 2px solid #e8ece8;
+        border: 2px solid var(--border);
         border-radius: 10px;
         cursor: pointer;
         font-size: 14px;
         font-weight: 500;
         transition: all 0.15s;
       }
-      .time-slot:hover { background: #f0f7ef; }
-      .time-slot.selected { border-color: #4a8c3f; background: #e8f5e3; color: #2d5a27; }
+      .time-slot:hover { background: var(--accent-bg-light); }
+      .time-slot.selected { border-color: var(--accent); background: var(--bg-selected); color: var(--accent-dark); }
       .confirm-row {
         display: flex;
         justify-content: space-between;
@@ -804,12 +1101,12 @@ function baseStyles(): string {
         font-size: 14px;
       }
       .confirm-row:last-child { border-bottom: none; }
-      .confirm-label { color: #888; }
-      .confirm-value { font-weight: 600; color: #1a1a1a; }
+      .confirm-label { color: var(--text-muted); }
+      .confirm-value { font-weight: 600; color: var(--text); }
       .success-icon {
         width: 64px; height: 64px;
         border-radius: 50%;
-        background: #e8f5e3;
+        background: var(--bg-selected);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -828,22 +1125,22 @@ function baseStyles(): string {
         background: #dde3dd;
         transition: background 0.2s;
       }
-      .step-dot.active { background: #4a8c3f; }
+      .step-dot.active { background: var(--accent); }
       .step-dot.done { background: #8cc084; }
       .closed-banner {
-        background: #fef2f2;
-        border: 1px solid #fecaca;
+        background: var(--error-bg);
+        border: 1px solid var(--error-border);
         border-radius: 12px;
         padding: 16px;
         text-align: center;
-        color: #dc2626;
+        color: var(--error);
         font-weight: 500;
         margin-bottom: 16px;
       }
       .discount-badge {
         display: inline-block;
-        background: #fef3c7;
-        color: #92400e;
+        background: var(--discount-bg);
+        color: var(--discount-text);
         font-size: 12px;
         font-weight: 600;
         padding: 2px 8px;
@@ -863,38 +1160,58 @@ function baseStyles(): string {
         border-bottom: 1px solid #f0f0f0;
       }
       .review-card:last-child { border-bottom: none; }
-      .review-stars { color: #f59e0b; font-size: 14px; }
+      .review-stars { color: var(--star); font-size: 14px; }
       .review-name { font-weight: 600; font-size: 14px; margin-top: 4px; }
       .review-comment { font-size: 13px; color: #666; margin-top: 4px; }
       .review-date { font-size: 11px; color: #aaa; margin-top: 4px; }
-      .loading { text-align: center; padding: 40px; color: #888; }
-      .error-msg { color: #dc2626; font-size: 13px; margin-top: 8px; text-align: center; }
+      .loading { text-align: center; padding: 40px; color: var(--text-muted); }
+      .error-msg { color: var(--error); font-size: 13px; margin-top: 8px; text-align: center; }
+      /* Skeleton loading */
+      .skeleton { background: linear-gradient(90deg, var(--skeleton-from) 25%, var(--skeleton-to) 50%, var(--skeleton-from) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 8px; }
+      @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+      .skeleton-line { height: 14px; margin-bottom: 10px; }
+      .skeleton-block { height: 56px; margin-bottom: 8px; border-radius: 12px; }
       .cal-nav { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
-      .cal-nav button { background:none; border:1px solid #dde3dd; border-radius:8px; padding:6px 12px; cursor:pointer; font-size:14px; color:#2d5a27; }
-      .cal-nav button:hover { background:#f0f7ef; }
-      .cal-nav .cal-title { font-size:16px; font-weight:700; color:#1a1a1a; }
+      .cal-nav button { background:none; border:1px solid var(--border-input); border-radius:8px; padding:6px 12px; cursor:pointer; font-size:14px; color:var(--accent-dark); }
+      .cal-nav button:hover { background:var(--accent-bg-light); }
+      .cal-nav .cal-title { font-size:16px; font-weight:700; color:var(--text); }
       .cal-weekdays { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; margin-bottom:4px; text-align:center; }
-      .cal-weekdays span { font-size:11px; color:#999; font-weight:500; padding:4px 0; }
+      .cal-weekdays span { font-size:11px; color:var(--text-hint); font-weight:500; padding:4px 0; }
       .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; margin-bottom:16px; }
       .cal-day { aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:10px; cursor:pointer; font-size:14px; font-weight:500; border:2px solid transparent; transition:all 0.15s; position:relative; }
-      .cal-day .avail-dot { width:5px; height:5px; border-radius:50%; background:#4a8c3f; margin-top:2px; }
+      .cal-day .avail-dot { width:5px; height:5px; border-radius:50%; background:var(--accent); margin-top:2px; }
       .cal-day.disabled .avail-dot { display:none; }
-      .cal-day:hover:not(.disabled):not(.empty) { background:#f0f7ef; }
-      .cal-day.selected { border-color:#4a8c3f; background:#e8f5e3; color:#2d5a27; font-weight:700; }
-      .cal-day.disabled { opacity:0.25; cursor:not-allowed; color:#aaa; }
+      .cal-day:hover:not(.disabled):not(.empty) { background:var(--accent-bg-light); }
+      .cal-day.selected { border-color:var(--accent); background:var(--bg-selected); color:var(--accent-dark); font-weight:700; }
+      .cal-day.disabled { opacity:0.25; cursor:not-allowed; color:var(--text-light); }
       .cal-day.empty { cursor:default; }
-      .cal-day.today { font-weight:700; color:#4a8c3f; }
+      .cal-day.today { font-weight:700; color:var(--accent); }
       .cart-items { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
-      .cart-item { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:#f8fbf8; border-radius:10px; font-size:13px; }
-      .cart-item .cart-remove { color:#dc2626; cursor:pointer; font-size:18px; padding:0 4px; }
-      .cart-total { display:flex; justify-content:space-between; padding:10px 0; border-top:2px solid #e8ece8; font-size:15px; font-weight:700; }
-      .product-item { display:flex; align-items:center; padding:12px; border:2px solid #e8ece8; border-radius:12px; cursor:pointer; transition:border-color 0.2s, background 0.2s; margin-bottom:6px; }
-      .product-item:hover { background:#f8fbf8; }
-      .product-item.selected { border-color:#4a8c3f; background:#f0f7ef; }
-      .seg-control { display:flex; background:#f0f0f0; border-radius:10px; padding:3px; margin-bottom:12px; }
-      .seg-btn { flex:1; text-align:center; padding:8px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.15s; color:#666; }
-      .seg-btn.active { background:#fff; color:#2d5a27; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
-      .receipt-box { background:#fff; border:1px solid #e8ece8; border-radius:12px; padding:20px; }
+      .cart-item { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:var(--bg-card-hover); border-radius:10px; font-size:13px; }
+      .cart-item .cart-remove { color:var(--error); cursor:pointer; font-size:18px; padding:0 4px; }
+      .cart-total { display:flex; justify-content:space-between; padding:10px 0; border-top:2px solid var(--border-heavy); font-size:15px; font-weight:700; }
+      .product-item { display:flex; align-items:center; padding:12px; border:2px solid var(--border); border-radius:12px; cursor:pointer; transition:border-color 0.2s, background 0.2s; margin-bottom:6px; }
+      .product-item:hover { background:var(--bg-card-hover); }
+      .product-item.selected { border-color:var(--accent); background:var(--accent-bg-light); }
+      .seg-control { display:flex; background:var(--border); border-radius:10px; padding:3px; margin-bottom:12px; }
+      .seg-btn { flex:1; text-align:center; padding:8px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.15s; color:var(--text-secondary); }
+      .seg-btn.active { background:var(--bg-card); color:var(--accent-dark); box-shadow:0 1px 3px var(--shadow); }
+      .receipt-box { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:20px; }
+      /* Cookie consent banner */
+      .cookie-banner { position:fixed; bottom:0; left:0; right:0; background:var(--bg-card); border-top:1px solid var(--border); padding:14px 16px; z-index:9999; box-shadow:0 -2px 10px var(--shadow); display:none; }
+      .cookie-banner.show { display:flex; align-items:center; gap:12px; justify-content:center; flex-wrap:wrap; }
+      .cookie-banner p { font-size:12px; color:var(--text-secondary); margin:0; flex:1; min-width:200px; }
+      .cookie-banner p a { color:var(--accent); text-decoration:underline; }
+      .cookie-banner button { background:var(--accent); color:#fff; border:none; border-radius:8px; padding:8px 20px; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; }
+      /* Legal footer */
+      .legal-footer { text-align:center; padding:20px 0 32px; font-size:11px; color:var(--text-hint); }
+      .legal-footer a { color:var(--text-muted); text-decoration:underline; margin:0 6px; }
+      /* Consent checkbox */
+      .consent-row { display:flex; align-items:flex-start; gap:10px; margin:14px 0; font-size:12px; color:var(--text-secondary); }
+      .consent-row input[type=checkbox] { margin-top:2px; width:18px; height:18px; accent-color:var(--accent); flex-shrink:0; }
+      .consent-row a { color:var(--accent); text-decoration:underline; }
+      /* Focus visible for accessibility */
+      :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       @media (max-width: 360px) {
         .time-grid { grid-template-columns: repeat(2, 1fr); }
       }
@@ -973,12 +1290,22 @@ function bookingPage(slug: string, owner: any): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Book with ${escHtml(owner.businessName)} - Lime Of Time</title>
-  <meta name="description" content="Book an appointment with ${escHtml(owner.businessName)}">
+  <meta name="description" content="Book an appointment with ${escHtml(owner.businessName)}. Schedule online with Lime Of Time.">
+  <meta property="og:title" content="Book with ${escHtml(owner.businessName)} - Lime Of Time">
+  <meta property="og:description" content="Book an appointment with ${escHtml(owner.businessName)}. Easy online scheduling powered by Lime Of Time.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Lime Of Time">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Book with ${escHtml(owner.businessName)}">
+  <meta name="twitter:description" content="Book an appointment with ${escHtml(owner.businessName)}. Easy online scheduling.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://lime-of-time.com/book/${escHtml(owner.businessName.toLowerCase().replace(/\s+/g, '-'))}">
   ${baseStyles()}
 </head>
 <body>
   <div class="container" id="app">
-    <div class="header">
+    <div class="header" role="banner">
+      ${owner.logoUrl ? `<img src="${escHtml(owner.logoUrl)}" alt="${escHtml(owner.businessName)} logo" class="biz-logo">` : ''}
       <h1>Book with ${escHtml(owner.businessName)}</h1>
       <div class="subtitle">Powered by Lime Of Time</div>
     </div>
@@ -993,11 +1320,11 @@ function bookingPage(slug: string, owner: any): string {
 
     <!-- Business Info Card -->
     <div class="card biz-info" id="biz-card">
-      <div style="font-size:16px;font-weight:700;color:#1a1a1a;">${escHtml(owner.businessName)}</div>
+      <div style="font-size:16px;font-weight:700;color:var(--text);">${escHtml(owner.businessName)}</div>
       ${owner.address ? `<div class="biz-info-row"><span>📍</span><a href="https://maps.google.com/?q=${encodeURIComponent(owner.address)}" target="_blank">${escHtml(owner.address)}</a></div>` : ""}
       ${owner.phone ? `<div class="biz-info-row"><span>📞</span><span>${escHtml(formatPhoneNumber(owner.phone))}</span></div>` : ""}
       ${owner.email ? `<div class="biz-info-row"><span>✉️</span><span>${escHtml(owner.email)}</span></div>` : ""}
-      ${owner.description ? `<div style="font-size:13px;color:#888;margin-top:6px;">${escHtml(owner.description)}</div>` : ""}
+      ${owner.description ? `<div style="font-size:13px;color:var(--text-muted);margin-top:6px;">${escHtml(owner.description)}</div>` : ""}
     </div>
 
     ${owner.temporaryClosed ? `<div class="closed-banner">⚠️ This business is temporarily closed and not accepting bookings at this time.</div>` : ""}
@@ -1032,7 +1359,9 @@ function bookingPage(slug: string, owner: any): string {
     <div id="step-1" class="card" style="display:none">
       <h2>Select a Service</h2>
       <div id="serviceList" class="service-list">
-        <div class="loading">Loading services...</div>
+        <div class="skeleton skeleton-block"></div>
+        <div class="skeleton skeleton-block"></div>
+        <div class="skeleton skeleton-block"></div>
       </div>
       <div style="display:flex;gap:8px;margin-top:16px;">
         <button class="btn btn-secondary" onclick="goToStep(0)" style="flex:1">Back</button>
@@ -1053,7 +1382,8 @@ function bookingPage(slug: string, owner: any): string {
       <div id="timeSection" style="display:none">
         <h2 style="margin-bottom:12px;">Available Times</h2>
         <div id="timeGrid" class="time-grid"></div>
-        <div id="noSlots" style="display:none;text-align:center;color:#888;padding:20px;font-size:14px;">No available time slots for this date.</div>
+        <div id="noSlots" style="display:none;text-align:center;color:#888;padding:20px;font-size:14px;">No available time slots for this date.<br><button class="btn btn-secondary" style="margin-top:12px;width:auto;display:inline-block;padding:10px 20px;font-size:13px;" onclick="joinWaitlist()">Join Waitlist</button></div>
+        <div id="waitlistMsg" style="display:none;text-align:center;padding:12px;margin-top:8px;border-radius:10px;font-size:13px;"></div>
       </div>
       <div id="discountInfo" style="display:none;margin-top:12px;"></div>
       <div style="display:flex;gap:8px;margin-top:16px;">
@@ -1091,6 +1421,10 @@ function bookingPage(slug: string, owner: any): string {
       <div style="margin-top:12px;">
         <button class="btn btn-secondary" onclick="goToStep(3)" style="width:100%;margin-bottom:8px;font-size:13px;">+ Add More Services / Products</button>
       </div>
+      <div class="consent-row">
+        <input type="checkbox" id="consentCheck" aria-label="I agree to the Terms and Privacy Policy">
+        <label for="consentCheck">I agree to the <a href="/api/legal/terms" target="_blank">Terms of Service</a> and <a href="/api/legal/privacy" target="_blank">Privacy Policy</a></label>
+      </div>
       <div id="bookError" class="error-msg" style="display:none"></div>
       <div style="display:flex;gap:8px;margin-top:12px;">
         <button class="btn btn-secondary" onclick="goToStep(2)" style="flex:1">Back</button>
@@ -1104,6 +1438,9 @@ function bookingPage(slug: string, owner: any): string {
       <h2 style="font-size:20px;margin-bottom:8px;">Booking Submitted!</h2>
       <p style="color:#666;font-size:14px;margin-bottom:16px;">Your appointment request has been sent to ${escHtml(owner.businessName)}. They will confirm your booking shortly.</p>
       <div id="successReceipt" class="receipt-box" style="text-align:left;margin-bottom:16px;"></div>
+      <div id="manageLink" style="margin-bottom:12px;display:none;">
+        <a id="manageLinkHref" href="#" style="color:var(--accent);font-size:14px;text-decoration:none;font-weight:600;">Manage or Cancel This Appointment →</a>
+      </div>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-secondary" onclick="saveReceipt()" style="flex:1">📥 Save Receipt</button>
         <button class="btn btn-primary" onclick="location.reload()" style="flex:1">Book Another</button>
@@ -1111,7 +1448,30 @@ function bookingPage(slug: string, owner: any): string {
     </div>
   </div>
 
+  <!-- Legal Footer -->
+  <div class="legal-footer" style="max-width:480px;margin:0 auto;">
+    <a href="/api/legal/privacy" target="_blank">Privacy Policy</a>
+    <a href="/api/legal/terms" target="_blank">Terms of Service</a>
+    <a href="/api/legal/data-deletion" target="_blank">Data Deletion</a>
+    <br><span style="margin-top:4px;display:inline-block;">&copy; ${new Date().getFullYear()} Lime Of Time. All rights reserved.</span>
+  </div>
+
+  <!-- Cookie Consent Banner -->
+  <div class="cookie-banner" id="cookieBanner">
+    <p>We use essential cookies to provide our booking service. By continuing, you agree to our <a href="/api/legal/privacy" target="_blank">Privacy Policy</a>.</p>
+    <button onclick="acceptCookies()">Accept</button>
+  </div>
+
   <script>
+    // Cookie consent
+    if (!localStorage.getItem('lot_cookie_consent')) {
+      document.getElementById('cookieBanner').classList.add('show');
+    }
+    function acceptCookies() {
+      localStorage.setItem('lot_cookie_consent', 'accepted');
+      document.getElementById('cookieBanner').classList.remove('show');
+    }
+
     const SLUG = "${slug}";
     const API = window.location.origin + "/api/public/business/" + SLUG;
     const WEEKLY_DAYS = ${JSON.stringify(whJson)};
@@ -1579,6 +1939,12 @@ function bookingPage(slug: string, owner: any): string {
     async function submitBooking() {
       const btn = document.getElementById("btnSubmit");
       const errEl = document.getElementById("bookError");
+      // Check consent
+      if (!document.getElementById('consentCheck').checked) {
+        errEl.textContent = 'Please agree to the Terms of Service and Privacy Policy';
+        errEl.style.display = 'block';
+        return;
+      }
       btn.disabled = true;
       btn.textContent = "Submitting...";
       errEl.style.display = "none";
@@ -1626,6 +1992,11 @@ function bookingPage(slug: string, owner: any): string {
         document.getElementById("step-indicator").style.display = "none";
         document.getElementById("step-5").style.display = "block";
         renderSuccessReceipt();
+        // Show manage link
+        if (data.manageUrl) {
+          document.getElementById('manageLinkHref').href = data.manageUrl;
+          document.getElementById('manageLink').style.display = 'block';
+        }
         window.scrollTo(0, 0);
       } catch(e) {
         errEl.textContent = "Network error. Please try again.";
@@ -1831,6 +2202,40 @@ function bookingPage(slug: string, owner: any): string {
           // Auto-apply after services load
           setTimeout(() => applyGiftCode(), 1500);
         }
+      }
+    }
+
+    async function joinWaitlist() {
+      const name = document.getElementById("clientName").value.trim();
+      const phone = document.getElementById("clientPhone").value.trim();
+      const email = document.getElementById("clientEmail").value.trim();
+      if (!name) { alert("Please enter your name first (Step 1)"); return; }
+      if (!selectedService) { alert("Please select a service first"); return; }
+      if (!selectedDate) { alert("Please select a date first"); return; }
+      const msgEl = document.getElementById("waitlistMsg");
+      try {
+        const res = await fetch(window.location.origin + "/api/public/business/${escHtml(slug)}/waitlist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clientName: name, clientPhone: phone, clientEmail: email, serviceLocalId: selectedService, preferredDate: selectedDate })
+        });
+        const data = await res.json();
+        if (data.success) {
+          msgEl.style.display = "block";
+          msgEl.style.background = "var(--bg-selected)";
+          msgEl.style.color = "var(--accent-dark)";
+          msgEl.innerHTML = "\u2705 " + data.message;
+        } else {
+          msgEl.style.display = "block";
+          msgEl.style.background = "var(--error-bg)";
+          msgEl.style.color = "var(--error)";
+          msgEl.innerHTML = data.error || "Failed to join waitlist";
+        }
+      } catch(e) {
+        msgEl.style.display = "block";
+        msgEl.style.background = "var(--error-bg)";
+        msgEl.style.color = "var(--error)";
+        msgEl.innerHTML = "Network error. Please try again.";
       }
     }
 
@@ -2165,4 +2570,340 @@ function giftCardPage(code: string): string {
 function escHtml(str: string): string {
   if (!str) return "";
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+
+function manageAppointmentPage(slug: string, owner: any, appt: any): string {
+  const bizName = escHtml(owner.businessName);
+  const logoUri = owner.businessLogoUri || "";
+  const logoTag = logoUri ? `<img src="${escHtml(logoUri)}" alt="${bizName}" class="biz-logo" />` : "";
+  const apptDate = appt.date;
+  const apptTime = formatTime12(appt.time);
+  const statusClass = appt.status === "cancelled" ? "status-cancelled" : appt.status === "confirmed" ? "status-confirmed" : "status-pending";
+  const isCancellable = appt.status !== "cancelled" && appt.status !== "completed";
+  const apiBase = "";
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manage Appointment — ${bizName}</title>
+  <meta name="robots" content="noindex" />
+  ${baseStyles()}
+  <style>
+    .appt-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .appt-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .appt-row:last-child { border-bottom: none; }
+    .appt-label { color: var(--text-secondary); font-size: 14px; }
+    .appt-value { font-weight: 600; font-size: 14px; }
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .status-pending { background: #fef3c7; color: #92400e; }
+    .status-confirmed { background: #dcfce7; color: #166534; }
+    .status-cancelled { background: #fee2e2; color: #991b1b; }
+    .status-completed { background: #e0e7ff; color: #3730a3; }
+    .btn-cancel {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--error);
+      color: #fff;
+      margin-top: 8px;
+      transition: opacity 0.2s;
+    }
+    .btn-cancel:hover { opacity: 0.9; }
+    .btn-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-reschedule {
+      width: 100%;
+      padding: 14px;
+      border: 2px solid var(--accent);
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      background: transparent;
+      color: var(--accent);
+      margin-top: 8px;
+      transition: all 0.2s;
+    }
+    .btn-reschedule:hover { background: var(--accent-bg); }
+    .phone-input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid var(--border-input);
+      border-radius: 10px;
+      font-size: 15px;
+      background: var(--bg-input);
+      color: var(--text);
+      margin-top: 8px;
+    }
+    .phone-input:focus { outline: none; border-color: var(--accent); }
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 24px 0 12px;
+    }
+    .msg-box {
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 14px;
+      margin-top: 12px;
+      display: none;
+    }
+    .msg-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .msg-error { background: var(--error-bg); color: var(--error); border: 1px solid var(--error-border); }
+    .reschedule-panel { display: none; margin-top: 16px; }
+    .reschedule-panel.active { display: block; }
+    .date-input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid var(--border-input);
+      border-radius: 10px;
+      font-size: 15px;
+      background: var(--bg-input);
+      color: var(--text);
+      margin-top: 8px;
+    }
+    .date-input:focus { outline: none; border-color: var(--accent); }
+    .slot-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .slot-btn {
+      padding: 10px 4px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-card);
+      color: var(--text);
+      font-size: 13px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s;
+    }
+    .slot-btn:hover { border-color: var(--accent); background: var(--accent-bg); }
+    .slot-btn.selected { border-color: var(--accent); background: var(--accent-bg); color: var(--accent); font-weight: 600; }
+    .slot-loading { text-align: center; color: var(--text-muted); padding: 20px; font-size: 14px; }
+    .btn-confirm-reschedule {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--accent);
+      color: #fff;
+      margin-top: 12px;
+      transition: opacity 0.2s;
+    }
+    .btn-confirm-reschedule:hover { opacity: 0.9; }
+    .btn-confirm-reschedule:disabled { opacity: 0.5; cursor: not-allowed; }
+    @media (prefers-color-scheme: dark) {
+      .status-pending { background: #3a3018; color: #fbbf24; }
+      .status-confirmed { background: #1e3a1a; color: #4ade80; }
+      .status-cancelled { background: #3a1818; color: #f87171; }
+      .status-completed { background: #1e1e3a; color: #818cf8; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      ${logoTag}
+      <h1 style="font-size:22px;font-weight:700;">${bizName}</h1>
+      <p style="color:var(--text-secondary);font-size:14px;margin-top:4px;">Manage Your Appointment</p>
+    </div>
+
+    <div class="appt-card">
+      <div class="appt-row">
+        <span class="appt-label">Date</span>
+        <span class="appt-value">${escHtml(apptDate)}</span>
+      </div>
+      <div class="appt-row">
+        <span class="appt-label">Time</span>
+        <span class="appt-value">${apptTime}</span>
+      </div>
+      <div class="appt-row">
+        <span class="appt-label">Duration</span>
+        <span class="appt-value">${appt.duration || 60} min</span>
+      </div>
+      <div class="appt-row">
+        <span class="appt-label">Status</span>
+        <span class="status-badge ${statusClass}">${escHtml(appt.status)}</span>
+      </div>
+    </div>
+
+    ${isCancellable ? `
+    <div id="action-section">
+      <p class="section-title">Verify Your Identity</p>
+      <input type="tel" id="phone-input" class="phone-input" placeholder="Phone number used when booking" />
+
+      <button class="btn-cancel" id="cancel-btn" onclick="cancelAppointment()">Cancel Appointment</button>
+      <button class="btn-reschedule" id="reschedule-toggle" onclick="toggleReschedule()">Reschedule</button>
+
+      <div id="reschedule-panel" class="reschedule-panel">
+        <p class="section-title">Pick a New Date & Time</p>
+        <input type="date" id="new-date" class="date-input" min="${new Date().toISOString().split("T")[0]}" />
+        <div id="slot-container"></div>
+        <button class="btn-confirm-reschedule" id="confirm-reschedule-btn" onclick="confirmReschedule()" disabled>Confirm New Time</button>
+      </div>
+
+      <div id="msg-box" class="msg-box"></div>
+    </div>
+    ` : `
+    <div style="text-align:center;padding:20px;color:var(--text-secondary);">
+      <p>This appointment is <strong>${escHtml(appt.status)}</strong> and cannot be modified.</p>
+    </div>
+    `}
+
+    <div style="text-align:center;margin-top:32px;">
+      <a href="/api/book/${escHtml(slug)}" style="color:var(--accent);font-size:14px;text-decoration:none;">Book a new appointment</a>
+    </div>
+
+    <footer style="text-align:center;padding:24px 0 16px;color:var(--text-muted);font-size:12px;">
+      <p>Powered by <strong>Lime of Time</strong></p>
+      <div style="margin-top:8px;">
+        <a href="/api/legal/privacy-policy" style="color:var(--text-muted);text-decoration:none;margin:0 8px;">Privacy</a>
+        <a href="/api/legal/terms-of-service" style="color:var(--text-muted);text-decoration:none;margin:0 8px;">Terms</a>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    const SLUG = '${slug.replace(/'/g, "\\'")}';
+    const APPT_ID = '${(appt.localId || "").replace(/'/g, "\\'")}';
+    const API_BASE = '${apiBase}';
+    let selectedSlot = null;
+
+    function showMsg(text, isError) {
+      const box = document.getElementById('msg-box');
+      box.textContent = text;
+      box.className = 'msg-box ' + (isError ? 'msg-error' : 'msg-success');
+      box.style.display = 'block';
+    }
+
+    async function cancelAppointment() {
+      const phone = document.getElementById('phone-input').value.trim();
+      if (!phone) { showMsg('Please enter your phone number to verify your identity.', true); return; }
+      const btn = document.getElementById('cancel-btn');
+      btn.disabled = true;
+      btn.textContent = 'Cancelling...';
+      try {
+        const res = await fetch(API_BASE + '/api/public/appointment/' + APPT_ID + '/cancel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug: SLUG, clientPhone: phone })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showMsg(data.message || 'Appointment cancelled.', false);
+          document.getElementById('action-section').innerHTML = '<div style="text-align:center;padding:20px;"><p style="color:var(--accent);font-weight:600;">Appointment Cancelled</p></div>';
+        } else {
+          showMsg(data.error || 'Failed to cancel.', true);
+          btn.disabled = false;
+          btn.textContent = 'Cancel Appointment';
+        }
+      } catch (e) {
+        showMsg('Network error. Please try again.', true);
+        btn.disabled = false;
+        btn.textContent = 'Cancel Appointment';
+      }
+    }
+
+    function toggleReschedule() {
+      const panel = document.getElementById('reschedule-panel');
+      panel.classList.toggle('active');
+    }
+
+    document.getElementById('new-date')?.addEventListener('change', async function() {
+      const date = this.value;
+      if (!date) return;
+      const container = document.getElementById('slot-container');
+      container.innerHTML = '<div class="slot-loading">Loading available times...</div>';
+      selectedSlot = null;
+      document.getElementById('confirm-reschedule-btn').disabled = true;
+      try {
+        const res = await fetch(API_BASE + '/api/public/business/' + SLUG + '/slots?date=' + date + '&duration=${appt.duration || 60}');
+        const data = await res.json();
+        if (data.slots && data.slots.length > 0) {
+          container.innerHTML = '<div class="slot-grid">' + data.slots.map(function(s) {
+            var h = parseInt(s.split(':')[0]);
+            var m = s.split(':')[1];
+            var ampm = h >= 12 ? 'PM' : 'AM';
+            var h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+            return '<button class="slot-btn" data-time="' + s + '" onclick="selectSlot(this, \\'' + s + '\\')">' + h12 + ':' + m + ' ' + ampm + '</button>';
+          }).join('') + '</div>';
+        } else {
+          container.innerHTML = '<div class="slot-loading">No available times for this date.</div>';
+        }
+      } catch (e) {
+        container.innerHTML = '<div class="slot-loading" style="color:var(--error);">Failed to load times.</div>';
+      }
+    });
+
+    function selectSlot(el, time) {
+      document.querySelectorAll('.slot-btn').forEach(function(b) { b.classList.remove('selected'); });
+      el.classList.add('selected');
+      selectedSlot = time;
+      document.getElementById('confirm-reschedule-btn').disabled = false;
+    }
+
+    async function confirmReschedule() {
+      if (!selectedSlot) return;
+      const phone = document.getElementById('phone-input').value.trim();
+      if (!phone) { showMsg('Please enter your phone number to verify your identity.', true); return; }
+      const newDate = document.getElementById('new-date').value;
+      const btn = document.getElementById('confirm-reschedule-btn');
+      btn.disabled = true;
+      btn.textContent = 'Rescheduling...';
+      try {
+        const res = await fetch(API_BASE + '/api/public/appointment/' + APPT_ID + '/reschedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug: SLUG, clientPhone: phone, newDate: newDate, newTime: selectedSlot })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showMsg(data.message || 'Appointment rescheduled!', false);
+          setTimeout(function() { location.reload(); }, 1500);
+        } else {
+          showMsg(data.error || 'Failed to reschedule.', true);
+          btn.disabled = false;
+          btn.textContent = 'Confirm New Time';
+        }
+      } catch (e) {
+        showMsg('Network error. Please try again.', true);
+        btn.disabled = false;
+        btn.textContent = 'Confirm New Time';
+      }
+    }
+  </script>
+</body>
+</html>`;
 }

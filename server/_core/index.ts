@@ -7,6 +7,8 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { registerPublicRoutes } from "../publicRoutes";
+import { registerAdminRoutes } from "../adminRoutes";
+import { registerLegalRoutes } from "../legalRoutes";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -68,6 +70,12 @@ async function startServer() {
       createContext,
     }),
   );
+
+  // Register admin dashboard
+  registerAdminRoutes(app);
+
+  // Register legal pages (privacy, terms, eula, data deletion)
+  registerLegalRoutes(app);
 
   // Register public web pages (booking, review, gift card)
   registerPublicRoutes(app);

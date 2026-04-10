@@ -76,6 +76,8 @@ const businessRouter = router({
         workingHours: z.any().optional(),
         cancellationPolicy: z.any().optional(),
         phone: z.string().optional(),
+        bufferTime: z.number().optional(),
+        customSlug: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -118,6 +120,7 @@ const servicesRouter = router({
         duration: z.number().min(1),
         price: z.string(),
         color: z.string(),
+        category: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -134,6 +137,7 @@ const servicesRouter = router({
         duration: z.number().optional(),
         price: z.string().optional(),
         color: z.string().optional(),
+        category: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {

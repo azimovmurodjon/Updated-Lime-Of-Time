@@ -50,6 +50,7 @@ const MAPPING = {
   "photo": "image",
   "doc.text.fill": "description",
   "square.and.arrow.up": "share",
+  "square.and.arrow.up.fill": "file-upload",
   "arrow.down.doc.fill": "file-download",
   "calendar.badge.clock": "event",
   "tag.fill": "local-offer",

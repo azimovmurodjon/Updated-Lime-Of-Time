@@ -24,8 +24,16 @@ export default function ServiceFormScreen() {
   const [duration, setDuration] = useState(existing?.duration ?? 60);
   const [price, setPrice] = useState(existing?.price?.toString() ?? "");
   const [color, setColor] = useState(existing?.color ?? SERVICE_COLORS[0]);
+  const [category, setCategory] = useState(existing?.category ?? "");
 
   const isEdit = !!existing;
+
+  // Collect unique categories from existing services for suggestions
+  const existingCategories = useMemo(() => {
+    const cats = new Set<string>();
+    state.services.forEach((s) => { if (s.category) cats.add(s.category); });
+    return Array.from(cats).sort();
+  }, [state.services]);
 
   const handleSave = () => {
     if (!name.trim()) return;
@@ -35,6 +43,7 @@ export default function ServiceFormScreen() {
       duration,
       price: parseFloat(price) || 0,
       color,
+      category: category.trim() || undefined,
       createdAt: existing?.createdAt ?? new Date().toISOString(),
     };
     if (isEdit) {
@@ -138,6 +147,42 @@ export default function ServiceFormScreen() {
           style={{ color: colors.foreground }}
           returnKeyType="done"
         />
+
+        {/* Category */}
+        <Text className="text-xs font-medium text-muted mb-1 ml-1">Category (optional)</Text>
+        <TextInput
+          className="bg-surface rounded-xl px-4 py-3.5 text-base mb-2 border border-border"
+          placeholder="e.g. Hair, Nails, Massage..."
+          placeholderTextColor={colors.muted}
+          value={category}
+          onChangeText={setCategory}
+          style={{ color: colors.foreground }}
+          returnKeyType="done"
+        />
+        {existingCategories.length > 0 && !category && (
+          <View className="flex-row flex-wrap gap-2 mb-4">
+            {existingCategories.map((cat) => (
+              <Pressable
+                key={cat}
+                onPress={() => setCategory(cat)}
+                style={({ pressed }) => [
+                  styles.durationChip,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    minHeight: 32,
+                  },
+                ]}
+              >
+                <Text className="text-xs font-medium" style={{ color: colors.foreground }}>{cat}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+        {!existingCategories.length && <View style={{ height: 8 }} />}
 
         {/* Color */}
         <Text className="text-xs font-medium text-muted mb-2 ml-1">Color</Text>

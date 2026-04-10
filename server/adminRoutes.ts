@@ -1,0 +1,1062 @@
+import { Express, Request, Response, NextFunction } from "express";
+import * as db from "./db";
+import { getDb } from "./db";
+import {
+  businessOwners,
+  services,
+  clients,
+  appointments,
+  reviews,
+  discounts,
+  giftCards,
+  customSchedule,
+  products,
+  users,
+} from "../drizzle/schema";
+import { sql } from "drizzle-orm";
+
+// ─── Admin Auth ─────────────────────────────────────────────────────
+const ADMIN_USER = process.env.ADMIN_USERNAME || "Admin";
+const ADMIN_PASS = process.env.ADMIN_PASSWORD || "Admin123$";
+const SESSION_SECRET = process.env.JWT_SECRET || "admin-session-secret";
+
+// Simple session store (in-memory, resets on server restart)
+const sessions = new Map<string, { user: string; expiresAt: number }>();
+
+function generateSessionId(): string {
+  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let result = "";
+  for (let i = 0; i < 48; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+function getSessionFromCookie(req: Request): string | null {
+  const cookieHeader = req.headers.cookie || "";
+  const match = cookieHeader.match(/admin_session=([^;]+)/);
+  return match ? match[1] : null;
+}
+
+function isAuthenticated(req: Request): boolean {
+  const sessionId = getSessionFromCookie(req);
+  if (!sessionId) return false;
+  const session = sessions.get(sessionId);
+  if (!session) return false;
+  if (Date.now() > session.expiresAt) {
+    sessions.delete(sessionId);
+    return false;
+  }
+  return true;
+}
+
+function requireAuth(req: Request, res: Response, next: NextFunction): void {
+  if (isAuthenticated(req)) {
+    next();
+  } else {
+    res.redirect("/api/admin/login");
+  }
+}
+
+// ─── Helper: format currency ────────────────────────────────────────
+function fmtCurrency(val: number): string {
+  return "$" + val.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+function fmtDate(d: Date | string | null): string {
+  if (!d) return "N/A";
+  const date = typeof d === "string" ? new Date(d) : d;
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+// ─── Register Admin Routes ──────────────────────────────────────────
+export function registerAdminRoutes(app: Express): void {
+  // Login page
+  app.get("/api/admin/login", (_req: Request, res: Response) => {
+    res.send(loginPage());
+  });
+
+  // Login POST
+  app.post("/api/admin/login", (req: Request, res: Response) => {
+    const { username, password } = req.body;
+    if (username === ADMIN_USER && password === ADMIN_PASS) {
+      const sessionId = generateSessionId();
+      sessions.set(sessionId, {
+        user: username,
+        expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+      });
+      res.setHeader(
+        "Set-Cookie",
+        `admin_session=${sessionId}; Path=/api/admin; HttpOnly; SameSite=Lax; Max-Age=86400`
+      );
+      res.redirect("/api/admin");
+    } else {
+      res.send(loginPage("Invalid username or password"));
+    }
+  });
+
+  // Logout
+  app.get("/api/admin/logout", (_req: Request, res: Response) => {
+    const sessionId = getSessionFromCookie(_req);
+    if (sessionId) sessions.delete(sessionId);
+    res.setHeader(
+      "Set-Cookie",
+      `admin_session=; Path=/api/admin; HttpOnly; SameSite=Lax; Max-Age=0`
+    );
+    res.redirect("/api/admin/login");
+  });
+
+  // ── Dashboard Overview ────────────────────────────────────────────
+  app.get("/api/admin", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) {
+        res.status(500).send(errorPage("Database not available"));
+        return;
+      }
+
+      const [allOwners] = await dbase.select({ count: sql<number>`COUNT(*)` }).from(businessOwners);
+      const [allClients] = await dbase.select({ count: sql<number>`COUNT(*)` }).from(clients);
+      const [allAppts] = await dbase.select({ count: sql<number>`COUNT(*)` }).from(appointments);
+      const [allServices] = await dbase.select({ count: sql<number>`COUNT(*)` }).from(services);
+      const [allReviews] = await dbase.select({ count: sql<number>`COUNT(*)` }).from(reviews);
+      const [allGiftCards] = await dbase.select({ count: sql<number>`COUNT(*)` }).from(giftCards);
+      const [allDiscounts] = await dbase.select({ count: sql<number>`COUNT(*)` }).from(discounts);
+      const [allProducts] = await dbase.select({ count: sql<number>`COUNT(*)` }).from(products);
+      const [allUsers] = await dbase.select({ count: sql<number>`COUNT(*)` }).from(users);
+
+      // Recent businesses
+      const recentBusinesses = await dbase
+        .select()
+        .from(businessOwners)
+        .orderBy(sql`${businessOwners.createdAt} DESC`)
+        .limit(5);
+
+      // Recent appointments
+      const recentAppts = await dbase
+        .select()
+        .from(appointments)
+        .orderBy(sql`${appointments.createdAt} DESC`)
+        .limit(10);
+
+      res.send(
+        dashboardPage({
+          totalBusinesses: allOwners.count,
+          totalClients: allClients.count,
+          totalAppointments: allAppts.count,
+          totalServices: allServices.count,
+          totalReviews: allReviews.count,
+          totalGiftCards: allGiftCards.count,
+          totalDiscounts: allDiscounts.count,
+          totalProducts: allProducts.count,
+          totalUsers: allUsers.count,
+          recentBusinesses,
+          recentAppts,
+        })
+      );
+    } catch (err) {
+      console.error("[Admin] Dashboard error:", err);
+      res.status(500).send(errorPage("Failed to load dashboard"));
+    }
+  });
+
+  // ── Businesses List ───────────────────────────────────────────────
+  app.get("/api/admin/businesses", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
+      const allBiz = await dbase.select().from(businessOwners).orderBy(sql`${businessOwners.createdAt} DESC`);
+      res.send(businessesPage(allBiz));
+    } catch (err) {
+      console.error("[Admin] Businesses error:", err);
+      res.status(500).send(errorPage("Failed to load businesses"));
+    }
+  });
+
+  // ── Business Detail ───────────────────────────────────────────────
+  app.get("/api/admin/businesses/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const fullData = await db.getFullBusinessData(id);
+      if (!fullData.owner) { res.status(404).send(errorPage("Business not found")); return; }
+      res.send(businessDetailPage(fullData));
+    } catch (err) {
+      console.error("[Admin] Business detail error:", err);
+      res.status(500).send(errorPage("Failed to load business"));
+    }
+  });
+
+  // ── Delete Business ───────────────────────────────────────────────
+  app.post("/api/admin/businesses/:id/delete", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      await db.deleteBusinessOwner(id);
+      res.redirect("/api/admin/businesses");
+    } catch (err) {
+      console.error("[Admin] Delete business error:", err);
+      res.status(500).send(errorPage("Failed to delete business"));
+    }
+  });
+
+  // ── All Clients ───────────────────────────────────────────────────
+  app.get("/api/admin/clients", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
+      const allCli = await dbase.select().from(clients).orderBy(sql`${clients.createdAt} DESC`);
+      const allBiz = await dbase.select().from(businessOwners);
+      res.send(clientsPage(allCli, allBiz));
+    } catch (err) {
+      console.error("[Admin] Clients error:", err);
+      res.status(500).send(errorPage("Failed to load clients"));
+    }
+  });
+
+  // ── All Appointments ──────────────────────────────────────────────
+  app.get("/api/admin/appointments", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
+      const statusFilter = (req.query.status as string) || "";
+      let allAppts = await dbase.select().from(appointments).orderBy(sql`${appointments.date} DESC, ${appointments.time} DESC`);
+      if (statusFilter) {
+        allAppts = allAppts.filter((a) => a.status === statusFilter);
+      }
+      const allBiz = await dbase.select().from(businessOwners);
+      const allCli = await dbase.select().from(clients);
+      const allSvc = await dbase.select().from(services);
+      res.send(appointmentsPage(allAppts, allBiz, allCli, allSvc, statusFilter));
+    } catch (err) {
+      console.error("[Admin] Appointments error:", err);
+      res.status(500).send(errorPage("Failed to load appointments"));
+    }
+  });
+
+  // ── DB Explorer ───────────────────────────────────────────────────
+  app.get("/api/admin/db", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
+      const table = (req.query.table as string) || "business_owners";
+      const page = parseInt((req.query.page as string) || "1");
+      const limit = 50;
+      const offset = (page - 1) * limit;
+
+      const tableMap: Record<string, any> = {
+        business_owners: businessOwners,
+        services,
+        clients,
+        appointments,
+        reviews,
+        discounts,
+        gift_cards: giftCards,
+        custom_schedule: customSchedule,
+        products,
+        users,
+      };
+
+      const selectedTable = tableMap[table];
+      if (!selectedTable) { res.status(400).send(errorPage("Invalid table")); return; }
+
+      const rows = await dbase.select().from(selectedTable).limit(limit).offset(offset);
+      const [countResult] = await dbase.select({ count: sql<number>`COUNT(*)` }).from(selectedTable);
+      const totalRows = countResult.count;
+      const totalPages = Math.ceil(totalRows / limit);
+
+      res.send(dbExplorerPage(table, rows, page, totalPages, totalRows, Object.keys(tableMap)));
+    } catch (err) {
+      console.error("[Admin] DB Explorer error:", err);
+      res.status(500).send(errorPage("Failed to load DB explorer"));
+    }
+  });
+
+  // ── Analytics ─────────────────────────────────────────────────────
+  app.get("/api/admin/analytics", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
+
+      // All queries use simple aggregation to avoid GROUP BY strict mode issues
+      // Fetch all appointments and compute analytics in JS
+      const allAppts = await dbase.select().from(appointments);
+      const allBiz = await dbase.select().from(businessOwners);
+      const allReviews = await dbase.select().from(reviews);
+
+      // Appointments by status
+      const statusMap: Record<string, number> = {};
+      allAppts.forEach((a) => { statusMap[a.status] = (statusMap[a.status] || 0) + 1; });
+      const apptsByStatus = Object.entries(statusMap).map(([status, count]) => ({ status, count }));
+
+      // Appointments by month (last 12 months)
+      const apptMonthMap: Record<string, number> = {};
+      allAppts.forEach((a) => {
+        if (a.createdAt) {
+          const d = new Date(a.createdAt);
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+          apptMonthMap[key] = (apptMonthMap[key] || 0) + 1;
+        }
+      });
+      const apptsByMonth = Object.entries(apptMonthMap)
+        .map(([month, count]) => ({ month, count }))
+        .sort((a, b) => a.month.localeCompare(b.month))
+        .slice(-12);
+
+      // Business growth by month
+      const bizMonthMap: Record<string, number> = {};
+      allBiz.forEach((b) => {
+        if (b.createdAt) {
+          const d = new Date(b.createdAt);
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+          bizMonthMap[key] = (bizMonthMap[key] || 0) + 1;
+        }
+      });
+      const bizByMonth = Object.entries(bizMonthMap)
+        .map(([month, count]) => ({ month, count }))
+        .sort((a, b) => a.month.localeCompare(b.month))
+        .slice(-12);
+
+      // Average rating
+      const avgRating = allReviews.length > 0
+        ? allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length
+        : 0;
+
+      // Top services by appointment count
+      const svcMap: Record<string, number> = {};
+      allAppts.forEach((a) => { svcMap[a.serviceLocalId] = (svcMap[a.serviceLocalId] || 0) + 1; });
+      const topServices = Object.entries(svcMap)
+        .map(([serviceLocalId, count]) => ({ serviceLocalId, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+
+      res.send(
+        analyticsPage({
+          apptsByStatus,
+          apptsByMonth,
+          bizByMonth,
+          avgRating,
+          topServices,
+        })
+      );
+    } catch (err) {
+      console.error("[Admin] Analytics error:", err);
+      res.status(500).send(errorPage("Failed to load analytics"));
+    }
+  });
+
+  // ── Settings ──────────────────────────────────────────────────────
+  app.get("/api/admin/settings", requireAuth, (_req: Request, res: Response) => {
+    res.send(settingsPage());
+  });
+}
+
+// ─── HTML Templates ─────────────────────────────────────────────────
+
+function adminStyles(): string {
+  return `
+    <style>
+      :root {
+        --bg: #0f1117;
+        --bg-card: #1a1d27;
+        --bg-hover: #242736;
+        --border: #2a2d3a;
+        --text: #e4e6eb;
+        --text-muted: #8b8fa3;
+        --primary: #4a8c3f;
+        --primary-hover: #5aa34d;
+        --danger: #ef4444;
+        --warning: #f59e0b;
+        --success: #22c55e;
+        --info: #3b82f6;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+      a { color: var(--primary); text-decoration: none; }
+      a:hover { color: var(--primary-hover); text-decoration: underline; }
+
+      .layout { display: flex; min-height: 100vh; }
+      .sidebar { width: 240px; background: var(--bg-card); border-right: 1px solid var(--border); padding: 20px 0; position: fixed; top: 0; left: 0; bottom: 0; overflow-y: auto; z-index: 10; }
+      .sidebar-logo { padding: 0 20px 20px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+      .sidebar-logo h1 { font-size: 18px; color: var(--primary); }
+      .sidebar-logo p { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+      .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 20px; color: var(--text-muted); font-size: 14px; transition: all 0.15s; cursor: pointer; }
+      .nav-item:hover { background: var(--bg-hover); color: var(--text); text-decoration: none; }
+      .nav-item.active { background: var(--bg-hover); color: var(--primary); border-right: 3px solid var(--primary); }
+      .nav-icon { width: 20px; text-align: center; }
+
+      .main { flex: 1; margin-left: 240px; padding: 24px 32px; }
+      .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+      .page-header h2 { font-size: 24px; font-weight: 700; }
+      .breadcrumb { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
+      .breadcrumb a { color: var(--text-muted); }
+      .breadcrumb a:hover { color: var(--primary); }
+
+      .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+      .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+      .stat-card .stat-label { font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
+      .stat-card .stat-value { font-size: 28px; font-weight: 700; }
+      .stat-card .stat-icon { font-size: 24px; margin-bottom: 8px; }
+
+      .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+      .card h3 { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+
+      table { width: 100%; border-collapse: collapse; }
+      th { text-align: left; padding: 10px 12px; font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+      td { padding: 10px 12px; font-size: 14px; border-bottom: 1px solid var(--border); }
+      tr:hover td { background: var(--bg-hover); }
+
+      .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+      .badge-success { background: rgba(34,197,94,0.15); color: var(--success); }
+      .badge-warning { background: rgba(245,158,11,0.15); color: var(--warning); }
+      .badge-danger { background: rgba(239,68,68,0.15); color: var(--danger); }
+      .badge-info { background: rgba(59,130,246,0.15); color: var(--info); }
+      .badge-muted { background: rgba(139,143,163,0.15); color: var(--text-muted); }
+
+      .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+      .btn:hover { opacity: 0.9; }
+      .btn-primary { background: var(--primary); color: #fff; }
+      .btn-danger { background: var(--danger); color: #fff; }
+      .btn-secondary { background: var(--bg-hover); color: var(--text); border: 1px solid var(--border); }
+      .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+      .filter-bar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+      .filter-btn { padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-muted); transition: all 0.15s; text-decoration: none; }
+      .filter-btn:hover { border-color: var(--primary); color: var(--text); text-decoration: none; }
+      .filter-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+      .pagination { display: flex; gap: 8px; justify-content: center; margin-top: 16px; }
+      .pagination a { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); color: var(--text-muted); font-size: 13px; }
+      .pagination a:hover { border-color: var(--primary); color: var(--text); text-decoration: none; }
+      .pagination a.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+      .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+      .detail-item { padding: 12px 0; border-bottom: 1px solid var(--border); }
+      .detail-item:last-child { border-bottom: none; }
+      .detail-label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+      .detail-value { font-size: 15px; font-weight: 500; }
+
+      .chart-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+      .chart-bar-label { width: 100px; font-size: 13px; color: var(--text-muted); text-align: right; }
+      .chart-bar-fill { height: 28px; border-radius: 6px; background: var(--primary); min-width: 4px; transition: width 0.3s; display: flex; align-items: center; padding: 0 8px; }
+      .chart-bar-value { font-size: 12px; font-weight: 600; color: #fff; white-space: nowrap; }
+
+      .empty-state { text-align: center; padding: 40px; color: var(--text-muted); }
+      .empty-state .empty-icon { font-size: 48px; margin-bottom: 12px; }
+
+      .login-container { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+      .login-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 40px; width: 100%; max-width: 400px; }
+      .login-card h1 { text-align: center; margin-bottom: 8px; color: var(--primary); }
+      .login-card p { text-align: center; color: var(--text-muted); font-size: 14px; margin-bottom: 24px; }
+      .form-group { margin-bottom: 16px; }
+      .form-group label { display: block; font-size: 13px; font-weight: 500; color: var(--text-muted); margin-bottom: 6px; }
+      .form-group input { width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font-size: 15px; outline: none; }
+      .form-group input:focus { border-color: var(--primary); }
+      .error-msg { color: var(--danger); font-size: 13px; text-align: center; margin-bottom: 12px; }
+
+      .confirm-dialog { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 100; align-items: center; justify-content: center; }
+      .confirm-dialog.show { display: flex; }
+      .confirm-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; max-width: 400px; width: 90%; }
+      .confirm-box h3 { margin-bottom: 12px; }
+      .confirm-box p { color: var(--text-muted); font-size: 14px; margin-bottom: 20px; }
+      .confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+      @media (max-width: 768px) {
+        .sidebar { display: none; }
+        .main { margin-left: 0; padding: 16px; }
+        .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      }
+    </style>
+  `;
+}
+
+function sidebarHtml(activePage: string): string {
+  const items = [
+    { href: "/api/admin", icon: "📊", label: "Dashboard", key: "dashboard" },
+    { href: "/api/admin/businesses", icon: "🏢", label: "Businesses", key: "businesses" },
+    { href: "/api/admin/clients", icon: "👥", label: "Clients", key: "clients" },
+    { href: "/api/admin/appointments", icon: "📅", label: "Appointments", key: "appointments" },
+    { href: "/api/admin/analytics", icon: "📈", label: "Analytics", key: "analytics" },
+    { href: "/api/admin/db", icon: "🗄️", label: "DB Explorer", key: "db" },
+    { href: "/api/admin/settings", icon: "⚙️", label: "Settings", key: "settings" },
+  ];
+  return `
+    <div class="sidebar">
+      <div class="sidebar-logo">
+        <h1>🍋 Lime Of Time</h1>
+        <p>Admin Dashboard</p>
+      </div>
+      ${items
+        .map(
+          (i) =>
+            `<a href="${i.href}" class="nav-item ${activePage === i.key ? "active" : ""}">
+              <span class="nav-icon">${i.icon}</span> ${i.label}
+            </a>`
+        )
+        .join("")}
+      <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid var(--border); margin-top: 20px;">
+        <a href="/api/admin/logout" class="nav-item" style="color: var(--danger);">
+          <span class="nav-icon">🚪</span> Logout
+        </a>
+      </div>
+    </div>
+  `;
+}
+
+function adminLayout(title: string, activePage: string, content: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title} - Lime Of Time Admin</title>
+  <meta name="robots" content="noindex, nofollow">
+  ${adminStyles()}
+</head>
+<body>
+  <div class="layout">
+    ${sidebarHtml(activePage)}
+    <div class="main">
+      ${content}
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+// ─── Login Page ─────────────────────────────────────────────────────
+function loginPage(error?: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Login - Lime Of Time</title>
+  <meta name="robots" content="noindex, nofollow">
+  ${adminStyles()}
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-card">
+      <h1>🍋 Lime Of Time</h1>
+      <p>Admin Dashboard Login</p>
+      ${error ? `<div class="error-msg">${error}</div>` : ""}
+      <form method="POST" action="/api/admin/login">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" name="username" required autocomplete="username" placeholder="Enter username">
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" name="password" required autocomplete="current-password" placeholder="Enter password">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; padding:12px; font-size:16px; margin-top:8px;">
+          Sign In
+        </button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+// ─── Error Page ─────────────────────────────────────────────────────
+function errorPage(message: string): string {
+  return adminLayout("Error", "", `
+    <div class="empty-state">
+      <div class="empty-icon">⚠️</div>
+      <h3>${message}</h3>
+      <p style="margin-top:8px;"><a href="/api/admin">Back to Dashboard</a></p>
+    </div>
+  `);
+}
+
+// ─── Dashboard Page ─────────────────────────────────────────────────
+function dashboardPage(data: {
+  totalBusinesses: number;
+  totalClients: number;
+  totalAppointments: number;
+  totalServices: number;
+  totalReviews: number;
+  totalGiftCards: number;
+  totalDiscounts: number;
+  totalProducts: number;
+  totalUsers: number;
+  recentBusinesses: any[];
+  recentAppts: any[];
+}): string {
+  return adminLayout("Dashboard", "dashboard", `
+    <div class="page-header">
+      <h2>Dashboard Overview</h2>
+      <span style="font-size:13px; color:var(--text-muted);">${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</span>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">🏢</div>
+        <div class="stat-label">Total Businesses</div>
+        <div class="stat-value">${data.totalBusinesses}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">👥</div>
+        <div class="stat-label">Total Clients</div>
+        <div class="stat-value">${data.totalClients}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📅</div>
+        <div class="stat-label">Total Appointments</div>
+        <div class="stat-value">${data.totalAppointments}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🛎️</div>
+        <div class="stat-label">Total Services</div>
+        <div class="stat-value">${data.totalServices}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📦</div>
+        <div class="stat-label">Total Products</div>
+        <div class="stat-value">${data.totalProducts}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">⭐</div>
+        <div class="stat-label">Total Reviews</div>
+        <div class="stat-value">${data.totalReviews}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🎁</div>
+        <div class="stat-label">Gift Cards</div>
+        <div class="stat-value">${data.totalGiftCards}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🏷️</div>
+        <div class="stat-label">Discounts</div>
+        <div class="stat-value">${data.totalDiscounts}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🔑</div>
+        <div class="stat-label">Registered Users</div>
+        <div class="stat-value">${data.totalUsers}</div>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+      <div class="card">
+        <h3>Recent Businesses</h3>
+        ${data.recentBusinesses.length === 0
+          ? '<div class="empty-state"><p>No businesses yet</p></div>'
+          : `<table>
+              <thead><tr><th>Name</th><th>Phone</th><th>Created</th></tr></thead>
+              <tbody>
+                ${data.recentBusinesses
+                  .map(
+                    (b: any) =>
+                      `<tr>
+                        <td><a href="/api/admin/businesses/${b.id}">${b.businessName}</a></td>
+                        <td>${b.phone || "N/A"}</td>
+                        <td>${fmtDate(b.createdAt)}</td>
+                      </tr>`
+                  )
+                  .join("")}
+              </tbody>
+            </table>`
+        }
+      </div>
+      <div class="card">
+        <h3>Recent Appointments</h3>
+        ${data.recentAppts.length === 0
+          ? '<div class="empty-state"><p>No appointments yet</p></div>'
+          : `<table>
+              <thead><tr><th>Date</th><th>Time</th><th>Status</th></tr></thead>
+              <tbody>
+                ${data.recentAppts
+                  .map(
+                    (a: any) => {
+                      const badgeClass = a.status === "confirmed" ? "badge-success" : a.status === "pending" ? "badge-warning" : a.status === "cancelled" ? "badge-danger" : "badge-info";
+                      return `<tr>
+                        <td>${a.date}</td>
+                        <td>${a.time}</td>
+                        <td><span class="badge ${badgeClass}">${a.status}</span></td>
+                      </tr>`;
+                    }
+                  )
+                  .join("")}
+              </tbody>
+            </table>`
+        }
+      </div>
+    </div>
+  `);
+}
+
+// ─── Businesses Page ────────────────────────────────────────────────
+function businessesPage(businesses: any[]): string {
+  return adminLayout("Businesses", "businesses", `
+    <div class="page-header">
+      <h2>All Businesses</h2>
+      <span class="badge badge-info">${businesses.length} total</span>
+    </div>
+    <div class="card">
+      ${businesses.length === 0
+        ? '<div class="empty-state"><div class="empty-icon">🏢</div><p>No businesses registered yet</p></div>'
+        : `<table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Business Name</th>
+                <th>Phone</th>
+                <th>Email</th>
+                <th>Address</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${businesses
+                .map(
+                  (b: any) =>
+                    `<tr>
+                      <td>${b.id}</td>
+                      <td><a href="/api/admin/businesses/${b.id}" style="font-weight:600;">${b.businessName}</a></td>
+                      <td>${b.phone || "N/A"}</td>
+                      <td>${b.email || "N/A"}</td>
+                      <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${b.address || "N/A"}</td>
+                      <td>${b.temporaryClosed ? '<span class="badge badge-danger">Closed</span>' : '<span class="badge badge-success">Open</span>'}</td>
+                      <td>${fmtDate(b.createdAt)}</td>
+                      <td>
+                        <a href="/api/admin/businesses/${b.id}" class="btn btn-secondary btn-sm">View</a>
+                      </td>
+                    </tr>`
+                )
+                .join("")}
+            </tbody>
+          </table>`
+      }
+    </div>
+  `);
+}
+
+// ─── Business Detail Page ───────────────────────────────────────────
+function businessDetailPage(data: any): string {
+  const o = data.owner;
+  const slug = o.businessName.toLowerCase().replace(/\s+/g, "-");
+  return adminLayout(o.businessName, "businesses", `
+    <div class="breadcrumb"><a href="/api/admin/businesses">Businesses</a> / ${o.businessName}</div>
+    <div class="page-header">
+      <h2>${o.businessName}</h2>
+      <div style="display:flex; gap:8px;">
+        <a href="/api/book/${slug}" target="_blank" class="btn btn-secondary btn-sm">View Booking Page</a>
+        <button onclick="document.getElementById('deleteDialog').classList.add('show')" class="btn btn-danger btn-sm">Delete Business</button>
+      </div>
+    </div>
+
+    <div class="detail-grid" style="margin-bottom:24px;">
+      <div class="card">
+        <h3>Business Info</h3>
+        <div class="detail-item"><div class="detail-label">ID</div><div class="detail-value">${o.id}</div></div>
+        <div class="detail-item"><div class="detail-label">Phone</div><div class="detail-value">${o.phone || "N/A"}</div></div>
+        <div class="detail-item"><div class="detail-label">Email</div><div class="detail-value">${o.email || "N/A"}</div></div>
+        <div class="detail-item"><div class="detail-label">Address</div><div class="detail-value">${o.address || "N/A"}</div></div>
+        <div class="detail-item"><div class="detail-label">Website</div><div class="detail-value">${o.website || "N/A"}</div></div>
+        <div class="detail-item"><div class="detail-label">Description</div><div class="detail-value">${o.description || "N/A"}</div></div>
+        <div class="detail-item"><div class="detail-label">Schedule Mode</div><div class="detail-value">${o.scheduleMode}</div></div>
+        <div class="detail-item"><div class="detail-label">Status</div><div class="detail-value">${o.temporaryClosed ? '<span class="badge badge-danger">Temporarily Closed</span>' : '<span class="badge badge-success">Open</span>'}</div></div>
+        <div class="detail-item"><div class="detail-label">Created</div><div class="detail-value">${fmtDate(o.createdAt)}</div></div>
+      </div>
+      <div class="card">
+        <h3>Statistics</h3>
+        <div class="detail-item"><div class="detail-label">Services</div><div class="detail-value">${data.services.length}</div></div>
+        <div class="detail-item"><div class="detail-label">Clients</div><div class="detail-value">${data.clients.length}</div></div>
+        <div class="detail-item"><div class="detail-label">Appointments</div><div class="detail-value">${data.appointments.length}</div></div>
+        <div class="detail-item"><div class="detail-label">Reviews</div><div class="detail-value">${data.reviews.length}</div></div>
+        <div class="detail-item"><div class="detail-label">Discounts</div><div class="detail-value">${data.discounts.length}</div></div>
+        <div class="detail-item"><div class="detail-label">Gift Cards</div><div class="detail-value">${data.giftCards.length}</div></div>
+        <div class="detail-item"><div class="detail-label">Products</div><div class="detail-value">${data.products.length}</div></div>
+      </div>
+    </div>
+
+    ${data.services.length > 0 ? `
+    <div class="card">
+      <h3>Services (${data.services.length})</h3>
+      <table>
+        <thead><tr><th>Name</th><th>Duration</th><th>Price</th><th>Color</th></tr></thead>
+        <tbody>
+          ${data.services.map((s: any) => `<tr><td>${s.name}</td><td>${s.duration} min</td><td>${fmtCurrency(parseFloat(s.price))}</td><td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${s.color};vertical-align:middle;"></span> ${s.color}</td></tr>`).join("")}
+        </tbody>
+      </table>
+    </div>` : ""}
+
+    ${data.clients.length > 0 ? `
+    <div class="card">
+      <h3>Clients (${data.clients.length})</h3>
+      <table>
+        <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Created</th></tr></thead>
+        <tbody>
+          ${data.clients.map((c: any) => `<tr><td>${c.name}</td><td>${c.phone || "N/A"}</td><td>${c.email || "N/A"}</td><td>${fmtDate(c.createdAt)}</td></tr>`).join("")}
+        </tbody>
+      </table>
+    </div>` : ""}
+
+    ${data.appointments.length > 0 ? `
+    <div class="card">
+      <h3>Appointments (${data.appointments.length})</h3>
+      <table>
+        <thead><tr><th>Date</th><th>Time</th><th>Duration</th><th>Status</th><th>Notes</th></tr></thead>
+        <tbody>
+          ${data.appointments.map((a: any) => {
+            const bc = a.status === "confirmed" ? "badge-success" : a.status === "pending" ? "badge-warning" : a.status === "cancelled" ? "badge-danger" : "badge-info";
+            return `<tr><td>${a.date}</td><td>${a.time}</td><td>${a.duration} min</td><td><span class="badge ${bc}">${a.status}</span></td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.notes || ""}</td></tr>`;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>` : ""}
+
+    <div id="deleteDialog" class="confirm-dialog">
+      <div class="confirm-box">
+        <h3>Delete Business</h3>
+        <p>Are you sure you want to delete "${o.businessName}"? This will permanently remove all associated data (clients, appointments, services, reviews, etc.). This action cannot be undone.</p>
+        <div class="confirm-actions">
+          <button onclick="document.getElementById('deleteDialog').classList.remove('show')" class="btn btn-secondary">Cancel</button>
+          <form method="POST" action="/api/admin/businesses/${o.id}/delete" style="display:inline;">
+            <button type="submit" class="btn btn-danger">Delete Permanently</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  `);
+}
+
+// ─── Clients Page ───────────────────────────────────────────────────
+function clientsPage(allClients: any[], allBiz: any[]): string {
+  const bizMap = new Map(allBiz.map((b: any) => [b.id, b.businessName]));
+  return adminLayout("Clients", "clients", `
+    <div class="page-header">
+      <h2>All Clients</h2>
+      <span class="badge badge-info">${allClients.length} total</span>
+    </div>
+    <div class="card">
+      ${allClients.length === 0
+        ? '<div class="empty-state"><div class="empty-icon">👥</div><p>No clients yet</p></div>'
+        : `<table>
+            <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Business</th><th>Created</th></tr></thead>
+            <tbody>
+              ${allClients.map((c: any) => `<tr>
+                <td style="font-weight:500;">${c.name}</td>
+                <td>${c.phone || "N/A"}</td>
+                <td>${c.email || "N/A"}</td>
+                <td><a href="/api/admin/businesses/${c.businessOwnerId}">${bizMap.get(c.businessOwnerId) || "Unknown"}</a></td>
+                <td>${fmtDate(c.createdAt)}</td>
+              </tr>`).join("")}
+            </tbody>
+          </table>`
+      }
+    </div>
+  `);
+}
+
+// ─── Appointments Page ──────────────────────────────────────────────
+function appointmentsPage(allAppts: any[], allBiz: any[], allCli: any[], allSvc: any[], statusFilter: string): string {
+  const bizMap = new Map(allBiz.map((b: any) => [b.id, b.businessName]));
+  const cliMap = new Map(allCli.map((c: any) => [`${c.businessOwnerId}-${c.localId}`, c.name]));
+  const svcMap = new Map(allSvc.map((s: any) => [`${s.businessOwnerId}-${s.localId}`, s.name]));
+  const statuses = ["", "pending", "confirmed", "completed", "cancelled"];
+  const statusLabels = ["All", "Pending", "Confirmed", "Completed", "Cancelled"];
+
+  return adminLayout("Appointments", "appointments", `
+    <div class="page-header">
+      <h2>All Appointments</h2>
+      <span class="badge badge-info">${allAppts.length} shown</span>
+    </div>
+    <div class="filter-bar">
+      ${statuses.map((s, i) => `<a href="/api/admin/appointments${s ? "?status=" + s : ""}" class="filter-btn ${statusFilter === s ? "active" : ""}">${statusLabels[i]}</a>`).join("")}
+    </div>
+    <div class="card">
+      ${allAppts.length === 0
+        ? '<div class="empty-state"><div class="empty-icon">📅</div><p>No appointments found</p></div>'
+        : `<table>
+            <thead><tr><th>Date</th><th>Time</th><th>Client</th><th>Service</th><th>Business</th><th>Duration</th><th>Status</th></tr></thead>
+            <tbody>
+              ${allAppts.map((a: any) => {
+                const bc = a.status === "confirmed" ? "badge-success" : a.status === "pending" ? "badge-warning" : a.status === "cancelled" ? "badge-danger" : "badge-info";
+                return `<tr>
+                  <td>${a.date}</td>
+                  <td>${a.time}</td>
+                  <td>${cliMap.get(`${a.businessOwnerId}-${a.clientLocalId}`) || a.clientLocalId}</td>
+                  <td>${svcMap.get(`${a.businessOwnerId}-${a.serviceLocalId}`) || a.serviceLocalId}</td>
+                  <td><a href="/api/admin/businesses/${a.businessOwnerId}">${bizMap.get(a.businessOwnerId) || "Unknown"}</a></td>
+                  <td>${a.duration} min</td>
+                  <td><span class="badge ${bc}">${a.status}</span></td>
+                </tr>`;
+              }).join("")}
+            </tbody>
+          </table>`
+      }
+    </div>
+  `);
+}
+
+// ─── DB Explorer Page ───────────────────────────────────────────────
+function dbExplorerPage(table: string, rows: any[], page: number, totalPages: number, totalRows: number, tables: string[]): string {
+  const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
+  return adminLayout("DB Explorer", "db", `
+    <div class="page-header">
+      <h2>Database Explorer</h2>
+      <span class="badge badge-info">${totalRows} rows in ${table}</span>
+    </div>
+    <div class="filter-bar">
+      ${tables.map((t) => `<a href="/api/admin/db?table=${t}" class="filter-btn ${table === t ? "active" : ""}">${t}</a>`).join("")}
+    </div>
+    <div class="card" style="overflow-x:auto;">
+      ${rows.length === 0
+        ? '<div class="empty-state"><p>No data in this table</p></div>'
+        : `<table>
+            <thead><tr>${columns.map((c) => `<th>${c}</th>`).join("")}</tr></thead>
+            <tbody>
+              ${rows.map((r: any) => `<tr>${columns.map((c) => {
+                let val = r[c];
+                if (val === null || val === undefined) val = '<span style="color:var(--text-muted);">NULL</span>';
+                else if (typeof val === "object") val = `<code style="font-size:11px;color:var(--text-muted);max-width:200px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${JSON.stringify(val)}</code>`;
+                else if (typeof val === "boolean") val = val ? '<span class="badge badge-success">true</span>' : '<span class="badge badge-danger">false</span>';
+                else val = String(val);
+                return `<td>${val}</td>`;
+              }).join("")}</tr>`).join("")}
+            </tbody>
+          </table>
+          ${totalPages > 1 ? `
+          <div class="pagination">
+            ${page > 1 ? `<a href="/api/admin/db?table=${table}&page=${page - 1}">Previous</a>` : ""}
+            ${Array.from({ length: Math.min(totalPages, 10) }, (_, i) => {
+              const p = i + 1;
+              return `<a href="/api/admin/db?table=${table}&page=${p}" class="${p === page ? "active" : ""}">${p}</a>`;
+            }).join("")}
+            ${page < totalPages ? `<a href="/api/admin/db?table=${table}&page=${page + 1}">Next</a>` : ""}
+          </div>` : ""}`
+      }
+    </div>
+  `);
+}
+
+// ─── Analytics Page ─────────────────────────────────────────────────
+function analyticsPage(data: {
+  apptsByStatus: { status: string; count: number }[];
+  apptsByMonth: { month: string; count: number }[];
+  bizByMonth: { month: string; count: number }[];
+  avgRating: number;
+  topServices: { serviceLocalId: string; count: number }[];
+}): string {
+  const maxApptMonth = Math.max(...data.apptsByMonth.map((m) => m.count), 1);
+  const maxBizMonth = Math.max(...data.bizByMonth.map((m) => m.count), 1);
+
+  return adminLayout("Analytics", "analytics", `
+    <div class="page-header">
+      <h2>Analytics</h2>
+    </div>
+
+    <div class="stats-grid">
+      ${data.apptsByStatus.map((s) => {
+        const bc = s.status === "confirmed" ? "badge-success" : s.status === "pending" ? "badge-warning" : s.status === "cancelled" ? "badge-danger" : "badge-info";
+        return `<div class="stat-card">
+          <div class="stat-label">${s.status.charAt(0).toUpperCase() + s.status.slice(1)} Appointments</div>
+          <div class="stat-value"><span class="badge ${bc}" style="font-size:20px;padding:6px 14px;">${s.count}</span></div>
+        </div>`;
+      }).join("")}
+      <div class="stat-card">
+        <div class="stat-icon">⭐</div>
+        <div class="stat-label">Average Rating</div>
+        <div class="stat-value">${Number(data.avgRating).toFixed(1)}</div>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+      <div class="card">
+        <h3>Appointments by Month</h3>
+        ${data.apptsByMonth.length === 0
+          ? '<div class="empty-state"><p>No data yet</p></div>'
+          : data.apptsByMonth.map((m) => `
+            <div class="chart-bar">
+              <div class="chart-bar-label">${m.month}</div>
+              <div class="chart-bar-fill" style="width: ${Math.max((m.count / maxApptMonth) * 100, 8)}%;">
+                <span class="chart-bar-value">${m.count}</span>
+              </div>
+            </div>
+          `).join("")}
+      </div>
+      <div class="card">
+        <h3>Business Growth</h3>
+        ${data.bizByMonth.length === 0
+          ? '<div class="empty-state"><p>No data yet</p></div>'
+          : data.bizByMonth.map((m) => `
+            <div class="chart-bar">
+              <div class="chart-bar-label">${m.month}</div>
+              <div class="chart-bar-fill" style="width: ${Math.max((m.count / maxBizMonth) * 100, 8)}%;">
+                <span class="chart-bar-value">${m.count}</span>
+              </div>
+            </div>
+          `).join("")}
+      </div>
+    </div>
+
+    ${data.topServices.length > 0 ? `
+    <div class="card" style="margin-top:16px;">
+      <h3>Top Services by Booking Count</h3>
+      <table>
+        <thead><tr><th>Service ID</th><th>Bookings</th></tr></thead>
+        <tbody>
+          ${data.topServices.map((s) => `<tr><td>${s.serviceLocalId}</td><td><span class="badge badge-success">${s.count}</span></td></tr>`).join("")}
+        </tbody>
+      </table>
+    </div>` : ""}
+  `);
+}
+
+// ─── Settings Page ──────────────────────────────────────────────────
+function settingsPage(): string {
+  return adminLayout("Settings", "settings", `
+    <div class="page-header">
+      <h2>Admin Settings</h2>
+    </div>
+    <div class="detail-grid">
+      <div class="card">
+        <h3>Admin Credentials</h3>
+        <div class="detail-item">
+          <div class="detail-label">Username</div>
+          <div class="detail-value">${ADMIN_USER}</div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-label">Password</div>
+          <div class="detail-value">••••••••</div>
+        </div>
+        <p style="font-size:12px; color:var(--text-muted); margin-top:12px;">
+          Admin credentials are configured via environment variables: <code>ADMIN_USERNAME</code> and <code>ADMIN_PASSWORD</code>.
+          To change them, update the environment variables and restart the server.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Server Info</h3>
+        <div class="detail-item">
+          <div class="detail-label">Node.js Version</div>
+          <div class="detail-value">${process.version}</div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-label">Environment</div>
+          <div class="detail-value">${process.env.NODE_ENV || "development"}</div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-label">Database</div>
+          <div class="detail-value">${process.env.DATABASE_URL ? '<span class="badge badge-success">Connected</span>' : '<span class="badge badge-danger">Not configured</span>'}</div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-label">Server Uptime</div>
+          <div class="detail-value">${Math.floor(process.uptime() / 3600)}h ${Math.floor((process.uptime() % 3600) / 60)}m</div>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px;">
+      <h3>Quick Links</h3>
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <a href="/api/health" target="_blank" class="btn btn-secondary btn-sm">Health Check</a>
+        <a href="/api/admin/db" class="btn btn-secondary btn-sm">DB Explorer</a>
+        <a href="/api/admin/analytics" class="btn btn-secondary btn-sm">Analytics</a>
+        <a href="/api/home" target="_blank" class="btn btn-secondary btn-sm">Public Homepage</a>
+      </div>
+    </div>
+  `);
+}

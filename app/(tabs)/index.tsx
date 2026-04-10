@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useCallback } from "react";
+import { useMemo, useEffect, useCallback, useState } from "react";
 import {
   Text,
   View,
@@ -10,6 +10,8 @@ import {
   Image,
   Alert,
   Platform,
+  Modal,
+  Animated,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatTime, formatDateStr } from "@/lib/store";
@@ -19,6 +21,7 @@ import { useRouter } from "expo-router";
 import { minutesToTime, timeToMinutes, PUBLIC_BOOKING_URL } from "@/lib/types";
 import * as ImagePicker from "expo-image-picker";
 import { MiniBarChart, MiniDonutChart } from "@/components/mini-chart";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // ─── Progress Bar (inline, lightweight) ────────────────────────────
 function ProgressBar({
@@ -58,6 +61,51 @@ export default function HomeScreen() {
       router.replace("/onboarding");
     }
   }, [state.loaded, state.settings.onboardingComplete]);
+
+  // ─── Tutorial Walkthrough ──────────────────────────────────────
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(0);
+  const tutorialFade = useState(() => new Animated.Value(0))[0];
+
+  const TUTORIAL_STEPS = [
+    { title: "Welcome to Lime Of Time!", desc: "Your all-in-one appointment scheduling app. Let's take a quick tour of the key features.", icon: "🍋" },
+    { title: "Dashboard Overview", desc: "The home screen shows your KPIs, today's schedule, analytics charts, and quick actions at a glance.", icon: "📊" },
+    { title: "Book Appointments", desc: "Tap the + button to create new bookings. You can also share your booking link with clients.", icon: "📅" },
+    { title: "Manage Your Calendar", desc: "Use the Calendar tab to view and manage all appointments. Filter by status and navigate by date.", icon: "🗓️" },
+    { title: "Services & Clients", desc: "Set up your services with pricing, categories, and duration. Track client history and notes.", icon: "💼" },
+    { title: "Settings & Customization", desc: "Configure working hours, buffer time, custom booking URL, notifications, and more in Settings.", icon: "⚙️" },
+    { title: "You're All Set!", desc: "Start by adding your first service and booking an appointment. Happy scheduling!", icon: "🎉" },
+  ];
+
+  useEffect(() => {
+    if (state.loaded && state.settings.onboardingComplete) {
+      AsyncStorage.getItem("@lime_tutorial_seen").then((val) => {
+        if (!val) setShowTutorial(true);
+      });
+    }
+  }, [state.loaded, state.settings.onboardingComplete]);
+
+  useEffect(() => {
+    if (showTutorial) {
+      Animated.timing(tutorialFade, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+    }
+  }, [showTutorial, tutorialStep]);
+
+  const dismissTutorial = useCallback(async () => {
+    Animated.timing(tutorialFade, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => {
+      setShowTutorial(false);
+    });
+    await AsyncStorage.setItem("@lime_tutorial_seen", "1");
+  }, [tutorialFade]);
+
+  const nextTutorialStep = useCallback(() => {
+    if (tutorialStep < TUTORIAL_STEPS.length - 1) {
+      tutorialFade.setValue(0);
+      setTutorialStep((s) => s + 1);
+    } else {
+      dismissTutorial();
+    }
+  }, [tutorialStep, TUTORIAL_STEPS.length, dismissTutorial, tutorialFade]);
 
   const now = new Date();
   const todayStr = formatDateStr(now);
@@ -786,6 +834,54 @@ export default function HomeScreen() {
       >
         <IconSymbol name="plus" size={28} color="#FFF" />
       </Pressable>
+
+      {/* Tutorial Walkthrough Overlay */}
+      <Modal visible={showTutorial} transparent animationType="none">
+        <Animated.View style={[styles.tutorialOverlay, { opacity: tutorialFade }]}>
+          <View style={[styles.tutorialCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={{ fontSize: 48, textAlign: "center", marginBottom: 16 }}>
+              {TUTORIAL_STEPS[tutorialStep]?.icon}
+            </Text>
+            <Text style={[styles.tutorialTitle, { color: colors.foreground }]}>
+              {TUTORIAL_STEPS[tutorialStep]?.title}
+            </Text>
+            <Text style={[styles.tutorialDesc, { color: colors.muted }]}>
+              {TUTORIAL_STEPS[tutorialStep]?.desc}
+            </Text>
+            {/* Step indicators */}
+            <View style={styles.tutorialDots}>
+              {TUTORIAL_STEPS.map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.tutorialDot,
+                    { backgroundColor: i === tutorialStep ? colors.primary : colors.border },
+                  ]}
+                />
+              ))}
+            </View>
+            <View style={styles.tutorialActions}>
+              <Pressable
+                onPress={dismissTutorial}
+                style={({ pressed }) => [styles.tutorialSkipBtn, { opacity: pressed ? 0.7 : 1 }]}
+              >
+                <Text style={{ fontSize: 14, color: colors.muted }}>Skip</Text>
+              </Pressable>
+              <Pressable
+                onPress={nextTutorialStep}
+                style={({ pressed }) => [
+                  styles.tutorialNextBtn,
+                  { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
+                ]}
+              >
+                <Text style={{ fontSize: 14, fontWeight: "600", color: "#FFF" }}>
+                  {tutorialStep === TUTORIAL_STEPS.length - 1 ? "Get Started" : "Next"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </Animated.View>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -1055,5 +1151,66 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
+  },
+
+  // ─── Tutorial Walkthrough ─────────────────────────────────
+  tutorialOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 32,
+  },
+  tutorialCard: {
+    width: "100%",
+    maxWidth: 340,
+    borderRadius: 24,
+    padding: 32,
+    borderWidth: 1,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  tutorialTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  tutorialDesc: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
+    marginBottom: 24,
+  },
+  tutorialDots: {
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: 24,
+  },
+  tutorialDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  tutorialActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    width: "100%",
+  },
+  tutorialSkipBtn: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  tutorialNextBtn: {
+    flex: 2,
+    alignItems: "center",
+    paddingVertical: 14,
+    borderRadius: 14,
   },
 });

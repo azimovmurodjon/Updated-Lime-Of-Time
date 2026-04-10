@@ -4,6 +4,7 @@ export interface Service {
   duration: number; // in minutes
   price: number;
   color: string;
+  category?: string; // service category for grouping
   createdAt: string;
 }
 
@@ -137,6 +138,8 @@ export interface BusinessSettings {
   temporaryClosed: boolean;
   businessLogoUri: string; // local URI for custom uploaded logo
   scheduleMode: "weekly" | "custom"; // which schedule drives availability
+  bufferTime: number; // minutes between appointments (0 = no buffer)
+  customSlug: string; // custom booking page slug
 }
 
 export const SERVICE_COLORS = [
@@ -263,12 +266,13 @@ export function timeSlotsOverlap(
   return aStart < bEnd && bStart < aEnd;
 }
 
-/** Filter slots by past times and existing appointments */
+/** Filter slots by past times and existing appointments (with optional buffer time) */
 function filterSlots(
   slots: string[],
   date: string,
   serviceDuration: number,
-  appointments: Appointment[]
+  appointments: Appointment[],
+  bufferTime: number = 0
 ): string[] {
   let filtered = [...slots];
   // Filter out past times for today
@@ -284,7 +288,9 @@ function filterSlots(
   );
   return filtered.filter((slot) => {
     return !dayAppointments.some((a) =>
-      timeSlotsOverlap(slot, serviceDuration, a.time, a.duration)
+      // Check overlap including buffer time: the new slot needs serviceDuration,
+      // and existing appointments occupy their duration + buffer on each side
+      timeSlotsOverlap(slot, serviceDuration, a.time, a.duration + bufferTime)
     );
   });
 }
@@ -299,7 +305,8 @@ export function generateAvailableSlots(
   appointments: Appointment[],
   stepMinutes: number = 30,
   customSchedule?: CustomScheduleDay[],
-  scheduleMode: "weekly" | "custom" = "weekly"
+  scheduleMode: "weekly" | "custom" = "weekly",
+  bufferTime: number = 0
 ): string[] {
   const customDay = customSchedule?.find((cs) => cs.date === date);
 
@@ -314,7 +321,7 @@ export function generateAvailableSlots(
       for (let min = startMin; min + serviceDuration <= endMin; min += stepMinutes) {
         slots.push(minutesToTime(min));
       }
-      return filterSlots(slots, date, serviceDuration, appointments);
+      return filterSlots(slots, date, serviceDuration, appointments, bufferTime);
     }
     return []; // Custom entry exists but no hours set
   }
@@ -329,7 +336,7 @@ export function generateAvailableSlots(
       for (let min = startMin; min + serviceDuration <= endMin; min += stepMinutes) {
         slots.push(minutesToTime(min));
       }
-      return filterSlots(slots, date, serviceDuration, appointments);
+      return filterSlots(slots, date, serviceDuration, appointments, bufferTime);
     }
   }
 
@@ -348,7 +355,7 @@ export function generateAvailableSlots(
     slots.push(minutesToTime(min));
   }
 
-  return filterSlots(slots, date, serviceDuration, appointments);
+  return filterSlots(slots, date, serviceDuration, appointments, bufferTime);
 }
 
 /** Get applicable discount for a given time slot, date, and service */

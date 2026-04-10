@@ -679,6 +679,73 @@ export default function SettingsScreen() {
           )}
         </View>
 
+        {/* Buffer Time Between Appointments */}
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.switchRow}>
+            <View style={styles.switchLabel}>
+              <IconSymbol name="clock.fill" size={20} color="#FF9800" />
+              <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground, marginLeft: 12 }}>Buffer Time</Text>
+            </View>
+          </View>
+          <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10, marginTop: 4 }}>
+            Break between appointments (applied to booking page)
+          </Text>
+          <View style={styles.durationRow}>
+            {[0, 5, 10, 15, 30, 60].map((mins) => (
+              <Pressable
+                key={mins}
+                onPress={() => {
+                  const action = { type: "UPDATE_SETTINGS" as const, payload: { bufferTime: mins } };
+                  dispatch(action);
+                  syncToDb(action);
+                }}
+                style={({ pressed }) => [
+                  styles.durationChip,
+                  {
+                    backgroundColor: (settings.bufferTime ?? 0) === mins ? colors.primary : colors.background,
+                    borderColor: (settings.bufferTime ?? 0) === mins ? colors.primary : colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <Text style={{ fontSize: 13, fontWeight: "500", color: (settings.bufferTime ?? 0) === mins ? "#FFFFFF" : colors.foreground }}>
+                  {mins === 0 ? "None" : `${mins}m`}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        {/* Custom Booking Slug */}
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.switchRow}>
+            <View style={styles.switchLabel}>
+              <IconSymbol name="link" size={20} color={colors.primary} />
+              <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground, marginLeft: 12 }}>Booking Page URL</Text>
+            </View>
+          </View>
+          <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 8, marginTop: 4 }}>
+            Custom slug for your public booking page
+          </Text>
+          <TextInput
+            style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+            value={settings.customSlug || ""}
+            onChangeText={(text) => {
+              const slug = text.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-");
+              dispatch({ type: "UPDATE_SETTINGS", payload: { customSlug: slug } });
+            }}
+            onBlur={() => {
+              if (settings.customSlug) {
+                syncToDb({ type: "UPDATE_SETTINGS", payload: { customSlug: settings.customSlug } });
+              }
+            }}
+            placeholder={settings.businessName.toLowerCase().replace(/\s+/g, "-")}
+            placeholderTextColor={colors.muted}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </View>
+
         {/* Notifications */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.switchRow}>
@@ -1010,6 +1077,72 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* Data Export */}
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.switchRow}>
+            <View style={styles.switchLabel}>
+              <IconSymbol name="square.and.arrow.up.fill" size={20} color={colors.primary} />
+              <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground, marginLeft: 12 }}>Export Data</Text>
+            </View>
+          </View>
+          <Text style={{ fontSize: 12, color: colors.muted, marginTop: 4, marginBottom: 12 }}>
+            Download your business data as CSV files
+          </Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {(["Clients", "Appointments", "Services", "Revenue"] as const).map((label) => (
+              <Pressable
+                key={label}
+                onPress={async () => {
+                  try {
+                    const FileSystem = await import("expo-file-system/legacy");
+                    const Sharing = await import("expo-sharing");
+                    let csv = "";
+                    if (label === "Clients") {
+                      csv = "Name,Phone,Email,Notes,Created\n" + state.clients.map((c) => `"${c.name}","${c.phone}","${c.email}","${(c.notes || "").replace(/"/g, '""')}","${c.createdAt}"`).join("\n");
+                    } else if (label === "Appointments") {
+                      csv = "Date,Time,Duration,Service,Client,Status,Total,Notes\n" + state.appointments.map((a) => {
+                        const svc = state.services.find((s) => s.id === a.serviceId);
+                        const client = state.clients.find((c) => c.id === a.clientId);
+                        return `"${a.date}","${a.time}",${a.duration},"${svc?.name || ""}","${client?.name || ""}","${a.status}",${a.totalPrice ?? svc?.price ?? 0},"${(a.notes || "").replace(/"/g, '""')}"`;
+                      }).join("\n");
+                    } else if (label === "Services") {
+                      csv = "Name,Duration,Price,Category,Color\n" + state.services.map((s) => `"${s.name}",${s.duration},${s.price},"${s.category || ""}","${s.color}"`).join("\n");
+                    } else {
+                      const completed = state.appointments.filter((a) => a.status === "completed");
+                      csv = "Month,Revenue,Appointments\n";
+                      const months: Record<string, { rev: number; count: number }> = {};
+                      completed.forEach((a) => {
+                        const m = a.date.substring(0, 7);
+                        if (!months[m]) months[m] = { rev: 0, count: 0 };
+                        const svc = state.services.find((s) => s.id === a.serviceId);
+                        months[m].rev += a.totalPrice ?? svc?.price ?? 0;
+                        months[m].count++;
+                      });
+                      csv += Object.entries(months).sort(([a], [b]) => a.localeCompare(b)).map(([m, d]) => `"${m}",${d.rev.toFixed(2)},${d.count}`).join("\n");
+                    }
+                    const path = FileSystem.documentDirectory + `${label.toLowerCase()}_export.csv`;
+                    await FileSystem.writeAsStringAsync(path, csv);
+                    if (Platform.OS === "web") {
+                      Alert.alert("Export", `${label} data exported successfully`);
+                    } else {
+                      await Sharing.shareAsync(path, { mimeType: "text/csv", dialogTitle: `Export ${label}` });
+                    }
+                  } catch (err) {
+                    Alert.alert("Export Error", "Failed to export data");
+                  }
+                }}
+                style={({ pressed }) => [styles.durationChip, {
+                  backgroundColor: colors.background,
+                  borderColor: colors.border,
+                  opacity: pressed ? 0.7 : 1,
+                }]}
+              >
+                <Text style={{ fontSize: 13, fontWeight: "500", color: colors.foreground }}>{label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
         {/* Log Out */}
         <Pressable
           onPress={handleLogout}
@@ -1187,4 +1320,5 @@ const styles = StyleSheet.create({
   closedTag: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, alignSelf: "flex-start" },
   customActionBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, alignItems: "center", justifyContent: "center", minHeight: 40 },
   overrideRow: { flexDirection: "row", alignItems: "center", paddingVertical: 8, borderBottomWidth: 0.5, width: "100%" },
+  input: { width: "100%", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12, fontSize: 14, lineHeight: 20, borderWidth: 1 },
 });

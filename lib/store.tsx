@@ -47,6 +47,8 @@ const initialSettings: BusinessSettings = {
   temporaryClosed: false,
   businessLogoUri: "",
   scheduleMode: "weekly",
+  bufferTime: 0,
+  customSlug: "",
 };
 
 const initialState: AppState = {
@@ -249,6 +251,7 @@ function dbServiceToLocal(s: any): Service {
     duration: s.duration,
     price: typeof s.price === "string" ? parseFloat(s.price) : s.price,
     color: s.color,
+    category: s.category ?? undefined,
     createdAt: s.createdAt ? new Date(s.createdAt).toISOString() : new Date().toISOString(),
   };
 }
@@ -442,6 +445,8 @@ function dbOwnerToSettings(owner: any): Partial<BusinessSettings> {
     scheduleMode: owner.scheduleMode ?? "weekly",
     workingHours: owner.workingHours ?? DEFAULT_WORKING_HOURS,
     cancellationPolicy: owner.cancellationPolicy ?? DEFAULT_CANCELLATION_POLICY,
+    bufferTime: owner.bufferTime ?? 0,
+    customSlug: owner.customSlug ?? "",
     profile: {
       ownerName: owner.ownerName ?? "",
       phone: owner.phone ?? "",
@@ -644,6 +649,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               duration: svc.duration,
               price: String(svc.price),
               color: svc.color,
+              category: svc.category,
             });
             break;
           }
@@ -660,6 +666,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 duration: svc.duration,
                 price: String(svc.price),
                 color: svc.color,
+                category: svc.category,
               });
             }
             break;
@@ -805,6 +812,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             if (settings.scheduleMode !== undefined) updateData.scheduleMode = settings.scheduleMode;
             if (settings.workingHours !== undefined) updateData.workingHours = settings.workingHours;
             if (settings.cancellationPolicy !== undefined) updateData.cancellationPolicy = settings.cancellationPolicy;
+            if ((settings as any).bufferTime !== undefined) updateData.bufferTime = (settings as any).bufferTime;
+            if ((settings as any).customSlug !== undefined) updateData.customSlug = (settings as any).customSlug;
             // Only update if there's something besides id
             if (Object.keys(updateData).length > 1) {
               await updateBusinessMut.mutateAsync(updateData);

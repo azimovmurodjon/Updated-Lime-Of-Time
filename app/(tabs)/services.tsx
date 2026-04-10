@@ -99,75 +99,122 @@ export default function ServicesScreen() {
         </Pressable>
       </View>
 
-      {/* Services List */}
-      {activeTab === "services" && (
-        <FlatList
-          data={state.services}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <Pressable
-              onPress={() =>
-                router.push({ pathname: "/service-form" as any, params: { id: item.id } })
-              }
-              style={({ pressed }) => [
-                styles.serviceCard,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: colors.border,
-                  opacity: pressed ? 0.7 : 1,
-                },
-              ]}
-            >
-              <View style={[styles.colorBar, { backgroundColor: item.color }]} />
-              <View style={styles.cardContent}>
-                <Text
-                  className="text-base font-semibold text-foreground"
-                  numberOfLines={1}
-                >
-                  {item.name}
-                </Text>
-                <View style={styles.metaRow}>
-                  <IconSymbol name="clock.fill" size={13} color={colors.muted} />
-                  <Text className="text-xs text-muted" style={{ marginLeft: 4 }}>
-                    {item.duration} min
-                  </Text>
-                  <Text
-                    className="text-xs text-muted"
-                    style={{ marginHorizontal: 8 }}
-                  >
-                    ·
-                  </Text>
-                  <Text
-                    className="text-sm font-semibold"
-                    style={{ color: colors.primary }}
-                  >
-                    ${item.price}
-                  </Text>
-                </View>
-              </View>
-              <IconSymbol
-                name="chevron.right"
-                size={16}
-                color={colors.muted}
-                style={{ marginRight: 14 }}
-              />
-            </Pressable>
-          )}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <IconSymbol name="list.bullet" size={48} color={colors.muted} />
-              <Text className="text-base text-muted" style={{ marginTop: 12 }}>
-                No services yet
-              </Text>
-              <Text className="text-sm text-muted" style={{ marginTop: 4 }}>
-                Tap + to create your first service
-              </Text>
-            </View>
+      {/* Services List - grouped by category */}
+      {activeTab === "services" && (() => {
+        // Group services by category
+        const grouped: { category: string; services: typeof state.services }[] = [];
+        const uncategorized: typeof state.services = [];
+        const catMap = new Map<string, typeof state.services>();
+        state.services.forEach((s) => {
+          const cat = s.category || "";
+          if (!cat) { uncategorized.push(s); return; }
+          if (!catMap.has(cat)) catMap.set(cat, []);
+          catMap.get(cat)!.push(s);
+        });
+        // Sort categories alphabetically
+        Array.from(catMap.entries()).sort(([a], [b]) => a.localeCompare(b)).forEach(([cat, svcs]) => {
+          grouped.push({ category: cat, services: svcs });
+        });
+        if (uncategorized.length > 0) grouped.push({ category: "", services: uncategorized });
+
+        // Build flat list data with section headers
+        type ListItem = { type: "header"; category: string; key: string } | { type: "service"; item: typeof state.services[0]; key: string };
+        const listData: ListItem[] = [];
+        const hasCategories = catMap.size > 0;
+        grouped.forEach((g) => {
+          if (hasCategories) {
+            listData.push({ type: "header", category: g.category || "Uncategorized", key: `header-${g.category || "uncategorized"}` });
           }
-          contentContainerStyle={{ paddingBottom: 80 }}
-        />
-      )}
+          g.services.forEach((s) => listData.push({ type: "service", item: s, key: s.id }));
+        });
+
+        return (
+          <FlatList
+            data={listData}
+            keyExtractor={(item) => item.key}
+            showsVerticalScrollIndicator={false}
+            renderItem={({ item: row }) => {
+              if (row.type === "header") {
+                return (
+                  <View style={{ paddingVertical: 8, paddingHorizontal: 4, marginTop: 8 }}>
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 1 }}>
+                      {row.category}
+                    </Text>
+                  </View>
+                );
+              }
+              const svc = row.item;
+              return (
+                <Pressable
+                  onPress={() =>
+                    router.push({ pathname: "/service-form" as any, params: { id: svc.id } })
+                  }
+                  style={({ pressed }) => [
+                    styles.serviceCard,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      opacity: pressed ? 0.7 : 1,
+                    },
+                  ]}
+                >
+                  <View style={[styles.colorBar, { backgroundColor: svc.color }]} />
+                  <View style={styles.cardContent}>
+                    <Text
+                      className="text-base font-semibold text-foreground"
+                      numberOfLines={1}
+                    >
+                      {svc.name}
+                    </Text>
+                    <View style={styles.metaRow}>
+                      <IconSymbol name="clock.fill" size={13} color={colors.muted} />
+                      <Text className="text-xs text-muted" style={{ marginLeft: 4 }}>
+                        {svc.duration} min
+                      </Text>
+                      <Text
+                        className="text-xs text-muted"
+                        style={{ marginHorizontal: 8 }}
+                      >
+                        ·
+                      </Text>
+                      <Text
+                        className="text-sm font-semibold"
+                        style={{ color: colors.primary }}
+                      >
+                        ${svc.price}
+                      </Text>
+                      {svc.category && !hasCategories ? (
+                        <>
+                          <Text className="text-xs text-muted" style={{ marginHorizontal: 8 }}>·</Text>
+                          <Text className="text-xs" style={{ color: colors.muted }}>{svc.category}</Text>
+                        </>
+                      ) : null}
+                    </View>
+                  </View>
+                  <IconSymbol
+                    name="chevron.right"
+                    size={16}
+                    color={colors.muted}
+                    style={{ marginRight: 14 }}
+                  />
+                </Pressable>
+              );
+            }}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <IconSymbol name="list.bullet" size={48} color={colors.muted} />
+                <Text className="text-base text-muted" style={{ marginTop: 12 }}>
+                  No services yet
+                </Text>
+                <Text className="text-sm text-muted" style={{ marginTop: 4 }}>
+                  Tap + to create your first service
+                </Text>
+              </View>
+            }
+            contentContainerStyle={{ paddingBottom: 80 }}
+          />
+        );
+      })()}
 
       {/* Products List */}
       {activeTab === "products" && (

@@ -22,6 +22,8 @@ import {
   InsertCustomSchedule,
   products,
   InsertProduct,
+  waitlist,
+  InsertWaitlist,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -147,11 +149,18 @@ export async function deleteBusinessOwner(id: number): Promise<void> {
 export async function getBusinessOwnerBySlug(slug: string): Promise<BusinessOwner | undefined> {
   const db = await getDb();
   if (!db) return undefined;
-  // Get all business owners and match by slug (business name lowercased, spaces to hyphens)
+  // Get all business owners and match by customSlug first, then by auto-generated slug
   const result = await db.select().from(businessOwners);
+  const lowerSlug = slug.toLowerCase();
+  // First check customSlug
+  const byCustom = result.find((owner) => {
+    return (owner as any).customSlug && (owner as any).customSlug.toLowerCase() === lowerSlug;
+  });
+  if (byCustom) return byCustom;
+  // Fallback to auto-generated slug from business name
   return result.find((owner) => {
     const ownerSlug = owner.businessName.toLowerCase().replace(/\s+/g, "-");
-    return ownerSlug === slug.toLowerCase();
+    return ownerSlug === lowerSlug;
   });
 }
 
@@ -557,4 +566,71 @@ export async function getFullBusinessData(businessOwnerId: number) {
     customSchedule: scheduleList,
     products: productList,
   };
+}
+
+// ─── Waitlist ────────────────────────────────────────────────────────
+
+export async function getWaitlistByOwner(businessOwnerId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(waitlist).where(eq(waitlist.businessOwnerId, businessOwnerId));
+}
+
+export async function createWaitlistEntry(data: InsertWaitlist): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(waitlist).values(data);
+  return result[0].insertId;
+}
+
+export async function updateWaitlistEntry(
+  id: number,
+  data: Partial<InsertWaitlist>
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(waitlist).set(data).where(eq(waitlist.id, id));
+}
+
+export async function deleteWaitlistEntry(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(waitlist).where(eq(waitlist.id, id));
+}
+
+export async function getWaitlistForDateAndService(
+  businessOwnerId: number,
+  date: string,
+  serviceLocalId: string
+) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(waitlist)
+    .where(
+      and(
+        eq(waitlist.businessOwnerId, businessOwnerId),
+        eq(waitlist.preferredDate, date),
+        eq(waitlist.serviceLocalId, serviceLocalId),
+        eq(waitlist.status, "waiting")
+      )
+    );
+}
+
+// ─── Appointment Lookup ─────────────────────────────────────────────
+
+export async function getAppointmentByLocalId(localId: string, businessOwnerId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db
+    .select()
+    .from(appointments)
+    .where(
+      and(
+        eq(appointments.localId, localId),
+        eq(appointments.businessOwnerId, businessOwnerId)
+      )
+    );
+  return rows[0];
 }
