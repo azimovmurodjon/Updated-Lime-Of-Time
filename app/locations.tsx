@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useCallback } from "react";
 import {
   FlatList,
   Text,
@@ -8,8 +8,10 @@ import {
   StyleSheet,
   useWindowDimensions,
   Linking,
+  Animated,
 } from "react-native";
 import { useRouter } from "expo-router";
+import * as Clipboard from "expo-clipboard";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
@@ -25,6 +27,9 @@ export default function LocationsScreen() {
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
   const hp = isTablet ? 32 : Math.max(16, width * 0.05);
+
+  // Track which location just had its link copied (for toast feedback)
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const sortedLocations = useMemo(
     () =>
@@ -57,11 +62,35 @@ export default function LocationsScreen() {
     if (value) setActiveLocation(item.id);
   };
 
+  /** Build the unique booking URL for a specific location */
+  const getLocationBookingUrl = useCallback(
+    (item: Location) => {
+      const slug =
+        state.settings.customSlug ||
+        state.settings.businessName.replace(/\s+/g, "-").toLowerCase();
+      return `${PUBLIC_BOOKING_URL}/book/${slug}?location=${item.id}`;
+    },
+    [state.settings.customSlug, state.settings.businessName]
+  );
+
+  /** Copy the booking URL to clipboard and show a brief toast */
+  const handleCopyLink = useCallback(
+    async (item: Location) => {
+      const url = getLocationBookingUrl(item);
+      await Clipboard.setStringAsync(url);
+      setCopiedId(item.id);
+      setTimeout(() => setCopiedId((prev) => (prev === item.id ? null : prev)), 2500);
+    },
+    [getLocationBookingUrl]
+  );
+
   const renderLocation = ({ item }: { item: Location }) => {
     const colorIndex = state.locations.indexOf(item) % LOCATION_COLORS.length;
     const locColor = LOCATION_COLORS[colorIndex];
     const isActiveContext = activeLocation?.id === item.id;
     const formattedAddress = formatFullAddress(item.address, item.city, item.state, item.zipCode);
+    const bookingUrl = getLocationBookingUrl(item);
+    const isCopied = copiedId === item.id;
 
     return (
       <View
@@ -137,23 +166,37 @@ export default function LocationsScreen() {
           </View>
         </Pressable>
 
-        {/* Booking link */}
-        {!!state.settings.customSlug && item.active && (
-          <Pressable
-            onPress={() => {
-              const slug = state.settings.customSlug;
-              if (typeof navigator !== "undefined" && navigator.clipboard) {
-                navigator.clipboard.writeText(`${PUBLIC_BOOKING_URL}/book/${slug}?location=${item.id}`);
-              }
-            }}
-            style={({ pressed }) => [styles.bookingLinkRow, { borderTopColor: colors.border, opacity: pressed ? 0.6 : 1 }]}
-          >
-            <IconSymbol name="link" size={13} color={colors.primary} />
-            <Text style={{ fontSize: 12, color: colors.primary, flex: 1 }} numberOfLines={1}>
-              Copy booking link for this location
+        {/* ── Copy Booking Link ── */}
+        <Pressable
+          onPress={() => handleCopyLink(item)}
+          style={({ pressed }) => [
+            styles.bookingLinkRow,
+            {
+              borderTopColor: colors.border,
+              backgroundColor: isCopied ? colors.success + "15" : "transparent",
+              opacity: pressed ? 0.7 : 1,
+            },
+          ]}
+        >
+          <View style={[styles.linkIconWrap, { backgroundColor: isCopied ? colors.success + "25" : colors.primary + "18" }]}>
+            <IconSymbol
+              name={isCopied ? "checkmark.circle.fill" : "link"}
+              size={15}
+              color={isCopied ? colors.success : colors.primary}
+            />
+          </View>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={{ fontSize: 13, fontWeight: "600", color: isCopied ? colors.success : colors.primary }}>
+              {isCopied ? "Link Copied!" : "Copy Booking Link"}
             </Text>
-          </Pressable>
-        )}
+            <Text style={{ fontSize: 11, color: colors.muted }} numberOfLines={1}>
+              {bookingUrl}
+            </Text>
+          </View>
+          {!isCopied && (
+            <IconSymbol name="doc.on.doc.fill" size={13} color={colors.primary} />
+          )}
+        </Pressable>
       </View>
     );
   };
@@ -296,10 +339,18 @@ const styles = StyleSheet.create({
   bookingLinkRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 10,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderTopWidth: 0.5,
+  },
+  linkIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
   emptyContainer: {
     flex: 1,

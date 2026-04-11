@@ -679,3 +679,4 @@
 - [ ] Ensure toggling a location active deactivates all others
 - [ ] Add required field validation (inline errors) to location-form
 - [ ] Remove Business Hours section from location card in locations.tsx (it's now in Schedule & Hours)
+- [x] Add Copy Booking Link button to each location card with toast feedback and cross-platform clipboard support
