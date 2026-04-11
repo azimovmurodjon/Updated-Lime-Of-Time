@@ -6,8 +6,9 @@ import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useMemo } from "react";
 import { SERVICE_COLORS, Service } from "@/lib/types";
+import { TapDurationPicker, formatDuration } from "@/components/tap-duration-picker";
 
-const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120];
+
 
 export default function ServiceFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -110,29 +111,12 @@ export default function ServiceFormScreen() {
         />
 
         {/* Duration */}
-        <Text className="text-xs font-medium text-muted mb-2 ml-1">Duration</Text>
-        <View className="flex-row flex-wrap gap-2 mb-4">
-          {DURATION_OPTIONS.map((d) => (
-            <Pressable
-              key={d}
-              onPress={() => setDuration(d)}
-              style={({ pressed }) => [
-                styles.durationChip,
-                {
-                  backgroundColor: duration === d ? colors.primary : colors.surface,
-                  borderColor: duration === d ? colors.primary : colors.border,
-                  opacity: pressed ? 0.7 : 1,
-                },
-              ]}
-            >
-              <Text
-                className="text-sm font-medium"
-                style={{ color: duration === d ? "#FFFFFF" : colors.foreground }}
-              >
-                {d} min
-              </Text>
-            </Pressable>
-          ))}
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8, marginLeft: 4, marginRight: 4 }}>
+          <Text className="text-xs font-medium text-muted">Duration</Text>
+          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.primary }}>{formatDuration(duration)}</Text>
+        </View>
+        <View style={{ marginBottom: 16 }}>
+          <TapDurationPicker value={duration} onChange={setDuration} />
         </View>
 
         {/* Price */}
