@@ -196,23 +196,33 @@ export default function AppointmentDetailScreen() {
             </Text>
           </View>
           <Text className="text-sm text-muted">
-            {appointment.duration} min · ${service?.price ?? 0}
+            {appointment.duration} min · ${appointment.totalPrice != null ? appointment.totalPrice.toFixed(2) : (service?.price ?? 0)}
           </Text>
         </View>
 
         {/* Itemized Charges */}
         {(() => {
-          const svcPrice = service?.price ?? 0;
           const extras = appointment.extraItems ?? [];
           const extrasTotal = extras.reduce((s, e) => s + (e.price || 0), 0);
-          const subtotal = svcPrice + extrasTotal;
           // Discount
           const discountAmt = appointment.discountAmount ?? 0;
           const discountPct = appointment.discountPercent ?? 0;
           const discountLabel = appointment.discountName || (discountPct > 0 ? `${discountPct}% Off` : "Discount");
-          const afterDiscount = Math.max(0, subtotal - discountAmt);
           // Gift card
           const giftUsedAmount = appointment.giftUsedAmount ?? 0;
+          // Derive the original service price at booking time:
+          // If totalPrice is stored, back-calculate: svcPrice = totalPrice + discountAmt + giftUsed - extrasTotal
+          // This ensures the service line matches what was actually charged, even if the service price changed later.
+          let svcPrice: number;
+          if (appointment.totalPrice != null) {
+            svcPrice = appointment.totalPrice + discountAmt + giftUsedAmount - extrasTotal;
+            // Clamp to 0 in edge cases
+            if (svcPrice < 0) svcPrice = service?.price ?? 0;
+          } else {
+            svcPrice = service?.price ?? 0;
+          }
+          const subtotal = svcPrice + extrasTotal;
+          const afterDiscount = Math.max(0, subtotal - discountAmt);
           let giftDeduction = 0;
           if (appointment.giftApplied) {
             if (giftUsedAmount > 0) {
