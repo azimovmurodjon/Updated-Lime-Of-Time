@@ -76,6 +76,7 @@ export default function CalendarScreen() {
   const [editingDate, setEditingDate] = useState<string | null>(null);
   const [draftStart, setDraftStart] = useState("09:00");
   const [draftEnd, setDraftEnd] = useState("17:00");
+  const [timeError, setTimeError] = useState<string | null>(null);
   // Refs to always read latest draft values in save handler (avoids stale closure)
   const draftStartRef = useRef("09:00");
   const draftEndRef = useRef("17:00");
@@ -257,8 +258,8 @@ export default function CalendarScreen() {
 
   // ─── Workday Override ─────────────────────────────────────────────────
 
-  const setDraftStartSync = useCallback((v: string) => { draftStartRef.current = v; setDraftStart(v); }, []);
-  const setDraftEndSync = useCallback((v: string) => { draftEndRef.current = v; setDraftEnd(v); }, []);
+  const setDraftStartSync = useCallback((v: string) => { draftStartRef.current = v; setDraftStart(v); setTimeError(null); }, []);
+  const setDraftEndSync = useCallback((v: string) => { draftEndRef.current = v; setDraftEnd(v); setTimeError(null); }, []);
 
   const handleWorkdayToggle = useCallback((dateStr: string, value: boolean) => {
     if (value) {
@@ -288,9 +289,10 @@ export default function CalendarScreen() {
     const endToSave = draftEndRef.current;
     if (!dateToSave) return;
     if (timeToMinutes(endToSave) <= timeToMinutes(startToSave)) {
-      Alert.alert("Invalid Hours", "End time must be after start time.");
+      setTimeError("End time must be after start time.");
       return;
     }
+    setTimeError(null);
     const override: CustomScheduleDay = {
       date: dateToSave,
       isOpen: true,
@@ -307,6 +309,7 @@ export default function CalendarScreen() {
   const handleCancelTimeOverride = useCallback(() => {
     setShowTimePickerModal(false);
     setEditingDate(null);
+    setTimeError(null);
   }, []);
 
   // ─── SMS / Accept / Reject ────────────────────────────────────────────
@@ -1054,8 +1057,17 @@ export default function CalendarScreen() {
               </View>
             </View>
 
+            {/* Inline error message */}
+            {timeError ? (
+              <View style={{ marginTop: 10, paddingHorizontal: 4, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={{ fontSize: 13, color: "#EF4444", fontWeight: "600", flex: 1 }}>
+                  ⚠ {timeError}
+                </Text>
+              </View>
+            ) : null}
+
             {/* Buttons */}
-            <View style={{ flexDirection: "row", gap: 12, marginTop: 20 }}>
+            <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
               <Pressable
                 onPress={handleCancelTimeOverride}
                 style={({ pressed }) => [styles.modalBtn, { borderColor: colors.border, borderWidth: 1, backgroundColor: colors.surface, opacity: pressed ? 0.7 : 1, flex: 1 }]}

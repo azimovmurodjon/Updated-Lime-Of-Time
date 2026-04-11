@@ -70,6 +70,7 @@ export default function DiscountsScreen() {
   const draftEndRef = useRef(endTime);
   const [draftPickerStart, setDraftPickerStart] = useState(startTime);
   const [draftPickerEnd, setDraftPickerEnd] = useState(endTime);
+  const [discountTimeError, setDiscountTimeError] = useState<string | null>(null);
 
   const openTimePicker = useCallback((field: "start" | "end") => {
     draftStartRef.current = startTime;
@@ -80,6 +81,15 @@ export default function DiscountsScreen() {
   }, [startTime, endTime]);
 
   const saveTimePicker = useCallback(() => {
+    const [sh, sm] = draftStartRef.current.split(":").map(Number);
+    const [eh, em] = draftEndRef.current.split(":").map(Number);
+    const startMin = sh * 60 + (sm || 0);
+    const endMin = eh * 60 + (em || 0);
+    if (endMin <= startMin) {
+      setDiscountTimeError("End time must be after start time.");
+      return;
+    }
+    setDiscountTimeError(null);
     setStartTime(draftStartRef.current);
     setEndTime(draftEndRef.current);
     setShowTimePicker(null);
@@ -637,7 +647,7 @@ export default function DiscountsScreen() {
                 <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 8 }}>START TIME</Text>
                 <ScrollWheelTimePicker
                   value={draftPickerStart}
-                  onChange={(v) => { draftStartRef.current = v; setDraftPickerStart(v); }}
+                  onChange={(v) => { draftStartRef.current = v; setDraftPickerStart(v); setDiscountTimeError(null); }}
                   stepMinutes={15}
                   maxTime={draftPickerEnd}
                 />
@@ -647,17 +657,20 @@ export default function DiscountsScreen() {
                 <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 8 }}>END TIME</Text>
                 <ScrollWheelTimePicker
                   value={draftPickerEnd}
-                  onChange={(v) => { draftEndRef.current = v; setDraftPickerEnd(v); }}
+                  onChange={(v) => { draftEndRef.current = v; setDraftPickerEnd(v); setDiscountTimeError(null); }}
                   stepMinutes={15}
                   minTime={draftPickerStart}
                 />
               </View>
             </View>
+            {discountTimeError ? (
+              <Text style={{ color: colors.error, fontSize: 13, textAlign: "center", marginBottom: 12, marginTop: -8 }}>{discountTimeError}</Text>
+            ) : null}
             <Pressable
               onPress={saveTimePicker}
-              style={({ pressed }) => [{ backgroundColor: colors.primary, paddingVertical: 14, borderRadius: 12, alignItems: "center", opacity: pressed ? 0.8 : 1 }]}
+              style={({ pressed }) => [{ backgroundColor: discountTimeError ? colors.border : colors.primary, paddingVertical: 14, borderRadius: 12, alignItems: "center", opacity: pressed ? 0.8 : 1 }]}
             >
-              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>Apply</Text>
+              <Text style={{ color: discountTimeError ? colors.muted : "#fff", fontWeight: "700", fontSize: 15 }}>Apply</Text>
             </Pressable>
           </Pressable>
         </Pressable>

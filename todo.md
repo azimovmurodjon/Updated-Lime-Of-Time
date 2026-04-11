@@ -597,3 +597,6 @@
 - [x] Fix calendar Workday modal: correct Business Hours bounds passed to pickers
 - [x] Fix saved custom hours override Business Hours in all booking flows
 - [x] Apply consistent layout fixes to schedule-settings.tsx time picker modal
+- [ ] Add end time validation error in calendar.tsx Workday modal (end must be after start)
+- [ ] Add end time validation error in schedule-settings.tsx weekly and custom-date modals
+- [ ] Add end time validation error in staff-form.tsx and discounts.tsx modals

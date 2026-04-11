@@ -102,6 +102,7 @@ export default function StaffFormScreen() {
   const staffDraftEndRef = useRef("17:00");
   const [staffDraftStart, setStaffDraftStart] = useState("09:00");
   const [staffDraftEnd, setStaffDraftEnd] = useState("17:00");
+  const [staffTimeError, setStaffTimeError] = useState<string | null>(null);
 
   const openStaffTimePicker = useCallback((day: string) => {
     const ds = weekSchedule[day];
@@ -114,6 +115,15 @@ export default function StaffFormScreen() {
 
   const saveStaffTimePicker = useCallback(() => {
     if (!staffTimePicker) return;
+    const [sh, sm] = staffDraftStartRef.current.split(":").map(Number);
+    const [eh, em] = staffDraftEndRef.current.split(":").map(Number);
+    const startMin = sh * 60 + (sm || 0);
+    const endMin = eh * 60 + (em || 0);
+    if (endMin <= startMin) {
+      setStaffTimeError("End time must be after start time.");
+      return;
+    }
+    setStaffTimeError(null);
     updateDaySchedule(staffTimePicker.day, "start", staffDraftStartRef.current);
     updateDaySchedule(staffTimePicker.day, "end", staffDraftEndRef.current);
     setStaffTimePicker(null);
@@ -410,7 +420,7 @@ export default function StaffFormScreen() {
                 <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 8 }}>START TIME</Text>
                 <ScrollWheelTimePicker
                   value={staffDraftStart}
-                  onChange={(v) => { staffDraftStartRef.current = v; setStaffDraftStart(v); }}
+                  onChange={(v) => { staffDraftStartRef.current = v; setStaffDraftStart(v); setStaffTimeError(null); }}
                   stepMinutes={15}
                   maxTime={staffDraftEnd}
                 />
@@ -420,17 +430,20 @@ export default function StaffFormScreen() {
                 <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 8 }}>END TIME</Text>
                 <ScrollWheelTimePicker
                   value={staffDraftEnd}
-                  onChange={(v) => { staffDraftEndRef.current = v; setStaffDraftEnd(v); }}
+                  onChange={(v) => { staffDraftEndRef.current = v; setStaffDraftEnd(v); setStaffTimeError(null); }}
                   stepMinutes={15}
                   minTime={staffDraftStart}
                 />
               </View>
             </View>
+            {staffTimeError ? (
+              <Text style={{ color: colors.error, fontSize: 13, textAlign: "center", marginBottom: 12, marginTop: -8 }}>{staffTimeError}</Text>
+            ) : null}
             <Pressable
               onPress={saveStaffTimePicker}
-              style={({ pressed }) => [{ backgroundColor: colors.primary, paddingVertical: 16, borderRadius: 14, alignItems: "center", opacity: pressed ? 0.8 : 1 }]}
+              style={({ pressed }) => [{ backgroundColor: staffTimeError ? colors.border : colors.primary, paddingVertical: 16, borderRadius: 14, alignItems: "center", opacity: pressed ? 0.8 : 1 }]}
             >
-              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>Save Hours</Text>
+              <Text style={{ color: staffTimeError ? colors.muted : "#fff", fontWeight: "700", fontSize: 16 }}>Save Hours</Text>
             </Pressable>
           </Pressable>
         </Pressable>

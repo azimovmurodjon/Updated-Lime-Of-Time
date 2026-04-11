@@ -12,6 +12,11 @@ const DAYS_OF_WEEK = ["monday", "tuesday", "wednesday", "thursday", "friday", "s
 const DAY_LABELS: Record<string, string> = { monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu", friday: "Fri", saturday: "Sat", sunday: "Sun" };
 const DAY_FULL: Record<string, string> = { monday: "Monday", tuesday: "Tuesday", wednesday: "Wednesday", thursday: "Thursday", friday: "Friday", saturday: "Saturday", sunday: "Sunday" };
 
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + (m || 0);
+}
+
 function formatTimeLabel(t: string) {
   const [h, m] = t.split(":").map(Number);
   const ampm = h >= 12 ? "PM" : "AM";
@@ -157,14 +162,17 @@ export default function ScheduleSettingsScreen() {
   const draftEndRef = useRef<string>("17:00");
   const [draftStart, setDraftStart] = useState("09:00");
   const [draftEnd, setDraftEnd] = useState("17:00");
+  const [weekTimeError, setWeekTimeError] = useState<string | null>(null);
 
   const setDraftStartSync = useCallback((v: string) => {
     draftStartRef.current = v;
     setDraftStart(v);
+    setWeekTimeError(null);
   }, []);
   const setDraftEndSync = useCallback((v: string) => {
     draftEndRef.current = v;
     setDraftEnd(v);
+    setWeekTimeError(null);
   }, []);
 
   const openTimePicker = useCallback((day: string) => {
@@ -180,6 +188,13 @@ export default function ScheduleSettingsScreen() {
 
   const saveTimePicker = useCallback(() => {
     if (!timePickerDay) return;
+    const startMin = timeToMinutes(draftStartRef.current);
+    const endMin = timeToMinutes(draftEndRef.current);
+    if (endMin <= startMin) {
+      setWeekTimeError("End time must be after start time.");
+      return;
+    }
+    setWeekTimeError(null);
     const wh = { ...settings.workingHours };
     wh[timePickerDay] = { ...wh[timePickerDay], start: draftStartRef.current, end: draftEndRef.current };
     const action = { type: "UPDATE_SETTINGS" as const, payload: { workingHours: wh } };
@@ -231,14 +246,17 @@ export default function ScheduleSettingsScreen() {
   const customDraftEndRef = useRef("17:00");
   const [customDraftStart, setCustomDraftStart] = useState("09:00");
   const [customDraftEnd, setCustomDraftEnd] = useState("17:00");
+  const [customTimeError, setCustomTimeError] = useState<string | null>(null);
 
   const setCustomDraftStartSync = useCallback((v: string) => {
     customDraftStartRef.current = v;
     setCustomDraftStart(v);
+    setCustomTimeError(null);
   }, []);
   const setCustomDraftEndSync = useCallback((v: string) => {
     customDraftEndRef.current = v;
     setCustomDraftEnd(v);
+    setCustomTimeError(null);
   }, []);
 
   const customCalDays = useMemo(() => {
@@ -318,6 +336,13 @@ export default function ScheduleSettingsScreen() {
 
   const saveCustomTimePicker = useCallback(() => {
     if (!customTimePicker) return;
+    const startMin = timeToMinutes(customDraftStartRef.current);
+    const endMin = timeToMinutes(customDraftEndRef.current);
+    if (endMin <= startMin) {
+      setCustomTimeError("End time must be after start time.");
+      return;
+    }
+    setCustomTimeError(null);
     const cs: CustomScheduleDay = {
       date: customTimePicker.date,
       isOpen: true,
@@ -735,11 +760,14 @@ export default function ScheduleSettingsScreen() {
                 />
               </View>
             </View>
+            {weekTimeError ? (
+              <Text style={{ color: colors.error, fontSize: 13, textAlign: "center", marginBottom: 12, marginTop: -8 }}>{weekTimeError}</Text>
+            ) : null}
             <Pressable
               onPress={saveTimePicker}
-              style={({ pressed }) => [styles.saveBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
+              style={({ pressed }) => [styles.saveBtn, { backgroundColor: weekTimeError ? colors.border : colors.primary, opacity: pressed ? 0.8 : 1 }]}
             >
-              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>Save Hours</Text>
+              <Text style={{ color: weekTimeError ? colors.muted : "#fff", fontWeight: "700", fontSize: 16 }}>Save Hours</Text>
             </Pressable>
           </Pressable>
         </Pressable>
@@ -788,11 +816,14 @@ export default function ScheduleSettingsScreen() {
                 />
               </View>
             </View>
+            {customTimeError ? (
+              <Text style={{ color: colors.error, fontSize: 13, textAlign: "center", marginBottom: 12, marginTop: -8 }}>{customTimeError}</Text>
+            ) : null}
             <Pressable
               onPress={saveCustomTimePicker}
-              style={({ pressed }) => [styles.saveBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
+              style={({ pressed }) => [styles.saveBtn, { backgroundColor: customTimeError ? colors.border : colors.primary, opacity: pressed ? 0.8 : 1 }]}
             >
-              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>Save Hours</Text>
+              <Text style={{ color: customTimeError ? colors.muted : "#fff", fontWeight: "700", fontSize: 16 }}>Save Hours</Text>
             </Pressable>
           </Pressable>
         </Pressable>
