@@ -415,29 +415,27 @@ export default function StaffFormScreen() {
                 <IconSymbol name="xmark" size={22} color={colors.foreground} />
               </Pressable>
             </View>
-            <View style={{ flexDirection: "row", gap: 16, marginBottom: 20 }}>
-              <View style={{ flex: 1, alignItems: "center" }}>
-                <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 8 }}>START TIME</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 16, marginBottom: 16 }}>
+              <View style={{ alignItems: "center", gap: 6 }}>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, letterSpacing: 0.8 }}>START</Text>
                 <ScrollWheelTimePicker
                   value={staffDraftStart}
                   onChange={(v) => { staffDraftStartRef.current = v; setStaffDraftStart(v); setStaffTimeError(null); }}
                   stepMinutes={15}
-                  maxTime={staffDraftEnd}
                 />
               </View>
-              <View style={{ width: 1, backgroundColor: colors.border, marginVertical: 8 }} />
-              <View style={{ flex: 1, alignItems: "center" }}>
-                <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 8 }}>END TIME</Text>
+              <View style={{ width: 1, height: 160, backgroundColor: colors.border }} />
+              <View style={{ alignItems: "center", gap: 6 }}>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, letterSpacing: 0.8 }}>END</Text>
                 <ScrollWheelTimePicker
                   value={staffDraftEnd}
                   onChange={(v) => { staffDraftEndRef.current = v; setStaffDraftEnd(v); setStaffTimeError(null); }}
                   stepMinutes={15}
-                  minTime={staffDraftStart}
                 />
               </View>
             </View>
             {staffTimeError ? (
-              <Text style={{ color: colors.error, fontSize: 13, textAlign: "center", marginBottom: 12, marginTop: -8 }}>{staffTimeError}</Text>
+              <Text style={{ color: colors.error, fontSize: 13, textAlign: "center", marginBottom: 12 }}>{staffTimeError}</Text>
             ) : null}
             <Pressable
               onPress={saveStaffTimePicker}

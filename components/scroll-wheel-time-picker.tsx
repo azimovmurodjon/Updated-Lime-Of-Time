@@ -1,34 +1,39 @@
 /**
- * ScrollWheelTimePicker
+ * ScrollWheelTimePicker — v3
  *
- * A native-feeling scroll-wheel time picker in 12-hour AM/PM format.
- *
- * Design:
- * - Three columns: Hour | Minute | AM/PM
- * - Items are strictly bounded to [minTime, maxTime] when provided
- * - The wheel only shows hours/minutes/ampm values that exist in the valid range
- * - Smooth snap scrolling, no lag
- * - Calls onChange with a reliable 24-hour "HH:MM" string
- *
- * Layout:
- * - Each picker is self-contained and sized to fit inside any modal
- * - Total width: 56 (hour) + 8 (colon) + 56 (min) + 12 (gap) + 48 (ampm) = 180px
+ * Completely rewritten for reliability:
+ * - Uses FlatList with getItemLayout + scrollToIndex for guaranteed snap
+ * - Internal ref tracks the "live" selected index during scroll
+ * - onChange fires reliably after scroll settles (momentum or drag end)
+ * - Compact: ITEM_HEIGHT=32, 5 visible items = 160px tall
+ * - Three columns: Hour | Minute | AM/PM, total ~160px wide
+ * - All times bounded to [minTime, maxTime]
  */
-import React, { useRef, useEffect, useCallback, useMemo } from "react";
+import React, {
+  useRef,
+  useEffect,
+  useCallback,
+  useMemo,
+  useState,
+} from "react";
 import {
   View,
   Text,
-  ScrollView,
+  FlatList,
   StyleSheet,
   Platform,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  ListRenderItemInfo,
 } from "react-native";
 import { useColors } from "@/hooks/use-colors";
 
-const ITEM_HEIGHT = 48;
-const VISIBLE_ITEMS = 5; // must be odd
-const PICKER_HEIGHT = ITEM_HEIGHT * VISIBLE_ITEMS;
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const ITEM_H = 32;       // height of each row — compact
+const VISIBLE = 5;       // must be odd
+const PICKER_H = ITEM_H * VISIBLE; // 160px
+const PAD = ITEM_H * Math.floor(VISIBLE / 2); // 64px top/bottom padding
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -37,16 +42,17 @@ export function timeToMinutes(t: string): number {
   return (h || 0) * 60 + (m || 0);
 }
 
-export function minutesToTime(m: number): string {
-  const h = Math.floor(m / 60) % 24;
-  const min = m % 60;
-  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+export function minutesToTime(totalMin: number): string {
+  const h = Math.floor(totalMin / 60) % 24;
+  const m = totalMin % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
 function to12Hour(hour24: number): { hour: number; ampm: "AM" | "PM" } {
-  const ampm: "AM" | "PM" = hour24 < 12 ? "AM" : "PM";
-  const hour = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
-  return { hour, ampm };
+  return {
+    ampm: hour24 < 12 ? "AM" : "PM",
+    hour: hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24,
+  };
 }
 
 function to24Hour(hour12: number, ampm: "AM" | "PM"): number {
@@ -59,114 +65,130 @@ function to24Hour(hour12: number, ampm: "AM" | "PM"): number {
 interface WheelColumnProps {
   items: string[];
   selectedIndex: number;
-  onSelect: (index: number) => void;
+  onSettle: (index: number) => void;
   colWidth: number;
 }
 
-function WheelColumn({ items, selectedIndex, onSelect, colWidth }: WheelColumnProps) {
+function WheelColumn({ items, selectedIndex, onSettle, colWidth }: WheelColumnProps) {
   const colors = useColors();
-  const scrollRef = useRef<ScrollView>(null);
-  const isMounted = useRef(true);
-  const lastIndex = useRef(selectedIndex);
+  const listRef = useRef<FlatList<string>>(null);
+  // Track the "live" index during scroll so we can snap correctly
+  const liveIndex = useRef(selectedIndex);
+  // Track whether we've done the initial scroll
+  const didInitialScroll = useRef(false);
 
-  useEffect(() => {
-    isMounted.current = true;
-    return () => { isMounted.current = false; };
-  }, []);
-
-  // Scroll to selected index when it changes
+  // Scroll to selectedIndex when it changes from outside (e.g. initial mount or parent update)
   useEffect(() => {
     const target = Math.max(0, Math.min(selectedIndex, items.length - 1));
-    lastIndex.current = target;
-    const t = setTimeout(() => {
-      if (isMounted.current) {
-        scrollRef.current?.scrollTo({ y: target * ITEM_HEIGHT, animated: false });
-      }
-    }, 20);
-    return () => clearTimeout(t);
+    liveIndex.current = target;
+    // Use a small delay to ensure FlatList has laid out
+    const timer = setTimeout(() => {
+      listRef.current?.scrollToIndex({
+        index: target,
+        animated: didInitialScroll.current,
+        viewPosition: 0.5,
+      });
+      didInitialScroll.current = true;
+    }, didInitialScroll.current ? 0 : 80);
+    return () => clearTimeout(timer);
   }, [selectedIndex, items.length]);
 
-  const snapToIndex = useCallback(
-    (y: number) => {
-      const index = Math.round(y / ITEM_HEIGHT);
-      const clamped = Math.max(0, Math.min(index, items.length - 1));
-      if (lastIndex.current !== clamped) {
-        lastIndex.current = clamped;
-        scrollRef.current?.scrollTo({ y: clamped * ITEM_HEIGHT, animated: true });
-        onSelect(clamped);
-      }
-    },
-    [items.length, onSelect]
+  const getItemLayout = useCallback(
+    (_: ArrayLike<string> | null | undefined, index: number) => ({
+      length: ITEM_H,
+      offset: ITEM_H * index,
+      index,
+    }),
+    []
   );
 
-  const handleMomentumEnd = useCallback(
-    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      snapToIndex(e.nativeEvent.contentOffset.y);
-    },
-    [snapToIndex]
-  );
-
+  // Called when scroll settles — snap to nearest item and emit
   const handleScrollEnd = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      snapToIndex(e.nativeEvent.contentOffset.y);
+      const y = e.nativeEvent.contentOffset.y;
+      const raw = y / ITEM_H;
+      const index = Math.max(0, Math.min(Math.round(raw), items.length - 1));
+      liveIndex.current = index;
+      // Snap precisely
+      listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
+      onSettle(index);
     },
-    [snapToIndex]
+    [items.length, onSettle]
   );
+
+  const renderItem = useCallback(
+    ({ item, index }: ListRenderItemInfo<string>) => {
+      const distance = Math.abs(index - selectedIndex);
+      const isSelected = distance === 0;
+      const opacity =
+        distance === 0 ? 1 : distance === 1 ? 0.55 : distance === 2 ? 0.25 : 0.08;
+      const fontSize = isSelected ? 17 : distance === 1 ? 14 : 13;
+      return (
+        <View style={[styles.item, { height: ITEM_H, width: colWidth }]}>
+          <Text
+            style={{
+              fontSize,
+              fontWeight: isSelected ? "700" : "400",
+              color: isSelected ? colors.primary : colors.foreground,
+              opacity,
+            }}
+            numberOfLines={1}
+          >
+            {item}
+          </Text>
+        </View>
+      );
+    },
+    [selectedIndex, colWidth, colors]
+  );
+
+  const keyExtractor = useCallback((_: string, i: number) => String(i), []);
 
   return (
     <View style={{ width: colWidth, alignItems: "center" }}>
-      <View style={{ width: colWidth, height: PICKER_HEIGHT, overflow: "hidden" }}>
-        {/* Selection highlight */}
+      <View style={{ width: colWidth, height: PICKER_H, overflow: "hidden" }}>
+        {/* Selection highlight bar */}
         <View
           pointerEvents="none"
           style={[
             styles.selectionBar,
             {
-              top: ITEM_HEIGHT * Math.floor(VISIBLE_ITEMS / 2),
-              borderColor: colors.primary + "60",
-              backgroundColor: colors.primary + "18",
+              top: ITEM_H * Math.floor(VISIBLE / 2),
+              borderColor: colors.primary + "55",
+              backgroundColor: colors.primary + "15",
             },
           ]}
         />
-        <ScrollView
-          ref={scrollRef}
+        <FlatList
+          ref={listRef}
+          data={items}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+          getItemLayout={getItemLayout}
           showsVerticalScrollIndicator={false}
-          snapToInterval={ITEM_HEIGHT}
-          decelerationRate={Platform.OS === "ios" ? "fast" : 0.85}
-          contentContainerStyle={{ paddingVertical: ITEM_HEIGHT * Math.floor(VISIBLE_ITEMS / 2) }}
-          onMomentumScrollEnd={handleMomentumEnd}
+          snapToInterval={ITEM_H}
+          snapToAlignment="center"
+          decelerationRate={Platform.OS === "ios" ? "fast" : 0.9}
+          contentContainerStyle={{ paddingVertical: PAD }}
+          onMomentumScrollEnd={handleScrollEnd}
           onScrollEndDrag={handleScrollEnd}
           scrollEventThrottle={16}
           bounces={false}
           overScrollMode="never"
-        >
-          {items.map((item, idx) => {
-            const distance = Math.abs(idx - selectedIndex);
-            const opacity = distance === 0 ? 1 : distance === 1 ? 0.6 : distance === 2 ? 0.3 : 0.12;
-            const scale = distance === 0 ? 1 : distance === 1 ? 0.88 : 0.76;
-            const isSelected = idx === selectedIndex;
-            return (
-              <View key={idx} style={[styles.item, { height: ITEM_HEIGHT }]}>
-                <Text
-                  style={{
-                    fontSize: isSelected ? 22 : 18,
-                    fontWeight: isSelected ? "700" : "400",
-                    color: isSelected ? colors.primary : colors.foreground,
-                    opacity,
-                    transform: [{ scale }],
-                  }}
-                  numberOfLines={1}
-                >
-                  {item}
-                </Text>
-              </View>
-            );
-          })}
-        </ScrollView>
-        {/* Top fade overlay */}
-        <View pointerEvents="none" style={[styles.fadeTop, { backgroundColor: colors.surface }]} />
-        {/* Bottom fade overlay */}
-        <View pointerEvents="none" style={[styles.fadeBottom, { backgroundColor: colors.surface }]} />
+          initialNumToRender={VISIBLE + 4}
+          windowSize={5}
+          removeClippedSubviews={false}
+        />
+        {/* Top fade */}
+        <View
+          pointerEvents="none"
+          style={[styles.fadeTop, { backgroundColor: colors.surface }]}
+        />
+        {/* Bottom fade */}
+        <View
+          pointerEvents="none"
+          style={[styles.fadeBottom, { backgroundColor: colors.surface }]}
+        />
       </View>
     </View>
   );
@@ -181,15 +203,9 @@ export interface ScrollWheelTimePickerProps {
   onChange: (value: string) => void;
   /** Step in minutes (default 15) */
   stepMinutes?: number;
-  /**
-   * Minimum allowed time in HH:MM 24-hour format.
-   * Only time slots >= minTime will appear in the wheel.
-   */
+  /** Minimum allowed time in HH:MM 24-hour format */
   minTime?: string;
-  /**
-   * Maximum allowed time in HH:MM 24-hour format.
-   * Only time slots <= maxTime will appear in the wheel.
-   */
+  /** Maximum allowed time in HH:MM 24-hour format */
   maxTime?: string;
 }
 
@@ -202,7 +218,7 @@ export function ScrollWheelTimePicker({
 }: ScrollWheelTimePickerProps) {
   const colors = useColors();
 
-  // ── Build the full list of valid time slots within [minTime, maxTime] ──────
+  // ── Build full list of valid time slots ──────────────────────────────────
   const timeSlots = useMemo(() => {
     const minMin = minTime ? timeToMinutes(minTime) : 0;
     const maxMin = maxTime ? timeToMinutes(maxTime) : 23 * 60 + 45;
@@ -210,10 +226,12 @@ export function ScrollWheelTimePicker({
     for (let m = minMin; m <= maxMin; m += stepMinutes) {
       slots.push(minutesToTime(m));
     }
+    // Always have at least one slot
+    if (slots.length === 0) slots.push(minutesToTime(minMin));
     return slots;
   }, [minTime, maxTime, stepMinutes]);
 
-  // ── Clamp current value to nearest valid slot ─────────────────────────────
+  // ── Clamp value to nearest valid slot ────────────────────────────────────
   const clampedValue = useMemo(() => {
     if (timeSlots.length === 0) return value;
     const valMin = timeToMinutes(value);
@@ -226,12 +244,11 @@ export function ScrollWheelTimePicker({
     return closest;
   }, [value, timeSlots]);
 
-  // ── Parse current clamped value ───────────────────────────────────────────
+  // ── Parse current value ───────────────────────────────────────────────────
   const [curH24, curM] = clampedValue.split(":").map(Number);
   const { hour: curH12, ampm: curAmPm } = to12Hour(curH24);
 
-  // ── Build wheel items from valid slots ────────────────────────────────────
-  // Hours: unique 24h hours present in valid slots, displayed as 12h
+  // ── Build unique hour / minute / ampm lists ───────────────────────────────
   const hourItems = useMemo(() => {
     const seen = new Set<number>();
     const items: { display: string; h24: number }[] = [];
@@ -246,7 +263,6 @@ export function ScrollWheelTimePicker({
     return items;
   }, [timeSlots]);
 
-  // Minutes: unique minutes present in valid slots
   const minuteItems = useMemo(() => {
     const seen = new Set<number>();
     const items: number[] = [];
@@ -257,13 +273,11 @@ export function ScrollWheelTimePicker({
     return items.sort((a, b) => a - b);
   }, [timeSlots]);
 
-  // AM/PM: only show values present in valid slots
-  const ampmItems = useMemo(() => {
+  const ampmItems = useMemo((): ("AM" | "PM")[] => {
     const has = { AM: false, PM: false };
     for (const slot of timeSlots) {
       const h24 = parseInt(slot.split(":")[0]);
-      if (h24 < 12) has.AM = true;
-      else has.PM = true;
+      if (h24 < 12) has.AM = true; else has.PM = true;
     }
     const result: ("AM" | "PM")[] = [];
     if (has.AM) result.push("AM");
@@ -271,7 +285,7 @@ export function ScrollWheelTimePicker({
     return result;
   }, [timeSlots]);
 
-  // ── Find selected indices ─────────────────────────────────────────────────
+  // ── Selected indices ──────────────────────────────────────────────────────
   const hourIndex = useMemo(() => {
     const idx = hourItems.findIndex((item) => item.h24 === curH24);
     return Math.max(0, idx);
@@ -287,74 +301,89 @@ export function ScrollWheelTimePicker({
     return Math.max(0, idx);
   }, [ampmItems, curAmPm]);
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
-  const resolveAndEmit = useCallback(
+  // ── Internal state to track "live" selections during scroll ──────────────
+  // We keep local state so WheelColumn re-renders with correct highlight
+  const [liveHourIdx, setLiveHourIdx] = useState(hourIndex);
+  const [liveMinIdx, setLiveMinIdx] = useState(minuteIndex);
+  const [liveAmPmIdx, setLiveAmPmIdx] = useState(ampmIndex);
+
+  // Sync local state when external value changes
+  useEffect(() => { setLiveHourIdx(hourIndex); }, [hourIndex]);
+  useEffect(() => { setLiveMinIdx(minuteIndex); }, [minuteIndex]);
+  useEffect(() => { setLiveAmPmIdx(ampmIndex); }, [ampmIndex]);
+
+  // ── Emit resolved value ───────────────────────────────────────────────────
+  const emitValue = useCallback(
     (h24: number, minute: number) => {
-      const candidate = minutesToTime(h24 * 60 + minute);
       const minMin = minTime ? timeToMinutes(minTime) : 0;
       const maxMin = maxTime ? timeToMinutes(maxTime) : 23 * 60 + 59;
-      const candMin = timeToMinutes(candidate);
-      if (candMin < minMin) { onChange(minutesToTime(minMin)); return; }
-      if (candMin > maxMin) { onChange(minutesToTime(maxMin)); return; }
-      onChange(candidate);
+      const candMin = h24 * 60 + minute;
+      const clamped = Math.max(minMin, Math.min(maxMin, candMin));
+      onChange(minutesToTime(clamped));
     },
     [minTime, maxTime, onChange]
   );
 
-  const handleHourChange = useCallback(
+  // ── Settle handlers ───────────────────────────────────────────────────────
+  const handleHourSettle = useCallback(
     (idx: number) => {
       const item = hourItems[idx];
       if (!item) return;
-      resolveAndEmit(item.h24, curM);
+      setLiveHourIdx(idx);
+      const currentAmPm = ampmItems[liveAmPmIdx] ?? curAmPm;
+      emitValue(item.h24, minuteItems[liveMinIdx] ?? curM);
     },
-    [hourItems, curM, resolveAndEmit]
+    [hourItems, ampmItems, minuteItems, liveAmPmIdx, liveMinIdx, curAmPm, curM, emitValue]
   );
 
-  const handleMinuteChange = useCallback(
+  const handleMinuteSettle = useCallback(
     (idx: number) => {
       const minute = minuteItems[idx];
       if (minute === undefined) return;
-      resolveAndEmit(curH24, minute);
+      setLiveMinIdx(idx);
+      emitValue(hourItems[liveHourIdx]?.h24 ?? curH24, minute);
     },
-    [minuteItems, curH24, resolveAndEmit]
+    [minuteItems, hourItems, liveHourIdx, curH24, emitValue]
   );
 
-  const handleAmPmChange = useCallback(
+  const handleAmPmSettle = useCallback(
     (idx: number) => {
       const newAmPm = ampmItems[idx];
       if (!newAmPm) return;
-      const newH24 = to24Hour(curH12, newAmPm);
-      resolveAndEmit(newH24, curM);
+      setLiveAmPmIdx(idx);
+      const h12 = to12Hour(hourItems[liveHourIdx]?.h24 ?? curH24).hour;
+      const newH24 = to24Hour(h12, newAmPm);
+      emitValue(newH24, minuteItems[liveMinIdx] ?? curM);
     },
-    [ampmItems, curH12, curM, resolveAndEmit]
+    [ampmItems, hourItems, minuteItems, liveHourIdx, liveMinIdx, curH24, curM, emitValue]
   );
 
-  // Column widths — sized to always fit in a modal without clipping
-  const COL_HOUR = 60;
-  const COL_MIN = 60;
-  const COL_AMPM = 56;
+  // ── Column widths (compact) ───────────────────────────────────────────────
+  const COL_HOUR = 38;
+  const COL_MIN = 38;
+  const COL_AMPM = 40;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <View style={styles.wheelsRow}>
         <WheelColumn
           items={hourItems.map((i) => i.display)}
-          selectedIndex={hourIndex}
-          onSelect={handleHourChange}
+          selectedIndex={liveHourIdx}
+          onSettle={handleHourSettle}
           colWidth={COL_HOUR}
         />
         <Text style={[styles.colon, { color: colors.foreground }]}>:</Text>
         <WheelColumn
           items={minuteItems.map((m) => String(m).padStart(2, "0"))}
-          selectedIndex={minuteIndex}
-          onSelect={handleMinuteChange}
+          selectedIndex={liveMinIdx}
+          onSettle={handleMinuteSettle}
           colWidth={COL_MIN}
         />
-        <View style={{ width: 14 }} />
+        <View style={{ width: 8 }} />
         <WheelColumn
           items={ampmItems}
-          selectedIndex={ampmIndex}
-          onSelect={handleAmPmChange}
+          selectedIndex={liveAmPmIdx}
+          onSettle={handleAmPmSettle}
           colWidth={COL_AMPM}
         />
       </View>
@@ -364,11 +393,11 @@ export function ScrollWheelTimePicker({
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
     overflow: "hidden",
-    paddingVertical: 4,
-    paddingHorizontal: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 2,
   },
   wheelsRow: {
     flexDirection: "row",
@@ -380,19 +409,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   colon: {
-    fontSize: 24,
+    fontSize: 16,
     fontWeight: "700",
-    marginHorizontal: 2,
-    marginBottom: 2,
-    minWidth: 12,
+    marginHorizontal: 1,
+    minWidth: 8,
     textAlign: "center",
   },
   selectionBar: {
     position: "absolute",
     left: 2,
     right: 2,
-    height: ITEM_HEIGHT,
-    borderRadius: 10,
+    height: ITEM_H,
+    borderRadius: 8,
     borderWidth: 1.5,
     zIndex: 1,
   },
@@ -401,8 +429,8 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: ITEM_HEIGHT * 1.6,
-    opacity: 0.75,
+    height: ITEM_H * 1.5,
+    opacity: 0.8,
     zIndex: 2,
   },
   fadeBottom: {
@@ -410,8 +438,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: ITEM_HEIGHT * 1.6,
-    opacity: 0.75,
+    height: ITEM_H * 1.5,
+    opacity: 0.8,
     zIndex: 2,
   },
 });

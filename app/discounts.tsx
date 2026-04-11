@@ -642,29 +642,27 @@ export default function DiscountsScreen() {
                 <IconSymbol name="xmark" size={20} color={colors.muted} />
               </Pressable>
             </View>
-            <View style={{ flexDirection: "row", gap: 16, marginBottom: 20 }}>
-              <View style={{ flex: 1, alignItems: "center" }}>
-                <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 8 }}>START TIME</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 16, marginBottom: 16 }}>
+              <View style={{ alignItems: "center", gap: 6 }}>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, letterSpacing: 0.8 }}>START</Text>
                 <ScrollWheelTimePicker
                   value={draftPickerStart}
                   onChange={(v) => { draftStartRef.current = v; setDraftPickerStart(v); setDiscountTimeError(null); }}
                   stepMinutes={15}
-                  maxTime={draftPickerEnd}
                 />
               </View>
-              <View style={{ width: 1, backgroundColor: colors.border, marginVertical: 8 }} />
-              <View style={{ flex: 1, alignItems: "center" }}>
-                <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 8 }}>END TIME</Text>
+              <View style={{ width: 1, height: 160, backgroundColor: colors.border }} />
+              <View style={{ alignItems: "center", gap: 6 }}>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, letterSpacing: 0.8 }}>END</Text>
                 <ScrollWheelTimePicker
                   value={draftPickerEnd}
                   onChange={(v) => { draftEndRef.current = v; setDraftPickerEnd(v); setDiscountTimeError(null); }}
                   stepMinutes={15}
-                  minTime={draftPickerStart}
                 />
               </View>
             </View>
             {discountTimeError ? (
-              <Text style={{ color: colors.error, fontSize: 13, textAlign: "center", marginBottom: 12, marginTop: -8 }}>{discountTimeError}</Text>
+              <Text style={{ color: colors.error, fontSize: 13, textAlign: "center", marginBottom: 12 }}>{discountTimeError}</Text>
             ) : null}
             <Pressable
               onPress={saveTimePicker}

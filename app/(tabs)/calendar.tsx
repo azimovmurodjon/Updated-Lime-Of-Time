@@ -1023,20 +1023,10 @@ export default function CalendarScreen() {
               </Text>
             )}
 
-            {/* Column labels */}
-            <View style={{ flexDirection: "row", marginBottom: 8 }}>
-              <View style={{ flex: 1, alignItems: "center" }}>
-                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.foreground, letterSpacing: 0.5 }}>START TIME</Text>
-              </View>
-              <View style={{ width: 1 }} />
-              <View style={{ flex: 1, alignItems: "center" }}>
-                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.foreground, letterSpacing: 0.5 }}>END TIME</Text>
-              </View>
-            </View>
-
-            {/* Side-by-side pickers with divider */}
-            <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
-              <View style={{ flex: 1, alignItems: "center" }}>
+            {/* Side-by-side pickers */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 16 }}>
+              <View style={{ alignItems: "center", gap: 6 }}>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, letterSpacing: 0.8 }}>START</Text>
                 <ScrollWheelTimePicker
                   value={draftStart}
                   onChange={setDraftStartSync}
@@ -1045,8 +1035,9 @@ export default function CalendarScreen() {
                   maxTime={businessHoursForEdit?.end ?? "23:45"}
                 />
               </View>
-              <View style={{ width: 1, backgroundColor: colors.border, alignSelf: "stretch", marginHorizontal: 4 }} />
-              <View style={{ flex: 1, alignItems: "center" }}>
+              <View style={{ width: 1, height: 160, backgroundColor: colors.border }} />
+              <View style={{ alignItems: "center", gap: 6 }}>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, letterSpacing: 0.8 }}>END</Text>
                 <ScrollWheelTimePicker
                   value={draftEnd}
                   onChange={setDraftEndSync}
