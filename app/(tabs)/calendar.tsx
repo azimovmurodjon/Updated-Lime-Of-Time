@@ -63,6 +63,13 @@ export default function CalendarScreen() {
   const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
 
   const now = new Date();
+  // Live clock for the current-time indicator — updates every 30 seconds
+  const [liveNow, setLiveNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setLiveNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
   const [calendarView, setCalendarView] = useState<CalendarView>("month");
   const [currentMonth, setCurrentMonth] = useState(now.getMonth());
   const [currentYear, setCurrentYear] = useState(now.getFullYear());
@@ -505,12 +512,13 @@ export default function CalendarScreen() {
     const totalHours = TIMELINE_END - TIMELINE_START + 1;
     const gridHeight = totalHours * HOUR_HEIGHT;
 
-    // Current-time indicator
-    const nowDate = new Date();
-    const isToday = dateStr === formatDateStr(nowDate);
-    const nowMinutes = nowDate.getHours() * 60 + nowDate.getMinutes();
+    // Current-time indicator (uses liveNow so it auto-refreshes every 30s)
+    const isToday = dateStr === formatDateStr(liveNow);
+    const nowMinutes = liveNow.getHours() * 60 + liveNow.getMinutes();
     const nowTop = (nowMinutes - TIMELINE_START * 60) * (HOUR_HEIGHT / 60);
     const showNowLine = isToday && nowTop >= 0 && nowTop <= gridHeight;
+    // Format time for the pill label e.g. "12:42"
+    const nowPillLabel = liveNow.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }).replace(" ", "\u202f");
 
     return (
       <View style={[styles.timelineContainer, { borderColor: colors.border }]}>
@@ -570,29 +578,37 @@ export default function CalendarScreen() {
           );
         })}
 
-        {/* Red current-time line */}
+        {/* iOS-style live current-time indicator */}
         {showNowLine && (
           <View
             pointerEvents="none"
             style={{
               position: "absolute",
-              top: nowTop,
-              left: LABEL_WIDTH - 4,
+              top: nowTop - 9, // vertically centre the 18px pill on the line
+              left: 0,
               right: 0,
-              height: 2,
-              backgroundColor: "#EF4444",
-              zIndex: 10,
+              height: 18,
+              zIndex: 20,
+              flexDirection: "row",
+              alignItems: "center",
             }}
           >
+            {/* Red pill with time label */}
             <View style={{
-              position: "absolute",
-              left: -4,
-              top: -4,
-              width: 10,
-              height: 10,
-              borderRadius: 5,
               backgroundColor: "#EF4444",
-            }} />
+              borderRadius: 9,
+              paddingHorizontal: 5,
+              paddingVertical: 2,
+              minWidth: LABEL_WIDTH - 2,
+              alignItems: "center",
+              justifyContent: "center",
+            }}>
+              <Text style={{ fontSize: 9, fontWeight: "700", color: "#fff", letterSpacing: 0.2 }}>
+                {nowPillLabel}
+              </Text>
+            </View>
+            {/* Full-width red line */}
+            <View style={{ flex: 1, height: 1.5, backgroundColor: "#EF4444" }} />
           </View>
         )}
       </View>

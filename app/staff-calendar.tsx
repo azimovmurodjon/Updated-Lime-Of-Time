@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   Text,
   View,
@@ -38,6 +38,13 @@ export default function StaffCalendarScreen() {
 
   const staff = getStaffById(id ?? "");
   const now = new Date();
+  // Live clock for the current-time indicator — updates every 30 seconds
+  const [liveNow, setLiveNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setLiveNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
   const [currentMonth, setCurrentMonth] = useState(now.getMonth());
   const [currentYear, setCurrentYear] = useState(now.getFullYear());
   const [selectedDate, setSelectedDate] = useState(formatDateStr(now));
@@ -341,11 +348,11 @@ export default function StaffCalendarScreen() {
             const LABEL_WIDTH = 60;
             const totalHours = STAFF_TIMELINE_END - STAFF_TIMELINE_START + 1;
             const gridHeight = totalHours * STAFF_HOUR_HEIGHT;
-            const nowDate = new Date();
-            const isToday = selectedDate === formatDateStr(nowDate);
-            const nowMinutes = nowDate.getHours() * 60 + nowDate.getMinutes();
+            const isToday = selectedDate === formatDateStr(liveNow);
+            const nowMinutes = liveNow.getHours() * 60 + liveNow.getMinutes();
             const nowTop = (nowMinutes - STAFF_TIMELINE_START * 60) * (STAFF_HOUR_HEIGHT / 60);
             const showNowLine = isToday && nowTop >= 0 && nowTop <= gridHeight;
+            const nowPillLabel = liveNow.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }).replace(" ", "\u202f");
             return (
               <View style={{ paddingHorizontal: hp, marginTop: 8 }}>
                 <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
@@ -403,29 +410,37 @@ export default function StaffCalendarScreen() {
                       </Pressable>
                     );
                   })}
-                  {/* Red current-time line */}
+                  {/* iOS-style live current-time indicator */}
                   {showNowLine && (
                     <View
                       pointerEvents="none"
                       style={{
                         position: "absolute",
-                        top: nowTop,
-                        left: LABEL_WIDTH - 4,
+                        top: nowTop - 9,
+                        left: 0,
                         right: 0,
-                        height: 2,
-                        backgroundColor: "#EF4444",
-                        zIndex: 10,
+                        height: 18,
+                        zIndex: 20,
+                        flexDirection: "row",
+                        alignItems: "center",
                       }}
                     >
+                      {/* Red pill with time label */}
                       <View style={{
-                        position: "absolute",
-                        left: -4,
-                        top: -4,
-                        width: 10,
-                        height: 10,
-                        borderRadius: 5,
                         backgroundColor: "#EF4444",
-                      }} />
+                        borderRadius: 9,
+                        paddingHorizontal: 5,
+                        paddingVertical: 2,
+                        minWidth: LABEL_WIDTH - 2,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}>
+                        <Text style={{ fontSize: 9, fontWeight: "700", color: "#fff", letterSpacing: 0.2 }}>
+                          {nowPillLabel}
+                        </Text>
+                      </View>
+                      {/* Full-width red line */}
+                      <View style={{ flex: 1, height: 1.5, backgroundColor: "#EF4444" }} />
                     </View>
                   )}
                 </View>
