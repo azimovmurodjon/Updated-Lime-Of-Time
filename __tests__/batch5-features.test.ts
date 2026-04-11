@@ -176,7 +176,7 @@ describe("Settings Restructure", () => {
     expect(fileExists("app/schedule-settings.tsx")).toBe(true);
     const content = readFile("app/schedule-settings.tsx");
     expect(content).toContain("ScheduleSettingsScreen");
-    expect(content).toContain("Weekly Hours");
+    expect(content).toContain("Business Hours");
   });
 
   it("Booking policies screen exists", () => {

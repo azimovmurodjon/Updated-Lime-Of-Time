@@ -10,7 +10,7 @@ import {
   Platform,
   Alert,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, generateId, formatDateStr, formatTime, formatDateDisplay } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
@@ -32,11 +32,12 @@ export default function NewBookingScreen() {
   const { state, dispatch, getServiceById, getClientById, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
+  const params = useLocalSearchParams<{ date?: string }>();
 
   const [step, setStep] = useState<Step>(1);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState(formatDateStr(new Date()));
+  const [selectedDate, setSelectedDate] = useState(params.date ?? formatDateStr(new Date()));
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [clientSearch, setClientSearch] = useState("");

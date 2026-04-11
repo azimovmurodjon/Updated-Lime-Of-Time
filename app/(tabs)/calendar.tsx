@@ -38,6 +38,7 @@ type FilterKey = (typeof FILTERS)[number]["key"];
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DAY_HEADERS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const DAY_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
 export default function CalendarScreen() {
   const { state, dispatch, getServiceById, getClientById, getStaffById, syncToDb } = useStore();
@@ -76,6 +77,14 @@ export default function CalendarScreen() {
   const cellSize = Math.floor((width - hp * 2) / 7);
 
   const todayStr = formatDateStr(now);
+
+  // Check if a date is a working day based on Business Hours
+  const isWorkingDay = useCallback((dateStr: string): boolean => {
+    const d = new Date(dateStr + "T12:00:00");
+    const dayName = DAY_NAMES[d.getDay()];
+    const wh = state.settings.workingHours?.[dayName];
+    return !!(wh && wh.enabled);
+  }, [state.settings.workingHours]);
 
   // Calendar grid
   const calendarDays = useMemo(() => {
@@ -138,6 +147,10 @@ export default function CalendarScreen() {
       .filter((a) => a.date === selectedDate)
       .sort((a, b) => a.time.localeCompare(b.time));
   }, [state.appointments, selectedDate, locFilter]);
+
+  const handleBookAppointment = useCallback(() => {
+    router.push({ pathname: "/new-booking", params: { date: selectedDate } });
+  }, [router, selectedDate]);
 
   const openSmsWithMessage = useCallback((phone: string, message: string) => {
     if (Platform.OS === "web") {
@@ -255,15 +268,17 @@ export default function CalendarScreen() {
             const isSelected = dateStr === selectedDate;
             const isToday = dateStr === todayStr;
             const isPast = isDateInPast(dateStr);
+            const isWorking = isWorkingDay(dateStr);
+            const isDisabled = isPast || !isWorking;
             const statuses = dayStatuses[dateStr];
 
             return (
               <Pressable
                 key={dateStr}
                 onPress={() => {
-                  if (!isPast) setSelectedDate(dateStr);
+                  if (!isDisabled) setSelectedDate(dateStr);
                 }}
-                disabled={isPast}
+                disabled={isDisabled}
                 style={({ pressed }) => [
                   styles.dayCell,
                   {
@@ -271,7 +286,7 @@ export default function CalendarScreen() {
                     height: cellSize,
                     backgroundColor: isSelected ? colors.primary : "transparent",
                     borderRadius: cellSize / 2,
-                    opacity: isPast ? 0.35 : pressed ? 0.7 : 1,
+                    opacity: isPast ? 0.25 : !isWorking ? 0.3 : pressed ? 0.7 : 1,
                   },
                 ]}
               >
@@ -279,7 +294,8 @@ export default function CalendarScreen() {
                   style={{
                     fontSize: 15,
                     fontWeight: isToday || isSelected ? "700" : "400",
-                    color: isSelected ? "#FFF" : isToday ? colors.primary : isPast ? colors.muted : colors.foreground,
+                    color: isSelected ? "#FFF" : isToday ? colors.primary : isDisabled ? colors.muted : colors.foreground,
+                    textDecorationLine: !isWorking && !isPast ? "line-through" : "none",
                   }}
                 >
                   {day}
@@ -297,6 +313,7 @@ export default function CalendarScreen() {
 
         {/* Dot Legend */}
         <View style={[styles.dotLegend, { paddingHorizontal: hp }]}>
+          <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: colors.muted, opacity: 0.4 }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Closed</Text></View>
           <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: "#1B5E20" }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Accepted</Text></View>
           <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: "#2196F3" }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Pending</Text></View>
           <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: "#F44336" }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Cancelled</Text></View>
@@ -304,12 +321,32 @@ export default function CalendarScreen() {
 
         {/* Selected Date Appointments */}
         <View style={{ paddingHorizontal: hp, marginTop: 8 }}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-            {formatDateDisplay(selectedDate)}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>
+              {formatDateDisplay(selectedDate)}
+            </Text>
+            {isWorkingDay(selectedDate) && !isDateInPast(selectedDate) && (
+              <Pressable
+                onPress={handleBookAppointment}
+                style={({ pressed }) => ({
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: colors.primary,
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  borderRadius: 20,
+                  gap: 6,
+                  opacity: pressed ? 0.8 : 1,
+                })}
+              >
+                <IconSymbol name="plus" size={14} color="#FFF" />
+                <Text style={{ color: "#FFF", fontSize: 13, fontWeight: "600" }}>Book Appointment</Text>
+              </Pressable>
+            )}
+          </View>
           {selectedDateAppts.length === 0 ? (
             <Text style={{ color: colors.muted, fontSize: 13, marginTop: 4, marginBottom: 12 }}>
-              No appointments on this day
+              {isWorkingDay(selectedDate) ? "No appointments on this day" : "Closed — not a working day"}
             </Text>
           ) : (
             selectedDateAppts.map((appt) => {
