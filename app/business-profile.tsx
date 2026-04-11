@@ -41,15 +41,13 @@ export default function BusinessProfileScreen() {
   const validate = () => {
     const newErrors: Record<string, string> = {};
     if (!businessName.trim()) newErrors.businessName = "Business name is required.";
-    if (!ownerName.trim()) newErrors.ownerName = "Owner name is required.";
+    // ownerName is optional
     if (!phone.trim()) {
       newErrors.phone = "Phone number is required.";
     } else if (stripPhoneFormat(phone).length < 10) {
       newErrors.phone = "Please enter a valid 10-digit phone number.";
     }
-    if (!email.trim()) {
-      newErrors.email = "Email address is required.";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       newErrors.email = "Please enter a valid email address.";
     }
     setErrors(newErrors);
@@ -164,7 +162,7 @@ export default function BusinessProfileScreen() {
           </Field>
 
           {/* Owner Name */}
-          <Field label="Owner Name" required error={errors.ownerName}>
+          <Field label="Owner Name (optional)" error={errors.ownerName}>
             <TextInput
               value={ownerName}
               onChangeText={(v) => { setOwnerName(v); setErrors((e) => ({ ...e, ownerName: "" })); }}
@@ -203,7 +201,7 @@ export default function BusinessProfileScreen() {
           </Field>
 
           {/* Email */}
-          <Field label="Email" required error={errors.email}>
+          <Field label="Email (optional)" error={errors.email}>
             <TextInput
               value={email}
               onChangeText={(v) => { setEmail(v); setErrors((e) => ({ ...e, email: "" })); }}
