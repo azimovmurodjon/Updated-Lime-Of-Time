@@ -571,3 +571,12 @@
 - [ ] Code review and cleanup
 - [ ] Save final checkpoint
 - [ ] Deploy to production
+- [x] Add per-day Workday override toggle in calendar (ON = available, OFF = blocked)
+- [x] Add time range picker per day when Workday is ON (within Business Hours)
+- [x] Persist dailyOverrides to customSchedule table in database
+- [x] Build reusable ScrollWheelTimePicker (12-hour, AM/PM, flexible minutes)
+- [ ] Replace all time inputs app-wide with ScrollWheelTimePicker
+- [x] Add Day view to calendar (appointment timeline like staff-calendar)
+- [x] Add Week view to calendar (7-column layout with appointment slots)
+- [x] Wire dailyOverrides into new-booking.tsx booking flow (already integrated via customSchedule)
+- [x] Wire dailyOverrides into public booking server-side availability (already integrated via customSchedule)

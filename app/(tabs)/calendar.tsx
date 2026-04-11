@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
   Text,
   View,
@@ -9,6 +9,8 @@ import {
   Platform,
   useWindowDimensions,
   ScrollView,
+  Switch,
+  Modal,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatTime, formatDateStr, formatDateDisplay } from "@/lib/store";
@@ -25,7 +27,11 @@ import {
   generateAcceptMessage,
   generateRejectMessage,
   stripPhoneFormat,
+  CustomScheduleDay,
 } from "@/lib/types";
+import { ScrollWheelTimePicker } from "@/components/scroll-wheel-time-picker";
+
+type CalendarView = "month" | "day" | "week";
 
 const FILTERS = [
   { key: "upcoming", label: "Upcoming" },
@@ -38,7 +44,14 @@ type FilterKey = (typeof FILTERS)[number]["key"];
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DAY_HEADERS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const DAY_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAY_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+
+// Timeline hours: 6am to 10pm
+const TIMELINE_START = 6;
+const TIMELINE_END = 22;
+const HOUR_HEIGHT = 60;
 
 export default function CalendarScreen() {
   const { state, dispatch, getServiceById, getClientById, getStaffById, syncToDb } = useStore();
@@ -50,40 +63,76 @@ export default function CalendarScreen() {
   const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
 
   const now = new Date();
+  const [calendarView, setCalendarView] = useState<CalendarView>("month");
   const [currentMonth, setCurrentMonth] = useState(now.getMonth());
   const [currentYear, setCurrentYear] = useState(now.getFullYear());
   const [selectedDate, setSelectedDate] = useState(formatDateStr(now));
   const initialFilter = (params.filter as FilterKey) || "upcoming";
   const [activeFilter, setActiveFilter] = useState<FilterKey>(initialFilter);
+  const [calLocationFilter, setCalLocationFilter] = useState<string | null>(null);
 
-  // Update filter when navigated to with a filter param
+  // Workday override modal state
+  const [showTimePickerModal, setShowTimePickerModal] = useState(false);
+  const [editingDate, setEditingDate] = useState<string | null>(null);
+  const [draftStart, setDraftStart] = useState("09:00");
+  const [draftEnd, setDraftEnd] = useState("17:00");
+
+  // Week view: track the week start (Sunday)
+  const [weekStart, setWeekStart] = useState<Date>(() => {
+    const d = new Date(now);
+    d.setDate(d.getDate() - d.getDay());
+    return d;
+  });
+
   useEffect(() => {
     if (params.filter && FILTERS.some((f) => f.key === params.filter)) {
       setActiveFilter(params.filter as FilterKey);
     }
   }, [params.filter]);
-  const [calLocationFilter, setCalLocationFilter] = useState<string | null>(null);
+
   const activeLocations = useMemo(() => state.locations.filter((l) => l.active), [state.locations]);
   const hasMultiLoc = activeLocations.length > 1;
 
-  const locFilter = useCallback(
-    (appts: Appointment[]) => {
-      if (!calLocationFilter) return appts;
-      return appts.filter((a) => a.locationId === calLocationFilter);
-    },
-    [calLocationFilter]
-  );
-
   const cellSize = Math.floor((width - hp * 2) / 7);
-
   const todayStr = formatDateStr(now);
 
-  // Check if a date is a working day based on Business Hours
-  const isWorkingDay = useCallback((dateStr: string): boolean => {
+  // ─── Helpers ──────────────────────────────────────────────────────────
+
+  const getCustomDay = useCallback((dateStr: string): CustomScheduleDay | undefined => {
+    return state.customSchedule.find((cs) => cs.date === dateStr);
+  }, [state.customSchedule]);
+
+  // A day is "available" if it has a Workday ON override, or if it's a Business Hours working day with no override
+  const isDayAvailable = useCallback((dateStr: string): boolean => {
+    const custom = getCustomDay(dateStr);
+    if (custom) return custom.isOpen;
+    // Fall back to Business Hours
     const d = new Date(dateStr + "T12:00:00");
     const dayName = DAY_NAMES[d.getDay()];
     const wh = state.settings.workingHours?.[dayName];
     return !!(wh && wh.enabled);
+  }, [getCustomDay, state.settings.workingHours]);
+
+  // Get effective working hours for a date (custom override or business hours)
+  const getEffectiveHours = useCallback((dateStr: string): { start: string; end: string } | null => {
+    const custom = getCustomDay(dateStr);
+    if (custom && custom.isOpen && custom.startTime && custom.endTime) {
+      return { start: custom.startTime, end: custom.endTime };
+    }
+    const d = new Date(dateStr + "T12:00:00");
+    const dayName = DAY_NAMES[d.getDay()];
+    const wh = state.settings.workingHours?.[dayName];
+    if (wh && wh.enabled) return { start: wh.start, end: wh.end };
+    return null;
+  }, [getCustomDay, state.settings.workingHours]);
+
+  // Get business hours for a day (for picker min/max)
+  const getBusinessHours = useCallback((dateStr: string): { start: string; end: string } | null => {
+    const d = new Date(dateStr + "T12:00:00");
+    const dayName = DAY_NAMES[d.getDay()];
+    const wh = state.settings.workingHours?.[dayName];
+    if (wh && wh.enabled) return { start: wh.start, end: wh.end };
+    return null;
   }, [state.settings.workingHours]);
 
   // Calendar grid
@@ -96,7 +145,7 @@ export default function CalendarScreen() {
     return days;
   }, [currentMonth, currentYear]);
 
-  // Status dots for each day
+  // Status dots
   const dayStatuses = useMemo(() => {
     const statuses: Record<string, Set<string>> = {};
     state.appointments.forEach((a) => {
@@ -106,40 +155,13 @@ export default function CalendarScreen() {
     return statuses;
   }, [state.appointments]);
 
-  const prevMonth = () => {
-    if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear(currentYear - 1); }
-    else setCurrentMonth(currentMonth - 1);
-  };
-
-  const nextMonth = () => {
-    if (currentMonth === 11) { setCurrentMonth(0); setCurrentYear(currentYear + 1); }
-    else setCurrentMonth(currentMonth + 1);
-  };
-
-  // Filter appointments
-  const filteredAppointments = useMemo(() => {
-    const base = locFilter(state.appointments);
-    switch (activeFilter) {
-      case "upcoming":
-        return base
-          .filter((a) => a.status === "confirmed" && a.date >= todayStr)
-          .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
-      case "requests":
-        return base
-          .filter((a) => a.status === "pending")
-          .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
-      case "cancelled":
-        return base
-          .filter((a) => a.status === "cancelled")
-          .sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
-      case "completed":
-        return base
-          .filter((a) => a.status === "completed")
-          .sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
-      default:
-        return [];
-    }
-  }, [state.appointments, activeFilter, todayStr, locFilter]);
+  const locFilter = useCallback(
+    (appts: Appointment[]) => {
+      if (!calLocationFilter) return appts;
+      return appts.filter((a) => a.locationId === calLocationFilter);
+    },
+    [calLocationFilter]
+  );
 
   // Selected date appointments
   const selectedDateAppts = useMemo(() => {
@@ -148,15 +170,130 @@ export default function CalendarScreen() {
       .sort((a, b) => a.time.localeCompare(b.time));
   }, [state.appointments, selectedDate, locFilter]);
 
-  const handleBookAppointment = useCallback(() => {
-    router.push({ pathname: "/new-booking", params: { date: selectedDate } });
-  }, [router, selectedDate]);
+  // Week days
+  const weekDays = useMemo(() => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
+      return formatDateStr(d);
+    });
+  }, [weekStart]);
 
-  const openSmsWithMessage = useCallback((phone: string, message: string) => {
-    if (Platform.OS === "web") {
-      Alert.alert("SMS Message", message);
+  // Timeline hours array
+  const timelineHours = useMemo(() => {
+    const hours: string[] = [];
+    for (let h = TIMELINE_START; h <= TIMELINE_END; h++) {
+      hours.push(`${String(h).padStart(2, "0")}:00`);
+    }
+    return hours;
+  }, []);
+
+  // Filtered appointments list
+  const filteredAppointments = useMemo(() => {
+    const base = locFilter(state.appointments);
+    switch (activeFilter) {
+      case "upcoming":
+        return base.filter((a) => a.status === "confirmed" && a.date >= todayStr)
+          .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+      case "requests":
+        return base.filter((a) => a.status === "pending")
+          .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+      case "cancelled":
+        return base.filter((a) => a.status === "cancelled")
+          .sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
+      case "completed":
+        return base.filter((a) => a.status === "completed")
+          .sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
+      default: return [];
+    }
+  }, [state.appointments, activeFilter, todayStr, locFilter]);
+
+  // ─── Navigation ───────────────────────────────────────────────────────
+
+  const prevMonth = () => {
+    if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear(currentYear - 1); }
+    else setCurrentMonth(currentMonth - 1);
+  };
+  const nextMonth = () => {
+    if (currentMonth === 11) { setCurrentMonth(0); setCurrentYear(currentYear + 1); }
+    else setCurrentMonth(currentMonth + 1);
+  };
+  const prevWeek = () => {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() - 7);
+    setWeekStart(d);
+  };
+  const nextWeek = () => {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + 7);
+    setWeekStart(d);
+  };
+  const prevDay = () => {
+    const d = new Date(selectedDate + "T12:00:00");
+    d.setDate(d.getDate() - 1);
+    setSelectedDate(formatDateStr(d));
+  };
+  const nextDay = () => {
+    const d = new Date(selectedDate + "T12:00:00");
+    d.setDate(d.getDate() + 1);
+    setSelectedDate(formatDateStr(d));
+  };
+  const jumpToToday = () => {
+    setSelectedDate(todayStr);
+    const d = new Date(now);
+    d.setDate(d.getDate() - d.getDay());
+    setWeekStart(d);
+    setCurrentMonth(now.getMonth());
+    setCurrentYear(now.getFullYear());
+  };
+
+  // ─── Workday Override ─────────────────────────────────────────────────
+
+  const handleWorkdayToggle = useCallback((dateStr: string, value: boolean) => {
+    if (value) {
+      // Turning ON: use business hours as default, or 09:00–17:00
+      const bh = getBusinessHours(dateStr);
+      const start = bh?.start ?? "09:00";
+      const end = bh?.end ?? "17:00";
+      setEditingDate(dateStr);
+      setDraftStart(start);
+      setDraftEnd(end);
+      setShowTimePickerModal(true);
+    } else {
+      // Turning OFF: save as closed override
+      const override: CustomScheduleDay = { date: dateStr, isOpen: false };
+      dispatch({ type: "SET_CUSTOM_SCHEDULE", payload: override });
+      syncToDb({ type: "SET_CUSTOM_SCHEDULE", payload: override });
+    }
+  }, [dispatch, syncToDb, getBusinessHours]);
+
+  const handleSaveTimeOverride = useCallback(() => {
+    if (!editingDate) return;
+    if (timeToMinutes(draftEnd) <= timeToMinutes(draftStart)) {
+      Alert.alert("Invalid Hours", "End time must be after start time.");
       return;
     }
+    const override: CustomScheduleDay = {
+      date: editingDate,
+      isOpen: true,
+      startTime: draftStart,
+      endTime: draftEnd,
+    };
+    dispatch({ type: "SET_CUSTOM_SCHEDULE", payload: override });
+    syncToDb({ type: "SET_CUSTOM_SCHEDULE", payload: override });
+    setShowTimePickerModal(false);
+    setEditingDate(null);
+  }, [editingDate, draftStart, draftEnd, dispatch, syncToDb]);
+
+  const handleCancelTimeOverride = useCallback(() => {
+    setShowTimePickerModal(false);
+    setEditingDate(null);
+  }, []);
+
+  // ─── SMS / Accept / Reject ────────────────────────────────────────────
+
+  const openSmsWithMessage = useCallback((phone: string, message: string) => {
+    if (Platform.OS === "web") { Alert.alert("SMS Message", message); return; }
     const rawPhone = stripPhoneFormat(phone);
     const separator = Platform.OS === "ios" ? "&" : "?";
     const url = `sms:${rawPhone}${separator}body=${encodeURIComponent(message)}`;
@@ -168,56 +305,38 @@ export default function CalendarScreen() {
     const svc = getServiceById(appt.serviceId);
     dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appt.id, status: "confirmed" } });
     syncToDb({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appt.id, status: "confirmed" } });
-
     const message = generateAcceptMessage(
-      state.settings.businessName,
-      state.settings.profile.address,
-      client?.name ?? "Valued Client",
-      svc ? getServiceDisplayName(svc) : "Service",
-      appt.duration,
-      appt.date,
-      appt.time,
-      state.settings.profile.phone,
-      client?.phone,
-      appt.id
+      state.settings.businessName, state.settings.profile.address,
+      client?.name ?? "Valued Client", svc ? getServiceDisplayName(svc) : "Service",
+      appt.duration, appt.date, appt.time, state.settings.profile.phone, client?.phone, appt.id
     );
-
-    if (client?.phone) {
-      openSmsWithMessage(client.phone, message);
-    } else {
-      Alert.alert("Appointment Confirmed", message);
-    }
-  }, [getClientById, getServiceById, dispatch, state.settings, openSmsWithMessage]);
+    if (client?.phone) openSmsWithMessage(client.phone, message);
+    else Alert.alert("Appointment Confirmed", message);
+  }, [getClientById, getServiceById, dispatch, state.settings, openSmsWithMessage, syncToDb]);
 
   const handleReject = useCallback((appt: Appointment) => {
     const client = getClientById(appt.clientId);
     const svc = getServiceById(appt.serviceId);
-
     Alert.alert("Reject Appointment", "Are you sure you want to reject this appointment request?", [
       { text: "Cancel", style: "cancel" },
       {
-        text: "Reject",
-        style: "destructive",
+        text: "Reject", style: "destructive",
         onPress: () => {
           dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appt.id, status: "cancelled" } });
           syncToDb({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appt.id, status: "cancelled" } });
           const message = generateRejectMessage(
-            state.settings.businessName,
-            client?.name ?? "Valued Client",
-            svc ? getServiceDisplayName(svc) : "Service",
-            appt.date,
-            appt.time,
-            state.settings.profile.phone
+            state.settings.businessName, client?.name ?? "Valued Client",
+            svc ? getServiceDisplayName(svc) : "Service", appt.date, appt.time, state.settings.profile.phone
           );
-          if (client?.phone) {
-            openSmsWithMessage(client.phone, message);
-          } else {
-            Alert.alert("Appointment Rejected", message);
-          }
+          if (client?.phone) openSmsWithMessage(client.phone, message);
+          else Alert.alert("Appointment Rejected", message);
         },
       },
     ]);
-  }, [getClientById, getServiceById, dispatch, state.settings, openSmsWithMessage]);
+  }, [getClientById, getServiceById, dispatch, state.settings, openSmsWithMessage, syncToDb]);
+
+  const getEndTime = (time: string, duration: number): string =>
+    formatTimeDisplay(minutesToTime(timeToMinutes(time) + duration));
 
   const filterColors: Record<FilterKey, string> = {
     upcoming: colors.success,
@@ -226,308 +345,726 @@ export default function CalendarScreen() {
     completed: colors.primary,
   };
 
-  const getEndTime = (time: string, duration: number): string => {
-    return formatTimeDisplay(minutesToTime(timeToMinutes(time) + duration));
+  // ─── Appointment Card ─────────────────────────────────────────────────
+
+  const renderApptCard = (appt: Appointment, showDate = false) => {
+    const svc = getServiceById(appt.serviceId);
+    const client = getClientById(appt.clientId);
+    const staff = appt.staffId ? getStaffById(appt.staffId) : null;
+    const statusColor =
+      appt.status === "confirmed" ? "#1B5E20"
+      : appt.status === "pending" ? "#FF9800"
+      : appt.status === "completed" ? colors.primary
+      : "#F44336";
+    const isRequest = appt.status === "pending";
+    return (
+      <View key={appt.id} style={[styles.apptCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: svc?.color ?? colors.primary }]}>
+        <Pressable
+          onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })}
+          style={{ flex: 1 }}
+        >
+          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>
+            {showDate ? `${formatDateDisplay(appt.date)} · ` : ""}{formatTime(appt.time)} – {getEndTime(appt.time, appt.duration)}
+          </Text>
+          <Text style={{ fontSize: 13, fontWeight: "500", color: colors.foreground, marginTop: 2 }}>
+            {svc ? getServiceDisplayName(svc) : "Service"}
+          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 1 }}>
+            <Text style={{ fontSize: 12, color: colors.muted }}>{client?.name}</Text>
+            {staff && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginLeft: 4 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: staff.color || colors.primary }} />
+                <Text style={{ fontSize: 11, color: staff.color || colors.primary, fontWeight: "500" }}>{staff.name}</Text>
+              </View>
+            )}
+          </View>
+        </Pressable>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
+            <Text style={{ fontSize: 11, fontWeight: "600", color: statusColor, textTransform: "capitalize" }}>{appt.status}</Text>
+          </View>
+        </View>
+        {isRequest && (
+          <View style={[styles.actionRow, { borderTopColor: colors.border }]}>
+            <Pressable onPress={() => handleAccept(appt)} style={({ pressed }) => [styles.acceptBtn, { backgroundColor: "#1B5E20", opacity: pressed ? 0.8 : 1 }]}>
+              <IconSymbol name="checkmark" size={16} color="#FFF" />
+              <Text style={{ color: "#FFF", fontSize: 13, fontWeight: "600", marginLeft: 4 }}>Accept</Text>
+            </Pressable>
+            <Pressable onPress={() => handleReject(appt)} style={({ pressed }) => [styles.rejectBtn, { borderColor: "#F44336", opacity: pressed ? 0.8 : 1 }]}>
+              <IconSymbol name="xmark" size={16} color="#F44336" />
+              <Text style={{ color: "#F44336", fontSize: 13, fontWeight: "600", marginLeft: 4 }}>Reject</Text>
+            </Pressable>
+          </View>
+        )}
+      </View>
+    );
   };
+
+  // ─── Workday Panel (shown below selected date in month view) ──────────
+
+  const renderWorkdayPanel = (dateStr: string) => {
+    const custom = getCustomDay(dateStr);
+    const isPast = isDateInPast(dateStr);
+    const bh = getBusinessHours(dateStr);
+    const isAvailable = isDayAvailable(dateStr);
+    const effectiveHours = getEffectiveHours(dateStr);
+    const hasCustomOverride = !!custom;
+
+    return (
+      <View style={[styles.workdayPanel, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Workday</Text>
+            <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
+              {isAvailable
+                ? effectiveHours
+                  ? `${formatTimeDisplay(effectiveHours.start)} – ${formatTimeDisplay(effectiveHours.end)}`
+                  : "Open (Business Hours)"
+                : "Closed – clients cannot book"}
+            </Text>
+          </View>
+          <Switch
+            value={isAvailable}
+            onValueChange={(val) => { if (!isPast) handleWorkdayToggle(dateStr, val); }}
+            disabled={isPast}
+            trackColor={{ false: colors.border, true: colors.primary + "80" }}
+            thumbColor={isAvailable ? colors.primary : colors.muted}
+          />
+        </View>
+        {isAvailable && !isPast && (
+          <Pressable
+            onPress={() => {
+              const bh2 = getBusinessHours(dateStr);
+              setEditingDate(dateStr);
+              setDraftStart(effectiveHours?.start ?? bh2?.start ?? "09:00");
+              setDraftEnd(effectiveHours?.end ?? bh2?.end ?? "17:00");
+              setShowTimePickerModal(true);
+            }}
+            style={({ pressed }) => [styles.editHoursBtn, { borderColor: colors.primary + "40", backgroundColor: colors.primary + "10", opacity: pressed ? 0.7 : 1 }]}
+          >
+            <IconSymbol name="pencil" size={14} color={colors.primary} />
+            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.primary, marginLeft: 6 }}>
+              {hasCustomOverride && custom?.startTime ? "Edit Hours" : "Set Custom Hours"}
+            </Text>
+          </Pressable>
+        )}
+        {hasCustomOverride && (
+          <Pressable
+            onPress={() => {
+              dispatch({ type: "DELETE_CUSTOM_SCHEDULE", payload: dateStr });
+              syncToDb({ type: "DELETE_CUSTOM_SCHEDULE", payload: dateStr });
+            }}
+            style={({ pressed }) => [styles.resetBtn, { opacity: pressed ? 0.7 : 1 }]}
+          >
+            <Text style={{ fontSize: 12, color: colors.muted }}>Reset to Business Hours</Text>
+          </Pressable>
+        )}
+        {bh && (
+          <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6 }}>
+            Business Hours: {formatTimeDisplay(bh.start)} – {formatTimeDisplay(bh.end)}
+          </Text>
+        )}
+      </View>
+    );
+  };
+
+  // ─── Timeline Render ──────────────────────────────────────────────────
+
+  const renderTimeline = (dateStr: string, appts: Appointment[], tintColor?: string) => {
+    const effectiveHours = getEffectiveHours(dateStr);
+    const available = isDayAvailable(dateStr);
+
+    return (
+      <View style={[styles.timelineContainer, { borderColor: colors.border }]}>
+        {timelineHours.map((hour) => {
+          const hourNum = parseInt(hour.split(":")[0]);
+          const apptsInHour = appts.filter((a) => {
+            const startMin = timeToMinutes(a.time);
+            const endMin = startMin + a.duration;
+            const hourStart = hourNum * 60;
+            const hourEnd = (hourNum + 1) * 60;
+            return startMin < hourEnd && endMin > hourStart;
+          });
+          const isWorkingHour = available && effectiveHours
+            ? timeToMinutes(hour) >= timeToMinutes(effectiveHours.start) &&
+              timeToMinutes(hour) < timeToMinutes(effectiveHours.end)
+            : available;
+
+          return (
+            <View key={hour} style={[styles.timelineRow, { borderBottomColor: colors.border }]}>
+              <View style={[styles.timelineLabel, { opacity: isWorkingHour ? 1 : 0.4 }]}>
+                <Text style={{ fontSize: 10, fontWeight: "500", color: colors.muted }}>
+                  {formatTimeDisplay(hour)}
+                </Text>
+              </View>
+              <View style={[styles.timelineSlot, {
+                backgroundColor: isWorkingHour ? "transparent" : colors.surface + "80",
+              }]}>
+                {apptsInHour.map((appt) => {
+                  const svc = getServiceById(appt.serviceId);
+                  const client = getClientById(appt.clientId);
+                  const color = svc?.color ?? tintColor ?? colors.primary;
+                  return (
+                    <Pressable
+                      key={appt.id}
+                      onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })}
+                      style={({ pressed }) => [styles.timelineAppt, { backgroundColor: color + "20", borderLeftColor: color, opacity: pressed ? 0.7 : 1 }]}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: "600", color: colors.foreground }} numberOfLines={1}>
+                        {formatTime(appt.time)} {svc ? getServiceDisplayName(svc) : "Appt"}
+                      </Text>
+                      <Text style={{ fontSize: 10, color: colors.muted }} numberOfLines={1}>{client?.name}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          );
+        })}
+      </View>
+    );
+  };
+
+  // ─── Month View ───────────────────────────────────────────────────────
+
+  const renderMonthView = () => (
+    <>
+      {/* Month Navigation */}
+      <View style={[styles.monthHeader, { paddingHorizontal: hp }]}>
+        <Pressable onPress={prevMonth} style={({ pressed }) => [styles.navBtn, { opacity: pressed ? 0.5 : 1 }]}>
+          <IconSymbol name="chevron.left" size={22} color={colors.foreground} />
+        </Pressable>
+        <Pressable onPress={jumpToToday}>
+          <Text style={[styles.monthTitle, { color: colors.foreground }]}>
+            {MONTH_NAMES[currentMonth]} {currentYear}
+          </Text>
+        </Pressable>
+        <Pressable onPress={nextMonth} style={({ pressed }) => [styles.navBtn, { opacity: pressed ? 0.5 : 1 }]}>
+          <IconSymbol name="chevron.right" size={22} color={colors.foreground} />
+        </Pressable>
+      </View>
+
+      {/* Day Headers */}
+      <View style={[styles.dayHeaderRow, { paddingHorizontal: hp }]}>
+        {DAY_HEADERS.map((d) => (
+          <View key={d} style={{ width: cellSize, alignItems: "center" }}>
+            <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted }}>{d}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* Calendar Grid */}
+      <View style={[styles.calendarGrid, { paddingHorizontal: hp }]}>
+        {calendarDays.map((day, idx) => {
+          if (day === null) return <View key={`e-${idx}`} style={{ width: cellSize, height: cellSize }} />;
+          const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+          const isSelected = dateStr === selectedDate;
+          const isToday = dateStr === todayStr;
+          const isPast = isDateInPast(dateStr);
+          const isAvailable = isDayAvailable(dateStr);
+          const custom = getCustomDay(dateStr);
+          const hasCustomOverride = !!custom;
+          const statuses = dayStatuses[dateStr];
+
+          return (
+            <Pressable
+              key={dateStr}
+              onPress={() => setSelectedDate(dateStr)}
+              style={({ pressed }) => [
+                styles.dayCell,
+                {
+                  width: cellSize,
+                  height: cellSize,
+                  backgroundColor: isSelected ? colors.primary : "transparent",
+                  borderRadius: cellSize / 2,
+                  opacity: isPast ? 0.3 : pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              <Text
+                style={{
+                  fontSize: 15,
+                  fontWeight: isToday || isSelected ? "700" : "400",
+                  color: isSelected ? "#FFF" : isToday ? colors.primary : !isAvailable ? colors.muted : colors.foreground,
+                  textDecorationLine: !isAvailable && !isPast ? "line-through" : "none",
+                }}
+              >
+                {day}
+              </Text>
+              {/* Custom override indicator */}
+              {hasCustomOverride && !isSelected && (
+                <View style={[styles.overrideDot, { backgroundColor: custom?.isOpen ? colors.success : colors.error }]} />
+              )}
+              {/* Status dots */}
+              <View style={styles.dotsRow}>
+                {statuses?.has("confirmed") && <View style={[styles.dot, { backgroundColor: "#1B5E20" }]} />}
+                {statuses?.has("pending") && <View style={[styles.dot, { backgroundColor: "#2196F3" }]} />}
+                {statuses?.has("cancelled") && <View style={[styles.dot, { backgroundColor: "#F44336" }]} />}
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Legend */}
+      <View style={[styles.dotLegend, { paddingHorizontal: hp }]}>
+        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: colors.success }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Open Override</Text></View>
+        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: colors.error }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Closed Override</Text></View>
+        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: "#1B5E20" }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Accepted</Text></View>
+        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: "#2196F3" }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Pending</Text></View>
+      </View>
+
+      {/* Selected Date Panel */}
+      <View style={{ paddingHorizontal: hp, marginTop: 8 }}>
+        {/* Workday Panel */}
+        {renderWorkdayPanel(selectedDate)}
+
+        {/* Header + Book Button */}
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12, marginBottom: 8 }}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>
+            {formatDateDisplay(selectedDate)}
+          </Text>
+          {isDayAvailable(selectedDate) && !isDateInPast(selectedDate) && (
+            <Pressable
+              onPress={() => router.push({ pathname: "/new-booking", params: { date: selectedDate } })}
+              style={({ pressed }) => ({
+                flexDirection: "row", alignItems: "center",
+                backgroundColor: colors.primary, paddingHorizontal: 14, paddingVertical: 8,
+                borderRadius: 20, gap: 6, opacity: pressed ? 0.8 : 1,
+              })}
+            >
+              <IconSymbol name="plus" size={14} color="#FFF" />
+              <Text style={{ color: "#FFF", fontSize: 13, fontWeight: "600" }}>Book Appointment</Text>
+            </Pressable>
+          )}
+        </View>
+
+        {selectedDateAppts.length === 0 ? (
+          <Text style={{ color: colors.muted, fontSize: 13, marginBottom: 12 }}>
+            {isDayAvailable(selectedDate) ? "No appointments on this day" : "Closed — not a working day"}
+          </Text>
+        ) : (
+          selectedDateAppts.map((a) => renderApptCard(a))
+        )}
+      </View>
+
+      {/* Filter Tabs */}
+      <View style={{ paddingHorizontal: hp, marginTop: 20 }}>
+        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>All Appointments</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+          {FILTERS.map((f) => {
+            const isActive = activeFilter === f.key;
+            const count = f.key === "upcoming"
+              ? state.appointments.filter((a) => a.status === "confirmed" && a.date >= todayStr).length
+              : f.key === "requests" ? state.appointments.filter((a) => a.status === "pending").length
+              : f.key === "cancelled" ? state.appointments.filter((a) => a.status === "cancelled").length
+              : state.appointments.filter((a) => a.status === "completed").length;
+            return (
+              <Pressable
+                key={f.key}
+                onPress={() => setActiveFilter(f.key)}
+                style={({ pressed }) => [styles.filterChip, {
+                  backgroundColor: isActive ? filterColors[f.key] : colors.surface,
+                  borderColor: isActive ? filterColors[f.key] : colors.border,
+                  opacity: pressed ? 0.7 : 1,
+                }]}
+              >
+                <Text style={{ fontSize: 13, fontWeight: "600", color: isActive ? "#FFF" : colors.foreground }}>
+                  {f.label} ({count})
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        {hasMultiLoc && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+            <View style={{ flexDirection: "row", gap: 6 }}>
+              <Pressable onPress={() => setCalLocationFilter(null)} style={({ pressed }) => [{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, borderWidth: 1, backgroundColor: !calLocationFilter ? colors.primary + "15" : colors.surface, borderColor: !calLocationFilter ? colors.primary : colors.border, opacity: pressed ? 0.7 : 1 }]}>
+                <Text style={{ fontSize: 11, fontWeight: "600", color: !calLocationFilter ? colors.primary : colors.muted }}>All</Text>
+              </Pressable>
+              {activeLocations.map((loc) => (
+                <Pressable key={loc.id} onPress={() => setCalLocationFilter(loc.id)} style={({ pressed }) => [{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, borderWidth: 1, backgroundColor: calLocationFilter === loc.id ? colors.primary + "15" : colors.surface, borderColor: calLocationFilter === loc.id ? colors.primary : colors.border, opacity: pressed ? 0.7 : 1 }]}>
+                  <Text style={{ fontSize: 11, fontWeight: "600", color: calLocationFilter === loc.id ? colors.primary : colors.muted }}>{loc.name}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </ScrollView>
+        )}
+
+        {filteredAppointments.length === 0 ? (
+          <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={{ color: colors.muted, fontSize: 13 }}>No {activeFilter} appointments</Text>
+          </View>
+        ) : (
+          filteredAppointments.map((appt) => {
+            const svc = getServiceById(appt.serviceId);
+            const client = getClientById(appt.clientId);
+            const staffMember = appt.staffId ? getStaffById(appt.staffId) : null;
+            const isRequest = appt.status === "pending";
+            const statusColor = appt.status === "confirmed" ? "#1B5E20" : appt.status === "pending" ? "#FF9800" : appt.status === "completed" ? colors.primary : "#F44336";
+            return (
+              <View key={appt.id} style={[styles.filterCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: svc?.color ?? colors.primary }]}>
+                <Pressable onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })} style={{ flex: 1 }}>
+                  <View style={styles.filterCardRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>
+                        {formatDateDisplay(appt.date)} · {formatTime(appt.time)} – {getEndTime(appt.time, appt.duration)}
+                      </Text>
+                      <Text style={{ fontSize: 13, color: colors.foreground, marginTop: 2 }}>{svc ? getServiceDisplayName(svc) : "Service"}</Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 1 }}>
+                        <Text style={{ fontSize: 12, color: colors.muted }}>{client?.name} {client?.phone ? `· ${client.phone}` : ""}</Text>
+                        {staffMember && (
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginLeft: 4 }}>
+                            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: staffMember.color || colors.primary }} />
+                            <Text style={{ fontSize: 11, color: staffMember.color || colors.primary, fontWeight: "500" }}>{staffMember.name}</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                    <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
+                      <Text style={{ fontSize: 11, fontWeight: "600", color: statusColor, textTransform: "capitalize" }}>{appt.status}</Text>
+                    </View>
+                  </View>
+                </Pressable>
+                {isRequest && (
+                  <View style={[styles.actionRow, { borderTopColor: colors.border }]}>
+                    <Pressable onPress={() => handleAccept(appt)} style={({ pressed }) => [styles.acceptBtn, { backgroundColor: "#1B5E20", opacity: pressed ? 0.8 : 1 }]}>
+                      <IconSymbol name="checkmark" size={16} color="#FFF" />
+                      <Text style={{ color: "#FFF", fontSize: 13, fontWeight: "600", marginLeft: 4 }}>Accept</Text>
+                    </Pressable>
+                    <Pressable onPress={() => handleReject(appt)} style={({ pressed }) => [styles.rejectBtn, { borderColor: "#F44336", opacity: pressed ? 0.8 : 1 }]}>
+                      <IconSymbol name="xmark" size={16} color="#F44336" />
+                      <Text style={{ color: "#F44336", fontSize: 13, fontWeight: "600", marginLeft: 4 }}>Reject</Text>
+                    </Pressable>
+                  </View>
+                )}
+              </View>
+            );
+          })
+        )}
+      </View>
+    </>
+  );
+
+  // ─── Day View ─────────────────────────────────────────────────────────
+
+  const renderDayView = () => {
+    const dayAppts = locFilter(state.appointments)
+      .filter((a) => a.date === selectedDate)
+      .sort((a, b) => a.time.localeCompare(b.time));
+
+    return (
+      <>
+        {/* Day Navigation */}
+        <View style={[styles.monthHeader, { paddingHorizontal: hp }]}>
+          <Pressable onPress={prevDay} style={({ pressed }) => [styles.navBtn, { opacity: pressed ? 0.5 : 1 }]}>
+            <IconSymbol name="chevron.left" size={22} color={colors.foreground} />
+          </Pressable>
+          <Pressable onPress={jumpToToday}>
+            <Text style={[styles.monthTitle, { color: colors.foreground }]}>
+              {DAY_FULL[new Date(selectedDate + "T12:00:00").getDay()]}, {formatDateDisplay(selectedDate)}
+            </Text>
+          </Pressable>
+          <Pressable onPress={nextDay} style={({ pressed }) => [styles.navBtn, { opacity: pressed ? 0.5 : 1 }]}>
+            <IconSymbol name="chevron.right" size={22} color={colors.foreground} />
+          </Pressable>
+        </View>
+
+        {/* Workday Panel */}
+        <View style={{ paddingHorizontal: hp, marginBottom: 8 }}>
+          {renderWorkdayPanel(selectedDate)}
+        </View>
+
+        {/* Book Button */}
+        {isDayAvailable(selectedDate) && !isDateInPast(selectedDate) && (
+          <View style={{ paddingHorizontal: hp, marginBottom: 12 }}>
+            <Pressable
+              onPress={() => router.push({ pathname: "/new-booking", params: { date: selectedDate } })}
+              style={({ pressed }) => [styles.bookBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
+            >
+              <IconSymbol name="plus" size={16} color="#FFF" />
+              <Text style={{ color: "#FFF", fontSize: 14, fontWeight: "700", marginLeft: 6 }}>Book Appointment</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* Timeline */}
+        <View style={{ paddingHorizontal: hp }}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Timeline</Text>
+          {renderTimeline(selectedDate, dayAppts)}
+        </View>
+      </>
+    );
+  };
+
+  // ─── Week View ────────────────────────────────────────────────────────
+
+  const renderWeekView = () => {
+    const weekApptsByDay = weekDays.map((dateStr) =>
+      locFilter(state.appointments)
+        .filter((a) => a.date === dateStr)
+        .sort((a, b) => a.time.localeCompare(b.time))
+    );
+
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+
+    return (
+      <>
+        {/* Week Navigation */}
+        <View style={[styles.monthHeader, { paddingHorizontal: hp }]}>
+          <Pressable onPress={prevWeek} style={({ pressed }) => [styles.navBtn, { opacity: pressed ? 0.5 : 1 }]}>
+            <IconSymbol name="chevron.left" size={22} color={colors.foreground} />
+          </Pressable>
+          <Pressable onPress={jumpToToday}>
+            <Text style={[styles.monthTitle, { color: colors.foreground }]}>
+              {MONTH_NAMES[weekStart.getMonth()]} {weekStart.getDate()} – {weekEnd.getDate()}, {weekEnd.getFullYear()}
+            </Text>
+          </Pressable>
+          <Pressable onPress={nextWeek} style={({ pressed }) => [styles.navBtn, { opacity: pressed ? 0.5 : 1 }]}>
+            <IconSymbol name="chevron.right" size={22} color={colors.foreground} />
+          </Pressable>
+        </View>
+
+        {/* Week Column Headers */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: hp }}>
+          <View style={{ flexDirection: "row" }}>
+            {/* Time gutter */}
+            <View style={{ width: 44 }} />
+            {weekDays.map((dateStr, i) => {
+              const d = new Date(dateStr + "T12:00:00");
+              const isToday = dateStr === todayStr;
+              const isSelected = dateStr === selectedDate;
+              const available = isDayAvailable(dateStr);
+              return (
+                <Pressable
+                  key={dateStr}
+                  onPress={() => setSelectedDate(dateStr)}
+                  style={{ width: 80, alignItems: "center", paddingVertical: 6 }}
+                >
+                  <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted }}>{DAY_SHORT[d.getDay()]}</Text>
+                  <View style={{
+                    width: 30, height: 30, borderRadius: 15, marginTop: 2,
+                    backgroundColor: isSelected ? colors.primary : isToday ? colors.primary + "20" : "transparent",
+                    alignItems: "center", justifyContent: "center",
+                    opacity: available ? 1 : 0.4,
+                  }}>
+                    <Text style={{ fontSize: 15, fontWeight: "700", color: isSelected ? "#FFF" : isToday ? colors.primary : available ? colors.foreground : colors.muted }}>
+                      {d.getDate()}
+                    </Text>
+                  </View>
+                  {!available && <Text style={{ fontSize: 9, color: colors.error, marginTop: 1 }}>Closed</Text>}
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* Timeline rows */}
+          <View style={{ flexDirection: "column" }}>
+            {timelineHours.map((hour) => {
+              const hourNum = parseInt(hour.split(":")[0]);
+              return (
+                <View key={hour} style={{ flexDirection: "row", height: HOUR_HEIGHT, borderBottomWidth: 0.5, borderBottomColor: colors.border + "60" }}>
+                  {/* Time label */}
+                  <View style={{ width: 44, justifyContent: "flex-start", paddingTop: 2 }}>
+                    <Text style={{ fontSize: 10, color: colors.muted, fontWeight: "500" }}>{formatTimeDisplay(hour)}</Text>
+                  </View>
+                  {/* Day columns */}
+                  {weekDays.map((dateStr, di) => {
+                    const available = isDayAvailable(dateStr);
+                    const effectiveHours = getEffectiveHours(dateStr);
+                    const isWorkingHour = available && effectiveHours
+                      ? timeToMinutes(hour) >= timeToMinutes(effectiveHours.start) &&
+                        timeToMinutes(hour) < timeToMinutes(effectiveHours.end)
+                      : available;
+                    const apptsInSlot = weekApptsByDay[di].filter((a) => {
+                      const startMin = timeToMinutes(a.time);
+                      const endMin = startMin + a.duration;
+                      const hourStart = hourNum * 60;
+                      const hourEnd = (hourNum + 1) * 60;
+                      return startMin < hourEnd && endMin > hourStart;
+                    });
+                    const isColSelected = dateStr === selectedDate;
+                    return (
+                      <View
+                        key={dateStr}
+                        style={{
+                          width: 80,
+                          height: HOUR_HEIGHT,
+                          borderLeftWidth: 0.5,
+                          borderLeftColor: colors.border + "60",
+                          backgroundColor: isColSelected
+                            ? colors.primary + "06"
+                            : !isWorkingHour
+                            ? colors.surface + "80"
+                            : "transparent",
+                          padding: 1,
+                        }}
+                      >
+                        {apptsInSlot.map((appt) => {
+                          const svc = getServiceById(appt.serviceId);
+                          const color = svc?.color ?? colors.primary;
+                          return (
+                            <Pressable
+                              key={appt.id}
+                              onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })}
+                              style={({ pressed }) => ({
+                                flex: 1, backgroundColor: color + "25", borderLeftWidth: 3,
+                                borderLeftColor: color, borderRadius: 4, padding: 2, opacity: pressed ? 0.7 : 1,
+                              })}
+                            >
+                              <Text style={{ fontSize: 9, fontWeight: "700", color: colors.foreground }} numberOfLines={1}>
+                                {formatTime(appt.time)}
+                              </Text>
+                              <Text style={{ fontSize: 9, color: colors.muted }} numberOfLines={1}>
+                                {svc ? getServiceDisplayName(svc) : "Appt"}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    );
+                  })}
+                </View>
+              );
+            })}
+          </View>
+        </ScrollView>
+
+        {/* Selected day detail */}
+        <View style={{ paddingHorizontal: hp, marginTop: 16 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>
+              {DAY_FULL[new Date(selectedDate + "T12:00:00").getDay()]}, {formatDateDisplay(selectedDate)}
+            </Text>
+            {isDayAvailable(selectedDate) && !isDateInPast(selectedDate) && (
+              <Pressable
+                onPress={() => router.push({ pathname: "/new-booking", params: { date: selectedDate } })}
+                style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", backgroundColor: colors.primary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, gap: 4, opacity: pressed ? 0.8 : 1 })}
+              >
+                <IconSymbol name="plus" size={13} color="#FFF" />
+                <Text style={{ color: "#FFF", fontSize: 12, fontWeight: "600" }}>Book</Text>
+              </Pressable>
+            )}
+          </View>
+          {weekApptsByDay[weekDays.indexOf(selectedDate)]?.length === 0 ? (
+            <Text style={{ color: colors.muted, fontSize: 13 }}>
+              {isDayAvailable(selectedDate) ? "No appointments" : "Closed — not a working day"}
+            </Text>
+          ) : (
+            weekApptsByDay[weekDays.indexOf(selectedDate)]?.map((a) => renderApptCard(a))
+          )}
+        </View>
+      </>
+    );
+  };
+
+  // ─── Time Picker Modal ────────────────────────────────────────────────
+
+  const businessHoursForEdit = editingDate ? getBusinessHours(editingDate) : null;
+
+  // ─── Main Render ──────────────────────────────────────────────────────
 
   return (
     <ScreenContainer tabletMaxWidth={0}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
         {/* Header */}
         <View style={{ paddingHorizontal: hp, paddingTop: 4 }}>
-          <Text style={{ fontSize: 24, fontWeight: "700", color: colors.foreground, marginBottom: 12 }}>Calendar</Text>
-        </View>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <Text style={{ fontSize: 24, fontWeight: "700", color: colors.foreground }}>Calendar</Text>
+            {/* Today button */}
+            <Pressable
+              onPress={jumpToToday}
+              style={({ pressed }) => [styles.todayBtn, { borderColor: colors.primary, opacity: pressed ? 0.7 : 1 }]}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "600", color: colors.primary }}>Today</Text>
+            </Pressable>
+          </View>
 
-        {/* Month Header */}
-        <View style={[styles.monthHeader, { paddingHorizontal: hp }]}>
-          <Pressable onPress={prevMonth} style={({ pressed }) => [styles.navBtn, { opacity: pressed ? 0.5 : 1 }]}>
-            <IconSymbol name="chevron.left" size={22} color={colors.foreground} />
-          </Pressable>
-          <Text style={[styles.monthTitle, { color: colors.foreground }]}>
-            {MONTH_NAMES[currentMonth]} {currentYear}
-          </Text>
-          <Pressable onPress={nextMonth} style={({ pressed }) => [styles.navBtn, { opacity: pressed ? 0.5 : 1 }]}>
-            <IconSymbol name="chevron.right" size={22} color={colors.foreground} />
-          </Pressable>
-        </View>
-
-        {/* Day Headers */}
-        <View style={[styles.dayHeaderRow, { paddingHorizontal: hp }]}>
-          {DAY_HEADERS.map((d) => (
-            <View key={d} style={{ width: cellSize, alignItems: "center" }}>
-              <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted }}>{d}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Calendar Grid */}
-        <View style={[styles.calendarGrid, { paddingHorizontal: hp }]}>
-          {calendarDays.map((day, idx) => {
-            if (day === null) return <View key={`e-${idx}`} style={{ width: cellSize, height: cellSize }} />;
-            const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-            const isSelected = dateStr === selectedDate;
-            const isToday = dateStr === todayStr;
-            const isPast = isDateInPast(dateStr);
-            const isWorking = isWorkingDay(dateStr);
-            const isDisabled = isPast || !isWorking;
-            const statuses = dayStatuses[dateStr];
-
-            return (
+          {/* View Switcher */}
+          <View style={styles.viewSwitcher}>
+            {(["month", "week", "day"] as CalendarView[]).map((v) => (
               <Pressable
-                key={dateStr}
-                onPress={() => {
-                  if (!isDisabled) setSelectedDate(dateStr);
-                }}
-                disabled={isDisabled}
+                key={v}
+                onPress={() => setCalendarView(v)}
                 style={({ pressed }) => [
-                  styles.dayCell,
+                  styles.viewTab,
                   {
-                    width: cellSize,
-                    height: cellSize,
-                    backgroundColor: isSelected ? colors.primary : "transparent",
-                    borderRadius: cellSize / 2,
-                    opacity: isPast ? 0.25 : !isWorking ? 0.3 : pressed ? 0.7 : 1,
+                    backgroundColor: calendarView === v ? colors.primary : colors.surface,
+                    borderColor: calendarView === v ? colors.primary : colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                    flex: 1,
                   },
                 ]}
               >
-                <Text
-                  style={{
-                    fontSize: 15,
-                    fontWeight: isToday || isSelected ? "700" : "400",
-                    color: isSelected ? "#FFF" : isToday ? colors.primary : isDisabled ? colors.muted : colors.foreground,
-                    textDecorationLine: !isWorking && !isPast ? "line-through" : "none",
-                  }}
-                >
-                  {day}
+                <Text style={{ fontSize: 13, fontWeight: "600", color: calendarView === v ? "#FFF" : colors.foreground, textTransform: "capitalize" }}>
+                  {v}
                 </Text>
-                {/* Status dots */}
-                <View style={styles.dotsRow}>
-                  {statuses?.has("confirmed") && <View style={[styles.dot, { backgroundColor: "#1B5E20" }]} />}
-                  {statuses?.has("pending") && <View style={[styles.dot, { backgroundColor: "#2196F3" }]} />}
-                  {statuses?.has("cancelled") && <View style={[styles.dot, { backgroundColor: "#F44336" }]} />}
-                </View>
               </Pressable>
-            );
-          })}
-        </View>
-
-        {/* Dot Legend */}
-        <View style={[styles.dotLegend, { paddingHorizontal: hp }]}>
-          <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: colors.muted, opacity: 0.4 }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Closed</Text></View>
-          <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: "#1B5E20" }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Accepted</Text></View>
-          <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: "#2196F3" }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Pending</Text></View>
-          <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: "#F44336" }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Cancelled</Text></View>
-        </View>
-
-        {/* Selected Date Appointments */}
-        <View style={{ paddingHorizontal: hp, marginTop: 8 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>
-              {formatDateDisplay(selectedDate)}
-            </Text>
-            {isWorkingDay(selectedDate) && !isDateInPast(selectedDate) && (
-              <Pressable
-                onPress={handleBookAppointment}
-                style={({ pressed }) => ({
-                  flexDirection: "row",
-                  alignItems: "center",
-                  backgroundColor: colors.primary,
-                  paddingHorizontal: 14,
-                  paddingVertical: 8,
-                  borderRadius: 20,
-                  gap: 6,
-                  opacity: pressed ? 0.8 : 1,
-                })}
-              >
-                <IconSymbol name="plus" size={14} color="#FFF" />
-                <Text style={{ color: "#FFF", fontSize: 13, fontWeight: "600" }}>Book Appointment</Text>
-              </Pressable>
-            )}
+            ))}
           </View>
-          {selectedDateAppts.length === 0 ? (
-            <Text style={{ color: colors.muted, fontSize: 13, marginTop: 4, marginBottom: 12 }}>
-              {isWorkingDay(selectedDate) ? "No appointments on this day" : "Closed — not a working day"}
-            </Text>
-          ) : (
-            selectedDateAppts.map((appt) => {
-              const svc = getServiceById(appt.serviceId);
-              const client = getClientById(appt.clientId);
-              const staff = appt.staffId ? getStaffById(appt.staffId) : null;
-              const statusColor =
-                appt.status === "confirmed" ? "#1B5E20"
-                : appt.status === "pending" ? "#FF9800"
-                : appt.status === "completed" ? colors.primary
-                : "#F44336";
-              return (
-                <Pressable
-                  key={appt.id}
-                  onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })}
-                  style={({ pressed }) => [styles.apptCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: svc?.color ?? colors.primary, opacity: pressed ? 0.8 : 1 }]}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>
-                      {formatTime(appt.time)} - {getEndTime(appt.time, appt.duration)}
-                    </Text>
-                    <Text style={{ fontSize: 13, fontWeight: "500", color: colors.foreground, marginTop: 2 }}>
-                      {svc ? getServiceDisplayName(svc) : "Service"}
-                    </Text>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 1 }}>
-                      <Text style={{ fontSize: 12, color: colors.muted }}>{client?.name}</Text>
-                      {staff && (
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginLeft: 4 }}>
-                          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: staff.color || colors.primary }} />
-                          <Text style={{ fontSize: 11, color: staff.color || colors.primary, fontWeight: "500" }}>{staff.name}</Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                  <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
-                    <Text style={{ fontSize: 11, fontWeight: "600", color: statusColor, textTransform: "capitalize" }}>{appt.status}</Text>
-                  </View>
-                </Pressable>
-              );
-            })
-          )}
         </View>
 
-        {/* Filter Tabs */}
-        <View style={{ paddingHorizontal: hp, marginTop: 20 }}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Appointments</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-            {FILTERS.map((f) => {
-              const isActive = activeFilter === f.key;
-              const count = f.key === "upcoming"
-                ? state.appointments.filter((a) => a.status === "confirmed" && a.date >= todayStr).length
-                : f.key === "requests"
-                ? state.appointments.filter((a) => a.status === "pending").length
-                : f.key === "cancelled"
-                ? state.appointments.filter((a) => a.status === "cancelled").length
-                : state.appointments.filter((a) => a.status === "completed").length;
-
-              return (
-                <Pressable
-                  key={f.key}
-                  onPress={() => setActiveFilter(f.key)}
-                  style={({ pressed }) => [
-                    styles.filterChip,
-                    {
-                      backgroundColor: isActive ? filterColors[f.key] : colors.surface,
-                      borderColor: isActive ? filterColors[f.key] : colors.border,
-                      opacity: pressed ? 0.7 : 1,
-                    },
-                  ]}
-                >
-                  <Text style={{ fontSize: 13, fontWeight: "600", color: isActive ? "#FFF" : colors.foreground }}>
-                    {f.label} ({count})
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-
-          {/* Location Filter */}
-          {hasMultiLoc && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-              <View style={{ flexDirection: "row", gap: 6 }}>
-                <Pressable
-                  onPress={() => setCalLocationFilter(null)}
-                  style={({ pressed }) => [{
-                    paddingHorizontal: 10,
-                    paddingVertical: 5,
-                    borderRadius: 14,
-                    borderWidth: 1,
-                    backgroundColor: !calLocationFilter ? colors.primary + "15" : colors.surface,
-                    borderColor: !calLocationFilter ? colors.primary : colors.border,
-                    opacity: pressed ? 0.7 : 1,
-                  }]}
-                >
-                  <Text style={{ fontSize: 11, fontWeight: "600", color: !calLocationFilter ? colors.primary : colors.muted }}>All</Text>
-                </Pressable>
-                {activeLocations.map((loc) => (
-                  <Pressable
-                    key={loc.id}
-                    onPress={() => setCalLocationFilter(loc.id)}
-                    style={({ pressed }) => [{
-                      paddingHorizontal: 10,
-                      paddingVertical: 5,
-                      borderRadius: 14,
-                      borderWidth: 1,
-                      backgroundColor: calLocationFilter === loc.id ? colors.primary + "15" : colors.surface,
-                      borderColor: calLocationFilter === loc.id ? colors.primary : colors.border,
-                      opacity: pressed ? 0.7 : 1,
-                    }]}
-                  >
-                    <Text style={{ fontSize: 11, fontWeight: "600", color: calLocationFilter === loc.id ? colors.primary : colors.muted }}>{loc.name}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </ScrollView>
-          )}
-
-          {/* Filtered List */}
-          {filteredAppointments.length === 0 ? (
-            <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={{ color: colors.muted, fontSize: 13 }}>No {activeFilter} appointments</Text>
-            </View>
-          ) : (
-            filteredAppointments.map((appt) => {
-              const svc = getServiceById(appt.serviceId);
-              const client = getClientById(appt.clientId);
-              const staffMember = appt.staffId ? getStaffById(appt.staffId) : null;
-              const isRequest = appt.status === "pending";
-              return (
-                <View
-                  key={appt.id}
-                  style={[styles.filterCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: svc?.color ?? colors.primary }]}
-                >
-                  <Pressable
-                    onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })}
-                    style={{ flex: 1 }}
-                  >
-                    <View style={styles.filterCardRow}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>
-                          {formatDateDisplay(appt.date)} · {formatTime(appt.time)} - {getEndTime(appt.time, appt.duration)}
-                        </Text>
-                        <Text style={{ fontSize: 13, color: colors.foreground, marginTop: 2 }}>
-                          {svc ? getServiceDisplayName(svc) : "Service"}
-                        </Text>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 1 }}>
-                          <Text style={{ fontSize: 12, color: colors.muted }}>{client?.name} {client?.phone ? `· ${client.phone}` : ""}</Text>
-                          {staffMember && (
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginLeft: 4 }}>
-                              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: staffMember.color || colors.primary }} />
-                              <Text style={{ fontSize: 11, color: staffMember.color || colors.primary, fontWeight: "500" }}>{staffMember.name}</Text>
-                            </View>
-                          )}
-                        </View>
-                      </View>
-                    </View>
-                  </Pressable>
-                  {isRequest && (
-                    <View style={[styles.actionRow, { borderTopColor: colors.border }]}>
-                      <Pressable
-                        onPress={() => handleAccept(appt)}
-                        style={({ pressed }) => [styles.acceptBtn, { backgroundColor: "#1B5E20", opacity: pressed ? 0.8 : 1 }]}
-                      >
-                        <IconSymbol name="checkmark" size={16} color="#FFF" />
-                        <Text style={{ color: "#FFF", fontSize: 13, fontWeight: "600", marginLeft: 4 }}>Accept</Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => handleReject(appt)}
-                        style={({ pressed }) => [styles.rejectBtn, { borderColor: "#F44336", opacity: pressed ? 0.8 : 1 }]}
-                      >
-                        <IconSymbol name="xmark" size={16} color="#F44336" />
-                        <Text style={{ color: "#F44336", fontSize: 13, fontWeight: "600", marginLeft: 4 }}>Reject</Text>
-                      </Pressable>
-                    </View>
-                  )}
-                </View>
-              );
-            })
-          )}
-        </View>
+        {calendarView === "month" && renderMonthView()}
+        {calendarView === "day" && renderDayView()}
+        {calendarView === "week" && renderWeekView()}
       </ScrollView>
+
+      {/* Time Picker Modal */}
+      <Modal
+        visible={showTimePickerModal}
+        transparent
+        animationType="slide"
+        onRequestClose={handleCancelTimeOverride}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground, marginBottom: 4 }}>
+              Set Working Hours
+            </Text>
+            {editingDate && (
+              <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 16 }}>
+                {formatDateDisplay(editingDate)}
+                {businessHoursForEdit ? ` · Business Hours: ${formatTimeDisplay(businessHoursForEdit.start)} – ${formatTimeDisplay(businessHoursForEdit.end)}` : ""}
+              </Text>
+            )}
+
+            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground, marginBottom: 8 }}>Start Time</Text>
+            <ScrollWheelTimePicker
+              value={draftStart}
+              onChange={setDraftStart}
+              stepMinutes={15}
+              minTime={businessHoursForEdit?.start}
+              maxTime={businessHoursForEdit?.end}
+            />
+
+            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground, marginTop: 16, marginBottom: 8 }}>End Time</Text>
+            <ScrollWheelTimePicker
+              value={draftEnd}
+              onChange={setDraftEnd}
+              stepMinutes={15}
+              minTime={businessHoursForEdit?.start}
+              maxTime={businessHoursForEdit?.end}
+            />
+
+            <View style={{ flexDirection: "row", gap: 12, marginTop: 20 }}>
+              <Pressable
+                onPress={handleCancelTimeOverride}
+                style={({ pressed }) => [styles.modalBtn, { borderColor: colors.border, backgroundColor: colors.surface, opacity: pressed ? 0.7 : 1, flex: 1 }]}
+              >
+                <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleSaveTimeOverride}
+                style={({ pressed }) => [styles.modalBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1, flex: 1 }]}
+              >
+                <Text style={{ fontSize: 15, fontWeight: "700", color: "#FFF" }}>Save</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -539,19 +1076,35 @@ const styles = StyleSheet.create({
   dayHeaderRow: { flexDirection: "row", marginBottom: 4 },
   calendarGrid: { flexDirection: "row", flexWrap: "wrap", width: "100%" },
   dayCell: { alignItems: "center", justifyContent: "center" },
-  dotsRow: { flexDirection: "row", gap: 2, position: "absolute", bottom: 4 },
-  dot: { width: 5, height: 5, borderRadius: 2.5 },
-  dotLegend: { flexDirection: "row", justifyContent: "center", gap: 14, marginTop: 6, marginBottom: 8 },
+  dotsRow: { flexDirection: "row", gap: 2, position: "absolute", bottom: 3 },
+  dot: { width: 4, height: 4, borderRadius: 2 },
+  overrideDot: { width: 5, height: 5, borderRadius: 2.5, position: "absolute", top: 3, right: 6 },
+  dotLegend: { flexDirection: "row", justifyContent: "center", gap: 12, marginTop: 6, marginBottom: 8, flexWrap: "wrap" },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   legendDot: { width: 7, height: 7, borderRadius: 3.5 },
   sectionTitle: { fontSize: 16, fontWeight: "700", marginBottom: 8 },
-  apptCard: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12, borderWidth: 1, borderLeftWidth: 4, marginBottom: 8 },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  apptCard: { flexDirection: "column", padding: 12, borderRadius: 12, borderWidth: 1, borderLeftWidth: 4, marginBottom: 8 },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, alignSelf: "flex-start" },
   filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, marginRight: 8 },
   emptyState: { alignItems: "center", paddingVertical: 24, borderRadius: 14, borderWidth: 1 },
   filterCard: { borderRadius: 14, padding: 14, borderWidth: 1, borderLeftWidth: 4, marginBottom: 10 },
   filterCardRow: { flexDirection: "row", alignItems: "center" },
-  actionRow: { flexDirection: "row", gap: 10, marginTop: 12, paddingTop: 10, borderTopWidth: 1, width: "100%" },
+  actionRow: { flexDirection: "row", gap: 10, marginTop: 10, paddingTop: 10, borderTopWidth: 1, width: "100%" },
   acceptBtn: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, flex: 1, justifyContent: "center", minHeight: 40 },
   rejectBtn: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, flex: 1, justifyContent: "center", minHeight: 40 },
+  workdayPanel: { borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 4 },
+  editHoursBtn: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, marginTop: 10, alignSelf: "flex-start" },
+  resetBtn: { paddingVertical: 6, marginTop: 6 },
+  bookBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 12, borderRadius: 14, gap: 8 },
+  viewSwitcher: { flexDirection: "row", gap: 8, marginBottom: 12 },
+  viewTab: { paddingVertical: 8, borderRadius: 12, borderWidth: 1, alignItems: "center" },
+  todayBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 14, borderWidth: 1.5 },
+  timelineContainer: { borderRadius: 14, borderWidth: 1, overflow: "hidden", marginBottom: 16 },
+  timelineRow: { flexDirection: "row", minHeight: 52, borderBottomWidth: 0.5 },
+  timelineLabel: { width: 56, paddingTop: 6, paddingLeft: 8, justifyContent: "flex-start" },
+  timelineSlot: { flex: 1, padding: 4, gap: 2 },
+  timelineAppt: { borderLeftWidth: 3, borderRadius: 6, padding: 6, marginBottom: 2 },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, paddingBottom: 40 },
+  modalBtn: { paddingVertical: 14, borderRadius: 14, borderWidth: 1, alignItems: "center" },
 });
