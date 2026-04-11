@@ -52,7 +52,7 @@ export default function StaffScreen() {
   };
 
   const getWorkdaySummary = (member: StaffMember): string => {
-    if (!member.workingHours) return "Business Hours";
+    if (!member.workingHours || Object.keys(member.workingHours).length === 0) return "Business Hours";
     const abbr: Record<string, string> = {
       monday: "Mon", tuesday: "Tue", wednesday: "Wed",
       thursday: "Thu", friday: "Fri", saturday: "Sat", sunday: "Sun",
