@@ -592,3 +592,8 @@
 - [x] Replace time inputs with ScrollWheelTimePicker in new-booking.tsx (uses slot chips, not text input)
 - [x] Wire businessHoursEndDate into calendar and booking to block dates after expiry
 - [x] Redesign Week view: horizontal ScrollView, today first, each day = header + Workday switch + full timeline (same as Day view)
+- [x] Fix ScrollWheelTimePicker: AM/PM column clipping, proper column widths
+- [x] Fix ScrollWheelTimePicker: min/max bounds correctly restrict visible items (not just onChange)
+- [x] Fix calendar Workday modal: correct Business Hours bounds passed to pickers
+- [x] Fix saved custom hours override Business Hours in all booking flows
+- [x] Apply consistent layout fixes to schedule-settings.tsx time picker modal

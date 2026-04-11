@@ -707,9 +707,17 @@ export default function ScheduleSettingsScreen() {
                 <IconSymbol name="xmark" size={22} color={colors.foreground} />
               </Pressable>
             </View>
-            <View style={{ flexDirection: "row", gap: 16, marginBottom: 20 }}>
+            <View style={{ flexDirection: "row", marginBottom: 8 }}>
               <View style={{ flex: 1, alignItems: "center" }}>
-                <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 8 }}>START TIME</Text>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.foreground, letterSpacing: 0.5, marginBottom: 8 }}>START TIME</Text>
+              </View>
+              <View style={{ width: 1 }} />
+              <View style={{ flex: 1, alignItems: "center" }}>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.foreground, letterSpacing: 0.5, marginBottom: 8 }}>END TIME</Text>
+              </View>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: 20 }}>
+              <View style={{ flex: 1, alignItems: "center" }}>
                 <ScrollWheelTimePicker
                   value={draftStart}
                   onChange={setDraftStartSync}
@@ -717,9 +725,8 @@ export default function ScheduleSettingsScreen() {
                   maxTime={draftEnd}
                 />
               </View>
-              <View style={{ width: 1, backgroundColor: colors.border, marginVertical: 8 }} />
+              <View style={{ width: 1, backgroundColor: colors.border, alignSelf: "stretch", marginHorizontal: 4 }} />
               <View style={{ flex: 1, alignItems: "center" }}>
-                <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 8 }}>END TIME</Text>
                 <ScrollWheelTimePicker
                   value={draftEnd}
                   onChange={setDraftEndSync}
@@ -753,9 +760,17 @@ export default function ScheduleSettingsScreen() {
                 <IconSymbol name="xmark" size={22} color={colors.foreground} />
               </Pressable>
             </View>
-            <View style={{ flexDirection: "row", gap: 16, marginBottom: 20 }}>
+            <View style={{ flexDirection: "row", marginBottom: 8 }}>
               <View style={{ flex: 1, alignItems: "center" }}>
-                <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 8 }}>START TIME</Text>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.foreground, letterSpacing: 0.5, marginBottom: 8 }}>START TIME</Text>
+              </View>
+              <View style={{ width: 1 }} />
+              <View style={{ flex: 1, alignItems: "center" }}>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.foreground, letterSpacing: 0.5, marginBottom: 8 }}>END TIME</Text>
+              </View>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: 20 }}>
+              <View style={{ flex: 1, alignItems: "center" }}>
                 <ScrollWheelTimePicker
                   value={customDraftStart}
                   onChange={setCustomDraftStartSync}
@@ -763,9 +778,8 @@ export default function ScheduleSettingsScreen() {
                   maxTime={customDraftEnd}
                 />
               </View>
-              <View style={{ width: 1, backgroundColor: colors.border, marginVertical: 8 }} />
+              <View style={{ width: 1, backgroundColor: colors.border, alignSelf: "stretch", marginHorizontal: 4 }} />
               <View style={{ flex: 1, alignItems: "center" }}>
-                <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 8 }}>END TIME</Text>
                 <ScrollWheelTimePicker
                   value={customDraftEnd}
                   onChange={setCustomDraftEndSync}

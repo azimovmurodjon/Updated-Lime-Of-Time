@@ -1007,45 +1007,58 @@ export default function CalendarScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalSheet, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            {/* Header */}
             <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground, marginBottom: 4 }}>
               Set Working Hours
             </Text>
             {editingDate && (
-              <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 16 }}>
+              <Text style={{ fontSize: 13, color: colors.primary, marginBottom: 16 }}>
                 {formatDateDisplay(editingDate)}
-                {businessHoursForEdit ? ` · Business Hours: ${formatTimeDisplay(businessHoursForEdit.start)} – ${formatTimeDisplay(businessHoursForEdit.end)}` : ""}
+                {businessHoursForEdit
+                  ? ` · Business Hours: ${formatTimeDisplay(businessHoursForEdit.start)} – ${formatTimeDisplay(businessHoursForEdit.end)}`
+                  : " · No Business Hours set for this day"}
               </Text>
             )}
 
-            {/* Side-by-side Start and End pickers */}
-            <View style={{ flexDirection: "row", gap: 12 }}>
+            {/* Column labels */}
+            <View style={{ flexDirection: "row", marginBottom: 8 }}>
               <View style={{ flex: 1, alignItems: "center" }}>
-                <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground, marginBottom: 8 }}>Start Time</Text>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.foreground, letterSpacing: 0.5 }}>START TIME</Text>
+              </View>
+              <View style={{ width: 1 }} />
+              <View style={{ flex: 1, alignItems: "center" }}>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.foreground, letterSpacing: 0.5 }}>END TIME</Text>
+              </View>
+            </View>
+
+            {/* Side-by-side pickers with divider */}
+            <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
+              <View style={{ flex: 1, alignItems: "center" }}>
                 <ScrollWheelTimePicker
                   value={draftStart}
                   onChange={setDraftStartSync}
                   stepMinutes={15}
-                  minTime={businessHoursForEdit?.start}
-                  maxTime={businessHoursForEdit?.end}
+                  minTime={businessHoursForEdit?.start ?? "00:00"}
+                  maxTime={businessHoursForEdit?.end ?? "23:45"}
                 />
               </View>
-              <View style={{ width: 1, backgroundColor: colors.border, marginVertical: 4 }} />
+              <View style={{ width: 1, backgroundColor: colors.border, alignSelf: "stretch", marginHorizontal: 4 }} />
               <View style={{ flex: 1, alignItems: "center" }}>
-                <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground, marginBottom: 8 }}>End Time</Text>
                 <ScrollWheelTimePicker
                   value={draftEnd}
                   onChange={setDraftEndSync}
                   stepMinutes={15}
-                  minTime={businessHoursForEdit?.start}
-                  maxTime={businessHoursForEdit?.end}
+                  minTime={businessHoursForEdit?.start ?? "00:00"}
+                  maxTime={businessHoursForEdit?.end ?? "23:45"}
                 />
               </View>
             </View>
 
+            {/* Buttons */}
             <View style={{ flexDirection: "row", gap: 12, marginTop: 20 }}>
               <Pressable
                 onPress={handleCancelTimeOverride}
-                style={({ pressed }) => [styles.modalBtn, { borderColor: colors.border, backgroundColor: colors.surface, opacity: pressed ? 0.7 : 1, flex: 1 }]}
+                style={({ pressed }) => [styles.modalBtn, { borderColor: colors.border, borderWidth: 1, backgroundColor: colors.surface, opacity: pressed ? 0.7 : 1, flex: 1 }]}
               >
                 <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Cancel</Text>
               </Pressable>
