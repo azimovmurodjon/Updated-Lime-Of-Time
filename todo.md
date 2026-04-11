@@ -591,3 +591,4 @@
 - [x] Replace time inputs with ScrollWheelTimePicker in business-hours-settings.tsx (via schedule-settings.tsx)
 - [x] Replace time inputs with ScrollWheelTimePicker in new-booking.tsx (uses slot chips, not text input)
 - [x] Wire businessHoursEndDate into calendar and booking to block dates after expiry
+- [x] Redesign Week view: horizontal ScrollView, today first, each day = header + Workday switch + full timeline (same as Day view)

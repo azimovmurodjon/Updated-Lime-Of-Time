@@ -825,19 +825,12 @@ export default function CalendarScreen() {
   // ─── Week View ────────────────────────────────────────────────────────
 
   const renderWeekView = () => {
-    const weekApptsByDay = weekDays.map((dateStr) =>
-      locFilter(state.appointments)
-        .filter((a) => a.date === dateStr)
-        .sort((a, b) => a.time.localeCompare(b.time))
-    );
-
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 6);
-    const selectedDayAppts = weekApptsByDay[weekDays.indexOf(selectedDate)] ?? [];
 
     return (
       <>
-        {/* Week Navigation */}
+        {/* Week Navigation Header */}
         <View style={[styles.monthHeader, { paddingHorizontal: hp }]}>
           <Pressable onPress={prevWeek} style={({ pressed }) => [styles.navBtn, { opacity: pressed ? 0.5 : 1 }]}>
             <IconSymbol name="chevron.left" size={22} color={colors.foreground} />
@@ -852,167 +845,103 @@ export default function CalendarScreen() {
           </Pressable>
         </View>
 
-        {/* Week Column Headers + Workday Switches */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: hp }}>
-          <View style={{ flexDirection: "column" }}>
-            {/* Day headers row */}
-            <View style={{ flexDirection: "row" }}>
-              {/* Time gutter */}
-              <View style={{ width: 44 }} />
-              {weekDays.map((dateStr) => {
-                const d = new Date(dateStr + "T12:00:00");
-                const isToday = dateStr === todayStr;
-                const isSelected = dateStr === selectedDate;
-                const isPast = isDateInPast(dateStr);
-                const available = isDayAvailable(dateStr);
-                return (
-                  <Pressable
-                    key={dateStr}
-                    onPress={() => !isPast && setSelectedDate(dateStr)}
-                    style={{ width: 80, alignItems: "center", paddingVertical: 6, opacity: isPast ? 0.35 : 1 }}
-                  >
-                    <Text style={{ fontSize: 11, fontWeight: "600", color: isToday ? colors.primary : colors.muted }}>
-                      {DAY_SHORT[d.getDay()]}
-                    </Text>
-                    <View style={{
-                      width: 32, height: 32, borderRadius: 16, marginTop: 2,
-                      backgroundColor: isSelected ? colors.primary : isToday ? colors.primary + "20" : "transparent",
-                      alignItems: "center", justifyContent: "center",
-                    }}>
-                      <Text style={{ fontSize: 15, fontWeight: "700", color: isSelected ? "#FFF" : isToday ? colors.primary : colors.foreground }}>
-                        {d.getDate()}
-                      </Text>
-                    </View>
-                    {!available && !isPast && (
-                      <Text style={{ fontSize: 9, color: colors.error, marginTop: 1 }}>Closed</Text>
-                    )}
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            {/* Workday switch row */}
-            <View style={{ flexDirection: "row", borderTopWidth: 0.5, borderTopColor: colors.border, marginBottom: 4 }}>
-              <View style={{ width: 44 }} />
-              {weekDays.map((dateStr) => {
-                const isPast = isDateInPast(dateStr);
-                const isAvailable = isDayAvailable(dateStr);
-                return (
-                  <View key={dateStr} style={{ width: 80, alignItems: "center", paddingVertical: 6 }}>
-                    <Text style={{ fontSize: 9, fontWeight: "600", color: colors.muted, marginBottom: 3, textTransform: "uppercase" }}>Workday</Text>
-                    <Switch
-                      value={isAvailable}
-                      onValueChange={(val) => { if (!isPast) handleWorkdayToggle(dateStr, val); }}
-                      disabled={isPast}
-                      trackColor={{ false: colors.border, true: colors.primary + "80" }}
-                      thumbColor={isAvailable ? colors.primary : colors.muted}
-                      style={{ transform: [{ scaleX: 0.75 }, { scaleY: 0.75 }] }}
-                    />
-                  </View>
-                );
-              })}
-            </View>
-
-            {/* Timeline rows */}
-            <View style={{ flexDirection: "column" }}>
-              {timelineHours.map((hour) => {
-                const hourNum = parseInt(hour.split(":")[0]);
-                return (
-                  <View key={hour} style={{ flexDirection: "row", height: HOUR_HEIGHT, borderBottomWidth: 0.5, borderBottomColor: colors.border + "60" }}>
-                    {/* Time label */}
-                    <View style={{ width: 44, justifyContent: "flex-start", paddingTop: 2 }}>
-                      <Text style={{ fontSize: 10, color: colors.muted, fontWeight: "500" }}>{formatTimeDisplay(hour)}</Text>
-                    </View>
-                    {/* Day columns */}
-                    {weekDays.map((dateStr, di) => {
-                      const isPast = isDateInPast(dateStr);
-                      const available = isDayAvailable(dateStr);
-                      const effectiveHours = getEffectiveHours(dateStr);
-                      const isWorkingHour = available && effectiveHours
-                        ? timeToMinutes(hour) >= timeToMinutes(effectiveHours.start) &&
-                          timeToMinutes(hour) < timeToMinutes(effectiveHours.end)
-                        : available;
-                      const apptsInSlot = weekApptsByDay[di].filter((a) => {
-                        const startMin = timeToMinutes(a.time);
-                        const endMin = startMin + a.duration;
-                        const hourStart = hourNum * 60;
-                        const hourEnd = (hourNum + 1) * 60;
-                        return startMin < hourEnd && endMin > hourStart;
-                      });
-                      const isColSelected = dateStr === selectedDate;
-                      return (
-                        <Pressable
-                          key={dateStr}
-                          onPress={() => !isPast && setSelectedDate(dateStr)}
-                          style={{
-                            width: 80,
-                            height: HOUR_HEIGHT,
-                            borderLeftWidth: 0.5,
-                            borderLeftColor: colors.border + "60",
-                            backgroundColor: isPast
-                              ? colors.surface + "40"
-                              : isColSelected
-                              ? colors.primary + "06"
-                              : !isWorkingHour
-                              ? colors.surface + "80"
-                              : "transparent",
-                            padding: 1,
-                          }}
-                        >
-                          {apptsInSlot.map((appt) => {
-                            const svc = getServiceById(appt.serviceId);
-                            const color = svc?.color ?? colors.primary;
-                            return (
-                              <Pressable
-                                key={appt.id}
-                                onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })}
-                                style={({ pressed }) => ({
-                                  flex: 1, backgroundColor: color + "25", borderLeftWidth: 3,
-                                  borderLeftColor: color, borderRadius: 4, padding: 2, opacity: pressed ? 0.7 : 1,
-                                })}
-                              >
-                                <Text style={{ fontSize: 9, fontWeight: "700", color: colors.foreground }} numberOfLines={1}>
-                                  {formatTime(appt.time)}
-                                </Text>
-                                <Text style={{ fontSize: 9, color: colors.muted }} numberOfLines={1}>
-                                  {svc ? getServiceDisplayName(svc) : "Appt"}
-                                </Text>
-                              </Pressable>
-                            );
-                          })}
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                );
-              })}
-            </View>
-          </View>
+        {/* Day strip: compact horizontal day selector */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: hp, gap: 8, paddingBottom: 8 }}
+        >
+          {weekDays.map((dateStr) => {
+            const d = new Date(dateStr + "T12:00:00");
+            const isToday = dateStr === todayStr;
+            const isSelected = dateStr === selectedDate;
+            const isPast = isDateInPast(dateStr);
+            const available = isDayAvailable(dateStr);
+            return (
+              <Pressable
+                key={dateStr}
+                onPress={() => !isPast && setSelectedDate(dateStr)}
+                style={({ pressed }) => ({
+                  alignItems: "center",
+                  paddingVertical: 8,
+                  paddingHorizontal: 10,
+                  borderRadius: 14,
+                  borderWidth: 1.5,
+                  borderColor: isSelected ? colors.primary : isToday ? colors.primary + "40" : colors.border,
+                  backgroundColor: isSelected ? colors.primary + "12" : "transparent",
+                  opacity: isPast ? 0.35 : pressed ? 0.7 : 1,
+                  minWidth: 52,
+                })}
+              >
+                <Text style={{ fontSize: 11, fontWeight: "600", color: isToday ? colors.primary : colors.muted }}>
+                  {DAY_SHORT[d.getDay()]}
+                </Text>
+                <View style={{
+                  width: 30, height: 30, borderRadius: 15, marginTop: 2,
+                  backgroundColor: isSelected ? colors.primary : "transparent",
+                  alignItems: "center", justifyContent: "center",
+                }}>
+                  <Text style={{ fontSize: 15, fontWeight: "700", color: isSelected ? "#FFF" : isToday ? colors.primary : colors.foreground }}>
+                    {d.getDate()}
+                  </Text>
+                </View>
+                {!available && !isPast && (
+                  <Text style={{ fontSize: 8, color: colors.error, marginTop: 2 }}>Closed</Text>
+                )}
+              </Pressable>
+            );
+          })}
         </ScrollView>
 
-        {/* Selected day Workday panel + timeline */}
-        <View style={{ paddingHorizontal: hp, marginTop: 16 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>
+        {/* Selected Day Full Column: same design as Day view */}
+        <View style={{ paddingHorizontal: hp }}>
+          {/* Day Title */}
+          <View style={[styles.monthHeader, { paddingHorizontal: 0 }]}>
+            <Pressable onPress={() => {
+              const d = new Date(selectedDate + "T12:00:00");
+              d.setDate(d.getDate() - 1);
+              setSelectedDate(formatDateStr(d));
+            }} style={({ pressed }) => [styles.navBtn, { opacity: pressed ? 0.5 : 1 }]}>
+              <IconSymbol name="chevron.left" size={20} color={colors.foreground} />
+            </Pressable>
+            <Text style={[styles.monthTitle, { color: colors.foreground, fontSize: 16 }]}>
               {DAY_FULL[new Date(selectedDate + "T12:00:00").getDay()]}, {formatDateDisplay(selectedDate)}
             </Text>
-            {isDayAvailable(selectedDate) && !isDateInPast(selectedDate) && (
-              <Pressable
-                onPress={() => router.push({ pathname: "/new-booking", params: { date: selectedDate } })}
-                style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", backgroundColor: colors.primary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, gap: 4, opacity: pressed ? 0.8 : 1 })}
-              >
-                <IconSymbol name="plus" size={13} color="#FFF" />
-                <Text style={{ color: "#FFF", fontSize: 12, fontWeight: "600" }}>Book</Text>
-              </Pressable>
-            )}
+            <Pressable onPress={() => {
+              const d = new Date(selectedDate + "T12:00:00");
+              d.setDate(d.getDate() + 1);
+              setSelectedDate(formatDateStr(d));
+            }} style={({ pressed }) => [styles.navBtn, { opacity: pressed ? 0.5 : 1 }]}>
+              <IconSymbol name="chevron.right" size={20} color={colors.foreground} />
+            </Pressable>
           </View>
 
-          {/* Workday panel for selected day */}
-          {!isDateInPast(selectedDate) && renderWorkdayPanel(selectedDate)}
+          {/* Workday Panel */}
+          {!isDateInPast(selectedDate) && (
+            <View style={{ marginBottom: 8 }}>
+              {renderWorkdayPanel(selectedDate)}
+            </View>
+          )}
+
+          {/* Book Button */}
+          {isDayAvailable(selectedDate) && !isDateInPast(selectedDate) && (
+            <Pressable
+              onPress={() => router.push({ pathname: "/new-booking", params: { date: selectedDate } })}
+              style={({ pressed }) => [styles.bookBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1, marginBottom: 12 }]}
+            >
+              <IconSymbol name="plus" size={16} color="#FFF" />
+              <Text style={{ color: "#FFF", fontSize: 14, fontWeight: "700", marginLeft: 6 }}>Book Appointment</Text>
+            </Pressable>
+          )}
 
           {/* Timeline */}
-          <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 12 }]}>Timeline</Text>
-          {renderTimeline(selectedDate, selectedDayAppts)}
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Timeline</Text>
+          {renderTimeline(
+            selectedDate,
+            locFilter(state.appointments)
+              .filter((a) => a.date === selectedDate)
+              .sort((a, b) => a.time.localeCompare(b.time))
+          )}
         </View>
       </>
     );
