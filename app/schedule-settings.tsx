@@ -231,7 +231,7 @@ export default function ScheduleSettingsScreen() {
               ]}
             >
               <Text style={{ fontSize: 13, fontWeight: "600", color: scheduleTab === "weekly" ? "#fff" : colors.foreground }}>
-                Weekly Hours
+                Business Hours
               </Text>
             </Pressable>
             <Pressable
@@ -253,7 +253,7 @@ export default function ScheduleSettingsScreen() {
 
           {scheduleTab === "weekly" ? (
             <View>
-              <Text style={{ fontSize: 12, fontWeight: "500", color: colors.muted, marginBottom: 10 }}>Default Weekly Hours</Text>
+              <Text style={{ fontSize: 12, fontWeight: "500", color: colors.muted, marginBottom: 10 }}>Business Hours</Text>
               {DAYS_OF_WEEK.map((day, idx) => {
                 const wh = settings.workingHours[day];
                 const isLast = idx === DAYS_OF_WEEK.length - 1;
