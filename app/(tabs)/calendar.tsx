@@ -283,12 +283,9 @@ export default function CalendarScreen() {
   }, [dispatch, syncToDb, getBusinessHours]);
 
   const handleSaveTimeOverride = useCallback(() => {
-    // Always read from refs to get the latest values regardless of render cycle
-    const dateToSave = editingDateRef.current;
-    const startToSave = draftStart;
-    const endToSave = draftEnd;
+    const dateToSave = editingDateRef.current ?? editingDate;
     if (!dateToSave) return;
-    if (timeToMinutes(endToSave) <= timeToMinutes(startToSave)) {
+    if (timeToMinutes(draftEnd) <= timeToMinutes(draftStart)) {
       setTimeError("End time must be after start time.");
       return;
     }
@@ -296,19 +293,21 @@ export default function CalendarScreen() {
     const override: CustomScheduleDay = {
       date: dateToSave,
       isOpen: true,
-      startTime: startToSave,
-      endTime: endToSave,
+      startTime: draftStart,
+      endTime: draftEnd,
     };
     dispatch({ type: "SET_CUSTOM_SCHEDULE", payload: override });
     syncToDb({ type: "SET_CUSTOM_SCHEDULE", payload: override });
     setShowTimePickerModal(false);
     setEditingDate(null);
+    setCalSubPicker(null);
     editingDateRef.current = null;
-  }, [dispatch, syncToDb]);
+  }, [dispatch, syncToDb, draftStart, draftEnd, editingDate]);
 
   const handleCancelTimeOverride = useCallback(() => {
     setShowTimePickerModal(false);
     setEditingDate(null);
+    setCalSubPicker(null);
     setTimeError(null);
   }, []);
 
