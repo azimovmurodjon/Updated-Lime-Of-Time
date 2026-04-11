@@ -198,6 +198,7 @@ export interface BusinessSettings {
   scheduleMode: "weekly" | "custom"; // which schedule drives availability
   bufferTime: number; // minutes between appointments (0 = no buffer)
   customSlug: string; // custom booking page slug
+  multiStaffMode?: boolean; // enable multi-staff scheduling (default: false for solo business)
 }
 
 export const SERVICE_COLORS = [
