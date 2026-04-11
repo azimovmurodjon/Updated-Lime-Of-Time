@@ -50,7 +50,6 @@ const initialSettings: BusinessSettings = {
   onboardingComplete: false,
   temporaryClosed: false,
   businessLogoUri: "",
-  scheduleMode: "weekly",
   bufferTime: 0,
   customSlug: "",
 };
@@ -541,7 +540,6 @@ function dbOwnerToSettings(owner: any): Partial<BusinessSettings> {
     temporaryClosed: owner.temporaryClosed ?? false,
     onboardingComplete: owner.onboardingComplete ?? false,
     businessLogoUri: owner.businessLogoUri ?? "",
-    scheduleMode: owner.scheduleMode ?? "weekly",
     workingHours: owner.workingHours ?? DEFAULT_WORKING_HOURS,
     cancellationPolicy: owner.cancellationPolicy ?? DEFAULT_CANCELLATION_POLICY,
     bufferTime: owner.bufferTime ?? 0,
@@ -957,7 +955,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             if (settings.notificationsEnabled !== undefined) updateData.notificationsEnabled = settings.notificationsEnabled;
             if (settings.themeMode !== undefined) updateData.themeMode = settings.themeMode;
             if (settings.temporaryClosed !== undefined) updateData.temporaryClosed = settings.temporaryClosed;
-            if (settings.scheduleMode !== undefined) updateData.scheduleMode = settings.scheduleMode;
             if (settings.workingHours !== undefined) updateData.workingHours = settings.workingHours;
             if (settings.cancellationPolicy !== undefined) updateData.cancellationPolicy = settings.cancellationPolicy;
             if ((settings as any).bufferTime !== undefined) updateData.bufferTime = (settings as any).bufferTime;

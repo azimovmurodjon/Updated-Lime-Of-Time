@@ -195,7 +195,6 @@ export interface BusinessSettings {
   onboardingComplete: boolean;
   temporaryClosed: boolean;
   businessLogoUri: string; // local URI for custom uploaded logo
-  scheduleMode: "weekly" | "custom"; // which schedule drives availability
   bufferTime: number; // minutes between appointments (0 = no buffer)
   customSlug: string; // custom booking page slug
   multiStaffMode?: boolean; // enable multi-staff scheduling (default: false for solo business)

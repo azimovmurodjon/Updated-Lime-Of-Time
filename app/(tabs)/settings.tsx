@@ -174,13 +174,7 @@ export default function SettingsScreen() {
       route: "/business-hours-settings" as const,
       color: colors.primary,
     },
-    {
-      title: "Schedule & Hours",
-      subtitle: "Working hours, buffer time, custom days",
-      icon: "calendar.badge.clock" as const,
-      route: "/schedule-settings" as const,
-      color: colors.primary,
-    },
+
     {
       title: "Booking Policies",
       subtitle: "Cancellation fees, booking URL, temp closure",

@@ -73,11 +73,11 @@ export default function PublicBookingScreen() {
       state.settings.workingHours,
       state.appointments,
       30,
-      state.customSchedule,
-      state.settings.scheduleMode,
+      undefined,
+      "weekly",
       state.settings.bufferTime ?? 0
     );
-  }, [selectedDate, state.settings, state.appointments, selectedService, state.customSchedule]);
+  }, [selectedDate, state.settings, state.appointments, selectedService]);
 
   // Date options: next 30 days — mark closed days and days with no available slots
   const dateOptions = useMemo(() => {
@@ -88,30 +88,20 @@ export default function PublicBookingScreen() {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
       const ds = formatDateStr(d);
-      // Check custom schedule override first
-      const customDay = state.customSchedule.find((cs) => cs.date === ds);
-      let closed = false;
-      if (state.settings.scheduleMode === "custom") {
-        closed = !customDay || !customDay.isOpen;
-      } else {
-        if (customDay) {
-          closed = !customDay.isOpen;
-        } else {
-          const dayIndex = d.getDay();
-          const dayName = DAYS_OF_WEEK[dayIndex];
-          const wh = state.settings.workingHours[dayName];
-          closed = !wh || !wh.enabled;
-        }
-      }
+      // Check business hours for the day
+      const dayIndex = d.getDay();
+      const dayName = DAYS_OF_WEEK[dayIndex];
+      const wh = state.settings.workingHours[dayName];
+      const closed = !wh || !wh.enabled;
       let noSlots = false;
       if (!closed) {
-        const slots = generateAvailableSlots(ds, duration, state.settings.workingHours, state.appointments, 30, state.customSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
+        const slots = generateAvailableSlots(ds, duration, state.settings.workingHours, state.appointments, 30, undefined, "weekly", state.settings.bufferTime ?? 0);
         noSlots = slots.length === 0;
       }
       dates.push({ date: ds, closed, noSlots });
     }
     return dates;
-  }, [state.customSchedule, state.settings.workingHours, state.appointments, selectedService, state.settings.defaultDuration]);
+  }, [state.settings.workingHours, state.appointments, selectedService, state.settings.defaultDuration]);
 
   // Get applicable discount for selected time
   const applicableDiscount = useMemo((): Discount | null => {

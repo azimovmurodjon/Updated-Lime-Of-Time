@@ -537,7 +537,6 @@ function ownerToSettings(owner: any) {
     temporaryClosed: owner.temporaryClosed ?? false,
     onboardingComplete: owner.onboardingComplete ?? false,
     businessLogoUri: owner.businessLogoUri ?? "",
-    scheduleMode: owner.scheduleMode ?? "weekly",
     workingHours: owner.workingHours ?? DEFAULT_WORKING_HOURS,
     cancellationPolicy: owner.cancellationPolicy ?? DEFAULT_CANCELLATION_POLICY,
     bufferTime: owner.bufferTime ?? 0,

@@ -634,3 +634,23 @@
 - [x] Test multi-staff mode toggle functionality
 - [x] Test daily overrides work correctly
 - [x] Test all integrations end-to-end
+
+
+## Phase: Complete Business Hours Integration (Remove Old + Integrate New)
+
+- [ ] Remove old weekly hours logic from store
+- [ ] Remove old custom days logic from store
+- [ ] Remove old scheduleMode logic
+- [ ] Update new-booking.tsx to use getAvailableTimeSlots()
+- [ ] Update appointment-detail.tsx to validate against Business Hours
+- [ ] Update staff-calendar.tsx to display Business Hours
+- [ ] Update calendar.tsx to show Business Hours and overrides
+- [ ] Update public booking page to use new availability logic
+- [ ] Remove all hardcoded time slot generation
+- [ ] Test new-booking flow end-to-end
+- [ ] Test appointment detail validation
+- [ ] Test staff calendar display
+- [ ] Test calendar indicators
+- [ ] Test public booking page
+- [ ] Regression test all existing features
+- [ ] Full E2E testing with real data
