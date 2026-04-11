@@ -210,7 +210,7 @@ export default function GiftCardsScreen() {
       ? `\nThis gift card expires on ${new Date(card.expiresAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.`
       : "";
     const personalMsg = card.message ? `\n\n"${card.message}"` : "";
-    const giftUrl = `${PUBLIC_BOOKING_URL}/api/gift/${card.code}`;
+    const giftUrl = `${PUBLIC_BOOKING_URL}/gift/${card.code}`;
     const body = `🎁 You've received a Gift Card from ${businessName}!\n\nIncludes: ${itemList}\nTotal Value: $${total.toFixed(2)}\nGift Code: ${card.code}${personalMsg}${expiryText}\n\nRedeem here: ${giftUrl}\n\n— ${businessName}`;
     const phone = card.recipientPhone ? stripPhoneFormat(card.recipientPhone) : "";
     const smsUrl = Platform.OS === "ios"

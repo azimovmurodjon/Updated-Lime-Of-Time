@@ -127,7 +127,7 @@ export default function LocationsScreen() {
               const slug = state.settings.customSlug;
               // Copy to clipboard or open
               if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                navigator.clipboard.writeText(`Book at ${item.name}: ${PUBLIC_BOOKING_URL}/api/book/${slug}?location=${item.id}`);
+                navigator.clipboard.writeText(`Book at ${item.name}: ${PUBLIC_BOOKING_URL}/book/${slug}?location=${item.id}`);
               }
             }}
             style={({ pressed }) => [styles.bookingLinkRow, { borderTopColor: colors.border, opacity: pressed ? 0.6 : 1 }]}
