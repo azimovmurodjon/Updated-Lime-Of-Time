@@ -157,6 +157,7 @@ describe("Business Profile", () => {
       scheduleMode: "weekly" as const,
       bufferTime: 0,
       customSlug: "",
+      businessHoursEndDate: null,
     };
     expect(settings.profile).toBeDefined();
     expect(settings.profile.ownerName).toBe("");
@@ -297,6 +298,7 @@ describe("Theme Mode", () => {
       scheduleMode: "weekly" as const,
       bufferTime: 0,
       customSlug: "",
+      businessHoursEndDate: null,
     };
     expect(settings.themeMode).toBe("dark");
   });
@@ -316,6 +318,7 @@ describe("Theme Mode", () => {
       scheduleMode: "weekly" as const,
       bufferTime: 0,
       customSlug: "",
+      businessHoursEndDate: null,
     };
     expect(settings.themeMode).toBe("system");
   });
@@ -448,6 +451,7 @@ describe("Cancellation Policy", () => {
       scheduleMode: "weekly" as const,
       bufferTime: 0,
       customSlug: "",
+      businessHoursEndDate: null,
     };
     expect(settings.cancellationPolicy.enabled).toBe(true);
     expect(settings.onboardingComplete).toBe(false);
@@ -572,6 +576,7 @@ describe("Temporary Closed Feature", () => {
       scheduleMode: "weekly" as const,
       bufferTime: 0,
       customSlug: "",
+      businessHoursEndDate: null,
     };
     expect(settings.temporaryClosed).toBe(true);
   });
@@ -591,6 +596,7 @@ describe("Temporary Closed Feature", () => {
       scheduleMode: "weekly" as const,
       bufferTime: 0,
       customSlug: "",
+      businessHoursEndDate: null,
     };
     expect(settings.temporaryClosed).toBe(false);
   });
@@ -673,6 +679,7 @@ describe("Business Logo URI", () => {
       scheduleMode: "weekly" as const,
       bufferTime: 0,
       customSlug: "",
+      businessHoursEndDate: null,
     };
     expect(settings.businessLogoUri).toBe("file:///data/user/0/com.app/cache/photo.jpg");
   });
@@ -692,6 +699,7 @@ describe("Business Logo URI", () => {
       scheduleMode: "weekly" as const,
       bufferTime: 0,
       customSlug: "",
+      businessHoursEndDate: null,
     };
     expect(settings.businessLogoUri).toBe("");
   });
@@ -713,6 +721,7 @@ describe("Logout and Delete Business", () => {
       scheduleMode: "weekly" as const,
       bufferTime: 0,
       customSlug: "",
+      businessHoursEndDate: null,
     };
     // Simulate logout
     const loggedOut = { ...settings, onboardingComplete: false };

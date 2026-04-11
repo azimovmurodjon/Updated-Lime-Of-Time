@@ -198,6 +198,7 @@ export interface BusinessSettings {
   scheduleMode: "weekly" | "custom"; // which schedule drives availability
   bufferTime: number; // minutes between appointments (0 = no buffer)
   customSlug: string; // custom booking page slug
+  businessHoursEndDate: string | null; // ISO date string "YYYY-MM-DD" or null for open-ended
 }
 
 export const SERVICE_COLORS = [

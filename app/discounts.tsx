@@ -20,10 +20,9 @@ import { useState, useCallback, useMemo } from "react";
 import {
   Discount,
   formatTimeDisplay,
-  generateAllTimeOptions,
 } from "@/lib/types";
-
-const TIME_OPTIONS = generateAllTimeOptions();
+import { ScrollWheelTimePicker } from "@/components/scroll-wheel-time-picker";
+import { useRef } from "react";
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
@@ -67,6 +66,24 @@ export default function DiscountsScreen() {
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[] | null>(null);
   const [selectedProductIds, setSelectedProductIds] = useState<string[] | null>(null);
   const [showTimePicker, setShowTimePicker] = useState<"start" | "end" | null>(null);
+  const draftStartRef = useRef(startTime);
+  const draftEndRef = useRef(endTime);
+  const [draftPickerStart, setDraftPickerStart] = useState(startTime);
+  const [draftPickerEnd, setDraftPickerEnd] = useState(endTime);
+
+  const openTimePicker = useCallback((field: "start" | "end") => {
+    draftStartRef.current = startTime;
+    draftEndRef.current = endTime;
+    setDraftPickerStart(startTime);
+    setDraftPickerEnd(endTime);
+    setShowTimePicker(field);
+  }, [startTime, endTime]);
+
+  const saveTimePicker = useCallback(() => {
+    setStartTime(draftStartRef.current);
+    setEndTime(draftEndRef.current);
+    setShowTimePicker(null);
+  }, []);
 
   // Calendar state
   const today = new Date();
@@ -337,7 +354,7 @@ export default function DiscountsScreen() {
       <Text style={[styles.fieldLabel, { color: colors.muted }]}>Time Window</Text>
       <View style={styles.timeRow}>
         <Pressable
-          onPress={() => setShowTimePicker("start")}
+          onPress={() => openTimePicker("start")}
           style={[styles.timeBtn, { backgroundColor: colors.background, borderColor: colors.border }]}
         >
           <IconSymbol name="clock.fill" size={14} color={colors.primary} />
@@ -345,7 +362,7 @@ export default function DiscountsScreen() {
         </Pressable>
         <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "600" }}>to</Text>
         <Pressable
-          onPress={() => setShowTimePicker("end")}
+          onPress={() => openTimePicker("end")}
           style={[styles.timeBtn, { backgroundColor: colors.background, borderColor: colors.border }]}
         >
           <IconSymbol name="clock.fill" size={14} color={colors.primary} />
@@ -606,44 +623,43 @@ export default function DiscountsScreen() {
       )}
 
       {/* Time Picker Modal */}
-      <Modal visible={showTimePicker !== null} transparent animationType="fade">
+      <Modal visible={showTimePicker !== null} transparent animationType="slide">
         <Pressable style={styles.modalOverlay} onPress={() => setShowTimePicker(null)}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+          <Pressable style={[styles.modalContent, { backgroundColor: colors.surface }]} onPress={() => {}}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.foreground }]}>
-                Select {showTimePicker === "start" ? "Start" : "End"} Time
-              </Text>
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>Time Window</Text>
               <Pressable onPress={() => setShowTimePicker(null)} style={({ pressed }) => [pressed && { opacity: 0.6 }]}>
                 <IconSymbol name="xmark" size={20} color={colors.muted} />
               </Pressable>
             </View>
-            <FlatList
-              data={TIME_OPTIONS}
-              keyExtractor={(item) => item}
-              style={{ maxHeight: 340 }}
-              renderItem={({ item }) => {
-                const isActive = (showTimePicker === "start" ? startTime : endTime) === item;
-                return (
-                  <Pressable
-                    onPress={() => {
-                      if (showTimePicker === "start") setStartTime(item);
-                      else setEndTime(item);
-                      setShowTimePicker(null);
-                    }}
-                    style={[
-                      styles.timePickerItem,
-                      { backgroundColor: isActive ? colors.primary + "15" : "transparent", borderColor: isActive ? colors.primary : colors.border },
-                    ]}
-                  >
-                    <Text style={{ color: isActive ? colors.primary : colors.foreground, fontWeight: isActive ? "700" : "400", fontSize: 15, lineHeight: 20 }}>
-                      {formatTimeDisplay(item)}
-                    </Text>
-                    {isActive && <IconSymbol name="checkmark" size={18} color={colors.primary} />}
-                  </Pressable>
-                );
-              }}
-            />
-          </View>
+            <View style={{ flexDirection: "row", gap: 16, marginBottom: 20 }}>
+              <View style={{ flex: 1, alignItems: "center" }}>
+                <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 8 }}>START TIME</Text>
+                <ScrollWheelTimePicker
+                  value={draftPickerStart}
+                  onChange={(v) => { draftStartRef.current = v; setDraftPickerStart(v); }}
+                  stepMinutes={15}
+                  maxTime={draftPickerEnd}
+                />
+              </View>
+              <View style={{ width: 1, backgroundColor: colors.border, marginVertical: 8 }} />
+              <View style={{ flex: 1, alignItems: "center" }}>
+                <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 8 }}>END TIME</Text>
+                <ScrollWheelTimePicker
+                  value={draftPickerEnd}
+                  onChange={(v) => { draftEndRef.current = v; setDraftPickerEnd(v); }}
+                  stepMinutes={15}
+                  minTime={draftPickerStart}
+                />
+              </View>
+            </View>
+            <Pressable
+              onPress={saveTimePicker}
+              style={({ pressed }) => [{ backgroundColor: colors.primary, paddingVertical: 14, borderRadius: 12, alignItems: "center", opacity: pressed ? 0.8 : 1 }]}
+            >
+              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>Apply</Text>
+            </Pressable>
+          </Pressable>
         </Pressable>
       </Modal>
     </ScreenContainer>

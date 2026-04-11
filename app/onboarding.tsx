@@ -542,6 +542,7 @@ function ownerToSettings(owner: any) {
     cancellationPolicy: owner.cancellationPolicy ?? DEFAULT_CANCELLATION_POLICY,
     bufferTime: owner.bufferTime ?? 0,
     customSlug: owner.customSlug ?? "",
+    businessHoursEndDate: owner.businessHoursEndDate ?? null,
     profile: {
       ownerName: owner.ownerName ?? "",
       phone: owner.phone ?? "",

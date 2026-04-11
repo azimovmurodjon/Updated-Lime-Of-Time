@@ -122,19 +122,23 @@ export default function NewBookingScreen() {
       d.setDate(today.getDate() + i);
       const ds = formatDateStr(d);
       const customDay = state.customSchedule.find((cs) => cs.date === ds);
-      let closed = false;
-      if (state.settings.scheduleMode === "custom") {
-        // Custom mode: only dates explicitly in customSchedule and open are available
-        closed = !customDay || !customDay.isOpen;
-      } else {
-        // Weekly mode: custom overrides take priority, then weekly hours
-        if (customDay) {
-          closed = !customDay.isOpen;
+      // Check Active Until expiry first
+      const endDate = state.settings.businessHoursEndDate;
+      let closed = !!(endDate && ds > endDate);
+      if (!closed) {
+        if (state.settings.scheduleMode === "custom") {
+          // Custom mode: only dates explicitly in customSchedule and open are available
+          closed = !customDay || !customDay.isOpen;
         } else {
-          const dayIndex = d.getDay();
-          const dayName = DAYS_OF_WEEK[dayIndex];
-          const wh = state.settings.workingHours[dayName];
-          closed = !wh || !wh.enabled;
+          // Weekly mode: custom overrides take priority, then weekly hours
+          if (customDay) {
+            closed = !customDay.isOpen;
+          } else {
+            const dayIndex = d.getDay();
+            const dayName = DAYS_OF_WEEK[dayIndex];
+            const wh = state.settings.workingHours[dayName];
+            closed = !wh || !wh.enabled;
+          }
         }
       }
       let noSlots = false;

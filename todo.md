@@ -575,7 +575,7 @@
 - [x] Add time range picker per day when Workday is ON (within Business Hours)
 - [x] Persist dailyOverrides to customSchedule table in database
 - [x] Build reusable ScrollWheelTimePicker (12-hour, AM/PM, flexible minutes)
-- [ ] Replace all time inputs app-wide with ScrollWheelTimePicker
+- [x] Replace all time inputs app-wide with ScrollWheelTimePicker (schedule-settings, staff-form, discounts)
 - [x] Add Day view to calendar (appointment timeline like staff-calendar)
 - [x] Add Week view to calendar (7-column layout with appointment slots)
 - [x] Wire dailyOverrides into new-booking.tsx booking flow (already integrated via customSchedule)
@@ -584,3 +584,10 @@
 - [x] Restrict ScrollWheelTimePicker items to Business Hours range only
 - [x] Show Start and End time pickers side-by-side horizontally
 - [x] Fix ScrollWheelTimePicker scroll animation lag
+- [x] Rebuild Week view: standard weekly navigation, past days disabled, today first and highlighted
+- [x] Add Workday switches per day column in Week view
+- [x] Add day timeline for selected day in Week view
+- [x] Add Business Hours Active Until toggle + date picker in settings
+- [x] Replace time inputs with ScrollWheelTimePicker in business-hours-settings.tsx (via schedule-settings.tsx)
+- [x] Replace time inputs with ScrollWheelTimePicker in new-booking.tsx (uses slot chips, not text input)
+- [x] Wire businessHoursEndDate into calendar and booking to block dates after expiry

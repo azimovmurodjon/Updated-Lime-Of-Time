@@ -107,7 +107,11 @@ export default function CalendarScreen() {
   }, [state.customSchedule]);
 
   // A day is "available" if it has a Workday ON override, or if it's a Business Hours working day with no override
+  // Also blocked if date is after businessHoursEndDate
   const isDayAvailable = useCallback((dateStr: string): boolean => {
+    // Check Active Until expiry
+    const endDate = state.settings.businessHoursEndDate;
+    if (endDate && dateStr > endDate) return false;
     const custom = getCustomDay(dateStr);
     if (custom) return custom.isOpen;
     // Fall back to Business Hours
@@ -115,7 +119,7 @@ export default function CalendarScreen() {
     const dayName = DAY_NAMES[d.getDay()];
     const wh = state.settings.workingHours?.[dayName];
     return !!(wh && wh.enabled);
-  }, [getCustomDay, state.settings.workingHours]);
+  }, [getCustomDay, state.settings.workingHours, state.settings.businessHoursEndDate]);
 
   // Get effective working hours for a date (custom override or business hours)
   const getEffectiveHours = useCallback((dateStr: string): { start: string; end: string } | null => {
@@ -829,6 +833,7 @@ export default function CalendarScreen() {
 
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 6);
+    const selectedDayAppts = weekApptsByDay[weekDays.indexOf(selectedDate)] ?? [];
 
     return (
       <>
@@ -847,114 +852,147 @@ export default function CalendarScreen() {
           </Pressable>
         </View>
 
-        {/* Week Column Headers */}
+        {/* Week Column Headers + Workday Switches */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: hp }}>
-          <View style={{ flexDirection: "row" }}>
-            {/* Time gutter */}
-            <View style={{ width: 44 }} />
-            {weekDays.map((dateStr, i) => {
-              const d = new Date(dateStr + "T12:00:00");
-              const isToday = dateStr === todayStr;
-              const isSelected = dateStr === selectedDate;
-              const available = isDayAvailable(dateStr);
-              return (
-                <Pressable
-                  key={dateStr}
-                  onPress={() => setSelectedDate(dateStr)}
-                  style={{ width: 80, alignItems: "center", paddingVertical: 6 }}
-                >
-                  <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted }}>{DAY_SHORT[d.getDay()]}</Text>
-                  <View style={{
-                    width: 30, height: 30, borderRadius: 15, marginTop: 2,
-                    backgroundColor: isSelected ? colors.primary : isToday ? colors.primary + "20" : "transparent",
-                    alignItems: "center", justifyContent: "center",
-                    opacity: available ? 1 : 0.4,
-                  }}>
-                    <Text style={{ fontSize: 15, fontWeight: "700", color: isSelected ? "#FFF" : isToday ? colors.primary : available ? colors.foreground : colors.muted }}>
-                      {d.getDate()}
-                    </Text>
-                  </View>
-                  {!available && <Text style={{ fontSize: 9, color: colors.error, marginTop: 1 }}>Closed</Text>}
-                </Pressable>
-              );
-            })}
-          </View>
-
-          {/* Timeline rows */}
           <View style={{ flexDirection: "column" }}>
-            {timelineHours.map((hour) => {
-              const hourNum = parseInt(hour.split(":")[0]);
-              return (
-                <View key={hour} style={{ flexDirection: "row", height: HOUR_HEIGHT, borderBottomWidth: 0.5, borderBottomColor: colors.border + "60" }}>
-                  {/* Time label */}
-                  <View style={{ width: 44, justifyContent: "flex-start", paddingTop: 2 }}>
-                    <Text style={{ fontSize: 10, color: colors.muted, fontWeight: "500" }}>{formatTimeDisplay(hour)}</Text>
+            {/* Day headers row */}
+            <View style={{ flexDirection: "row" }}>
+              {/* Time gutter */}
+              <View style={{ width: 44 }} />
+              {weekDays.map((dateStr) => {
+                const d = new Date(dateStr + "T12:00:00");
+                const isToday = dateStr === todayStr;
+                const isSelected = dateStr === selectedDate;
+                const isPast = isDateInPast(dateStr);
+                const available = isDayAvailable(dateStr);
+                return (
+                  <Pressable
+                    key={dateStr}
+                    onPress={() => !isPast && setSelectedDate(dateStr)}
+                    style={{ width: 80, alignItems: "center", paddingVertical: 6, opacity: isPast ? 0.35 : 1 }}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: "600", color: isToday ? colors.primary : colors.muted }}>
+                      {DAY_SHORT[d.getDay()]}
+                    </Text>
+                    <View style={{
+                      width: 32, height: 32, borderRadius: 16, marginTop: 2,
+                      backgroundColor: isSelected ? colors.primary : isToday ? colors.primary + "20" : "transparent",
+                      alignItems: "center", justifyContent: "center",
+                    }}>
+                      <Text style={{ fontSize: 15, fontWeight: "700", color: isSelected ? "#FFF" : isToday ? colors.primary : colors.foreground }}>
+                        {d.getDate()}
+                      </Text>
+                    </View>
+                    {!available && !isPast && (
+                      <Text style={{ fontSize: 9, color: colors.error, marginTop: 1 }}>Closed</Text>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Workday switch row */}
+            <View style={{ flexDirection: "row", borderTopWidth: 0.5, borderTopColor: colors.border, marginBottom: 4 }}>
+              <View style={{ width: 44 }} />
+              {weekDays.map((dateStr) => {
+                const isPast = isDateInPast(dateStr);
+                const isAvailable = isDayAvailable(dateStr);
+                return (
+                  <View key={dateStr} style={{ width: 80, alignItems: "center", paddingVertical: 6 }}>
+                    <Text style={{ fontSize: 9, fontWeight: "600", color: colors.muted, marginBottom: 3, textTransform: "uppercase" }}>Workday</Text>
+                    <Switch
+                      value={isAvailable}
+                      onValueChange={(val) => { if (!isPast) handleWorkdayToggle(dateStr, val); }}
+                      disabled={isPast}
+                      trackColor={{ false: colors.border, true: colors.primary + "80" }}
+                      thumbColor={isAvailable ? colors.primary : colors.muted}
+                      style={{ transform: [{ scaleX: 0.75 }, { scaleY: 0.75 }] }}
+                    />
                   </View>
-                  {/* Day columns */}
-                  {weekDays.map((dateStr, di) => {
-                    const available = isDayAvailable(dateStr);
-                    const effectiveHours = getEffectiveHours(dateStr);
-                    const isWorkingHour = available && effectiveHours
-                      ? timeToMinutes(hour) >= timeToMinutes(effectiveHours.start) &&
-                        timeToMinutes(hour) < timeToMinutes(effectiveHours.end)
-                      : available;
-                    const apptsInSlot = weekApptsByDay[di].filter((a) => {
-                      const startMin = timeToMinutes(a.time);
-                      const endMin = startMin + a.duration;
-                      const hourStart = hourNum * 60;
-                      const hourEnd = (hourNum + 1) * 60;
-                      return startMin < hourEnd && endMin > hourStart;
-                    });
-                    const isColSelected = dateStr === selectedDate;
-                    return (
-                      <View
-                        key={dateStr}
-                        style={{
-                          width: 80,
-                          height: HOUR_HEIGHT,
-                          borderLeftWidth: 0.5,
-                          borderLeftColor: colors.border + "60",
-                          backgroundColor: isColSelected
-                            ? colors.primary + "06"
-                            : !isWorkingHour
-                            ? colors.surface + "80"
-                            : "transparent",
-                          padding: 1,
-                        }}
-                      >
-                        {apptsInSlot.map((appt) => {
-                          const svc = getServiceById(appt.serviceId);
-                          const color = svc?.color ?? colors.primary;
-                          return (
-                            <Pressable
-                              key={appt.id}
-                              onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })}
-                              style={({ pressed }) => ({
-                                flex: 1, backgroundColor: color + "25", borderLeftWidth: 3,
-                                borderLeftColor: color, borderRadius: 4, padding: 2, opacity: pressed ? 0.7 : 1,
-                              })}
-                            >
-                              <Text style={{ fontSize: 9, fontWeight: "700", color: colors.foreground }} numberOfLines={1}>
-                                {formatTime(appt.time)}
-                              </Text>
-                              <Text style={{ fontSize: 9, color: colors.muted }} numberOfLines={1}>
-                                {svc ? getServiceDisplayName(svc) : "Appt"}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    );
-                  })}
-                </View>
-              );
-            })}
+                );
+              })}
+            </View>
+
+            {/* Timeline rows */}
+            <View style={{ flexDirection: "column" }}>
+              {timelineHours.map((hour) => {
+                const hourNum = parseInt(hour.split(":")[0]);
+                return (
+                  <View key={hour} style={{ flexDirection: "row", height: HOUR_HEIGHT, borderBottomWidth: 0.5, borderBottomColor: colors.border + "60" }}>
+                    {/* Time label */}
+                    <View style={{ width: 44, justifyContent: "flex-start", paddingTop: 2 }}>
+                      <Text style={{ fontSize: 10, color: colors.muted, fontWeight: "500" }}>{formatTimeDisplay(hour)}</Text>
+                    </View>
+                    {/* Day columns */}
+                    {weekDays.map((dateStr, di) => {
+                      const isPast = isDateInPast(dateStr);
+                      const available = isDayAvailable(dateStr);
+                      const effectiveHours = getEffectiveHours(dateStr);
+                      const isWorkingHour = available && effectiveHours
+                        ? timeToMinutes(hour) >= timeToMinutes(effectiveHours.start) &&
+                          timeToMinutes(hour) < timeToMinutes(effectiveHours.end)
+                        : available;
+                      const apptsInSlot = weekApptsByDay[di].filter((a) => {
+                        const startMin = timeToMinutes(a.time);
+                        const endMin = startMin + a.duration;
+                        const hourStart = hourNum * 60;
+                        const hourEnd = (hourNum + 1) * 60;
+                        return startMin < hourEnd && endMin > hourStart;
+                      });
+                      const isColSelected = dateStr === selectedDate;
+                      return (
+                        <Pressable
+                          key={dateStr}
+                          onPress={() => !isPast && setSelectedDate(dateStr)}
+                          style={{
+                            width: 80,
+                            height: HOUR_HEIGHT,
+                            borderLeftWidth: 0.5,
+                            borderLeftColor: colors.border + "60",
+                            backgroundColor: isPast
+                              ? colors.surface + "40"
+                              : isColSelected
+                              ? colors.primary + "06"
+                              : !isWorkingHour
+                              ? colors.surface + "80"
+                              : "transparent",
+                            padding: 1,
+                          }}
+                        >
+                          {apptsInSlot.map((appt) => {
+                            const svc = getServiceById(appt.serviceId);
+                            const color = svc?.color ?? colors.primary;
+                            return (
+                              <Pressable
+                                key={appt.id}
+                                onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })}
+                                style={({ pressed }) => ({
+                                  flex: 1, backgroundColor: color + "25", borderLeftWidth: 3,
+                                  borderLeftColor: color, borderRadius: 4, padding: 2, opacity: pressed ? 0.7 : 1,
+                                })}
+                              >
+                                <Text style={{ fontSize: 9, fontWeight: "700", color: colors.foreground }} numberOfLines={1}>
+                                  {formatTime(appt.time)}
+                                </Text>
+                                <Text style={{ fontSize: 9, color: colors.muted }} numberOfLines={1}>
+                                  {svc ? getServiceDisplayName(svc) : "Appt"}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                );
+              })}
+            </View>
           </View>
         </ScrollView>
 
-        {/* Selected day detail */}
+        {/* Selected day Workday panel + timeline */}
         <View style={{ paddingHorizontal: hp, marginTop: 16 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
             <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>
               {DAY_FULL[new Date(selectedDate + "T12:00:00").getDay()]}, {formatDateDisplay(selectedDate)}
             </Text>
@@ -968,13 +1006,13 @@ export default function CalendarScreen() {
               </Pressable>
             )}
           </View>
-          {weekApptsByDay[weekDays.indexOf(selectedDate)]?.length === 0 ? (
-            <Text style={{ color: colors.muted, fontSize: 13 }}>
-              {isDayAvailable(selectedDate) ? "No appointments" : "Closed — not a working day"}
-            </Text>
-          ) : (
-            weekApptsByDay[weekDays.indexOf(selectedDate)]?.map((a) => renderApptCard(a))
-          )}
+
+          {/* Workday panel for selected day */}
+          {!isDateInPast(selectedDate) && renderWorkdayPanel(selectedDate)}
+
+          {/* Timeline */}
+          <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 12 }]}>Timeline</Text>
+          {renderTimeline(selectedDate, selectedDayAppts)}
         </View>
       </>
     );

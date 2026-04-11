@@ -78,6 +78,7 @@ const businessRouter = router({
         phone: z.string().optional(),
         bufferTime: z.number().optional(),
         customSlug: z.string().optional(),
+        businessHoursEndDate: z.string().nullable().optional(),
       })
     )
     .mutation(async ({ input }) => {

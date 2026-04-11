@@ -216,6 +216,12 @@ export function registerPublicRoutes(app: Express) {
         res.status(400).json({ error: "date query parameter is required" });
         return;
       }
+      // Check Active Until expiry
+      const endDate = (owner as any).businessHoursEndDate as string | null | undefined;
+      if (endDate && date > endDate) {
+        res.json({ date, slots: [] });
+        return;
+      }
       const appts = await db.getAppointmentsByOwner(owner.id);
       const schedule = await db.getCustomScheduleByOwner(owner.id);
       const mode = (owner.scheduleMode as "weekly" | "custom") || "weekly";
@@ -323,7 +329,8 @@ export function registerPublicRoutes(app: Express) {
         customDays[cs.date] = cs.isOpen ?? true;
       });
       const scheduleMode = (owner.scheduleMode as string) || "weekly";
-      res.json({ weeklyDays, customDays, scheduleMode });
+      const businessHoursEndDate = (owner as any).businessHoursEndDate || null;
+      res.json({ weeklyDays, customDays, scheduleMode, businessHoursEndDate });
     } catch (err) {
       console.error("[Public API] Error fetching working days:", err);
       res.status(500).json({ error: "Internal server error" });
@@ -1650,12 +1657,14 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
 
     // Load working days (custom overrides + schedule mode)
     var scheduleMode = "weekly";
+    var businessHoursEndDate = null;
     async function loadWorkingDays() {
       try {
         const res = await fetch(API + "/working-days");
         const data = await res.json();
         customDays = data.customDays || {};
         scheduleMode = data.scheduleMode || "weekly";
+        businessHoursEndDate = data.businessHoursEndDate || null;
       } catch(e) { customDays = {}; }
     }
 
@@ -1705,6 +1714,8 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     }
 
     function isWorkingDay(dateStr) {
+      // Check Active Until expiry
+      if (businessHoursEndDate && dateStr > businessHoursEndDate) return false;
       if (scheduleMode === "custom") {
         // Custom mode: only dates explicitly in customDays and marked open are available
         return customDays.hasOwnProperty(dateStr) && customDays[dateStr] === true;

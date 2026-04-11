@@ -1,0 +1,1 @@
+ALTER TABLE `business_owners` ADD `businessHoursEndDate` varchar(10);

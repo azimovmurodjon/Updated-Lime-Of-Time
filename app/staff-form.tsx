@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import {
   ScrollView,
   Text,
@@ -22,7 +22,10 @@ import {
   DAYS_OF_WEEK,
   WorkingHours,
   DEFAULT_WORKING_HOURS,
+  formatTimeDisplay,
 } from "@/lib/types";
+import { ScrollWheelTimePicker } from "@/components/scroll-wheel-time-picker";
+import { Modal } from "react-native";
 
 type DaySchedule = { enabled: boolean; start: string; end: string };
 type WeekSchedule = Record<string, DaySchedule>;
@@ -93,6 +96,28 @@ export default function StaffFormScreen() {
       [day]: { ...prev[day], [field]: value },
     }));
   };
+
+  const [staffTimePicker, setStaffTimePicker] = useState<{ day: string } | null>(null);
+  const staffDraftStartRef = useRef("09:00");
+  const staffDraftEndRef = useRef("17:00");
+  const [staffDraftStart, setStaffDraftStart] = useState("09:00");
+  const [staffDraftEnd, setStaffDraftEnd] = useState("17:00");
+
+  const openStaffTimePicker = useCallback((day: string) => {
+    const ds = weekSchedule[day];
+    staffDraftStartRef.current = ds.start;
+    staffDraftEndRef.current = ds.end;
+    setStaffDraftStart(ds.start);
+    setStaffDraftEnd(ds.end);
+    setStaffTimePicker({ day });
+  }, [weekSchedule]);
+
+  const saveStaffTimePicker = useCallback(() => {
+    if (!staffTimePicker) return;
+    updateDaySchedule(staffTimePicker.day, "start", staffDraftStartRef.current);
+    updateDaySchedule(staffTimePicker.day, "end", staffDraftEndRef.current);
+    setStaffTimePicker(null);
+  }, [staffTimePicker]);
 
   const handleSave = () => {
     if (!name.trim()) {
@@ -339,31 +364,26 @@ export default function StaffFormScreen() {
                       />
                     </View>
                     {ds.enabled && (
-                      <View style={styles.timeRow}>
-                        <TextInput
-                          value={ds.start}
-                          onChangeText={(val) => updateDaySchedule(day, "start", val)}
-                          placeholder="09:00"
-                          placeholderTextColor={colors.muted}
-                          style={[
-                            styles.timeInput,
-                            { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground },
-                          ]}
-                          returnKeyType="done"
-                        />
-                        <Text className="text-sm text-muted mx-2">to</Text>
-                        <TextInput
-                          value={ds.end}
-                          onChangeText={(val) => updateDaySchedule(day, "end", val)}
-                          placeholder="17:00"
-                          placeholderTextColor={colors.muted}
-                          style={[
-                            styles.timeInput,
-                            { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground },
-                          ]}
-                          returnKeyType="done"
-                        />
-                      </View>
+                      <Pressable
+                        onPress={() => openStaffTimePicker(day)}
+                        style={({ pressed }) => [{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          paddingHorizontal: 12,
+                          paddingVertical: 8,
+                          borderRadius: 10,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          backgroundColor: colors.surface,
+                          marginTop: 6,
+                          opacity: pressed ? 0.7 : 1,
+                        }]}
+                      >
+                        <IconSymbol name="clock.fill" size={14} color={colors.primary} />
+                        <Text style={{ fontSize: 13, color: colors.foreground, marginLeft: 6 }}>
+                          {formatTimeDisplay(ds.start)} – {formatTimeDisplay(ds.end)}
+                        </Text>
+                      </Pressable>
                     )}
                   </View>
                 );
@@ -372,6 +392,49 @@ export default function StaffFormScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Staff Time Picker Modal */}
+      <Modal visible={!!staffTimePicker} transparent animationType="slide">
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" }} onPress={() => setStaffTimePicker(null)}>
+          <Pressable style={[{ borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingBottom: 40, paddingHorizontal: 20, backgroundColor: colors.background }]} onPress={() => {}}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>
+                {staffTimePicker ? (staffTimePicker.day.charAt(0).toUpperCase() + staffTimePicker.day.slice(1)) : ""} Hours
+              </Text>
+              <Pressable onPress={() => setStaffTimePicker(null)} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+                <IconSymbol name="xmark" size={22} color={colors.foreground} />
+              </Pressable>
+            </View>
+            <View style={{ flexDirection: "row", gap: 16, marginBottom: 20 }}>
+              <View style={{ flex: 1, alignItems: "center" }}>
+                <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 8 }}>START TIME</Text>
+                <ScrollWheelTimePicker
+                  value={staffDraftStart}
+                  onChange={(v) => { staffDraftStartRef.current = v; setStaffDraftStart(v); }}
+                  stepMinutes={15}
+                  maxTime={staffDraftEnd}
+                />
+              </View>
+              <View style={{ width: 1, backgroundColor: colors.border, marginVertical: 8 }} />
+              <View style={{ flex: 1, alignItems: "center" }}>
+                <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 8 }}>END TIME</Text>
+                <ScrollWheelTimePicker
+                  value={staffDraftEnd}
+                  onChange={(v) => { staffDraftEndRef.current = v; setStaffDraftEnd(v); }}
+                  stepMinutes={15}
+                  minTime={staffDraftStart}
+                />
+              </View>
+            </View>
+            <Pressable
+              onPress={saveStaffTimePicker}
+              style={({ pressed }) => [{ backgroundColor: colors.primary, paddingVertical: 16, borderRadius: 14, alignItems: "center", opacity: pressed ? 0.8 : 1 }]}
+            >
+              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>Save Hours</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScreenContainer>
   );
 }

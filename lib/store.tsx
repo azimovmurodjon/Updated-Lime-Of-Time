@@ -53,6 +53,7 @@ const initialSettings: BusinessSettings = {
   scheduleMode: "weekly",
   bufferTime: 0,
   customSlug: "",
+  businessHoursEndDate: null,
 };
 
 const initialState: AppState = {
@@ -546,6 +547,7 @@ function dbOwnerToSettings(owner: any): Partial<BusinessSettings> {
     cancellationPolicy: owner.cancellationPolicy ?? DEFAULT_CANCELLATION_POLICY,
     bufferTime: owner.bufferTime ?? 0,
     customSlug: owner.customSlug ?? "",
+    businessHoursEndDate: (owner as any).businessHoursEndDate ?? null,
     profile: {
       ownerName: owner.ownerName ?? "",
       phone: owner.phone ?? "",
@@ -962,6 +964,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             if (settings.cancellationPolicy !== undefined) updateData.cancellationPolicy = settings.cancellationPolicy;
             if ((settings as any).bufferTime !== undefined) updateData.bufferTime = (settings as any).bufferTime;
             if ((settings as any).customSlug !== undefined) updateData.customSlug = (settings as any).customSlug;
+            if ((settings as any).businessHoursEndDate !== undefined) updateData.businessHoursEndDate = (settings as any).businessHoursEndDate;
             // Only update if there's something besides id
             if (Object.keys(updateData).length > 1) {
               await updateBusinessMut.mutateAsync(updateData);

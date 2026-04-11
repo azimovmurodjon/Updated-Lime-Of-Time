@@ -65,6 +65,8 @@ export const businessOwners = mysqlTable("business_owners", {
   bufferTime: int("bufferTime").default(0).notNull(),
   /** Custom booking slug (overrides auto-generated slug from business name) */
   customSlug: varchar("customSlug", { length: 100 }),
+  /** Business Hours end date: ISO date string YYYY-MM-DD, null = open-ended */
+  businessHoursEndDate: varchar("businessHoursEndDate", { length: 10 }),
   /** Onboarding completed */
   onboardingComplete: boolean("onboardingComplete").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
