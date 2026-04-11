@@ -29,7 +29,7 @@ import {
   stripPhoneFormat,
   CustomScheduleDay,
 } from "@/lib/types";
-import { ScrollWheelTimePicker } from "@/components/scroll-wheel-time-picker";
+import { TapTimePicker, timeToMinutes as tapTimeToMinutes } from "@/components/tap-time-picker";
 
 type CalendarView = "month" | "day" | "week";
 
@@ -77,6 +77,7 @@ export default function CalendarScreen() {
   const [draftStart, setDraftStart] = useState("09:00");
   const [draftEnd, setDraftEnd] = useState("17:00");
   const [timeError, setTimeError] = useState<string | null>(null);
+  const [calSubPicker, setCalSubPicker] = useState<"start" | "end" | null>(null);
   // Refs to always read latest draft values in save handler (avoids stale closure)
   const draftStartRef = useRef("09:00");
   const draftEndRef = useRef("17:00");
@@ -258,8 +259,7 @@ export default function CalendarScreen() {
 
   // ─── Workday Override ─────────────────────────────────────────────────
 
-  const setDraftStartSync = useCallback((v: string) => { draftStartRef.current = v; setDraftStart(v); setTimeError(null); }, []);
-  const setDraftEndSync = useCallback((v: string) => { draftEndRef.current = v; setDraftEnd(v); setTimeError(null); }, []);
+
 
   const handleWorkdayToggle = useCallback((dateStr: string, value: boolean) => {
     if (value) {
@@ -285,8 +285,8 @@ export default function CalendarScreen() {
   const handleSaveTimeOverride = useCallback(() => {
     // Always read from refs to get the latest values regardless of render cycle
     const dateToSave = editingDateRef.current;
-    const startToSave = draftStartRef.current;
-    const endToSave = draftEndRef.current;
+    const startToSave = draftStart;
+    const endToSave = draftEnd;
     if (!dateToSave) return;
     if (timeToMinutes(endToSave) <= timeToMinutes(startToSave)) {
       setTimeError("End time must be after start time.");
@@ -1002,78 +1002,54 @@ export default function CalendarScreen() {
       </ScrollView>
 
       {/* Time Picker Modal */}
-      <Modal
-        visible={showTimePickerModal}
-        transparent
-        animationType="slide"
-        onRequestClose={handleCancelTimeOverride}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { backgroundColor: colors.background, borderColor: colors.border }]}>
-            {/* Header */}
-            <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground, marginBottom: 4 }}>
-              Set Working Hours
-            </Text>
-            {editingDate && (
-              <Text style={{ fontSize: 13, color: colors.primary, marginBottom: 16 }}>
-                {formatDateDisplay(editingDate)}
-                {businessHoursForEdit
-                  ? ` · Business Hours: ${formatTimeDisplay(businessHoursForEdit.start)} – ${formatTimeDisplay(businessHoursForEdit.end)}`
-                  : " · No Business Hours set for this day"}
+      {/* Time Override Modal */}
+      <Modal visible={showTimePickerModal} transparent animationType="slide">
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }} onPress={() => { setShowTimePickerModal(false); setCalSubPicker(null); }}>
+          <Pressable style={{ borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingBottom: 40, paddingHorizontal: 20, backgroundColor: colors.background }} onPress={() => {}}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>
+                {editingDate ? (() => { const d = new Date(editingDate + "T12:00:00"); return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }); })() : ""} Hours
               </Text>
+              <Pressable onPress={() => { setShowTimePickerModal(false); setCalSubPicker(null); }} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+                <IconSymbol name="xmark" size={22} color={colors.foreground} />
+              </Pressable>
+            </View>
+
+            {/* Start row */}
+            <Pressable
+              onPress={() => setCalSubPicker(calSubPicker === "start" ? null : "start")}
+              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, paddingHorizontal: 4, borderRadius: 12, backgroundColor: calSubPicker === "start" ? colors.primary + "18" : "transparent", marginBottom: 4 }}
+            >
+              <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Start Time</Text>
+              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.primary }}>{(() => { const [h, m] = draftStart.split(":").map(Number); const ap = h >= 12 ? "PM" : "AM"; const hr = h === 0 ? 12 : h > 12 ? h - 12 : h; return `${hr}:${String(m).padStart(2,"0")} ${ap}`; })()}</Text>
+            </Pressable>
+            {calSubPicker === "start" && (
+              <TapTimePicker value={draftStart} onChange={(v) => { setDraftStart(v); setTimeError(null); }} stepMinutes={15} />
             )}
 
-            {/* Side-by-side pickers */}
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 16 }}>
-              <View style={{ alignItems: "center", gap: 6 }}>
-                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, letterSpacing: 0.8 }}>START</Text>
-                <ScrollWheelTimePicker
-                  value={draftStart}
-                  onChange={setDraftStartSync}
-                  stepMinutes={15}
-                  minTime={businessHoursForEdit?.start ?? "00:00"}
-                  maxTime={businessHoursForEdit?.end ?? "23:45"}
-                />
-              </View>
-              <View style={{ width: 1, height: 160, backgroundColor: colors.border }} />
-              <View style={{ alignItems: "center", gap: 6 }}>
-                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, letterSpacing: 0.8 }}>END</Text>
-                <ScrollWheelTimePicker
-                  value={draftEnd}
-                  onChange={setDraftEndSync}
-                  stepMinutes={15}
-                  minTime={businessHoursForEdit?.start ?? "00:00"}
-                  maxTime={businessHoursForEdit?.end ?? "23:45"}
-                />
-              </View>
-            </View>
+            {/* End row */}
+            <Pressable
+              onPress={() => setCalSubPicker(calSubPicker === "end" ? null : "end")}
+              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, paddingHorizontal: 4, borderRadius: 12, backgroundColor: calSubPicker === "end" ? colors.primary + "18" : "transparent", marginBottom: 4 }}
+            >
+              <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>End Time</Text>
+              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.primary }}>{(() => { const [h, m] = draftEnd.split(":").map(Number); const ap = h >= 12 ? "PM" : "AM"; const hr = h === 0 ? 12 : h > 12 ? h - 12 : h; return `${hr}:${String(m).padStart(2,"0")} ${ap}`; })()}</Text>
+            </Pressable>
+            {calSubPicker === "end" && (
+              <TapTimePicker value={draftEnd} onChange={(v) => { setDraftEnd(v); setTimeError(null); }} stepMinutes={15} />
+            )}
 
-            {/* Inline error message */}
             {timeError ? (
-              <View style={{ marginTop: 10, paddingHorizontal: 4, flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Text style={{ fontSize: 13, color: "#EF4444", fontWeight: "600", flex: 1 }}>
-                  ⚠ {timeError}
-                </Text>
-              </View>
+              <Text style={{ color: colors.error, fontSize: 13, textAlign: "center", marginVertical: 8 }}>⚠ {timeError}</Text>
             ) : null}
-
-            {/* Buttons */}
-            <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
-              <Pressable
-                onPress={handleCancelTimeOverride}
-                style={({ pressed }) => [styles.modalBtn, { borderColor: colors.border, borderWidth: 1, backgroundColor: colors.surface, opacity: pressed ? 0.7 : 1, flex: 1 }]}
-              >
-                <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={handleSaveTimeOverride}
-                style={({ pressed }) => [styles.modalBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1, flex: 1 }]}
-              >
-                <Text style={{ fontSize: 15, fontWeight: "700", color: "#FFF" }}>Save</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
+            <Pressable
+              onPress={handleSaveTimeOverride}
+              style={({ pressed }) => [{ backgroundColor: timeError ? colors.border : colors.primary, paddingVertical: 16, borderRadius: 14, alignItems: "center", opacity: pressed ? 0.8 : 1, marginTop: 12 }]}
+            >
+              <Text style={{ color: timeError ? colors.muted : "#fff", fontWeight: "700", fontSize: 16 }}>Save Hours</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
       </Modal>
     </ScreenContainer>
   );

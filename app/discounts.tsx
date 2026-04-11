@@ -21,7 +21,7 @@ import {
   Discount,
   formatTimeDisplay,
 } from "@/lib/types";
-import { ScrollWheelTimePicker } from "@/components/scroll-wheel-time-picker";
+import { TapTimePicker, timeToMinutes as tapTimeToMinutes } from "@/components/tap-time-picker";
 import { useRef } from "react";
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -637,36 +637,33 @@ export default function DiscountsScreen() {
         <Pressable style={styles.modalOverlay} onPress={() => setShowTimePicker(null)}>
           <Pressable style={[styles.modalContent, { backgroundColor: colors.surface }]} onPress={() => {}}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.foreground }]}>Time Window</Text>
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+                {showTimePicker === "start" ? "Start Time" : "End Time"}
+              </Text>
               <Pressable onPress={() => setShowTimePicker(null)} style={({ pressed }) => [pressed && { opacity: 0.6 }]}>
                 <IconSymbol name="xmark" size={20} color={colors.muted} />
               </Pressable>
             </View>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 16, marginBottom: 16 }}>
-              <View style={{ alignItems: "center", gap: 6 }}>
-                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, letterSpacing: 0.8 }}>START</Text>
-                <ScrollWheelTimePicker
-                  value={draftPickerStart}
-                  onChange={(v) => { draftStartRef.current = v; setDraftPickerStart(v); setDiscountTimeError(null); }}
-                  stepMinutes={15}
-                />
-              </View>
-              <View style={{ width: 1, height: 160, backgroundColor: colors.border }} />
-              <View style={{ alignItems: "center", gap: 6 }}>
-                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, letterSpacing: 0.8 }}>END</Text>
-                <ScrollWheelTimePicker
-                  value={draftPickerEnd}
-                  onChange={(v) => { draftEndRef.current = v; setDraftPickerEnd(v); setDiscountTimeError(null); }}
-                  stepMinutes={15}
-                />
-              </View>
-            </View>
+            {showTimePicker === "start" && (
+              <TapTimePicker
+                value={draftPickerStart}
+                onChange={(v) => { draftStartRef.current = v; setDraftPickerStart(v); setDiscountTimeError(null); }}
+                stepMinutes={15}
+              />
+            )}
+            {showTimePicker === "end" && (
+              <TapTimePicker
+                value={draftPickerEnd}
+                onChange={(v) => { draftEndRef.current = v; setDraftPickerEnd(v); setDiscountTimeError(null); }}
+                stepMinutes={15}
+              />
+            )}
             {discountTimeError ? (
-              <Text style={{ color: colors.error, fontSize: 13, textAlign: "center", marginBottom: 12 }}>{discountTimeError}</Text>
+              <Text style={{ color: colors.error, fontSize: 13, textAlign: "center", marginVertical: 8 }}>{discountTimeError}</Text>
             ) : null}
             <Pressable
               onPress={saveTimePicker}
-              style={({ pressed }) => [{ backgroundColor: discountTimeError ? colors.border : colors.primary, paddingVertical: 14, borderRadius: 12, alignItems: "center", opacity: pressed ? 0.8 : 1 }]}
+              style={({ pressed }) => [{ backgroundColor: discountTimeError ? colors.border : colors.primary, paddingVertical: 14, borderRadius: 12, alignItems: "center", opacity: pressed ? 0.8 : 1, marginTop: 12 }]}
             >
               <Text style={{ color: discountTimeError ? colors.muted : "#fff", fontWeight: "700", fontSize: 15 }}>Apply</Text>
             </Pressable>

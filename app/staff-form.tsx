@@ -24,7 +24,7 @@ import {
   DEFAULT_WORKING_HOURS,
   formatTimeDisplay,
 } from "@/lib/types";
-import { ScrollWheelTimePicker } from "@/components/scroll-wheel-time-picker";
+import { TapTimePicker, timeToMinutes as tapTimeToMinutes } from "@/components/tap-time-picker";
 import { Modal } from "react-native";
 
 type DaySchedule = { enabled: boolean; start: string; end: string };
@@ -98,25 +98,24 @@ export default function StaffFormScreen() {
   };
 
   const [staffTimePicker, setStaffTimePicker] = useState<{ day: string } | null>(null);
-  const staffDraftStartRef = useRef("09:00");
-  const staffDraftEndRef = useRef("17:00");
   const [staffDraftStart, setStaffDraftStart] = useState("09:00");
   const [staffDraftEnd, setStaffDraftEnd] = useState("17:00");
   const [staffTimeError, setStaffTimeError] = useState<string | null>(null);
+  const [staffSubPicker, setStaffSubPicker] = useState<"start" | "end" | null>(null);
 
   const openStaffTimePicker = useCallback((day: string) => {
     const ds = weekSchedule[day];
-    staffDraftStartRef.current = ds.start;
-    staffDraftEndRef.current = ds.end;
     setStaffDraftStart(ds.start);
     setStaffDraftEnd(ds.end);
+    setStaffTimeError(null);
+    setStaffSubPicker(null);
     setStaffTimePicker({ day });
   }, [weekSchedule]);
 
   const saveStaffTimePicker = useCallback(() => {
     if (!staffTimePicker) return;
-    const [sh, sm] = staffDraftStartRef.current.split(":").map(Number);
-    const [eh, em] = staffDraftEndRef.current.split(":").map(Number);
+    const [sh, sm] = staffDraftStart.split(":").map(Number);
+    const [eh, em] = staffDraftEnd.split(":").map(Number);
     const startMin = sh * 60 + (sm || 0);
     const endMin = eh * 60 + (em || 0);
     if (endMin <= startMin) {
@@ -124,10 +123,11 @@ export default function StaffFormScreen() {
       return;
     }
     setStaffTimeError(null);
-    updateDaySchedule(staffTimePicker.day, "start", staffDraftStartRef.current);
-    updateDaySchedule(staffTimePicker.day, "end", staffDraftEndRef.current);
+    updateDaySchedule(staffTimePicker.day, "start", staffDraftStart);
+    updateDaySchedule(staffTimePicker.day, "end", staffDraftEnd);
     setStaffTimePicker(null);
-  }, [staffTimePicker]);
+    setStaffSubPicker(null);
+  }, [staffTimePicker, staffDraftStart, staffDraftEnd]);
 
   const handleSave = () => {
     if (!name.trim()) {
@@ -405,41 +405,47 @@ export default function StaffFormScreen() {
 
       {/* Staff Time Picker Modal */}
       <Modal visible={!!staffTimePicker} transparent animationType="slide">
-        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" }} onPress={() => setStaffTimePicker(null)}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" }} onPress={() => { setStaffTimePicker(null); setStaffSubPicker(null); }}>
           <Pressable style={[{ borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingBottom: 40, paddingHorizontal: 20, backgroundColor: colors.background }]} onPress={() => {}}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
               <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>
                 {staffTimePicker ? (staffTimePicker.day.charAt(0).toUpperCase() + staffTimePicker.day.slice(1)) : ""} Hours
               </Text>
-              <Pressable onPress={() => setStaffTimePicker(null)} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+              <Pressable onPress={() => { setStaffTimePicker(null); setStaffSubPicker(null); }} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
                 <IconSymbol name="xmark" size={22} color={colors.foreground} />
               </Pressable>
             </View>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 16, marginBottom: 16 }}>
-              <View style={{ alignItems: "center", gap: 6 }}>
-                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, letterSpacing: 0.8 }}>START</Text>
-                <ScrollWheelTimePicker
-                  value={staffDraftStart}
-                  onChange={(v) => { staffDraftStartRef.current = v; setStaffDraftStart(v); setStaffTimeError(null); }}
-                  stepMinutes={15}
-                />
-              </View>
-              <View style={{ width: 1, height: 160, backgroundColor: colors.border }} />
-              <View style={{ alignItems: "center", gap: 6 }}>
-                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, letterSpacing: 0.8 }}>END</Text>
-                <ScrollWheelTimePicker
-                  value={staffDraftEnd}
-                  onChange={(v) => { staffDraftEndRef.current = v; setStaffDraftEnd(v); setStaffTimeError(null); }}
-                  stepMinutes={15}
-                />
-              </View>
-            </View>
+
+            {/* Start row */}
+            <Pressable
+              onPress={() => setStaffSubPicker(staffSubPicker === "start" ? null : "start")}
+              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, paddingHorizontal: 4, borderRadius: 12, backgroundColor: staffSubPicker === "start" ? colors.primary + "18" : "transparent", marginBottom: 4 }}
+            >
+              <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Start Time</Text>
+              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.primary }}>{(() => { const [h, m] = staffDraftStart.split(":").map(Number); const ap = h >= 12 ? "PM" : "AM"; const hr = h === 0 ? 12 : h > 12 ? h - 12 : h; return `${hr}:${String(m).padStart(2,"0")} ${ap}`; })()}</Text>
+            </Pressable>
+            {staffSubPicker === "start" && (
+              <TapTimePicker value={staffDraftStart} onChange={(v) => { setStaffDraftStart(v); setStaffTimeError(null); }} stepMinutes={15} />
+            )}
+
+            {/* End row */}
+            <Pressable
+              onPress={() => setStaffSubPicker(staffSubPicker === "end" ? null : "end")}
+              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, paddingHorizontal: 4, borderRadius: 12, backgroundColor: staffSubPicker === "end" ? colors.primary + "18" : "transparent", marginBottom: 4 }}
+            >
+              <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>End Time</Text>
+              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.primary }}>{(() => { const [h, m] = staffDraftEnd.split(":").map(Number); const ap = h >= 12 ? "PM" : "AM"; const hr = h === 0 ? 12 : h > 12 ? h - 12 : h; return `${hr}:${String(m).padStart(2,"0")} ${ap}`; })()}</Text>
+            </Pressable>
+            {staffSubPicker === "end" && (
+              <TapTimePicker value={staffDraftEnd} onChange={(v) => { setStaffDraftEnd(v); setStaffTimeError(null); }} stepMinutes={15} />
+            )}
+
             {staffTimeError ? (
-              <Text style={{ color: colors.error, fontSize: 13, textAlign: "center", marginBottom: 12 }}>{staffTimeError}</Text>
+              <Text style={{ color: colors.error, fontSize: 13, textAlign: "center", marginVertical: 8 }}>{staffTimeError}</Text>
             ) : null}
             <Pressable
               onPress={saveStaffTimePicker}
-              style={({ pressed }) => [{ backgroundColor: staffTimeError ? colors.border : colors.primary, paddingVertical: 16, borderRadius: 14, alignItems: "center", opacity: pressed ? 0.8 : 1 }]}
+              style={({ pressed }) => [{ backgroundColor: staffTimeError ? colors.border : colors.primary, paddingVertical: 16, borderRadius: 14, alignItems: "center", opacity: pressed ? 0.8 : 1, marginTop: 12 }]}
             >
               <Text style={{ color: staffTimeError ? colors.muted : "#fff", fontWeight: "700", fontSize: 16 }}>Save Hours</Text>
             </Pressable>

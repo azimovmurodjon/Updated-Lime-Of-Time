@@ -6,7 +6,7 @@ import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter } from "expo-router";
 import type { CustomScheduleDay } from "@/lib/types";
-import { ScrollWheelTimePicker } from "@/components/scroll-wheel-time-picker";
+import { TapTimePicker, timeToMinutes as tapTimeToMinutes } from "@/components/tap-time-picker";
 
 const DAYS_OF_WEEK = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const DAY_LABELS: Record<string, string> = { monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu", friday: "Fri", saturday: "Sat", sunday: "Sun" };
@@ -156,52 +156,38 @@ export default function ScheduleSettingsScreen() {
     syncToDb(action);
   }, [dispatch, syncToDb]);
 
-  // ── Weekly time picker modal (side-by-side wheel) ──────────────────────────
+  // ── Weekly time picker modal ───────────────────────────────────────────────
   const [timePickerDay, setTimePickerDay] = useState<string | null>(null);
-  const draftStartRef = useRef<string>("09:00");
-  const draftEndRef = useRef<string>("17:00");
   const [draftStart, setDraftStart] = useState("09:00");
   const [draftEnd, setDraftEnd] = useState("17:00");
   const [weekTimeError, setWeekTimeError] = useState<string | null>(null);
-
-  const setDraftStartSync = useCallback((v: string) => {
-    draftStartRef.current = v;
-    setDraftStart(v);
-    setWeekTimeError(null);
-  }, []);
-  const setDraftEndSync = useCallback((v: string) => {
-    draftEndRef.current = v;
-    setDraftEnd(v);
-    setWeekTimeError(null);
-  }, []);
+  // which sub-picker is open: null | "start" | "end"
+  const [weekSubPicker, setWeekSubPicker] = useState<"start" | "end" | null>(null);
 
   const openTimePicker = useCallback((day: string) => {
     const wh = settings.workingHours[day];
-    const s = wh?.start ?? "09:00";
-    const e = wh?.end ?? "17:00";
-    draftStartRef.current = s;
-    draftEndRef.current = e;
-    setDraftStart(s);
-    setDraftEnd(e);
+    setDraftStart(wh?.start ?? "09:00");
+    setDraftEnd(wh?.end ?? "17:00");
+    setWeekTimeError(null);
+    setWeekSubPicker(null);
     setTimePickerDay(day);
   }, [settings.workingHours]);
 
   const saveTimePicker = useCallback(() => {
     if (!timePickerDay) return;
-    const startMin = timeToMinutes(draftStartRef.current);
-    const endMin = timeToMinutes(draftEndRef.current);
-    if (endMin <= startMin) {
+    if (tapTimeToMinutes(draftEnd) <= tapTimeToMinutes(draftStart)) {
       setWeekTimeError("End time must be after start time.");
       return;
     }
     setWeekTimeError(null);
     const wh = { ...settings.workingHours };
-    wh[timePickerDay] = { ...wh[timePickerDay], start: draftStartRef.current, end: draftEndRef.current };
+    wh[timePickerDay] = { ...wh[timePickerDay], start: draftStart, end: draftEnd };
     const action = { type: "UPDATE_SETTINGS" as const, payload: { workingHours: wh } };
     dispatch(action);
     syncToDb(action);
     setTimePickerDay(null);
-  }, [timePickerDay, settings.workingHours, dispatch, syncToDb]);
+    setWeekSubPicker(null);
+  }, [timePickerDay, draftStart, draftEnd, settings.workingHours, dispatch, syncToDb]);
 
   const toggleDay = useCallback((day: string) => {
     const wh = { ...settings.workingHours };
@@ -242,22 +228,10 @@ export default function ScheduleSettingsScreen() {
   });
   const [selectedCustomDate, setSelectedCustomDate] = useState<string | null>(null);
   const [customTimePicker, setCustomTimePicker] = useState<{ date: string } | null>(null);
-  const customDraftStartRef = useRef("09:00");
-  const customDraftEndRef = useRef("17:00");
   const [customDraftStart, setCustomDraftStart] = useState("09:00");
   const [customDraftEnd, setCustomDraftEnd] = useState("17:00");
   const [customTimeError, setCustomTimeError] = useState<string | null>(null);
-
-  const setCustomDraftStartSync = useCallback((v: string) => {
-    customDraftStartRef.current = v;
-    setCustomDraftStart(v);
-    setCustomTimeError(null);
-  }, []);
-  const setCustomDraftEndSync = useCallback((v: string) => {
-    customDraftEndRef.current = v;
-    setCustomDraftEnd(v);
-    setCustomTimeError(null);
-  }, []);
+  const [customSubPicker, setCustomSubPicker] = useState<"start" | "end" | null>(null);
 
   const customCalDays = useMemo(() => {
     const { year, month } = customCalMonth;
@@ -325,19 +299,17 @@ export default function ScheduleSettingsScreen() {
 
   const openCustomTimePicker = useCallback((dateStr: string) => {
     const existing = state.customSchedule.find((cs) => cs.date === dateStr);
-    const s = existing?.startTime ?? "09:00";
-    const e = existing?.endTime ?? "17:00";
-    customDraftStartRef.current = s;
-    customDraftEndRef.current = e;
-    setCustomDraftStart(s);
-    setCustomDraftEnd(e);
+    setCustomDraftStart(existing?.startTime ?? "09:00");
+    setCustomDraftEnd(existing?.endTime ?? "17:00");
+    setCustomTimeError(null);
+    setCustomSubPicker(null);
     setCustomTimePicker({ date: dateStr });
   }, [state.customSchedule]);
 
   const saveCustomTimePicker = useCallback(() => {
     if (!customTimePicker) return;
-    const startMin = timeToMinutes(customDraftStartRef.current);
-    const endMin = timeToMinutes(customDraftEndRef.current);
+    const startMin = tapTimeToMinutes(customDraftStart);
+    const endMin = tapTimeToMinutes(customDraftEnd);
     if (endMin <= startMin) {
       setCustomTimeError("End time must be after start time.");
       return;
@@ -346,13 +318,13 @@ export default function ScheduleSettingsScreen() {
     const cs: CustomScheduleDay = {
       date: customTimePicker.date,
       isOpen: true,
-      startTime: customDraftStartRef.current,
-      endTime: customDraftEndRef.current,
+      startTime: customDraftStart,
+      endTime: customDraftEnd,
     };
     dispatch({ type: "SET_CUSTOM_SCHEDULE", payload: cs });
     syncToDb({ type: "SET_CUSTOM_SCHEDULE", payload: cs });
     setCustomTimePicker(null);
-  }, [customTimePicker, dispatch, syncToDb]);
+  }, [customTimePicker, customDraftStart, customDraftEnd, dispatch, syncToDb]);
 
   // ── Buffer time ────────────────────────────────────────────────────────────
   const setBufferTime = useCallback((mins: number) => {
@@ -720,43 +692,49 @@ export default function ScheduleSettingsScreen() {
 
       </ScrollView>
 
-      {/* ── Weekly Time Picker Modal ──────────────────────────────────────── */}
+      {/* Weekly Time Picker Modal */}
       <Modal visible={!!timePickerDay} transparent animationType="slide">
-        <Pressable style={styles.modalOverlay} onPress={() => setTimePickerDay(null)}>
+        <Pressable style={styles.modalOverlay} onPress={() => { setTimePickerDay(null); setWeekSubPicker(null); }}>
           <Pressable style={[styles.modalContent, { backgroundColor: colors.background }]} onPress={() => {}}>
             <View style={styles.modalHeader}>
               <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>
                 {timePickerDay ? DAY_FULL[timePickerDay] : ""} Hours
               </Text>
-              <Pressable onPress={() => setTimePickerDay(null)} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+              <Pressable onPress={() => { setTimePickerDay(null); setWeekSubPicker(null); }} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
                 <IconSymbol name="xmark" size={22} color={colors.foreground} />
               </Pressable>
             </View>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 16, marginBottom: 16 }}>
-              <View style={{ alignItems: "center", gap: 6 }}>
-                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, letterSpacing: 0.8 }}>START</Text>
-                <ScrollWheelTimePicker
-                  value={draftStart}
-                  onChange={setDraftStartSync}
-                  stepMinutes={15}
-                />
-              </View>
-              <View style={{ width: 1, height: 160, backgroundColor: colors.border }} />
-              <View style={{ alignItems: "center", gap: 6 }}>
-                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, letterSpacing: 0.8 }}>END</Text>
-                <ScrollWheelTimePicker
-                  value={draftEnd}
-                  onChange={setDraftEndSync}
-                  stepMinutes={15}
-                />
-              </View>
-            </View>
+
+            {/* Start row */}
+            <Pressable
+              onPress={() => setWeekSubPicker(weekSubPicker === "start" ? null : "start")}
+              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, paddingHorizontal: 4, borderRadius: 12, backgroundColor: weekSubPicker === "start" ? colors.primary + "18" : "transparent", marginBottom: 4 }}
+            >
+              <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Start Time</Text>
+              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.primary }}>{formatTimeLabel(draftStart)}</Text>
+            </Pressable>
+            {weekSubPicker === "start" && (
+              <TapTimePicker value={draftStart} onChange={(v) => { setDraftStart(v); setWeekTimeError(null); }} stepMinutes={15} />
+            )}
+
+            {/* End row */}
+            <Pressable
+              onPress={() => setWeekSubPicker(weekSubPicker === "end" ? null : "end")}
+              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, paddingHorizontal: 4, borderRadius: 12, backgroundColor: weekSubPicker === "end" ? colors.primary + "18" : "transparent", marginBottom: 4 }}
+            >
+              <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>End Time</Text>
+              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.primary }}>{formatTimeLabel(draftEnd)}</Text>
+            </Pressable>
+            {weekSubPicker === "end" && (
+              <TapTimePicker value={draftEnd} onChange={(v) => { setDraftEnd(v); setWeekTimeError(null); }} stepMinutes={15} />
+            )}
+
             {weekTimeError ? (
-              <Text style={{ color: colors.error, fontSize: 13, textAlign: "center", marginBottom: 12 }}>{weekTimeError}</Text>
+              <Text style={{ color: colors.error, fontSize: 13, textAlign: "center", marginVertical: 8 }}>{weekTimeError}</Text>
             ) : null}
             <Pressable
               onPress={saveTimePicker}
-              style={({ pressed }) => [styles.saveBtn, { backgroundColor: weekTimeError ? colors.border : colors.primary, opacity: pressed ? 0.8 : 1 }]}
+              style={({ pressed }) => [styles.saveBtn, { backgroundColor: weekTimeError ? colors.border : colors.primary, opacity: pressed ? 0.8 : 1, marginTop: 12 }]}
             >
               <Text style={{ color: weekTimeError ? colors.muted : "#fff", fontWeight: "700", fontSize: 16 }}>Save Hours</Text>
             </Pressable>
@@ -764,9 +742,9 @@ export default function ScheduleSettingsScreen() {
         </Pressable>
       </Modal>
 
-      {/* ── Custom Schedule Time Picker Modal ────────────────────────────── */}
+      {/* Custom Schedule Time Picker Modal */}
       <Modal visible={!!customTimePicker} transparent animationType="slide">
-        <Pressable style={styles.modalOverlay} onPress={() => setCustomTimePicker(null)}>
+        <Pressable style={styles.modalOverlay} onPress={() => { setCustomTimePicker(null); setCustomSubPicker(null); }}>
           <Pressable style={[styles.modalContent, { backgroundColor: colors.background }]} onPress={() => {}}>
             <View style={styles.modalHeader}>
               <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>
@@ -775,35 +753,41 @@ export default function ScheduleSettingsScreen() {
                   return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
                 })() : ""} Hours
               </Text>
-              <Pressable onPress={() => setCustomTimePicker(null)} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+              <Pressable onPress={() => { setCustomTimePicker(null); setCustomSubPicker(null); }} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
                 <IconSymbol name="xmark" size={22} color={colors.foreground} />
               </Pressable>
             </View>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 16, marginBottom: 16 }}>
-              <View style={{ alignItems: "center", gap: 6 }}>
-                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, letterSpacing: 0.8 }}>START</Text>
-                <ScrollWheelTimePicker
-                  value={customDraftStart}
-                  onChange={setCustomDraftStartSync}
-                  stepMinutes={15}
-                />
-              </View>
-              <View style={{ width: 1, height: 160, backgroundColor: colors.border }} />
-              <View style={{ alignItems: "center", gap: 6 }}>
-                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, letterSpacing: 0.8 }}>END</Text>
-                <ScrollWheelTimePicker
-                  value={customDraftEnd}
-                  onChange={setCustomDraftEndSync}
-                  stepMinutes={15}
-                />
-              </View>
-            </View>
+
+            {/* Start row */}
+            <Pressable
+              onPress={() => setCustomSubPicker(customSubPicker === "start" ? null : "start")}
+              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, paddingHorizontal: 4, borderRadius: 12, backgroundColor: customSubPicker === "start" ? colors.primary + "18" : "transparent", marginBottom: 4 }}
+            >
+              <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Start Time</Text>
+              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.primary }}>{formatTimeLabel(customDraftStart)}</Text>
+            </Pressable>
+            {customSubPicker === "start" && (
+              <TapTimePicker value={customDraftStart} onChange={(v) => { setCustomDraftStart(v); setCustomTimeError(null); }} stepMinutes={15} />
+            )}
+
+            {/* End row */}
+            <Pressable
+              onPress={() => setCustomSubPicker(customSubPicker === "end" ? null : "end")}
+              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, paddingHorizontal: 4, borderRadius: 12, backgroundColor: customSubPicker === "end" ? colors.primary + "18" : "transparent", marginBottom: 4 }}
+            >
+              <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>End Time</Text>
+              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.primary }}>{formatTimeLabel(customDraftEnd)}</Text>
+            </Pressable>
+            {customSubPicker === "end" && (
+              <TapTimePicker value={customDraftEnd} onChange={(v) => { setCustomDraftEnd(v); setCustomTimeError(null); }} stepMinutes={15} />
+            )}
+
             {customTimeError ? (
-              <Text style={{ color: colors.error, fontSize: 13, textAlign: "center", marginBottom: 12 }}>{customTimeError}</Text>
+              <Text style={{ color: colors.error, fontSize: 13, textAlign: "center", marginVertical: 8 }}>{customTimeError}</Text>
             ) : null}
             <Pressable
               onPress={saveCustomTimePicker}
-              style={({ pressed }) => [styles.saveBtn, { backgroundColor: customTimeError ? colors.border : colors.primary, opacity: pressed ? 0.8 : 1 }]}
+              style={({ pressed }) => [styles.saveBtn, { backgroundColor: customTimeError ? colors.border : colors.primary, opacity: pressed ? 0.8 : 1, marginTop: 12 }]}
             >
               <Text style={{ color: customTimeError ? colors.muted : "#fff", fontWeight: "700", fontSize: 16 }}>Save Hours</Text>
             </Pressable>
