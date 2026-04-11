@@ -682,3 +682,9 @@
 - [x] Add Copy Booking Link button to each location card with toast feedback and cross-platform clipboard support
 - [x] Add Share button to each location card that shares that specific location's unique booking URL via native Share sheet
 - [x] Make Email and Owner Name optional in Business Profile (remove required validation)
+- [ ] Remove Default Location toggle from location-form Settings section
+- [ ] Remove Business Hours section from location-form (managed via Schedule & Hours)
+- [ ] Staff-form: single-select location (not multi), pre-filled with active location, no "all locations" toggle
+- [ ] Staff-calendar: disable past dates and days-off from being selectable (not just dimmed)
+- [ ] Staff screen: replace location number badges with tappable location name that opens location switcher
+- [ ] Staff screen: verify Remove/Delete staff button works correctly

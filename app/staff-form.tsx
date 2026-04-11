@@ -10,6 +10,7 @@ import {
   Switch,
   useWindowDimensions,
   Platform,
+  Modal,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -25,7 +26,6 @@ import {
   formatTimeDisplay,
 } from "@/lib/types";
 import { TapTimePicker, timeToMinutes as tapTimeToMinutes } from "@/components/tap-time-picker";
-import { Modal } from "react-native";
 
 type DaySchedule = { enabled: boolean; start: string; end: string };
 type WeekSchedule = Record<string, DaySchedule>;
@@ -70,22 +70,14 @@ export default function StaffFormScreen() {
     !existing?.serviceIds || existing.serviceIds.length === 0
   );
 
-  // Location assignments — null means all locations
-  const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>(() => {
-    if (existing?.locationIds && existing.locationIds.length > 0) return existing.locationIds;
-    // Auto-assign to single location if only one exists
-    if (state.locations.length === 1) return [state.locations[0].id];
-    return [];
+  // Location assignment — single location per staff member
+  // Pre-select the currently active location for new staff
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(() => {
+    if (existing?.locationIds && existing.locationIds.length > 0) return existing.locationIds[0];
+    // Pre-select active location for new staff
+    if (!isEdit && state.activeLocationId) return state.activeLocationId;
+    return null;
   });
-  const [allLocations, setAllLocations] = useState(
-    !existing?.locationIds || existing.locationIds.length === 0
-  );
-
-  const toggleLocation = (locId: string) => {
-    setSelectedLocationIds((prev) =>
-      prev.includes(locId) ? prev.filter((id) => id !== locId) : [...prev, locId]
-    );
-  };
   const [useCustomSchedule, setUseCustomSchedule] = useState(!!existing?.workingHours);
   const [weekSchedule, setWeekSchedule] = useState<WeekSchedule>(() => {
     if (existing?.workingHours) {
@@ -160,7 +152,7 @@ export default function StaffFormScreen() {
       role: role.trim(),
       color,
       serviceIds: allServices ? null : selectedServiceIds,
-      locationIds: allLocations ? null : (selectedLocationIds.length > 0 ? selectedLocationIds : null),
+      locationIds: selectedLocationId ? [selectedLocationId] : null,
       workingHours: useCustomSchedule ? (weekSchedule as any) : null,
       active,
       createdAt: existing?.createdAt ?? new Date().toISOString(),
@@ -342,66 +334,72 @@ export default function StaffFormScreen() {
           )}
         </View>
 
-        {/* Location Assignments — only shown when multiple locations exist */}
-        {state.locations.length > 1 && (
+        {/* Location Assignment — single-select radio list */}
+        {state.locations.length > 0 && (
           <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text className="text-base font-semibold text-foreground mb-2">Location Assignments</Text>
+            <Text className="text-base font-semibold text-foreground mb-2">Location</Text>
             <Text className="text-xs text-muted mb-3">
-              Choose which locations this staff member works at.
+              Assign this staff member to one location.
             </Text>
 
-            <View style={styles.switchRow}>
-              <Text className="text-sm text-foreground">Works at all locations</Text>
-              <Switch
-                value={allLocations}
-                onValueChange={(val) => {
-                  setAllLocations(val);
-                  if (val) setSelectedLocationIds([]);
-                }}
-                trackColor={{ false: colors.border, true: colors.primary }}
-                thumbColor={Platform.OS === "android" ? (allLocations ? colors.primary : "#f4f3f4") : undefined}
-              />
-            </View>
-
-            {!allLocations && (
-              <View style={{ marginTop: 12, gap: 6 }}>
-                {state.locations.length === 0 ? (
-                  <Text className="text-sm text-muted">No locations created yet.</Text>
-                ) : (
-                  state.locations.map((loc) => {
-                    const selected = selectedLocationIds.includes(loc.id);
-                    return (
-                      <Pressable
-                        key={loc.id}
-                        onPress={() => toggleLocation(loc.id)}
-                        style={({ pressed }) => [
-                          styles.serviceChip,
-                          {
-                            backgroundColor: selected ? colors.primary + "15" : colors.background,
-                            borderColor: selected ? colors.primary : colors.border,
-                            opacity: pressed ? 0.7 : 1,
-                          },
-                        ]}
-                      >
-                        <IconSymbol name="location.fill" size={14} color={selected ? colors.primary : colors.muted} />
-                        <Text
-                          style={{ flex: 1, fontSize: 14, color: colors.foreground }}
-                          numberOfLines={1}
-                        >
-                          {loc.name}
-                        </Text>
-                        {loc.isDefault && (
-                          <Text style={{ fontSize: 11, color: colors.muted }}>Default</Text>
-                        )}
-                        {selected && (
-                          <IconSymbol name="checkmark" size={16} color={colors.primary} />
-                        )}
-                      </Pressable>
-                    );
-                  })
+            <View style={{ gap: 6 }}>
+              {/* None option */}
+              <Pressable
+                onPress={() => setSelectedLocationId(null)}
+                style={({ pressed }) => [
+                  styles.serviceChip,
+                  {
+                    backgroundColor: selectedLocationId === null ? colors.primary + "15" : colors.background,
+                    borderColor: selectedLocationId === null ? colors.primary : colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <IconSymbol name="location.slash.fill" size={14} color={selectedLocationId === null ? colors.primary : colors.muted} />
+                <Text style={{ flex: 1, fontSize: 14, color: colors.foreground }}>All Locations</Text>
+                {selectedLocationId === null && (
+                  <View style={[styles.radioSelected, { borderColor: colors.primary }]}>
+                    <View style={[styles.radioDot, { backgroundColor: colors.primary }]} />
+                  </View>
                 )}
-              </View>
-            )}
+                {selectedLocationId !== null && (
+                  <View style={[styles.radioUnselected, { borderColor: colors.border }]} />
+                )}
+              </Pressable>
+
+              {state.locations.map((loc) => {
+                const selected = selectedLocationId === loc.id;
+                return (
+                  <Pressable
+                    key={loc.id}
+                    onPress={() => setSelectedLocationId(loc.id)}
+                    style={({ pressed }) => [
+                      styles.serviceChip,
+                      {
+                        backgroundColor: selected ? colors.primary + "15" : colors.background,
+                        borderColor: selected ? colors.primary : colors.border,
+                        opacity: pressed ? 0.7 : 1,
+                      },
+                    ]}
+                  >
+                    <IconSymbol name="location.fill" size={14} color={selected ? colors.primary : colors.muted} />
+                    <Text
+                      style={{ flex: 1, fontSize: 14, color: colors.foreground }}
+                      numberOfLines={1}
+                    >
+                      {loc.name}
+                    </Text>
+                    {selected ? (
+                      <View style={[styles.radioSelected, { borderColor: colors.primary }]}>
+                        <View style={[styles.radioDot, { backgroundColor: colors.primary }]} />
+                      </View>
+                    ) : (
+                      <View style={[styles.radioUnselected, { borderColor: colors.border }]} />
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
         )}
 
@@ -623,5 +621,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     fontSize: 14,
     textAlign: "center",
+  },
+  radioSelected: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  radioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  radioUnselected: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
   },
 });

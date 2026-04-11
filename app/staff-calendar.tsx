@@ -285,11 +285,13 @@ export default function StaffCalendarScreen() {
             const isWorkingDay = staff.workingHours
               ? (staff.workingHours[dayName]?.enabled ?? false)
               : true;
+            const isPast = dateStr < todayStr;
+            const isDisabled = !isWorkingDay || isPast;
 
             return (
               <Pressable
                 key={dateStr}
-                onPress={() => setSelectedDate(dateStr)}
+                onPress={() => { if (!isDisabled) setSelectedDate(dateStr); }}
                 style={({ pressed }) => [
                   styles.dayCell,
                   {
@@ -297,7 +299,7 @@ export default function StaffCalendarScreen() {
                     height: cellSize,
                     backgroundColor: isSelected ? (staff.color || colors.primary) : "transparent",
                     borderRadius: cellSize / 2,
-                    opacity: !isWorkingDay ? 0.3 : pressed ? 0.7 : 1,
+                    opacity: isDisabled ? 0.25 : pressed ? 0.7 : 1,
                   },
                 ]}
               >

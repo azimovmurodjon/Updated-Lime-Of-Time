@@ -6,6 +6,7 @@ import {
   Pressable,
   StyleSheet,
   Alert,
+  Modal,
   useWindowDimensions,
 } from "react-native";
 import { useRouter } from "expo-router";
@@ -25,6 +26,7 @@ export default function StaffScreen() {
   const isTablet = width >= 768;
   const hp = isTablet ? 32 : Math.max(16, width * 0.05);
   const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
+  const [locationPickerOpen, setLocationPickerOpen] = useState(false);
   const { activeLocation, activeLocations, hasMultipleLocations, staffForLocation, setActiveLocation } = useActiveLocation();
 
   // staffForLocation already filters by active location; apply active/inactive filter on top
@@ -48,6 +50,18 @@ export default function StaffScreen() {
       .map((id) => state.locations.find((l) => l.id === id)?.name)
       .filter(Boolean) as string[];
     return names.length > 0 ? names.join(", ") : null;
+  };
+
+  // Returns "[Business Name] · [Location Name]" subtitle for a staff member
+  const getLocationSubtitle = (member: StaffMember): string => {
+    const bizName = state.settings.businessName || "My Business";
+    if (!member.locationIds || member.locationIds.length === 0) {
+      // All locations — show first active location or just business name
+      const firstLoc = state.locations.find((l) => l.active);
+      return firstLoc ? `${bizName} · ${firstLoc.name}` : bizName;
+    }
+    const locName = state.locations.find((l) => l.id === member.locationIds![0])?.name;
+    return locName ? `${bizName} · ${locName}` : bizName;
   };
 
   const getWorkdaySummary = (member: StaffMember): string => {
@@ -119,6 +133,26 @@ export default function StaffScreen() {
                 {item.role}
               </Text>
             ) : null}
+            {/* Business + Location subtitle — tappable to switch active location */}
+            {state.locations.length > 0 && (
+              <Pressable
+                onPress={(e) => {
+                  e.stopPropagation();
+                  if (hasMultipleLocations) setLocationPickerOpen(true);
+                }}
+                style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, alignSelf: "flex-start" })}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 }}>
+                  <IconSymbol name="mappin.and.ellipse" size={10} color={colors.primary} />
+                  <Text style={{ fontSize: 11, color: colors.primary, fontWeight: "500" }} numberOfLines={1}>
+                    {getLocationSubtitle(item)}
+                  </Text>
+                  {hasMultipleLocations && (
+                    <IconSymbol name="chevron.right" size={9} color={colors.primary} />
+                  )}
+                </View>
+              </Pressable>
+            )}
           </View>
         </View>
         <View style={styles.cardActions}>
@@ -255,6 +289,56 @@ export default function StaffScreen() {
       {hasMultipleLocations && (
         <LocationSwitcher containerStyle={{ marginBottom: 8 }} />
       )}
+
+      {/* Inline Location Picker Modal (triggered from subtitle tap) */}
+      <Modal
+        visible={locationPickerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLocationPickerOpen(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: 24 }}
+          onPress={() => setLocationPickerOpen(false)}
+        >
+          <Pressable
+            style={[{ width: "100%", maxWidth: 380, borderRadius: 16, borderWidth: 1, overflow: "hidden", backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => {}}
+          >
+            <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground, paddingHorizontal: 18, paddingVertical: 14 }}>
+              Switch Location
+            </Text>
+            {activeLocations.map((loc) => {
+              const isActive = loc.id === activeLocation?.id;
+              return (
+                <Pressable
+                  key={loc.id}
+                  onPress={() => { setActiveLocation(loc.id); setLocationPickerOpen(false); }}
+                  style={({ pressed }) => ({
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingHorizontal: 18,
+                    paddingVertical: 13,
+                    borderTopWidth: StyleSheet.hairlineWidth,
+                    borderTopColor: colors.border,
+                    backgroundColor: isActive ? colors.primary + "18" : pressed ? colors.border : "transparent",
+                  })}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontWeight: "500", color: isActive ? colors.primary : colors.foreground }} numberOfLines={1}>{loc.name}</Text>
+                    {(loc.city || loc.address) && (
+                      <Text style={{ fontSize: 12, color: colors.muted }} numberOfLines={1}>
+                        {loc.city ? [loc.address, loc.city, loc.state].filter(Boolean).join(", ") : loc.address}
+                      </Text>
+                    )}
+                  </View>
+                  {isActive && <IconSymbol name="checkmark" size={16} color={colors.primary} />}
+                </Pressable>
+              );
+            })}
+          </Pressable>
+        </Pressable>
+      </Modal>
       {/* Filter Chips */}
       <View style={styles.filterRow}>
         {(["all", "active", "inactive"] as const).map((f) => (
