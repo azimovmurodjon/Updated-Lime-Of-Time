@@ -610,3 +610,26 @@
 - [ ] Staff calendar: constrain available hours to assigned location's business hours (fallback to global)
 - [ ] Main calendar: show location filter tabs when multi-location exists
 - [ ] Single-location: hide all location UI when only 1 location exists
+
+## Multi-Location & Staff Integration Gaps (Audit Apr 11)
+- [x] Fix staff API: use s.workingHours (not s.schedule) when returning staff to booking page
+- [x] Fix staff API: use s.active (not s.isActive) for filtering active staff
+- [x] Fix /slots endpoint: accept optional staffLocalId + locationLocalId query params; use most specific schedule (staff > location > global)
+- [x] Fix booking page loadSlots: pass selectedStaff.localId + selectedLocation when fetching slots
+- [ ] Fix booking page checkDayAvailability: pass selectedStaff.localId + selectedLocation when checking day availability
+- [ ] Fix booking page isWorkingDay: use selected location's workingHours when a location is selected
+- [x] Fix booking page: clear slotCache when staff or location changes
+- [x] Fix locations API: include workingHours in response so booking page can use per-location hours
+- [ ] Staff list screen: show location assignments (when multi-location) and per-day workday summary
+
+
+## Multi-Location & Staff Integration Gaps (Audit Apr 11)
+- [x] Fix staff API: use s.workingHours (not s.schedule) when returning staff to booking page
+- [x] Fix staff API: use s.active (not s.isActive) for filtering active staff
+- [x] Fix /slots endpoint: accept optional staffLocalId + locationLocalId query params
+- [x] Fix booking page loadSlots: pass selectedStaff.localId + selectedLocation when fetching slots
+- [x] Fix booking page checkDayAvailability: pass staff + location params
+- [x] Fix booking page isWorkingDay: use selected location workingHours when location selected
+- [x] Fix booking page: clear slotCache when staff or location changes
+- [x] Fix locations API: include workingHours in response
+- [x] Staff list screen: show location assignments and per-day workday summary

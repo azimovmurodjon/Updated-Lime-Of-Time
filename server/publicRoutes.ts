@@ -164,15 +164,15 @@ export function registerPublicRoutes(app: Express) {
         return;
       }
       const staffList = await db.getStaffByOwner(owner.id);
-      // Only return active staff with their name, services, and schedule
-      res.json(staffList.filter((s: any) => s.isActive !== false).map((s: any) => ({
+      // Only return active staff with their name, services, and working hours
+      res.json(staffList.filter((s: any) => s.active !== false).map((s: any) => ({
         localId: s.localId,
         name: s.name,
         role: s.role || "",
         color: s.color || "#6366f1",
-        serviceIds: s.serviceIds ? JSON.parse(s.serviceIds) : [],
-        locationIds: s.locationIds ? JSON.parse(s.locationIds) : null,
-        schedule: s.schedule ? JSON.parse(s.schedule) : {},
+        serviceIds: Array.isArray(s.serviceIds) ? s.serviceIds : (s.serviceIds ? JSON.parse(s.serviceIds) : []),
+        locationIds: Array.isArray(s.locationIds) ? s.locationIds : (s.locationIds ? JSON.parse(s.locationIds) : null),
+        workingHours: s.workingHours ? (typeof s.workingHours === 'object' ? s.workingHours : JSON.parse(s.workingHours)) : null,
       })));
     } catch (err) {
       console.error("[Public API] Error fetching staff:", err);
@@ -196,6 +196,7 @@ export function registerPublicRoutes(app: Express) {
         phone: l.phone || "",
         email: l.email || "",
         active: l.active,
+        workingHours: l.workingHours ? (typeof l.workingHours === 'object' ? l.workingHours : JSON.parse(l.workingHours)) : null,
       })));
     } catch (err) {
       console.error("[Public API] Error fetching locations:", err);
@@ -213,6 +214,8 @@ export function registerPublicRoutes(app: Express) {
       }
       const date = req.query.date as string;
       const duration = parseInt(req.query.duration as string) || 60;
+      const staffLocalId = req.query.staffId as string | undefined;
+      const locationLocalId = req.query.locationId as string | undefined;
       if (!date) {
         res.status(400).json({ error: "date query parameter is required" });
         return;
@@ -227,10 +230,28 @@ export function registerPublicRoutes(app: Express) {
       const schedule = await db.getCustomScheduleByOwner(owner.id);
       const mode = (owner.scheduleMode as "weekly" | "custom") || "weekly";
       const buffer = (owner as any).bufferTime || 0;
+      // Determine effective working hours: staff > location > global (most specific wins)
+      let effectiveWorkingHours = owner.workingHours;
+      if (locationLocalId) {
+        const locs = await db.getLocationsByOwner(owner.id);
+        const loc = locs.find((l: any) => l.localId === locationLocalId);
+        if (loc && loc.workingHours) {
+          const locWh = typeof loc.workingHours === 'object' ? loc.workingHours : JSON.parse(loc.workingHours as string);
+          effectiveWorkingHours = locWh;
+        }
+      }
+      if (staffLocalId) {
+        const staffList = await db.getStaffByOwner(owner.id);
+        const staff = staffList.find((s: any) => s.localId === staffLocalId);
+        if (staff && staff.workingHours) {
+          const staffWh = typeof staff.workingHours === 'object' ? staff.workingHours : JSON.parse(staff.workingHours as string);
+          effectiveWorkingHours = staffWh;
+        }
+      }
       const slots = generateAvailableSlots(
         date,
         duration,
-        owner.workingHours,
+        effectiveWorkingHours,
         appts,
         30,
         schedule,
@@ -1711,6 +1732,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
 
     function selectLocation(locId) {
       selectedLocation = locId;
+      slotCache = {}; // Clear cache when location changes
       renderLocationSelector();
       // Re-filter services and staff for this location
       renderServices();
@@ -1720,6 +1742,31 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       }
     }
 
+    function getEffectiveWorkingDays() {
+      // Staff hours override location hours, which override global hours
+      if (selectedStaff && selectedStaff.workingHours) {
+        const wh = selectedStaff.workingHours;
+        const days = {};
+        ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].forEach(d => {
+          const entry = wh[d] || wh[d.toLowerCase()];
+          days[d] = !!(entry && entry.enabled);
+        });
+        return days;
+      }
+      if (selectedLocation) {
+        const loc = locations.find(l => l.localId === selectedLocation);
+        if (loc && loc.workingHours) {
+          const wh = loc.workingHours;
+          const days = {};
+          ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].forEach(d => {
+            const entry = wh[d] || wh[d.toLowerCase()];
+            days[d] = !!(entry && entry.enabled);
+          });
+          return days;
+        }
+      }
+      return WEEKLY_DAYS;
+    }
     function isWorkingDay(dateStr) {
       // Check Active Until expiry
       if (businessHoursEndDate && dateStr > businessHoursEndDate) return false;
@@ -1731,7 +1778,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       if (customDays.hasOwnProperty(dateStr)) return customDays[dateStr];
       const d = new Date(dateStr + "T12:00:00");
       const dayName = DAYS_MAP[d.getDay()];
-      return WEEKLY_DAYS[dayName] || false;
+      return getEffectiveWorkingDays()[dayName] || false;
     }
 
     function renderServices() {
@@ -1818,6 +1865,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
 
     function selectStaff(id) {
       selectedStaff = id ? staffMembers.find(s => s.localId === id) : null;
+      slotCache = {}; // Clear cache when staff changes
       document.querySelectorAll("#staffList .service-item").forEach(el => el.classList.remove("selected"));
       const el = document.getElementById(id ? "staff-" + id : "staff-any");
       if (el) el.classList.add("selected");
@@ -1909,17 +1957,25 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       if (selectedDate) loadSlots(selectedDate);
     }
 
+    function buildSlotParams(date, dur) {
+      let params = "/slots?date=" + date + "&duration=" + dur;
+      if (selectedStaff) params += "&staffId=" + encodeURIComponent(selectedStaff.localId);
+      if (selectedLocation) params += "&locationId=" + encodeURIComponent(selectedLocation);
+      return params;
+    }
     async function checkDayAvailability(dates) {
       const dur = getTotalDuration();
       // Fetch slots for each working day in parallel
+      const cacheKey = (ds) => ds + '_' + dur + '_' + (selectedStaff ? selectedStaff.localId : '') + '_' + (selectedLocation || '');
       const promises = dates.map(async (ds) => {
         // Use cache if available
-        if (slotCache[ds + '_' + dur] !== undefined) return { date: ds, count: slotCache[ds + '_' + dur] };
+        const key = cacheKey(ds);
+        if (slotCache[key] !== undefined) return { date: ds, count: slotCache[key] };
         try {
-          const res = await fetch(API + "/slots?date=" + ds + "&duration=" + dur);
+          const res = await fetch(API + buildSlotParams(ds, dur));
           const data = await res.json();
           const count = data.slots ? data.slots.length : 0;
-          slotCache[ds + '_' + dur] = count;
+          slotCache[key] = count;
           return { date: ds, count };
         } catch(e) {
           return { date: ds, count: 0 };
@@ -1966,7 +2022,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
 
       try {
         const dur = getTotalDuration();
-        const res = await fetch(API + "/slots?date=" + date + "&duration=" + dur);
+        const res = await fetch(API + buildSlotParams(date, dur));
         const data = await res.json();
         if (data.slots.length === 0) {
           grid.innerHTML = "";

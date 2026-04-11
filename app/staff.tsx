@@ -43,6 +43,28 @@ export default function StaffScreen() {
       .join(", ") || "No services assigned";
   };
 
+  const getLocationNames = (member: StaffMember): string | null => {
+    if (!member.locationIds || member.locationIds.length === 0) return null;
+    const names = member.locationIds
+      .map((id) => state.locations.find((l) => l.id === id)?.name)
+      .filter(Boolean) as string[];
+    return names.length > 0 ? names.join(", ") : null;
+  };
+
+  const getWorkdaySummary = (member: StaffMember): string => {
+    if (!member.workingHours) return "Business Hours";
+    const abbr: Record<string, string> = {
+      monday: "Mon", tuesday: "Tue", wednesday: "Wed",
+      thursday: "Thu", friday: "Fri", saturday: "Sat", sunday: "Sun",
+    };
+    const active = Object.entries(member.workingHours)
+      .filter(([, v]) => (v as any)?.enabled)
+      .map(([k]) => abbr[k] ?? k.slice(0, 3));
+    return active.length > 0 ? active.join(", ") : "No working days";
+  };
+
+  const hasMultipleLocations = state.locations.length > 1;
+
   const handleDelete = (member: StaffMember) => {
     Alert.alert(
       "Delete Staff Member",
@@ -149,10 +171,18 @@ export default function StaffScreen() {
         </View>
         <View style={styles.detailRow}>
           <IconSymbol name="clock.fill" size={14} color={colors.muted} />
-          <Text className="text-xs text-muted ml-1">
-            {item.workingHours ? "Custom Schedule" : "Business Hours"}
+          <Text className="text-xs text-muted ml-1" numberOfLines={1}>
+            {getWorkdaySummary(item)}
           </Text>
         </View>
+        {hasMultipleLocations ? (
+          <View style={styles.detailRow}>
+            <IconSymbol name="mappin.and.ellipse" size={14} color={colors.muted} />
+            <Text className="text-xs text-muted ml-1" numberOfLines={1}>
+              {getLocationNames(item) ?? "All Locations"}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.cardFooter}>

@@ -33,6 +33,7 @@ const MAPPING = {
   "star.fill": "star",
   "arrow.left": "arrow-back",
   "mappin": "place",
+  "mappin.and.ellipse": "place",
   "globe": "language",
   "message.fill": "message",
   "person.crop.circle.badge.plus": "person-add",
