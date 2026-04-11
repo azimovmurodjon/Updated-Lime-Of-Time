@@ -10,17 +10,18 @@ import {
   Switch,
   useWindowDimensions,
   Platform,
+  Modal,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, generateId } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { TapTimePicker } from "@/components/tap-time-picker";
 import {
   Location,
   DAYS_OF_WEEK,
   formatPhoneNumber,
-  stripPhoneFormat,
 } from "@/lib/types";
 
 type DaySchedule = { enabled: boolean; start: string; end: string };
@@ -36,6 +37,19 @@ function buildDefaultWeekSchedule(): WeekSchedule {
   });
   return schedule;
 }
+
+function fmt24to12(t: string): string {
+  if (!t) return "";
+  const [hStr, mStr] = t.split(":");
+  let h = parseInt(hStr, 10);
+  const m = mStr ?? "00";
+  const ampm = h >= 12 ? "PM" : "AM";
+  if (h === 0) h = 12;
+  else if (h > 12) h -= 12;
+  return `${h}:${m} ${ampm}`;
+}
+
+type TimePickerTarget = { day: string; field: "start" | "end" } | null;
 
 export default function LocationFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -59,7 +73,8 @@ export default function LocationFormScreen() {
   const [email, setEmail] = useState(existing?.email ?? "");
   const [isDefault, setIsDefault] = useState(existing?.isDefault ?? state.locations.length === 0);
   const [active, setActive] = useState(existing?.active ?? true);
-  const [useCustomSchedule, setUseCustomSchedule] = useState(!!existing?.workingHours);
+
+  // Business Hours — always shown, always saved
   const [weekSchedule, setWeekSchedule] = useState<WeekSchedule>(() => {
     if (existing?.workingHours) {
       const ws: WeekSchedule = {};
@@ -74,11 +89,42 @@ export default function LocationFormScreen() {
     return buildDefaultWeekSchedule();
   });
 
+  // Time picker modal state
+  const [pickerTarget, setPickerTarget] = useState<TimePickerTarget>(null);
+  const [pickerValue, setPickerValue] = useState("09:00");
+  const [timeError, setTimeError] = useState("");
+
   const updateDaySchedule = (day: string, field: keyof DaySchedule, value: any) => {
     setWeekSchedule((prev) => ({
       ...prev,
       [day]: { ...prev[day], [field]: value },
     }));
+  };
+
+  const openTimePicker = (day: string, field: "start" | "end") => {
+    const ds = weekSchedule[day] || DEFAULT_DAY;
+    setPickerValue(field === "start" ? ds.start : ds.end);
+    setTimeError("");
+    setPickerTarget({ day, field });
+  };
+
+  const saveTimePicker = () => {
+    if (!pickerTarget) return;
+    const { day, field } = pickerTarget;
+    const ds = weekSchedule[day] || DEFAULT_DAY;
+    const newStart = field === "start" ? pickerValue : ds.start;
+    const newEnd = field === "end" ? pickerValue : ds.end;
+    const toMin = (t: string) => {
+      const [h, m] = t.split(":").map(Number);
+      return h * 60 + m;
+    };
+    if (toMin(newEnd) <= toMin(newStart)) {
+      setTimeError("End time must be after start time.");
+      return;
+    }
+    updateDaySchedule(day, field, pickerValue);
+    setPickerTarget(null);
+    setTimeError("");
   };
 
   const handleSave = () => {
@@ -99,7 +145,7 @@ export default function LocationFormScreen() {
       email: email.trim(),
       isDefault,
       active,
-      workingHours: useCustomSchedule ? (weekSchedule as any) : null,
+      workingHours: weekSchedule as any,
       createdAt: existing?.createdAt ?? new Date().toISOString(),
     };
 
@@ -107,7 +153,6 @@ export default function LocationFormScreen() {
       ? { type: "UPDATE_LOCATION" as const, payload: loc }
       : { type: "ADD_LOCATION" as const, payload: loc };
 
-    // If setting as default, unset other defaults
     if (isDefault) {
       state.locations.forEach((l) => {
         if (l.id !== loc.id && l.isDefault) {
@@ -251,86 +296,69 @@ export default function LocationFormScreen() {
           </View>
         </View>
 
-        {/* Working Hours */}
+        {/* Business Hours — always shown */}
         <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text className="text-base font-semibold text-foreground mb-2">Working Hours</Text>
+          <Text className="text-base font-semibold text-foreground mb-1">Business Hours</Text>
           <Text className="text-xs text-muted mb-3">
-            Set individual hours for this location or use the business default schedule.
+            Set the working hours for this location. Staff assigned here will be constrained to these hours.
           </Text>
 
-          <View style={styles.switchRow}>
-            <Text className="text-sm text-foreground">Use custom schedule</Text>
-            <Switch
-              value={useCustomSchedule}
-              onValueChange={setUseCustomSchedule}
-              trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor={Platform.OS === "android" ? (useCustomSchedule ? colors.primary : "#f4f3f4") : undefined}
-            />
-          </View>
-
-          {useCustomSchedule && (
-            <View style={{ marginTop: 12, gap: 8 }}>
-              {DAYS_OF_WEEK.map((day) => {
-                const ds = weekSchedule[day] || DEFAULT_DAY;
-                return (
-                  <View
-                    key={day}
-                    style={[
-                      styles.dayRow,
-                      { backgroundColor: colors.background, borderColor: colors.border },
-                    ]}
-                  >
-                    <View style={styles.dayHeader}>
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          fontWeight: "600",
-                          color: ds.enabled ? colors.foreground : colors.muted,
-                          width: 80,
-                        }}
-                      >
-                        {day.slice(0, 3)}
-                      </Text>
-                      <Switch
-                        value={ds.enabled}
-                        onValueChange={(val) => updateDaySchedule(day, "enabled", val)}
-                        trackColor={{ false: colors.border, true: colors.primary }}
-                        thumbColor={Platform.OS === "android" ? (ds.enabled ? colors.primary : "#f4f3f4") : undefined}
-                        style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
-                      />
-                    </View>
-                    {ds.enabled && (
-                      <View style={styles.timeRow}>
-                        <TextInput
-                          value={ds.start}
-                          onChangeText={(val) => updateDaySchedule(day, "start", val)}
-                          placeholder="09:00"
-                          placeholderTextColor={colors.muted}
-                          style={[
-                            styles.timeInput,
-                            { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground },
-                          ]}
-                          returnKeyType="done"
-                        />
-                        <Text className="text-sm text-muted mx-2">to</Text>
-                        <TextInput
-                          value={ds.end}
-                          onChangeText={(val) => updateDaySchedule(day, "end", val)}
-                          placeholder="17:00"
-                          placeholderTextColor={colors.muted}
-                          style={[
-                            styles.timeInput,
-                            { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground },
-                          ]}
-                          returnKeyType="done"
-                        />
-                      </View>
-                    )}
+          <View style={{ gap: 8 }}>
+            {DAYS_OF_WEEK.map((day) => {
+              const ds = weekSchedule[day] || DEFAULT_DAY;
+              return (
+                <View
+                  key={day}
+                  style={[
+                    styles.dayRow,
+                    { backgroundColor: colors.background, borderColor: colors.border },
+                  ]}
+                >
+                  <View style={styles.dayHeader}>
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontWeight: "600",
+                        color: ds.enabled ? colors.foreground : colors.muted,
+                        width: 80,
+                        textTransform: "capitalize",
+                      }}
+                    >
+                      {day.slice(0, 3)}
+                    </Text>
+                    <Switch
+                      value={ds.enabled}
+                      onValueChange={(val) => updateDaySchedule(day, "enabled", val)}
+                      trackColor={{ false: colors.border, true: colors.primary }}
+                      thumbColor={Platform.OS === "android" ? (ds.enabled ? colors.primary : "#f4f3f4") : undefined}
+                      style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+                    />
                   </View>
-                );
-              })}
-            </View>
-          )}
+                  {ds.enabled && (
+                    <View style={styles.timeRow}>
+                      <Pressable
+                        onPress={() => openTimePicker(day, "start")}
+                        style={[styles.timeBtn, { backgroundColor: colors.surface, borderColor: colors.primary }]}
+                      >
+                        <Text style={{ color: colors.primary, fontSize: 14, fontWeight: "600" }}>
+                          {fmt24to12(ds.start)}
+                        </Text>
+                      </Pressable>
+                      <Text className="text-sm text-muted mx-2">–</Text>
+                      <Pressable
+                        onPress={() => openTimePicker(day, "end")}
+                        style={[styles.timeBtn, { backgroundColor: colors.surface, borderColor: colors.primary }]}
+                      >
+                        <Text style={{ color: colors.primary, fontSize: 14, fontWeight: "600" }}>
+                          {fmt24to12(ds.end)}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
         </View>
 
         {/* Delete Button (edit mode only) */}
@@ -349,6 +377,54 @@ export default function LocationFormScreen() {
           </Pressable>
         )}
       </ScrollView>
+
+      {/* Time Picker Modal */}
+      <Modal
+        visible={!!pickerTarget}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPickerTarget(null)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setPickerTarget(null)}
+        >
+          <Pressable
+            style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground, marginBottom: 4 }}>
+              {pickerTarget?.field === "start" ? "Start Time" : "End Time"}
+            </Text>
+            <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 12, textTransform: "capitalize" }}>
+              {pickerTarget?.day ?? ""}
+            </Text>
+            <TapTimePicker
+              value={pickerValue}
+              onChange={(v) => { setPickerValue(v); setTimeError(""); }}
+            />
+            {timeError ? (
+              <Text style={{ color: colors.error, fontSize: 12, marginTop: 8, textAlign: "center" }}>
+                {timeError}
+              </Text>
+            ) : null}
+            <View style={{ flexDirection: "row", gap: 12, marginTop: 16 }}>
+              <Pressable
+                onPress={() => { setPickerTarget(null); setTimeError(""); }}
+                style={[styles.modalBtn, { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1 }]}
+              >
+                <Text style={{ color: colors.muted, fontWeight: "600" }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={saveTimePicker}
+                style={[styles.modalBtn, { backgroundColor: colors.primary }]}
+              >
+                <Text style={{ color: "#fff", fontWeight: "700" }}>Apply</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -401,14 +477,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 8,
   },
-  timeInput: {
-    height: 36,
-    width: 80,
-    borderWidth: 1,
+  timeBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: 8,
-    paddingHorizontal: 10,
-    fontSize: 14,
-    textAlign: "center",
+    borderWidth: 1,
   },
   deleteBtn: {
     flexDirection: "row",
@@ -419,5 +492,26 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     marginBottom: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 340,
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 20,
+    alignItems: "center",
+  },
+  modalBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
   },
 });

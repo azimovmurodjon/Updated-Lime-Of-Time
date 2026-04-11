@@ -69,6 +69,23 @@ export default function StaffFormScreen() {
   const [allServices, setAllServices] = useState(
     !existing?.serviceIds || existing.serviceIds.length === 0
   );
+
+  // Location assignments — null means all locations
+  const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>(() => {
+    if (existing?.locationIds && existing.locationIds.length > 0) return existing.locationIds;
+    // Auto-assign to single location if only one exists
+    if (state.locations.length === 1) return [state.locations[0].id];
+    return [];
+  });
+  const [allLocations, setAllLocations] = useState(
+    !existing?.locationIds || existing.locationIds.length === 0
+  );
+
+  const toggleLocation = (locId: string) => {
+    setSelectedLocationIds((prev) =>
+      prev.includes(locId) ? prev.filter((id) => id !== locId) : [...prev, locId]
+    );
+  };
   const [useCustomSchedule, setUseCustomSchedule] = useState(!!existing?.workingHours);
   const [weekSchedule, setWeekSchedule] = useState<WeekSchedule>(() => {
     if (existing?.workingHours) {
@@ -143,7 +160,7 @@ export default function StaffFormScreen() {
       role: role.trim(),
       color,
       serviceIds: allServices ? null : selectedServiceIds,
-      locationIds: existing?.locationIds ?? null,
+      locationIds: allLocations ? null : (selectedLocationIds.length > 0 ? selectedLocationIds : null),
       workingHours: useCustomSchedule ? (weekSchedule as any) : null,
       active,
       createdAt: existing?.createdAt ?? new Date().toISOString(),
@@ -324,6 +341,69 @@ export default function StaffFormScreen() {
             </View>
           )}
         </View>
+
+        {/* Location Assignments — only shown when multiple locations exist */}
+        {state.locations.length > 1 && (
+          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text className="text-base font-semibold text-foreground mb-2">Location Assignments</Text>
+            <Text className="text-xs text-muted mb-3">
+              Choose which locations this staff member works at.
+            </Text>
+
+            <View style={styles.switchRow}>
+              <Text className="text-sm text-foreground">Works at all locations</Text>
+              <Switch
+                value={allLocations}
+                onValueChange={(val) => {
+                  setAllLocations(val);
+                  if (val) setSelectedLocationIds([]);
+                }}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor={Platform.OS === "android" ? (allLocations ? colors.primary : "#f4f3f4") : undefined}
+              />
+            </View>
+
+            {!allLocations && (
+              <View style={{ marginTop: 12, gap: 6 }}>
+                {state.locations.length === 0 ? (
+                  <Text className="text-sm text-muted">No locations created yet.</Text>
+                ) : (
+                  state.locations.map((loc) => {
+                    const selected = selectedLocationIds.includes(loc.id);
+                    return (
+                      <Pressable
+                        key={loc.id}
+                        onPress={() => toggleLocation(loc.id)}
+                        style={({ pressed }) => [
+                          styles.serviceChip,
+                          {
+                            backgroundColor: selected ? colors.primary + "15" : colors.background,
+                            borderColor: selected ? colors.primary : colors.border,
+                            opacity: pressed ? 0.7 : 1,
+                          },
+                        ]}
+                      >
+                        <IconSymbol name="location.fill" size={14} color={selected ? colors.primary : colors.muted} />
+                        <Text
+                          style={{ flex: 1, fontSize: 14, color: colors.foreground }}
+                          numberOfLines={1}
+                        >
+                          {loc.name}
+                        </Text>
+                        {loc.isDefault && (
+                          <Text style={{ fontSize: 11, color: colors.muted }}>Default</Text>
+                        )}
+                        {selected && (
+                          <IconSymbol name="checkmark" size={16} color={colors.primary} />
+                        )}
+                      </Pressable>
+                    );
+                  })
+                )}
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Working Hours */}
         <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>

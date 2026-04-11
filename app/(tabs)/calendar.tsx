@@ -810,6 +810,15 @@ export default function CalendarScreen() {
                             <Text style={{ fontSize: 11, color: staffMember.color || colors.primary, fontWeight: "500" }}>{staffMember.name}</Text>
                           </View>
                         )}
+                        {hasMultiLoc && appt.locationId && (() => {
+                          const loc = state.locations.find((l) => l.id === appt.locationId);
+                          return loc ? (
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 2, marginLeft: 4, backgroundColor: colors.primary + "12", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>
+                              <IconSymbol name="location.fill" size={9} color={colors.primary} />
+                              <Text style={{ fontSize: 10, color: colors.primary, fontWeight: "500" }}>{loc.name}</Text>
+                            </View>
+                          ) : null;
+                        })()}
                       </View>
                     </View>
                     <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>

@@ -171,6 +171,7 @@ export function registerPublicRoutes(app: Express) {
         role: s.role || "",
         color: s.color || "#6366f1",
         serviceIds: s.serviceIds ? JSON.parse(s.serviceIds) : [],
+        locationIds: s.locationIds ? JSON.parse(s.locationIds) : null,
         schedule: s.schedule ? JSON.parse(s.schedule) : {},
       })));
     } catch (err) {
@@ -1711,8 +1712,12 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     function selectLocation(locId) {
       selectedLocation = locId;
       renderLocationSelector();
-      // Re-filter services for this location
+      // Re-filter services and staff for this location
       renderServices();
+      // If a service is already selected, re-render staff filtered by new location
+      if (selectedService) {
+        renderStaffForService(selectedService.localId);
+      }
     }
 
     function isWorkingDay(dateStr) {
@@ -1782,8 +1787,16 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     function renderStaffForService(serviceId) {
       const section = document.getElementById("staffSection");
       const list = document.getElementById("staffList");
-      // Filter staff who can perform this service
-      const eligible = staffMembers.filter(s => s.serviceIds.length === 0 || s.serviceIds.includes(serviceId));
+      // Filter staff who can perform this service AND are assigned to the selected location
+      const eligible = staffMembers.filter(s => {
+        // Service check: null/empty serviceIds means all services
+        const canDoService = s.serviceIds.length === 0 || s.serviceIds.includes(serviceId);
+        if (!canDoService) return false;
+        // Location check: null locationIds means all locations
+        if (!selectedLocation) return true; // no location selected, show all
+        if (!s.locationIds) return true; // staff works at all locations
+        return s.locationIds.includes(selectedLocation);
+      });
       if (eligible.length === 0) {
         section.style.display = "none";
         return;

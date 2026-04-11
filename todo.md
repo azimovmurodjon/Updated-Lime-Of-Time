@@ -600,3 +600,13 @@
 - [ ] Add end time validation error in calendar.tsx Workday modal (end must be after start)
 - [ ] Add end time validation error in schedule-settings.tsx weekly and custom-date modals
 - [ ] Add end time validation error in staff-form.tsx and discounts.tsx modals
+
+## Multi-Location & Staff Management
+
+- [ ] Staff form: add multi-location selector (toggle per location); auto-assign when single location (hidden)
+- [ ] Location form: replace custom schedule toggle with always-visible Business Hours section using TapTimePicker
+- [ ] Public staff API: expose locationIds in response so booking page can filter by location
+- [ ] Client booking page: filter staff list to only those assigned to the selected location
+- [ ] Staff calendar: constrain available hours to assigned location's business hours (fallback to global)
+- [ ] Main calendar: show location filter tabs when multi-location exists
+- [ ] Single-location: hide all location UI when only 1 location exists

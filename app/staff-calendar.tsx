@@ -92,13 +92,49 @@ export default function StaffCalendarScreen() {
       .sort((a, b) => a.time.localeCompare(b.time));
   }, [staffAppointments, selectedDate]);
 
-  // Staff working hours for the selected date
+  // Effective business hours for the selected date:
+  // 1. Use staff custom working hours if set
+  // 2. Otherwise fall back to assigned location's business hours (first assigned location)
+  // 3. Otherwise fall back to global business hours
   const selectedDaySchedule = useMemo(() => {
-    if (!staff?.workingHours) return null;
     const d = new Date(selectedDate + "T12:00:00");
     const dayName = DAY_MAP[d.getDay()];
-    return staff.workingHours[dayName] ?? null;
-  }, [staff, selectedDate]);
+
+    // Staff custom schedule takes priority
+    if (staff?.workingHours) {
+      const staffDay = (staff.workingHours as any)[dayName];
+      if (staffDay) {
+        // Constrain to location hours if available
+        const assignedLocId = staff.locationIds?.[0];
+        const assignedLoc = assignedLocId ? state.locations.find((l) => l.id === assignedLocId) : null;
+        const locDay = assignedLoc?.workingHours ? (assignedLoc.workingHours as any)[dayName] : null;
+        if (locDay && locDay.enabled) {
+          // Clamp staff hours within location hours
+          const locStart = timeToMinutes(locDay.start);
+          const locEnd = timeToMinutes(locDay.end);
+          const staffStart = timeToMinutes(staffDay.start);
+          const staffEnd = timeToMinutes(staffDay.end);
+          return {
+            enabled: staffDay.enabled && locDay.enabled,
+            start: minutesToTime(Math.max(staffStart, locStart)),
+            end: minutesToTime(Math.min(staffEnd, locEnd)),
+          };
+        }
+        return staffDay;
+      }
+    }
+
+    // Fall back to assigned location's business hours
+    const assignedLocId = staff?.locationIds?.[0];
+    const assignedLoc = assignedLocId ? state.locations.find((l) => l.id === assignedLocId) : null;
+    if (assignedLoc?.workingHours) {
+      return (assignedLoc.workingHours as any)[dayName] ?? null;
+    }
+
+    // Fall back to global business hours
+    const globalDay = state.settings.workingHours?.[dayName];
+    return globalDay ?? null;
+  }, [staff, selectedDate, state.locations, state.settings.workingHours]);
 
   // Stats
   const stats = useMemo(() => {
