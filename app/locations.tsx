@@ -8,7 +8,7 @@ import {
   StyleSheet,
   useWindowDimensions,
   Linking,
-  Animated,
+  Share,
 } from "react-native";
 import { useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
@@ -34,7 +34,6 @@ export default function LocationsScreen() {
   const sortedLocations = useMemo(
     () =>
       [...state.locations].sort((a, b) => {
-        // Active first, then default, then by name
         if (a.active !== b.active) return a.active ? -1 : 1;
         if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1;
         return a.name.localeCompare(b.name);
@@ -45,11 +44,9 @@ export default function LocationsScreen() {
   /** Toggle a location as the single active location. Deactivates all others. */
   const handleToggleActive = (item: Location, value: boolean) => {
     if (!value) {
-      // Don't allow turning off the only active location — switch to another
       const otherActive = state.locations.find((l) => l.id !== item.id && l.active);
-      if (!otherActive) return; // must keep at least one active
+      if (!otherActive) return;
     }
-    // Deactivate all others, activate this one
     state.locations.forEach((loc) => {
       const shouldBeActive = loc.id === item.id ? value : value ? false : loc.active;
       if (loc.active !== shouldBeActive) {
@@ -58,7 +55,6 @@ export default function LocationsScreen() {
         syncToDb(action);
       }
     });
-    // If activating, also set as global active context
     if (value) setActiveLocation(item.id);
   };
 
@@ -73,7 +69,7 @@ export default function LocationsScreen() {
     [state.settings.customSlug, state.settings.businessName]
   );
 
-  /** Copy the booking URL to clipboard and show a brief toast */
+  /** Copy this location's booking URL to clipboard and show brief toast */
   const handleCopyLink = useCallback(
     async (item: Location) => {
       const url = getLocationBookingUrl(item);
@@ -82,6 +78,24 @@ export default function LocationsScreen() {
       setTimeout(() => setCopiedId((prev) => (prev === item.id ? null : prev)), 2500);
     },
     [getLocationBookingUrl]
+  );
+
+  /** Share this location's booking URL via native Share sheet */
+  const handleShareLink = useCallback(
+    async (item: Location) => {
+      const url = getLocationBookingUrl(item);
+      const businessName = state.settings.businessName || "our business";
+      try {
+        await Share.share({
+          message: `Book an appointment at ${item.name} — ${businessName}:\n${url}`,
+          url, // iOS uses this for the native share card preview
+          title: `Book at ${item.name}`,
+        });
+      } catch {
+        // User dismissed the sheet — no action needed
+      }
+    },
+    [getLocationBookingUrl, state.settings.businessName]
   );
 
   const renderLocation = ({ item }: { item: Location }) => {
@@ -129,7 +143,6 @@ export default function LocationsScreen() {
           onPress={() => router.push({ pathname: "/location-form", params: { id: item.id } })}
           style={({ pressed }) => [styles.cardBody, { opacity: pressed ? 0.7 : 1 }]}
         >
-          {/* Formatted address */}
           {!!formattedAddress && (
             <Pressable
               onPress={() => Linking.openURL(getMapUrl(formattedAddress))}
@@ -143,7 +156,6 @@ export default function LocationsScreen() {
             </Pressable>
           )}
 
-          {/* Contact info */}
           {!!item.phone && (
             <View style={styles.infoRow}>
               <IconSymbol name="phone.fill" size={13} color={colors.muted} />
@@ -157,7 +169,6 @@ export default function LocationsScreen() {
             </View>
           )}
 
-          {/* Edit hint */}
           <View style={[styles.editRow, { borderTopColor: colors.border }]}>
             <Text style={{ fontSize: 12, color: colors.muted, flex: 1 }}>
               {isActiveContext ? "Currently active location" : item.active ? "Tap to edit" : "Inactive — toggle to activate"}
@@ -166,44 +177,60 @@ export default function LocationsScreen() {
           </View>
         </Pressable>
 
-        {/* ── Copy Booking Link ── */}
-        <Pressable
-          onPress={() => handleCopyLink(item)}
-          style={({ pressed }) => [
-            styles.bookingLinkRow,
-            {
-              borderTopColor: colors.border,
-              backgroundColor: isCopied ? colors.success + "15" : "transparent",
-              opacity: pressed ? 0.7 : 1,
-            },
-          ]}
-        >
-          <View style={[styles.linkIconWrap, { backgroundColor: isCopied ? colors.success + "25" : colors.primary + "18" }]}>
-            <IconSymbol
-              name={isCopied ? "checkmark.circle.fill" : "link"}
-              size={15}
-              color={isCopied ? colors.success : colors.primary}
-            />
+        {/* ── Booking Link: URL preview + Copy + Share ── */}
+        <View style={[styles.bookingLinkContainer, { borderTopColor: colors.border }]}>
+          {/* URL preview line */}
+          <Text style={[styles.bookingUrlPreview, { color: colors.muted }]} numberOfLines={1}>
+            {bookingUrl}
+          </Text>
+
+          {/* Action buttons side by side */}
+          <View style={styles.bookingLinkActions}>
+            {/* Copy button */}
+            <Pressable
+              onPress={() => handleCopyLink(item)}
+              style={({ pressed }) => [
+                styles.linkActionBtn,
+                {
+                  backgroundColor: isCopied ? colors.success + "18" : colors.primary + "12",
+                  borderColor: isCopied ? colors.success + "50" : colors.primary + "30",
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              <IconSymbol
+                name={isCopied ? "checkmark.circle.fill" : "doc.on.doc.fill"}
+                size={14}
+                color={isCopied ? colors.success : colors.primary}
+              />
+              <Text style={{ fontSize: 12, fontWeight: "600", color: isCopied ? colors.success : colors.primary }}>
+                {isCopied ? "Copied!" : "Copy Link"}
+              </Text>
+            </Pressable>
+
+            {/* Share button */}
+            <Pressable
+              onPress={() => handleShareLink(item)}
+              style={({ pressed }) => [
+                styles.linkActionBtn,
+                {
+                  backgroundColor: colors.primary + "12",
+                  borderColor: colors.primary + "30",
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              <IconSymbol name="square.and.arrow.up" size={14} color={colors.primary} />
+              <Text style={{ fontSize: 12, fontWeight: "600", color: colors.primary }}>Share</Text>
+            </Pressable>
           </View>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ fontSize: 13, fontWeight: "600", color: isCopied ? colors.success : colors.primary }}>
-              {isCopied ? "Link Copied!" : "Copy Booking Link"}
-            </Text>
-            <Text style={{ fontSize: 11, color: colors.muted }} numberOfLines={1}>
-              {bookingUrl}
-            </Text>
-          </View>
-          {!isCopied && (
-            <IconSymbol name="doc.on.doc.fill" size={13} color={colors.primary} />
-          )}
-        </Pressable>
+        </View>
       </View>
     );
   };
 
   return (
     <ScreenContainer tabletMaxWidth={900} edges={["top", "left", "right"]} className="pt-2" style={{ paddingHorizontal: hp }}>
-      {/* Header */}
       <View style={styles.header}>
         <Pressable
           onPress={() => router.back()}
@@ -336,21 +363,30 @@ const styles = StyleSheet.create({
     borderTopWidth: 0.5,
     marginTop: 4,
   },
-  bookingLinkRow: {
+  bookingLinkContainer: {
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 12,
+    borderTopWidth: 0.5,
+    gap: 8,
+  },
+  bookingUrlPreview: {
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  bookingLinkActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  linkActionBtn: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderTopWidth: 0.5,
-  },
-  linkIconWrap: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    alignItems: "center",
     justifyContent: "center",
-    flexShrink: 0,
+    gap: 6,
+    paddingVertical: 9,
+    borderRadius: 10,
+    borderWidth: 1,
   },
   emptyContainer: {
     flex: 1,
