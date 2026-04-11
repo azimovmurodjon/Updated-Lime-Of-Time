@@ -7,6 +7,8 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter } from "expo-router";
 import type { CustomScheduleDay } from "@/lib/types";
 import { TapTimePicker, timeToMinutes as tapTimeToMinutes } from "@/components/tap-time-picker";
+import { useActiveLocation } from "@/hooks/use-active-location";
+import { LocationSwitcher } from "@/components/location-switcher";
 
 const DAYS_OF_WEEK = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const DAY_LABELS: Record<string, string> = { monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu", friday: "Fri", saturday: "Sat", sunday: "Sun" };
@@ -151,6 +153,26 @@ export default function ScheduleSettingsScreen() {
   const isTablet = width >= 768;
   const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
   const settings = state.settings;
+  const { activeLocation, hasMultipleLocations } = useActiveLocation();
+
+  // Use the active location's working hours when a location is selected;
+  // fall back to global settings.workingHours for single-location businesses.
+  const effectiveWorkingHours = (
+    activeLocation?.workingHours && Object.keys(activeLocation.workingHours).length > 0
+  ) ? activeLocation.workingHours : settings.workingHours;
+
+  // Save working hours to the active location or global settings
+  const saveWorkingHours = useCallback((wh: typeof settings.workingHours) => {
+    if (activeLocation) {
+      const action = { type: "UPDATE_LOCATION" as const, payload: { ...activeLocation, workingHours: wh } };
+      dispatch(action);
+      syncToDb(action);
+    } else {
+      const action = { type: "UPDATE_SETTINGS" as const, payload: { workingHours: wh } };
+      dispatch(action);
+      syncToDb(action);
+    }
+  }, [activeLocation, dispatch, syncToDb]);
 
   const scheduleTab = settings.scheduleMode ?? "weekly";
   const setScheduleTab = useCallback((mode: "weekly" | "custom") => {
@@ -168,13 +190,13 @@ export default function ScheduleSettingsScreen() {
   const [weekSubPicker, setWeekSubPicker] = useState<"start" | "end" | null>(null);
 
   const openTimePicker = useCallback((day: string) => {
-    const wh = settings.workingHours[day];
+    const wh = effectiveWorkingHours[day];
     setDraftStart(wh?.start ?? "09:00");
     setDraftEnd(wh?.end ?? "17:00");
     setWeekTimeError(null);
     setWeekSubPicker(null);
     setTimePickerDay(day);
-  }, [settings.workingHours]);
+  }, [effectiveWorkingHours]);
 
   const saveTimePicker = useCallback(() => {
     if (!timePickerDay) return;
@@ -183,22 +205,18 @@ export default function ScheduleSettingsScreen() {
       return;
     }
     setWeekTimeError(null);
-    const wh = { ...settings.workingHours };
+    const wh = { ...effectiveWorkingHours };
     wh[timePickerDay] = { ...wh[timePickerDay], start: draftStart, end: draftEnd };
-    const action = { type: "UPDATE_SETTINGS" as const, payload: { workingHours: wh } };
-    dispatch(action);
-    syncToDb(action);
+    saveWorkingHours(wh);
     setTimePickerDay(null);
     setWeekSubPicker(null);
-  }, [timePickerDay, draftStart, draftEnd, settings.workingHours, dispatch, syncToDb]);
+  }, [timePickerDay, draftStart, draftEnd, effectiveWorkingHours, saveWorkingHours]);
 
   const toggleDay = useCallback((day: string) => {
-    const wh = { ...settings.workingHours };
+    const wh = { ...effectiveWorkingHours };
     wh[day] = { ...wh[day], enabled: !wh[day].enabled };
-    const action = { type: "UPDATE_SETTINGS" as const, payload: { workingHours: wh } };
-    dispatch(action);
-    syncToDb(action);
-  }, [settings.workingHours, dispatch, syncToDb]);
+    saveWorkingHours(wh);
+  }, [effectiveWorkingHours, saveWorkingHours]);
 
   // ── Active Until ───────────────────────────────────────────────────────────
   const activeUntilEnabled = !!settings.businessHoursEndDate;
@@ -337,7 +355,7 @@ export default function ScheduleSettingsScreen() {
   }, [dispatch, syncToDb]);
 
   // ── Time picker day info ───────────────────────────────────────────────────
-  const pickerDayWH = timePickerDay ? settings.workingHours[timePickerDay] : null;
+  const pickerDayWH = timePickerDay ? effectiveWorkingHours[timePickerDay] : null;
 
   return (
     <ScreenContainer edges={["top", "left", "right"]} tabletMaxWidth={isTablet ? 720 : 0}>
@@ -347,7 +365,7 @@ export default function ScheduleSettingsScreen() {
           <IconSymbol name="arrow.left" size={22} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Schedule & Hours</Text>
-        <View style={{ width: 36 }} />
+        {hasMultipleLocations ? <LocationSwitcher compact /> : <View style={{ width: 36 }} />}
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: hp, paddingVertical: 16, paddingBottom: 60 }}>
 
@@ -427,7 +445,7 @@ export default function ScheduleSettingsScreen() {
             <View>
               <Text style={{ fontSize: 12, fontWeight: "500", color: colors.muted, marginBottom: 10 }}>Business Hours</Text>
               {DAYS_OF_WEEK.map((day, idx) => {
-                const wh = settings.workingHours[day];
+                const wh = effectiveWorkingHours[day];
                 const isLast = idx === DAYS_OF_WEEK.length - 1;
                 return (
                   <View key={day} style={[styles.dayRow, !isLast && { borderBottomWidth: 1, borderBottomColor: colors.border + "40" }]}>

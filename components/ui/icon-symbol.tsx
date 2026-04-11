@@ -42,6 +42,7 @@ const MAPPING = {
   "arrow.up.right": "trending-up",
   "crown.fill": "emoji-events",
   "circle.fill": "circle",
+  "checkmark.circle": "check-circle-outline",
   "checkmark.circle.fill": "check-circle",
   "xmark.circle.fill": "cancel",
   "questionmark.circle.fill": "help",

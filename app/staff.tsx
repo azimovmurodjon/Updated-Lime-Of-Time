@@ -14,6 +14,8 @@ import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { StaffMember } from "@/lib/types";
+import { useActiveLocation } from "@/hooks/use-active-location";
+import { LocationSwitcher } from "@/components/location-switcher";
 
 export default function StaffScreen() {
   const { state, dispatch, syncToDb } = useStore();
@@ -23,17 +25,14 @@ export default function StaffScreen() {
   const isTablet = width >= 768;
   const hp = isTablet ? 32 : Math.max(16, width * 0.05);
   const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
+  const { activeLocation, activeLocations, hasMultipleLocations, staffForLocation, setActiveLocation } = useActiveLocation();
 
+  // staffForLocation already filters by active location; apply active/inactive filter on top
   const filteredStaff = useMemo(() => {
-    switch (filter) {
-      case "active":
-        return state.staff.filter((s) => s.active);
-      case "inactive":
-        return state.staff.filter((s) => !s.active);
-      default:
-        return state.staff;
-    }
-  }, [state.staff, filter]);
+    const base = filter === "all" ? state.staff : state.staff.filter((s) => filter === "active" ? s.active : !s.active);
+    if (!activeLocation) return base;
+    return base.filter((s) => !s.locationIds || s.locationIds.length === 0 || s.locationIds.includes(activeLocation.id));
+  }, [state.staff, filter, activeLocation]);
 
   const getServiceNames = (member: StaffMember) => {
     if (!member.serviceIds || member.serviceIds.length === 0) return "All Services";
@@ -62,8 +61,6 @@ export default function StaffScreen() {
       .map(([k]) => abbr[k] ?? k.slice(0, 3));
     return active.length > 0 ? active.join(", ") : "No working days";
   };
-
-  const hasMultipleLocations = state.locations.length > 1;
 
   const handleDelete = (member: StaffMember) => {
     Alert.alert(
@@ -254,6 +251,10 @@ export default function StaffScreen() {
         </Pressable>
       </View>
 
+      {/* Location Switcher */}
+      {hasMultipleLocations && (
+        <LocationSwitcher containerStyle={{ marginBottom: 8 }} />
+      )}
       {/* Filter Chips */}
       <View style={styles.filterRow}>
         {(["all", "active", "inactive"] as const).map((f) => (

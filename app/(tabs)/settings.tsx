@@ -23,6 +23,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { formatPhoneNumber, getMapUrl } from "@/lib/types";
 import { trpc } from "@/lib/trpc";
 import { useAppLockContext } from "@/lib/app-lock-provider";
+import { LocationSwitcher } from "@/components/location-switcher";
+import { useActiveLocation } from "@/hooks/use-active-location";
 
 export default function SettingsScreen() {
   const { state, dispatch, syncToDb } = useStore();
@@ -35,6 +37,7 @@ export default function SettingsScreen() {
   const { setThemeMode: setThemeOverrideMode } = useThemeContext();
   const { biometricAvailable, biometricEnabled, biometricType, toggleBiometric } = useAppLockContext();
   const settings = state.settings;
+  const { hasMultipleLocations, activeLocation } = useActiveLocation();
 
   // Business Name editing
   const [editingName, setEditingName] = useState(false);
@@ -165,11 +168,11 @@ export default function SettingsScreen() {
     return (state.reviews.reduce((s, r) => s + r.rating, 0) / state.reviews.length).toFixed(1);
   }, [state.reviews]);
 
-  // Navigation items for sub-screens
-  const navItems = [
+  // Navigation items — location-scoped (change per active location)
+  const locationNavItems = [
     {
       title: "Schedule & Hours",
-      subtitle: "Working hours, buffer time, custom days",
+      subtitle: hasMultipleLocations && activeLocation ? `${activeLocation.name} hours` : "Working hours, buffer time, custom days",
       icon: "calendar.badge.clock" as const,
       route: "/schedule-settings" as const,
       color: colors.primary,
@@ -180,6 +183,23 @@ export default function SettingsScreen() {
       icon: "exclamationmark.triangle.fill" as const,
       route: "/booking-policies" as const,
       color: "#FF9800",
+    },
+    {
+      title: "Locations",
+      subtitle: `${state.locations.length} location${state.locations.length !== 1 ? "s" : ""} configured`,
+      icon: "building.2.fill" as const,
+      route: "/locations" as const,
+      color: "#3B82F6",
+    },
+  ];
+  // Navigation items — business-wide (global, not per-location)
+  const businessNavItems = [
+    {
+      title: "Analytics",
+      subtitle: "Revenue, clients, appointments insights",
+      icon: "chart.bar.fill" as const,
+      route: "/analytics-detail?tab=revenue" as const,
+      color: "#8b5cf6",
     },
     {
       title: "Client Reviews",
@@ -194,20 +214,6 @@ export default function SettingsScreen() {
       icon: "square.and.arrow.up.fill" as const,
       route: "/data-export" as const,
       color: colors.primary,
-    },
-    {
-      title: "Locations",
-      subtitle: `${state.locations.length} location${state.locations.length !== 1 ? "s" : ""} configured`,
-      icon: "building.2.fill" as const,
-      route: "/locations" as const,
-      color: "#3B82F6",
-    },
-    {
-      title: "Analytics",
-      subtitle: "Revenue, clients, appointments insights",
-      icon: "chart.bar.fill" as const,
-      route: "/analytics-detail?tab=revenue" as const,
-      color: "#8b5cf6",
     },
   ];
 
@@ -230,6 +236,14 @@ export default function SettingsScreen() {
           </View>
         )}
 
+        {/* Location Switcher — shown when multiple locations exist */}
+        {hasMultipleLocations && (
+          <View style={[{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12, flexDirection: "row", alignItems: "center", gap: 10 }]}>
+            <IconSymbol name="mappin.and.ellipse" size={18} color={colors.primary} />
+            <Text style={{ fontSize: 13, color: colors.muted, flex: 1 }}>Active Location</Text>
+            <LocationSwitcher />
+          </View>
+        )}
         {/* Business Name */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.cardHeader}>
@@ -499,10 +513,35 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Navigation Cards to Sub-Screens */}
-        <Text style={{ fontSize: 12, fontWeight: "500", color: colors.muted, marginBottom: 10, marginTop: 4 }}>Manage</Text>
+        {/* Location Settings */}
+        <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 8, marginTop: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Location Settings</Text>
         <View style={isTablet ? { flexDirection: "row", flexWrap: "wrap", gap: 10 } : undefined}>
-          {navItems.map((item) => (
+          {locationNavItems.map((item) => (
+            <Pressable
+              key={item.title}
+              onPress={() => router.push(item.route as any)}
+              style={({ pressed }) => [
+                styles.navCard,
+                { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.8 : 1 },
+                isTablet && { width: "48.5%" as any },
+              ]}
+            >
+              <View style={[styles.navIcon, { backgroundColor: item.color + "15" }]}>
+                <IconSymbol name={item.icon} size={22} color={item.color} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{item.title}</Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{item.subtitle}</Text>
+              </View>
+              <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+            </Pressable>
+          ))}
+        </View>
+
+        {/* Business-Wide Settings */}
+        <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 8, marginTop: 16, textTransform: "uppercase", letterSpacing: 0.5 }}>Business</Text>
+        <View style={isTablet ? { flexDirection: "row", flexWrap: "wrap", gap: 10 } : undefined}>
+          {businessNavItems.map((item) => (
             <Pressable
               key={item.title}
               onPress={() => router.push(item.route as any)}

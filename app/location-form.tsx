@@ -69,6 +69,9 @@ export default function LocationFormScreen() {
 
   const [name, setName] = useState(existing?.name ?? "");
   const [address, setAddress] = useState(existing?.address ?? "");
+  const [city, setCity] = useState(existing?.city ?? "");
+  const [locationState, setLocationState] = useState(existing?.state ?? "");
+  const [zipCode, setZipCode] = useState(existing?.zipCode ?? "");
   const [phone, setPhone] = useState(existing?.phone ?? "");
   const [email, setEmail] = useState(existing?.email ?? "");
   const [isDefault, setIsDefault] = useState(existing?.isDefault ?? state.locations.length === 0);
@@ -141,6 +144,9 @@ export default function LocationFormScreen() {
       id: existing?.id ?? generateId(),
       name: name.trim(),
       address: address.trim(),
+      city: city.trim(),
+      state: locationState.trim(),
+      zipCode: zipCode.trim(),
       phone: phone.trim(),
       email: email.trim(),
       isDefault,
@@ -240,6 +246,47 @@ export default function LocationFormScreen() {
             style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
             returnKeyType="done"
           />
+
+          {/* City / State / ZIP row */}
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+            <View style={{ flex: 2 }}>
+              <Text className="text-xs font-medium text-muted mb-1">City</Text>
+              <TextInput
+                value={city}
+                onChangeText={setCity}
+                placeholder="City"
+                placeholderTextColor={colors.muted}
+                style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+                returnKeyType="next"
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text className="text-xs font-medium text-muted mb-1">State</Text>
+              <TextInput
+                value={locationState}
+                onChangeText={setLocationState}
+                placeholder="CA"
+                placeholderTextColor={colors.muted}
+                autoCapitalize="characters"
+                maxLength={2}
+                style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+                returnKeyType="next"
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text className="text-xs font-medium text-muted mb-1">ZIP</Text>
+              <TextInput
+                value={zipCode}
+                onChangeText={setZipCode}
+                placeholder="90210"
+                placeholderTextColor={colors.muted}
+                keyboardType="numeric"
+                maxLength={10}
+                style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+                returnKeyType="next"
+              />
+            </View>
+          </View>
 
           <Text className="text-xs font-medium text-muted mb-1 mt-3">Phone</Text>
           <TextInput

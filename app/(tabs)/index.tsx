@@ -19,6 +19,7 @@ import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter } from "expo-router";
 import { minutesToTime, timeToMinutes, PUBLIC_BOOKING_URL } from "@/lib/types";
+import { useActiveLocation } from "@/hooks/use-active-location";
 import * as ImagePicker from "expo-image-picker";
 import { MiniBarChart, MiniDonutChart } from "@/components/mini-chart";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -113,10 +114,9 @@ export default function HomeScreen() {
     }
   }, [tutorialStep, TUTORIAL_STEPS.length, dismissTutorial, tutorialFade]);
 
-  // ─── Location Filter ──────────────────────────────────────
-  const [selectedLocationFilter, setSelectedLocationFilter] = useState<string | null>(null);
-  const activeLocations = useMemo(() => state.locations.filter((l) => l.active), [state.locations]);
-  const hasMultipleLocations = activeLocations.length > 1;
+  // ─── Location Filter (global) ──────────────────────────────
+  const { activeLocation, activeLocations, hasMultipleLocations, setActiveLocation } = useActiveLocation();
+  const selectedLocationFilter = activeLocation?.id ?? null;
 
   const filterByLocation = useCallback(
     (appointments: any[]) => {
@@ -366,7 +366,7 @@ export default function HomeScreen() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8, marginBottom: 4 }}>
             <View style={{ flexDirection: "row", gap: 6 }}>
               <Pressable
-                onPress={() => setSelectedLocationFilter(null)}
+                onPress={() => setActiveLocation(null)}
                 style={({ pressed }) => [{
                   paddingHorizontal: 12,
                   paddingVertical: 6,
@@ -382,7 +382,7 @@ export default function HomeScreen() {
               {activeLocations.map((loc) => (
                 <Pressable
                   key={loc.id}
-                  onPress={() => setSelectedLocationFilter(loc.id)}
+                  onPress={() => setActiveLocation(loc.id)}
                   style={({ pressed }) => [{
                     paddingHorizontal: 12,
                     paddingVertical: 6,

@@ -17,6 +17,7 @@ import { useStore, formatTime, formatDateStr, formatDateDisplay } from "@/lib/st
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useActiveLocation } from "@/hooks/use-active-location";
 import {
   Appointment,
   isDateInPast,
@@ -76,8 +77,6 @@ export default function CalendarScreen() {
   const [selectedDate, setSelectedDate] = useState(formatDateStr(now));
   const initialFilter = (params.filter as FilterKey) || "upcoming";
   const [activeFilter, setActiveFilter] = useState<FilterKey>(initialFilter);
-  const [calLocationFilter, setCalLocationFilter] = useState<string | null>(null);
-
   // Workday override modal state
   const [showTimePickerModal, setShowTimePickerModal] = useState(false);
   const [editingDate, setEditingDate] = useState<string | null>(null);
@@ -103,8 +102,8 @@ export default function CalendarScreen() {
     }
   }, [params.filter]);
 
-  const activeLocations = useMemo(() => state.locations.filter((l) => l.active), [state.locations]);
-  const hasMultiLoc = activeLocations.length > 1;
+  const { activeLocation, activeLocations, hasMultipleLocations: hasMultiLoc, setActiveLocation } = useActiveLocation();
+  const calLocationFilter = activeLocation?.id ?? null;
 
   const cellSize = Math.floor((width - hp * 2) / 7);
   const todayStr = formatDateStr(now);
@@ -770,11 +769,11 @@ export default function CalendarScreen() {
         {hasMultiLoc && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
             <View style={{ flexDirection: "row", gap: 6 }}>
-              <Pressable onPress={() => setCalLocationFilter(null)} style={({ pressed }) => [{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, borderWidth: 1, backgroundColor: !calLocationFilter ? colors.primary + "15" : colors.surface, borderColor: !calLocationFilter ? colors.primary : colors.border, opacity: pressed ? 0.7 : 1 }]}>
+              <Pressable onPress={() => setActiveLocation(null)} style={({ pressed }) => [{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, borderWidth: 1, backgroundColor: !calLocationFilter ? colors.primary + "15" : colors.surface, borderColor: !calLocationFilter ? colors.primary : colors.border, opacity: pressed ? 0.7 : 1 }]}>
                 <Text style={{ fontSize: 11, fontWeight: "600", color: !calLocationFilter ? colors.primary : colors.muted }}>All</Text>
               </Pressable>
               {activeLocations.map((loc) => (
-                <Pressable key={loc.id} onPress={() => setCalLocationFilter(loc.id)} style={({ pressed }) => [{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, borderWidth: 1, backgroundColor: calLocationFilter === loc.id ? colors.primary + "15" : colors.surface, borderColor: calLocationFilter === loc.id ? colors.primary : colors.border, opacity: pressed ? 0.7 : 1 }]}>
+                <Pressable key={loc.id} onPress={() => setActiveLocation(loc.id)} style={({ pressed }) => [{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, borderWidth: 1, backgroundColor: calLocationFilter === loc.id ? colors.primary + "15" : colors.surface, borderColor: calLocationFilter === loc.id ? colors.primary : colors.border, opacity: pressed ? 0.7 : 1 }]}>
                   <Text style={{ fontSize: 11, fontWeight: "600", color: calLocationFilter === loc.id ? colors.primary : colors.muted }}>{loc.name}</Text>
                 </Pressable>
               ))}

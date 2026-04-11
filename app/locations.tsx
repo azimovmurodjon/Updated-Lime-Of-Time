@@ -14,9 +14,11 @@ import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Location, LOCATION_COLORS, getMapUrl, PUBLIC_BOOKING_URL } from "@/lib/types";
+import { useActiveLocation } from "@/hooks/use-active-location";
 
 export default function LocationsScreen() {
   const { state } = useStore();
+  const { activeLocation, setActiveLocation } = useActiveLocation();
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -64,6 +66,13 @@ export default function LocationsScreen() {
                 <View style={[styles.badge, { backgroundColor: colors.primary + "20" }]}>
                   <Text style={{ fontSize: 11, fontWeight: "600", color: colors.primary }}>
                     DEFAULT
+                  </Text>
+                </View>
+              )}
+              {activeLocation?.id === item.id && (
+                <View style={[styles.badge, { backgroundColor: colors.success + "20" }]}>
+                  <Text style={{ fontSize: 11, fontWeight: "600", color: colors.success }}>
+                    ACTIVE
                   </Text>
                 </View>
               )}
@@ -119,6 +128,17 @@ export default function LocationsScreen() {
             {item.workingHours ? "Custom schedule" : "Uses business hours"}
           </Text>
         </View>
+
+        {/* Set as Active button */}
+        {item.active && activeLocation?.id !== item.id && (
+          <Pressable
+            onPress={(e) => { e.stopPropagation?.(); setActiveLocation(item.id); }}
+            style={({ pressed }) => [styles.scheduleRow, { borderTopColor: colors.border, opacity: pressed ? 0.6 : 1 }]}
+          >
+            <IconSymbol name="checkmark.circle" size={13} color={colors.primary} />
+            <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>Set as Active Location</Text>
+          </Pressable>
+        )}
 
         {/* Booking link */}
         {!!state.settings.customSlug && item.active && (

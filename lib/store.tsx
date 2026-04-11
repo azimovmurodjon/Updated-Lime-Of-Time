@@ -37,6 +37,8 @@ interface AppState {
   businessOwnerId: number | null;
   /** Whether we're currently syncing with the server */
   syncing: boolean;
+  /** The currently active location ID (null = all locations / no filter) */
+  activeLocationId: string | null;
 }
 
 const initialSettings: BusinessSettings = {
@@ -71,6 +73,7 @@ const initialState: AppState = {
   loaded: false,
   businessOwnerId: null,
   syncing: false,
+  activeLocationId: null,
 };
 
 // ─── Actions ─────────────────────────────────────────────────────────
@@ -108,6 +111,7 @@ type Action =
   | { type: "ADD_LOCATION"; payload: Location }
   | { type: "UPDATE_LOCATION"; payload: Location }
   | { type: "DELETE_LOCATION"; payload: string }
+  | { type: "SET_ACTIVE_LOCATION"; payload: string | null }
   | { type: "RESET_ALL_DATA" };
 
 function reducer(state: AppState, action: Action): AppState {
@@ -118,6 +122,8 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, businessOwnerId: action.payload };
     case "SET_SYNCING":
       return { ...state, syncing: action.payload };
+    case "SET_ACTIVE_LOCATION":
+      return { ...state, activeLocationId: action.payload };
     case "ADD_SERVICE":
       return { ...state, services: [...state.services, action.payload] };
     case "UPDATE_SERVICE":
@@ -263,6 +269,8 @@ interface StoreContextType {
   getTodayStats: () => { todayCount: number; weekCount: number; weekRevenue: number };
   /** Sync a specific action to the database */
   syncToDb: (action: Action) => Promise<void>;
+  /** Set the active location and persist to AsyncStorage */
+  setActiveLocation: (locationId: string | null) => void;
 }
 
 const StoreContext = createContext<StoreContextType | null>(null);
@@ -280,6 +288,7 @@ const STORAGE_KEYS = {
   products: "@bookease_products",
   staff: "@bookease_staff",
   locations: "@bookease_locations",
+  activeLocationId: "@bookease_active_location_id",
 };
 
 /** Convert DB rows to local frontend models */
@@ -515,6 +524,9 @@ function dbLocationToLocal(l: any): Location {
     id: l.localId,
     name: l.name,
     address: l.address ?? "",
+    city: l.city ?? undefined,
+    state: l.state ?? undefined,
+    zipCode: l.zipCode ?? undefined,
     phone: l.phone ?? "",
     email: l.email ?? "",
     isDefault: l.isDefault ?? false,
@@ -631,6 +643,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                   businessOwnerId: ownerId,
                 },
               });
+              // Restore active location from AsyncStorage (or auto-set default)
+              const storedActiveLoc = await AsyncStorage.getItem(STORAGE_KEYS.activeLocationId);
+              const loadedLocations = (fullData.locations || []).map(dbLocationToLocal);
+              const activeLocations = loadedLocations.filter((l) => l.active);
+              if (storedActiveLoc && activeLocations.some((l) => l.id === storedActiveLoc)) {
+                dispatch({ type: "SET_ACTIVE_LOCATION", payload: storedActiveLoc });
+              } else if (activeLocations.length === 1) {
+                dispatch({ type: "SET_ACTIVE_LOCATION", payload: activeLocations[0].id });
+                AsyncStorage.setItem(STORAGE_KEYS.activeLocationId, activeLocations[0].id).catch(() => {});
+              } else if (activeLocations.length > 1) {
+                const defaultLoc = activeLocations.find((l) => l.isDefault) ?? activeLocations[0];
+                dispatch({ type: "SET_ACTIVE_LOCATION", payload: defaultLoc.id });
+                AsyncStorage.setItem(STORAGE_KEYS.activeLocationId, defaultLoc.id).catch(() => {});
+              }
               // Also persist to AsyncStorage as cache
               await persistToAsyncStorage(
                 (fullData.services || []).map(dbServiceToLocal),
@@ -689,6 +715,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             businessOwnerId: storedOwnerId ? parseInt(storedOwnerId, 10) : null,
           },
         });
+        // Restore active location from AsyncStorage (or auto-set default)
+        const storedActiveLoc2 = await AsyncStorage.getItem(STORAGE_KEYS.activeLocationId);
+        const parsedLocations: Location[] = locationsRaw ? JSON.parse(locationsRaw) : [];
+        const activeLocations2 = parsedLocations.filter((l) => l.active);
+        if (storedActiveLoc2 && activeLocations2.some((l) => l.id === storedActiveLoc2)) {
+          dispatch({ type: "SET_ACTIVE_LOCATION", payload: storedActiveLoc2 });
+        } else if (activeLocations2.length === 1) {
+          dispatch({ type: "SET_ACTIVE_LOCATION", payload: activeLocations2[0].id });
+          AsyncStorage.setItem(STORAGE_KEYS.activeLocationId, activeLocations2[0].id).catch(() => {});
+        } else if (activeLocations2.length > 1) {
+          const defaultLoc2 = activeLocations2.find((l) => l.isDefault) ?? activeLocations2[0];
+          dispatch({ type: "SET_ACTIVE_LOCATION", payload: defaultLoc2.id });
+          AsyncStorage.setItem(STORAGE_KEYS.activeLocationId, defaultLoc2.id).catch(() => {});
+        }
       } catch {
         dispatch({ type: "LOAD_DATA", payload: {} });
       }
@@ -1157,6 +1197,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               localId: loc.id,
               name: loc.name,
               address: loc.address || undefined,
+              city: loc.city || undefined,
+              state: loc.state || undefined,
+              zipCode: loc.zipCode || undefined,
               phone: loc.phone || undefined,
               email: loc.email || undefined,
               isDefault: loc.isDefault,
@@ -1172,6 +1215,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               businessOwnerId: ownerId,
               name: loc.name,
               address: loc.address || undefined,
+              city: loc.city || undefined,
+              state: loc.state || undefined,
+              zipCode: loc.zipCode || undefined,
               phone: loc.phone || undefined,
               email: loc.email || undefined,
               isDefault: loc.isDefault,
@@ -1268,9 +1314,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return sum + (svc?.price ?? 0);
     }, 0);
 
-    return { todayCount, weekCount, weekRevenue };
+     return { todayCount, weekCount, weekRevenue };
   }, [state.appointments, state.services]);
-
+  const setActiveLocation = useCallback(
+    (locationId: string | null) => {
+      dispatch({ type: "SET_ACTIVE_LOCATION", payload: locationId });
+      if (locationId) {
+        AsyncStorage.setItem(STORAGE_KEYS.activeLocationId, locationId).catch(() => {});
+      } else {
+        AsyncStorage.removeItem(STORAGE_KEYS.activeLocationId).catch(() => {});
+      }
+    },
+    [dispatch]
+  );
   return (
     <StoreContext.Provider
       value={{
@@ -1285,6 +1341,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         getReviewsForClient,
         getTodayStats,
         syncToDb,
+        setActiveLocation,
       }}
     >
       {children}

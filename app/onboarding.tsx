@@ -23,6 +23,7 @@ import {
   DEFAULT_WORKING_HOURS,
   DEFAULT_CANCELLATION_POLICY,
 } from "@/lib/types";
+import { generateId } from "@/lib/store";
 import { trpc } from "@/lib/trpc";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAppLockContext } from "@/lib/app-lock-provider";
@@ -30,7 +31,7 @@ import { useAppLockContext } from "@/lib/app-lock-provider";
 type Step = 1 | 2 | 3;
 
 export default function OnboardingScreen() {
-  const { dispatch } = useStore();
+  const { dispatch, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -42,6 +43,9 @@ export default function OnboardingScreen() {
   const [phone, setPhone] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [address, setAddress] = useState("");
+  const [city, setCity] = useState("");
+  const [locationState, setLocationState] = useState("");
+  const [zipCode, setZipCode] = useState("");
   const [businessPhone, setBusinessPhone] = useState("");
   const [email, setEmail] = useState("");
   const [website, setWebsite] = useState("");
@@ -123,6 +127,27 @@ export default function OnboardingScreen() {
       // Store the business owner ID
       dispatch({ type: "SET_BUSINESS_OWNER_ID", payload: newOwner.id });
       await AsyncStorage.setItem("@bookease_business_owner_id", String(newOwner.id));
+
+      // Create default location from onboarding address
+      if (address.trim()) {
+        const defaultLoc = {
+          id: generateId(),
+          name: businessName.trim() || "Main Location",
+          address: address.trim(),
+          city: city.trim(),
+          state: locationState.trim(),
+          zipCode: zipCode.trim(),
+          phone: (businessPhone.trim() || phone.trim()),
+          email: email.trim(),
+          isDefault: true,
+          active: true,
+          workingHours: DEFAULT_WORKING_HOURS,
+          createdAt: new Date().toISOString(),
+        };
+        const locAction = { type: "ADD_LOCATION" as const, payload: defaultLoc };
+        dispatch(locAction);
+        syncToDb(locAction);
+      }
 
       // Update local settings
       dispatch({
@@ -308,7 +333,7 @@ export default function OnboardingScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: colors.muted }]}>Address *</Text>
+                <Text style={[styles.inputLabel, { color: colors.muted }]}>Street Address *</Text>
                 <TextInput
                   style={[
                     styles.input,
@@ -318,13 +343,66 @@ export default function OnboardingScreen() {
                       color: colors.foreground,
                     },
                   ]}
-                  placeholder="4661 McKnight Road, Pittsburgh PA, 15237"
+                  placeholder="4661 McKnight Road"
                   placeholderTextColor={colors.muted}
                   value={address}
                   onChangeText={setAddress}
                   returnKeyType="next"
                   editable={!loading}
                 />
+              </View>
+
+              {/* City / State / ZIP */}
+              <View style={[styles.inputGroup, { flexDirection: "row", gap: 8 }]}>
+                <View style={{ flex: 2 }}>
+                  <Text style={[styles.inputLabel, { color: colors.muted }]}>City</Text>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground },
+                    ]}
+                    placeholder="Pittsburgh"
+                    placeholderTextColor={colors.muted}
+                    value={city}
+                    onChangeText={setCity}
+                    returnKeyType="next"
+                    editable={!loading}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.inputLabel, { color: colors.muted }]}>State</Text>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground },
+                    ]}
+                    placeholder="PA"
+                    placeholderTextColor={colors.muted}
+                    value={locationState}
+                    onChangeText={setLocationState}
+                    autoCapitalize="characters"
+                    maxLength={2}
+                    returnKeyType="next"
+                    editable={!loading}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.inputLabel, { color: colors.muted }]}>ZIP</Text>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground },
+                    ]}
+                    placeholder="15237"
+                    placeholderTextColor={colors.muted}
+                    value={zipCode}
+                    onChangeText={setZipCode}
+                    keyboardType="numeric"
+                    maxLength={10}
+                    returnKeyType="next"
+                    editable={!loading}
+                  />
+                </View>
               </View>
 
               <View style={styles.inputGroup}>

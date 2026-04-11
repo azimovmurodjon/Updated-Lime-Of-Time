@@ -363,6 +363,12 @@ export const locations = mysqlTable("locations", {
   name: varchar("name", { length: 255 }).notNull(),
   /** Full address */
   address: text("address"),
+  /** City */
+  city: varchar("city", { length: 100 }),
+  /** State/Province */
+  state: varchar("state", { length: 100 }),
+  /** ZIP / Postal code */
+  zipCode: varchar("zipCode", { length: 20 }),
   /** Phone number for this location */
   phone: varchar("phone", { length: 20 }),
   /** Email for this location */

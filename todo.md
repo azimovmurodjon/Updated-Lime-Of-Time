@@ -635,7 +635,7 @@
 - [x] Staff list screen: show location assignments and per-day workday summary
 
 ## Responsive Layout (Phone + Tablet + Web)
-- [ ] Create useResponsive hook with phone/tablet/web breakpoints
+- [x] Create useResponsive hook with phone/tablet/web breakpoints
 - [ ] Fix tab bar: wider tabs with labels on tablet/web, proper sizing
 - [ ] Fix appointment-detail: add responsive padding and tabletMaxWidth centering
 - [ ] Fix service-form: add responsive padding and tabletMaxWidth centering
@@ -649,3 +649,19 @@
 - [ ] Fix calendar screen: wider day/week view on tablet, better use of horizontal space
 - [ ] Fix settings screen: 2-column layout for settings groups on tablet/web
 - [ ] Ensure all screens with tabletMaxWidth=0 properly use full width with correct padding
+
+## Global Location Context
+
+- [ ] Add city, state, zipCode fields to Location type and DB schema
+- [x] Add activeLocationId to global store with AsyncStorage persistence
+- [x] Create useActiveLocation hook
+- [x] Create LocationSwitcher component (header picker)
+- [ ] Scope Staff list to active location
+- [ ] Scope Staff form location assignment to active location
+- [ ] Scope Staff calendar to active location
+- [ ] Scope Calendar tab to active location (replace local filter with global)
+- [ ] Scope Business Hours settings to active location
+- [ ] Scope Schedule settings to active location
+- [ ] Fix onboarding: split address into Address/City/State/ZIP, create first location
+- [ ] Update Settings: location switcher at top, separate profile vs location data
+- [ ] Auto-set active location on app load (default location or first location)
