@@ -580,3 +580,7 @@
 - [x] Add Week view to calendar (7-column layout with appointment slots)
 - [x] Wire dailyOverrides into new-booking.tsx booking flow (already integrated via customSchedule)
 - [x] Wire dailyOverrides into public booking server-side availability (already integrated via customSchedule)
+- [x] Fix Edit Hours save not persisting custom time override in Workday panel
+- [x] Restrict ScrollWheelTimePicker items to Business Hours range only
+- [x] Show Start and End time pickers side-by-side horizontally
+- [x] Fix ScrollWheelTimePicker scroll animation lag

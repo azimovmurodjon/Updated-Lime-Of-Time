@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
   Text,
   View,
@@ -76,6 +76,10 @@ export default function CalendarScreen() {
   const [editingDate, setEditingDate] = useState<string | null>(null);
   const [draftStart, setDraftStart] = useState("09:00");
   const [draftEnd, setDraftEnd] = useState("17:00");
+  // Refs to always read latest draft values in save handler (avoids stale closure)
+  const draftStartRef = useRef("09:00");
+  const draftEndRef = useRef("17:00");
+  const editingDateRef = useRef<string | null>(null);
 
   // Week view: track the week start (Sunday)
   const [weekStart, setWeekStart] = useState<Date>(() => {
@@ -249,6 +253,9 @@ export default function CalendarScreen() {
 
   // ─── Workday Override ─────────────────────────────────────────────────
 
+  const setDraftStartSync = useCallback((v: string) => { draftStartRef.current = v; setDraftStart(v); }, []);
+  const setDraftEndSync = useCallback((v: string) => { draftEndRef.current = v; setDraftEnd(v); }, []);
+
   const handleWorkdayToggle = useCallback((dateStr: string, value: boolean) => {
     if (value) {
       // Turning ON: use business hours as default, or 09:00–17:00
@@ -256,6 +263,9 @@ export default function CalendarScreen() {
       const start = bh?.start ?? "09:00";
       const end = bh?.end ?? "17:00";
       setEditingDate(dateStr);
+      editingDateRef.current = dateStr;
+      draftStartRef.current = start;
+      draftEndRef.current = end;
       setDraftStart(start);
       setDraftEnd(end);
       setShowTimePickerModal(true);
@@ -268,22 +278,27 @@ export default function CalendarScreen() {
   }, [dispatch, syncToDb, getBusinessHours]);
 
   const handleSaveTimeOverride = useCallback(() => {
-    if (!editingDate) return;
-    if (timeToMinutes(draftEnd) <= timeToMinutes(draftStart)) {
+    // Always read from refs to get the latest values regardless of render cycle
+    const dateToSave = editingDateRef.current;
+    const startToSave = draftStartRef.current;
+    const endToSave = draftEndRef.current;
+    if (!dateToSave) return;
+    if (timeToMinutes(endToSave) <= timeToMinutes(startToSave)) {
       Alert.alert("Invalid Hours", "End time must be after start time.");
       return;
     }
     const override: CustomScheduleDay = {
-      date: editingDate,
+      date: dateToSave,
       isOpen: true,
-      startTime: draftStart,
-      endTime: draftEnd,
+      startTime: startToSave,
+      endTime: endToSave,
     };
     dispatch({ type: "SET_CUSTOM_SCHEDULE", payload: override });
     syncToDb({ type: "SET_CUSTOM_SCHEDULE", payload: override });
     setShowTimePickerModal(false);
     setEditingDate(null);
-  }, [editingDate, draftStart, draftEnd, dispatch, syncToDb]);
+    editingDateRef.current = null;
+  }, [dispatch, syncToDb]);
 
   const handleCancelTimeOverride = useCallback(() => {
     setShowTimePickerModal(false);
@@ -435,9 +450,14 @@ export default function CalendarScreen() {
           <Pressable
             onPress={() => {
               const bh2 = getBusinessHours(dateStr);
+              const startVal = effectiveHours?.start ?? bh2?.start ?? "09:00";
+              const endVal = effectiveHours?.end ?? bh2?.end ?? "17:00";
               setEditingDate(dateStr);
-              setDraftStart(effectiveHours?.start ?? bh2?.start ?? "09:00");
-              setDraftEnd(effectiveHours?.end ?? bh2?.end ?? "17:00");
+              editingDateRef.current = dateStr;
+              draftStartRef.current = startVal;
+              draftEndRef.current = endVal;
+              setDraftStart(startVal);
+              setDraftEnd(endVal);
               setShowTimePickerModal(true);
             }}
             style={({ pressed }) => [styles.editHoursBtn, { borderColor: colors.primary + "40", backgroundColor: colors.primary + "10", opacity: pressed ? 0.7 : 1 }]}
@@ -1030,23 +1050,30 @@ export default function CalendarScreen() {
               </Text>
             )}
 
-            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground, marginBottom: 8 }}>Start Time</Text>
-            <ScrollWheelTimePicker
-              value={draftStart}
-              onChange={setDraftStart}
-              stepMinutes={15}
-              minTime={businessHoursForEdit?.start}
-              maxTime={businessHoursForEdit?.end}
-            />
-
-            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground, marginTop: 16, marginBottom: 8 }}>End Time</Text>
-            <ScrollWheelTimePicker
-              value={draftEnd}
-              onChange={setDraftEnd}
-              stepMinutes={15}
-              minTime={businessHoursForEdit?.start}
-              maxTime={businessHoursForEdit?.end}
-            />
+            {/* Side-by-side Start and End pickers */}
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <View style={{ flex: 1, alignItems: "center" }}>
+                <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground, marginBottom: 8 }}>Start Time</Text>
+                <ScrollWheelTimePicker
+                  value={draftStart}
+                  onChange={setDraftStartSync}
+                  stepMinutes={15}
+                  minTime={businessHoursForEdit?.start}
+                  maxTime={businessHoursForEdit?.end}
+                />
+              </View>
+              <View style={{ width: 1, backgroundColor: colors.border, marginVertical: 4 }} />
+              <View style={{ flex: 1, alignItems: "center" }}>
+                <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground, marginBottom: 8 }}>End Time</Text>
+                <ScrollWheelTimePicker
+                  value={draftEnd}
+                  onChange={setDraftEndSync}
+                  stepMinutes={15}
+                  minTime={businessHoursForEdit?.start}
+                  maxTime={businessHoursForEdit?.end}
+                />
+              </View>
+            </View>
 
             <View style={{ flexDirection: "row", gap: 12, marginTop: 20 }}>
               <Pressable
