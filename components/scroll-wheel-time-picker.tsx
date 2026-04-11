@@ -1,13 +1,13 @@
 /**
- * ScrollWheelTimePicker — v3
+ * ScrollWheelTimePicker — v4
  *
- * Completely rewritten for reliability:
- * - Uses FlatList with getItemLayout + scrollToIndex for guaranteed snap
- * - Internal ref tracks the "live" selected index during scroll
- * - onChange fires reliably after scroll settles (momentum or drag end)
- * - Compact: ITEM_HEIGHT=32, 5 visible items = 160px tall
- * - Three columns: Hour | Minute | AM/PM, total ~160px wide
- * - All times bounded to [minTime, maxTime]
+ * Key fix over v3: live column indices are stored in refs (not state) so settle
+ * handlers always read the latest value without stale-closure issues.
+ * State is still used for rendering the highlight, but refs are used for emit.
+ *
+ * - FlatList + getItemLayout + scrollToIndex for reliable snap
+ * - ITEM_HEIGHT=32, 5 visible items = 160px tall
+ * - Compact columns: Hour(38) + Minute(38) + AM/PM(40) = 116px wide
  */
 import React, {
   useRef,
@@ -30,10 +30,10 @@ import { useColors } from "@/hooks/use-colors";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const ITEM_H = 32;       // height of each row — compact
-const VISIBLE = 5;       // must be odd
+const ITEM_H = 32;
+const VISIBLE = 5;
 const PICKER_H = ITEM_H * VISIBLE; // 160px
-const PAD = ITEM_H * Math.floor(VISIBLE / 2); // 64px top/bottom padding
+const PAD = ITEM_H * Math.floor(VISIBLE / 2); // 64px
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -64,7 +64,7 @@ function to24Hour(hour12: number, ampm: "AM" | "PM"): number {
 
 interface WheelColumnProps {
   items: string[];
-  selectedIndex: number;
+  selectedIndex: number;           // for rendering highlight only
   onSettle: (index: number) => void;
   colWidth: number;
 }
@@ -72,24 +72,20 @@ interface WheelColumnProps {
 function WheelColumn({ items, selectedIndex, onSettle, colWidth }: WheelColumnProps) {
   const colors = useColors();
   const listRef = useRef<FlatList<string>>(null);
-  // Track the "live" index during scroll so we can snap correctly
-  const liveIndex = useRef(selectedIndex);
-  // Track whether we've done the initial scroll
-  const didInitialScroll = useRef(false);
+  const didMount = useRef(false);
 
-  // Scroll to selectedIndex when it changes from outside (e.g. initial mount or parent update)
+  // Scroll to selectedIndex whenever it changes from outside
   useEffect(() => {
     const target = Math.max(0, Math.min(selectedIndex, items.length - 1));
-    liveIndex.current = target;
-    // Use a small delay to ensure FlatList has laid out
+    const delay = didMount.current ? 0 : 80;
     const timer = setTimeout(() => {
       listRef.current?.scrollToIndex({
         index: target,
-        animated: didInitialScroll.current,
+        animated: didMount.current,
         viewPosition: 0.5,
       });
-      didInitialScroll.current = true;
-    }, didInitialScroll.current ? 0 : 80);
+      didMount.current = true;
+    }, delay);
     return () => clearTimeout(timer);
   }, [selectedIndex, items.length]);
 
@@ -102,14 +98,11 @@ function WheelColumn({ items, selectedIndex, onSettle, colWidth }: WheelColumnPr
     []
   );
 
-  // Called when scroll settles — snap to nearest item and emit
   const handleScrollEnd = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
       const y = e.nativeEvent.contentOffset.y;
-      const raw = y / ITEM_H;
-      const index = Math.max(0, Math.min(Math.round(raw), items.length - 1));
-      liveIndex.current = index;
-      // Snap precisely
+      const index = Math.max(0, Math.min(Math.round(y / ITEM_H), items.length - 1));
+      // Snap precisely to grid
       listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
       onSettle(index);
     },
@@ -120,17 +113,14 @@ function WheelColumn({ items, selectedIndex, onSettle, colWidth }: WheelColumnPr
     ({ item, index }: ListRenderItemInfo<string>) => {
       const distance = Math.abs(index - selectedIndex);
       const isSelected = distance === 0;
-      const opacity =
-        distance === 0 ? 1 : distance === 1 ? 0.55 : distance === 2 ? 0.25 : 0.08;
-      const fontSize = isSelected ? 17 : distance === 1 ? 14 : 13;
       return (
         <View style={[styles.item, { height: ITEM_H, width: colWidth }]}>
           <Text
             style={{
-              fontSize,
+              fontSize: isSelected ? 17 : distance === 1 ? 14 : 13,
               fontWeight: isSelected ? "700" : "400",
               color: isSelected ? colors.primary : colors.foreground,
-              opacity,
+              opacity: distance === 0 ? 1 : distance === 1 ? 0.55 : distance === 2 ? 0.25 : 0.08,
             }}
             numberOfLines={1}
           >
@@ -147,7 +137,7 @@ function WheelColumn({ items, selectedIndex, onSettle, colWidth }: WheelColumnPr
   return (
     <View style={{ width: colWidth, alignItems: "center" }}>
       <View style={{ width: colWidth, height: PICKER_H, overflow: "hidden" }}>
-        {/* Selection highlight bar */}
+        {/* Selection highlight */}
         <View
           pointerEvents="none"
           style={[
@@ -179,16 +169,9 @@ function WheelColumn({ items, selectedIndex, onSettle, colWidth }: WheelColumnPr
           windowSize={5}
           removeClippedSubviews={false}
         />
-        {/* Top fade */}
-        <View
-          pointerEvents="none"
-          style={[styles.fadeTop, { backgroundColor: colors.surface }]}
-        />
-        {/* Bottom fade */}
-        <View
-          pointerEvents="none"
-          style={[styles.fadeBottom, { backgroundColor: colors.surface }]}
-        />
+        {/* Fades */}
+        <View pointerEvents="none" style={[styles.fadeTop, { backgroundColor: colors.surface }]} />
+        <View pointerEvents="none" style={[styles.fadeBottom, { backgroundColor: colors.surface }]} />
       </View>
     </View>
   );
@@ -197,15 +180,10 @@ function WheelColumn({ items, selectedIndex, onSettle, colWidth }: WheelColumnPr
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export interface ScrollWheelTimePickerProps {
-  /** Current value in HH:MM 24-hour format (e.g. "14:30") */
   value: string;
-  /** Called with new value in HH:MM 24-hour format */
   onChange: (value: string) => void;
-  /** Step in minutes (default 15) */
   stepMinutes?: number;
-  /** Minimum allowed time in HH:MM 24-hour format */
   minTime?: string;
-  /** Maximum allowed time in HH:MM 24-hour format */
   maxTime?: string;
 }
 
@@ -218,7 +196,7 @@ export function ScrollWheelTimePicker({
 }: ScrollWheelTimePickerProps) {
   const colors = useColors();
 
-  // ── Build full list of valid time slots ──────────────────────────────────
+  // ── Build valid time slots ────────────────────────────────────────────────
   const timeSlots = useMemo(() => {
     const minMin = minTime ? timeToMinutes(minTime) : 0;
     const maxMin = maxTime ? timeToMinutes(maxTime) : 23 * 60 + 45;
@@ -226,14 +204,12 @@ export function ScrollWheelTimePicker({
     for (let m = minMin; m <= maxMin; m += stepMinutes) {
       slots.push(minutesToTime(m));
     }
-    // Always have at least one slot
     if (slots.length === 0) slots.push(minutesToTime(minMin));
     return slots;
   }, [minTime, maxTime, stepMinutes]);
 
   // ── Clamp value to nearest valid slot ────────────────────────────────────
   const clampedValue = useMemo(() => {
-    if (timeSlots.length === 0) return value;
     const valMin = timeToMinutes(value);
     let closest = timeSlots[0];
     let closestDiff = Math.abs(timeToMinutes(timeSlots[0]) - valMin);
@@ -244,11 +220,11 @@ export function ScrollWheelTimePicker({
     return closest;
   }, [value, timeSlots]);
 
-  // ── Parse current value ───────────────────────────────────────────────────
+  // ── Parse clamped value ───────────────────────────────────────────────────
   const [curH24, curM] = clampedValue.split(":").map(Number);
   const { hour: curH12, ampm: curAmPm } = to12Hour(curH24);
 
-  // ── Build unique hour / minute / ampm lists ───────────────────────────────
+  // ── Build column item lists ───────────────────────────────────────────────
   const hourItems = useMemo(() => {
     const seen = new Set<number>();
     const items: { display: string; h24: number }[] = [];
@@ -285,32 +261,34 @@ export function ScrollWheelTimePicker({
     return result;
   }, [timeSlots]);
 
-  // ── Selected indices ──────────────────────────────────────────────────────
-  const hourIndex = useMemo(() => {
-    const idx = hourItems.findIndex((item) => item.h24 === curH24);
-    return Math.max(0, idx);
-  }, [hourItems, curH24]);
+  // ── Compute indices from clamped value ────────────────────────────────────
+  const hourIndex = useMemo(() => Math.max(0, hourItems.findIndex((i) => i.h24 === curH24)), [hourItems, curH24]);
+  const minuteIndex = useMemo(() => Math.max(0, minuteItems.indexOf(curM)), [minuteItems, curM]);
+  const ampmIndex = useMemo(() => Math.max(0, ampmItems.indexOf(curAmPm)), [ampmItems, curAmPm]);
 
-  const minuteIndex = useMemo(() => {
-    const idx = minuteItems.indexOf(curM);
-    return Math.max(0, idx);
-  }, [minuteItems, curM]);
+  // ── REFS for live indices (avoid stale closures in settle handlers) ───────
+  const liveHourRef = useRef(hourIndex);
+  const liveMinRef = useRef(minuteIndex);
+  const liveAmPmRef = useRef(ampmIndex);
 
-  const ampmIndex = useMemo(() => {
-    const idx = ampmItems.indexOf(curAmPm);
-    return Math.max(0, idx);
-  }, [ampmItems, curAmPm]);
+  // ── STATE for rendering highlights (drives WheelColumn re-render) ─────────
+  const [renderHourIdx, setRenderHourIdx] = useState(hourIndex);
+  const [renderMinIdx, setRenderMinIdx] = useState(minuteIndex);
+  const [renderAmPmIdx, setRenderAmPmIdx] = useState(ampmIndex);
 
-  // ── Internal state to track "live" selections during scroll ──────────────
-  // We keep local state so WheelColumn re-renders with correct highlight
-  const [liveHourIdx, setLiveHourIdx] = useState(hourIndex);
-  const [liveMinIdx, setLiveMinIdx] = useState(minuteIndex);
-  const [liveAmPmIdx, setLiveAmPmIdx] = useState(ampmIndex);
-
-  // Sync local state when external value changes
-  useEffect(() => { setLiveHourIdx(hourIndex); }, [hourIndex]);
-  useEffect(() => { setLiveMinIdx(minuteIndex); }, [minuteIndex]);
-  useEffect(() => { setLiveAmPmIdx(ampmIndex); }, [ampmIndex]);
+  // Sync both ref and state when external value changes
+  useEffect(() => {
+    liveHourRef.current = hourIndex;
+    setRenderHourIdx(hourIndex);
+  }, [hourIndex]);
+  useEffect(() => {
+    liveMinRef.current = minuteIndex;
+    setRenderMinIdx(minuteIndex);
+  }, [minuteIndex]);
+  useEffect(() => {
+    liveAmPmRef.current = ampmIndex;
+    setRenderAmPmIdx(ampmIndex);
+  }, [ampmIndex]);
 
   // ── Emit resolved value ───────────────────────────────────────────────────
   const emitValue = useCallback(
@@ -324,41 +302,45 @@ export function ScrollWheelTimePicker({
     [minTime, maxTime, onChange]
   );
 
-  // ── Settle handlers ───────────────────────────────────────────────────────
+  // ── Settle handlers — read from refs, not state ───────────────────────────
   const handleHourSettle = useCallback(
     (idx: number) => {
+      liveHourRef.current = idx;
+      setRenderHourIdx(idx);
       const item = hourItems[idx];
       if (!item) return;
-      setLiveHourIdx(idx);
-      const currentAmPm = ampmItems[liveAmPmIdx] ?? curAmPm;
-      emitValue(item.h24, minuteItems[liveMinIdx] ?? curM);
+      const minute = minuteItems[liveMinRef.current] ?? curM;
+      emitValue(item.h24, minute);
     },
-    [hourItems, ampmItems, minuteItems, liveAmPmIdx, liveMinIdx, curAmPm, curM, emitValue]
+    [hourItems, minuteItems, curM, emitValue]
   );
 
   const handleMinuteSettle = useCallback(
     (idx: number) => {
+      liveMinRef.current = idx;
+      setRenderMinIdx(idx);
       const minute = minuteItems[idx];
       if (minute === undefined) return;
-      setLiveMinIdx(idx);
-      emitValue(hourItems[liveHourIdx]?.h24 ?? curH24, minute);
+      const h24 = hourItems[liveHourRef.current]?.h24 ?? curH24;
+      emitValue(h24, minute);
     },
-    [minuteItems, hourItems, liveHourIdx, curH24, emitValue]
+    [minuteItems, hourItems, curH24, emitValue]
   );
 
   const handleAmPmSettle = useCallback(
     (idx: number) => {
+      liveAmPmRef.current = idx;
+      setRenderAmPmIdx(idx);
       const newAmPm = ampmItems[idx];
       if (!newAmPm) return;
-      setLiveAmPmIdx(idx);
-      const h12 = to12Hour(hourItems[liveHourIdx]?.h24 ?? curH24).hour;
+      const h12 = to12Hour(hourItems[liveHourRef.current]?.h24 ?? curH24).hour;
       const newH24 = to24Hour(h12, newAmPm);
-      emitValue(newH24, minuteItems[liveMinIdx] ?? curM);
+      const minute = minuteItems[liveMinRef.current] ?? curM;
+      emitValue(newH24, minute);
     },
-    [ampmItems, hourItems, minuteItems, liveHourIdx, liveMinIdx, curH24, curM, emitValue]
+    [ampmItems, hourItems, minuteItems, curH24, curM, emitValue]
   );
 
-  // ── Column widths (compact) ───────────────────────────────────────────────
   const COL_HOUR = 38;
   const COL_MIN = 38;
   const COL_AMPM = 40;
@@ -368,21 +350,21 @@ export function ScrollWheelTimePicker({
       <View style={styles.wheelsRow}>
         <WheelColumn
           items={hourItems.map((i) => i.display)}
-          selectedIndex={liveHourIdx}
+          selectedIndex={renderHourIdx}
           onSettle={handleHourSettle}
           colWidth={COL_HOUR}
         />
         <Text style={[styles.colon, { color: colors.foreground }]}>:</Text>
         <WheelColumn
           items={minuteItems.map((m) => String(m).padStart(2, "0"))}
-          selectedIndex={liveMinIdx}
+          selectedIndex={renderMinIdx}
           onSettle={handleMinuteSettle}
           colWidth={COL_MIN}
         />
         <View style={{ width: 8 }} />
         <WheelColumn
           items={ampmItems}
-          selectedIndex={liveAmPmIdx}
+          selectedIndex={renderAmPmIdx}
           onSettle={handleAmPmSettle}
           colWidth={COL_AMPM}
         />
