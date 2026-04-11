@@ -594,10 +594,12 @@ export function registerPublicRoutes(app: Express) {
 
       // Send push notification to business owner's device
       try {
-        const extrasLabel = extras.length > 0 ? ` + ${extras.length} extra item${extras.length > 1 ? "s" : ""}` : "";
+        const extrasLabel = extras.length > 0 ? ` + ${extras.length} extra` : "";
+        const phoneLabel = clientPhone ? ` | 📞 ${clientPhone}` : "";
+        const priceLabel = finalTotal > 0 ? ` | $${finalTotal.toFixed(2)}` : "";
         await notifyOwner({
-          title: `${owner.businessName} — New Booking Request`,
-          content: `${clientName} requested ${svc?.name ?? "a service"}${extrasLabel} on ${date} at ${time} — $${finalTotal.toFixed(2)}`,
+          title: `📅 New Booking Request — ${owner.businessName}`,
+          content: `${clientName}${phoneLabel} requested ${svc?.name ?? "a service"}${extrasLabel}\nDate: ${date} at ${time} (${dur} min)${priceLabel}\nTap to review and confirm.`,
         });
       } catch (pushErr) {
         console.warn("[Public API] Failed to send push notification:", pushErr);
@@ -766,8 +768,8 @@ export function registerPublicRoutes(app: Express) {
         const svcList = await db.getServicesByOwner(owner.id);
         const svc = svcList.find((s) => s.localId === appt.serviceLocalId);
         await notifyOwner({
-          title: `${owner.businessName} — Appointment Cancelled`,
-          content: `${client?.name || "A client"} cancelled their ${svc?.name || "appointment"} on ${appt.date} at ${appt.time}`,
+          title: `❌ Appointment Cancelled — ${owner.businessName}`,
+          content: `${client?.name || "A client"} cancelled their ${svc?.name || "appointment"}\nDate: ${appt.date} at ${appt.time} (${appt.duration} min)\nTap to view your calendar.`,
         });
       } catch (pushErr) {
         console.warn("[Public API] Failed to send cancellation notification:", pushErr);
@@ -860,8 +862,8 @@ export function registerPublicRoutes(app: Express) {
         const svcList = await db.getServicesByOwner(owner.id);
         const svc = svcList.find((s) => s.localId === appt.serviceLocalId);
         await notifyOwner({
-          title: `${owner.businessName} — Appointment Rescheduled`,
-          content: `${client?.name || "A client"} rescheduled their ${svc?.name || "appointment"} to ${newDate} at ${newTime}`,
+          title: `🔄 Appointment Rescheduled — ${owner.businessName}`,
+          content: `${client?.name || "A client"} rescheduled their ${svc?.name || "appointment"}\nNew date: ${newDate} at ${newTime}\nTap to review and confirm.`,
         });
       } catch (pushErr) {
         console.warn("[Public API] Failed to send reschedule notification:", pushErr);
@@ -902,8 +904,8 @@ export function registerPublicRoutes(app: Express) {
         const svcList = await db.getServicesByOwner(owner.id);
         const svc = svcList.find((s) => s.localId === serviceLocalId);
         await notifyOwner({
-          title: `${owner.businessName} — New Waitlist Entry`,
-          content: `${clientName} joined the waitlist for ${svc?.name || "a service"} on ${preferredDate}`,
+          title: `⏳ New Waitlist Entry — ${owner.businessName}`,
+          content: `${clientName} joined the waitlist for ${svc?.name || "a service"}\nPreferred date: ${preferredDate}\nTap to view waitlist.`,
         });
       } catch (pushErr) {
         console.warn("[Public API] Failed to send waitlist notification:", pushErr);

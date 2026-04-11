@@ -333,62 +333,105 @@ export default function StaffCalendarScreen() {
             )}
           </View>
         ) : (
-          /* Timeline View */
-          <View style={{ paddingHorizontal: hp, marginTop: 8 }}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-              {formatDateDisplay(selectedDate)} — Timeline
-            </Text>
-            <View style={[styles.timelineContainer, { borderColor: colors.border }]}>
-              {timelineHours.map((hour) => {
-                const hourNum = parseInt(hour.split(":")[0]);
-                const apptsInHour = selectedDateAppts.filter((a) => {
-                  const startMin = timeToMinutes(a.time);
-                  const endMin = startMin + a.duration;
-                  const hourStart = hourNum * 60;
-                  const hourEnd = (hourNum + 1) * 60;
-                  return startMin < hourEnd && endMin > hourStart;
-                });
-                const isWorkingHour = selectedDaySchedule?.enabled
-                  ? timeToMinutes(hour) >= timeToMinutes(selectedDaySchedule.start) && timeToMinutes(hour) < timeToMinutes(selectedDaySchedule.end)
-                  : true;
-
-                return (
-                  <View key={hour} style={[styles.timelineRow, { borderBottomColor: colors.border }]}>
-                    <View style={[styles.timelineLabel, { opacity: isWorkingHour ? 1 : 0.4 }]}>
-                      <Text style={{ fontSize: 11, fontWeight: "500", color: colors.muted }}>
-                        {formatTimeDisplay(hour)}
-                      </Text>
+          /* Timeline View — absolute-positioned blocks, no duplication */
+          (() => {
+            const STAFF_TIMELINE_START = 8;
+            const STAFF_TIMELINE_END = 20;
+            const STAFF_HOUR_HEIGHT = 60;
+            const LABEL_WIDTH = 60;
+            const totalHours = STAFF_TIMELINE_END - STAFF_TIMELINE_START + 1;
+            const gridHeight = totalHours * STAFF_HOUR_HEIGHT;
+            const nowDate = new Date();
+            const isToday = selectedDate === formatDateStr(nowDate);
+            const nowMinutes = nowDate.getHours() * 60 + nowDate.getMinutes();
+            const nowTop = (nowMinutes - STAFF_TIMELINE_START * 60) * (STAFF_HOUR_HEIGHT / 60);
+            const showNowLine = isToday && nowTop >= 0 && nowTop <= gridHeight;
+            return (
+              <View style={{ paddingHorizontal: hp, marginTop: 8 }}>
+                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+                  {formatDateDisplay(selectedDate)} — Timeline
+                </Text>
+                <View style={[styles.timelineContainer, { borderColor: colors.border, position: "relative" }]}>
+                  {/* Hour grid rows */}
+                  {timelineHours.map((hour) => {
+                    const isWorkingHour = selectedDaySchedule?.enabled
+                      ? timeToMinutes(hour) >= timeToMinutes(selectedDaySchedule.start) && timeToMinutes(hour) < timeToMinutes(selectedDaySchedule.end)
+                      : true;
+                    return (
+                      <View key={hour} style={[styles.timelineRow, { borderBottomColor: colors.border, height: STAFF_HOUR_HEIGHT }]}>
+                        <View style={[styles.timelineLabel, { opacity: isWorkingHour ? 1 : 0.4 }]}>
+                          <Text style={{ fontSize: 11, fontWeight: "500", color: colors.muted }}>
+                            {formatTimeDisplay(hour)}
+                          </Text>
+                        </View>
+                        <View style={[styles.timelineSlot, { backgroundColor: isWorkingHour ? "transparent" : colors.surface + "60" }]} />
+                      </View>
+                    );
+                  })}
+                  {/* Absolutely-positioned appointment blocks */}
+                  {selectedDateAppts.map((appt) => {
+                    const svc = getServiceById(appt.serviceId);
+                    const client = getClientById(appt.clientId);
+                    const color = svc?.color ?? staff.color ?? colors.primary;
+                    const startMin = timeToMinutes(appt.time);
+                    const top = (startMin - STAFF_TIMELINE_START * 60) * (STAFF_HOUR_HEIGHT / 60);
+                    const height = Math.max(appt.duration * (STAFF_HOUR_HEIGHT / 60), 28);
+                    if (top < 0 || top > gridHeight) return null;
+                    return (
+                      <Pressable
+                        key={appt.id}
+                        onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })}
+                        style={({ pressed }) => ([
+                          styles.timelineApptAbs,
+                          {
+                            top,
+                            height,
+                            left: LABEL_WIDTH + 4,
+                            right: 4,
+                            backgroundColor: color + "22",
+                            borderLeftColor: color,
+                            opacity: pressed ? 0.7 : 1,
+                          },
+                        ])}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: colors.foreground }} numberOfLines={1}>
+                          {formatTime(appt.time)} {svc ? getServiceDisplayName(svc) : "Service"} ({appt.duration} min)
+                        </Text>
+                        {height > 36 && (
+                          <Text style={{ fontSize: 10, color: colors.muted }} numberOfLines={1}>{client?.name}</Text>
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                  {/* Red current-time line */}
+                  {showNowLine && (
+                    <View
+                      pointerEvents="none"
+                      style={{
+                        position: "absolute",
+                        top: nowTop,
+                        left: LABEL_WIDTH - 4,
+                        right: 0,
+                        height: 2,
+                        backgroundColor: "#EF4444",
+                        zIndex: 10,
+                      }}
+                    >
+                      <View style={{
+                        position: "absolute",
+                        left: -4,
+                        top: -4,
+                        width: 10,
+                        height: 10,
+                        borderRadius: 5,
+                        backgroundColor: "#EF4444",
+                      }} />
                     </View>
-                    <View style={[styles.timelineSlot, { backgroundColor: isWorkingHour ? "transparent" : colors.surface + "60" }]}>
-                      {apptsInHour.map((appt) => {
-                        const svc = getServiceById(appt.serviceId);
-                        const client = getClientById(appt.clientId);
-                        return (
-                          <Pressable
-                            key={appt.id}
-                            onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })}
-                            style={({ pressed }) => [
-                              styles.timelineAppt,
-                              {
-                                backgroundColor: (svc?.color ?? staff.color ?? colors.primary) + "20",
-                                borderLeftColor: svc?.color ?? staff.color ?? colors.primary,
-                                opacity: pressed ? 0.7 : 1,
-                              },
-                            ]}
-                          >
-                            <Text style={{ fontSize: 12, fontWeight: "600", color: colors.foreground }} numberOfLines={1}>
-                              {formatTime(appt.time)} {svc ? getServiceDisplayName(svc) : "Service"}
-                            </Text>
-                            <Text style={{ fontSize: 11, color: colors.muted }} numberOfLines={1}>{client?.name}</Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          </View>
+                  )}
+                </View>
+              </View>
+            );
+          })()
         )}
 
         {/* Assigned Services */}
@@ -450,11 +493,12 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: "center", paddingVertical: 24, borderRadius: 14, borderWidth: 1 },
   apptCard: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12, borderWidth: 1, borderLeftWidth: 4, marginBottom: 8 },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  timelineContainer: { borderWidth: 1, borderRadius: 12, overflow: "hidden" },
-  timelineRow: { flexDirection: "row", minHeight: 48, borderBottomWidth: 0.5 },
+  timelineContainer: { borderWidth: 1, borderRadius: 12, overflow: "hidden", position: "relative" },
+  timelineRow: { flexDirection: "row", borderBottomWidth: 0.5 },
   timelineLabel: { width: 60, paddingVertical: 8, paddingHorizontal: 6, justifyContent: "flex-start", alignItems: "flex-end" },
-  timelineSlot: { flex: 1, paddingVertical: 4, paddingHorizontal: 6 },
+  timelineSlot: { flex: 1 },
   timelineAppt: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderLeftWidth: 3, marginBottom: 2 },
+  timelineApptAbs: { position: "absolute", borderLeftWidth: 3, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, overflow: "hidden" },
   serviceChip: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, marginBottom: 6 },
   scheduleRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 0.5 },
 });

@@ -179,8 +179,8 @@ export function useNotifications() {
         try {
           await Notifications.scheduleNotificationAsync({
             content: {
-              title: `${businessName} — Appointment in 30 min`,
-              body: `${client?.name || "Client"} — ${svc?.name || "Service"} at ${appt.time}`,
+              title: `⏰ Appointment in 30 min — ${businessName}`,
+              body: `${client?.name || "Client"} | ${svc?.name || "Service"} at ${appt.time} (${appt.duration} min) on ${appt.date}`,
               data: {
                 type: "appointment_reminder",
                 appointmentId: appt.id,
@@ -203,8 +203,8 @@ export function useNotifications() {
         try {
           await Notifications.scheduleNotificationAsync({
             content: {
-              title: `${businessName} — Appointment in 1 Hour`,
-              body: `${client?.name || "Client"} — ${svc?.name || "Service"} at ${appt.time}`,
+              title: `⏰ Appointment in 1 Hour — ${businessName}`,
+              body: `${client?.name || "Client"} | ${svc?.name || "Service"} at ${appt.time} (${appt.duration} min) on ${appt.date}`,
               data: {
                 type: "appointment_reminder",
                 appointmentId: appt.id,

@@ -495,29 +495,33 @@ export default function CalendarScreen() {
   };
 
   // ─── Timeline Render ──────────────────────────────────────────────────
+  // Each hour row is HOUR_HEIGHT px tall. Appointments are absolutely positioned
+  // over the grid so they never appear twice regardless of how many hours they span.
 
   const renderTimeline = (dateStr: string, appts: Appointment[], tintColor?: string) => {
     const effectiveHours = getEffectiveHours(dateStr);
     const available = isDayAvailable(dateStr);
+    const LABEL_WIDTH = 56;
+    const totalHours = TIMELINE_END - TIMELINE_START + 1;
+    const gridHeight = totalHours * HOUR_HEIGHT;
+
+    // Current-time indicator
+    const nowDate = new Date();
+    const isToday = dateStr === formatDateStr(nowDate);
+    const nowMinutes = nowDate.getHours() * 60 + nowDate.getMinutes();
+    const nowTop = (nowMinutes - TIMELINE_START * 60) * (HOUR_HEIGHT / 60);
+    const showNowLine = isToday && nowTop >= 0 && nowTop <= gridHeight;
 
     return (
       <View style={[styles.timelineContainer, { borderColor: colors.border }]}>
+        {/* Hour rows — background grid only, no appointments rendered here */}
         {timelineHours.map((hour) => {
-          const hourNum = parseInt(hour.split(":")[0]);
-          const apptsInHour = appts.filter((a) => {
-            const startMin = timeToMinutes(a.time);
-            const endMin = startMin + a.duration;
-            const hourStart = hourNum * 60;
-            const hourEnd = (hourNum + 1) * 60;
-            return startMin < hourEnd && endMin > hourStart;
-          });
           const isWorkingHour = available && effectiveHours
             ? timeToMinutes(hour) >= timeToMinutes(effectiveHours.start) &&
               timeToMinutes(hour) < timeToMinutes(effectiveHours.end)
             : available;
-
           return (
-            <View key={hour} style={[styles.timelineRow, { borderBottomColor: colors.border }]}>
+            <View key={hour} style={[styles.timelineRow, { borderBottomColor: colors.border, height: HOUR_HEIGHT }]}>
               <View style={[styles.timelineLabel, { opacity: isWorkingHour ? 1 : 0.4 }]}>
                 <Text style={{ fontSize: 10, fontWeight: "500", color: colors.muted }}>
                   {formatTimeDisplay(hour)}
@@ -525,28 +529,72 @@ export default function CalendarScreen() {
               </View>
               <View style={[styles.timelineSlot, {
                 backgroundColor: isWorkingHour ? "transparent" : colors.surface + "80",
-              }]}>
-                {apptsInHour.map((appt) => {
-                  const svc = getServiceById(appt.serviceId);
-                  const client = getClientById(appt.clientId);
-                  const color = svc?.color ?? tintColor ?? colors.primary;
-                  return (
-                    <Pressable
-                      key={appt.id}
-                      onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })}
-                      style={({ pressed }) => [styles.timelineAppt, { backgroundColor: color + "20", borderLeftColor: color, opacity: pressed ? 0.7 : 1 }]}
-                    >
-                      <Text style={{ fontSize: 11, fontWeight: "600", color: colors.foreground }} numberOfLines={1}>
-                        {formatTime(appt.time)} {svc ? getServiceDisplayName(svc) : "Appt"}
-                      </Text>
-                      <Text style={{ fontSize: 10, color: colors.muted }} numberOfLines={1}>{client?.name}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+              }]} />
             </View>
           );
         })}
+
+        {/* Absolutely-positioned appointment blocks — rendered once per appointment */}
+        {appts.map((appt) => {
+          const svc = getServiceById(appt.serviceId);
+          const client = getClientById(appt.clientId);
+          const color = svc?.color ?? tintColor ?? colors.primary;
+          const startMin = timeToMinutes(appt.time);
+          const top = (startMin - TIMELINE_START * 60) * (HOUR_HEIGHT / 60);
+          const height = Math.max(appt.duration * (HOUR_HEIGHT / 60), 28);
+          if (top < 0 || top > gridHeight) return null;
+          return (
+            <Pressable
+              key={appt.id}
+              onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })}
+              style={({ pressed }) => ([
+                styles.timelineApptAbs,
+                {
+                  top,
+                  height,
+                  left: LABEL_WIDTH + 4,
+                  right: 4,
+                  backgroundColor: color + "22",
+                  borderLeftColor: color,
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ])}
+            >
+              <Text style={{ fontSize: 11, fontWeight: "700", color: colors.foreground }} numberOfLines={1}>
+                {formatTime(appt.time)} {svc ? getServiceDisplayName(svc) : "Appt"} ({appt.duration} min)
+              </Text>
+              {height > 36 && (
+                <Text style={{ fontSize: 10, color: colors.muted }} numberOfLines={1}>{client?.name}</Text>
+              )}
+            </Pressable>
+          );
+        })}
+
+        {/* Red current-time line */}
+        {showNowLine && (
+          <View
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              top: nowTop,
+              left: LABEL_WIDTH - 4,
+              right: 0,
+              height: 2,
+              backgroundColor: "#EF4444",
+              zIndex: 10,
+            }}
+          >
+            <View style={{
+              position: "absolute",
+              left: -4,
+              top: -4,
+              width: 10,
+              height: 10,
+              borderRadius: 5,
+              backgroundColor: "#EF4444",
+            }} />
+          </View>
+        )}
       </View>
     );
   };
@@ -1084,11 +1132,12 @@ const styles = StyleSheet.create({
   viewSwitcher: { flexDirection: "row", gap: 8, marginBottom: 12 },
   viewTab: { paddingVertical: 8, borderRadius: 12, borderWidth: 1, alignItems: "center" },
   todayBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 14, borderWidth: 1.5 },
-  timelineContainer: { borderRadius: 14, borderWidth: 1, overflow: "hidden", marginBottom: 16 },
-  timelineRow: { flexDirection: "row", minHeight: 52, borderBottomWidth: 0.5 },
+  timelineContainer: { borderRadius: 14, borderWidth: 1, overflow: "hidden", marginBottom: 16, position: "relative" },
+  timelineRow: { flexDirection: "row", borderBottomWidth: 0.5 },
   timelineLabel: { width: 56, paddingTop: 6, paddingLeft: 8, justifyContent: "flex-start" },
-  timelineSlot: { flex: 1, padding: 4, gap: 2 },
+  timelineSlot: { flex: 1 },
   timelineAppt: { borderLeftWidth: 3, borderRadius: 6, padding: 6, marginBottom: 2 },
+  timelineApptAbs: { position: "absolute", borderLeftWidth: 3, borderRadius: 6, padding: 6, overflow: "hidden" },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, paddingBottom: 40 },
   modalBtn: { paddingVertical: 14, borderRadius: 14, borderWidth: 1, alignItems: "center" },

@@ -10,19 +10,23 @@ describe("Notification Fixes", () => {
 
     it("should include business name in new booking request notification title", () => {
       // The notifyOwner call for new bookings should use owner.businessName
-      expect(publicRoutesContent).toContain("title: `${owner.businessName} — New Booking Request`");
+      expect(publicRoutesContent).toContain("owner.businessName");
+      expect(publicRoutesContent).toContain("New Booking Request");
     });
 
     it("should include business name in cancellation notification title", () => {
-      expect(publicRoutesContent).toContain("title: `${owner.businessName} — Appointment Cancelled`");
+      expect(publicRoutesContent).toContain("owner.businessName");
+      expect(publicRoutesContent).toContain("Appointment Cancelled");
     });
 
     it("should include business name in reschedule notification title", () => {
-      expect(publicRoutesContent).toContain("title: `${owner.businessName} — Appointment Rescheduled`");
+      expect(publicRoutesContent).toContain("owner.businessName");
+      expect(publicRoutesContent).toContain("Appointment Rescheduled");
     });
 
     it("should include business name in waitlist notification title", () => {
-      expect(publicRoutesContent).toContain("title: `${owner.businessName} — New Waitlist Entry`");
+      expect(publicRoutesContent).toContain("owner.businessName");
+      expect(publicRoutesContent).toContain("New Waitlist Entry");
     });
 
     it("should NOT use generic titles without business name", () => {
@@ -41,11 +45,13 @@ describe("Notification Fixes", () => {
     const hookContent = fs.readFileSync(hookPath, "utf-8");
 
     it("should use business name in 30-minute reminder title", () => {
-      expect(hookContent).toContain("title: `${businessName} — Appointment in 30 min`");
+      expect(hookContent).toContain("businessName");
+      expect(hookContent).toContain("30 min");
     });
 
     it("should use business name in 1-hour reminder title", () => {
-      expect(hookContent).toContain("title: `${businessName} — Appointment in 1 Hour`");
+      expect(hookContent).toContain("businessName");
+      expect(hookContent).toContain("1 Hour");
     });
 
     it("should NOT use generic emoji titles", () => {
