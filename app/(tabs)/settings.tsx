@@ -168,6 +168,13 @@ export default function SettingsScreen() {
   // Navigation items for sub-screens
   const navItems = [
     {
+      title: "Business Hours",
+      subtitle: "Unified availability, daily overrides, staff calendar",
+      icon: "clock.fill" as const,
+      route: "/business-hours-settings" as const,
+      color: colors.primary,
+    },
+    {
       title: "Schedule & Hours",
       subtitle: "Working hours, buffer time, custom days",
       icon: "calendar.badge.clock" as const,

@@ -97,6 +97,13 @@ export default function CalendarScreen() {
     return statuses;
   }, [state.appointments]);
 
+  // Daily overrides and availability indicators (placeholder for future integration)
+  const dayIndicators = useMemo(() => {
+    const indicators: Record<string, { type: string; color: string }> = {};
+    // TODO: Integrate with state.dailyOverrides when added to AppState
+    return indicators;
+  }, [colors])
+
   const prevMonth = () => {
     if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear(currentYear - 1); }
     else setCurrentMonth(currentMonth - 1);
