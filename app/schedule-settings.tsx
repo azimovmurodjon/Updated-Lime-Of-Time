@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from "react";
-import { Text, View, Pressable, StyleSheet, Switch, Modal, ScrollView } from "react-native";
+import { Text, View, Pressable, StyleSheet, Switch, Modal, ScrollView, useWindowDimensions } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
@@ -147,6 +147,9 @@ export default function ScheduleSettingsScreen() {
   const { state, dispatch, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
   const settings = state.settings;
 
   const scheduleTab = settings.scheduleMode ?? "weekly";
@@ -337,17 +340,16 @@ export default function ScheduleSettingsScreen() {
   const pickerDayWH = timePickerDay ? settings.workingHours[timePickerDay] : null;
 
   return (
-    <ScreenContainer edges={["top", "left", "right"]}>
+    <ScreenContainer edges={["top", "left", "right"]} tabletMaxWidth={isTablet ? 720 : 0}>
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+      <View style={[styles.header, { borderBottomColor: colors.border, paddingHorizontal: hp }]}>
         <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]}>
           <IconSymbol name="arrow.left" size={22} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Schedule & Hours</Text>
         <View style={{ width: 36 }} />
       </View>
-
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: hp, paddingVertical: 16, paddingBottom: 60 }}>
 
         {/* ── Buffer Time ──────────────────────────────────────────────────── */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>

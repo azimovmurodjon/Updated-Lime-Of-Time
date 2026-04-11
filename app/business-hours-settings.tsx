@@ -21,7 +21,8 @@ import {
   Pressable,
   Alert,
   ActivityIndicator,
-  FlatList
+  FlatList,
+  useWindowDimensions
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ScreenContainer } from '@/components/screen-container';
@@ -58,6 +59,9 @@ interface WeeklyHours {
 export default function BusinessHoursSettings() {
   const router = useRouter();
   const { state } = useStore();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
 
   const [weeklyHours, setWeeklyHours] = useState<WeeklyHours>({
     Monday: { isEnabled: true, startTime: '09:00', endTime: '17:00' },
@@ -148,9 +152,9 @@ export default function BusinessHoursSettings() {
   }
 
   return (
-    <ScreenContainer className="p-0">
+    <ScreenContainer className="p-0" tabletMaxWidth={isTablet ? 720 : 0}>
       {/* Header */}
-      <View className="bg-primary px-6 py-4">
+      <View className="bg-primary py-4" style={{ paddingHorizontal: hp }}>
         <Pressable onPress={() => router.back()}>
           <Text className="text-background text-lg font-semibold">← Back</Text>
         </Pressable>
@@ -182,10 +186,10 @@ export default function BusinessHoursSettings() {
         ))}
       </View>
 
-      <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1 }}>
+      <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }}>
         {/* Weekly Hours Tab */}
         {activeTab === 'weekly' && (
-          <View className="p-4 gap-4">
+          <View style={{ padding: hp, gap: 16 }}>
             <Text className="text-lg font-semibold text-foreground">Weekly Schedule</Text>
 
             {DAYS_OF_WEEK.map(day => (
@@ -250,7 +254,7 @@ export default function BusinessHoursSettings() {
 
         {/* Daily Overrides Tab */}
         {activeTab === 'overrides' && (
-          <View className="p-4 gap-4">
+          <View style={{ padding: hp, gap: 16 }}>
             <View className="flex-row items-center justify-between">
               <Text className="text-lg font-semibold text-foreground">Daily Overrides</Text>
               <Pressable
@@ -300,7 +304,7 @@ export default function BusinessHoursSettings() {
 
         {/* Settings Tab */}
         {activeTab === 'settings' && (
-          <View className="p-4 gap-4">
+          <View style={{ padding: hp, gap: 16 }}>
             <Text className="text-lg font-semibold text-foreground">Settings</Text>
 
             {/* Multi-Staff Mode Toggle */}

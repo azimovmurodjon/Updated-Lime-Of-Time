@@ -1,4 +1,4 @@
-import { Text, View, Pressable, StyleSheet, Alert, ScrollView } from "react-native";
+import { Text, View, Pressable, StyleSheet, Alert, ScrollView, useWindowDimensions } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
@@ -16,6 +16,9 @@ export default function DataExportScreen() {
   const { state } = useStore();
   const colors = useColors();
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
 
   const handleExport = async (label: string) => {
     try {
@@ -39,9 +42,9 @@ export default function DataExportScreen() {
   };
 
   return (
-    <ScreenContainer edges={["top", "left", "right"]}>
+    <ScreenContainer edges={["top", "left", "right"]} tabletMaxWidth={isTablet ? 720 : 0}>
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+      <View style={[styles.header, { borderBottomColor: colors.border, paddingHorizontal: hp }]}>
         <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]}>
           <IconSymbol name="arrow.left" size={22} color={colors.foreground} />
         </Pressable>
@@ -49,7 +52,7 @@ export default function DataExportScreen() {
         <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: hp, paddingVertical: 16, paddingBottom: 40 }}>
         <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 16, lineHeight: 20 }}>
           Generate professional PDF reports for your business data. Reports include your business branding and current data.
         </Text>

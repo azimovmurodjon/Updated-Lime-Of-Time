@@ -2,14 +2,25 @@ import { Tabs } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Platform } from "react-native";
+import { Platform, useWindowDimensions } from "react-native";
 import { useColors } from "@/hooks/use-colors";
 
 export default function TabLayout() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const bottomPadding = Platform.OS === "web" ? 12 : Math.max(insets.bottom, 8);
-  const tabBarHeight = 56 + bottomPadding;
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+  const isLargeTablet = width >= 1024;
+  const bottomPadding = Platform.OS === "web"
+    ? (isTablet ? 16 : 12)
+    : Math.max(insets.bottom, 8);
+  const tabBarHeight = isLargeTablet
+    ? 72 + bottomPadding
+    : isTablet
+    ? 64 + bottomPadding
+    : 56 + bottomPadding;
+  const iconSize = isLargeTablet ? 30 : isTablet ? 28 : 26;
+  const labelSize = isLargeTablet ? 13 : isTablet ? 12 : 11;
 
   return (
     <Tabs
@@ -19,7 +30,7 @@ export default function TabLayout() {
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarStyle: {
-          paddingTop: 8,
+          paddingTop: isTablet ? 10 : 8,
           paddingBottom: bottomPadding,
           height: tabBarHeight,
           backgroundColor: colors.background,
@@ -27,9 +38,10 @@ export default function TabLayout() {
           borderTopWidth: 0.5,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: labelSize,
           fontWeight: "600",
         },
+        tabBarItemStyle: isTablet ? { paddingVertical: 4 } : undefined,
       }}
     >
       <Tabs.Screen
@@ -37,7 +49,7 @@ export default function TabLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="house.fill" color={color} />
+            <IconSymbol size={iconSize} name="house.fill" color={color} />
           ),
         }}
       />
@@ -46,7 +58,7 @@ export default function TabLayout() {
         options={{
           title: "Calendar",
           tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="calendar" color={color} />
+            <IconSymbol size={iconSize} name="calendar" color={color} />
           ),
         }}
       />
@@ -55,7 +67,7 @@ export default function TabLayout() {
         options={{
           title: "Clients",
           tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="person.2.fill" color={color} />
+            <IconSymbol size={iconSize} name="person.2.fill" color={color} />
           ),
         }}
       />
@@ -64,7 +76,7 @@ export default function TabLayout() {
         options={{
           title: "Services",
           tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="list.bullet" color={color} />
+            <IconSymbol size={iconSize} name="list.bullet" color={color} />
           ),
         }}
       />
@@ -73,7 +85,7 @@ export default function TabLayout() {
         options={{
           title: "Settings",
           tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="gearshape.fill" color={color} />
+            <IconSymbol size={iconSize} name="gearshape.fill" color={color} />
           ),
         }}
       />

@@ -633,3 +633,19 @@
 - [x] Fix booking page: clear slotCache when staff or location changes
 - [x] Fix locations API: include workingHours in response
 - [x] Staff list screen: show location assignments and per-day workday summary
+
+## Responsive Layout (Phone + Tablet + Web)
+- [ ] Create useResponsive hook with phone/tablet/web breakpoints
+- [ ] Fix tab bar: wider tabs with labels on tablet/web, proper sizing
+- [ ] Fix appointment-detail: add responsive padding and tabletMaxWidth centering
+- [ ] Fix service-form: add responsive padding and tabletMaxWidth centering
+- [ ] Fix new-booking: add responsive padding and tabletMaxWidth centering
+- [ ] Fix business-hours-settings: add responsive padding and tabletMaxWidth centering
+- [ ] Fix schedule-settings: add responsive padding and tabletMaxWidth centering
+- [ ] Fix booking-policies: add responsive padding and tabletMaxWidth centering
+- [ ] Fix data-export: add responsive padding and tabletMaxWidth centering
+- [ ] Fix product-form: add responsive padding and tabletMaxWidth centering
+- [ ] Fix home screen: 3-column KPI on large tablet, 2-column upcoming list on tablet
+- [ ] Fix calendar screen: wider day/week view on tablet, better use of horizontal space
+- [ ] Fix settings screen: 2-column layout for settings groups on tablet/web
+- [ ] Ensure all screens with tabletMaxWidth=0 properly use full width with correct padding

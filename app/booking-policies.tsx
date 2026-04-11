@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Text, View, Pressable, StyleSheet, Switch, TextInput, Alert, ScrollView, Linking } from "react-native";
+import { Text, View, Pressable, StyleSheet, Switch, TextInput, Alert, ScrollView, Linking, useWindowDimensions } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
@@ -10,6 +10,9 @@ export default function BookingPoliciesScreen() {
   const { state, dispatch, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
   const settings = state.settings;
   const policy = settings.cancellationPolicy;
 
@@ -42,9 +45,9 @@ export default function BookingPoliciesScreen() {
   }, [settings.temporaryClosed, dispatch, syncToDb]);
 
   return (
-    <ScreenContainer edges={["top", "left", "right"]}>
+    <ScreenContainer edges={["top", "left", "right"]} tabletMaxWidth={isTablet ? 720 : 0}>
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+      <View style={[styles.header, { borderBottomColor: colors.border, paddingHorizontal: hp }]}>
         <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]}>
           <IconSymbol name="arrow.left" size={22} color={colors.foreground} />
         </Pressable>
@@ -52,7 +55,7 @@ export default function BookingPoliciesScreen() {
         <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: hp, paddingVertical: 16, paddingBottom: 60 }}>
         {/* Temporary Closed */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.switchRow}>

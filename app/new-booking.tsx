@@ -9,6 +9,7 @@ import {
   Linking,
   Platform,
   Alert,
+  useWindowDimensions,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -32,6 +33,9 @@ export default function NewBookingScreen() {
   const { state, dispatch, getServiceById, getClientById, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
   const params = useLocalSearchParams<{ date?: string }>();
 
   const [step, setStep] = useState<Step>(1);
@@ -294,9 +298,9 @@ export default function NewBookingScreen() {
   const TOTAL_STEPS = 4;
 
   return (
-    <ScreenContainer edges={["top", "bottom", "left", "right"]} className="p-5">
+    <ScreenContainer edges={["top", "bottom", "left", "right"]} tabletMaxWidth={isTablet ? 720 : 0}>
       {/* Header */}
-      <View className="flex-row items-center justify-between mb-2" style={{ paddingTop: 8 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8, paddingTop: 8, paddingHorizontal: hp }}>
         <View className="flex-row items-center">
           <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
             <IconSymbol name="xmark" size={24} color={colors.foreground} />
@@ -307,7 +311,7 @@ export default function NewBookingScreen() {
       </View>
 
       {/* Progress Bar */}
-      <View className="flex-row gap-2 mb-5">
+      <View style={{ flexDirection: "row", gap: 8, marginBottom: 20, paddingHorizontal: hp }}>
         {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map((s) => (
           <View
             key={s}
@@ -319,7 +323,7 @@ export default function NewBookingScreen() {
 
       {/* Step 1: Select Service (grouped by category) */}
       {step === 1 && (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: hp }}>
           <Text className="text-base font-semibold text-foreground mb-3">Select a Service</Text>
           {state.services.length === 0 ? (
             <View className="items-center py-12">
@@ -383,7 +387,7 @@ export default function NewBookingScreen() {
 
       {/* Step 2: Select Client */}
       {step === 2 && (
-        <View className="flex-1">
+        <View style={{ flex: 1, paddingHorizontal: hp }}>
           <View className="flex-row items-center justify-between mb-3">
             <Pressable onPress={() => setStep(1)} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
               <Text className="text-sm" style={{ color: colors.primary }}>← Back</Text>
@@ -502,7 +506,7 @@ export default function NewBookingScreen() {
 
       {/* Step 3: Pick Date & Time */}
       {step === 3 && (
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}>
           <View className="flex-row items-center justify-between mb-3">
             <Pressable onPress={() => setStep(2)} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
               <Text className="text-sm" style={{ color: colors.primary }}>← Back</Text>
@@ -639,7 +643,7 @@ export default function NewBookingScreen() {
 
       {/* Step 4: Add More & Confirm */}
       {step === 4 && (
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}>
           <View className="flex-row items-center justify-between mb-3">
             <Pressable onPress={() => setStep(3)} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
               <Text className="text-sm" style={{ color: colors.primary }}>← Back</Text>

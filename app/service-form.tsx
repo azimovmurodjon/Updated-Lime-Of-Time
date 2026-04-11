@@ -1,4 +1,4 @@
-import { Text, View, Pressable, StyleSheet, TextInput, ScrollView, Alert, Platform } from "react-native";
+import { Text, View, Pressable, StyleSheet, TextInput, ScrollView, Alert, Platform, useWindowDimensions } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, generateId } from "@/lib/store";
@@ -15,6 +15,9 @@ export default function ServiceFormScreen() {
   const { state, dispatch, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
 
   const existing = useMemo(
     () => (id ? state.services.find((s) => s.id === id) : undefined),
@@ -75,14 +78,14 @@ export default function ServiceFormScreen() {
   };
 
   return (
-    <ScreenContainer edges={["top", "bottom", "left", "right"]} className="p-5">
+    <ScreenContainer edges={["top", "bottom", "left", "right"]} tabletMaxWidth={isTablet ? 680 : 0}>
       {/* Header - extra top padding to clear status bar on all devices */}
-      <View className="flex-row items-center justify-between mb-6" style={{ paddingTop: 16 }}>
-        <View className="flex-row items-center flex-1 mr-3">
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 24, paddingTop: 16, paddingHorizontal: hp }}>
+        <View style={{ flexDirection: "row", alignItems: "center", flex: 1, marginRight: 12 }}>
           <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, padding: 4 }]}>
             <IconSymbol name="xmark" size={24} color={colors.foreground} />
           </Pressable>
-          <Text className="text-xl font-bold text-foreground ml-4" numberOfLines={1} style={{ flex: 1 }}>
+          <Text style={{ fontSize: 20, fontWeight: "700", color: colors.foreground, marginLeft: 16, flex: 1 }} numberOfLines={1}>
             {isEdit ? "Edit Service" : "New Service"}
           </Text>
         </View>
@@ -93,11 +96,11 @@ export default function ServiceFormScreen() {
             { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 },
           ]}
         >
-          <Text className="text-sm font-semibold text-white">Save</Text>
+          <Text style={{ fontSize: 14, fontWeight: "600", color: "#fff" }}>Save</Text>
         </Pressable>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}>
         {/* Name */}
         <Text className="text-xs font-medium text-muted mb-1 ml-1">Service Name</Text>
         <TextInput

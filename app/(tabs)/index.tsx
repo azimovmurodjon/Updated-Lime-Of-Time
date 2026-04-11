@@ -54,10 +54,11 @@ export default function HomeScreen() {
   const isTablet = width >= 768;
   const isLargeTablet = width >= 1024;
   const hp = isLargeTablet ? 48 : isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
-  const contentWidth = width - hp * 2;
+  const maxContentWidth = isLargeTablet ? 1280 : isTablet ? Math.min(width, 960) : width;
+  const contentWidth = maxContentWidth - hp * 2;
   const cardGap = isTablet ? 16 : 12;
-  // On tablet: 3 or 4 columns for KPI cards; on phone: 2 columns
-  const kpiCols = isLargeTablet ? 4 : isTablet ? 2 : 2;
+  // On tablet: 4 columns for KPI cards; on phone: 2 columns
+  const kpiCols = isLargeTablet ? 4 : isTablet ? 4 : 2;
   const cardW = Math.floor((contentWidth - cardGap * (kpiCols - 1)) / kpiCols);
   const fs = isTablet ? 1.1 : 1;
 
@@ -324,6 +325,9 @@ export default function HomeScreen() {
           paddingHorizontal: hp,
           paddingTop: 8,
           paddingBottom: 100,
+          maxWidth: maxContentWidth,
+          alignSelf: "center",
+          width: "100%",
         }}
       >
         {/* ─── Business Header ──────────────────────────────────── */}
@@ -840,64 +844,68 @@ export default function HomeScreen() {
             </Pressable>
           </View>
         ) : (
-          todayAppts.map((appt) => {
-            const svc = getServiceById(appt.serviceId);
-            const client = getClientById(appt.clientId);
-            const statusColor =
-              appt.status === "confirmed"
-                ? colors.success
-                : appt.status === "pending"
-                ? "#FF9800"
-                : appt.status === "completed"
-                ? colors.primary
-                : colors.error;
-            return (
-              <Pressable
-                key={appt.id}
-                onPress={() =>
-                  router.push({
-                    pathname: "/appointment-detail",
-                    params: { id: appt.id },
-                  })
-                }
-                style={({ pressed }) => [
-                  styles.apptCard,
-                  {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
-                    borderLeftColor: svc?.color ?? colors.primary,
-                    opacity: pressed ? 0.8 : 1,
-                  },
-                ]}
-              >
-                <View style={styles.apptRow}>
-                  <View style={styles.apptInfo}>
-                    <Text style={[styles.apptTime, { color: colors.foreground }]}>
-                      {formatTime(appt.time)} - {getEndTime(appt.time, appt.duration)}
-                    </Text>
-                    <Text style={[styles.apptService, { color: colors.foreground }]}>
-                      {svc?.name ?? "Service"}
-                    </Text>
-                    <Text style={{ fontSize: 13, color: colors.muted }}>
-                      {client?.name ?? "Client"}
-                    </Text>
+          <View style={isTablet ? { flexDirection: "row", flexWrap: "wrap", gap: cardGap } : undefined}>
+            {todayAppts.map((appt) => {
+              const svc = getServiceById(appt.serviceId);
+              const client = getClientById(appt.clientId);
+              const statusColor =
+                appt.status === "confirmed"
+                  ? colors.success
+                  : appt.status === "pending"
+                  ? "#FF9800"
+                  : appt.status === "completed"
+                  ? colors.primary
+                  : colors.error;
+              return (
+                <Pressable
+                  key={appt.id}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/appointment-detail",
+                      params: { id: appt.id },
+                    })
+                  }
+                  style={({ pressed }) => [
+                    styles.apptCard,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      borderLeftColor: svc?.color ?? colors.primary,
+                      opacity: pressed ? 0.8 : 1,
+                      // 2-column on tablet
+                      ...(isTablet ? { width: Math.floor((contentWidth - cardGap) / 2) } : {}),
+                    },
+                  ]}
+                >
+                  <View style={styles.apptRow}>
+                    <View style={styles.apptInfo}>
+                      <Text style={[styles.apptTime, { color: colors.foreground }]}>
+                        {formatTime(appt.time)} - {getEndTime(appt.time, appt.duration)}
+                      </Text>
+                      <Text style={[styles.apptService, { color: colors.foreground }]}>
+                        {svc?.name ?? "Service"}
+                      </Text>
+                      <Text style={{ fontSize: 13, color: colors.muted }}>
+                        {client?.name ?? "Client"}
+                      </Text>
+                    </View>
+                    <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          fontWeight: "600",
+                          color: statusColor,
+                          textTransform: "capitalize",
+                        }}
+                      >
+                        {appt.status}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
-                    <Text
-                      style={{
-                        fontSize: 11,
-                        fontWeight: "600",
-                        color: statusColor,
-                        textTransform: "capitalize",
-                      }}
-                    >
-                      {appt.status}
-                    </Text>
-                  </View>
-                </View>
-              </Pressable>
-            );
-          })
+                </Pressable>
+              );
+            })}
+          </View>
         )}
       </ScrollView>
 

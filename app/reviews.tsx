@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Text, View, Pressable, StyleSheet, FlatList } from "react-native";
+import { Text, View, Pressable, StyleSheet, FlatList, useWindowDimensions } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
@@ -12,6 +12,9 @@ export default function ReviewsScreen() {
   const { state } = useStore();
   const colors = useColors();
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
   const [sort, setSort] = useState<SortMode>("newest");
 
   const avgRating = useMemo(() => {
@@ -38,7 +41,7 @@ export default function ReviewsScreen() {
   return (
     <ScreenContainer tabletMaxWidth={900} edges={["top", "left", "right"]}>
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+      <View style={[styles.header, { borderBottomColor: colors.border, paddingHorizontal: hp }]}>
         <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]}>
           <IconSymbol name="arrow.left" size={22} color={colors.foreground} />
         </Pressable>
@@ -47,7 +50,7 @@ export default function ReviewsScreen() {
       </View>
 
       {/* Summary Card */}
-      <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border, marginHorizontal: hp }]}>
         <View style={styles.summaryLeft}>
           <Text style={[styles.bigRating, { color: colors.foreground }]}>{avgRating.toFixed(1)}</Text>
           <Text style={{ fontSize: 22, color: "#f59e0b", marginTop: 2 }}>
@@ -73,7 +76,7 @@ export default function ReviewsScreen() {
       </View>
 
       {/* Sort Chips */}
-      <View style={styles.sortRow}>
+      <View style={[styles.sortRow, { paddingHorizontal: hp }]}>
         {(["newest", "oldest", "highest", "lowest"] as SortMode[]).map((s) => (
           <Pressable
             key={s}
@@ -107,7 +110,7 @@ export default function ReviewsScreen() {
         <FlatList
           data={sorted}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
+          contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}
           renderItem={({ item: review }) => {
             const client = state.clients.find((c) => c.id === review.clientId);
             const stars = Array.from({ length: 5 }, (_, i) => i < review.rating ? "★" : "☆").join("");

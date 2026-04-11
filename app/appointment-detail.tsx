@@ -1,4 +1,4 @@
-import { Text, View, Pressable, StyleSheet, ScrollView, Alert, Platform, Linking } from "react-native";
+import { Text, View, Pressable, StyleSheet, ScrollView, Alert, Platform, Linking, useWindowDimensions } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatTime, formatDateDisplay } from "@/lib/store";
@@ -23,6 +23,9 @@ export default function AppointmentDetailScreen() {
   const { state, dispatch, getServiceById, getClientById, getStaffById, getLocationById, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
 
   const appointment = useMemo(
     () => state.appointments.find((a) => a.id === id),
@@ -174,16 +177,16 @@ export default function AppointmentDetailScreen() {
   };
 
   return (
-    <ScreenContainer edges={["top", "bottom", "left", "right"]} className="p-5">
+    <ScreenContainer edges={["top", "bottom", "left", "right"]} tabletMaxWidth={isTablet ? 680 : 0}>
       {/* Header */}
-      <View className="flex-row items-center mb-6" style={{ paddingTop: 8 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 24, paddingTop: 8, paddingHorizontal: hp }}>
         <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
           <IconSymbol name="arrow.left" size={24} color={colors.foreground} />
         </Pressable>
-        <Text className="text-xl font-bold text-foreground ml-4">Appointment</Text>
+        <Text style={{ fontSize: 20, fontWeight: "700", color: colors.foreground, marginLeft: 16 }}>Appointment</Text>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}>
         {/* Service Card */}
         <View
           className="rounded-2xl p-5 mb-4"
