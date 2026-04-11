@@ -154,6 +154,7 @@ describe("Business Profile", () => {
       onboardingComplete: false,
       temporaryClosed: false,
       businessLogoUri: "",
+      scheduleMode: "weekly" as const,
       bufferTime: 0,
       customSlug: "",
     };
@@ -293,6 +294,7 @@ describe("Theme Mode", () => {
       onboardingComplete: false,
       temporaryClosed: false,
       businessLogoUri: "",
+      scheduleMode: "weekly" as const,
       bufferTime: 0,
       customSlug: "",
     };
@@ -311,6 +313,7 @@ describe("Theme Mode", () => {
       onboardingComplete: false,
       temporaryClosed: false,
       businessLogoUri: "",
+      scheduleMode: "weekly" as const,
       bufferTime: 0,
       customSlug: "",
     };
@@ -442,6 +445,7 @@ describe("Cancellation Policy", () => {
       onboardingComplete: false,
       temporaryClosed: false,
       businessLogoUri: "",
+      scheduleMode: "weekly" as const,
       bufferTime: 0,
       customSlug: "",
     };
@@ -565,6 +569,7 @@ describe("Temporary Closed Feature", () => {
       onboardingComplete: true,
       temporaryClosed: true,
       businessLogoUri: "",
+      scheduleMode: "weekly" as const,
       bufferTime: 0,
       customSlug: "",
     };
@@ -583,6 +588,7 @@ describe("Temporary Closed Feature", () => {
       onboardingComplete: false,
       temporaryClosed: false,
       businessLogoUri: "",
+      scheduleMode: "weekly" as const,
       bufferTime: 0,
       customSlug: "",
     };
@@ -664,6 +670,7 @@ describe("Business Logo URI", () => {
       onboardingComplete: true,
       temporaryClosed: false,
       businessLogoUri: "file:///data/user/0/com.app/cache/photo.jpg",
+      scheduleMode: "weekly" as const,
       bufferTime: 0,
       customSlug: "",
     };
@@ -682,6 +689,7 @@ describe("Business Logo URI", () => {
       onboardingComplete: false,
       temporaryClosed: false,
       businessLogoUri: "",
+      scheduleMode: "weekly" as const,
       bufferTime: 0,
       customSlug: "",
     };
@@ -702,6 +710,7 @@ describe("Logout and Delete Business", () => {
       onboardingComplete: true,
       temporaryClosed: false,
       businessLogoUri: "",
+      scheduleMode: "weekly" as const,
       bufferTime: 0,
       customSlug: "",
     };

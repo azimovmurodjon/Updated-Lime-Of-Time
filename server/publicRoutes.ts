@@ -4,7 +4,7 @@ import { sendBookingNotificationEmail } from "./email";
 import { notifyOwner } from "./_core/notification";
 
 // ─── Helper: Generate available time slots ──────────────────────────
-const DAYS_OF_WEEK = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 function timeToMinutes(t: string): number {
   const [h, m] = t.split(":").map(Number);
@@ -23,18 +23,35 @@ function generateAvailableSlots(
   workingHours: any,
   appointments: any[],
   interval: number,
+  customSchedule: any[],
+  scheduleMode: "weekly" | "custom" = "weekly",
   bufferTime: number = 0
 ): string[] {
   const d = new Date(date + "T00:00:00");
   const dayIndex = d.getDay();
   const dayName = DAYS_OF_WEEK[dayIndex];
 
-  // Use Business Hours (workingHours is the single source of truth)
-  const wh = workingHours?.[dayName];
-  if (!wh || !wh.enabled) return [];
-  
-  const startMin = timeToMinutes(wh.start || "09:00");
-  const endMin = timeToMinutes(wh.end || "17:00");
+  const customDay = customSchedule.find((cs: any) => cs.date === date);
+  let startMin: number, endMin: number;
+
+  if (scheduleMode === "custom") {
+    // Custom mode: only dates explicitly in customSchedule are available
+    if (!customDay || !customDay.isOpen) return [];
+    startMin = timeToMinutes(customDay.startTime || "09:00");
+    endMin = timeToMinutes(customDay.endTime || "17:00");
+  } else {
+    // Weekly mode: use weekly hours, custom days can still override
+    if (customDay) {
+      if (!customDay.isOpen) return [];
+      startMin = timeToMinutes(customDay.startTime || "09:00");
+      endMin = timeToMinutes(customDay.endTime || "17:00");
+    } else {
+      const wh = workingHours?.[dayName] || workingHours?.[dayName.toLowerCase()];
+      if (!wh || !wh.enabled) return [];
+      startMin = timeToMinutes(wh.start || "09:00");
+      endMin = timeToMinutes(wh.end || "17:00");
+    }
+  }
 
   // Get confirmed/pending appointments for this date
   const bookedSlots = appointments
@@ -53,7 +70,7 @@ function generateAvailableSlots(
     // Skip past times for today
     if (date === today && t <= currentMinutes) continue;
 
-    // Check for conflicts with buffer time
+    // Check for conflicts
     const slotEnd = t + duration;
     const conflict = bookedSlots.some(
       (b: any) => t < (b.end + bufferTime) && slotEnd > (b.start - bufferTime)
@@ -209,6 +226,8 @@ export function registerPublicRoutes(app: Express) {
         owner.workingHours,
         appts,
         30,
+        schedule,
+        mode,
         buffer
       );
       res.json({ date, slots });
@@ -457,8 +476,9 @@ export function registerPublicRoutes(app: Express) {
       const svc = svcList.find((s) => s.localId === serviceLocalId);
       const dur = duration || svc?.duration || 60;
 
+      const bookMode = (owner.scheduleMode as "weekly" | "custom") || "weekly";
       const bookBuffer = (owner as any).bufferTime || 0;
-      const slots = generateAvailableSlots(date, dur, owner.workingHours, appts, 30, bookBuffer);
+      const slots = generateAvailableSlots(date, dur, owner.workingHours, appts, 30, schedule, bookMode, bookBuffer);
       if (!slots.includes(time)) {
         res.status(400).json({ error: "Selected time slot is no longer available" });
         return;
@@ -813,10 +833,12 @@ export function registerPublicRoutes(app: Express) {
       }
       // Verify new slot is available
       const appts = await db.getAppointmentsByOwner(owner.id);
+      const schedule = await db.getCustomScheduleByOwner(owner.id);
+      const mode = (owner.scheduleMode as "weekly" | "custom") || "weekly";
       const bufferVal = (owner as any).bufferTime || 0;
       // Exclude current appointment from conflict check
       const otherAppts = appts.filter((a: any) => a.localId !== appointmentId);
-      const slots = generateAvailableSlots(newDate, appt.duration, owner.workingHours, otherAppts, 30, bufferVal);
+      const slots = generateAvailableSlots(newDate, appt.duration, owner.workingHours, otherAppts, 30, schedule, mode, bufferVal);
       if (!slots.includes(newTime)) {
         res.status(400).json({ error: "Selected time slot is not available" });
         return;

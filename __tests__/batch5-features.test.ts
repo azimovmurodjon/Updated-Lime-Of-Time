@@ -164,19 +164,19 @@ describe("Settings Restructure", () => {
   it("Settings is a hub screen with navigation cards", () => {
     const settings = readFile("app/(tabs)/settings.tsx");
     expect(settings).toContain("navItems");
-    expect(settings).toContain("Business Hours");
+    expect(settings).toContain("Schedule & Hours");
     expect(settings).toContain("Booking Policies");
-    expect(settings).toContain("Reviews");
+    expect(settings).toContain("Client Reviews");
     expect(settings).toContain("Export Data");
     expect(settings).toContain("Analytics");
     expect(settings).toContain("Locations");
   });
 
-  it("Business Hours settings screen exists", () => {
-    expect(fileExists("app/business-hours-settings.tsx")).toBe(true);
-    const content = readFile("app/business-hours-settings.tsx");
-    expect(content).toContain("BusinessHoursSettings");
-    expect(content).toContain("Business Hours");
+  it("Schedule settings screen exists", () => {
+    expect(fileExists("app/schedule-settings.tsx")).toBe(true);
+    const content = readFile("app/schedule-settings.tsx");
+    expect(content).toContain("ScheduleSettingsScreen");
+    expect(content).toContain("Weekly Hours");
   });
 
   it("Booking policies screen exists", () => {
@@ -203,7 +203,8 @@ describe("Staff Improvements", () => {
     const booking = readFile("app/new-booking.tsx");
     expect(booking).toContain("selectedStaffId");
     expect(booking).toContain("activeStaff");
-    expect(booking).toContain("staffId");
+    expect(booking).toContain("Assign Staff");
+    expect(booking).toContain("staffId:");
   });
 
   it("Staff color coding is in calendar", () => {
