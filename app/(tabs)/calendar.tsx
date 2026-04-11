@@ -95,14 +95,29 @@ export default function CalendarScreen() {
       statuses[a.date].add(a.status);
     });
     return statuses;
-  }, [state.appointments]);
+  }, [state.appointments, state.settings.workingHours]);
 
-  // Daily overrides and availability indicators (placeholder for future integration)
+  // Business Hours availability indicators
   const dayIndicators = useMemo(() => {
     const indicators: Record<string, { type: string; color: string }> = {};
-    // TODO: Integrate with state.dailyOverrides when added to AppState
+    const DAYS_OF_WEEK = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+    
+    // Mark days that are closed (Business Hours disabled)
+    const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(currentYear, currentMonth, d);
+      const dayName = DAYS_OF_WEEK[date.getDay()];
+      const wh = state.settings.workingHours[dayName];
+      const dateStr = formatDateStr(date);
+      
+      if (!wh || !wh.enabled) {
+        indicators[dateStr] = { type: "closed", color: colors.muted };
+      }
+    }
     return indicators;
-  }, [colors])
+  }, [currentMonth, currentYear, state.settings.workingHours, colors])
 
   const prevMonth = () => {
     if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear(currentYear - 1); }
@@ -137,14 +152,14 @@ export default function CalendarScreen() {
       default:
         return [];
     }
-  }, [state.appointments, activeFilter, todayStr, locFilter]);
+  }, [state.appointments, activeFilter, todayStr, locFilter, state.settings.workingHours]);
 
   // Selected date appointments
   const selectedDateAppts = useMemo(() => {
     return locFilter(state.appointments)
       .filter((a) => a.date === selectedDate)
       .sort((a, b) => a.time.localeCompare(b.time));
-  }, [state.appointments, selectedDate, locFilter]);
+  }, [state.appointments, selectedDate, locFilter, state.settings.workingHours]);
 
   const openSmsWithMessage = useCallback((phone: string, message: string) => {
     if (Platform.OS === "web") {

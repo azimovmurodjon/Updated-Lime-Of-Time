@@ -16,7 +16,33 @@ import {
   generateRejectMessage,
   generateCancellationMessage,
   generateReminderMessage,
+  generateAvailableSlots,
+  DAYS_OF_WEEK,
 } from "@/lib/types";
+
+/**
+ * Validates if an appointment time is within Business Hours
+ * Returns true if valid, false if outside Business Hours
+ */
+function isTimeWithinBusinessHours(
+  date: string,
+  time: string,
+  duration: number,
+  workingHours: Record<string, any>
+): boolean {
+  const dayIndex = new Date(date + "T12:00:00").getDay();
+  const dayName = DAYS_OF_WEEK[dayIndex];
+  const wh = workingHours[dayName];
+  
+  if (!wh || !wh.enabled) return false;
+  
+  const timeMin = timeToMinutes(time);
+  const endMin = timeMin + duration;
+  const startMin = timeToMinutes(wh.start);
+  const endHourMin = timeToMinutes(wh.end);
+  
+  return timeMin >= startMin && endMin <= endHourMin;
+}
 
 export default function AppointmentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -50,6 +76,15 @@ export default function AppointmentDetailScreen() {
   const policy = state.settings.cancellationPolicy;
   const biz = state.settings;
   const profile = biz.profile;
+  
+  // Check if appointment time is within Business Hours
+  const isWithinBusinessHours = isTimeWithinBusinessHours(
+    appointment.date,
+    appointment.time,
+    appointment.duration,
+    state.settings.workingHours
+  );
+  const businessHoursWarning = !isWithinBusinessHours ? "⚠️ This appointment is outside Business Hours" : null;
 
   const openSms = (phone: string, message: string) => {
     const rawPhone = stripPhoneFormat(phone);
@@ -184,6 +219,13 @@ export default function AppointmentDetailScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Business Hours Warning */}
+        {businessHoursWarning && (
+          <View className="bg-warning/20 border border-warning rounded-lg p-3 mb-4">
+            <Text className="text-warning font-semibold">{businessHoursWarning}</Text>
+          </View>
+        )}
+
         {/* Service Card */}
         <View
           className="rounded-2xl p-5 mb-4"

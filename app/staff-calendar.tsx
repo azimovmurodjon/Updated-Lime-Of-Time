@@ -54,7 +54,7 @@ export default function StaffCalendarScreen() {
     for (let i = 0; i < firstDay; i++) days.push(null);
     for (let i = 1; i <= daysInMonth; i++) days.push(i);
     return days;
-  }, [currentMonth, currentYear]);
+  }, [currentMonth, currentYear, state.settings.workingHours]);
 
   // All appointments for this staff member (matched by notes containing "Preferred staff: <name>")
   const staffAppointments = useMemo(() => {
@@ -66,7 +66,7 @@ export default function StaffCalendarScreen() {
       if (a.notes && a.notes.includes(`Preferred staff: ${staff.name}`)) return true;
       return false;
     });
-  }, [state.appointments, staff]);
+  }, [state.appointments, staff, state.settings.workingHours]);
 
   // Day statuses for dots
   const dayStatuses = useMemo(() => {
@@ -76,22 +76,22 @@ export default function StaffCalendarScreen() {
       statuses[a.date].add(a.status);
     });
     return statuses;
-  }, [staffAppointments]);
+  }, [staffAppointments, state.settings.workingHours]);
 
   // Selected date appointments
   const selectedDateAppts = useMemo(() => {
     return staffAppointments
       .filter((a) => a.date === selectedDate)
       .sort((a, b) => a.time.localeCompare(b.time));
-  }, [staffAppointments, selectedDate]);
+  }, [staffAppointments, selectedDate, state.settings.workingHours]);
 
-  // Staff working hours for the selected date
+  // Business Hours for the selected date
   const selectedDaySchedule = useMemo(() => {
-    if (!staff?.workingHours) return null;
     const d = new Date(selectedDate + "T12:00:00");
     const dayName = DAY_MAP[d.getDay()];
-    return staff.workingHours[dayName] ?? null;
-  }, [staff, selectedDate]);
+    const wh = state.settings.workingHours[dayName];
+    return (wh && wh.enabled) ? wh : null;
+  }, [state.settings.workingHours, selectedDate]);
 
   // Stats
   const stats = useMemo(() => {
@@ -105,16 +105,27 @@ export default function StaffCalendarScreen() {
         return sum + (a.totalPrice ?? svc?.price ?? 0);
       }, 0);
     return { upcoming, pending, completed, totalRevenue };
-  }, [staffAppointments, todayStr, getServiceById]);
+  }, [staffAppointments, todayStr, getServiceById, state.settings.workingHours]);
 
-  // Timeline hours (8am - 8pm)
+  // Timeline hours based on Business Hours or default (8am - 8pm)
   const timelineHours = useMemo(() => {
     const hours: string[] = [];
-    for (let h = 8; h <= 20; h++) {
+    let startHour = 8;
+    let endHour = 20;
+    
+    // Use Business Hours if available
+    if (selectedDaySchedule) {
+      const startMin = timeToMinutes(selectedDaySchedule.start);
+      const endMin = timeToMinutes(selectedDaySchedule.end);
+      startHour = Math.floor(startMin / 60);
+      endHour = Math.ceil(endMin / 60);
+    }
+    
+    for (let h = startHour; h <= endHour; h++) {
       hours.push(`${String(h).padStart(2, "0")}:00`);
     }
     return hours;
-  }, []);
+  }, [selectedDaySchedule]);
 
   const prevMonth = () => {
     if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear(currentYear - 1); }

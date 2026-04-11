@@ -32,7 +32,8 @@ import { useColors } from '@/hooks/use-colors';
 import { cn } from '@/lib/utils';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 
-const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const DAY_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 interface DailyOverride {
   date: string;
@@ -49,13 +50,13 @@ export default function BusinessHoursSettings() {
 
   // Load from store
   const [weeklyHours, setWeeklyHours] = useState(state.settings.workingHours || {
-    Monday: { enabled: true, start: '09:00', end: '17:00' },
-    Tuesday: { enabled: true, start: '09:00', end: '17:00' },
-    Wednesday: { enabled: true, start: '09:00', end: '17:00' },
-    Thursday: { enabled: true, start: '09:00', end: '17:00' },
-    Friday: { enabled: true, start: '09:00', end: '17:00' },
-    Saturday: { enabled: false, start: '10:00', end: '14:00' },
-    Sunday: { enabled: false, start: '10:00', end: '14:00' },
+    monday: { enabled: true, start: '09:00', end: '17:00' },
+    tuesday: { enabled: true, start: '09:00', end: '17:00' },
+    wednesday: { enabled: true, start: '09:00', end: '17:00' },
+    thursday: { enabled: true, start: '09:00', end: '17:00' },
+    friday: { enabled: true, start: '09:00', end: '17:00' },
+    saturday: { enabled: false, start: '10:00', end: '14:00' },
+    sunday: { enabled: false, start: '10:00', end: '14:00' },
   });
 
   const [multiStaffMode, setMultiStaffMode] = useState((state.settings.multiStaffMode as boolean | undefined) ?? false);
@@ -236,14 +237,14 @@ export default function BusinessHoursSettings() {
           <View>
             <Text className="text-sm text-muted mb-4">Set your regular business hours for each day of the week</Text>
 
-            {DAYS_OF_WEEK.map((day) => {
+            {DAYS_OF_WEEK.map((day, index) => {
               const hours = weeklyHours[day];
               const isEditing = editingDay === day;
 
               return (
                 <View key={day} className="mb-4 p-4 bg-surface rounded-xl border border-border">
                   <View className="flex-row items-center justify-between mb-3">
-                    <Text className="text-base font-semibold text-foreground">{day}</Text>
+                    <Text className="text-base font-semibold text-foreground">{DAY_LABELS[index]}</Text>
                     <Switch
                       value={hours.enabled}
                       onValueChange={() => handleToggleDay(day)}
