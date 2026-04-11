@@ -51,6 +51,7 @@ export default function OnboardingScreen() {
   const [website, setWebsite] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
+  const [onboardingErrors, setOnboardingErrors] = useState<{ businessName?: string; address?: string }>({});
 
   const trpcUtils = trpc.useUtils();
   const createBusinessMut = trpc.business.create.useMutation();
@@ -108,7 +109,14 @@ export default function OnboardingScreen() {
   };
 
   const handleComplete = async () => {
-    if (!businessName.trim()) return;
+    const newErrors: { businessName?: string; address?: string } = {};
+    if (!businessName.trim()) newErrors.businessName = "Business name is required";
+    if (!address.trim()) newErrors.address = "Street address is required";
+    if (Object.keys(newErrors).length > 0) {
+      setOnboardingErrors(newErrors);
+      return;
+    }
+    setOnboardingErrors({});
     setLoading(true);
     try {
       const rawPhone = stripPhoneFormat(businessPhone.trim() || phone.trim());
@@ -318,18 +326,19 @@ export default function OnboardingScreen() {
                     styles.input,
                     {
                       backgroundColor: colors.surface,
-                      borderColor: colors.border,
+                      borderColor: onboardingErrors.businessName ? colors.error : colors.border,
                       color: colors.foreground,
                     },
                   ]}
                   placeholder="Your Business Name"
                   placeholderTextColor={colors.muted}
                   value={businessName}
-                  onChangeText={setBusinessName}
+                  onChangeText={(v) => { setBusinessName(v); if (onboardingErrors.businessName) setOnboardingErrors((e) => ({ ...e, businessName: undefined })); }}
                   returnKeyType="next"
                   autoFocus
                   editable={!loading}
                 />
+                {onboardingErrors.businessName ? <Text style={{ color: colors.error, fontSize: 12, marginTop: 4 }}>{onboardingErrors.businessName}</Text> : null}
               </View>
 
               <View style={styles.inputGroup}>
@@ -339,17 +348,18 @@ export default function OnboardingScreen() {
                     styles.input,
                     {
                       backgroundColor: colors.surface,
-                      borderColor: colors.border,
+                      borderColor: onboardingErrors.address ? colors.error : colors.border,
                       color: colors.foreground,
                     },
                   ]}
                   placeholder="4661 McKnight Road"
                   placeholderTextColor={colors.muted}
                   value={address}
-                  onChangeText={setAddress}
+                  onChangeText={(v) => { setAddress(v); if (onboardingErrors.address) setOnboardingErrors((e) => ({ ...e, address: undefined })); }}
                   returnKeyType="next"
                   editable={!loading}
                 />
+                {onboardingErrors.address ? <Text style={{ color: colors.error, fontSize: 12, marginTop: 4 }}>{onboardingErrors.address}</Text> : null}
               </View>
 
               {/* City / State / ZIP */}

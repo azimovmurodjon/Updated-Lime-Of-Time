@@ -4,6 +4,7 @@ import {
   Text,
   View,
   Pressable,
+  Switch,
   StyleSheet,
   useWindowDimensions,
   Linking,
@@ -13,11 +14,11 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Location, LOCATION_COLORS, getMapUrl, PUBLIC_BOOKING_URL } from "@/lib/types";
+import { Location, LOCATION_COLORS, formatFullAddress, getMapUrl, PUBLIC_BOOKING_URL } from "@/lib/types";
 import { useActiveLocation } from "@/hooks/use-active-location";
 
 export default function LocationsScreen() {
-  const { state } = useStore();
+  const { state, dispatch, syncToDb } = useStore();
   const { activeLocation, setActiveLocation } = useActiveLocation();
   const colors = useColors();
   const router = useRouter();
@@ -28,137 +29,132 @@ export default function LocationsScreen() {
   const sortedLocations = useMemo(
     () =>
       [...state.locations].sort((a, b) => {
-        // Default first, then active, then by name
-        if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1;
+        // Active first, then default, then by name
         if (a.active !== b.active) return a.active ? -1 : 1;
+        if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1;
         return a.name.localeCompare(b.name);
       }),
     [state.locations]
   );
 
+  /** Toggle a location as the single active location. Deactivates all others. */
+  const handleToggleActive = (item: Location, value: boolean) => {
+    if (!value) {
+      // Don't allow turning off the only active location — switch to another
+      const otherActive = state.locations.find((l) => l.id !== item.id && l.active);
+      if (!otherActive) return; // must keep at least one active
+    }
+    // Deactivate all others, activate this one
+    state.locations.forEach((loc) => {
+      const shouldBeActive = loc.id === item.id ? value : value ? false : loc.active;
+      if (loc.active !== shouldBeActive) {
+        const action = { type: "UPDATE_LOCATION" as const, payload: { ...loc, active: shouldBeActive } };
+        dispatch(action);
+        syncToDb(action);
+      }
+    });
+    // If activating, also set as global active context
+    if (value) setActiveLocation(item.id);
+  };
+
   const renderLocation = ({ item }: { item: Location }) => {
     const colorIndex = state.locations.indexOf(item) % LOCATION_COLORS.length;
     const locColor = LOCATION_COLORS[colorIndex];
+    const isActiveContext = activeLocation?.id === item.id;
+    const formattedAddress = formatFullAddress(item.address, item.city, item.state, item.zipCode);
 
     return (
-      <Pressable
-        onPress={() => router.push({ pathname: "/location-form", params: { id: item.id } })}
-        style={({ pressed }) => [
+      <View
+        style={[
           styles.card,
           {
             backgroundColor: colors.surface,
-            borderColor: colors.border,
-            opacity: pressed ? 0.7 : 1,
+            borderColor: isActiveContext ? colors.primary : colors.border,
+            borderWidth: isActiveContext ? 1.5 : 1,
           },
         ]}
       >
-        <View style={styles.cardHeader}>
-          <View style={[styles.colorDot, { backgroundColor: locColor }]} />
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Text
-                style={{ fontSize: 16, fontWeight: "600", color: colors.foreground, flex: 1 }}
-                numberOfLines={1}
-              >
-                {item.name}
+        {/* Toggle row at top */}
+        <View style={[styles.toggleRow, { borderBottomColor: colors.border }]}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+            <View style={[styles.colorDot, { backgroundColor: locColor }]} />
+            <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground, flex: 1 }} numberOfLines={1}>
+              {item.name}
+            </Text>
+            {item.isDefault && (
+              <View style={[styles.badge, { backgroundColor: colors.primary + "20" }]}>
+                <Text style={{ fontSize: 10, fontWeight: "700", color: colors.primary }}>DEFAULT</Text>
+              </View>
+            )}
+          </View>
+          <Switch
+            value={item.active}
+            onValueChange={(v) => handleToggleActive(item, v)}
+            trackColor={{ false: colors.border, true: colors.primary + "80" }}
+            thumbColor={item.active ? colors.primary : colors.muted}
+          />
+        </View>
+
+        {/* Card body — tappable to edit */}
+        <Pressable
+          onPress={() => router.push({ pathname: "/location-form", params: { id: item.id } })}
+          style={({ pressed }) => [styles.cardBody, { opacity: pressed ? 0.7 : 1 }]}
+        >
+          {/* Formatted address */}
+          {!!formattedAddress && (
+            <Pressable
+              onPress={() => Linking.openURL(getMapUrl(formattedAddress))}
+              style={({ pressed }) => [styles.infoRow, { opacity: pressed ? 0.6 : 1 }]}
+            >
+              <IconSymbol name="mappin" size={13} color={colors.primary} />
+              <Text style={{ fontSize: 13, color: colors.primary, flex: 1, textDecorationLine: "underline" }} numberOfLines={2}>
+                {formattedAddress}
               </Text>
-              {item.isDefault && (
-                <View style={[styles.badge, { backgroundColor: colors.primary + "20" }]}>
-                  <Text style={{ fontSize: 11, fontWeight: "600", color: colors.primary }}>
-                    DEFAULT
-                  </Text>
-                </View>
-              )}
-              {activeLocation?.id === item.id && (
-                <View style={[styles.badge, { backgroundColor: colors.success + "20" }]}>
-                  <Text style={{ fontSize: 11, fontWeight: "600", color: colors.success }}>
-                    ACTIVE
-                  </Text>
-                </View>
-              )}
-              {!item.active && (
-                <View style={[styles.badge, { backgroundColor: colors.error + "20" }]}>
-                  <Text style={{ fontSize: 11, fontWeight: "600", color: colors.error }}>
-                    INACTIVE
-                  </Text>
-                </View>
-              )}
+              <IconSymbol name="arrow.up.right.square" size={13} color={colors.primary} />
+            </Pressable>
+          )}
+
+          {/* Contact info */}
+          {!!item.phone && (
+            <View style={styles.infoRow}>
+              <IconSymbol name="phone.fill" size={13} color={colors.muted} />
+              <Text style={{ fontSize: 13, color: colors.muted }}>{item.phone}</Text>
             </View>
-            {!!item.address && (
-              <Pressable
-                onPress={() => Linking.openURL(getMapUrl(item.address))}
-                style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-              >
-                <Text
-                  style={{ fontSize: 13, color: colors.muted, marginTop: 4 }}
-                  numberOfLines={2}
-                >
-                  {item.address}
-                </Text>
-              </Pressable>
-            )}
+          )}
+          {!!item.email && (
+            <View style={styles.infoRow}>
+              <IconSymbol name="envelope.fill" size={13} color={colors.muted} />
+              <Text style={{ fontSize: 13, color: colors.muted }} numberOfLines={1}>{item.email}</Text>
+            </View>
+          )}
+
+          {/* Edit hint */}
+          <View style={[styles.editRow, { borderTopColor: colors.border }]}>
+            <Text style={{ fontSize: 12, color: colors.muted, flex: 1 }}>
+              {isActiveContext ? "Currently active location" : item.active ? "Tap to edit" : "Inactive — toggle to activate"}
+            </Text>
+            <IconSymbol name="chevron.right" size={14} color={colors.muted} />
           </View>
-          <IconSymbol name="chevron.right" size={18} color={colors.muted} />
-        </View>
-
-        {/* Contact info */}
-        {(!!item.phone || !!item.email) && (
-          <View style={[styles.contactRow, { borderTopColor: colors.border }]}>
-            {!!item.phone && (
-              <View style={styles.contactItem}>
-                <IconSymbol name="phone.fill" size={13} color={colors.muted} />
-                <Text style={{ fontSize: 12, color: colors.muted }}>{item.phone}</Text>
-              </View>
-            )}
-            {!!item.email && (
-              <View style={styles.contactItem}>
-                <IconSymbol name="envelope.fill" size={13} color={colors.muted} />
-                <Text style={{ fontSize: 12, color: colors.muted }} numberOfLines={1}>
-                  {item.email}
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Schedule info */}
-        <View style={[styles.scheduleRow, { borderTopColor: colors.border }]}>
-          <IconSymbol name="clock.fill" size={13} color={colors.muted} />
-          <Text style={{ fontSize: 12, color: colors.muted }}>
-            {item.workingHours ? "Custom schedule" : "Uses business hours"}
-          </Text>
-        </View>
-
-        {/* Set as Active button */}
-        {item.active && activeLocation?.id !== item.id && (
-          <Pressable
-            onPress={(e) => { e.stopPropagation?.(); setActiveLocation(item.id); }}
-            style={({ pressed }) => [styles.scheduleRow, { borderTopColor: colors.border, opacity: pressed ? 0.6 : 1 }]}
-          >
-            <IconSymbol name="checkmark.circle" size={13} color={colors.primary} />
-            <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>Set as Active Location</Text>
-          </Pressable>
-        )}
+        </Pressable>
 
         {/* Booking link */}
         {!!state.settings.customSlug && item.active && (
           <Pressable
             onPress={() => {
               const slug = state.settings.customSlug;
-              // Copy to clipboard or open
-              if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                navigator.clipboard.writeText(`Book at ${item.name}: ${PUBLIC_BOOKING_URL}/book/${slug}?location=${item.id}`);
+              if (typeof navigator !== "undefined" && navigator.clipboard) {
+                navigator.clipboard.writeText(`${PUBLIC_BOOKING_URL}/book/${slug}?location=${item.id}`);
               }
             }}
             style={({ pressed }) => [styles.bookingLinkRow, { borderTopColor: colors.border, opacity: pressed ? 0.6 : 1 }]}
           >
             <IconSymbol name="link" size={13} color={colors.primary} />
             <Text style={{ fontSize: 12, color: colors.primary, flex: 1 }} numberOfLines={1}>
-              Booking link for this location
+              Copy booking link for this location
             </Text>
           </Pressable>
         )}
-      </Pressable>
+      </View>
     );
   };
 
@@ -186,6 +182,15 @@ export default function LocationsScreen() {
           <Text style={{ color: "#FFFFFF", fontWeight: "600", fontSize: 14 }}>Add</Text>
         </Pressable>
       </View>
+
+      {state.locations.length > 1 && (
+        <View style={[styles.infoBox, { backgroundColor: colors.primary + "12", borderColor: colors.primary + "30" }]}>
+          <IconSymbol name="info.circle.fill" size={14} color={colors.primary} />
+          <Text style={{ fontSize: 12, color: colors.primary, flex: 1, lineHeight: 18 }}>
+            Only one location can be active at a time. Toggle a location on to switch the entire app to that location's data.
+          </Text>
+        </View>
+      )}
 
       {sortedLocations.length === 0 ? (
         <View style={styles.emptyContainer}>
@@ -223,7 +228,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 12,
     gap: 12,
   },
   backBtn: {
@@ -237,48 +242,56 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
   },
+  infoBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 10,
+    marginBottom: 12,
+  },
   card: {
     borderRadius: 14,
-    borderWidth: 1,
     marginBottom: 12,
     overflow: "hidden",
   },
-  cardHeader: {
+  toggleRow: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 14,
-    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    gap: 8,
   },
   colorDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    flexShrink: 0,
   },
   badge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 7,
     paddingVertical: 2,
-    borderRadius: 6,
+    borderRadius: 5,
   },
-  contactRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 16,
+  cardBody: {
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderTopWidth: 0.5,
+    paddingTop: 10,
+    paddingBottom: 0,
   },
-  contactItem: {
+  infoRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 7,
+    marginBottom: 8,
   },
-  scheduleRow: {
+  editRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 14,
     paddingVertical: 10,
     borderTopWidth: 0.5,
+    marginTop: 4,
   },
   bookingLinkRow: {
     flexDirection: "row",

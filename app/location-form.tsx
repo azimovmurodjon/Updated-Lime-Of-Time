@@ -77,6 +77,9 @@ export default function LocationFormScreen() {
   const [isDefault, setIsDefault] = useState(existing?.isDefault ?? state.locations.length === 0);
   const [active, setActive] = useState(existing?.active ?? true);
 
+  // Validation errors
+  const [errors, setErrors] = useState<{ name?: string; address?: string }>({});
+
   // Business Hours — always shown, always saved
   const [weekSchedule, setWeekSchedule] = useState<WeekSchedule>(() => {
     if (existing?.workingHours) {
@@ -131,14 +134,14 @@ export default function LocationFormScreen() {
   };
 
   const handleSave = () => {
-    if (!name.trim()) {
-      Alert.alert("Required", "Please enter a location name.");
+    const newErrors: { name?: string; address?: string } = {};
+    if (!name.trim()) newErrors.name = "Location name is required";
+    if (!address.trim()) newErrors.address = "Street address is required";
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
-    if (!address.trim()) {
-      Alert.alert("Required", "Please enter an address.");
-      return;
-    }
+    setErrors({});
 
     const loc: Location = {
       id: existing?.id ?? generateId(),
@@ -230,22 +233,24 @@ export default function LocationFormScreen() {
           <Text className="text-xs font-medium text-muted mb-1">Name *</Text>
           <TextInput
             value={name}
-            onChangeText={setName}
+            onChangeText={(v) => { setName(v); if (errors.name) setErrors((e) => ({ ...e, name: undefined })); }}
             placeholder="e.g. Main Office, Downtown Branch"
             placeholderTextColor={colors.muted}
-            style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+            style={[styles.input, { backgroundColor: colors.background, borderColor: errors.name ? colors.error : colors.border, color: colors.foreground }]}
             returnKeyType="done"
           />
+          {errors.name ? <Text style={{ color: colors.error, fontSize: 12, marginTop: 4 }}>{errors.name}</Text> : null}
 
           <Text className="text-xs font-medium text-muted mb-1 mt-3">Address *</Text>
           <TextInput
             value={address}
-            onChangeText={setAddress}
+            onChangeText={(v) => { setAddress(v); if (errors.address) setErrors((e) => ({ ...e, address: undefined })); }}
             placeholder="Full street address"
             placeholderTextColor={colors.muted}
-            style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+            style={[styles.input, { backgroundColor: colors.background, borderColor: errors.address ? colors.error : colors.border, color: colors.foreground }]}
             returnKeyType="done"
           />
+          {errors.address ? <Text style={{ color: colors.error, fontSize: 12, marginTop: 4 }}>{errors.address}</Text> : null}
 
           {/* City / State / ZIP row */}
           <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>

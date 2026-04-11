@@ -295,6 +295,23 @@ export function stripPhoneFormat(formatted: string): string {
   return formatted.replace(/\D/g, "");
 }
 
+// ─── Address Formatting ────────────────────────────────────────────────
+/**
+ * Formats separate address components into a single clean address string.
+ * e.g. "123 S Main St", "Pittsburgh", "PA", "15220" → "123 S Main St, Pittsburgh, PA 15220"
+ */
+export function formatFullAddress(
+  address: string,
+  city?: string,
+  state?: string,
+  zipCode?: string
+): string {
+  const streetPart = address?.trim() || "";
+  const stateZip = [state?.trim(), zipCode?.trim()].filter(Boolean).join(" ");
+  const cityStatePart = [city?.trim(), stateZip].filter(Boolean).join(", ");
+  return [streetPart, cityStatePart].filter(Boolean).join(", ");
+}
+
 // ─── Map URL Helper ────────────────────────────────────────────────
 /** Generate a map URL that opens in the device's default map app */
 export function getMapUrl(address: string): string {

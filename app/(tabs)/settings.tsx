@@ -171,11 +171,18 @@ export default function SettingsScreen() {
   // Navigation items — location-scoped (change per active location)
   const locationNavItems = [
     {
+      title: "Business Profile",
+      subtitle: settings.profile.ownerName ? `${settings.profile.ownerName} · ${settings.businessName}` : "Name, owner, phone, email, website",
+      icon: "person.fill" as const,
+      route: "/business-profile" as const,
+      color: colors.primary,
+    },
+    {
       title: "Schedule & Hours",
       subtitle: hasMultipleLocations && activeLocation ? `${activeLocation.name} hours` : "Working hours, buffer time, custom days",
       icon: "calendar.badge.clock" as const,
       route: "/schedule-settings" as const,
-      color: colors.primary,
+      color: "#10B981",
     },
     {
       title: "Booking Policies",
@@ -244,7 +251,7 @@ export default function SettingsScreen() {
             <LocationSwitcher />
           </View>
         )}
-        {/* Business Name */}
+        {/* Business Name — quick inline edit */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.cardHeader}>
             <View style={styles.cardHeaderLeft}>
@@ -273,151 +280,6 @@ export default function SettingsScreen() {
             </View>
           ) : (
             <Text style={{ fontSize: 16, color: colors.foreground, fontWeight: "500" }}>{settings.businessName}</Text>
-          )}
-        </View>
-
-        {/* Business Profile */}
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={styles.cardHeader}>
-            <View style={styles.cardHeaderLeft}>
-              <IconSymbol name="person.fill" size={20} color={colors.primary} />
-              <Text style={[styles.cardTitle, { color: colors.foreground }]}>Business Profile</Text>
-            </View>
-            {!editingProfile && (
-              <Pressable onPress={() => { setProfileForm(settings.profile); setEditingProfile(true); }} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
-                <IconSymbol name="pencil" size={18} color={colors.primary} />
-              </Pressable>
-            )}
-          </View>
-
-          {editingProfile ? (
-            <View>
-              <Text style={[styles.fieldLabel, { color: colors.muted }]}>Owner Name</Text>
-              <TextInput
-                style={[styles.profileInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-                placeholder="John Doe"
-                placeholderTextColor={colors.muted}
-                value={profileForm.ownerName}
-                onChangeText={(v) => setProfileForm((p) => ({ ...p, ownerName: v }))}
-                returnKeyType="next"
-              />
-
-              <Text style={[styles.fieldLabel, { color: colors.muted }]}>Phone</Text>
-              <TextInput
-                style={[styles.profileInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-                placeholder="(000) 000-0000"
-                placeholderTextColor={colors.muted}
-                value={profileForm.phone}
-                onChangeText={handleProfilePhoneChange}
-                keyboardType="phone-pad"
-                returnKeyType="next"
-                maxLength={19}
-              />
-
-              <Text style={[styles.fieldLabel, { color: colors.muted }]}>Email (optional)</Text>
-              <TextInput
-                style={[styles.profileInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-                placeholder="you@business.com"
-                placeholderTextColor={colors.muted}
-                value={profileForm.email}
-                onChangeText={(v) => setProfileForm((p) => ({ ...p, email: v }))}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                returnKeyType="next"
-              />
-
-              <Text style={[styles.fieldLabel, { color: colors.muted }]}>Address</Text>
-              <TextInput
-                style={[styles.profileInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-                placeholder="4661 McKnight Road, Pittsburgh PA, 15237"
-                placeholderTextColor={colors.muted}
-                value={profileForm.address}
-                onChangeText={(v) => setProfileForm((p) => ({ ...p, address: v }))}
-                returnKeyType="next"
-              />
-
-              <Text style={[styles.fieldLabel, { color: colors.muted }]}>Website (optional)</Text>
-              <TextInput
-                style={[styles.profileInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-                placeholder="https://www.yourbusiness.com"
-                placeholderTextColor={colors.muted}
-                value={profileForm.website}
-                onChangeText={(v) => setProfileForm((p) => ({ ...p, website: v }))}
-                autoCapitalize="none"
-                returnKeyType="next"
-              />
-
-              <Text style={[styles.fieldLabel, { color: colors.muted }]}>Description</Text>
-              <TextInput
-                style={[styles.profileInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground, minHeight: 70, textAlignVertical: "top" }]}
-                placeholder="Tell clients about your business..."
-                placeholderTextColor={colors.muted}
-                value={profileForm.description}
-                onChangeText={(v) => setProfileForm((p) => ({ ...p, description: v }))}
-                multiline
-                numberOfLines={3}
-              />
-
-              <View style={styles.profileActions}>
-                <Pressable onPress={() => setEditingProfile(false)} style={({ pressed }) => [styles.cancelButton, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}>
-                  <Text style={{ fontSize: 14, color: colors.foreground }}>Cancel</Text>
-                </Pressable>
-                <Pressable onPress={saveProfile} style={({ pressed }) => [styles.saveButton, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}>
-                  <Text style={styles.saveButtonText}>Save Profile</Text>
-                </Pressable>
-              </View>
-            </View>
-          ) : (
-            <View>
-              {settings.profile.ownerName ? (
-                <View style={styles.profileRow}>
-                  <IconSymbol name="person.fill" size={14} color={colors.muted} />
-                  <Text style={{ fontSize: 14, color: colors.foreground, marginLeft: 8 }}>{settings.profile.ownerName}</Text>
-                </View>
-              ) : null}
-              {settings.profile.phone ? (
-                <View style={styles.profileRow}>
-                  <IconSymbol name="phone.fill" size={14} color={colors.muted} />
-                  <Text style={{ fontSize: 14, color: colors.foreground, marginLeft: 8 }}>{settings.profile.phone}</Text>
-                </View>
-              ) : null}
-              {settings.profile.email ? (
-                <View style={styles.profileRow}>
-                  <IconSymbol name="envelope.fill" size={14} color={colors.muted} />
-                  <Text style={{ fontSize: 14, color: colors.foreground, marginLeft: 8 }}>{settings.profile.email}</Text>
-                </View>
-              ) : null}
-              {settings.profile.address ? (
-                <Pressable
-                  onPress={openAddressInMap}
-                  style={({ pressed }) => [styles.profileRow, { opacity: pressed ? 0.6 : 1 }]}
-                >
-                  <IconSymbol name="mappin" size={14} color={colors.primary} />
-                  <Text style={{ fontSize: 14, color: colors.primary, marginLeft: 8, textDecorationLine: "underline", flex: 1 }}>
-                    {settings.profile.address}
-                  </Text>
-                  <IconSymbol name="arrow.up.right.square" size={14} color={colors.primary} style={{ marginLeft: 4 }} />
-                </Pressable>
-              ) : null}
-              {settings.profile.website ? (
-                <Pressable
-                  onPress={() => {
-                    const url = settings.profile.website.startsWith("http") ? settings.profile.website : `https://${settings.profile.website}`;
-                    Linking.openURL(url).catch(() => {});
-                  }}
-                  style={({ pressed }) => [styles.profileRow, { opacity: pressed ? 0.6 : 1 }]}
-                >
-                  <IconSymbol name="globe" size={14} color={colors.primary} />
-                  <Text style={{ fontSize: 14, color: colors.primary, marginLeft: 8, textDecorationLine: "underline" }}>{settings.profile.website}</Text>
-                </Pressable>
-              ) : null}
-              {settings.profile.description ? (
-                <Text style={{ fontSize: 13, color: colors.muted, marginTop: 6, lineHeight: 18 }}>{settings.profile.description}</Text>
-              ) : null}
-              {!settings.profile.ownerName && !settings.profile.phone && (
-                <Text style={{ fontSize: 13, color: colors.muted }}>Tap edit to add your business profile</Text>
-              )}
-            </View>
           )}
         </View>
 

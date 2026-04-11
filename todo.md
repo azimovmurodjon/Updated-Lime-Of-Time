@@ -665,3 +665,17 @@
 - [ ] Fix onboarding: split address into Address/City/State/ZIP, create first location
 - [ ] Update Settings: location switcher at top, separate profile vs location data
 - [ ] Auto-set active location on app load (default location or first location)
+
+## Address Display & Business Profile Refactor
+
+- [ ] Add formatFullAddress utility to types.ts
+- [ ] Show formatted address in location cards (locations.tsx)
+- [ ] Show formatted address in location-form header/preview
+- [ ] Create business-profile.tsx screen (Name, Owner, Phone, Email, Website, Description — no address)
+- [ ] Add Business Profile nav item to Settings locationNavItems
+- [ ] Remove Business Profile inline card from settings.tsx
+- [ ] Remove address field from BusinessProfile interface and settings profile form
+- [ ] Add exclusive active-location toggle (Switch) at top of each location card
+- [ ] Ensure toggling a location active deactivates all others
+- [ ] Add required field validation (inline errors) to location-form
+- [ ] Remove Business Hours section from location card in locations.tsx (it's now in Schedule & Hours)
