@@ -33,6 +33,7 @@ import {
   Discount,
   GiftCard,
   Location,
+  formatFullAddress,
 } from "@/lib/types";
 
 // "location" is the new first step when the business has multiple active locations
@@ -273,8 +274,10 @@ export default function PublicBookingScreen() {
     setStep("done");
   }, [selectedServiceId, selectedTime, clientName, clientPhone, clientEmail, notes, selectedDate, selectedService, state, dispatch, appliedGiftCard, syncToDb, priceInfo, selectedLocationId, applicableDiscount]);
 
-  // Resolve the address to show: use selected location's address if available, else global profile
-  const displayAddress = selectedLocation?.address || profile.address;
+  // Resolve the address to show: use selected location's full address if available, else global profile
+  const displayAddress = selectedLocation
+    ? formatFullAddress(selectedLocation.address, selectedLocation.city, selectedLocation.state, selectedLocation.zipCode)
+    : formatFullAddress(profile.address);
   const openMap = useCallback(() => {
     if (displayAddress) Linking.openURL(getMapUrl(displayAddress));
   }, [displayAddress]);
@@ -395,7 +398,7 @@ export default function PublicBookingScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{loc.name}</Text>
                     {loc.address ? (
-                      <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{loc.address}</Text>
+                      <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{formatFullAddress(loc.address, loc.city, loc.state, loc.zipCode)}</Text>
                     ) : null}
                     {loc.phone ? (
                       <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>{formatPhoneNumber(stripPhoneFormat(loc.phone))}</Text>
