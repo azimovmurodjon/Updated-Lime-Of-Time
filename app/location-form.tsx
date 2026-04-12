@@ -151,7 +151,7 @@ export default function LocationFormScreen() {
           <TextInput
             value={address}
             onChangeText={(v) => { setAddress(v); if (errors.address) setErrors((e) => ({ ...e, address: undefined })); }}
-            placeholder="Full street address"
+            placeholder="e.g. 123 Main Street"
             placeholderTextColor={colors.muted}
             style={[styles.input, { backgroundColor: colors.background, borderColor: errors.address ? colors.error : colors.border, color: colors.foreground }]}
             returnKeyType="done"
@@ -165,7 +165,7 @@ export default function LocationFormScreen() {
               <TextInput
                 value={city}
                 onChangeText={setCity}
-                placeholder="City"
+                placeholder="e.g. New York"
                 placeholderTextColor={colors.muted}
                 style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
                 returnKeyType="next"
@@ -176,7 +176,7 @@ export default function LocationFormScreen() {
               <TextInput
                 value={locationState}
                 onChangeText={setLocationState}
-                placeholder="CA"
+                placeholder="NY"
                 placeholderTextColor={colors.muted}
                 autoCapitalize="characters"
                 maxLength={2}
@@ -189,7 +189,7 @@ export default function LocationFormScreen() {
               <TextInput
                 value={zipCode}
                 onChangeText={setZipCode}
-                placeholder="90210"
+                placeholder="10001"
                 placeholderTextColor={colors.muted}
                 keyboardType="numeric"
                 maxLength={10}
@@ -203,7 +203,7 @@ export default function LocationFormScreen() {
           <TextInput
             value={phone}
             onChangeText={(val) => setPhone(formatPhoneNumber(val))}
-            placeholder="Location phone number"
+            placeholder="e.g. (212) 555-0100"
             placeholderTextColor={colors.muted}
             keyboardType="phone-pad"
             style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
@@ -214,7 +214,7 @@ export default function LocationFormScreen() {
           <TextInput
             value={email}
             onChangeText={setEmail}
-            placeholder="Location email address"
+            placeholder="e.g. info@yourbusiness.com"
             placeholderTextColor={colors.muted}
             keyboardType="email-address"
             autoCapitalize="none"
