@@ -143,6 +143,10 @@ export default function StaffFormScreen() {
       Alert.alert("Required", "Please enter a staff member name.");
       return;
     }
+    if (state.locations.length > 0 && !selectedLocationId) {
+      Alert.alert("Location Required", "Please assign this staff member to a location before saving.");
+      return;
+    }
 
     const member: StaffMember = {
       id: existing?.id ?? generateId(),

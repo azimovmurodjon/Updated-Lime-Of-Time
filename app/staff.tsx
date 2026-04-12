@@ -133,26 +133,33 @@ export default function StaffScreen() {
                 {item.role}
               </Text>
             ) : null}
-            {/* Business + Location subtitle — tappable to switch active location */}
-            {state.locations.length > 0 && (
-              <Pressable
-                onPress={(e) => {
-                  e.stopPropagation();
-                  if (hasMultipleLocations) setLocationPickerOpen(true);
-                }}
-                style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, alignSelf: "flex-start" })}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 }}>
-                  <IconSymbol name="mappin.and.ellipse" size={10} color={colors.primary} />
-                  <Text style={{ fontSize: 11, color: colors.primary, fontWeight: "500" }} numberOfLines={1}>
-                    {getLocationSubtitle(item)}
-                  </Text>
-                  {hasMultipleLocations && (
-                    <IconSymbol name="chevron.right" size={9} color={colors.primary} />
-                  )}
-                </View>
-              </Pressable>
-            )}
+            {/* Business + Location subtitle with color dot */}
+            {state.locations.length > 0 && (() => {
+              const assignedLoc = item.locationIds && item.locationIds.length > 0
+                ? state.locations.find((l) => l.id === item.locationIds![0])
+                : state.locations.find((l) => l.active);
+              const locIndex = assignedLoc ? state.locations.indexOf(assignedLoc) : 0;
+              const dotColor = item.color || colors.primary;
+              return (
+                <Pressable
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    if (hasMultipleLocations) setLocationPickerOpen(true);
+                  }}
+                  style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, alignSelf: "flex-start" })}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: dotColor }} />
+                    <Text style={{ fontSize: 11, color: colors.muted, fontWeight: "500" }} numberOfLines={1}>
+                      {getLocationSubtitle(item)}
+                    </Text>
+                    {hasMultipleLocations && (
+                      <IconSymbol name="chevron.right" size={9} color={colors.muted} />
+                    )}
+                  </View>
+                </Pressable>
+              );
+            })()}
           </View>
         </View>
         <View style={styles.cardActions}>

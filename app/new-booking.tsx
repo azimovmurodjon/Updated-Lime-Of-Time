@@ -222,6 +222,10 @@ export default function NewBookingScreen() {
 
   const handleBook = useCallback(() => {
     if (!selectedServiceId || !selectedClientId || !selectedTime) return;
+    if (activeLocations.length > 0 && !selectedLocationId) {
+      Alert.alert("Location Required", "Please select a location before confirming the booking.");
+      return;
+    }
     // Build notes with extra items
     let bookNotes = notes.trim();
     if (cart.length > 0) {
@@ -782,7 +786,7 @@ export default function NewBookingScreen() {
           {/* Location Selector */}
           {activeLocations.length > 0 && (
             <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
-              <Text className="text-xs font-medium text-muted mb-3">Location (Optional)</Text>
+              <Text className="text-xs font-medium text-muted mb-3">Location <Text style={{ color: colors.error }}>*</Text></Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   {activeLocations.map((loc) => (
@@ -1049,11 +1053,11 @@ export default function NewBookingScreen() {
             style={({ pressed }) => [
               styles.bookButton,
               {
-                backgroundColor: selectedTime ? colors.primary : colors.muted,
+                backgroundColor: (selectedTime && (activeLocations.length === 0 || selectedLocationId)) ? colors.primary : colors.muted,
                 opacity: pressed && selectedTime ? 0.8 : 1,
               },
             ]}
-            disabled={!selectedTime}
+            disabled={!selectedTime || (activeLocations.length > 0 && !selectedLocationId)}
           >
             <Text className="text-base font-semibold text-white">
               {recurring !== "none" ? `Book ${recurring === "weekly" ? 8 : recurring === "biweekly" ? 6 : 4} Appointments` : "Confirm Booking"}

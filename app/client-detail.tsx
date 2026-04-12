@@ -228,6 +228,26 @@ export default function ClientDetailScreen() {
   const upcomingAppts = appointments.filter((a) => a.status === "confirmed" || a.status === "pending");
   const pastAppts = appointments.filter((a) => a.status === "completed" || a.status === "cancelled");
 
+  // Location visit history: group appointments by locationId
+  const locationVisitHistory = useMemo(() => {
+    if (state.locations.length === 0) return [];
+    return state.locations
+      .filter((loc) => loc.active)
+      .map((loc) => {
+        const locAppts = appointments.filter((a) => a.locationId === loc.id);
+        const lastVisit = locAppts
+          .filter((a) => a.status === "completed" || a.status === "confirmed")
+          .sort((a, b) => (b.date > a.date ? 1 : -1))[0];
+        return {
+          location: loc,
+          totalVisits: locAppts.length,
+          completedVisits: locAppts.filter((a) => a.status === "completed").length,
+          lastVisitDate: lastVisit?.date ?? null,
+        };
+      })
+      .filter((entry) => entry.totalVisits > 0);
+  }, [appointments, state.locations]);
+
   const tabs: { key: TabKey; label: string; count?: number }[] = [
     { key: "appointments", label: "Appointments", count: appointments.length },
     { key: "messages", label: "Messages" },
@@ -371,6 +391,50 @@ export default function ClientDetailScreen() {
                     <Text style={{ color: colors.muted, fontSize: 14, marginTop: 8 }}>No appointments yet</Text>
                   </View>
                 )}
+              </View>
+            )}
+
+            {/* Location Visit History — shown in appointments tab when data exists */}
+            {activeTab === "appointments" && locationVisitHistory.length > 0 && (
+              <View style={{ marginTop: 20, marginBottom: 4 }}>
+                <Text style={[styles.sectionLabel, { color: colors.foreground, marginBottom: 10 }]}>Locations Visited</Text>
+                {locationVisitHistory.map((entry) => (
+                  <View
+                    key={entry.location.id}
+                    style={[
+                      styles.locHistoryCard,
+                      { backgroundColor: colors.surface, borderColor: colors.border },
+                    ]}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                      <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center" }}>
+                        <IconSymbol name="mappin.and.ellipse" size={18} color={colors.primary} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }} numberOfLines={1}>
+                          {entry.location.name}
+                        </Text>
+                        {!!entry.location.address && (
+                          <Text style={{ fontSize: 11, color: colors.muted, marginTop: 1 }} numberOfLines={1}>
+                            {entry.location.address}{entry.location.city ? `, ${entry.location.city}` : ""}{entry.location.state ? ` ${entry.location.state}` : ""}{entry.location.zipCode ? ` ${entry.location.zipCode}` : ""}
+                          </Text>
+                        )}
+                        {entry.lastVisitDate && (
+                          <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>
+                            Last visit: {formatDateDisplay(entry.lastVisitDate)}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                    <View style={{ alignItems: "flex-end", gap: 2 }}>
+                      <Text style={{ fontSize: 20, fontWeight: "700", color: colors.primary }}>{entry.totalVisits}</Text>
+                      <Text style={{ fontSize: 10, color: colors.muted, textAlign: "right" }}>{entry.totalVisits === 1 ? "visit" : "visits"}</Text>
+                      {entry.completedVisits > 0 && entry.completedVisits !== entry.totalVisits && (
+                        <Text style={{ fontSize: 10, color: colors.success }}>{entry.completedVisits} done</Text>
+                      )}
+                    </View>
+                  </View>
+                ))}
               </View>
             )}
 
@@ -524,4 +588,5 @@ const styles = StyleSheet.create({
   reviewCard: { borderRadius: 14, padding: 14, marginBottom: 8, borderWidth: 1 },
   reviewHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   deleteBtn: { width: "100%", alignItems: "center", justifyContent: "center", paddingVertical: 12, borderRadius: 14, borderWidth: 1, marginTop: 24, minHeight: 48 },
+  locHistoryCard: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 14, padding: 14, marginBottom: 8, borderWidth: 1 },
 });

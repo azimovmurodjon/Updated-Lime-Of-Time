@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   Text,
   View,
@@ -9,6 +9,8 @@ import {
   Alert,
   useWindowDimensions,
   Linking,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -107,6 +109,11 @@ export default function BusinessProfileScreen() {
     </View>
   );
 
+  const ownerRef = useRef<TextInput>(null);
+  const phoneRef = useRef<TextInput>(null);
+  const emailRef = useRef<TextInput>(null);
+  const websiteRef = useRef<TextInput>(null);
+
   return (
     <ScreenContainer edges={["top", "left", "right"]} style={{ paddingHorizontal: hp }}>
       {/* Header */}
@@ -131,6 +138,11 @@ export default function BusinessProfileScreen() {
         </Pressable>
       </View>
 
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+      >
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100, alignItems: contentMaxWidth ? "center" : undefined }}
@@ -158,12 +170,15 @@ export default function BusinessProfileScreen() {
                 },
               ]}
               returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => ownerRef.current?.focus()}
             />
           </Field>
 
           {/* Owner Name */}
           <Field label="Owner Name (optional)" error={errors.ownerName}>
             <TextInput
+              ref={ownerRef}
               value={ownerName}
               onChangeText={(v) => { setOwnerName(v); setErrors((e) => ({ ...e, ownerName: "" })); }}
               placeholder="e.g. Jane Smith"
@@ -177,12 +192,15 @@ export default function BusinessProfileScreen() {
                 },
               ]}
               returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => phoneRef.current?.focus()}
             />
           </Field>
 
           {/* Phone */}
           <Field label="Phone" required error={errors.phone}>
             <TextInput
+              ref={phoneRef}
               value={phone}
               onChangeText={(v) => { setPhone(formatPhoneNumber(v)); setErrors((e) => ({ ...e, phone: "" })); }}
               placeholder="(000) 000-0000"
@@ -197,12 +215,15 @@ export default function BusinessProfileScreen() {
                 },
               ]}
               returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => emailRef.current?.focus()}
             />
           </Field>
 
           {/* Email */}
           <Field label="Email (optional)" error={errors.email}>
             <TextInput
+              ref={emailRef}
               value={email}
               onChangeText={(v) => { setEmail(v); setErrors((e) => ({ ...e, email: "" })); }}
               placeholder="hello@yourbusiness.com"
@@ -218,6 +239,8 @@ export default function BusinessProfileScreen() {
                 },
               ]}
               returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => websiteRef.current?.focus()}
             />
           </Field>
 
@@ -225,6 +248,7 @@ export default function BusinessProfileScreen() {
           <Field label="Website (optional)">
             <View style={styles.websiteRow}>
               <TextInput
+                ref={websiteRef}
                 value={website}
                 onChangeText={setWebsite}
                 placeholder="https://www.yourbusiness.com"
@@ -241,6 +265,7 @@ export default function BusinessProfileScreen() {
                   },
                 ]}
                 returnKeyType="next"
+                blurOnSubmit={false}
               />
               {!!website.trim() && (
                 <Pressable
@@ -280,6 +305,7 @@ export default function BusinessProfileScreen() {
           </Field>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </ScreenContainer>
   );
 }
