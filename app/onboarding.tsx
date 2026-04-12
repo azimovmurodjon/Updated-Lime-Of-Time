@@ -352,7 +352,7 @@ export default function OnboardingScreen() {
                       color: colors.foreground,
                     },
                   ]}
-                  placeholder="4661 McKnight Road"
+                  placeholder="e.g. 123 Main Street"
                   placeholderTextColor={colors.muted}
                   value={address}
                   onChangeText={(v) => { setAddress(v); if (onboardingErrors.address) setOnboardingErrors((e) => ({ ...e, address: undefined })); }}
@@ -371,7 +371,7 @@ export default function OnboardingScreen() {
                       styles.input,
                       { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground },
                     ]}
-                    placeholder="Pittsburgh"
+                    placeholder="e.g. New York"
                     placeholderTextColor={colors.muted}
                     value={city}
                     onChangeText={setCity}
@@ -386,7 +386,7 @@ export default function OnboardingScreen() {
                       styles.input,
                       { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground },
                     ]}
-                    placeholder="PA"
+                    placeholder="NY"
                     placeholderTextColor={colors.muted}
                     value={locationState}
                     onChangeText={setLocationState}
@@ -403,7 +403,7 @@ export default function OnboardingScreen() {
                       styles.input,
                       { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground },
                     ]}
-                    placeholder="15237"
+                    placeholder="10001"
                     placeholderTextColor={colors.muted}
                     value={zipCode}
                     onChangeText={setZipCode}

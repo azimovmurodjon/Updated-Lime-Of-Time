@@ -24,6 +24,8 @@ import {
   WorkingHours,
   DEFAULT_WORKING_HOURS,
   formatTimeDisplay,
+  formatPhoneNumber,
+  stripPhoneFormat,
 } from "@/lib/types";
 import { TapTimePicker, timeToMinutes as tapTimeToMinutes } from "@/components/tap-time-picker";
 
@@ -58,7 +60,7 @@ export default function StaffFormScreen() {
   const isEdit = !!existing;
 
   const [name, setName] = useState(existing?.name ?? "");
-  const [phone, setPhone] = useState(existing?.phone ?? "");
+  const [phone, setPhone] = useState(() => existing?.phone ? formatPhoneNumber(stripPhoneFormat(existing.phone)) : "");
   const [email, setEmail] = useState(existing?.email ?? "");
   const [role, setRole] = useState(existing?.role ?? "");
   const [color, setColor] = useState(existing?.color ?? STAFF_COLORS[0]);
@@ -151,7 +153,7 @@ export default function StaffFormScreen() {
     const member: StaffMember = {
       id: existing?.id ?? generateId(),
       name: name.trim(),
-      phone: phone.trim(),
+      phone: stripPhoneFormat(phone),
       email: email.trim(),
       role: role.trim(),
       color,
@@ -223,10 +225,15 @@ export default function StaffFormScreen() {
           <Text className="text-xs font-medium text-muted mb-1 mt-3">Phone</Text>
           <TextInput
             value={phone}
-            onChangeText={setPhone}
-            placeholder="Phone number"
+            onChangeText={(v) => {
+              // Strip non-digits, limit to 10 digits, then auto-format
+              const digits = v.replace(/\D/g, "").slice(0, 10);
+              setPhone(formatPhoneNumber(digits));
+            }}
+            placeholder="(555) 555-5555"
             placeholderTextColor={colors.muted}
             keyboardType="phone-pad"
+            maxLength={14}
             style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
             returnKeyType="done"
           />

@@ -567,7 +567,12 @@ export default function CalendarScreen() {
           return (
             <View key={hour} style={[styles.timelineRow, { borderBottomColor: colors.border, height: HOUR_HEIGHT }]}>
               <View style={[styles.timelineLabel, { opacity: isWorkingHour ? 1 : 0.4 }]}>
-                <Text style={{ fontSize: 10, fontWeight: "500", color: colors.muted }}>
+                <Text
+                  style={{ fontSize: 10, fontWeight: "500", color: colors.muted }}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
                   {formatTimeDisplay(hour)}
                 </Text>
               </View>
@@ -1217,7 +1222,7 @@ const styles = StyleSheet.create({
   todayBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 14, borderWidth: 1.5 },
   timelineContainer: { borderRadius: 14, borderWidth: 1, overflow: "hidden", marginBottom: 16, position: "relative" },
   timelineRow: { flexDirection: "row", borderBottomWidth: 0.5 },
-  timelineLabel: { width: 56, paddingTop: 6, paddingLeft: 8, justifyContent: "flex-start" },
+  timelineLabel: { width: 68, paddingTop: 6, paddingLeft: 8, paddingRight: 4, justifyContent: "flex-start" },
   timelineSlot: { flex: 1 },
   timelineAppt: { borderLeftWidth: 3, borderRadius: 6, padding: 6, marginBottom: 2 },
   timelineApptAbs: { position: "absolute", borderLeftWidth: 3, borderRadius: 6, padding: 6, overflow: "hidden" },

@@ -429,7 +429,12 @@ export default function StaffCalendarScreen() {
                     return (
                       <View key={hour} style={[styles.timelineRow, { borderBottomColor: colors.border, height: STAFF_HOUR_HEIGHT }]}>
                         <View style={[styles.timelineLabel, { opacity: isWorkingHour ? 1 : 0.4 }]}>
-                          <Text style={{ fontSize: 11, fontWeight: "500", color: colors.muted }}>
+                          <Text
+                            style={{ fontSize: 10, fontWeight: "500", color: colors.muted }}
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.7}
+                          >
                             {formatTimeDisplay(hour)}
                           </Text>
                         </View>
@@ -572,7 +577,7 @@ const styles = StyleSheet.create({
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   timelineContainer: { borderWidth: 1, borderRadius: 12, overflow: "hidden", position: "relative" },
   timelineRow: { flexDirection: "row", borderBottomWidth: 0.5 },
-  timelineLabel: { width: 60, paddingVertical: 8, paddingHorizontal: 6, justifyContent: "flex-start", alignItems: "flex-end" },
+  timelineLabel: { width: 68, paddingVertical: 8, paddingHorizontal: 6, justifyContent: "flex-start", alignItems: "flex-end" },
   timelineSlot: { flex: 1 },
   timelineAppt: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderLeftWidth: 3, marginBottom: 2 },
   timelineApptAbs: { position: "absolute", borderLeftWidth: 3, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, overflow: "hidden" },
