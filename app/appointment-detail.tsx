@@ -326,6 +326,30 @@ export default function AppointmentDetailScreen() {
           </View>
         </View>
 
+        {/* Special Requests / Notes */}
+        {appointment.notes ? (
+          <View
+            style={{
+              backgroundColor: colors.warning + "18",
+              borderColor: colors.warning + "60",
+              borderWidth: 1,
+              borderRadius: 16,
+              padding: 16,
+              marginBottom: 16,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+              <IconSymbol name="exclamationmark.triangle.fill" size={16} color={colors.warning} />
+              <Text style={{ fontSize: 13, fontWeight: "700", color: colors.warning, marginLeft: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                Special Requests
+              </Text>
+            </View>
+            <Text style={{ fontSize: 15, color: colors.foreground, lineHeight: 22 }}>
+              {appointment.notes}
+            </Text>
+          </View>
+        ) : null}
+
         {/* Details */}
         <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
           <DetailRow icon="calendar" label="Date" value={formatDateDisplay(appointment.date)} colors={colors} />
