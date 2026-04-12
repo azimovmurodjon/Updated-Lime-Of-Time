@@ -105,6 +105,14 @@ export default function CalendarScreen() {
   const { activeLocation, activeLocations, hasMultipleLocations: hasMultiLoc, setActiveLocation } = useActiveLocation();
   const calLocationFilter = activeLocation?.id ?? null;
 
+  // Use per-location workingHours if available, fall back to global settings (same logic as schedule-settings.tsx)
+  const effectiveWorkingHours = useMemo(() => {
+    if (activeLocation?.workingHours && Object.keys(activeLocation.workingHours).length > 0) {
+      return activeLocation.workingHours;
+    }
+    return state.settings.workingHours;
+  }, [activeLocation, state.settings.workingHours]);
+
   // Location-scoped appointments (single source of truth for this screen)
   const locationAppointments = useMemo(
     () => filterAppointmentsByLocation(state.appointments),
@@ -134,9 +142,9 @@ export default function CalendarScreen() {
     // Fall back to Business Hours
     const d = new Date(dateStr + "T12:00:00");
     const dayName = DAY_NAMES[d.getDay()];
-    const wh = state.settings.workingHours?.[dayName];
+    const wh = effectiveWorkingHours?.[dayName];
     return !!(wh && wh.enabled);
-  }, [getCustomDay, state.settings.workingHours, state.settings.businessHoursEndDate]);
+  }, [getCustomDay, effectiveWorkingHours, state.settings.businessHoursEndDate]);
 
   // Get effective working hours for a date (custom override or business hours)
   const getEffectiveHours = useCallback((dateStr: string): { start: string; end: string } | null => {
@@ -146,19 +154,19 @@ export default function CalendarScreen() {
     }
     const d = new Date(dateStr + "T12:00:00");
     const dayName = DAY_NAMES[d.getDay()];
-    const wh = state.settings.workingHours?.[dayName];
+    const wh = effectiveWorkingHours?.[dayName];
     if (wh && wh.enabled) return { start: wh.start, end: wh.end };
     return null;
-  }, [getCustomDay, state.settings.workingHours]);
+  }, [getCustomDay, effectiveWorkingHours]);
 
   // Get business hours for a day (for picker min/max)
   const getBusinessHours = useCallback((dateStr: string): { start: string; end: string } | null => {
     const d = new Date(dateStr + "T12:00:00");
     const dayName = DAY_NAMES[d.getDay()];
-    const wh = state.settings.workingHours?.[dayName];
+    const wh = effectiveWorkingHours?.[dayName];
     if (wh && wh.enabled) return { start: wh.start, end: wh.end };
     return null;
-  }, [state.settings.workingHours]);
+  }, [effectiveWorkingHours]);
 
   // Calendar grid
   const calendarDays = useMemo(() => {

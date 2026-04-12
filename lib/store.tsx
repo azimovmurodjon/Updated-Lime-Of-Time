@@ -1407,18 +1407,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [state.activeLocationId, state.locationCustomSchedule, state.customSchedule]);
 
   /**
-   * Clients who have had at least one appointment at the active location.
-   * When no location is active, returns all clients.
+   * All clients for the business (clients are shared across locations).
+   * The appointment count shown per client is scoped to the active location separately.
    */
   const clientsForActiveLocation = useMemo(() => {
-    if (!state.activeLocationId) return state.clients;
-    const clientIdsAtLocation = new Set(
-      state.appointments
-        .filter((a) => a.locationId === state.activeLocationId)
-        .map((a) => a.clientId)
-    );
-    return state.clients.filter((c) => clientIdsAtLocation.has(c.id));
-  }, [state.clients, state.appointments, state.activeLocationId]);
+    return state.clients;
+  }, [state.clients]);
   return (
     <StoreContext.Provider
       value={{
