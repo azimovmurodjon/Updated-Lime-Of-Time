@@ -253,7 +253,7 @@ export default function HomeScreen() {
       topService,
       topCount,
     };
-  }, [state.clients, state.appointments, state.services, filterByLocation]);
+  }, [state.clients, state.appointments, state.services, filterByLocation, clientsForActiveLocation]);
 
   const pendingCount = analytics.statusCounts.pending;
   const revenueChange =

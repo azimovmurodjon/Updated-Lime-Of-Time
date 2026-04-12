@@ -448,10 +448,10 @@ export function dbAppointmentToLocal(a: any): Appointment {
     discountPercent,
     discountAmount,
     discountName,
-    staffId: a.staffId ?? undefined,
+     staffId: a.staffId ?? undefined,
+    locationId: a.locationId ?? undefined,
   } as Appointment;
 }
-
 export function dbReviewToLocal(r: any): Review {
   return {
     id: r.localId,
