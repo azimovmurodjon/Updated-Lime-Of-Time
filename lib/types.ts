@@ -556,7 +556,8 @@ export function generateAcceptMessage(
   time: string,
   businessPhone: string,
   clientPhone?: string,
-  appointmentId?: string
+  appointmentId?: string,
+  locationName?: string
 ): string {
   const endTime = formatTimeDisplay(minutesToTime(timeToMinutes(time) + serviceDuration));
   const slug = businessName.replace(/\s+/g, "-").toLowerCase();
@@ -565,7 +566,10 @@ export function generateAcceptMessage(
   if (clientPhone) reviewParams.set("phone", stripPhoneFormat(clientPhone));
   const reviewUrl = `${PUBLIC_BOOKING_URL}/review/${slug}${reviewParams.toString() ? "?" + reviewParams.toString() : ""}`;
   const manageUrl = appointmentId ? `${PUBLIC_BOOKING_URL}/manage/${slug}/${appointmentId}` : "";
-  return `Dear ${clientName},\n\nGreat news! Your appointment request has been accepted.\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${address}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early.${manageUrl ? `\n\n🔄 Need to reschedule or cancel? Use this link (available 24+ hours before your appointment):\n${manageUrl}` : ""}\n\n⭐ After your visit, leave a review: ${reviewUrl}\n\nWe look forward to seeing you!\n${businessName}`;
+  const locationLine = locationName
+    ? (address ? `${locationName} — ${address}` : locationName)
+    : address;
+  return `Dear ${clientName},\n\nGreat news! Your appointment request has been accepted.\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${locationLine}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early.${manageUrl ? `\n\n🔄 Need to reschedule or cancel? Use this link (available 24+ hours before your appointment):\n${manageUrl}` : ""}\n\n⭐ After your visit, leave a review: ${reviewUrl}\n\nWe look forward to seeing you!\n${businessName}`;
 }
 
 /** Generate professional appointment rejection message */
@@ -605,10 +609,14 @@ export function generateReminderMessage(
   serviceDuration: number,
   date: string,
   time: string,
-  businessPhone: string
+  businessPhone: string,
+  locationName?: string
 ): string {
   const endTime = formatTimeDisplay(minutesToTime(timeToMinutes(time) + serviceDuration));
-  return `Dear ${clientName},\n\nThis is a friendly reminder about your upcoming appointment.\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${address}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early. If you need to reschedule or cancel, please contact us as soon as possible.\n\nSee you soon!\n${businessName}`;
+  const locationLine = locationName
+    ? (address ? `${locationName} — ${address}` : locationName)
+    : address;
+  return `Dear ${clientName},\n\nThis is a friendly reminder about your upcoming appointment.\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${locationLine}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early. If you need to reschedule or cancel, please contact us as soon as possible.\n\nSee you soon!\n${businessName}`;
 }
 
 /** Public booking URL base — update this when the production domain changes */

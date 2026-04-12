@@ -79,9 +79,10 @@ export default function AppointmentDetailScreen() {
     dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status: "confirmed" } });
     syncToDb({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status: "confirmed" } });
     if (client?.phone) {
+      const effectiveAddress = assignedLocation?.address || profile.address;
       const msg = generateAcceptMessage(
         biz.businessName,
-        profile.address,
+        effectiveAddress,
         client.name,
         service ? getServiceDisplayName(service) : "Service",
         appointment.duration,
@@ -89,7 +90,8 @@ export default function AppointmentDetailScreen() {
         appointment.time,
         profile.phone,
         client.phone,
-        appointment.id
+        appointment.id,
+        assignedLocation?.name
       );
       openSms(client.phone, msg);
     }
@@ -104,7 +106,11 @@ export default function AppointmentDetailScreen() {
       if (client?.phone) {
         let msg = "";
         if (status === "completed") {
-          msg = `Dear ${client.name},\n\nThank you for visiting ${biz.businessName}! Your appointment for ${service ? getServiceDisplayName(service) : "service"} on ${formatDateDisplay(appointment.date)} has been completed.\n\nWe hope you had a great experience. We'd love to see you again!\n\n📍 ${profile.address}\n📞 ${profile.phone}\n\nBest regards,\n${biz.businessName}`;
+          const completedAddress = assignedLocation?.address || profile.address;
+          const completedLocLine = assignedLocation?.name
+            ? (completedAddress ? `${assignedLocation.name} — ${completedAddress}` : assignedLocation.name)
+            : completedAddress;
+          msg = `Dear ${client.name},\n\nThank you for visiting ${biz.businessName}! Your appointment for ${service ? getServiceDisplayName(service) : "service"} on ${formatDateDisplay(appointment.date)} has been completed.\n\nWe hope you had a great experience. We'd love to see you again!\n\n📍 ${completedLocLine}\n📞 ${profile.phone}\n\nBest regards,\n${biz.businessName}`;
         } else {
           const feeStr = cancInfo.feeApplies && cancInfo.fee > 0 ? `$${cancInfo.fee} (${policy.feePercentage}%)` : "";
           msg = generateCancellationMessage(
@@ -157,15 +163,17 @@ export default function AppointmentDetailScreen() {
 
   const handleSendReminder = () => {
     if (!client?.phone) return;
+    const effectiveAddress = assignedLocation?.address || profile.address;
     const msg = generateReminderMessage(
       biz.businessName,
-      profile.address,
+      effectiveAddress,
       client.name,
       service ? getServiceDisplayName(service) : "Service",
       appointment.duration,
       appointment.date,
       appointment.time,
-      profile.phone
+      profile.phone,
+      assignedLocation?.name
     );
     openSms(client.phone, msg);
   };
