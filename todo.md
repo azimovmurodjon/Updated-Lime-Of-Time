@@ -724,3 +724,4 @@
 - [x] Remove Add Review and Delete Review buttons from client Reviews tab (read-only)
 - [x] Remove Temporarily Closed toggle from Booking Policies screen
 - [x] Replace YYYY-MM-DD text input with calendar date picker for Reopen Date in locations
+- [x] Fix Temporarily Closed toggle wiping location address/data when toggled on

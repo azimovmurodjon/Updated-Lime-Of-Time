@@ -656,7 +656,11 @@ const locationsRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const { localId, businessOwnerId, ...data } = input;
+      const { localId, businessOwnerId, ...rawData } = input;
+      // Strip undefined values so Drizzle does NOT overwrite existing DB columns with NULL
+      const data = Object.fromEntries(
+        Object.entries(rawData).filter(([, v]) => v !== undefined)
+      ) as typeof rawData;
       await db.updateLocation(localId, businessOwnerId, data);
       return { success: true };
     }),
