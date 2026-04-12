@@ -272,7 +272,7 @@ export default function StaffScreen() {
           <IconSymbol name="arrow.left" size={22} color={colors.foreground} />
         </Pressable>
         <Text className="text-2xl font-bold text-foreground" style={{ flex: 1 }}>
-          Staff ({state.staff.length})
+          Stuffs
         </Text>
         <Pressable
           onPress={() => router.push({ pathname: "/staff-form" as any })}

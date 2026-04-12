@@ -343,30 +343,6 @@ export default function StaffFormScreen() {
             </Text>
 
             <View style={{ gap: 6 }}>
-              {/* None option */}
-              <Pressable
-                onPress={() => setSelectedLocationId(null)}
-                style={({ pressed }) => [
-                  styles.serviceChip,
-                  {
-                    backgroundColor: selectedLocationId === null ? colors.primary + "15" : colors.background,
-                    borderColor: selectedLocationId === null ? colors.primary : colors.border,
-                    opacity: pressed ? 0.7 : 1,
-                  },
-                ]}
-              >
-                <IconSymbol name="location.slash.fill" size={14} color={selectedLocationId === null ? colors.primary : colors.muted} />
-                <Text style={{ flex: 1, fontSize: 14, color: colors.foreground }}>All Locations</Text>
-                {selectedLocationId === null && (
-                  <View style={[styles.radioSelected, { borderColor: colors.primary }]}>
-                    <View style={[styles.radioDot, { backgroundColor: colors.primary }]} />
-                  </View>
-                )}
-                {selectedLocationId !== null && (
-                  <View style={[styles.radioUnselected, { borderColor: colors.border }]} />
-                )}
-              </Pressable>
-
               {state.locations.map((loc) => {
                 const selected = selectedLocationId === loc.id;
                 return (
