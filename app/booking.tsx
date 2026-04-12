@@ -32,9 +32,11 @@ import {
   getApplicableDiscount,
   Discount,
   GiftCard,
+  Location,
 } from "@/lib/types";
 
-type BookingStep = "info" | "service" | "datetime" | "confirm" | "done";
+// "location" is the new first step when the business has multiple active locations
+type BookingStep = "location" | "info" | "service" | "datetime" | "confirm" | "done";
 
 export default function PublicBookingScreen() {
   const { state, dispatch, getServiceById, syncToDb } = useStore();
@@ -44,7 +46,19 @@ export default function PublicBookingScreen() {
   const isTablet = width >= 768;
   const hp = isTablet ? 32 : Math.max(16, width * 0.05);
 
-  const [step, setStep] = useState<BookingStep>("info");
+  // Active locations for this business
+  const activeLocations = useMemo(
+    () => state.locations.filter((l) => l.active !== false),
+    [state.locations]
+  );
+  const hasMultipleLocations = activeLocations.length > 1;
+
+  // Start at "location" step when multiple locations exist, otherwise skip to "info"
+  const [step, setStep] = useState<BookingStep>(hasMultipleLocations ? "location" : "info");
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(
+    hasMultipleLocations ? null : (activeLocations[0]?.id ?? null)
+  );
+
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [clientEmail, setClientEmail] = useState("");
@@ -53,31 +67,68 @@ export default function PublicBookingScreen() {
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [giftCode, setGiftCode] = useState("");
-  const [giftApplied, setGiftApplied] = useState<string | null>(null); // gift card id if applied
+  const [giftApplied, setGiftApplied] = useState<string | null>(null);
 
   const selectedService = selectedServiceId ? getServiceById(selectedServiceId) : null;
   const businessName = state.settings.businessName || "Our Business";
   const profile = state.settings.profile;
   const isClosed = state.settings.temporaryClosed;
 
+  // Resolve the selected location object
+  const selectedLocation = useMemo(
+    () => (selectedLocationId ? state.locations.find((l) => l.id === selectedLocationId) ?? null : null),
+    [selectedLocationId, state.locations]
+  );
+
+  // ── Location-scoped working hours ──────────────────────────────────────────
+  const locationWorkingHours = useMemo(() => {
+    if (selectedLocation?.workingHours && Object.keys(selectedLocation.workingHours).length > 0) {
+      return selectedLocation.workingHours;
+    }
+    return state.settings.workingHours;
+  }, [selectedLocation, state.settings.workingHours]);
+
+  // ── Location-scoped custom schedule ───────────────────────────────────────
+  const locationCustomSchedule = useMemo(() => {
+    if (selectedLocationId) {
+      return state.locationCustomSchedule[selectedLocationId] ?? [];
+    }
+    return state.customSchedule;
+  }, [selectedLocationId, state.locationCustomSchedule, state.customSchedule]);
+
+  // ── Location-scoped appointments ──────────────────────────────────────────
+  const locationAppointments = useMemo(() => {
+    if (!selectedLocationId) return state.appointments;
+    return state.appointments.filter((a) => a.locationId === selectedLocationId);
+  }, [selectedLocationId, state.appointments]);
+
+  // ── Location-scoped services (null locationIds = available everywhere) ────
+  const locationServices = useMemo(() => {
+    return state.services.filter((s) => {
+      if (!s.locationIds || s.locationIds.length === 0) return true;
+      if (!selectedLocationId) return true;
+      return s.locationIds.includes(selectedLocationId);
+    });
+  }, [state.services, selectedLocationId]);
+
   const handlePhoneChange = (text: string) => {
     setClientPhone(formatPhoneNumber(text));
   };
 
-  // Generate available time slots using shared helper (with custom schedule)
+  // Generate available time slots using location-scoped data
   const timeSlots = useMemo(() => {
     const duration = selectedService?.duration ?? state.settings.defaultDuration;
     return generateAvailableSlots(
       selectedDate,
       duration,
-      state.settings.workingHours,
-      state.appointments,
+      locationWorkingHours,
+      locationAppointments,
       30,
-      state.customSchedule,
+      locationCustomSchedule,
       state.settings.scheduleMode,
       state.settings.bufferTime ?? 0
     );
-  }, [selectedDate, state.settings, state.appointments, selectedService, state.customSchedule]);
+  }, [selectedDate, locationWorkingHours, locationAppointments, selectedService, locationCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime, state.settings.defaultDuration]);
 
   // Date options: next 30 days — mark closed days and days with no available slots
   const dateOptions = useMemo(() => {
@@ -88,8 +139,7 @@ export default function PublicBookingScreen() {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
       const ds = formatDateStr(d);
-      // Check custom schedule override first
-      const customDay = state.customSchedule.find((cs) => cs.date === ds);
+      const customDay = locationCustomSchedule.find((cs) => cs.date === ds);
       let closed = false;
       if (state.settings.scheduleMode === "custom") {
         closed = !customDay || !customDay.isOpen;
@@ -99,19 +149,19 @@ export default function PublicBookingScreen() {
         } else {
           const dayIndex = d.getDay();
           const dayName = DAYS_OF_WEEK[dayIndex];
-          const wh = state.settings.workingHours[dayName];
+          const wh = locationWorkingHours[dayName];
           closed = !wh || !wh.enabled;
         }
       }
       let noSlots = false;
       if (!closed) {
-        const slots = generateAvailableSlots(ds, duration, state.settings.workingHours, state.appointments, 30, state.customSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
+        const slots = generateAvailableSlots(ds, duration, locationWorkingHours, locationAppointments, 30, locationCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
         noSlots = slots.length === 0;
       }
       dates.push({ date: ds, closed, noSlots });
     }
     return dates;
-  }, [state.customSchedule, state.settings.workingHours, state.appointments, selectedService, state.settings.defaultDuration]);
+  }, [locationCustomSchedule, locationWorkingHours, locationAppointments, selectedService, state.settings.defaultDuration, state.settings.scheduleMode, state.settings.bufferTime]);
 
   // Get applicable discount for selected time
   const applicableDiscount = useMemo((): Discount | null => {
@@ -122,40 +172,23 @@ export default function PublicBookingScreen() {
   // Gift card validation
   const handleApplyGiftCode = useCallback(() => {
     if (!giftCode.trim()) return;
-    // Find card with remaining balance (not fully redeemed)
     const card = state.giftCards.find((g) => g.code.toUpperCase() === giftCode.trim().toUpperCase() && (g.remainingBalance > 0 || (!g.redeemed)));
-    if (!card) {
-      setGiftApplied(null);
-      return;
-    }
-    // Check expiry
-    if (card.expiresAt && new Date(card.expiresAt) < new Date()) {
-      setGiftApplied(null);
-      return;
-    }
-    // Check balance
-    if (card.remainingBalance <= 0) {
-      setGiftApplied(null);
-      return;
-    }
+    if (!card) { setGiftApplied(null); return; }
+    if (card.expiresAt && new Date(card.expiresAt) < new Date()) { setGiftApplied(null); return; }
+    if (card.remainingBalance <= 0) { setGiftApplied(null); return; }
     setGiftApplied(card.id);
-    // Auto-select the service from the gift card
-    if (card.serviceLocalId) {
-      setSelectedServiceId(card.serviceLocalId);
-    }
+    if (card.serviceLocalId) setSelectedServiceId(card.serviceLocalId);
   }, [giftCode, state.giftCards]);
 
   const appliedGiftCard = giftApplied ? state.giftCards.find((g) => g.id === giftApplied) : null;
 
-  // Calculate final price with balance-based gift deduction
   const priceInfo = useMemo(() => {
     if (!selectedService) return { original: 0, final: 0, discountPct: 0, isGift: false, giftUsed: 0 };
     const original = selectedService.price;
     if (appliedGiftCard) {
       const balance = appliedGiftCard.remainingBalance ?? 0;
       const giftUsed = Math.min(balance, original);
-      const finalPrice = Math.max(0, original - balance);
-      return { original, final: Math.round(finalPrice * 100) / 100, discountPct: 0, isGift: true, giftUsed };
+      return { original, final: Math.max(0, original - balance), discountPct: 0, isGift: true, giftUsed };
     }
     if (applicableDiscount) {
       const discounted = original * (1 - applicableDiscount.percentage / 100);
@@ -203,11 +236,12 @@ export default function PublicBookingScreen() {
       discountName: applicableDiscount ? applicableDiscount.name : undefined,
       giftApplied: priceInfo.isGift,
       giftUsedAmount: priceInfo.giftUsed > 0 ? priceInfo.giftUsed : undefined,
+      // Attach the selected location so the appointment is properly scoped
+      locationId: selectedLocationId ?? undefined,
     };
     dispatch({ type: "ADD_APPOINTMENT", payload: appointment });
     syncToDb({ type: "ADD_APPOINTMENT", payload: appointment });
 
-    // Deduct from gift card balance
     if (appliedGiftCard) {
       const giftUsed = priceInfo.giftUsed;
       const newBalance = Math.max(0, (appliedGiftCard.remainingBalance ?? 0) - giftUsed);
@@ -223,13 +257,13 @@ export default function PublicBookingScreen() {
     }
 
     setStep("done");
-  }, [selectedServiceId, selectedTime, clientName, clientPhone, clientEmail, notes, selectedDate, selectedService, state, dispatch, appliedGiftCard, syncToDb, priceInfo]);
+  }, [selectedServiceId, selectedTime, clientName, clientPhone, clientEmail, notes, selectedDate, selectedService, state, dispatch, appliedGiftCard, syncToDb, priceInfo, selectedLocationId, applicableDiscount]);
 
+  // Resolve the address to show: use selected location's address if available, else global profile
+  const displayAddress = selectedLocation?.address || profile.address;
   const openMap = useCallback(() => {
-    if (profile.address) {
-      Linking.openURL(getMapUrl(profile.address));
-    }
-  }, [profile.address]);
+    if (displayAddress) Linking.openURL(getMapUrl(displayAddress));
+  }, [displayAddress]);
 
   const endTimeStr = useMemo(() => {
     if (!selectedTime || !selectedService) return "";
@@ -240,7 +274,13 @@ export default function PublicBookingScreen() {
     <ScreenContainer edges={["top", "bottom", "left", "right"]} className="pt-2" style={{ paddingHorizontal: hp }}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+        <Pressable
+          onPress={() => {
+            if (step === "info" && hasMultipleLocations) { setStep("location"); return; }
+            router.back();
+          }}
+          style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}
+        >
           <IconSymbol name="chevron.left" size={24} color={colors.foreground} />
         </Pressable>
         <View style={{ flex: 1, alignItems: "center" }}>
@@ -250,13 +290,15 @@ export default function PublicBookingScreen() {
         <View style={{ width: 24 }} />
       </View>
 
-      {/* Business Info Card */}
+      {/* Business Info Card — show selected location info when available */}
       <View style={[styles.bizInfoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>{businessName}</Text>
-        {profile.address ? (
+        <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>
+          {selectedLocation ? selectedLocation.name : businessName}
+        </Text>
+        {displayAddress ? (
           <Pressable onPress={openMap} style={({ pressed }) => [styles.bizInfoRow, { opacity: pressed ? 0.6 : 1 }]}>
             <IconSymbol name="mappin" size={14} color={colors.primary} />
-            <Text style={{ fontSize: 13, color: colors.primary, marginLeft: 8, flex: 1, textDecorationLine: "underline" }}>{profile.address}</Text>
+            <Text style={{ fontSize: 13, color: colors.primary, marginLeft: 8, flex: 1, textDecorationLine: "underline" }}>{displayAddress}</Text>
           </Pressable>
         ) : null}
         {profile.phone ? (
@@ -291,7 +333,7 @@ export default function PublicBookingScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
         {/* Closed message */}
-        {isClosed && step === "info" && (
+        {isClosed && step !== "location" && (
           <View style={{ alignItems: "center", paddingVertical: 40 }}>
             <Text style={{ fontSize: 16, color: colors.muted, textAlign: "center", lineHeight: 24 }}>
               {businessName} is not accepting bookings at this time. Please check back later.
@@ -299,9 +341,80 @@ export default function PublicBookingScreen() {
           </View>
         )}
 
-        {/* Step: Client Info */}
+        {/* ── Step: Choose Location ─────────────────────────────────────────── */}
+        {step === "location" && (
+          <View>
+            <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <View style={styles.iconRow}>
+                <View style={[styles.iconCircle, { backgroundColor: colors.primary + "15" }]}>
+                  <IconSymbol name="mappin" size={22} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground }}>Choose a Location</Text>
+                  <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Select the location you'd like to visit</Text>
+                </View>
+              </View>
+
+              {activeLocations.map((loc) => (
+                <Pressable
+                  key={loc.id}
+                  onPress={() => {
+                    setSelectedLocationId(loc.id);
+                    // Reset downstream selections when location changes
+                    setSelectedServiceId(null);
+                    setSelectedDate(formatDateStr(new Date()));
+                    setSelectedTime(null);
+                    setStep("info");
+                  }}
+                  style={({ pressed }) => [
+                    styles.locationOption,
+                    {
+                      backgroundColor: selectedLocationId === loc.id ? colors.primary + "10" : colors.background,
+                      borderColor: selectedLocationId === loc.id ? colors.primary : colors.border,
+                      opacity: pressed ? 0.7 : 1,
+                    },
+                  ]}
+                >
+                  <View style={[styles.locationDot, { backgroundColor: colors.primary + "20" }]}>
+                    <IconSymbol name="mappin" size={16} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{loc.name}</Text>
+                    {loc.address ? (
+                      <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{loc.address}</Text>
+                    ) : null}
+                    {loc.phone ? (
+                      <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>{formatPhoneNumber(stripPhoneFormat(loc.phone))}</Text>
+                    ) : null}
+                  </View>
+                  <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+                </Pressable>
+              ))}
+
+              {activeLocations.length === 0 && (
+                <View style={{ alignItems: "center", paddingVertical: 24 }}>
+                  <Text style={{ fontSize: 14, color: colors.muted }}>No locations available at this time</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* ── Step: Client Info ─────────────────────────────────────────────── */}
         {step === "info" && !isClosed && (
           <View>
+            {/* Location badge — tap to go back and change */}
+            {hasMultipleLocations && selectedLocation && (
+              <Pressable
+                onPress={() => setStep("location")}
+                style={({ pressed }) => [styles.locationBadge, { backgroundColor: colors.primary + "10", borderColor: colors.primary + "30", opacity: pressed ? 0.7 : 1 }]}
+              >
+                <IconSymbol name="mappin" size={13} color={colors.primary} />
+                <Text style={{ fontSize: 12, color: colors.primary, marginLeft: 6, flex: 1 }}>{selectedLocation.name}</Text>
+                <Text style={{ fontSize: 11, color: colors.primary }}>Change →</Text>
+              </Pressable>
+            )}
+
             <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={styles.iconRow}>
                 <View style={[styles.iconCircle, { backgroundColor: colors.primary + "15" }]}>
@@ -354,14 +467,14 @@ export default function PublicBookingScreen() {
           </View>
         )}
 
-        {/* Step: Select Service */}
+        {/* ── Step: Select Service ──────────────────────────────────────────── */}
         {step === "service" && (
           <View>
             <Pressable onPress={() => setStep("info")} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, marginBottom: 12 }]}>
               <Text style={{ color: colors.primary, fontSize: 14 }}>← Back</Text>
             </Pressable>
             <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground, marginBottom: 12 }}>Choose a Service</Text>
-            {state.services.map((item) => (
+            {locationServices.map((item) => (
               <Pressable
                 key={item.id}
                 onPress={() => {
@@ -385,15 +498,15 @@ export default function PublicBookingScreen() {
                 <IconSymbol name="chevron.right" size={16} color={colors.muted} />
               </Pressable>
             ))}
-            {state.services.length === 0 && (
+            {locationServices.length === 0 && (
               <View style={{ alignItems: "center", paddingVertical: 32 }}>
-                <Text style={{ fontSize: 14, color: colors.muted }}>No services available at this time</Text>
+                <Text style={{ fontSize: 14, color: colors.muted }}>No services available at this location</Text>
               </View>
             )}
           </View>
         )}
 
-        {/* Step: Date & Time */}
+        {/* ── Step: Date & Time ─────────────────────────────────────────────── */}
         {step === "datetime" && (
           <View>
             <Pressable onPress={() => setStep("service")} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, marginBottom: 12 }]}>
@@ -538,7 +651,7 @@ export default function PublicBookingScreen() {
           </View>
         )}
 
-        {/* Step: Confirm */}
+        {/* ── Step: Confirm ─────────────────────────────────────────────────── */}
         {step === "confirm" && (
           <View>
             <Pressable onPress={() => setStep("datetime")} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, marginBottom: 12 }]}>
@@ -547,6 +660,14 @@ export default function PublicBookingScreen() {
 
             <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground, marginBottom: 16 }}>Booking Summary</Text>
+
+              {/* Location row in summary */}
+              {selectedLocation && (
+                <View style={[styles.summaryRow, { borderBottomColor: colors.border + "40" }]}>
+                  <Text style={{ fontSize: 14, color: colors.muted }}>Location</Text>
+                  <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{selectedLocation.name}</Text>
+                </View>
+              )}
 
               {clientPhone ? (
                 <View style={[styles.summaryRow, { borderBottomColor: colors.border + "40" }]}>
@@ -587,13 +708,13 @@ export default function PublicBookingScreen() {
                 </View>
               </View>
 
-              {/* Business Location */}
-              {profile.address ? (
+              {/* Location address map link */}
+              {displayAddress ? (
                 <Pressable onPress={openMap} style={({ pressed }) => [styles.locationRow, { backgroundColor: colors.primary + "08", borderColor: colors.primary + "20", opacity: pressed ? 0.7 : 1 }]}>
                   <IconSymbol name="mappin" size={16} color={colors.primary} />
                   <View style={{ flex: 1, marginLeft: 10 }}>
-                    <Text style={{ fontSize: 12, color: colors.muted }}>Location</Text>
-                    <Text style={{ fontSize: 13, fontWeight: "500", color: colors.primary, textDecorationLine: "underline" }}>{profile.address}</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>Address</Text>
+                    <Text style={{ fontSize: 13, fontWeight: "500", color: colors.primary, textDecorationLine: "underline" }}>{displayAddress}</Text>
                   </View>
                   <Text style={{ fontSize: 11, color: colors.primary }}>Open Map →</Text>
                 </Pressable>
@@ -612,7 +733,7 @@ export default function PublicBookingScreen() {
           </View>
         )}
 
-        {/* Step: Done */}
+        {/* ── Step: Done ────────────────────────────────────────────────────── */}
         {step === "done" && (
           <View style={styles.doneContainer}>
             <View style={[styles.checkCircle, { backgroundColor: colors.success + "15" }]}>
@@ -628,9 +749,12 @@ export default function PublicBookingScreen() {
               <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4 }}>
                 {formatDateDisplay(selectedDate)} at {selectedTime ? formatTime(selectedTime) : ""} - {endTimeStr}
               </Text>
-              {profile.address ? (
-                <Pressable onPress={openMap} style={({ pressed }) => [{ marginTop: 8, opacity: pressed ? 0.6 : 1 }]}>
-                  <Text style={{ fontSize: 13, color: colors.primary, textDecorationLine: "underline" }}>📍 {profile.address}</Text>
+              {selectedLocation && (
+                <Text style={{ fontSize: 13, color: colors.primary, marginTop: 6, fontWeight: "500" }}>📍 {selectedLocation.name}</Text>
+              )}
+              {displayAddress ? (
+                <Pressable onPress={openMap} style={({ pressed }) => [{ marginTop: 4, opacity: pressed ? 0.6 : 1 }]}>
+                  <Text style={{ fontSize: 13, color: colors.muted, textDecorationLine: "underline" }}>{displayAddress}</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -691,6 +815,33 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
+  },
+  locationOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    width: "100%",
+  },
+  locationDot: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  locationBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 12,
+    width: "100%",
   },
   input: {
     width: "100%",

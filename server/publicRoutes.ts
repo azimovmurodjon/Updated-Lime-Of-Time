@@ -142,12 +142,30 @@ export function registerPublicRoutes(app: Express) {
         return;
       }
       const servicesList = await db.getServicesByOwner(owner.id);
-      res.json(servicesList.map((s) => ({
+      const locationIdFilter = req.query.locationId as string | undefined;
+      const filteredServices = locationIdFilter
+        ? servicesList.filter((s) => {
+            const locIds: string[] | null = Array.isArray(s.locationIds)
+              ? s.locationIds
+              : s.locationIds
+              ? JSON.parse(s.locationIds as unknown as string)
+              : null;
+            // null/empty locationIds means available at all locations
+            if (!locIds || locIds.length === 0) return true;
+            return locIds.includes(locationIdFilter);
+          })
+        : servicesList;
+      res.json(filteredServices.map((s) => ({
         localId: s.localId,
         name: s.name,
         duration: s.duration,
         price: s.price,
         color: s.color,
+        locationIds: Array.isArray(s.locationIds)
+          ? s.locationIds
+          : s.locationIds
+          ? JSON.parse(s.locationIds as unknown as string)
+          : null,
       })));
     } catch (err) {
       console.error("[Public API] Error fetching services:", err);
@@ -226,10 +244,17 @@ export function registerPublicRoutes(app: Express) {
         res.json({ date, slots: [] });
         return;
       }
-      const appts = await db.getAppointmentsByOwner(owner.id);
-      const schedule = await db.getCustomScheduleByOwner(owner.id);
+      const allAppts = await db.getAppointmentsByOwner(owner.id);
+      const allSchedule = await db.getCustomScheduleByOwner(owner.id);
       const mode = (owner.scheduleMode as "weekly" | "custom") || "weekly";
       const buffer = (owner as any).bufferTime || 0;
+      // Filter appointments and custom schedule to the selected location when provided
+      const appts = locationLocalId
+        ? allAppts.filter((a: any) => a.locationId === locationLocalId)
+        : allAppts;
+      const schedule = locationLocalId
+        ? allSchedule.filter((cs: any) => cs.locationId === locationLocalId || cs.locationId == null)
+        : allSchedule;
       // Determine effective working hours: staff > location > global (most specific wins)
       let effectiveWorkingHours = owner.workingHours;
       if (locationLocalId) {
@@ -337,17 +362,30 @@ export function registerPublicRoutes(app: Express) {
     try {
       const owner = await db.getBusinessOwnerBySlug(req.params.slug);
       if (!owner) { res.status(404).json({ error: "Business not found" }); return; }
-      const schedule = await db.getCustomScheduleByOwner(owner.id);
-      const wh: Record<string, any> = owner.workingHours || {};
+      const locationIdWd = req.query.locationId as string | undefined;
+      const allScheduleWd = await db.getCustomScheduleByOwner(owner.id);
+      // Use location-scoped working hours when a locationId is provided
+      let wh: Record<string, any> = owner.workingHours || {};
+      if (locationIdWd) {
+        const locs = await db.getLocationsByOwner(owner.id);
+        const loc = locs.find((l: any) => l.localId === locationIdWd);
+        if (loc && loc.workingHours) {
+          const locWh = typeof loc.workingHours === 'object' ? loc.workingHours : JSON.parse(loc.workingHours as string);
+          if (locWh && Object.keys(locWh).length > 0) wh = locWh;
+        }
+      }
       // Build weekly working days
       const weeklyDays: Record<string, boolean> = {};
       DAYS_OF_WEEK.forEach((day) => {
         const entry = wh[day] || wh[day.toLowerCase()];
         weeklyDays[day] = !!(entry && entry.enabled);
       });
-      // Custom overrides: { date: isOpen }
+      // Custom overrides filtered to this location (or global overrides if no locationId)
+      const scheduleForLoc = locationIdWd
+        ? allScheduleWd.filter((cs: any) => cs.locationId === locationIdWd || cs.locationId == null)
+        : allScheduleWd;
       const customDays: Record<string, boolean> = {};
-      schedule.forEach((cs: any) => {
+      scheduleForLoc.forEach((cs: any) => {
         customDays[cs.date] = cs.isOpen ?? true;
       });
       const scheduleMode = (owner.scheduleMode as string) || "weekly";
@@ -499,15 +537,34 @@ export function registerPublicRoutes(app: Express) {
       }
 
       // Verify the time slot is still available
-      const appts = await db.getAppointmentsByOwner(owner.id);
-      const schedule = await db.getCustomScheduleByOwner(owner.id);
+      const allBookAppts = await db.getAppointmentsByOwner(owner.id);
+      const allBookSchedule = await db.getCustomScheduleByOwner(owner.id);
       const svcList = await db.getServicesByOwner(owner.id);
       const svc = svcList.find((s) => s.localId === serviceLocalId);
       const dur = duration || svc?.duration || 60;
 
+      // Scope appointments and custom schedule to the selected location for accurate validation
+      const bookAppts = locationId
+        ? allBookAppts.filter((a: any) => a.locationId === locationId)
+        : allBookAppts;
+      const bookSchedule = locationId
+        ? allBookSchedule.filter((cs: any) => cs.locationId === locationId || cs.locationId == null)
+        : allBookSchedule;
+
+      // Use location-scoped working hours for validation
+      let bookWorkingHours = owner.workingHours;
+      if (locationId) {
+        const locs = await db.getLocationsByOwner(owner.id);
+        const loc = locs.find((l: any) => l.localId === locationId);
+        if (loc && loc.workingHours) {
+          const locWh = typeof loc.workingHours === 'object' ? loc.workingHours : JSON.parse(loc.workingHours as string);
+          if (locWh && Object.keys(locWh).length > 0) bookWorkingHours = locWh;
+        }
+      }
+
       const bookMode = (owner.scheduleMode as "weekly" | "custom") || "weekly";
       const bookBuffer = (owner as any).bufferTime || 0;
-      const slots = generateAvailableSlots(date, dur, owner.workingHours, appts, 30, schedule, bookMode, bookBuffer);
+      const slots = generateAvailableSlots(date, dur, bookWorkingHours, bookAppts, 30, bookSchedule, bookMode, bookBuffer);
       if (!slots.includes(time)) {
         res.status(400).json({ error: "Selected time slot is no longer available" });
         return;
@@ -1652,10 +1709,11 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       else e.target.value = "";
     });
 
-    // Load services
-    async function loadServices() {
+    // Load services (optionally filtered by location)
+    async function loadServices(locId) {
       try {
-        const res = await fetch(API + "/services");
+        const url = locId ? API + "/services?locationId=" + encodeURIComponent(locId) : API + "/services";
+        const res = await fetch(url);
         services = await res.json();
         renderServices();
       } catch(e) {
@@ -1679,12 +1737,13 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       } catch(e) { discounts = []; }
     }
 
-    // Load working days (custom overrides + schedule mode)
+    // Load working days (custom overrides + schedule mode), optionally scoped to a location
     var scheduleMode = "weekly";
     var businessHoursEndDate = null;
-    async function loadWorkingDays() {
+    async function loadWorkingDays(locId) {
       try {
-        const res = await fetch(API + "/working-days");
+        const url = locId ? API + "/working-days?locationId=" + encodeURIComponent(locId) : API + "/working-days";
+        const res = await fetch(url);
         const data = await res.json();
         customDays = data.customDays || {};
         scheduleMode = data.scheduleMode || "weekly";
@@ -1734,8 +1793,12 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       selectedLocation = locId;
       slotCache = {}; // Clear cache when location changes
       renderLocationSelector();
-      // Re-filter services and staff for this location
-      renderServices();
+      // Reload services and working days scoped to this location
+      loadServices(locId);
+      loadWorkingDays(locId).then(() => {
+        // Re-render calendar with updated working days if already on date step
+        if (currentStep === 2) renderCalendar();
+      });
       // If a service is already selected, re-render staff filtered by new location
       if (selectedService) {
         renderStaffForService(selectedService.localId);
@@ -2673,13 +2736,16 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       }
     }
 
-    // Init
-    loadServices();
+    // Init — load locations first; if a location is preselected, scope initial data to it
+    loadLocations().then(() => {
+      renderLocationSelector();
+      // Use preselected location for initial data load if available
+      loadServices(selectedLocation);
+      loadWorkingDays(selectedLocation);
+    });
     loadProducts();
     loadDiscounts();
-    loadWorkingDays();
     loadStaff();
-    loadLocations().then(() => { renderLocationSelector(); });
     autoFillGift();
   </script>
 </body>
