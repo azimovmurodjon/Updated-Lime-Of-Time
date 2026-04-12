@@ -86,8 +86,11 @@ export default function LocationsScreen() {
       const url = getLocationBookingUrl(item);
       const businessName = state.settings.businessName || "our business";
       try {
+        const fullAddr = formatFullAddress(item.address, item.city, item.state, item.zipCode);
+        const addrLine = fullAddr ? `\n📍 ${fullAddr}` : "";
+        const phoneLine = item.phone ? `\n📞 ${item.phone}` : "";
         await Share.share({
-          message: `Book an appointment at ${item.name} — ${businessName}:\n${url}`,
+          message: `Book an appointment with ${businessName}!${addrLine}${phoneLine}\n\nSchedule online: ${url}\n\nPowered by Lime Of Time`,
           url, // iOS uses this for the native share card preview
           title: `Book at ${item.name}`,
         });

@@ -18,7 +18,7 @@ import { useStore, formatTime, formatDateStr } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter } from "expo-router";
-import { minutesToTime, timeToMinutes, PUBLIC_BOOKING_URL } from "@/lib/types";
+import { minutesToTime, timeToMinutes, PUBLIC_BOOKING_URL, formatFullAddress } from "@/lib/types";
 import { useActiveLocation } from "@/hooks/use-active-location";
 import * as ImagePicker from "expo-image-picker";
 import { MiniBarChart, MiniDonutChart } from "@/components/mini-chart";
@@ -266,10 +266,15 @@ export default function HomeScreen() {
 
   const handleShareBookingLink = useCallback(async () => {
     const slug = state.settings.customSlug || state.settings.businessName.replace(/\s+/g, "-").toLowerCase();
-    const url = `${PUBLIC_BOOKING_URL}/book/${slug}`;
+    const locationParam = activeLocation ? `?location=${encodeURIComponent(activeLocation.id)}` : "";
+    const url = `${PUBLIC_BOOKING_URL}/book/${slug}${locationParam}`;
     const profile = state.settings.profile;
-    const addressLine = profile.address ? `\n📍 ${profile.address}` : "";
-    const phoneLine = profile.phone ? `\n📞 ${profile.phone}` : "";
+    // Use active location's full address if available, otherwise fall back to profile address
+    const displayAddress = activeLocation
+      ? formatFullAddress(activeLocation.address, activeLocation.city, activeLocation.state, activeLocation.zipCode)
+      : profile.address;
+    const addressLine = displayAddress ? `\n📍 ${displayAddress}` : "";
+    const phoneLine = (activeLocation?.phone || profile.phone) ? `\n📞 ${activeLocation?.phone || profile.phone}` : "";
     const websiteLine = profile.website ? `\n🌐 ${profile.website}` : "";
     try {
       await Share.share({
@@ -277,7 +282,7 @@ export default function HomeScreen() {
         title: "Book an Appointment",
       });
     } catch {}
-  }, [state.settings.businessName, state.settings.profile]);
+  }, [state.settings.businessName, state.settings.profile, activeLocation]);
 
   const handlePickLogo = useCallback(async () => {
     if (Platform.OS === "web") {

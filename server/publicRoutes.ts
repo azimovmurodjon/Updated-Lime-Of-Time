@@ -1051,6 +1051,15 @@ export function registerPublicRoutes(app: Express) {
 
   // ── HTML Pages ─────────────────────────────────────────────────────
 
+  /** Redirect /book/:slug → /api/book/:slug so shared links work on the platform domain */
+  app.get("/book/:slug", (req: Request, res: Response) => {
+    const qs = req.query.location ? `?location=${encodeURIComponent(req.query.location as string)}` : "";
+    res.redirect(301, `/api/book/${req.params.slug}${qs}`);
+  });
+  app.get("/book/:slug/:locationId", (req: Request, res: Response) => {
+    res.redirect(301, `/api/book/${req.params.slug}/${req.params.locationId}`);
+  });
+
   /** Booking page */
   app.get("/api/book/:slug", async (req: Request, res: Response) => {
     try {
