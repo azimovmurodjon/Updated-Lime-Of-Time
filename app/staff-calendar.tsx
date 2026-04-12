@@ -12,6 +12,7 @@ import { useStore, formatTime, formatDateStr, formatDateDisplay } from "@/lib/st
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useActiveLocation } from "@/hooks/use-active-location";
 import {
   StaffMember,
   Appointment,
@@ -30,6 +31,7 @@ const DAY_MAP = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday
 export default function StaffCalendarScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { state, getServiceById, getClientById, getStaffById } = useStore();
+  const { activeLocation } = useActiveLocation();
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -211,6 +213,28 @@ export default function StaffCalendarScreen() {
             </View>
           </View>
         </View>
+
+        {/* Temporarily Closed Banner */}
+        {activeLocation?.temporarilyClosed && (
+          <View style={{
+            marginHorizontal: hp, marginBottom: 12,
+            backgroundColor: colors.warning + "18",
+            borderColor: colors.warning + "60",
+            borderWidth: 1,
+            borderRadius: 10,
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
+          }}>
+            <IconSymbol name="exclamationmark.triangle.fill" size={16} color={colors.warning} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontWeight: "700", color: colors.warning }}>Location Temporarily Closed</Text>
+              <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>New bookings are paused at this location.</Text>
+            </View>
+          </View>
+        )}
 
         {/* Stats Row */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: hp, marginBottom: 12 }}>

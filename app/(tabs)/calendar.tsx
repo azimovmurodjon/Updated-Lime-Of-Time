@@ -750,7 +750,7 @@ export default function CalendarScreen() {
           <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>
             {formatDateDisplay(selectedDate)}
           </Text>
-          {isDayAvailable(selectedDate) && !isDateInPast(selectedDate) && (
+          {isDayAvailable(selectedDate) && !isDateInPast(selectedDate) && !activeLocation?.temporarilyClosed && (
             <Pressable
               onPress={() => router.push({ pathname: "/new-booking", params: { date: selectedDate } })}
               style={({ pressed }) => ({
@@ -912,7 +912,7 @@ export default function CalendarScreen() {
         </View>
 
         {/* Book Button */}
-        {isDayAvailable(selectedDate) && !isDateInPast(selectedDate) && (
+        {isDayAvailable(selectedDate) && !isDateInPast(selectedDate) && !activeLocation?.temporarilyClosed && (
           <View style={{ paddingHorizontal: hp, marginBottom: 12 }}>
             <Pressable
               onPress={() => router.push({ pathname: "/new-booking", params: { date: selectedDate } })}
@@ -1035,7 +1035,7 @@ export default function CalendarScreen() {
           )}
 
           {/* Book Button */}
-          {isDayAvailable(selectedDate) && !isDateInPast(selectedDate) && (
+          {isDayAvailable(selectedDate) && !isDateInPast(selectedDate) && !activeLocation?.temporarilyClosed && (
             <Pressable
               onPress={() => router.push({ pathname: "/new-booking", params: { date: selectedDate } })}
               style={({ pressed }) => [styles.bookBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1, marginBottom: 12 }]}
@@ -1103,6 +1103,28 @@ export default function CalendarScreen() {
             ))}
           </View>
         </View>
+
+        {/* Temporarily Closed Banner */}
+        {activeLocation?.temporarilyClosed && (
+          <View style={{
+            marginHorizontal: hp, marginTop: 8, marginBottom: 4,
+            backgroundColor: colors.warning + "18",
+            borderColor: colors.warning + "60",
+            borderWidth: 1,
+            borderRadius: 10,
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
+          }}>
+            <IconSymbol name="exclamationmark.triangle.fill" size={16} color={colors.warning} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontWeight: "700", color: colors.warning }}>Location Temporarily Closed</Text>
+              <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>New bookings are paused. Existing appointments are unaffected.</Text>
+            </View>
+          </View>
+        )}
 
         {calendarView === "month" && renderMonthView()}
         {calendarView === "day" && renderDayView()}
