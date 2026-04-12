@@ -544,13 +544,34 @@ export default function PublicBookingScreen() {
                 returnKeyType="next"
               />
               <TextInput
-                style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground, marginBottom: 0 }]}
+                style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
                 placeholder="Email (optional)"
                 placeholderTextColor={colors.muted}
                 value={clientEmail}
                 onChangeText={setClientEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                returnKeyType="next"
+              />
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.background,
+                    borderColor: colors.border,
+                    color: colors.foreground,
+                    marginBottom: 0,
+                    height: 80,
+                    textAlignVertical: "top",
+                    paddingTop: 12,
+                  },
+                ]}
+                placeholder="Special requests / notes (optional)"
+                placeholderTextColor={colors.muted}
+                value={notes}
+                onChangeText={setNotes}
+                multiline
+                numberOfLines={3}
                 returnKeyType="done"
               />
             </View>

@@ -149,6 +149,10 @@ export default function StaffFormScreen() {
       Alert.alert("Location Required", "Please assign this staff member to a location before saving.");
       return;
     }
+    if (phone.trim() && stripPhoneFormat(phone).length < 10) {
+      Alert.alert("Invalid Phone", "Please enter a complete 10-digit phone number, e.g. (555) 555-5555.");
+      return;
+    }
 
     const member: StaffMember = {
       id: existing?.id ?? generateId(),
