@@ -41,6 +41,13 @@ export default function LocationsScreen() {
     [state.locations]
   );
 
+  /** Toggle a location's temporarily closed state */
+  const handleToggleTemporarilyClosed = (item: Location, value: boolean) => {
+    const action = { type: "UPDATE_LOCATION" as const, payload: { ...item, temporarilyClosed: value } };
+    dispatch(action);
+    syncToDb(action);
+  };
+
   /** Toggle a location's active state. Multiple locations can be active simultaneously. */
   const handleToggleActive = (item: Location, value: boolean) => {
     // Prevent deactivating the last active location
@@ -173,6 +180,24 @@ export default function LocationsScreen() {
             <IconSymbol name="chevron.right" size={14} color={colors.muted} />
           </View>
         </Pressable>
+
+        {/* Temporarily Closed toggle */}
+        <View style={[styles.tempClosedRow, { borderTopColor: colors.border }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 13, fontWeight: "600", color: item.temporarilyClosed ? colors.warning : colors.foreground }}>
+              {item.temporarilyClosed ? "⏸ Temporarily Closed" : "Accepting Bookings"}
+            </Text>
+            <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>
+              {item.temporarilyClosed ? "New bookings are paused at this location" : "Toggle to pause bookings without deactivating"}
+            </Text>
+          </View>
+          <Switch
+            value={!!item.temporarilyClosed}
+            onValueChange={(v) => handleToggleTemporarilyClosed(item, v)}
+            trackColor={{ false: colors.border, true: colors.warning + "80" }}
+            thumbColor={item.temporarilyClosed ? colors.warning : colors.muted}
+          />
+        </View>
 
         {/* ── Booking Link: URL preview + Copy + Share ── */}
         <View style={[styles.bookingLinkContainer, { borderTopColor: colors.border }]}>
@@ -359,6 +384,14 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderTopWidth: 0.5,
     marginTop: 4,
+  },
+  tempClosedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderTopWidth: 0.5,
+    gap: 10,
   },
   bookingLinkContainer: {
     paddingHorizontal: 14,

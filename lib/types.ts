@@ -121,6 +121,8 @@ export interface Location {
   email: string;
   isDefault: boolean;
   active: boolean;
+  /** When true, the location is paused for new bookings without being fully deactivated */
+  temporarilyClosed?: boolean;
   workingHours: Record<string, WorkingHours> | null; // null = use business hours
   createdAt: string;
 }

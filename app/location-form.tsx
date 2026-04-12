@@ -7,9 +7,7 @@ import {
   Pressable,
   StyleSheet,
   Alert,
-  Switch,
   useWindowDimensions,
-  Platform,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -46,8 +44,6 @@ export default function LocationFormScreen() {
   const [zipCode, setZipCode] = useState(existing?.zipCode ?? "");
   const [phone, setPhone] = useState(existing?.phone ?? "");
   const [email, setEmail] = useState(existing?.email ?? "");
-  const [active, setActive] = useState(existing?.active ?? false);
-
   // Validation errors
   const [errors, setErrors] = useState<{ name?: string; address?: string }>({});
 
@@ -61,9 +57,8 @@ export default function LocationFormScreen() {
     }
     setErrors({});
 
-    // If this is the very first location, force it active so the app is never in an empty state
+    // New locations are always active; existing locations keep their current active state
     const isFirstLocation = !isEdit && state.locations.length === 0;
-    const effectiveActive = isFirstLocation ? true : active;
 
     const loc: Location = {
       id: existing?.id ?? generateId(),
@@ -75,7 +70,7 @@ export default function LocationFormScreen() {
       phone: phone.trim(),
       email: email.trim(),
       isDefault: existing?.isDefault ?? isFirstLocation,
-      active: effectiveActive,
+      active: existing?.active ?? true,
       workingHours: existing?.workingHours ?? {},
       createdAt: existing?.createdAt ?? new Date().toISOString(),
     };
@@ -226,24 +221,6 @@ export default function LocationFormScreen() {
             style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
             returnKeyType="done"
           />
-        </View>
-
-        {/* Settings — Active toggle only */}
-        <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text className="text-base font-semibold text-foreground mb-3">Settings</Text>
-
-          <View style={styles.switchRow}>
-            <View style={{ flex: 1 }}>
-              <Text className="text-sm text-foreground">Active</Text>
-              <Text className="text-xs text-muted">Inactive locations are hidden from booking</Text>
-            </View>
-            <Switch
-              value={active}
-              onValueChange={setActive}
-              trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor={Platform.OS === "android" ? (active ? colors.primary : "#f4f3f4") : undefined}
-            />
-          </View>
         </View>
 
         {/* Delete Button (edit mode only) */}
