@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
   Linking,
   Share,
+  TextInput,
 } from "react-native";
 import { useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
@@ -31,6 +32,11 @@ export default function LocationsScreen() {
   // Track which location just had its link copied (for toast feedback)
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Reopen date picker state: which location is being edited
+  const [reopenPickerId, setReopenPickerId] = useState<string | null>(null);
+  // Inline date input value (YYYY-MM-DD)
+  const [reopenDateInput, setReopenDateInput] = useState<string>("");
+
   const sortedLocations = useMemo(
     () =>
       [...state.locations].sort((a, b) => {
@@ -43,9 +49,46 @@ export default function LocationsScreen() {
 
   /** Toggle a location's temporarily closed state */
   const handleToggleTemporarilyClosed = (item: Location, value: boolean) => {
-    const action = { type: "UPDATE_LOCATION" as const, payload: { ...item, temporarilyClosed: value } };
+    if (value) {
+      // Opening the picker for reopen date
+      setReopenPickerId(item.id);
+      setReopenDateInput(item.reopenOn ?? "");
+      // Mark as closed immediately (reopen date can be set after)
+      const action = { type: "UPDATE_LOCATION" as const, payload: { ...item, temporarilyClosed: true, reopenOn: item.reopenOn } };
+      dispatch(action);
+      syncToDb(action);
+    } else {
+      // Re-opening: clear closure and reopen date
+      setReopenPickerId(null);
+      const action = { type: "UPDATE_LOCATION" as const, payload: { ...item, temporarilyClosed: false, reopenOn: undefined } };
+      dispatch(action);
+      syncToDb(action);
+    }
+  };
+
+  /** Save the reopen date for a location */
+  const handleSaveReopenDate = (item: Location, dateStr: string) => {
+    const trimmed = dateStr.trim();
+    // Validate YYYY-MM-DD format
+    const isValid = /^\d{4}-\d{2}-\d{2}$/.test(trimmed);
+    const action = {
+      type: "UPDATE_LOCATION" as const,
+      payload: { ...item, temporarilyClosed: true, reopenOn: isValid ? trimmed : undefined },
+    };
     dispatch(action);
     syncToDb(action);
+    setReopenPickerId(null);
+  };
+
+  /** Format a YYYY-MM-DD string to a readable date like "Apr 20" */
+  const formatReopenDate = (dateStr?: string) => {
+    if (!dateStr) return null;
+    try {
+      const [y, m, d] = dateStr.split("-").map(Number);
+      return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    } catch {
+      return null;
+    }
   };
 
   /** Toggle a location's active state. Only one location can be active at a time. */
@@ -198,7 +241,11 @@ export default function LocationsScreen() {
               {item.temporarilyClosed ? "⏸ Temporarily Closed" : "Accepting Bookings"}
             </Text>
             <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>
-              {item.temporarilyClosed ? "New bookings are paused at this location" : "Toggle to pause bookings without deactivating"}
+              {item.temporarilyClosed
+                ? (item.reopenOn
+                    ? `Reopens ${formatReopenDate(item.reopenOn)}`
+                    : "New bookings are paused at this location")
+                : "Toggle to pause bookings without deactivating"}
             </Text>
           </View>
           <Switch
@@ -208,6 +255,65 @@ export default function LocationsScreen() {
             thumbColor={item.temporarilyClosed ? colors.warning : colors.muted}
           />
         </View>
+
+        {/* Reopen date picker — shown only when this location is temporarily closed */}
+        {item.temporarilyClosed && (
+          <View style={[styles.reopenRow, { borderTopColor: colors.border, backgroundColor: colors.warning + "08" }]}>
+            {reopenPickerId === item.id ? (
+              <>
+                <Text style={{ fontSize: 12, fontWeight: "600", color: colors.warning, marginBottom: 6 }}>
+                  Set Reopen Date (optional)
+                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <TextInput
+                    value={reopenDateInput}
+                    onChangeText={setReopenDateInput}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor={colors.muted}
+                    style={[
+                      styles.reopenInput,
+                      { color: colors.foreground, borderColor: colors.warning, backgroundColor: colors.surface },
+                    ]}
+                    keyboardType="numbers-and-punctuation"
+                    maxLength={10}
+                    returnKeyType="done"
+                    onSubmitEditing={() => handleSaveReopenDate(item, reopenDateInput)}
+                  />
+                  <Pressable
+                    onPress={() => handleSaveReopenDate(item, reopenDateInput)}
+                    style={({ pressed }) => [
+                      styles.reopenSaveBtn,
+                      { backgroundColor: colors.warning, opacity: pressed ? 0.8 : 1 },
+                    ]}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: "#FFF" }}>Save</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setReopenPickerId(null)}
+                    style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, padding: 4 }]}
+                  >
+                    <IconSymbol name="xmark" size={14} color={colors.muted} />
+                  </Pressable>
+                </View>
+                <Text style={{ fontSize: 10, color: colors.muted, marginTop: 4 }}>
+                  Leave blank to close indefinitely. Location will auto-reopen on the set date.
+                </Text>
+              </>
+            ) : (
+              <Pressable
+                onPress={() => { setReopenPickerId(item.id); setReopenDateInput(item.reopenOn ?? ""); }}
+                style={({ pressed }) => [{ flexDirection: "row", alignItems: "center", gap: 6, opacity: pressed ? 0.7 : 1 }]}
+              >
+                <IconSymbol name="calendar" size={13} color={colors.warning} />
+                <Text style={{ fontSize: 12, color: colors.warning, fontWeight: "600" }}>
+                  {item.reopenOn
+                    ? `Reopen date: ${formatReopenDate(item.reopenOn)} • Tap to change`
+                    : "Set reopen date (optional)"}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        )}
 
         {/* ── Booking Link: URL preview + Copy + Share ── */}
         <View style={[styles.bookingLinkContainer, { borderTopColor: colors.border }]}>
@@ -439,5 +545,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 24,
+  },
+  reopenRow: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderTopWidth: 0.5,
+  },
+  reopenInput: {
+    flex: 1,
+    height: 36,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    fontSize: 13,
+  },
+  reopenSaveBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
   },
 });

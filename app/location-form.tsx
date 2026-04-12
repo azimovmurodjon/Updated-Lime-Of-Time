@@ -71,6 +71,8 @@ export default function LocationFormScreen() {
       email: email.trim(),
       isDefault: existing?.isDefault ?? isFirstLocation,
       active: existing?.active ?? true,
+      temporarilyClosed: existing?.temporarilyClosed,
+      reopenOn: existing?.reopenOn,
       workingHours: existing?.workingHours ?? {},
       createdAt: existing?.createdAt ?? new Date().toISOString(),
     };

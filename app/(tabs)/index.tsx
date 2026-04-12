@@ -69,6 +69,9 @@ export default function HomeScreen() {
     }
   }, [state.loaded, state.settings.onboardingComplete]);
 
+  // ─── Location Share Picker ──────────────────────────────────
+  const [showSharePicker, setShowSharePicker] = useState(false);
+
   // ─── Tutorial Walkthrough ──────────────────────────────────────
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
@@ -264,17 +267,16 @@ export default function HomeScreen() {
       ? 100
       : 0;
 
-  const handleShareBookingLink = useCallback(async () => {
+  const doShareForLocation = useCallback(async (loc: typeof activeLocation) => {
     const slug = state.settings.customSlug || state.settings.businessName.replace(/\s+/g, "-").toLowerCase();
-    const locationParam = activeLocation ? `?location=${encodeURIComponent(activeLocation.id)}` : "";
+    const locationParam = loc ? `?location=${encodeURIComponent(loc.id)}` : "";
     const url = `${PUBLIC_BOOKING_URL}/book/${slug}${locationParam}`;
     const profile = state.settings.profile;
-    // Use active location's full address if available, otherwise fall back to profile address
-    const displayAddress = activeLocation
-      ? formatFullAddress(activeLocation.address, activeLocation.city, activeLocation.state, activeLocation.zipCode)
+    const displayAddress = loc
+      ? formatFullAddress(loc.address, loc.city, loc.state, loc.zipCode)
       : profile.address;
     const addressLine = displayAddress ? `\n📍 ${displayAddress}` : "";
-    const phoneLine = (activeLocation?.phone || profile.phone) ? `\n📞 ${activeLocation?.phone || profile.phone}` : "";
+    const phoneLine = (loc?.phone || profile.phone) ? `\n📞 ${loc?.phone || profile.phone}` : "";
     const websiteLine = profile.website ? `\n🌐 ${profile.website}` : "";
     try {
       await Share.share({
@@ -282,7 +284,18 @@ export default function HomeScreen() {
         title: "Book an Appointment",
       });
     } catch {}
-  }, [state.settings.businessName, state.settings.profile, activeLocation]);
+  }, [state.settings, activeLocation]);
+
+  const handleShareBookingLink = useCallback(() => {
+    const allLocations = state.locations.filter((l) => l.active);
+    if (allLocations.length > 1) {
+      // Multiple locations — show picker
+      setShowSharePicker(true);
+    } else {
+      // Single or no location — share directly
+      doShareForLocation(activeLocation);
+    }
+  }, [state.locations, activeLocation, doShareForLocation]);
 
   const handlePickLogo = useCallback(async () => {
     if (Platform.OS === "web") {
@@ -967,6 +980,64 @@ export default function HomeScreen() {
           </View>
         </Animated.View>
       </Modal>
+
+      {/* ─── Location Share Picker Sheet ─────────────────────────────── */}
+      <Modal visible={showSharePicker} transparent animationType="slide" onRequestClose={() => setShowSharePicker(false)}>
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}
+          onPress={() => setShowSharePicker(false)}
+        >
+          <Pressable
+            style={[
+              styles.shareSheet,
+              { backgroundColor: colors.surface, borderTopColor: colors.border },
+            ]}
+            onPress={() => {}} // prevent dismiss on inner tap
+          >
+            <View style={styles.shareSheetHandle} />
+            <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground, marginBottom: 4 }}>
+              Share Booking Link
+            </Text>
+            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 16 }}>
+              Choose a location to share
+            </Text>
+            {state.locations.filter((l) => l.active).map((loc) => {
+              const addr = formatFullAddress(loc.address, loc.city, loc.state, loc.zipCode);
+              return (
+                <Pressable
+                  key={loc.id}
+                  onPress={() => {
+                    setShowSharePicker(false);
+                    doShareForLocation(loc);
+                  }}
+                  style={({ pressed }) => [
+                    styles.shareLocRow,
+                    { borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+                  ]}
+                >
+                  <View style={[styles.shareLocDot, { backgroundColor: colors.primary }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{loc.name}</Text>
+                    {!!addr && (
+                      <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }} numberOfLines={1}>{addr}</Text>
+                    )}
+                  </View>
+                  <IconSymbol name="paperplane.fill" size={16} color={colors.primary} />
+                </Pressable>
+              );
+            })}
+            <Pressable
+              onPress={() => setShowSharePicker(false)}
+              style={({ pressed }) => [
+                styles.shareCancelBtn,
+                { backgroundColor: colors.border, opacity: pressed ? 0.7 : 1 },
+              ]}
+            >
+              <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -1297,5 +1368,43 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 14,
     borderRadius: 14,
+  },
+  // ─── Share Picker Sheet ──────────────────────────────────────────────
+  shareSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderTopWidth: 1,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 36,
+  },
+  shareSheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#C0C0C0",
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  shareLocRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  shareLocDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  shareCancelBtn: {
+    alignItems: "center",
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 4,
   },
 });

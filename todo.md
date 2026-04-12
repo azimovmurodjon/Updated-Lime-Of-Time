@@ -711,3 +711,5 @@
 - [ ] Fix Clients tab: filter by active location using clientsForActiveLocation
 - [ ] Fix web booking page address to show full address (Street, City, State ZIP)
 - [ ] Add location switcher to Clients tab so clients can switch between locations
+- [x] Location picker sheet on Home screen Share button — choose location without switching active
+- [x] Reopen date on Temporarily Closed — optional YYYY-MM-DD date field with auto-reopen on app load

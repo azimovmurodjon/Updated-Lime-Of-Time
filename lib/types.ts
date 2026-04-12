@@ -123,6 +123,8 @@ export interface Location {
   active: boolean;
   /** When true, the location is paused for new bookings without being fully deactivated */
   temporarilyClosed?: boolean;
+  /** ISO date string YYYY-MM-DD: if set, location auto-reopens on this date */
+  reopenOn?: string;
   workingHours: Record<string, WorkingHours> | null; // null = use business hours
   createdAt: string;
 }

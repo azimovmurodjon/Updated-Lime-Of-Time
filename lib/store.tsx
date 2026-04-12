@@ -558,6 +558,8 @@ function dbLocationToLocal(l: any): Location {
     email: l.email ?? "",
     isDefault: l.isDefault ?? false,
     active: l.active ?? true,
+    temporarilyClosed: l.temporarilyClosed ?? false,
+    reopenOn: l.reopenOn ?? undefined,
     workingHours: l.workingHours ?? null,
     createdAt: l.createdAt ? new Date(l.createdAt).toISOString() : new Date().toISOString(),
   };
@@ -831,6 +833,25 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       AsyncStorage.setItem(STORAGE_KEYS.businessOwnerId, String(state.businessOwnerId));
     }
   }, [state.businessOwnerId]);
+
+  // ─── Auto-reopen: check reopenOn dates on load ──────────────────────────────────────────
+  // We use a ref to avoid stale closure on syncToDb (which is defined below)
+  const pendingReopenRef = useRef<Location[]>([]);
+  useEffect(() => {
+    if (!state.loaded) return;
+    const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const toReopen = state.locations.filter(
+      (l) => l.temporarilyClosed && l.reopenOn && l.reopenOn <= todayStr
+    );
+    if (toReopen.length === 0) return;
+    pendingReopenRef.current = toReopen;
+    toReopen.forEach((l) => {
+      const action = { type: "UPDATE_LOCATION" as const, payload: { ...l, temporarilyClosed: false, reopenOn: undefined } as Location };
+      dispatch(action);
+    });
+  // Only run on initial load (state.loaded flip)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.loaded]);
 
   // ─── Sync action to database ────────────────────────────────────
   const syncToDb = useCallback(
@@ -1279,6 +1300,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               email: loc.email || undefined,
               isDefault: loc.isDefault,
               active: loc.active,
+              temporarilyClosed: loc.temporarilyClosed,
+              reopenOn: loc.reopenOn,
               workingHours: loc.workingHours,
             });
             break;

@@ -377,6 +377,10 @@ export const locations = mysqlTable("locations", {
   isDefault: boolean("isDefault").default(false).notNull(),
   /** Whether this location is currently active */
   active: boolean("active").default(true).notNull(),
+  /** Whether this location is temporarily paused for new bookings */
+  temporarilyClosed: boolean("temporarilyClosed").default(false),
+  /** ISO date YYYY-MM-DD: if set, location auto-reopens on this date */
+  reopenOn: varchar("reopenOn", { length: 10 }),
   /** Individual working hours JSON: Record<string, { enabled: boolean, start: string, end: string }> */
   workingHours: json("workingHours"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

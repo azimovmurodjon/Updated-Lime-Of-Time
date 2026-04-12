@@ -650,6 +650,8 @@ const locationsRouter = router({
         email: z.string().optional(),
         isDefault: z.boolean().optional(),
         active: z.boolean().optional(),
+        temporarilyClosed: z.boolean().optional(),
+        reopenOn: z.string().optional().nullable(),
         workingHours: z.any().optional(),
       })
     )
