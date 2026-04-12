@@ -310,7 +310,8 @@ export default function StaffCalendarScreen() {
               ? (staff.workingHours[dayName]?.enabled ?? false)
               : true;
             const isPast = dateStr < todayStr;
-            const isDisabled = !isWorkingDay || isPast;
+            // Also disable all days when location is temporarily closed
+            const isDisabled = !isWorkingDay || isPast || !!activeLocation?.temporarilyClosed;
 
             return (
               <Pressable

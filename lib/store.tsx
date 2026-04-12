@@ -677,15 +677,42 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               const storedActiveLoc = await AsyncStorage.getItem(STORAGE_KEYS.activeLocationId);
               const loadedLocations = (fullData.locations || []).map(dbLocationToLocal);
               const activeLocations = loadedLocations.filter((l) => l.active);
+              let chosenActiveId: string | null = null;
               if (storedActiveLoc && activeLocations.some((l) => l.id === storedActiveLoc)) {
-                dispatch({ type: "SET_ACTIVE_LOCATION", payload: storedActiveLoc });
-              } else if (activeLocations.length === 1) {
-                dispatch({ type: "SET_ACTIVE_LOCATION", payload: activeLocations[0].id });
-                AsyncStorage.setItem(STORAGE_KEYS.activeLocationId, activeLocations[0].id).catch(() => {});
-              } else if (activeLocations.length > 1) {
+                chosenActiveId = storedActiveLoc;
+              } else if (activeLocations.length >= 1) {
                 const defaultLoc = activeLocations.find((l) => l.isDefault) ?? activeLocations[0];
-                dispatch({ type: "SET_ACTIVE_LOCATION", payload: defaultLoc.id });
-                AsyncStorage.setItem(STORAGE_KEYS.activeLocationId, defaultLoc.id).catch(() => {});
+                chosenActiveId = defaultLoc.id;
+                AsyncStorage.setItem(STORAGE_KEYS.activeLocationId, chosenActiveId).catch(() => {});
+              }
+              if (chosenActiveId) {
+                dispatch({ type: "SET_ACTIVE_LOCATION", payload: chosenActiveId });
+                // Enforce single-active: deactivate all locations except the chosen one
+                if (activeLocations.length > 1) {
+                  activeLocations
+                    .filter((l) => l.id !== chosenActiveId)
+                    .forEach((l) => {
+                      const deactivate = { type: "UPDATE_LOCATION" as const, payload: { ...l, active: false } };
+                      dispatch(deactivate);
+                      // Silently sync deactivation to DB
+                      updateLocationMut.mutateAsync({
+                        localId: l.id,
+                        businessOwnerId: ownerId,
+                        name: l.name,
+                        address: l.address || undefined,
+                        city: l.city || undefined,
+                        state: l.state || undefined,
+                        zipCode: l.zipCode || undefined,
+                        phone: l.phone || undefined,
+                        email: l.email || undefined,
+                        isDefault: l.isDefault,
+                        active: false,
+                        temporarilyClosed: l.temporarilyClosed,
+                        reopenOn: l.reopenOn,
+                        workingHours: l.workingHours,
+                      }).catch(() => {});
+                    });
+                }
               }
               // Also persist to AsyncStorage as cache
               await persistToAsyncStorage(

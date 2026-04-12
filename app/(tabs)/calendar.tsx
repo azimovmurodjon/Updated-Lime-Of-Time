@@ -132,8 +132,10 @@ export default function CalendarScreen() {
   }, [activeCustomSchedule]);
 
   // A day is "available" if it has a Workday ON override, or if it's a Business Hours working day with no override
-  // Also blocked if date is after businessHoursEndDate
+  // Also blocked if date is after businessHoursEndDate or location is temporarily closed
   const isDayAvailable = useCallback((dateStr: string): boolean => {
+    // Block all days when location is temporarily closed
+    if (activeLocation?.temporarilyClosed) return false;
     // Check Active Until expiry
     const endDate = state.settings.businessHoursEndDate;
     if (endDate && dateStr > endDate) return false;
@@ -144,7 +146,7 @@ export default function CalendarScreen() {
     const dayName = DAY_NAMES[d.getDay()];
     const wh = effectiveWorkingHours?.[dayName];
     return !!(wh && wh.enabled);
-  }, [getCustomDay, effectiveWorkingHours, state.settings.businessHoursEndDate]);
+  }, [getCustomDay, effectiveWorkingHours, state.settings.businessHoursEndDate, activeLocation?.temporarilyClosed]);
 
   // Get effective working hours for a date (custom override or business hours)
   const getEffectiveHours = useCallback((dateStr: string): { start: string; end: string } | null => {
@@ -1084,13 +1086,6 @@ export default function CalendarScreen() {
         <View style={{ paddingHorizontal: hp, paddingTop: 4 }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
             <Text style={{ fontSize: 24, fontWeight: "700", color: colors.foreground }}>Calendar</Text>
-            {/* Today button */}
-            <Pressable
-              onPress={jumpToToday}
-              style={({ pressed }) => [styles.todayBtn, { borderColor: colors.primary, opacity: pressed ? 0.7 : 1 }]}
-            >
-              <Text style={{ fontSize: 12, fontWeight: "600", color: colors.primary }}>Today</Text>
-            </Pressable>
           </View>
 
           {/* View Switcher */}

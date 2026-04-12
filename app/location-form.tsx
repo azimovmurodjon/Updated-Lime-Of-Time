@@ -57,7 +57,8 @@ export default function LocationFormScreen() {
     }
     setErrors({});
 
-    // New locations are always active; existing locations keep their current active state
+    // New locations default to inactive (disabled) until manually enabled.
+    // The very first location is auto-activated so the app is usable right away.
     const isFirstLocation = !isEdit && state.locations.length === 0;
 
     const loc: Location = {
@@ -70,7 +71,7 @@ export default function LocationFormScreen() {
       phone: phone.trim(),
       email: email.trim(),
       isDefault: existing?.isDefault ?? isFirstLocation,
-      active: existing?.active ?? true,
+      active: existing?.active ?? isFirstLocation,
       temporarilyClosed: existing?.temporarilyClosed,
       reopenOn: existing?.reopenOn,
       workingHours: existing?.workingHours ?? {},

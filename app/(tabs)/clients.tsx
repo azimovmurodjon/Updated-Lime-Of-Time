@@ -5,7 +5,7 @@ import { useStore, generateId } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useMemo, useCallback } from "react";
-import { Client, formatPhoneNumber, stripPhoneFormat } from "@/lib/types";
+import { Client, formatPhoneNumber, stripPhoneFormat, LOCATION_COLORS } from "@/lib/types";
 import { useActiveLocation } from "@/hooks/use-active-location";
 import { LocationSwitcher } from "@/components/location-switcher";
 import * as Contacts from "expo-contacts";
@@ -41,6 +41,18 @@ export default function ClientsScreen() {
   const getLocationApptCount = useCallback(
     (clientId: string) => filterAppointmentsByLocation(getAppointmentsForClient(clientId)).length,
     [filterAppointmentsByLocation, getAppointmentsForClient]
+  );
+
+  // Get unique locations a client has visited (from all their appointments)
+  const getClientLocationBadges = useCallback(
+    (clientId: string) => {
+      const appts = getAppointmentsForClient(clientId);
+      const locationIds = [...new Set(appts.map((a) => a.locationId).filter(Boolean) as string[])];
+      return locationIds
+        .map((lid) => state.locations.find((l) => l.id === lid))
+        .filter(Boolean) as import("@/lib/types").Location[];
+    },
+    [getAppointmentsForClient, state.locations]
   );
 
   const handlePhoneChange = useCallback((text: string) => {
@@ -246,6 +258,7 @@ export default function ClientsScreen() {
         renderItem={({ item }) => {
           const rating = getClientRating(item.id);
           const apptCount = getLocationApptCount(item.id);
+          const locationBadges = getClientLocationBadges(item.id);
           return (
             <Pressable
               onPress={() => router.push({ pathname: "/client-detail", params: { id: item.id } })}
@@ -269,6 +282,32 @@ export default function ClientsScreen() {
                     </Text>
                   )}
                 </View>
+                {/* Location badges — show which location(s) this client has visited */}
+                {locationBadges.length > 0 && (
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 5 }}>
+                    {locationBadges.map((loc) => {
+                      const dotColor = LOCATION_COLORS[state.locations.indexOf(loc) % LOCATION_COLORS.length] ?? colors.primary;
+                      return (
+                        <View
+                          key={loc.id}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            backgroundColor: dotColor + "18",
+                            borderRadius: 8,
+                            paddingHorizontal: 7,
+                            paddingVertical: 2,
+                            borderWidth: 1,
+                            borderColor: dotColor + "40",
+                          }}
+                        >
+                          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: dotColor, marginRight: 4 }} />
+                          <Text style={{ fontSize: 10, fontWeight: "600", color: dotColor }} numberOfLines={1}>{loc.name}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
                 {rating !== null && (
                   <View style={{ flexDirection: "row", alignItems: "center", marginTop: 3 }}>
                     <IconSymbol name="star.fill" size={12} color="#FFB300" />

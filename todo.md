@@ -715,3 +715,9 @@
 - [x] Fix web booking page address to show full address (Street, City, State ZIP)
 - [x] Fix Business Hours/Calendar mismatch: calendar must use per-location workingHours
 - [x] Fix Clients tab: filter by active location using clientsForActiveLocation
+- [x] Remove "Today" button from Calendar header
+- [x] New location should be disabled (active=false) by default until manually enabled
+- [x] Locations: enforce single-active-location mutual exclusion (only one ON at a time)
+- [x] Temporarily Closed: block Calendar and Staff Calendar from showing available slots
+- [x] Add Location Switcher to Clients tab for filtering client list by location
+- [x] Add location badges on client cards showing which locations they have visited
