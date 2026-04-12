@@ -36,7 +36,7 @@ type TabKey = "appointments" | "messages" | "reviews";
 
 export default function ClientDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { state, dispatch, getClientById, getAppointmentsForClient, getServiceById, getReviewsForClient, syncToDb } = useStore();
+  const { state, dispatch, getClientById, getAppointmentsForClient, getServiceById, getReviewsForClient, getLocationById, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -149,30 +149,34 @@ export default function ClientDetailScreen() {
       const svc = getServiceById(appt.serviceId);
       const svcName = svc ? getServiceDisplayName(svc) : "your appointment";
       const bizName = biz.businessName;
-      const addr = profile.address;
       const bizPhone = profile.phone;
+      const apptLocation = appt.locationId ? getLocationById(appt.locationId) : null;
+      const addr = apptLocation?.address || profile.address;
+      const locName = apptLocation?.name;
 
       switch (type) {
         case "confirmation":
           return generateConfirmationMessage(bizName, addr, client.name, svcName, appt.duration, appt.date, appt.time, bizPhone);
         case "reminder":
-          return generateReminderMessage(bizName, addr, client.name, svcName, appt.duration, appt.date, appt.time, bizPhone);
+          return generateReminderMessage(bizName, addr, client.name, svcName, appt.duration, appt.date, appt.time, bizPhone, locName);
         case "upcoming": {
           const endTime = formatTimeDisplay(minutesToTime(timeToMinutes(appt.time) + appt.duration));
           const bookingSlug = biz.customSlug || bizName.replace(/\s+/g, "-").toLowerCase();
-          return `Dear ${client.name},\n\nYou have an upcoming appointment request pending confirmation.\n\n📋 Service: ${svcName}\n📅 Date: ${formatDateLong(appt.date)}\n⏰ Time: ${formatTimeDisplay(appt.time)} - ${endTime}\n📍 Location: ${addr}\n🏢 Business: ${bizName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(bizPhone))}\n\n📎 Book again: ${PUBLIC_BOOKING_URL}/book/${bookingSlug}\n\nWe will confirm your appointment shortly. Thank you for your patience!\n\n${bizName}`;
+          const upcomingLocLine = locName ? (addr ? `${locName} — ${addr}` : locName) : addr;
+          return `Dear ${client.name},\n\nYou have an upcoming appointment request pending confirmation.\n\n📋 Service: ${svcName}\n📅 Date: ${formatDateLong(appt.date)}\n⏰ Time: ${formatTimeDisplay(appt.time)} - ${endTime}\n📍 Location: ${upcomingLocLine}\n🏢 Business: ${bizName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(bizPhone))}\n\n📎 Book again: ${PUBLIC_BOOKING_URL}/book/${bookingSlug}\n\nWe will confirm your appointment shortly. Thank you for your patience!\n\n${bizName}`;
         }
         case "cancelled":
-          return generateCancellationMessage(bizName, client.name, svcName, appt.date, appt.time, "", bizPhone);
+          return generateCancellationMessage(bizName, client.name, svcName, appt.date, appt.time, "", bizPhone, locName, apptLocation?.address);
         case "completed": {
           const completedSlug = biz.customSlug || bizName.replace(/\s+/g, "-").toLowerCase();
-          return `Dear ${client.name},\n\nThank you for visiting ${bizName}! Your appointment for ${svcName} on ${formatDateLong(appt.date)} has been completed.\n\nWe hope you had a wonderful experience and we'd love to see you again!\n\n📍 Location: ${addr}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(bizPhone))}\n\n📎 Book again: ${PUBLIC_BOOKING_URL}/book/${completedSlug}\n\nBest regards,\n${bizName}`;
+          const completedLocLine = locName ? (addr ? `${locName} — ${addr}` : locName) : addr;
+          return `Dear ${client.name},\n\nThank you for visiting ${bizName}! Your appointment for ${svcName} on ${formatDateLong(appt.date)} has been completed.\n\nWe hope you had a wonderful experience and we'd love to see you again!\n\n📍 Location: ${completedLocLine}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(bizPhone))}\n\n📎 Book again: ${PUBLIC_BOOKING_URL}/book/${completedSlug}\n\nBest regards,\n${bizName}`;
         }
         default:
           return "";
       }
     },
-    [client, biz.businessName, profile, getServiceById]
+    [client, biz.businessName, biz.customSlug, profile, getServiceById, getLocationById]
   );
 
   const handleSendMessage = useCallback(

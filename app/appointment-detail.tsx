@@ -120,7 +120,9 @@ export default function AppointmentDetailScreen() {
             appointment.date,
             appointment.time,
             feeStr,
-            profile.phone
+            profile.phone,
+            assignedLocation?.name,
+            assignedLocation?.address
           );
         }
         openSms(client.phone, msg);

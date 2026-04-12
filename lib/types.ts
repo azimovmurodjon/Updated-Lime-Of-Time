@@ -592,12 +592,18 @@ export function generateCancellationMessage(
   date: string,
   time: string,
   cancellationFee: string,
-  businessPhone: string
+  businessPhone: string,
+  locationName?: string,
+  locationAddress?: string
 ): string {
   const feeNote = cancellationFee
     ? `\n\n⚠️ Cancellation Fee: ${cancellationFee}\nAs per our cancellation policy, a fee applies for cancellations made within the required notice period.`
     : "";
-  return `Dear ${clientName},\n\nYour appointment has been cancelled.\n\n📋 Service: ${serviceName}\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)}${feeNote}\n\nIf you would like to reschedule, please visit our booking page or contact us directly.\n\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nThank you.\n${businessName}`;
+  const locationLine = locationName
+    ? (locationAddress ? `${locationName} — ${locationAddress}` : locationName)
+    : locationAddress ?? "";
+  const locationRow = locationLine ? `\n📍 Location: ${locationLine}` : "";
+  return `Dear ${clientName},\n\nYour appointment has been cancelled.\n\n📋 Service: ${serviceName}\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)}${locationRow}${feeNote}\n\nIf you would like to reschedule, please visit our booking page or contact us directly.\n\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nThank you.\n${businessName}`;
 }
 
 /** Generate professional upcoming reminder message */
