@@ -730,3 +730,10 @@
 - [x] Staff Calendar: all future days red when location is temporarily closed
 - [x] Home screen: red banner showing temporarily closed status with reopen date
 - [x] Client booking page: professional "temporarily closed" message with reopen date
+
+## Temporarily Closed UI Propagation
+- [ ] Home page: show Temporarily Closed banner when location is closed
+- [ ] Main calendar: show red days for the Temporarily Closed period (today through reopenOn date)
+- [ ] Staff calendar: show red days for the Temporarily Closed period
+- [ ] Client booking page: show Temporarily Closed message with reopen date
+- [ ] All pages update in real-time when toggle changes (no reload required)

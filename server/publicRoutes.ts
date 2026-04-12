@@ -1409,6 +1409,11 @@ function baseStyles(): string {
       .loc-closed-banner.show { display:block; }
       .loc-closed-banner .lc-title { font-size:14px; font-weight:700; color:#ef4444; margin-bottom:4px; }
       .loc-closed-banner .lc-msg { font-size:13px; color:var(--text-secondary); line-height:1.5; }
+      /* Top-level location closed banner (shown before step 0) */
+      #topLocClosedBanner { background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.4); border-radius:12px; padding:16px; margin-bottom:16px; display:none; text-align:center; }
+      #topLocClosedBanner.show { display:block; }
+      #topLocClosedBanner .lc-title { font-size:15px; font-weight:700; color:#ef4444; margin-bottom:6px; }
+      #topLocClosedBanner .lc-msg { font-size:13px; color:var(--text-secondary); line-height:1.6; }
       .cart-items { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
       .cart-item { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:var(--bg-card-hover); border-radius:10px; font-size:13px; }
       .cart-item .cart-remove { color:var(--error); cursor:pointer; font-size:18px; padding:0 4px; }
@@ -1551,6 +1556,12 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     </div>
 
     ${owner.temporaryClosed ? `<div class="closed-banner">⚠️ This business is temporarily closed and not accepting bookings at this time.</div>` : ""}
+
+    <!-- Top-level location closed banner (shown when preselected location is temporarily closed) -->
+    <div id="topLocClosedBanner">
+      <div class="lc-title">&#9888;&#65039; Location Temporarily Closed</div>
+      <div class="lc-msg" id="topLocClosedMsg">This location is temporarily closed and not accepting bookings at this time. Please check back later.</div>
+    </div>
 
     <!-- Step 0: Client Info -->
     <div id="step-0" class="card" ${owner.temporaryClosed ? 'style="display:none"' : ""}>
@@ -1843,6 +1854,8 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       slotCache = {}; // Clear cache when location changes
       renderLocationSelector();
       updateBizAddressCard();
+      // Check if the newly selected location is temporarily closed
+      checkTopLevelLocClosed();
       // Reload services and working days scoped to this location
       loadServices(locId);
       loadWorkingDays(locId).then(() => {
@@ -2840,10 +2853,45 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     loadLocations().then(() => {
       renderLocationSelector();
       updateBizAddressCard();
+      // Check if the preselected (or only) location is temporarily closed
+      checkTopLevelLocClosed();
       // Use preselected location for initial data load if available
       loadServices(selectedLocation);
       loadWorkingDays(selectedLocation);
     });
+
+    function checkTopLevelLocClosed() {
+      // Determine which location to check: preselected or the only one
+      let locToCheck = null;
+      if (selectedLocation) {
+        locToCheck = locations.find(function(l) { return l.localId === selectedLocation; });
+      } else if (locations.length === 1) {
+        locToCheck = locations[0];
+        selectedLocation = locToCheck.localId; // auto-select the only location
+      }
+      const banner = document.getElementById('topLocClosedBanner');
+      const msgEl = document.getElementById('topLocClosedMsg');
+      const step0 = document.getElementById('step-0');
+      if (!banner || !msgEl) return;
+      if (locToCheck && locToCheck.temporarilyClosed) {
+        const reopenOn = locToCheck.reopenOn || null;
+        let msg = '';
+        if (reopenOn) {
+          const d = new Date(reopenOn + 'T00:00:00');
+          const formatted = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+          msg = locToCheck.name + ' is temporarily closed and will reopen on ' + formatted + '. No new bookings are being accepted until then.';
+        } else {
+          msg = (locToCheck.name || 'This location') + ' is temporarily closed for an indefinite period. No new bookings are being accepted at this time. Please check back later.';
+        }
+        msgEl.textContent = msg;
+        banner.classList.add('show');
+        // Hide step-0 so clients cannot start booking
+        if (step0) step0.style.display = 'none';
+      } else {
+        banner.classList.remove('show');
+        if (step0 && !${JSON.stringify(!!owner.temporaryClosed)}) step0.style.display = '';
+      }
+    }
     loadProducts();
     loadDiscounts();
     loadStaff();
