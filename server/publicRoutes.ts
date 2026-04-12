@@ -161,6 +161,7 @@ export function registerPublicRoutes(app: Express) {
         duration: s.duration,
         price: s.price,
         color: s.color,
+        category: s.category || null,
         locationIds: Array.isArray(s.locationIds)
           ? s.locationIds
           : s.locationIds
