@@ -1,5 +1,6 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import mysql2 from "mysql2/promise";
 import {
   InsertUser,
   users,
@@ -505,6 +506,68 @@ export async function updateGiftCard(
     .update(giftCards)
     .set(data)
     .where(and(eq(giftCards.localId, localId), eq(giftCards.businessOwnerId, businessOwnerId)));
+}
+
+/**
+ * Atomically deduct from a gift card balance using a MySQL transaction with SELECT FOR UPDATE.
+ * Creates a dedicated connection to avoid interfering with the Drizzle ORM connection.
+ *
+ * Returns: { success: true, newBalance } if deducted, or { success: false, reason } if not.
+ */
+export async function atomicDeductGiftCardBalance(
+  code: string,
+  businessOwnerId: number,
+  deductAmount: number
+): Promise<{ success: boolean; newBalance?: number; reason?: string }> {
+  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL not set");
+
+  // Create a dedicated connection for the transaction (separate from Drizzle's connection)
+  const conn = await mysql2.createConnection(process.env.DATABASE_URL);
+  try {
+    await conn.beginTransaction();
+
+    // Lock the row with SELECT FOR UPDATE — blocks concurrent transactions on the same row
+    const [rows] = await conn.execute(
+      `SELECT id, message FROM gift_cards WHERE code = ? AND businessOwnerId = ? FOR UPDATE`,
+      [code, businessOwnerId]
+    ) as any;
+
+    if (!rows || rows.length === 0) {
+      await conn.rollback();
+      return { success: false, reason: "Gift card not found" };
+    }
+
+    const row = rows[0];
+    const msgStr = row.message || "";
+    const match = msgStr.match(/\n---GIFT_DATA---\n(.+)$/s);
+    let meta: any = {};
+    if (match) { try { meta = JSON.parse(match[1]); } catch (_) {} }
+
+    const currentBalance: number = meta.remainingBalance ?? meta.originalValue ?? 0;
+    if (currentBalance < deductAmount - 0.01) {
+      await conn.rollback();
+      return { success: false, reason: `Insufficient balance: $${currentBalance.toFixed(2)} available, $${deductAmount.toFixed(2)} requested` };
+    }
+
+    const newBalance = Math.max(0, currentBalance - deductAmount);
+    meta.remainingBalance = newBalance;
+    const cleanMsg = msgStr.replace(/\n---GIFT_DATA---\n.+$/s, "");
+    const updatedMsg = cleanMsg + "\n---GIFT_DATA---\n" + JSON.stringify(meta);
+    const fullyRedeemed = newBalance <= 0;
+
+    await conn.execute(
+      `UPDATE gift_cards SET message = ?, redeemed = ?, redeemedAt = ? WHERE id = ?`,
+      [updatedMsg, fullyRedeemed ? 1 : 0, fullyRedeemed ? new Date() : null, row.id]
+    );
+
+    await conn.commit();
+    return { success: true, newBalance };
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    await conn.end();
+  }
 }
 
 export async function deleteGiftCard(localId: string, businessOwnerId: number): Promise<void> {

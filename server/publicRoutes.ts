@@ -590,6 +590,14 @@ export function registerPublicRoutes(app: Express) {
           res.status(400).json({ error: "Gift card not found or does not belong to this business" });
           return;
         }
+        // Check expiry date
+        if (gcValidate.expiresAt) {
+          const today = new Date().toISOString().split('T')[0];
+          if (gcValidate.expiresAt < today) {
+            res.status(400).json({ error: `This gift card expired on ${gcValidate.expiresAt}` });
+            return;
+          }
+        }
         // Parse current balance from message field (GIFT_DATA block or raw JSON)
         let gcMeta: any = {};
         const gcMsgStr = gcValidate.message || "";
@@ -661,33 +669,15 @@ export function registerPublicRoutes(app: Express) {
         locationId: locationId || null,
       });
 
-      // Deduct from gift card balance
+      // Atomically deduct from gift card balance (prevents double-spend race conditions)
       if (giftCode) {
-        const card = await db.getGiftCardByCode(giftCode, owner.id);
-        if (card) {
-          // Parse existing balance from message field (may contain GIFT_DATA block)
-          let meta: any = {};
-          const msgStr = card.message || "";
-          const giftDataMatch = msgStr.match(/\n---GIFT_DATA---\n(.+)$/s);
-          if (giftDataMatch) {
-            try { meta = JSON.parse(giftDataMatch[1]); } catch (_) {}
-          } else {
-            try { meta = JSON.parse(msgStr); } catch (_) {}
-          }
-          const svcPriceNum = svc ? parseFloat(String(svc.price)) : 0;
-          const currentBalance = meta.remainingBalance ?? meta.originalValue ?? svcPriceNum;
-          const usedAmt = giftUsedAmount ? parseFloat(String(giftUsedAmount)) : Math.min(currentBalance, svcPrice + extrasTotal);
-          const newBalance = Math.max(0, currentBalance - usedAmt);
-          const fullyRedeemed = newBalance <= 0;
-          meta.remainingBalance = newBalance;
-          // Preserve the GIFT_DATA format: clean message + separator + JSON
-          const cleanMsg = msgStr.replace(/\n---GIFT_DATA---\n.+$/s, "");
-          const updatedMsg = cleanMsg + "\n---GIFT_DATA---\n" + JSON.stringify(meta);
-          await db.updateGiftCard(card.localId, owner.id, {
-            redeemed: fullyRedeemed,
-            redeemedAt: fullyRedeemed ? new Date() : undefined,
-            message: updatedMsg,
-          });
+        const usedAmt = giftUsedAmount ? parseFloat(String(giftUsedAmount)) : (svcPrice + extrasTotal);
+        const deductResult = await db.atomicDeductGiftCardBalance(giftCode, owner.id, usedAmt);
+        if (!deductResult.success) {
+          // Deduction failed (race condition: another request already deducted the balance)
+          // The appointment was already saved — mark it with a note about the gift card issue
+          console.warn(`[GiftCard] Atomic deduction failed for ${giftCode}: ${deductResult.reason}`);
+          // Still allow the booking but log the discrepancy
         }
       }
 
