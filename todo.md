@@ -703,3 +703,4 @@
 - [x] Split address into Address, City, State, Zip fields in location form
 - [x] Enforce single active location at a time (radio-style toggle)
 - [x] Update public booking page to use correct domain in confirmation
+- [x] Auto-activate first location added to prevent empty state

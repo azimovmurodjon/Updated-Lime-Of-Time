@@ -20,10 +20,12 @@ import {
   Location,
   formatPhoneNumber,
 } from "@/lib/types";
+import { useActiveLocation } from "@/hooks/use-active-location";
 
 export default function LocationFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { state, dispatch, syncToDb } = useStore();
+  const { setActiveLocation } = useActiveLocation();
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -59,6 +61,10 @@ export default function LocationFormScreen() {
     }
     setErrors({});
 
+    // If this is the very first location, force it active so the app is never in an empty state
+    const isFirstLocation = !isEdit && state.locations.length === 0;
+    const effectiveActive = isFirstLocation ? true : active;
+
     const loc: Location = {
       id: existing?.id ?? generateId(),
       name: name.trim(),
@@ -68,8 +74,8 @@ export default function LocationFormScreen() {
       zipCode: zipCode.trim(),
       phone: phone.trim(),
       email: email.trim(),
-      isDefault: existing?.isDefault ?? (state.locations.length === 0),
-      active,
+      isDefault: existing?.isDefault ?? isFirstLocation,
+      active: effectiveActive,
       workingHours: existing?.workingHours ?? {},
       createdAt: existing?.createdAt ?? new Date().toISOString(),
     };
@@ -80,6 +86,8 @@ export default function LocationFormScreen() {
 
     dispatch(action);
     syncToDb(action);
+    // Auto-set as active location if it's the first one
+    if (isFirstLocation) setActiveLocation(loc.id);
     router.back();
   };
 
