@@ -695,3 +695,4 @@
 - [x] Surface per-location shareable booking links in Settings > Location screen
 - [x] Update SMS acceptance message to use appointment's specific location name and address
 - [x] Add location name and address to cancellation SMS message
+- [x] Add location name and address to rejection SMS message

@@ -579,9 +579,15 @@ export function generateRejectMessage(
   serviceName: string,
   date: string,
   time: string,
-  businessPhone: string
+  businessPhone: string,
+  locationName?: string,
+  locationAddress?: string
 ): string {
-  return `Dear ${clientName},\n\nWe regret to inform you that your appointment request could not be accommodated at this time.\n\n📋 Service: ${serviceName}\n📅 Requested Date: ${formatDateLong(date)}\n⏰ Requested Time: ${formatTimeDisplay(time)}\n\nWe apologize for any inconvenience. Please feel free to book another available time slot through our scheduling page or contact us directly.\n\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nThank you for your understanding.\n${businessName}`;
+  const locationLine = locationName
+    ? (locationAddress ? `${locationName} — ${locationAddress}` : locationName)
+    : locationAddress ?? "";
+  const locationRow = locationLine ? `\n📍 Location: ${locationLine}` : "";
+  return `Dear ${clientName},\n\nWe regret to inform you that your appointment request could not be accommodated at this time.\n\n📋 Service: ${serviceName}\n📅 Requested Date: ${formatDateLong(date)}\n⏰ Requested Time: ${formatTimeDisplay(time)}${locationRow}\n\nWe apologize for any inconvenience. Please feel free to book another available time slot through our scheduling page or contact us directly.\n\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nThank you for your understanding.\n${businessName}`;
 }
 
 /** Generate professional cancellation message */

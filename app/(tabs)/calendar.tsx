@@ -55,7 +55,7 @@ const TIMELINE_END = 22;
 const HOUR_HEIGHT = 60;
 
 export default function CalendarScreen() {
-  const { state, dispatch, getServiceById, getClientById, getStaffById, syncToDb, filterAppointmentsByLocation, getActiveCustomSchedule } = useStore();
+  const { state, dispatch, getServiceById, getClientById, getStaffById, getLocationById, syncToDb, filterAppointmentsByLocation, getActiveCustomSchedule } = useStore();
   const colors = useColors();
   const router = useRouter();
   const params = useLocalSearchParams<{ filter?: string }>();
@@ -373,16 +373,18 @@ export default function CalendarScreen() {
         onPress: () => {
           dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appt.id, status: "cancelled" } });
           syncToDb({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appt.id, status: "cancelled" } });
+          const apptLoc = appt.locationId ? getLocationById(appt.locationId) : null;
           const message = generateRejectMessage(
             state.settings.businessName, client?.name ?? "Valued Client",
-            svc ? getServiceDisplayName(svc) : "Service", appt.date, appt.time, state.settings.profile.phone
+            svc ? getServiceDisplayName(svc) : "Service", appt.date, appt.time, state.settings.profile.phone,
+            apptLoc?.name, apptLoc?.address
           );
           if (client?.phone) openSmsWithMessage(client.phone, message);
           else Alert.alert("Appointment Rejected", message);
         },
       },
     ]);
-  }, [getClientById, getServiceById, dispatch, state.settings, openSmsWithMessage, syncToDb]);
+  }, [getClientById, getServiceById, getLocationById, dispatch, state.settings, openSmsWithMessage, syncToDb]);
 
   const getEndTime = (time: string, duration: number): string =>
     formatTimeDisplay(minutesToTime(timeToMinutes(time) + duration));
