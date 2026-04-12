@@ -32,7 +32,7 @@ type CartItem = {
 
 export default function NewBookingScreen() {
   const { state, dispatch, getServiceById, getClientById, getLocationById, syncToDb, filterAppointmentsByLocation, getActiveCustomSchedule } = useStore();
-  const { activeLocation, effectiveWorkingHours } = useActiveLocation();
+  const { activeLocations: _allActiveLocations } = useActiveLocation();
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -132,13 +132,29 @@ export default function NewBookingScreen() {
     return result;
   }, [activeStaff, state.appointments, selectedDate, selectedTime, totalDuration]);
 
-  // Generate available time slots using location-scoped hours and appointments
-  const locationAppts = useMemo(
-    () => filterAppointmentsByLocation(state.appointments),
-    [state.appointments, filterAppointmentsByLocation]
+  // Use the form-selected location's working hours (not the globally active location)
+  const selectedLocation = useMemo(
+    () => state.locations.find((l) => l.id === selectedLocationId) ?? null,
+    [state.locations, selectedLocationId]
   );
-  const locationWorkingHours = effectiveWorkingHours ?? state.settings.workingHours;
-  const activeCustomSchedule = useMemo(() => getActiveCustomSchedule(), [getActiveCustomSchedule]);
+  const locationWorkingHours = useMemo(() => {
+    if (selectedLocation?.workingHours && Object.keys(selectedLocation.workingHours).length > 0) {
+      return selectedLocation.workingHours as Record<string, import('@/lib/types').WorkingHours>;
+    }
+    return state.settings.workingHours;
+  }, [selectedLocation, state.settings.workingHours]);
+  // Filter appointments by the form-selected location (not the global active location)
+  const locationAppts = useMemo(
+    () => {
+      if (!selectedLocationId) return state.appointments;
+      return state.appointments.filter((a) => a.locationId === selectedLocationId);
+    },
+    [state.appointments, selectedLocationId]
+  );
+  const activeCustomSchedule = useMemo(() => {
+    if (!selectedLocationId) return state.customSchedule ?? [];
+    return (state as any).locationCustomSchedule?.[selectedLocationId] ?? [];
+  }, [selectedLocationId, (state as any).locationCustomSchedule, state.customSchedule]);
   const timeSlots = useMemo(() => {
     return generateAvailableSlots(
       selectedDate,
@@ -160,7 +176,7 @@ export default function NewBookingScreen() {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
       const ds = formatDateStr(d);
-      const customDay = activeCustomSchedule.find((cs) => cs.date === ds);
+      const customDay = activeCustomSchedule.find((cs: { date: string; isOpen: boolean }) => cs.date === ds);
       // Check Active Until expiry first
       const endDate = state.settings.businessHoursEndDate;
       let closed = !!(endDate && ds > endDate);
