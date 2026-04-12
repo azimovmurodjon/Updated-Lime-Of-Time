@@ -13,7 +13,7 @@ const EXPORT_ITEMS = [
 ];
 
 export default function DataExportScreen() {
-  const { state } = useStore();
+  const { state, filterAppointmentsByLocation, clientsForActiveLocation } = useStore();
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -25,17 +25,22 @@ export default function DataExportScreen() {
       const { generateClientsPdf, generateAppointmentsPdf, generateServicesPdf, generateRevenuePdf, exportPdf } = await import("@/lib/pdf-export");
       const accent = colors.primary;
       const bizName = state.settings.businessName;
+      const activeLocation = state.activeLocationId ? state.locations.find((l) => l.id === state.activeLocationId) : null;
+      const locName = activeLocation?.name;
+      const locAddress = activeLocation?.address;
+      const filteredAppts = filterAppointmentsByLocation(state.appointments);
+      const filteredClients = clientsForActiveLocation;
       let html = "";
       if (label === "Clients") {
-        html = generateClientsPdf(bizName, state.clients, accent);
+        html = generateClientsPdf(bizName, filteredClients, accent, locName, locAddress);
       } else if (label === "Appointments") {
-        html = generateAppointmentsPdf(bizName, state.appointments, state.services, state.clients, accent);
+        html = generateAppointmentsPdf(bizName, filteredAppts, state.services, filteredClients, accent, locName, locAddress);
       } else if (label === "Services") {
-        html = generateServicesPdf(bizName, state.services, state.appointments, accent);
+        html = generateServicesPdf(bizName, state.services, filteredAppts, accent, locName, locAddress);
       } else {
-        html = generateRevenuePdf(bizName, state.appointments, state.services, accent);
+        html = generateRevenuePdf(bizName, filteredAppts, state.services, accent, locName, locAddress);
       }
-      await exportPdf(html, `${bizName}_${label}_Report.pdf`);
+      await exportPdf(html, `${bizName}${locName ? `_${locName}` : ""}_${label}_Report.pdf`);
     } catch (err) {
       Alert.alert("Export Error", "Failed to generate PDF report");
     }

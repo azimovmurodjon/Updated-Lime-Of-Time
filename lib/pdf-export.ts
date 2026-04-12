@@ -44,11 +44,15 @@ function pdfStyles(accentColor: string): string {
   `;
 }
 
-function pdfHeader(businessName: string, reportTitle: string, dateRange?: string): string {
+function pdfHeader(businessName: string, reportTitle: string, dateRange?: string, locationName?: string, locationAddress?: string): string {
   const now = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const locationLine = locationName
+    ? (locationAddress ? `${escHtml(locationName)} — ${escHtml(locationAddress)}` : escHtml(locationName))
+    : (locationAddress ? escHtml(locationAddress) : "");
   return `
     <div class="header">
       <h1>${escHtml(businessName)}</h1>
+      ${locationLine ? `<p style="font-size:12px;color:#555;margin-top:2px;">📍 ${locationLine}</p>` : ""}
       <p style="font-size:16px;font-weight:600;color:#333;margin-top:6px;">${reportTitle}</p>
       <p>Generated on ${now}${dateRange ? ` | ${dateRange}` : ""}</p>
     </div>
@@ -81,13 +85,13 @@ function starRating(rating: number): string {
 
 // ── Client Report ────────────────────────────────────────────────────
 
-export function generateClientsPdf(businessName: string, clients: Client[], accentColor: string): string {
+export function generateClientsPdf(businessName: string, clients: Client[], accentColor: string, locationName?: string, locationAddress?: string): string {
   const totalClients = clients.length;
   const withEmail = clients.filter((c) => c.email).length;
   const withNotes = clients.filter((c) => c.notes).length;
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">${pdfStyles(accentColor)}</head><body>
-    ${pdfHeader(businessName, "Client Directory Report")}
+    ${pdfHeader(businessName, "Client Directory Report", undefined, locationName, locationAddress)}
     <div class="summary-grid">
       <div class="summary-card"><div class="label">Total Clients</div><div class="value">${totalClients}</div></div>
       <div class="summary-card"><div class="label">With Email</div><div class="value">${withEmail}</div></div>
@@ -120,7 +124,9 @@ export function generateAppointmentsPdf(
   appointments: Appointment[],
   services: Service[],
   clients: Client[],
-  accentColor: string
+  accentColor: string,
+  locationName?: string,
+  locationAddress?: string
 ): string {
   const total = appointments.length;
   const confirmed = appointments.filter((a) => a.status === "confirmed").length;
@@ -137,7 +143,7 @@ export function generateAppointmentsPdf(
   const sorted = [...appointments].sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">${pdfStyles(accentColor)}</head><body>
-    ${pdfHeader(businessName, "Appointments Report")}
+    ${pdfHeader(businessName, "Appointments Report", undefined, locationName, locationAddress)}
     <div class="summary-grid">
       <div class="summary-card"><div class="label">Total</div><div class="value">${total}</div></div>
       <div class="summary-card"><div class="label">Completed</div><div class="value">${completed}</div></div>
@@ -177,7 +183,7 @@ export function generateAppointmentsPdf(
 
 // ── Services Report ──────────────────────────────────────────────────
 
-export function generateServicesPdf(businessName: string, services: Service[], appointments: Appointment[], accentColor: string): string {
+export function generateServicesPdf(businessName: string, services: Service[], appointments: Appointment[], accentColor: string, locationName?: string, locationAddress?: string): string {
   const totalServices = services.length;
   const avgPrice = services.length > 0 ? services.reduce((s, svc) => s + svc.price, 0) / services.length : 0;
   const avgDuration = services.length > 0 ? services.reduce((s, svc) => s + svc.duration, 0) / services.length : 0;
@@ -220,7 +226,7 @@ export function generateServicesPdf(businessName: string, services: Service[], a
   });
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">${pdfStyles(accentColor)}</head><body>
-    ${pdfHeader(businessName, "Services Report")}
+    ${pdfHeader(businessName, "Services Report", undefined, locationName, locationAddress)}
     <div class="summary-grid">
       <div class="summary-card"><div class="label">Total Services</div><div class="value">${totalServices}</div></div>
       <div class="summary-card"><div class="label">Avg Price</div><div class="value">${fmtCurrency(avgPrice)}</div></div>
@@ -237,7 +243,9 @@ export function generateRevenuePdf(
   businessName: string,
   appointments: Appointment[],
   services: Service[],
-  accentColor: string
+  accentColor: string,
+  locationName?: string,
+  locationAddress?: string
 ): string {
   const completed = appointments.filter((a) => a.status === "completed");
   const totalRevenue = completed.reduce((sum, a) => {
@@ -271,7 +279,7 @@ export function generateRevenuePdf(
   const avgPerAppt = completed.length > 0 ? totalRevenue / completed.length : 0;
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">${pdfStyles(accentColor)}</head><body>
-    ${pdfHeader(businessName, "Revenue Report")}
+    ${pdfHeader(businessName, "Revenue Report", undefined, locationName, locationAddress)}
     <div class="summary-grid">
       <div class="summary-card"><div class="label">Total Revenue</div><div class="value">${fmtCurrency(totalRevenue)}</div></div>
       <div class="summary-card"><div class="label">Completed Appts</div><div class="value">${completed.length}</div></div>

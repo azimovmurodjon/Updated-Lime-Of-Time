@@ -696,3 +696,4 @@
 - [x] Update SMS acceptance message to use appointment's specific location name and address
 - [x] Add location name and address to cancellation SMS message
 - [x] Add location name and address to rejection SMS message
+- [x] Add active location name and address to PDF export header
