@@ -117,29 +117,18 @@ export default function LocationsScreen() {
     }
   };
 
-  /** Toggle a location's active state. Only one location can be active at a time. */
+  /** Toggle a location's active/inactive state. Multiple locations can be active simultaneously. */
   const handleToggleActive = (item: Location, value: boolean) => {
-    if (value) {
-      // Activating this location: deactivate all others first
-      state.locations.forEach((l) => {
-        if (l.id !== item.id && l.active) {
-          const deactivate = { type: "UPDATE_LOCATION" as const, payload: { ...l, active: false } };
-          dispatch(deactivate);
-          syncToDb(deactivate);
-        }
-      });
-      const activate = { type: "UPDATE_LOCATION" as const, payload: { ...item, active: true } };
-      dispatch(activate);
-      syncToDb(activate);
-      setActiveLocation(item.id);
-    } else {
+    if (!value) {
       // Prevent deactivating the last active location
       const otherActive = state.locations.find((l) => l.id !== item.id && l.active);
       if (!otherActive) return;
-      const action = { type: "UPDATE_LOCATION" as const, payload: { ...item, active: false } };
-      dispatch(action);
-      syncToDb(action);
     }
+    const action = { type: "UPDATE_LOCATION" as const, payload: { ...item, active: value } };
+    dispatch(action);
+    syncToDb(action);
+    // If activating, also set as the current UI filter location
+    if (value) setActiveLocation(item.id);
   };
 
   /** Build the unique booking URL for a specific location */

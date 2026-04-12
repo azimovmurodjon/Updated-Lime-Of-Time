@@ -23,7 +23,20 @@ import {
   DEFAULT_WORKING_HOURS,
   DEFAULT_CANCELLATION_POLICY,
 } from "@/lib/types";
-import { generateId } from "@/lib/store";
+import {
+  generateId,
+  dbServiceToLocal,
+  dbClientToLocal,
+  dbAppointmentToLocal,
+  dbReviewToLocal,
+  dbDiscountToLocal,
+  dbGiftCardToLocal,
+  dbLocationToLocal,
+  dbProductToLocal,
+  dbStaffToLocal,
+  dbCustomScheduleToLocal,
+  dbOwnerToSettings,
+} from "@/lib/store";
 import { trpc } from "@/lib/trpc";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAppLockContext } from "@/lib/app-lock-provider";
@@ -78,7 +91,7 @@ export default function OnboardingScreen() {
         // Load full data from DB
         const fullData = await trpcUtils.business.getFullData.fetch({ id: existing.id });
         if (fullData && fullData.owner) {
-          const settingsFromDb = ownerToSettings(fullData.owner);
+          const settingsFromDb = dbOwnerToSettings(fullData.owner);
           dispatch({
             type: "LOAD_DATA",
             payload: {
@@ -86,7 +99,13 @@ export default function OnboardingScreen() {
               clients: (fullData.clients || []).map(dbClientToLocal),
               appointments: (fullData.appointments || []).map(dbAppointmentToLocal),
               reviews: (fullData.reviews || []).map(dbReviewToLocal),
-              settings: settingsFromDb,
+              discounts: (fullData.discounts || []).map(dbDiscountToLocal),
+              giftCards: (fullData.giftCards || []).map(dbGiftCardToLocal),
+              locations: (fullData.locations || []).map(dbLocationToLocal),
+              products: (fullData.products || []).map(dbProductToLocal),
+              staff: (fullData.staff || []).map(dbStaffToLocal),
+              customSchedule: (fullData.customSchedule || []).map(dbCustomScheduleToLocal),
+              settings: settingsFromDb as any,
               businessOwnerId: existing.id,
             },
           });
@@ -615,80 +634,9 @@ export default function OnboardingScreen() {
   );
 }
 
-// ─── DB conversion helpers (duplicated for onboarding isolation) ─────
 
-function ownerToSettings(owner: any) {
-  return {
-    businessName: owner.businessName,
-    defaultDuration: owner.defaultDuration ?? 60,
-    notificationsEnabled: owner.notificationsEnabled ?? true,
-    themeMode: owner.themeMode ?? "system",
-    temporaryClosed: owner.temporaryClosed ?? false,
-    onboardingComplete: owner.onboardingComplete ?? false,
-    businessLogoUri: owner.businessLogoUri ?? "",
-    scheduleMode: owner.scheduleMode ?? "weekly",
-    workingHours: owner.workingHours ?? DEFAULT_WORKING_HOURS,
-    cancellationPolicy: owner.cancellationPolicy ?? DEFAULT_CANCELLATION_POLICY,
-    bufferTime: owner.bufferTime ?? 0,
-    customSlug: owner.customSlug ?? "",
-    businessHoursEndDate: owner.businessHoursEndDate ?? null,
-    profile: {
-      ownerName: owner.ownerName ?? "",
-      phone: owner.phone ?? "",
-      email: owner.email ?? "",
-      address: owner.address ?? "",
-      description: owner.description ?? "",
-      website: owner.website ?? "",
-    },
-  };
-}
 
-function dbServiceToLocal(s: any) {
-  return {
-    id: s.localId,
-    name: s.name,
-    duration: s.duration,
-    price: typeof s.price === "string" ? parseFloat(s.price) : s.price,
-    color: s.color,
-    createdAt: s.createdAt ? new Date(s.createdAt).toISOString() : new Date().toISOString(),
-  };
-}
 
-function dbClientToLocal(c: any) {
-  return {
-    id: c.localId,
-    name: c.name,
-    phone: c.phone ?? "",
-    email: c.email ?? "",
-    notes: c.notes ?? "",
-    createdAt: c.createdAt ? new Date(c.createdAt).toISOString() : new Date().toISOString(),
-  };
-}
-
-function dbAppointmentToLocal(a: any) {
-  return {
-    id: a.localId,
-    serviceId: a.serviceLocalId,
-    clientId: a.clientLocalId,
-    date: a.date,
-    time: a.time,
-    duration: a.duration,
-    status: a.status,
-    notes: a.notes ?? "",
-    createdAt: a.createdAt ? new Date(a.createdAt).toISOString() : new Date().toISOString(),
-  };
-}
-
-function dbReviewToLocal(r: any) {
-  return {
-    id: r.localId,
-    clientId: r.clientLocalId,
-    appointmentId: r.appointmentLocalId ?? undefined,
-    rating: r.rating,
-    comment: r.comment ?? "",
-    createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
-  };
-}
 
 const styles = StyleSheet.create({
   logoContainer: {

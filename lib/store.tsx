@@ -322,7 +322,7 @@ const STORAGE_KEYS = {
 };
 
 /** Convert DB rows to local frontend models */
-function dbServiceToLocal(s: any): Service {
+export function dbServiceToLocal(s: any): Service {
   return {
     id: s.localId,
     name: s.name,
@@ -335,7 +335,7 @@ function dbServiceToLocal(s: any): Service {
   };
 }
 
-function dbClientToLocal(c: any): Client {
+export function dbClientToLocal(c: any): Client {
   return {
     id: c.localId,
     name: c.name,
@@ -346,7 +346,7 @@ function dbClientToLocal(c: any): Client {
   };
 }
 
-function dbAppointmentToLocal(a: any): Appointment {
+export function dbAppointmentToLocal(a: any): Appointment {
   const notes = a.notes ?? "";
   // Prefer structured DB columns over notes parsing
   let totalPrice: number | undefined = a.totalPrice != null ? parseFloat(String(a.totalPrice)) : undefined;
@@ -452,7 +452,7 @@ function dbAppointmentToLocal(a: any): Appointment {
   } as Appointment;
 }
 
-function dbReviewToLocal(r: any): Review {
+export function dbReviewToLocal(r: any): Review {
   return {
     id: r.localId,
     clientId: r.clientLocalId,
@@ -463,7 +463,7 @@ function dbReviewToLocal(r: any): Review {
   };
 }
 
-function dbDiscountToLocal(d: any): Discount {
+export function dbDiscountToLocal(d: any): Discount {
   return {
     id: d.localId,
     name: d.name,
@@ -478,7 +478,7 @@ function dbDiscountToLocal(d: any): Discount {
   };
 }
 
-function dbGiftCardToLocal(g: any): GiftCard {
+export function dbGiftCardToLocal(g: any): GiftCard {
   // Parse extended data from message field (JSON block at end)
   let serviceIds: string[] | undefined;
   let productIds: string[] | undefined;
@@ -521,7 +521,7 @@ function dbGiftCardToLocal(g: any): GiftCard {
   };
 }
 
-function dbProductToLocal(p: any): Product {
+export function dbProductToLocal(p: any): Product {
   return {
     id: p.localId,
     name: p.name,
@@ -533,7 +533,7 @@ function dbProductToLocal(p: any): Product {
   };
 }
 
-function dbStaffToLocal(s: any): StaffMember {
+export function dbStaffToLocal(s: any): StaffMember {
   return {
     id: s.localId,
     name: s.name,
@@ -549,7 +549,7 @@ function dbStaffToLocal(s: any): StaffMember {
   };
 }
 
-function dbLocationToLocal(l: any): Location {
+export function dbLocationToLocal(l: any): Location {
   return {
     id: l.localId,
     name: l.name,
@@ -568,7 +568,7 @@ function dbLocationToLocal(l: any): Location {
   };
 }
 
-function dbCustomScheduleToLocal(cs: any): CustomScheduleDay {
+export function dbCustomScheduleToLocal(cs: any): CustomScheduleDay {
   return {
     date: cs.date,
     isOpen: cs.isOpen ?? true,
@@ -578,7 +578,7 @@ function dbCustomScheduleToLocal(cs: any): CustomScheduleDay {
   };
 }
 
-function dbOwnerToSettings(owner: any): Partial<BusinessSettings> {
+export function dbOwnerToSettings(owner: any): Partial<BusinessSettings> {
   return {
     businessName: owner.businessName,
     defaultDuration: owner.defaultDuration ?? 60,
@@ -722,32 +722,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               }
               if (chosenActiveId) {
                 dispatch({ type: "SET_ACTIVE_LOCATION", payload: chosenActiveId });
-                // Enforce single-active: deactivate all locations except the chosen one
-                if (activeLocations.length > 1) {
-                  activeLocations
-                    .filter((l) => l.id !== chosenActiveId)
-                    .forEach((l) => {
-                      const deactivate = { type: "UPDATE_LOCATION" as const, payload: { ...l, active: false } };
-                      dispatch(deactivate);
-                      // Silently sync deactivation to DB
-                      updateLocationMut.mutateAsync({
-                        localId: l.id,
-                        businessOwnerId: ownerId,
-                        name: l.name,
-                        address: l.address || undefined,
-                        city: l.city || undefined,
-                        state: l.state || undefined,
-                        zipCode: l.zipCode || undefined,
-                        phone: l.phone || undefined,
-                        email: l.email || undefined,
-                        isDefault: l.isDefault,
-                        active: false,
-                        temporarilyClosed: l.temporarilyClosed,
-                        reopenOn: l.reopenOn,
-                        workingHours: l.workingHours,
-                      }).catch(() => {});
-                    });
-                }
+                // Note: all locations remain active in DB; activeLocationId is just a UI filter
               }
               // Also persist to AsyncStorage as cache
               await persistToAsyncStorage(
