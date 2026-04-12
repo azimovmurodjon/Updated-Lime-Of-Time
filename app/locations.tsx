@@ -124,11 +124,7 @@ export default function LocationsScreen() {
             <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground, flex: 1 }} numberOfLines={1}>
               {item.name}
             </Text>
-            {item.isDefault && (
-              <View style={[styles.badge, { backgroundColor: colors.primary + "20" }]}>
-                <Text style={{ fontSize: 10, fontWeight: "700", color: colors.primary }}>DEFAULT</Text>
-              </View>
-            )}
+
           </View>
           <Switch
             value={item.active}

@@ -697,3 +697,9 @@
 - [x] Add location name and address to cancellation SMS message
 - [x] Add location name and address to rejection SMS message
 - [x] Add active location name and address to PDF export header
+- [x] Fix booking link to use lime-of-time.com domain with correct business slug
+- [x] Fix Share button to share correct per-location URL
+- [x] New locations default to inactive (toggle off) with no placeholder name
+- [x] Split address into Address, City, State, Zip fields in location form
+- [x] Enforce single active location at a time (radio-style toggle)
+- [x] Update public booking page to use correct domain in confirmation

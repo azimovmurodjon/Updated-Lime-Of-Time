@@ -207,15 +207,19 @@ export function registerPublicRoutes(app: Express) {
         return;
       }
       const locs = await db.getLocationsByOwner(owner.id);
-      res.json(locs.filter((l: any) => l.active !== false).map((l: any) => ({
-        localId: l.localId,
-        name: l.name,
-        address: l.address || "",
-        phone: l.phone || "",
-        email: l.email || "",
-        active: l.active,
-        workingHours: l.workingHours ? (typeof l.workingHours === 'object' ? l.workingHours : JSON.parse(l.workingHours)) : null,
-      })));
+      res.json(locs.filter((l: any) => l.active !== false).map((l: any) => {
+        const parts = [l.address?.trim(), l.city?.trim(), l.state?.trim() && l.zipCode?.trim() ? `${l.state.trim()} ${l.zipCode.trim()}` : (l.state?.trim() || l.zipCode?.trim())].filter(Boolean);
+        const fullAddress = parts.join(", ");
+        return {
+          localId: l.localId,
+          name: l.name,
+          address: fullAddress || l.address || "",
+          phone: l.phone || "",
+          email: l.email || "",
+          active: l.active,
+          workingHours: l.workingHours ? (typeof l.workingHours === 'object' ? l.workingHours : JSON.parse(l.workingHours)) : null,
+        };
+      }));
     } catch (err) {
       console.error("[Public API] Error fetching locations:", err);
       res.status(500).json({ error: "Internal server error" });
