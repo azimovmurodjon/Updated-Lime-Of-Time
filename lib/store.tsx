@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useReducer, useCallback, useMemo, useRef } from "react";
+import { AppState as RNAppState } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   Service,
@@ -297,6 +298,8 @@ interface StoreContextType {
   syncToDb: (action: Action, ownerIdOverride?: number | null) => Promise<void>;
   /** Set the active location and persist to AsyncStorage */
   setActiveLocation: (locationId: string | null) => void;
+  /** Force a full re-fetch from the DB and update the store */
+  refreshFromDb: () => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextType | null>(null);
@@ -911,6 +914,57 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // Only run on initial load (state.loaded flip)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.loaded]);
+
+  // ─── refreshFromDb: pull latest data from DB and update store ───
+  const refreshFromDb = useCallback(async () => {
+    const ownerId = businessOwnerIdRef.current;
+    if (!ownerId) return;
+    try {
+      await trpcUtils.business.getFullData.invalidate({ id: ownerId });
+      const fullData = await trpcUtils.business.getFullData.fetch({ id: ownerId });
+      if (!fullData || !fullData.owner) return;
+      const dbLocations = (fullData.locations || []).map(dbLocationToLocal);
+      dispatch({
+        type: "LOAD_DATA",
+        payload: {
+          services: (fullData.services || []).map(dbServiceToLocal),
+          clients: (fullData.clients || []).map(dbClientToLocal),
+          appointments: (fullData.appointments || []).map(dbAppointmentToLocal),
+          reviews: (fullData.reviews || []).map(dbReviewToLocal),
+          discounts: (fullData.discounts || []).map(dbDiscountToLocal),
+          giftCards: (fullData.giftCards || []).map(dbGiftCardToLocal),
+          customSchedule: (fullData.customSchedule || []).map(dbCustomScheduleToLocal),
+          products: (fullData.products || []).map(dbProductToLocal),
+          staff: (fullData.staff || []).map(dbStaffToLocal),
+          locations: dbLocations,
+          settings: { ...initialSettings, ...dbOwnerToSettings(fullData.owner) },
+        },
+      });
+      // Restore active location if it still exists, else pick default
+      const storedActiveLoc = await AsyncStorage.getItem(STORAGE_KEYS.activeLocationId);
+      const activeLocations = dbLocations.filter((l) => l.active);
+      if (storedActiveLoc && activeLocations.some((l) => l.id === storedActiveLoc)) {
+        dispatch({ type: "SET_ACTIVE_LOCATION", payload: storedActiveLoc });
+      } else if (activeLocations.length >= 1) {
+        const defaultLoc = activeLocations.find((l) => l.isDefault) ?? activeLocations[0];
+        dispatch({ type: "SET_ACTIVE_LOCATION", payload: defaultLoc.id });
+        AsyncStorage.setItem(STORAGE_KEYS.activeLocationId, defaultLoc.id).catch(() => {});
+      }
+    } catch (err) {
+      console.warn("[Store] refreshFromDb failed:", err);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trpcUtils]);
+
+  // ─── Background-to-foreground sync ───────────────────────────────
+  useEffect(() => {
+    const sub = RNAppState.addEventListener("change", (nextState) => {
+      if (nextState === "active" && businessOwnerIdRef.current) {
+        refreshFromDb();
+      }
+    });
+    return () => sub.remove();
+  }, [refreshFromDb]);
 
   // ─── Sync action to database ────────────────────────────────────
   const syncToDb = useCallback(
@@ -1545,6 +1599,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         getActiveCustomSchedule,
         syncToDb,
         setActiveLocation,
+        refreshFromDb,
       }}
     >
       {children}
