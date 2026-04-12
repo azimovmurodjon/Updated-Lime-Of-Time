@@ -553,12 +553,18 @@ export function registerPublicRoutes(app: Express) {
 
       // Use location-scoped working hours for validation
       let bookWorkingHours = owner.workingHours;
+      let bookLocationName: string | undefined;
+      let bookLocationAddress: string | undefined;
       if (locationId) {
         const locs = await db.getLocationsByOwner(owner.id);
         const loc = locs.find((l: any) => l.localId === locationId);
-        if (loc && loc.workingHours) {
-          const locWh = typeof loc.workingHours === 'object' ? loc.workingHours : JSON.parse(loc.workingHours as string);
-          if (locWh && Object.keys(locWh).length > 0) bookWorkingHours = locWh;
+        if (loc) {
+          bookLocationName = loc.name || undefined;
+          bookLocationAddress = loc.address || undefined;
+          if (loc.workingHours) {
+            const locWh = typeof loc.workingHours === 'object' ? loc.workingHours : JSON.parse(loc.workingHours as string);
+            if (locWh && Object.keys(locWh).length > 0) bookWorkingHours = locWh;
+          }
         }
       }
 
@@ -665,6 +671,8 @@ export function registerPublicRoutes(app: Express) {
             giftApplied: !!giftApplied,
             giftUsedAmount: giftUsedAmount ? parseFloat(String(giftUsedAmount)) : undefined,
             notes: enrichedNotes || undefined,
+            locationName: bookLocationName,
+            locationAddress: bookLocationAddress,
           });
         } catch (emailErr) {
           console.warn("[Public API] Failed to send email notification:", emailErr);
@@ -2392,11 +2400,22 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
           '<strong>Cancellation Policy:</strong> Cancellations made less than <strong>' + CANCEL_POLICY.hoursBeforeAppointment + ' hour' + (CANCEL_POLICY.hoursBeforeAppointment !== 1 ? 's' : '') + '</strong> before the appointment may incur a <strong>' + CANCEL_POLICY.feePercentage + '% cancellation fee</strong> ($' + (chargedPrice * CANCEL_POLICY.feePercentage / 100).toFixed(2) + ').</div>';
       }
 
+      // Location row
+      let locationHtml = '';
+      if (selectedLocation) {
+        const loc = locations.find(l => l.localId === selectedLocation);
+        if (loc) {
+          const locLabel = loc.address ? esc(loc.name) + ' — ' + esc(loc.address) : esc(loc.name);
+          locationHtml = '<div class="confirm-row"><span class="confirm-label">Location</span><span class="confirm-value">📍 ' + locLabel + '</span></div>';
+        }
+      }
+
       details.innerHTML = itemsHtml +
         staffHtml +
         '<div class="confirm-row"><span class="confirm-label">Date</span><span class="confirm-value">' + dateStr + '</span></div>' +
         '<div class="confirm-row"><span class="confirm-label">Time</span><span class="confirm-value">' + timeStr + ' \u2014 ' + endStr + '</span></div>' +
         '<div class="confirm-row"><span class="confirm-label">Duration</span><span class="confirm-value">' + totalDur + ' min</span></div>' +
+        locationHtml +
         breakdownHtml +
         '<div class="confirm-row"><span class="confirm-label">Name</span><span class="confirm-value">' + esc(document.getElementById("clientName").value) + '</span></div>' +
         cancelHtml;
@@ -2516,6 +2535,13 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#666;">Total Duration</span><span style="font-weight:600;">' + totalDur + ' min</span></div>';
       if (selectedStaff) {
         html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#666;">Staff</span><span style="font-weight:600;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + (selectedStaff.color || '#6366f1') + ';margin-right:4px;"></span>' + esc(selectedStaff.name) + '</span></div>';
+      }
+      if (selectedLocation) {
+        const locR = locations.find(l => l.localId === selectedLocation);
+        if (locR) {
+          const locLabelR = locR.address ? esc(locR.name) + ' — ' + esc(locR.address) : esc(locR.name);
+          html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#666;">Location</span><span style="font-weight:600;">📍 ' + locLabelR + '</span></div>';
+        }
       }
       html += '</div>';
 

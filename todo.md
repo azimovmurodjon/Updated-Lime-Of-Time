@@ -688,3 +688,8 @@
 - [ ] Staff-calendar: disable past dates and days-off from being selectable (not just dimmed)
 - [ ] Staff screen: replace location number badges with tappable location name that opens location switcher
 - [ ] Staff screen: verify Remove/Delete staff button works correctly
+- [x] Add location name/address to booking confirmation email
+- [x] Add location name/address to web booking confirmation HTML
+- [x] Add location name/address to in-app booking.tsx confirmation step
+- [x] Add location name/address to appointment-detail.tsx
+- [x] Surface per-location shareable booking links in Settings > Location screen

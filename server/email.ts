@@ -104,6 +104,8 @@ export interface BookingNotificationData {
   giftApplied?: boolean;
   giftUsedAmount?: number;
   notes?: string;
+  locationName?: string;
+  locationAddress?: string;
 }
 
 /**
@@ -147,6 +149,14 @@ export async function sendBookingNotificationEmail(
   detailsHtml += detailRow("💈", "Service", `${data.serviceName} (${data.duration} min)`);
   detailsHtml += detailRow("📅", "Date", dateStr);
   detailsHtml += detailRow("⏰", "Time", `${timeStr} — ${endTimeStr}`);
+
+  // Location
+  if (data.locationName) {
+    const locValue = data.locationAddress
+      ? `${data.locationName} — ${data.locationAddress}`
+      : data.locationName;
+    detailsHtml += detailRow("📍", "Location", locValue);
+  }
 
   // Extras
   if (data.extras && data.extras.length > 0) {
