@@ -370,6 +370,29 @@ export default function PublicBookingScreen() {
         <View style={{ width: 24 }} />
       </View>
 
+      {/* Step Progress Indicator */}
+      {step !== "done" && (
+        <View style={{ flexDirection: "row", justifyContent: "center", gap: 6, marginBottom: 14 }}>
+          {(hasMultipleLocations ? ["location", "info", "service", "datetime", "confirm"] : ["info", "service", "datetime", "confirm"]).map((s, i) => {
+            const steps = hasMultipleLocations ? ["location", "info", "service", "datetime", "confirm"] : ["info", "service", "datetime", "confirm"];
+            const currentIdx = steps.indexOf(step);
+            const isActive = s === step;
+            const isPast = steps.indexOf(s) < currentIdx;
+            return (
+              <View
+                key={s}
+                style={{
+                  height: 4,
+                  width: isActive ? 28 : 16,
+                  borderRadius: 2,
+                  backgroundColor: isActive ? colors.primary : isPast ? colors.primary + "60" : colors.border,
+                }}
+              />
+            );
+          })}
+        </View>
+      )}
+
       {/* Business Info Card — show selected location info when available */}
       <View style={[styles.bizInfoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>
@@ -381,10 +404,10 @@ export default function PublicBookingScreen() {
             <Text style={{ fontSize: 13, color: colors.primary, marginLeft: 8, flex: 1, textDecorationLine: "underline" }}>{displayAddress}</Text>
           </Pressable>
         ) : null}
-        {profile.phone ? (
+        {(selectedLocation?.phone || profile.phone) ? (
           <View style={styles.bizInfoRow}>
             <IconSymbol name="phone.fill" size={14} color={colors.muted} />
-            <Text style={{ fontSize: 13, color: colors.muted, marginLeft: 8 }}>{formatPhoneNumber(stripPhoneFormat(profile.phone))}</Text>
+            <Text style={{ fontSize: 13, color: colors.muted, marginLeft: 8 }}>{formatPhoneNumber(stripPhoneFormat(selectedLocation?.phone || profile.phone || ""))}</Text>
           </View>
         ) : null}
         {profile.email ? (
@@ -435,7 +458,7 @@ export default function PublicBookingScreen() {
                 </View>
               </View>
 
-              {activeLocations.map((loc) => (
+              {activeLocations.filter((loc) => !loc.temporarilyClosed).map((loc) => (
                 <Pressable
                   key={loc.id}
                   onPress={() => {
@@ -471,7 +494,7 @@ export default function PublicBookingScreen() {
                 </Pressable>
               ))}
 
-              {activeLocations.length === 0 && (
+              {activeLocations.filter((loc) => !loc.temporarilyClosed).length === 0 && (
                 <View style={{ alignItems: "center", paddingVertical: 24 }}>
                   <Text style={{ fontSize: 14, color: colors.muted }}>No locations available at this time</Text>
                 </View>
@@ -573,7 +596,7 @@ export default function PublicBookingScreen() {
                 <View style={[styles.colorDot, { backgroundColor: item.color }]} />
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{getServiceDisplayName(item)}</Text>
-                  <Text style={{ fontSize: 13, color: colors.muted, marginTop: 2 }}>${item.price}</Text>
+                  <Text style={{ fontSize: 13, color: colors.muted, marginTop: 2 }}>${item.price} · {item.duration} min</Text>
                 </View>
                 <IconSymbol name="chevron.right" size={16} color={colors.muted} />
               </Pressable>
@@ -749,6 +772,10 @@ export default function PublicBookingScreen() {
                 </View>
               )}
 
+              <View style={[styles.summaryRow, { borderBottomColor: colors.border + "40" }]}>
+                <Text style={{ fontSize: 14, color: colors.muted }}>Name</Text>
+                <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{clientName}</Text>
+              </View>
               {clientPhone ? (
                 <View style={[styles.summaryRow, { borderBottomColor: colors.border + "40" }]}>
                   <Text style={{ fontSize: 14, color: colors.muted }}>Phone</Text>
