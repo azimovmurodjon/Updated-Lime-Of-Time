@@ -960,7 +960,7 @@ function businessDetailPage(data: any): string {
     <div class="page-header">
       <h2>${o.businessName}</h2>
       <div style="display:flex; gap:8px;">
-        <a href="/api/book/${slug}" target="_blank" class="btn btn-secondary btn-sm">View Booking Page</a>
+        <a href="https://lime-of-time.com/book/${slug}" target="_blank" class="btn btn-secondary btn-sm">View Booking Page</a>
         <button onclick="document.getElementById('deleteDialog').classList.add('show')" class="btn btn-danger btn-sm">Delete Business</button>
       </div>
     </div>

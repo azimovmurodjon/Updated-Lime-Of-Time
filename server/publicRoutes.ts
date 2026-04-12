@@ -701,7 +701,7 @@ export function registerPublicRoutes(app: Express) {
       res.json({
         success: true,
         appointmentId: appointmentLocalId,
-        manageUrl: `/api/manage/${req.params.slug}/${appointmentLocalId}`,
+        manageUrl: `https://lime-of-time.com/manage/${req.params.slug}/${appointmentLocalId}`,
         message: "Appointment request submitted! The business will confirm your booking.",
       });
     } catch (err) {
@@ -1546,7 +1546,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
   <meta name="twitter:title" content="Book with ${escHtml(owner.businessName)}">
   <meta name="twitter:description" content="Book an appointment with ${escHtml(owner.businessName)}. Easy online scheduling.">
   <meta name="robots" content="index, follow">
-  <link rel="canonical" href="https://manussched-dw4mhfnu.manus.space/api/book/${escHtml(owner.businessName.toLowerCase().replace(/\s+/g, '-'))}">
+  <link rel="canonical" href="https://lime-of-time.com/book/${escHtml(owner.businessName.toLowerCase().replace(/\s+/g, '-'))}">  
   ${baseStyles()}
 </head>
 <body>
