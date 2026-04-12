@@ -1071,7 +1071,9 @@ export function registerPublicRoutes(app: Express) {
         return;
       }
       const locationId = (req.query.location as string) || null;
-      res.send(bookingPage(req.params.slug, owner, locationId));
+      // Pre-fetch locations to get the full address for the initial HTML render
+      const locs = await db.getLocationsByOwner(owner.id);
+      res.send(bookingPage(req.params.slug, owner, locationId, locs));
     } catch (err) {
       console.error("[Public] Error serving booking page:", err);
       res.status(500).send(errorPage());
@@ -1086,7 +1088,9 @@ export function registerPublicRoutes(app: Express) {
         res.status(404).send(notFoundPage("Business not found"));
         return;
       }
-      res.send(bookingPage(req.params.slug, owner, req.params.locationId));
+      // Pre-fetch locations to get the full address for the initial HTML render
+      const locs = await db.getLocationsByOwner(owner.id);
+      res.send(bookingPage(req.params.slug, owner, req.params.locationId, locs));
     } catch (err) {
       console.error("[Public] Error serving booking page:", err);
       res.status(500).send(errorPage());
@@ -1505,7 +1509,22 @@ function errorPage(): string {
 </html>`;
 }
 
-function bookingPage(slug: string, owner: any, preselectedLocationId?: string | null): string {
+function bookingPage(slug: string, owner: any, preselectedLocationId?: string | null, prefetchedLocations?: any[]): string {
+  // Compute the initial full address for server-side rendering
+  // Use preselected location if provided, or the only active location if there's just one
+  const activeLocs = (prefetchedLocations || []).filter((l: any) => l.active !== false);
+  let initialAddress = owner.address || '';
+  if (preselectedLocationId) {
+    const loc = activeLocs.find((l: any) => l.localId === preselectedLocationId);
+    if (loc) {
+      const parts = [loc.address?.trim(), loc.city?.trim(), loc.state?.trim() && loc.zipCode?.trim() ? `${loc.state.trim()} ${loc.zipCode.trim()}` : (loc.state?.trim() || loc.zipCode?.trim())].filter(Boolean);
+      initialAddress = parts.join(', ') || loc.address || owner.address || '';
+    }
+  } else if (activeLocs.length === 1) {
+    const loc = activeLocs[0];
+    const parts = [loc.address?.trim(), loc.city?.trim(), loc.state?.trim() && loc.zipCode?.trim() ? `${loc.state.trim()} ${loc.zipCode.trim()}` : (loc.state?.trim() || loc.zipCode?.trim())].filter(Boolean);
+    initialAddress = parts.join(', ') || loc.address || owner.address || '';
+  }
   const wh: Record<string, any> = owner.workingHours || {};
   const whJson: Record<string, boolean> = {};
   ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].forEach(d => {
@@ -1549,7 +1568,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     <!-- Business Info Card -->
     <div class="card biz-info" id="biz-card">
       <div style="font-size:16px;font-weight:700;color:var(--text);">${escHtml(owner.businessName)}</div>
-      <div id="biz-address-row">${owner.address ? `<div class="biz-info-row"><span>📍</span><a href="https://maps.google.com/?q=${encodeURIComponent(owner.address)}" target="_blank">${escHtml(owner.address)}</a></div>` : ""}</div>
+      <div id="biz-address-row">${initialAddress ? `<div class="biz-info-row"><span>📍</span><a href="https://maps.google.com/?q=${encodeURIComponent(initialAddress)}" target="_blank">${escHtml(initialAddress)}</a></div>` : ""}</div>
       ${owner.phone ? `<div class="biz-info-row"><span>📞</span><span>${escHtml(formatPhoneNumber(owner.phone))}</span></div>` : ""}
       ${owner.email ? `<div class="biz-info-row"><span>✉️</span><span>${escHtml(owner.email)}</span></div>` : ""}
       ${owner.description ? `<div style="font-size:13px;color:var(--text-muted);margin-top:6px;">${escHtml(owner.description)}</div>` : ""}
@@ -1837,10 +1856,14 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       var addrRow = document.getElementById('biz-address-row');
       if (!addrRow) return;
       var addr = '';
+      // Use selectedLocation, or auto-pick the only location if there's just one
+      var effectiveLoc = null;
       if (selectedLocation) {
-        var loc = locations.find(function(l) { return l.localId === selectedLocation; });
-        if (loc && loc.address) addr = loc.address;
+        effectiveLoc = locations.find(function(l) { return l.localId === selectedLocation; });
+      } else if (locations.length === 1) {
+        effectiveLoc = locations[0];
       }
+      if (effectiveLoc && effectiveLoc.address) addr = effectiveLoc.address;
       if (!addr) addr = ${JSON.stringify(owner.address || '')};
       if (addr) {
         addrRow.innerHTML = '<div class="biz-info-row"><span>📍</span><a href="https://maps.google.com/?q=' + encodeURIComponent(addr) + '" target="_blank" style="color:var(--accent);text-decoration:underline;">' + escText(addr) + '</a></div>';
@@ -2852,9 +2875,10 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     // Init — load locations first; if a location is preselected, scope initial data to it
     loadLocations().then(() => {
       renderLocationSelector();
-      updateBizAddressCard();
-      // Check if the preselected (or only) location is temporarily closed
+      // checkTopLevelLocClosed must run before updateBizAddressCard so it can auto-set
+      // selectedLocation when there is only one location (no ?location= param in URL)
       checkTopLevelLocClosed();
+      updateBizAddressCard();
       // Use preselected location for initial data load if available
       loadServices(selectedLocation);
       loadWorkingDays(selectedLocation);

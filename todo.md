@@ -737,3 +737,5 @@
 - [ ] Staff calendar: show red days for the Temporarily Closed period
 - [ ] Client booking page: show Temporarily Closed message with reopen date
 - [ ] All pages update in real-time when toggle changes (no reload required)
+- [ ] Test full address display on client booking page
+- [ ] Fix any address display bugs on client booking page
