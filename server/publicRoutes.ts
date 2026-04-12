@@ -1536,7 +1536,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     <!-- Business Info Card -->
     <div class="card biz-info" id="biz-card">
       <div style="font-size:16px;font-weight:700;color:var(--text);">${escHtml(owner.businessName)}</div>
-      ${owner.address ? `<div class="biz-info-row"><span>📍</span><a href="https://maps.google.com/?q=${encodeURIComponent(owner.address)}" target="_blank">${escHtml(owner.address)}</a></div>` : ""}
+      <div id="biz-address-row">${owner.address ? `<div class="biz-info-row"><span>📍</span><a href="https://maps.google.com/?q=${encodeURIComponent(owner.address)}" target="_blank">${escHtml(owner.address)}</a></div>` : ""}</div>
       ${owner.phone ? `<div class="biz-info-row"><span>📞</span><span>${escHtml(formatPhoneNumber(owner.phone))}</span></div>` : ""}
       ${owner.email ? `<div class="biz-info-row"><span>✉️</span><span>${escHtml(owner.email)}</span></div>` : ""}
       ${owner.description ? `<div style="font-size:13px;color:var(--text-muted);margin-top:6px;">${escHtml(owner.description)}</div>` : ""}
@@ -1810,10 +1810,27 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       container.innerHTML = html;
     }
 
+    function updateBizAddressCard() {
+      var addrRow = document.getElementById('biz-address-row');
+      if (!addrRow) return;
+      var addr = '';
+      if (selectedLocation) {
+        var loc = locations.find(function(l) { return l.localId === selectedLocation; });
+        if (loc && loc.address) addr = loc.address;
+      }
+      if (!addr) addr = ${JSON.stringify(owner.address || '')};
+      if (addr) {
+        addrRow.innerHTML = '<div class="biz-info-row"><span>📍</span><a href="https://maps.google.com/?q=' + encodeURIComponent(addr) + '" target="_blank" style="color:var(--accent);text-decoration:underline;">' + escText(addr) + '</a></div>';
+      } else {
+        addrRow.innerHTML = '';
+      }
+    }
+
     function selectLocation(locId) {
       selectedLocation = locId;
       slotCache = {}; // Clear cache when location changes
       renderLocationSelector();
+      updateBizAddressCard();
       // Reload services and working days scoped to this location
       loadServices(locId);
       loadWorkingDays(locId).then(() => {
@@ -2778,6 +2795,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     // Init — load locations first; if a location is preselected, scope initial data to it
     loadLocations().then(() => {
       renderLocationSelector();
+      updateBizAddressCard();
       // Use preselected location for initial data load if available
       loadServices(selectedLocation);
       loadWorkingDays(selectedLocation);

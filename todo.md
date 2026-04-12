@@ -709,7 +709,9 @@
 - [x] Fix all SMS booking links to use https://lime-of-time.com domain
 - [ ] Fix Business Hours/Calendar mismatch: calendar must use same per-location workingHours as Schedule & Hours
 - [ ] Fix Clients tab: filter by active location using clientsForActiveLocation
-- [ ] Fix web booking page address to show full address (Street, City, State ZIP)
 - [ ] Add location switcher to Clients tab so clients can switch between locations
 - [x] Location picker sheet on Home screen Share button — choose location without switching active
 - [x] Reopen date on Temporarily Closed — optional YYYY-MM-DD date field with auto-reopen on app load
+- [x] Fix web booking page address to show full address (Street, City, State ZIP)
+- [x] Fix Business Hours/Calendar mismatch: calendar must use per-location workingHours
+- [x] Fix Clients tab: filter by active location using clientsForActiveLocation
