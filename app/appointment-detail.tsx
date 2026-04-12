@@ -16,6 +16,8 @@ import {
   generateRejectMessage,
   generateCancellationMessage,
   generateReminderMessage,
+  formatFullAddress,
+  PUBLIC_BOOKING_URL,
 } from "@/lib/types";
 
 export default function AppointmentDetailScreen() {
@@ -79,19 +81,23 @@ export default function AppointmentDetailScreen() {
     dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status: "confirmed" } });
     syncToDb({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status: "confirmed" } });
     if (client?.phone) {
-      const effectiveAddress = assignedLocation?.address || profile.address;
       const msg = generateAcceptMessage(
         biz.businessName,
-        effectiveAddress,
+        assignedLocation?.address || profile.address,
         client.name,
         service ? getServiceDisplayName(service) : "Service",
         appointment.duration,
         appointment.date,
         appointment.time,
-        profile.phone,
+        assignedLocation?.phone || profile.phone,
         client.phone,
         appointment.id,
-        assignedLocation?.name
+        assignedLocation?.name,
+        assignedLocation?.id,
+        biz.customSlug,
+        assignedLocation?.city,
+        assignedLocation?.state,
+        assignedLocation?.zipCode
       );
       openSms(client.phone, msg);
     }
@@ -106,11 +112,12 @@ export default function AppointmentDetailScreen() {
       if (client?.phone) {
         let msg = "";
         if (status === "completed") {
-          const completedAddress = assignedLocation?.address || profile.address;
+          const completedFullAddr = formatFullAddress(assignedLocation?.address || "", assignedLocation?.city, assignedLocation?.state, assignedLocation?.zipCode) || profile.address;
           const completedLocLine = assignedLocation?.name
-            ? (completedAddress ? `${assignedLocation.name} — ${completedAddress}` : assignedLocation.name)
-            : completedAddress;
-          msg = `Dear ${client.name},\n\nThank you for visiting ${biz.businessName}! Your appointment for ${service ? getServiceDisplayName(service) : "service"} on ${formatDateDisplay(appointment.date)} has been completed.\n\nWe hope you had a great experience. We'd love to see you again!\n\n📍 ${completedLocLine}\n📞 ${profile.phone}\n\nBest regards,\n${biz.businessName}`;
+            ? (completedFullAddr ? `${assignedLocation.name} — ${completedFullAddr}` : assignedLocation.name)
+            : completedFullAddr;
+          const completedSlug = biz.customSlug || biz.businessName.replace(/\s+/g, "-").toLowerCase();
+          msg = `Dear ${client.name},\n\nThank you for visiting ${biz.businessName}! Your appointment for ${service ? getServiceDisplayName(service) : "service"} on ${formatDateDisplay(appointment.date)} has been completed.\n\nWe hope you had a great experience. We'd love to see you again!\n\n📍 ${completedLocLine}\n📞 ${assignedLocation?.phone || profile.phone}\n\n🔗 Book again: ${PUBLIC_BOOKING_URL}/book/${completedSlug}${assignedLocation?.id ? "?location=" + assignedLocation.id : ""}\n\nBest regards,\n${biz.businessName}`;
         } else {
           const feeStr = cancInfo.feeApplies && cancInfo.fee > 0 ? `$${cancInfo.fee} (${policy.feePercentage}%)` : "";
           msg = generateCancellationMessage(
@@ -120,9 +127,12 @@ export default function AppointmentDetailScreen() {
             appointment.date,
             appointment.time,
             feeStr,
-            profile.phone,
+            assignedLocation?.phone || profile.phone,
             assignedLocation?.name,
-            assignedLocation?.address
+            assignedLocation?.address,
+            assignedLocation?.city,
+            assignedLocation?.state,
+            assignedLocation?.zipCode
           );
         }
         openSms(client.phone, msg);
@@ -165,17 +175,19 @@ export default function AppointmentDetailScreen() {
 
   const handleSendReminder = () => {
     if (!client?.phone) return;
-    const effectiveAddress = assignedLocation?.address || profile.address;
     const msg = generateReminderMessage(
       biz.businessName,
-      effectiveAddress,
+      assignedLocation?.address || profile.address,
       client.name,
       service ? getServiceDisplayName(service) : "Service",
       appointment.duration,
       appointment.date,
       appointment.time,
-      profile.phone,
-      assignedLocation?.name
+      assignedLocation?.phone || profile.phone,
+      assignedLocation?.name,
+      assignedLocation?.city,
+      assignedLocation?.state,
+      assignedLocation?.zipCode
     );
     openSms(client.phone, msg);
   };

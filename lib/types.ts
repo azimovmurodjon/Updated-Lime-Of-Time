@@ -536,15 +536,28 @@ export function generateConfirmationMessage(
   date: string,
   time: string,
   businessPhone: string,
-  clientPhone?: string
+  clientPhone?: string,
+  locationName?: string,
+  locationId?: string,
+  customSlug?: string,
+  city?: string,
+  state?: string,
+  zipCode?: string
 ): string {
   const endTime = formatTimeDisplay(minutesToTime(timeToMinutes(time) + serviceDuration));
-  const slug = businessName.replace(/\s+/g, "-").toLowerCase();
+  const slug = customSlug || businessName.replace(/\s+/g, "-").toLowerCase();
   const reviewParams = new URLSearchParams();
   if (clientName) reviewParams.set("name", clientName);
   if (clientPhone) reviewParams.set("phone", stripPhoneFormat(clientPhone));
   const reviewUrl = `${PUBLIC_BOOKING_URL}/review/${slug}${reviewParams.toString() ? "?" + reviewParams.toString() : ""}`;
-  return `Dear ${clientName},\n\nYour appointment has been confirmed!\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${address}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early. If you need to reschedule or cancel, please contact us at least 2 hours before your appointment.\n\n⭐ After your visit, leave a review: ${reviewUrl}\n\nThank you for choosing ${businessName}!`;
+  const fullAddr = formatFullAddress(address, city, state, zipCode);
+  const locationLine = locationName
+    ? (fullAddr ? `${locationName} — ${fullAddr}` : locationName)
+    : fullAddr;
+  const bookingUrl = locationId
+    ? `${PUBLIC_BOOKING_URL}/book/${slug}?location=${locationId}`
+    : `${PUBLIC_BOOKING_URL}/book/${slug}`;
+  return `Dear ${clientName},\n\nYour appointment has been confirmed!\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${locationLine}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early. If you need to reschedule or cancel, please contact us at least 2 hours before your appointment.\n\n🔗 Book again: ${bookingUrl}\n⭐ After your visit, leave a review: ${reviewUrl}\n\nThank you for choosing ${businessName}!`;
 }
 
 /** Generate professional appointment request accepted message */
@@ -559,18 +572,24 @@ export function generateAcceptMessage(
   businessPhone: string,
   clientPhone?: string,
   appointmentId?: string,
-  locationName?: string
+  locationName?: string,
+  locationId?: string,
+  customSlug?: string,
+  city?: string,
+  state?: string,
+  zipCode?: string
 ): string {
   const endTime = formatTimeDisplay(minutesToTime(timeToMinutes(time) + serviceDuration));
-  const slug = businessName.replace(/\s+/g, "-").toLowerCase();
+  const slug = customSlug || businessName.replace(/\s+/g, "-").toLowerCase();
   const reviewParams = new URLSearchParams();
   if (clientName) reviewParams.set("name", clientName);
   if (clientPhone) reviewParams.set("phone", stripPhoneFormat(clientPhone));
   const reviewUrl = `${PUBLIC_BOOKING_URL}/review/${slug}${reviewParams.toString() ? "?" + reviewParams.toString() : ""}`;
   const manageUrl = appointmentId ? `${PUBLIC_BOOKING_URL}/manage/${slug}/${appointmentId}` : "";
+  const fullAddr = formatFullAddress(address, city, state, zipCode);
   const locationLine = locationName
-    ? (address ? `${locationName} — ${address}` : locationName)
-    : address;
+    ? (fullAddr ? `${locationName} — ${fullAddr}` : locationName)
+    : fullAddr;
   return `Dear ${clientName},\n\nGreat news! Your appointment request has been accepted.\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${locationLine}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early.${manageUrl ? `\n\n🔄 Need to reschedule or cancel? Use this link (available 24+ hours before your appointment):\n${manageUrl}` : ""}\n\n⭐ After your visit, leave a review: ${reviewUrl}\n\nWe look forward to seeing you!\n${businessName}`;
 }
 
@@ -583,11 +602,15 @@ export function generateRejectMessage(
   time: string,
   businessPhone: string,
   locationName?: string,
-  locationAddress?: string
+  locationAddress?: string,
+  locationCity?: string,
+  locationState?: string,
+  locationZip?: string
 ): string {
+  const fullAddr = formatFullAddress(locationAddress ?? "", locationCity, locationState, locationZip);
   const locationLine = locationName
-    ? (locationAddress ? `${locationName} — ${locationAddress}` : locationName)
-    : locationAddress ?? "";
+    ? (fullAddr ? `${locationName} — ${fullAddr}` : locationName)
+    : fullAddr;
   const locationRow = locationLine ? `\n📍 Location: ${locationLine}` : "";
   return `Dear ${clientName},\n\nWe regret to inform you that your appointment request could not be accommodated at this time.\n\n📋 Service: ${serviceName}\n📅 Requested Date: ${formatDateLong(date)}\n⏰ Requested Time: ${formatTimeDisplay(time)}${locationRow}\n\nWe apologize for any inconvenience. Please feel free to book another available time slot through our scheduling page or contact us directly.\n\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nThank you for your understanding.\n${businessName}`;
 }
@@ -602,14 +625,18 @@ export function generateCancellationMessage(
   cancellationFee: string,
   businessPhone: string,
   locationName?: string,
-  locationAddress?: string
+  locationAddress?: string,
+  locationCity?: string,
+  locationState?: string,
+  locationZip?: string
 ): string {
   const feeNote = cancellationFee
     ? `\n\n⚠️ Cancellation Fee: ${cancellationFee}\nAs per our cancellation policy, a fee applies for cancellations made within the required notice period.`
     : "";
+  const fullAddr = formatFullAddress(locationAddress ?? "", locationCity, locationState, locationZip);
   const locationLine = locationName
-    ? (locationAddress ? `${locationName} — ${locationAddress}` : locationName)
-    : locationAddress ?? "";
+    ? (fullAddr ? `${locationName} — ${fullAddr}` : locationName)
+    : fullAddr;
   const locationRow = locationLine ? `\n📍 Location: ${locationLine}` : "";
   return `Dear ${clientName},\n\nYour appointment has been cancelled.\n\n📋 Service: ${serviceName}\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)}${locationRow}${feeNote}\n\nIf you would like to reschedule, please visit our booking page or contact us directly.\n\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nThank you.\n${businessName}`;
 }
@@ -624,12 +651,16 @@ export function generateReminderMessage(
   date: string,
   time: string,
   businessPhone: string,
-  locationName?: string
+  locationName?: string,
+  city?: string,
+  state?: string,
+  zipCode?: string
 ): string {
   const endTime = formatTimeDisplay(minutesToTime(timeToMinutes(time) + serviceDuration));
+  const fullAddr = formatFullAddress(address, city, state, zipCode);
   const locationLine = locationName
-    ? (address ? `${locationName} — ${address}` : locationName)
-    : address;
+    ? (fullAddr ? `${locationName} — ${fullAddr}` : locationName)
+    : fullAddr;
   return `Dear ${clientName},\n\nThis is a friendly reminder about your upcoming appointment.\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${locationLine}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early. If you need to reschedule or cancel, please contact us as soon as possible.\n\nSee you soon!\n${businessName}`;
 }
 

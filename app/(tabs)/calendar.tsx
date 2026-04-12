@@ -360,16 +360,23 @@ export default function CalendarScreen() {
   const handleAccept = useCallback((appt: Appointment) => {
     const client = getClientById(appt.clientId);
     const svc = getServiceById(appt.serviceId);
+    const apptLoc = appt.locationId ? getLocationById(appt.locationId) : null;
     dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appt.id, status: "confirmed" } });
     syncToDb({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appt.id, status: "confirmed" } });
     const message = generateAcceptMessage(
-      state.settings.businessName, state.settings.profile.address,
-      client?.name ?? "Valued Client", svc ? getServiceDisplayName(svc) : "Service",
-      appt.duration, appt.date, appt.time, state.settings.profile.phone, client?.phone, appt.id
+      state.settings.businessName,
+      apptLoc?.address || state.settings.profile.address,
+      client?.name ?? "Valued Client",
+      svc ? getServiceDisplayName(svc) : "Service",
+      appt.duration, appt.date, appt.time,
+      apptLoc?.phone || state.settings.profile.phone,
+      client?.phone, appt.id, apptLoc?.name, apptLoc?.id,
+      state.settings.customSlug,
+      apptLoc?.city, apptLoc?.state, apptLoc?.zipCode
     );
     if (client?.phone) openSmsWithMessage(client.phone, message);
     else Alert.alert("Appointment Confirmed", message);
-  }, [getClientById, getServiceById, dispatch, state.settings, openSmsWithMessage, syncToDb]);
+  }, [getClientById, getServiceById, getLocationById, dispatch, state.settings, openSmsWithMessage, syncToDb]);
 
   const handleReject = useCallback((appt: Appointment) => {
     const client = getClientById(appt.clientId);
@@ -384,8 +391,9 @@ export default function CalendarScreen() {
           const apptLoc = appt.locationId ? getLocationById(appt.locationId) : null;
           const message = generateRejectMessage(
             state.settings.businessName, client?.name ?? "Valued Client",
-            svc ? getServiceDisplayName(svc) : "Service", appt.date, appt.time, state.settings.profile.phone,
-            apptLoc?.name, apptLoc?.address
+            svc ? getServiceDisplayName(svc) : "Service", appt.date, appt.time,
+            apptLoc?.phone || state.settings.profile.phone,
+            apptLoc?.name, apptLoc?.address, apptLoc?.city, apptLoc?.state, apptLoc?.zipCode
           );
           if (client?.phone) openSmsWithMessage(client.phone, message);
           else Alert.alert("Appointment Rejected", message);

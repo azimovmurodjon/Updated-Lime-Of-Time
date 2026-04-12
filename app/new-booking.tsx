@@ -17,7 +17,7 @@ import { useStore, generateId, formatDateStr, formatTime, formatDateDisplay } fr
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useMemo, useCallback } from "react";
-import { Appointment, Client, Product, Discount, DAYS_OF_WEEK, generateAvailableSlots, minutesToTime, timeToMinutes, getApplicableDiscount, generateConfirmationMessage, getServiceDisplayName, stripPhoneFormat, timeSlotsOverlap } from "@/lib/types";
+import { Appointment, Client, Product, Discount, DAYS_OF_WEEK, generateAvailableSlots, minutesToTime, timeToMinutes, getApplicableDiscount, generateConfirmationMessage, getServiceDisplayName, stripPhoneFormat, timeSlotsOverlap, PUBLIC_BOOKING_URL } from "@/lib/types";
 import { useActiveLocation } from "@/hooks/use-active-location";
 
 type Step = 1 | 2 | 3 | 4;
@@ -31,7 +31,7 @@ type CartItem = {
 };
 
 export default function NewBookingScreen() {
-  const { state, dispatch, getServiceById, getClientById, syncToDb, filterAppointmentsByLocation, getActiveCustomSchedule } = useStore();
+  const { state, dispatch, getServiceById, getClientById, getLocationById, syncToDb, filterAppointmentsByLocation, getActiveCustomSchedule } = useStore();
   const { activeLocation, effectiveWorkingHours } = useActiveLocation();
   const colors = useColors();
   const router = useRouter();
@@ -298,16 +298,23 @@ export default function NewBookingScreen() {
       const svc = selectedService;
       const biz = state.settings;
       const profile = biz.profile;
+      const apptLoc = selectedLocationId ? getLocationById(selectedLocationId) : null;
       const msg = generateConfirmationMessage(
         biz.businessName,
-        profile.address,
+        apptLoc?.address || profile.address,
         selectedClient.name,
         svc ? getServiceDisplayName(svc) : "Service",
         totalDuration,
         selectedDate,
         selectedTime,
-        profile.phone,
-        selectedClient.phone
+        apptLoc?.phone || profile.phone,
+        selectedClient.phone,
+        apptLoc?.name,
+        apptLoc?.id,
+        biz.customSlug,
+        apptLoc?.city,
+        apptLoc?.state,
+        apptLoc?.zipCode
       );
       const rawPhone = stripPhoneFormat(selectedClient.phone);
       if (Platform.OS === "web") {
