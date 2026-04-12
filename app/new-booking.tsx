@@ -785,23 +785,6 @@ export default function NewBookingScreen() {
               <Text className="text-xs font-medium text-muted mb-3">Location (Optional)</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={{ flexDirection: "row", gap: 8 }}>
-                  <Pressable
-                    onPress={() => setSelectedLocationId(null)}
-                    style={({ pressed }) => [{
-                      paddingHorizontal: 14,
-                      paddingVertical: 10,
-                      borderRadius: 12,
-                      borderWidth: 1.5,
-                      backgroundColor: !selectedLocationId ? colors.primary + "15" : colors.background,
-                      borderColor: !selectedLocationId ? colors.primary : colors.border,
-                      opacity: pressed ? 0.7 : 1,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 6,
-                    }]}
-                  >
-                    <Text style={{ fontSize: 13, fontWeight: "600", color: !selectedLocationId ? colors.primary : colors.foreground }}>No Location</Text>
-                  </Pressable>
                   {activeLocations.map((loc) => (
                     <Pressable
                       key={loc.id}
