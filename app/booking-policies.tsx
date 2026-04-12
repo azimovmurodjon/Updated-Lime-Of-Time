@@ -56,27 +56,6 @@ export default function BookingPoliciesScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: hp, paddingVertical: 16, paddingBottom: 60 }}>
-        {/* Temporary Closed */}
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={styles.switchRow}>
-            <View style={styles.switchLabel}>
-              <IconSymbol name="clock.fill" size={20} color={settings.temporaryClosed ? colors.error : colors.primary} />
-              <View style={{ marginLeft: 12, flex: 1 }}>
-                <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground }}>Temporarily Closed</Text>
-                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
-                  Blocks all new bookings when enabled
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={settings.temporaryClosed}
-              onValueChange={toggleTemporaryClosed}
-              trackColor={{ false: colors.border, true: colors.error + "60" }}
-              thumbColor={settings.temporaryClosed ? colors.error : colors.muted}
-            />
-          </View>
-        </View>
-
         {/* Cancellation Policy */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.switchRow}>

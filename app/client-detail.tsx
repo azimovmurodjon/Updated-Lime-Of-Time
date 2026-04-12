@@ -506,40 +506,14 @@ export default function ClientDetailScreen() {
               </View>
             )}
 
-            {/* Reviews Tab */}
+            {/* Reviews Tab — read-only, submitted by clients */}
             {activeTab === "reviews" && (
               <View>
-                <Pressable onPress={() => setShowReviewForm(!showReviewForm)} style={({ pressed }) => [styles.addReviewBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}>
-                  <IconSymbol name="plus" size={16} color="#FFF" />
-                  <Text style={{ fontSize: 14, fontWeight: "600", color: "#FFF", marginLeft: 6 }}>Add Review</Text>
-                </Pressable>
-
-                {showReviewForm && (
-                  <View style={[styles.reviewForm, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                    <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground, marginBottom: 10 }}>New Review</Text>
-                    <View style={styles.starsRow}>
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <Pressable key={star} onPress={() => setReviewRating(star)} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, padding: 4 }]}>
-                          <IconSymbol name="star.fill" size={28} color={star <= reviewRating ? "#FFB300" : colors.border} />
-                        </Pressable>
-                      ))}
-                    </View>
-                    <TextInput style={[styles.reviewInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]} placeholder="Write a comment (optional)..." placeholderTextColor={colors.muted} value={reviewComment} onChangeText={setReviewComment} multiline numberOfLines={3} />
-                    <View style={styles.reviewActions}>
-                      <Pressable onPress={() => setShowReviewForm(false)} style={({ pressed }) => [styles.reviewCancelBtn, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}>
-                        <Text style={{ fontSize: 13, color: colors.foreground }}>Cancel</Text>
-                      </Pressable>
-                      <Pressable onPress={handleAddReview} style={({ pressed }) => [styles.reviewSaveBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}>
-                        <Text style={{ fontSize: 13, fontWeight: "600", color: "#FFF" }}>Save Review</Text>
-                      </Pressable>
-                    </View>
-                  </View>
-                )}
-
-                {reviews.length === 0 && !showReviewForm ? (
+                {reviews.length === 0 ? (
                   <View style={styles.emptyState}>
                     <IconSymbol name="star.fill" size={36} color={colors.muted + "60"} />
                     <Text style={{ color: colors.muted, fontSize: 14, marginTop: 8 }}>No reviews yet</Text>
+                    <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4, textAlign: "center" }}>Reviews are submitted by clients after their appointments.</Text>
                   </View>
                 ) : (
                   reviews.map((rev) => (
@@ -550,14 +524,11 @@ export default function ClientDetailScreen() {
                             <IconSymbol key={star} name="star.fill" size={14} color={star <= rev.rating ? "#FFB300" : colors.border} />
                           ))}
                         </View>
-                        <Pressable onPress={() => handleDeleteReview(rev.id)} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
-                          <IconSymbol name="trash.fill" size={14} color={colors.error + "80"} />
-                        </Pressable>
+                        <Text style={{ fontSize: 11, color: colors.muted }}>
+                          {new Date(rev.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </Text>
                       </View>
                       {rev.comment ? <Text style={{ fontSize: 13, color: colors.foreground, marginTop: 6, lineHeight: 18 }}>{rev.comment}</Text> : null}
-                      <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6 }}>
-                        {new Date(rev.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                      </Text>
                     </View>
                   ))
                 )}

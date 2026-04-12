@@ -9,7 +9,6 @@ import {
   useWindowDimensions,
   Linking,
   Share,
-  TextInput,
 } from "react-native";
 import { useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
@@ -34,8 +33,33 @@ export default function LocationsScreen() {
 
   // Reopen date picker state: which location is being edited
   const [reopenPickerId, setReopenPickerId] = useState<string | null>(null);
-  // Inline date input value (YYYY-MM-DD)
-  const [reopenDateInput, setReopenDateInput] = useState<string>("");
+  // Calendar picker state
+  const [calPickerMonth, setCalPickerMonth] = useState(() => new Date().getMonth());
+  const [calPickerYear, setCalPickerYear] = useState(() => new Date().getFullYear());
+  const [calPickerSelected, setCalPickerSelected] = useState<string | null>(null);
+
+  const CAL_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const CAL_DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+  /** Build calendar grid for the picker */
+  const buildCalGrid = (year: number, month: number) => {
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells: (number | null)[] = [];
+    for (let i = 0; i < firstDay; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+    while (cells.length % 7 !== 0) cells.push(null);
+    return cells;
+  };
+
+  /** Format a date to YYYY-MM-DD */
+  const toDateStr = (year: number, month: number, day: number) =>
+    `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+
+  const todayStr = (() => {
+    const n = new Date();
+    return toDateStr(n.getFullYear(), n.getMonth(), n.getDate());
+  })();
 
   const sortedLocations = useMemo(
     () =>
@@ -51,8 +75,11 @@ export default function LocationsScreen() {
   const handleToggleTemporarilyClosed = (item: Location, value: boolean) => {
     if (value) {
       // Opening the picker for reopen date
+      const now = new Date();
       setReopenPickerId(item.id);
-      setReopenDateInput(item.reopenOn ?? "");
+      setCalPickerMonth(now.getMonth());
+      setCalPickerYear(now.getFullYear());
+      setCalPickerSelected(item.reopenOn ?? null);
       // Mark as closed immediately (reopen date can be set after)
       const action = { type: "UPDATE_LOCATION" as const, payload: { ...item, temporarilyClosed: true, reopenOn: item.reopenOn } };
       dispatch(action);
@@ -60,6 +87,7 @@ export default function LocationsScreen() {
     } else {
       // Re-opening: clear closure and reopen date
       setReopenPickerId(null);
+      setCalPickerSelected(null);
       const action = { type: "UPDATE_LOCATION" as const, payload: { ...item, temporarilyClosed: false, reopenOn: undefined } };
       dispatch(action);
       syncToDb(action);
@@ -67,17 +95,15 @@ export default function LocationsScreen() {
   };
 
   /** Save the reopen date for a location */
-  const handleSaveReopenDate = (item: Location, dateStr: string) => {
-    const trimmed = dateStr.trim();
-    // Validate YYYY-MM-DD format
-    const isValid = /^\d{4}-\d{2}-\d{2}$/.test(trimmed);
+  const handleSaveReopenDate = (item: Location, dateStr: string | null) => {
     const action = {
       type: "UPDATE_LOCATION" as const,
-      payload: { ...item, temporarilyClosed: true, reopenOn: isValid ? trimmed : undefined },
+      payload: { ...item, temporarilyClosed: true, reopenOn: dateStr ?? undefined },
     };
     dispatch(action);
     syncToDb(action);
     setReopenPickerId(null);
+    setCalPickerSelected(null);
   };
 
   /** Format a YYYY-MM-DD string to a readable date like "Apr 20" */
@@ -261,53 +287,126 @@ export default function LocationsScreen() {
           <View style={[styles.reopenRow, { borderTopColor: colors.border, backgroundColor: colors.warning + "08" }]}>
             {reopenPickerId === item.id ? (
               <>
-                <Text style={{ fontSize: 12, fontWeight: "600", color: colors.warning, marginBottom: 6 }}>
-                  Set Reopen Date (optional)
-                </Text>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <TextInput
-                    value={reopenDateInput}
-                    onChangeText={setReopenDateInput}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor={colors.muted}
-                    style={[
-                      styles.reopenInput,
-                      { color: colors.foreground, borderColor: colors.warning, backgroundColor: colors.surface },
-                    ]}
-                    keyboardType="numbers-and-punctuation"
-                    maxLength={10}
-                    returnKeyType="done"
-                    onSubmitEditing={() => handleSaveReopenDate(item, reopenDateInput)}
-                  />
+                {/* Month navigation */}
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: colors.warning }}>
+                    Set Reopen Date
+                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Pressable
+                      onPress={() => {
+                        if (calPickerMonth === 0) { setCalPickerMonth(11); setCalPickerYear(calPickerYear - 1); }
+                        else setCalPickerMonth(calPickerMonth - 1);
+                      }}
+                      style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, padding: 4 }]}
+                    >
+                      <IconSymbol name="chevron.left" size={14} color={colors.foreground} />
+                    </Pressable>
+                    <Text style={{ fontSize: 12, fontWeight: "600", color: colors.foreground, minWidth: 80, textAlign: "center" }}>
+                      {CAL_MONTHS[calPickerMonth]} {calPickerYear}
+                    </Text>
+                    <Pressable
+                      onPress={() => {
+                        if (calPickerMonth === 11) { setCalPickerMonth(0); setCalPickerYear(calPickerYear + 1); }
+                        else setCalPickerMonth(calPickerMonth + 1);
+                      }}
+                      style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, padding: 4 }]}
+                    >
+                      <IconSymbol name="chevron.right" size={14} color={colors.foreground} />
+                    </Pressable>
+                  </View>
+                </View>
+
+                {/* Day headers */}
+                <View style={{ flexDirection: "row", marginBottom: 4 }}>
+                  {CAL_DAYS.map((d) => (
+                    <Text key={d} style={{ flex: 1, textAlign: "center", fontSize: 10, fontWeight: "600", color: colors.muted }}>{d}</Text>
+                  ))}
+                </View>
+
+                {/* Calendar grid */}
+                <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                  {buildCalGrid(calPickerYear, calPickerMonth).map((day, idx) => {
+                    if (!day) return <View key={`e-${idx}`} style={{ width: `${100 / 7}%`, aspectRatio: 1 }} />;
+                    const ds = toDateStr(calPickerYear, calPickerMonth, day);
+                    const isPast = ds < todayStr;
+                    const isSelected = calPickerSelected === ds;
+                    const isToday = ds === todayStr;
+                    return (
+                      <Pressable
+                        key={ds}
+                        onPress={() => { if (!isPast) setCalPickerSelected(ds); }}
+                        style={({ pressed }) => ([
+                          {
+                            width: `${100 / 7}%`,
+                            aspectRatio: 1,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            borderRadius: 100,
+                            backgroundColor: isSelected ? colors.warning : "transparent",
+                            opacity: isPast ? 0.3 : pressed ? 0.7 : 1,
+                          },
+                        ])}
+                      >
+                        <Text style={{
+                          fontSize: 12,
+                          fontWeight: isSelected || isToday ? "700" : "400",
+                          color: isSelected ? "#FFF" : isToday ? colors.warning : colors.foreground,
+                        }}>{day}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                {/* Action buttons */}
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
                   <Pressable
-                    onPress={() => handleSaveReopenDate(item, reopenDateInput)}
-                    style={({ pressed }) => [
-                      styles.reopenSaveBtn,
-                      { backgroundColor: colors.warning, opacity: pressed ? 0.8 : 1 },
-                    ]}
+                    onPress={() => handleSaveReopenDate(item, null)}
+                    style={({ pressed }) => [{
+                      flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center",
+                      borderWidth: 1, borderColor: colors.border, opacity: pressed ? 0.7 : 1,
+                    }]}
                   >
-                    <Text style={{ fontSize: 13, fontWeight: "700", color: "#FFF" }}>Save</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>No date</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleSaveReopenDate(item, calPickerSelected)}
+                    style={({ pressed }) => [{
+                      flex: 2, paddingVertical: 8, borderRadius: 8, alignItems: "center",
+                      backgroundColor: calPickerSelected ? colors.warning : colors.border,
+                      opacity: pressed ? 0.8 : 1,
+                    }]}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: calPickerSelected ? "#FFF" : colors.muted }}>
+                      {calPickerSelected ? `Reopen ${formatReopenDate(calPickerSelected)}` : "Confirm"}
+                    </Text>
                   </Pressable>
                   <Pressable
                     onPress={() => setReopenPickerId(null)}
-                    style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, padding: 4 }]}
+                    style={({ pressed }) => [{ padding: 8, opacity: pressed ? 0.6 : 1, justifyContent: "center" }]}
                   >
                     <IconSymbol name="xmark" size={14} color={colors.muted} />
                   </Pressable>
                 </View>
-                <Text style={{ fontSize: 10, color: colors.muted, marginTop: 4 }}>
-                  Leave blank to close indefinitely. Location will auto-reopen on the set date.
+                <Text style={{ fontSize: 10, color: colors.muted, marginTop: 6 }}>
+                  Tap a date to set auto-reopen, or "No date" to close indefinitely.
                 </Text>
               </>
             ) : (
               <Pressable
-                onPress={() => { setReopenPickerId(item.id); setReopenDateInput(item.reopenOn ?? ""); }}
+                onPress={() => {
+                  const now = new Date();
+                  setReopenPickerId(item.id);
+                  setCalPickerMonth(now.getMonth());
+                  setCalPickerYear(now.getFullYear());
+                  setCalPickerSelected(item.reopenOn ?? null);
+                }}
                 style={({ pressed }) => [{ flexDirection: "row", alignItems: "center", gap: 6, opacity: pressed ? 0.7 : 1 }]}
               >
                 <IconSymbol name="calendar" size={13} color={colors.warning} />
                 <Text style={{ fontSize: 12, color: colors.warning, fontWeight: "600" }}>
                   {item.reopenOn
-                    ? `Reopen date: ${formatReopenDate(item.reopenOn)} • Tap to change`
+                    ? `Reopens ${formatReopenDate(item.reopenOn)} • Tap to change`
                     : "Set reopen date (optional)"}
                 </Text>
               </Pressable>
@@ -550,18 +649,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderTopWidth: 0.5,
-  },
-  reopenInput: {
-    flex: 1,
-    height: 36,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    fontSize: 13,
-  },
-  reopenSaveBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
   },
 });

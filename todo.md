@@ -721,3 +721,6 @@
 - [x] Temporarily Closed: block Calendar and Staff Calendar from showing available slots
 - [x] Add Location Switcher to Clients tab for filtering client list by location
 - [x] Add location badges on client cards showing which locations they have visited
+- [x] Remove Add Review and Delete Review buttons from client Reviews tab (read-only)
+- [x] Remove Temporarily Closed toggle from Booking Policies screen
+- [x] Replace YYYY-MM-DD text input with calendar date picker for Reopen Date in locations
