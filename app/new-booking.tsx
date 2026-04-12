@@ -17,7 +17,7 @@ import { useStore, generateId, formatDateStr, formatTime, formatDateDisplay } fr
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useMemo, useCallback } from "react";
-import { Appointment, Client, Product, Discount, DAYS_OF_WEEK, generateAvailableSlots, minutesToTime, timeToMinutes, getApplicableDiscount, generateConfirmationMessage, getServiceDisplayName, stripPhoneFormat } from "@/lib/types";
+import { Appointment, Client, Product, Discount, DAYS_OF_WEEK, generateAvailableSlots, minutesToTime, timeToMinutes, getApplicableDiscount, generateConfirmationMessage, getServiceDisplayName, stripPhoneFormat, timeSlotsOverlap } from "@/lib/types";
 import { useActiveLocation } from "@/hooks/use-active-location";
 
 type Step = 1 | 2 | 3 | 4;
@@ -111,6 +111,26 @@ export default function NewBookingScreen() {
   }, [appliedDiscount, selectedService]);
 
   const totalPrice = subtotal - discountAmount;
+
+  // Per-staff availability: a staff member is unavailable if they have a confirmed/pending
+  // appointment that overlaps the selected date + time + totalDuration.
+  const staffAvailabilityMap = useMemo((): Record<string, boolean> => {
+    if (!selectedDate || !selectedTime) return {};
+    const result: Record<string, boolean> = {};
+    for (const member of activeStaff) {
+      const staffAppts = state.appointments.filter(
+        (a) =>
+          a.staffId === member.id &&
+          a.date === selectedDate &&
+          (a.status === "confirmed" || a.status === "pending")
+      );
+      const hasConflict = staffAppts.some((a) =>
+        timeSlotsOverlap(selectedTime, totalDuration, a.time, a.duration)
+      );
+      result[member.id] = !hasConflict;
+    }
+    return result;
+  }, [activeStaff, state.appointments, selectedDate, selectedTime, totalDuration]);
 
   // Generate available time slots using location-scoped hours and appointments
   const locationAppts = useMemo(
@@ -755,29 +775,49 @@ export default function NewBookingScreen() {
                   >
                     <Text style={{ fontSize: 13, fontWeight: "600", color: !selectedStaffId ? colors.primary : colors.foreground }}>Any Available</Text>
                   </Pressable>
-                  {activeStaff.map((member) => (
-                    <Pressable
-                      key={member.id}
-                      onPress={() => setSelectedStaffId(member.id)}
-                      style={({ pressed }) => [{
-                        paddingHorizontal: 14,
-                        paddingVertical: 10,
-                        borderRadius: 12,
-                        borderWidth: 1.5,
-                        backgroundColor: selectedStaffId === member.id ? (member.color || colors.primary) + "15" : colors.background,
-                        borderColor: selectedStaffId === member.id ? (member.color || colors.primary) : colors.border,
-                        opacity: pressed ? 0.7 : 1,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 8,
-                      }]}
-                    >
-                      <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: member.color || colors.primary, alignItems: "center", justifyContent: "center" }}>
-                        <Text style={{ color: "#FFF", fontSize: 12, fontWeight: "700" }}>{member.name.charAt(0).toUpperCase()}</Text>
-                      </View>
-                      <Text style={{ fontSize: 13, fontWeight: "600", color: selectedStaffId === member.id ? (member.color || colors.primary) : colors.foreground }}>{member.name}</Text>
-                    </Pressable>
-                  ))}
+                  {activeStaff.map((member) => {
+                    // Availability dot: green = available, grey = busy (only shown when date+time selected)
+                    const hasTimeSelected = !!(selectedDate && selectedTime);
+                    const isAvailable = staffAvailabilityMap[member.id] !== false;
+                    const dotColor = !hasTimeSelected ? colors.border : isAvailable ? colors.success : colors.muted;
+                    return (
+                      <Pressable
+                        key={member.id}
+                        onPress={() => setSelectedStaffId(member.id)}
+                        style={({ pressed }) => [{
+                          paddingHorizontal: 14,
+                          paddingVertical: 10,
+                          borderRadius: 12,
+                          borderWidth: 1.5,
+                          backgroundColor: selectedStaffId === member.id ? (member.color || colors.primary) + "15" : colors.background,
+                          borderColor: selectedStaffId === member.id ? (member.color || colors.primary) : colors.border,
+                          opacity: pressed ? 0.7 : 1,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                        }]}
+                      >
+                        <View style={{ position: "relative" }}>
+                          <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: member.color || colors.primary, alignItems: "center", justifyContent: "center" }}>
+                            <Text style={{ color: "#FFF", fontSize: 12, fontWeight: "700" }}>{member.name.charAt(0).toUpperCase()}</Text>
+                          </View>
+                          {/* Availability dot — bottom-right of avatar */}
+                          <View style={{
+                            position: "absolute",
+                            bottom: -1,
+                            right: -1,
+                            width: 9,
+                            height: 9,
+                            borderRadius: 5,
+                            backgroundColor: dotColor,
+                            borderWidth: 1.5,
+                            borderColor: colors.background,
+                          }} />
+                        </View>
+                        <Text style={{ fontSize: 13, fontWeight: "600", color: selectedStaffId === member.id ? (member.color || colors.primary) : colors.foreground }}>{member.name}</Text>
+                      </Pressable>
+                    );
+                  })}
                 </View>
               </ScrollView>
             </View>

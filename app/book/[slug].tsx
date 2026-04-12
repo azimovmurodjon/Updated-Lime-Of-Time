@@ -13,7 +13,7 @@ import { useColors } from "@/hooks/use-colors";
  * which renders the full public booking experience.
  */
 export default function BookSlugRedirect() {
-  const { slug } = useLocalSearchParams<{ slug: string }>();
+  const { slug, location } = useLocalSearchParams<{ slug: string; location?: string }>();
   const router = useRouter();
   const colors = useColors();
 
@@ -22,11 +22,14 @@ export default function BookSlugRedirect() {
     const timer = setTimeout(() => {
       router.replace({
         pathname: "/booking",
-        params: { slug: slug || "" },
+        params: {
+          slug: slug || "",
+          ...(location ? { location } : {}),
+        },
       });
     }, 100);
     return () => clearTimeout(timer);
-  }, [slug, router]);
+  }, [slug, location, router]);
 
   return (
     <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background }}>

@@ -9,7 +9,7 @@ import {
   Linking,
   Platform,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, generateId, formatDateStr, formatTime, formatDateDisplay } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
@@ -46,6 +46,9 @@ export default function PublicBookingScreen() {
   const isTablet = width >= 768;
   const hp = isTablet ? 32 : Math.max(16, width * 0.05);
 
+  // Read optional location pre-selection from URL params (e.g. ?location=<locationId>)
+  const { location: locationParam } = useLocalSearchParams<{ location?: string }>();
+
   // Active locations for this business
   const activeLocations = useMemo(
     () => state.locations.filter((l) => l.active !== false),
@@ -53,11 +56,22 @@ export default function PublicBookingScreen() {
   );
   const hasMultipleLocations = activeLocations.length > 1;
 
-  // Start at "location" step when multiple locations exist, otherwise skip to "info"
-  const [step, setStep] = useState<BookingStep>(hasMultipleLocations ? "location" : "info");
-  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(
-    hasMultipleLocations ? null : (activeLocations[0]?.id ?? null)
-  );
+  // If a locationParam is provided and valid, pre-select it and skip the location step
+  const preselectedLocationId = useMemo(() => {
+    if (!locationParam) return null;
+    const found = activeLocations.find((l) => l.id === locationParam);
+    return found ? found.id : null;
+  }, [locationParam, activeLocations]);
+
+  // Start at "location" step when multiple locations exist and no pre-selection, otherwise skip to "info"
+  const [step, setStep] = useState<BookingStep>(() => {
+    if (preselectedLocationId) return "info";
+    return hasMultipleLocations ? "location" : "info";
+  });
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(() => {
+    if (preselectedLocationId) return preselectedLocationId;
+    return hasMultipleLocations ? null : (activeLocations[0]?.id ?? null);
+  });
 
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
