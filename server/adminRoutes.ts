@@ -1041,7 +1041,7 @@ function businessDetailPage(data: any): string {
       <table>
         <thead><tr><th>Name</th><th>Address</th><th>Phone</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>
-          ${data.locations.map((loc: any) => `<tr><td style="font-weight:600;">${loc.name}</td><td>${loc.address || "N/A"}</td><td>${loc.phone || "N/A"}</td><td>${loc.email || "N/A"}</td><td>${loc.isActive ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-danger">Inactive</span>'}</td><td><form class="delete-form" method="POST" action="/api/admin/delete/location/${loc.id}" onsubmit="return confirm('Delete location ${escHtml(loc.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`).join("")}
+          ${data.locations.map((loc: any) => { const statusBadge = !loc.active ? '<span class="badge badge-danger">Inactive</span>' : loc.temporarilyClosed ? '<span class="badge badge-warning">Temp. Closed</span>' : '<span class="badge badge-success">Active</span>'; return `<tr><td style="font-weight:600;">${loc.name}</td><td>${loc.address || "N/A"}</td><td>${loc.phone || "N/A"}</td><td>${loc.email || "N/A"}</td><td>${statusBadge}</td><td><form class="delete-form" method="POST" action="/api/admin/delete/location/${loc.id}" onsubmit="return confirm('Delete location ${escHtml(loc.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`; }).join("")}
         </tbody>
       </table>
     </div>` : ""}
@@ -1442,7 +1442,7 @@ function discountsPage(allDisc: any[], allBiz: any[]): string {
                 <td>${d.type === "fixed" ? fmtCurrency(parseFloat(d.value || "0")) : (d.value || "0") + "%"}</td>
                 <td><code>${d.code || "N/A"}</code></td>
                 <td><a href="/api/admin/businesses/${d.businessOwnerId}">${bizMap.get(d.businessOwnerId) || "Unknown"}</a></td>
-                <td>${d.isActive !== false ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-danger">Inactive</span>'}</td>
+                <td>${d.active !== false ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-danger">Inactive</span>'}</td>
                 <td><form class="delete-form" method="POST" action="/api/admin/delete/discount/${d.id}" onsubmit="return confirm('Delete this discount?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
               </tr>`).join("")}
             </tbody>
@@ -1563,7 +1563,7 @@ function locationsPage(allLoc: any[], allBiz: any[]): string {
                 <td>${loc.phone || "N/A"}</td>
                 <td>${loc.email || "N/A"}</td>
                 <td><a href="/api/admin/businesses/${loc.businessOwnerId}">${bizMap.get(loc.businessOwnerId) || "Unknown"}</a></td>
-                <td>${loc.isActive !== false ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-danger">Inactive</span>'}</td>
+                <td>${!loc.active ? '<span class="badge badge-danger">Inactive</span>' : loc.temporarilyClosed ? '<span class="badge badge-warning">Temp. Closed</span>' : '<span class="badge badge-success">Active</span>'}</td>
                 <td><form class="delete-form" method="POST" action="/api/admin/delete/location/${loc.id}" onsubmit="return confirm('Delete location ${escHtml(loc.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
               </tr>`).join("")}
             </tbody>

@@ -57,8 +57,7 @@ export default function LocationFormScreen() {
     }
     setErrors({});
 
-    // New locations default to inactive (disabled) until manually enabled.
-    // The very first location is auto-activated so the app is usable right away.
+    // New locations default to active. The first location is also set as default.
     const isFirstLocation = !isEdit && state.locations.length === 0;
 
     const loc: Location = {
@@ -71,7 +70,7 @@ export default function LocationFormScreen() {
       phone: phone.trim(),
       email: email.trim(),
       isDefault: existing?.isDefault ?? isFirstLocation,
-      active: existing?.active ?? isFirstLocation,
+      active: existing?.active ?? true,
       temporarilyClosed: existing?.temporarilyClosed,
       reopenOn: existing?.reopenOn,
       workingHours: existing?.workingHours ?? {},
@@ -84,8 +83,8 @@ export default function LocationFormScreen() {
 
     dispatch(action);
     syncToDb(action);
-    // Auto-set as active location if it's the first one
-    if (isFirstLocation) setActiveLocation(loc.id);
+    // Auto-set as active location when adding a new location
+    if (!isEdit) setActiveLocation(loc.id);
     router.back();
   };
 
