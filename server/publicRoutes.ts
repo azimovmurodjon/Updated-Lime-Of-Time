@@ -583,6 +583,34 @@ export function registerPublicRoutes(app: Express) {
         return;
       }
 
+      // Validate gift card balance BEFORE creating the appointment
+      if (giftCode && giftApplied) {
+        const gcValidate = await db.getGiftCardByCode(giftCode, owner.id);
+        if (!gcValidate) {
+          res.status(400).json({ error: "Gift card not found or does not belong to this business" });
+          return;
+        }
+        // Parse current balance from message field (GIFT_DATA block or raw JSON)
+        let gcMeta: any = {};
+        const gcMsgStr = gcValidate.message || "";
+        const gcDataMatch = gcMsgStr.match(/\n---GIFT_DATA---\n(.+)$/s);
+        if (gcDataMatch) {
+          try { gcMeta = JSON.parse(gcDataMatch[1]); } catch (_) {}
+        } else {
+          try { gcMeta = JSON.parse(gcMsgStr); } catch (_) {}
+        }
+        const gcCurrentBalance = gcMeta.remainingBalance ?? gcMeta.originalValue ?? 0;
+        if (gcCurrentBalance <= 0) {
+          res.status(400).json({ error: "This gift card has no remaining balance" });
+          return;
+        }
+        const gcRequestedAmt = giftUsedAmount ? parseFloat(String(giftUsedAmount)) : 0;
+        if (gcRequestedAmt > gcCurrentBalance + 0.01) { // 1-cent tolerance for float rounding
+          res.status(400).json({ error: `Gift card balance ($${gcCurrentBalance.toFixed(2)}) is less than the requested amount ($${gcRequestedAmt.toFixed(2)})` });
+          return;
+        }
+      }
+
       // Build enriched notes with pricing details
       let enrichedNotes = notes || "";
       const svcPrice = svc ? parseFloat(String(svc.price)) : 0;
