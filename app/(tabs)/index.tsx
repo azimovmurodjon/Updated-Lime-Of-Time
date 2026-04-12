@@ -439,20 +439,33 @@ export default function HomeScreen() {
           </Pressable>
         )}
 
-        {/* Temporary Closed Banner */}
-        {state.settings.temporaryClosed && (
+        {/* Temporary Closed Banner — per active location */}
+        {activeLocation?.temporarilyClosed && (
           <View
             style={[
               styles.closedBanner,
               {
-                backgroundColor: colors.error + "10",
-                borderColor: colors.error + "30",
+                backgroundColor: colors.error + "15",
+                borderColor: colors.error + "50",
+                borderWidth: 1,
+                borderRadius: 10,
+                flexDirection: "row",
+                alignItems: "flex-start",
+                gap: 10,
               },
             ]}
           >
-            <Text style={{ fontSize: 13, color: colors.error, fontWeight: "500" }}>
-              Business is temporarily closed. New bookings are paused.
-            </Text>
+            <IconSymbol name="exclamationmark.triangle.fill" size={18} color={colors.error} style={{ marginTop: 1 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, color: colors.error, fontWeight: "700", marginBottom: 2 }}>
+                {activeLocation.name} — Temporarily Closed
+              </Text>
+              <Text style={{ fontSize: 12, color: colors.muted, lineHeight: 17 }}>
+                {activeLocation.reopenOn
+                  ? `This location is temporarily closed and will reopen on ${new Date(activeLocation.reopenOn + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}. No new bookings are being accepted until then.`
+                  : `This location is temporarily closed for an indefinite period. No new bookings are being accepted at this time. Please check back later.`}
+              </Text>
+            </View>
           </View>
         )}
 

@@ -725,3 +725,8 @@
 - [x] Remove Temporarily Closed toggle from Booking Policies screen
 - [x] Replace YYYY-MM-DD text input with calendar date picker for Reopen Date in locations
 - [x] Fix Temporarily Closed toggle wiping location address/data when toggled on
+- [x] Fix Temporarily Closed toggle deleting/removing the location
+- [x] Calendar: all future days red and unselectable when active location is temporarily closed
+- [x] Staff Calendar: all future days red when location is temporarily closed
+- [x] Home screen: red banner showing temporarily closed status with reopen date
+- [x] Client booking page: professional "temporarily closed" message with reopen date

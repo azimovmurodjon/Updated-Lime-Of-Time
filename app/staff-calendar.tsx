@@ -218,8 +218,8 @@ export default function StaffCalendarScreen() {
         {activeLocation?.temporarilyClosed && (
           <View style={{
             marginHorizontal: hp, marginBottom: 12,
-            backgroundColor: colors.warning + "18",
-            borderColor: colors.warning + "60",
+            backgroundColor: colors.error + "18",
+            borderColor: colors.error + "60",
             borderWidth: 1,
             borderRadius: 10,
             paddingHorizontal: 14,
@@ -228,10 +228,14 @@ export default function StaffCalendarScreen() {
             alignItems: "center",
             gap: 8,
           }}>
-            <IconSymbol name="exclamationmark.triangle.fill" size={16} color={colors.warning} />
+            <IconSymbol name="exclamationmark.triangle.fill" size={16} color={colors.error} />
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, fontWeight: "700", color: colors.warning }}>Location Temporarily Closed</Text>
-              <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>New bookings are paused at this location.</Text>
+              <Text style={{ fontSize: 13, fontWeight: "700", color: colors.error }}>Location Temporarily Closed</Text>
+              <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>
+                {activeLocation.reopenOn
+                  ? `All dates unavailable. Reopens ${new Date(activeLocation.reopenOn + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.`
+                  : "All dates unavailable. Closed indefinitely — no new bookings."}
+              </Text>
             </View>
           </View>
         )}
@@ -312,6 +316,8 @@ export default function StaffCalendarScreen() {
             const isPast = dateStr < todayStr;
             // Also disable all days when location is temporarily closed
             const isDisabled = !isWorkingDay || isPast || !!activeLocation?.temporarilyClosed;
+            // Red tint for future days when location is temporarily closed
+            const isTempClosed = !!activeLocation?.temporarilyClosed && !isPast;
 
             return (
               <Pressable
@@ -322,9 +328,13 @@ export default function StaffCalendarScreen() {
                   {
                     width: cellSize,
                     height: cellSize,
-                    backgroundColor: isSelected ? (staff.color || colors.primary) : "transparent",
+                    backgroundColor: isSelected
+                      ? (isTempClosed ? colors.error : (staff.color || colors.primary))
+                      : isTempClosed
+                      ? colors.error + "18"
+                      : "transparent",
                     borderRadius: cellSize / 2,
-                    opacity: isDisabled ? 0.25 : pressed ? 0.7 : 1,
+                    opacity: (isDisabled && !isTempClosed) ? 0.25 : pressed ? 0.7 : 1,
                   },
                 ]}
               >
@@ -332,7 +342,14 @@ export default function StaffCalendarScreen() {
                   style={{
                     fontSize: 15,
                     fontWeight: isToday || isSelected ? "700" : "400",
-                    color: isSelected ? "#FFF" : isToday ? (staff.color || colors.primary) : colors.foreground,
+                    color: isSelected
+                      ? "#FFF"
+                      : isTempClosed
+                      ? colors.error
+                      : isToday
+                      ? (staff.color || colors.primary)
+                      : colors.foreground,
+                    textDecorationLine: isTempClosed ? "line-through" : "none",
                   }}
                 >
                   {day}

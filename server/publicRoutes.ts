@@ -218,6 +218,8 @@ export function registerPublicRoutes(app: Express) {
           email: l.email || "",
           active: l.active,
           workingHours: l.workingHours ? (typeof l.workingHours === 'object' ? l.workingHours : JSON.parse(l.workingHours)) : null,
+          temporarilyClosed: l.temporarilyClosed ?? false,
+          reopenOn: l.reopenOn ?? null,
         };
       }));
     } catch (err) {
@@ -1401,6 +1403,12 @@ function baseStyles(): string {
       .cal-day.disabled { opacity:0.25; cursor:not-allowed; color:var(--text-light); }
       .cal-day.empty { cursor:default; }
       .cal-day.today { font-weight:700; color:var(--accent); }
+      .cal-day.temp-closed { background:rgba(239,68,68,0.1); color:#ef4444; cursor:not-allowed; text-decoration:line-through; opacity:0.85; }
+      .cal-day.temp-closed:hover { background:rgba(239,68,68,0.15); }
+      .loc-closed-banner { background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.4); border-radius:12px; padding:14px 16px; margin-bottom:16px; display:none; }
+      .loc-closed-banner.show { display:block; }
+      .loc-closed-banner .lc-title { font-size:14px; font-weight:700; color:#ef4444; margin-bottom:4px; }
+      .loc-closed-banner .lc-msg { font-size:13px; color:var(--text-secondary); line-height:1.5; }
       .cart-items { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
       .cart-item { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:var(--bg-card-hover); border-radius:10px; font-size:13px; }
       .cart-item .cart-remove { color:var(--error); cursor:pointer; font-size:18px; padding:0 4px; }
@@ -1592,6 +1600,10 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     <!-- Step 2: Select Date & Time (Monthly Calendar) -->
     <div id="step-2" class="card" style="display:none">
       <h2>Select Date & Time</h2>
+      <div id="locClosedBanner" class="loc-closed-banner">
+        <div class="lc-title">&#9888;&#65039; Location Temporarily Closed</div>
+        <div class="lc-msg" id="locClosedMsg"></div>
+      </div>
       <div class="cal-nav">
         <button onclick="changeMonth(-1)" id="calPrev">&larr;</button>
         <span class="cal-title" id="calTitle"></span>
@@ -2028,6 +2040,31 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
       const todayStr = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0") + "-" + String(now.getDate()).padStart(2,"0");
 
+      // Check if selected location is temporarily closed
+      const selLoc = selectedLocation ? locations.find(l => l.localId === selectedLocation) : null;
+      const locTempClosed = selLoc ? !!selLoc.temporarilyClosed : false;
+
+      // Show/hide the temporarily closed banner
+      const closedBannerEl = document.getElementById("locClosedBanner");
+      const closedMsgEl = document.getElementById("locClosedMsg");
+      if (closedBannerEl && closedMsgEl) {
+        if (locTempClosed) {
+          const reopenOn = selLoc && selLoc.reopenOn ? selLoc.reopenOn : null;
+          let msg = "";
+          if (reopenOn) {
+            const d = new Date(reopenOn + "T00:00:00");
+            const formatted = d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+            msg = selLoc.name + " is temporarily closed and will reopen on " + formatted + ". No new bookings are being accepted until then.";
+          } else {
+            msg = (selLoc ? selLoc.name : "This location") + " is temporarily closed for an indefinite period. No new bookings are being accepted at this time. Please check back later.";
+          }
+          closedMsgEl.textContent = msg;
+          closedBannerEl.classList.add("show");
+        } else {
+          closedBannerEl.classList.remove("show");
+        }
+      }
+
       let html = "";
       let workingDates = [];
       // Empty cells before first day
@@ -2040,6 +2077,13 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         const isWorking = isWorkingDay(ds);
         const isSelected = ds === selectedDate;
         const isToday = ds === todayStr;
+        // If location is temporarily closed, all future days are red and unclickable
+        if (locTempClosed && !isPast) {
+          let cls = "cal-day temp-closed";
+          if (isSelected) cls += " selected";
+          html += '<div class="' + cls + '" id="day-' + ds + '" data-date="' + ds + '"><span>' + day + '</span></div>';
+          continue;
+        }
         // Initially disable all non-working and past days; working days start as loading
         const isDisabled = isPast || !isWorking;
         let cls = "cal-day";
@@ -2052,8 +2096,8 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       }
       grid.innerHTML = html;
 
-      // Batch-check availability for all working days in this month
-      checkDayAvailability(workingDates);
+      // Batch-check availability for all working days in this month (only if not temp closed)
+      if (!locTempClosed) checkDayAvailability(workingDates);
 
       if (selectedDate) loadSlots(selectedDate);
     }

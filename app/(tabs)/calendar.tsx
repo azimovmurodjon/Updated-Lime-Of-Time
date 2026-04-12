@@ -706,6 +706,8 @@ export default function CalendarScreen() {
           const custom = getCustomDay(dateStr);
           const hasCustomOverride = !!custom;
           const statuses = dayStatuses[dateStr];
+          // Red tint for future days when location is temporarily closed
+          const isTemporarilyClosed = !!activeLocation?.temporarilyClosed && !isPast;
 
           return (
             <Pressable
@@ -716,7 +718,11 @@ export default function CalendarScreen() {
                 {
                   width: cellSize,
                   height: cellSize,
-                  backgroundColor: isSelected ? colors.primary : "transparent",
+                  backgroundColor: isSelected
+                    ? (isTemporarilyClosed ? colors.error : colors.primary)
+                    : isTemporarilyClosed && !isPast
+                    ? colors.error + "18"
+                    : "transparent",
                   borderRadius: cellSize / 2,
                   opacity: isPast ? 0.3 : pressed ? 0.7 : 1,
                 },
@@ -726,8 +732,16 @@ export default function CalendarScreen() {
                 style={{
                   fontSize: 15,
                   fontWeight: isToday || isSelected ? "700" : "400",
-                  color: isSelected ? "#FFF" : isToday ? colors.primary : !isAvailable ? colors.muted : colors.foreground,
-                  textDecorationLine: !isAvailable && !isPast ? "line-through" : "none",
+                  color: isSelected
+                    ? "#FFF"
+                    : isTemporarilyClosed
+                    ? colors.error
+                    : isToday
+                    ? colors.primary
+                    : !isAvailable
+                    ? colors.muted
+                    : colors.foreground,
+                  textDecorationLine: (isTemporarilyClosed || (!isAvailable && !isPast)) ? "line-through" : "none",
                 }}
               >
                 {day}
@@ -1116,8 +1130,8 @@ export default function CalendarScreen() {
         {activeLocation?.temporarilyClosed && (
           <View style={{
             marginHorizontal: hp, marginTop: 8, marginBottom: 4,
-            backgroundColor: colors.warning + "18",
-            borderColor: colors.warning + "60",
+            backgroundColor: colors.error + "18",
+            borderColor: colors.error + "60",
             borderWidth: 1,
             borderRadius: 10,
             paddingHorizontal: 14,
@@ -1126,10 +1140,14 @@ export default function CalendarScreen() {
             alignItems: "center",
             gap: 8,
           }}>
-            <IconSymbol name="exclamationmark.triangle.fill" size={16} color={colors.warning} />
+            <IconSymbol name="exclamationmark.triangle.fill" size={16} color={colors.error} />
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, fontWeight: "700", color: colors.warning }}>Location Temporarily Closed</Text>
-              <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>New bookings are paused. Existing appointments are unaffected.</Text>
+              <Text style={{ fontSize: 13, fontWeight: "700", color: colors.error }}>Location Temporarily Closed</Text>
+              <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>
+                {activeLocation.reopenOn
+                  ? `All dates are unavailable. Reopens ${new Date(activeLocation.reopenOn + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.`
+                  : "All dates are unavailable. Closed indefinitely — no new bookings."}
+              </Text>
             </View>
           </View>
         )}
