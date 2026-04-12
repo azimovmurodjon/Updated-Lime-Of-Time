@@ -18,6 +18,7 @@ import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useMemo, useCallback } from "react";
 import { Appointment, Client, Product, Discount, DAYS_OF_WEEK, generateAvailableSlots, minutesToTime, timeToMinutes, getApplicableDiscount, generateConfirmationMessage, getServiceDisplayName, stripPhoneFormat } from "@/lib/types";
+import { useActiveLocation } from "@/hooks/use-active-location";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -30,7 +31,8 @@ type CartItem = {
 };
 
 export default function NewBookingScreen() {
-  const { state, dispatch, getServiceById, getClientById, syncToDb } = useStore();
+  const { state, dispatch, getServiceById, getClientById, syncToDb, filterAppointmentsByLocation } = useStore();
+  const { activeLocation, effectiveWorkingHours } = useActiveLocation();
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -52,7 +54,10 @@ export default function NewBookingScreen() {
   const [addMoreTab, setAddMoreTab] = useState<"services" | "products">("services");
   const [recurring, setRecurring] = useState<"none" | "weekly" | "biweekly" | "monthly">("none");
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+  // Pre-select the currently active location (single source of truth)
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(() => {
+    const activeLoc = state.locations.find((l) => l.id === state.activeLocationId && l.active);
+    if (activeLoc) return activeLoc.id;
     const defaultLoc = state.locations.find((l) => l.isDefault && l.active);
     return defaultLoc?.id ?? null;
   });
@@ -65,11 +70,15 @@ export default function NewBookingScreen() {
   const activeStaff = useMemo(() => {
     return state.staff.filter((s) => {
       if (!s.active) return false;
+      // Filter by selected location if set
+      if (selectedLocationId && s.locationIds && s.locationIds.length > 0) {
+        if (!s.locationIds.includes(selectedLocationId)) return false;
+      }
       if (!selectedServiceId) return true;
       if (!s.serviceIds || s.serviceIds.length === 0) return true; // null = all services
       return s.serviceIds.includes(selectedServiceId);
     });
-  }, [state.staff, selectedServiceId]);
+  }, [state.staff, selectedServiceId, selectedLocationId]);
 
   const selectedStaff = useMemo(() => {
     if (!selectedStaffId) return null;
@@ -103,19 +112,24 @@ export default function NewBookingScreen() {
 
   const totalPrice = subtotal - discountAmount;
 
-  // Generate available time slots using the shared helper (with custom schedule)
+  // Generate available time slots using location-scoped hours and appointments
+  const locationAppts = useMemo(
+    () => filterAppointmentsByLocation(state.appointments),
+    [state.appointments, filterAppointmentsByLocation]
+  );
+  const locationWorkingHours = effectiveWorkingHours ?? state.settings.workingHours;
   const timeSlots = useMemo(() => {
     return generateAvailableSlots(
       selectedDate,
       totalDuration,
-      state.settings.workingHours,
-      state.appointments,
+      locationWorkingHours,
+      locationAppts,
       30,
       state.customSchedule,
       state.settings.scheduleMode,
       state.settings.bufferTime ?? 0
     );
-  }, [selectedDate, state.settings.workingHours, state.appointments, totalDuration, state.customSchedule, state.settings.scheduleMode, state.settings.bufferTime]);
+  }, [selectedDate, locationWorkingHours, locationAppts, totalDuration, state.customSchedule, state.settings.scheduleMode, state.settings.bufferTime]);
 
   // Date options: next 14 days with closed-day and no-slots awareness
   const dateOptions = useMemo(() => {
@@ -131,23 +145,21 @@ export default function NewBookingScreen() {
       let closed = !!(endDate && ds > endDate);
       if (!closed) {
         if (state.settings.scheduleMode === "custom") {
-          // Custom mode: only dates explicitly in customSchedule and open are available
           closed = !customDay || !customDay.isOpen;
         } else {
-          // Weekly mode: custom overrides take priority, then weekly hours
           if (customDay) {
             closed = !customDay.isOpen;
           } else {
             const dayIndex = d.getDay();
             const dayName = DAYS_OF_WEEK[dayIndex];
-            const wh = state.settings.workingHours[dayName];
+            const wh = locationWorkingHours[dayName];
             closed = !wh || !wh.enabled;
           }
         }
       }
       let noSlots = false;
       if (!closed) {
-        const slots = generateAvailableSlots(ds, totalDuration, state.settings.workingHours, state.appointments, 30, state.customSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
+        const slots = generateAvailableSlots(ds, totalDuration, locationWorkingHours, locationAppts, 30, state.customSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
         noSlots = slots.length === 0;
       }
       dates.push({ date: ds, closed, noSlots });

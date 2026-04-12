@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useReducer, useCallback, useRef } from "react";
+import React, { createContext, useContext, useEffect, useReducer, useCallback, useMemo, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   Service,
@@ -267,6 +267,10 @@ interface StoreContextType {
   getAppointmentsForClient: (clientId: string) => Appointment[];
   getReviewsForClient: (clientId: string) => Review[];
   getTodayStats: () => { todayCount: number; weekCount: number; weekRevenue: number };
+  /** Filter appointments by the active location (pass-through when no location selected) */
+  filterAppointmentsByLocation: (appointments: Appointment[]) => Appointment[];
+  /** Clients who have had at least one appointment at the active location (all clients when no location selected) */
+  clientsForActiveLocation: Client[];
   /** Sync a specific action to the database */
   syncToDb: (action: Action) => Promise<void>;
   /** Set the active location and persist to AsyncStorage */
@@ -1327,6 +1331,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     },
     [dispatch]
   );
+
+  /**
+   * Returns only appointments belonging to the active location.
+   * When no location is active (null), returns all appointments unchanged.
+   */
+  const filterAppointmentsByLocation = useCallback(
+    (appointments: Appointment[]) => {
+      if (!state.activeLocationId) return appointments;
+      return appointments.filter((a) => a.locationId === state.activeLocationId);
+    },
+    [state.activeLocationId]
+  );
+
+  /**
+   * Clients who have had at least one appointment at the active location.
+   * When no location is active, returns all clients.
+   */
+  const clientsForActiveLocation = useMemo(() => {
+    if (!state.activeLocationId) return state.clients;
+    const clientIdsAtLocation = new Set(
+      state.appointments
+        .filter((a) => a.locationId === state.activeLocationId)
+        .map((a) => a.clientId)
+    );
+    return state.clients.filter((c) => clientIdsAtLocation.has(c.id));
+  }, [state.clients, state.appointments, state.activeLocationId]);
   return (
     <StoreContext.Provider
       value={{
@@ -1340,6 +1370,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         getAppointmentsForClient,
         getReviewsForClient,
         getTodayStats,
+        filterAppointmentsByLocation,
+        clientsForActiveLocation,
         syncToDb,
         setActiveLocation,
       }}

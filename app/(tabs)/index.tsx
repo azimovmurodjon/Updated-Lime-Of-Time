@@ -47,7 +47,7 @@ function ProgressBar({
 // ─── Main Screen ─────────────────────────────────────────────────────
 
 export default function HomeScreen() {
-  const { state, dispatch, getServiceById, getClientById, getAppointmentsForDate, syncToDb } =
+  const { state, dispatch, getServiceById, getClientById, getAppointmentsForDate, syncToDb, filterAppointmentsByLocation, clientsForActiveLocation } =
     useStore();
   const colors = useColors();
   const router = useRouter();
@@ -118,13 +118,8 @@ export default function HomeScreen() {
   const { activeLocation, activeLocations, hasMultipleLocations, setActiveLocation } = useActiveLocation();
   const selectedLocationFilter = activeLocation?.id ?? null;
 
-  const filterByLocation = useCallback(
-    (appointments: any[]) => {
-      if (!selectedLocationFilter) return appointments;
-      return appointments.filter((a: any) => a.locationId === selectedLocationFilter);
-    },
-    [selectedLocationFilter]
-  );
+  // Use the store's location-aware filter (single source of truth)
+  const filterByLocation = filterAppointmentsByLocation;
 
   const now = new Date();
   const todayStr = formatDateStr(now);
@@ -140,11 +135,11 @@ export default function HomeScreen() {
     day: "numeric",
   });
 
-  const todayAppts = useMemo(() => filterByLocation(getAppointmentsForDate(todayStr)), [todayStr, selectedLocationFilter, filterByLocation]);
+  const todayAppts = useMemo(() => filterByLocation(getAppointmentsForDate(todayStr)), [todayStr, selectedLocationFilter, filterByLocation, getAppointmentsForDate]);
 
   // ─── Analytics ──────────────────────────────────────────────────
   const analytics = useMemo(() => {
-    const totalClients = state.clients.length;
+    const totalClients = clientsForActiveLocation.length;
     const filteredAppts = filterByLocation(state.appointments);
     const activeAppts = filteredAppts.filter((a) => a.status !== "cancelled");
     const totalAppointments = activeAppts.length;
@@ -227,10 +222,10 @@ export default function HomeScreen() {
       .sort((a, b) => b.value - a.value);
 
     const statusCounts = {
-      pending: state.appointments.filter((a) => a.status === "pending").length,
-      confirmed: state.appointments.filter((a) => a.status === "confirmed").length,
+      pending: filteredAppts.filter((a) => a.status === "pending").length,
+      confirmed: filteredAppts.filter((a) => a.status === "confirmed").length,
       completed: completedAppts.length,
-      cancelled: state.appointments.filter((a) => a.status === "cancelled").length,
+      cancelled: filteredAppts.filter((a) => a.status === "cancelled").length,
     };
 
     let topServiceId = "";

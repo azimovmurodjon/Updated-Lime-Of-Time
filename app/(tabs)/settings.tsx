@@ -27,7 +27,7 @@ import { LocationSwitcher } from "@/components/location-switcher";
 import { useActiveLocation } from "@/hooks/use-active-location";
 
 export default function SettingsScreen() {
-  const { state, dispatch, syncToDb } = useStore();
+  const { state, dispatch, syncToDb, filterAppointmentsByLocation, clientsForActiveLocation } = useStore();
   const deleteBusinessMut = trpc.business.delete.useMutation();
   const colors = useColors();
   const router = useRouter();
@@ -358,18 +358,18 @@ export default function SettingsScreen() {
 
         {/* Quick Stats */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.cardLabel, { color: colors.muted }]}>Quick Stats</Text>
+          <Text style={[styles.cardLabel, { color: colors.muted }]}>Quick Stats{hasMultipleLocations && activeLocation ? ` — ${activeLocation.name}` : ""}</Text>
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
               <Text style={[styles.statNumber, { color: colors.primary }]}>{state.services.length}</Text>
               <Text style={{ fontSize: 12, color: colors.muted }}>Services</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={[styles.statNumber, { color: colors.primary }]}>{state.clients.length}</Text>
+              <Text style={[styles.statNumber, { color: colors.primary }]}>{clientsForActiveLocation.length}</Text>
               <Text style={{ fontSize: 12, color: colors.muted }}>Clients</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={[styles.statNumber, { color: colors.primary }]}>{state.appointments.length}</Text>
+              <Text style={[styles.statNumber, { color: colors.primary }]}>{filterAppointmentsByLocation(state.appointments).length}</Text>
               <Text style={{ fontSize: 12, color: colors.muted }}>Bookings</Text>
             </View>
           </View>

@@ -6,10 +6,13 @@ import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useMemo, useCallback } from "react";
 import { Client, formatPhoneNumber, stripPhoneFormat } from "@/lib/types";
+import { useActiveLocation } from "@/hooks/use-active-location";
+import { LocationSwitcher } from "@/components/location-switcher";
 import * as Contacts from "expo-contacts";
 
 export default function ClientsScreen() {
-  const { state, dispatch, getReviewsForClient, getAppointmentsForClient, syncToDb } = useStore();
+  const { state, dispatch, getReviewsForClient, getAppointmentsForClient, syncToDb, clientsForActiveLocation, filterAppointmentsByLocation } = useStore();
+  const { hasMultipleLocations } = useActiveLocation();
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -21,9 +24,10 @@ export default function ClientsScreen() {
   const [newPhone, setNewPhone] = useState("");
   const [newEmail, setNewEmail] = useState("");
 
+  // Use location-scoped client list from store
   const filteredClients = useMemo(() => {
     const q = search.toLowerCase();
-    return state.clients
+    return clientsForActiveLocation
       .filter(
         (c) =>
           c.name.toLowerCase().includes(q) ||
@@ -31,7 +35,13 @@ export default function ClientsScreen() {
           c.email.toLowerCase().includes(q)
       )
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [state.clients, search]);
+  }, [clientsForActiveLocation, search]);
+
+  // Appointment count scoped to active location
+  const getLocationApptCount = useCallback(
+    (clientId: string) => filterAppointmentsByLocation(getAppointmentsForClient(clientId)).length,
+    [filterAppointmentsByLocation, getAppointmentsForClient]
+  );
 
   const handlePhoneChange = useCallback((text: string) => {
     setNewPhone(formatPhoneNumber(text));
@@ -132,7 +142,10 @@ export default function ClientsScreen() {
     <ScreenContainer tabletMaxWidth={0}>
       <View style={{ paddingHorizontal: hp }}>
         <View style={styles.header}>
-          <Text style={{ fontSize: 24, fontWeight: "700", color: colors.foreground }}>Clients</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text style={{ fontSize: 24, fontWeight: "700", color: colors.foreground }}>Clients</Text>
+            {hasMultipleLocations && <LocationSwitcher compact />}
+          </View>
           <View style={{ flexDirection: "row", gap: 8 }}>
             <Pressable
               onPress={handleSelectFromContacts}
@@ -232,7 +245,7 @@ export default function ClientsScreen() {
         contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 80 }}
         renderItem={({ item }) => {
           const rating = getClientRating(item.id);
-          const apptCount = getAppointmentsForClient(item.id).length;
+          const apptCount = getLocationApptCount(item.id);
           return (
             <Pressable
               onPress={() => router.push({ pathname: "/client-detail", params: { id: item.id } })}

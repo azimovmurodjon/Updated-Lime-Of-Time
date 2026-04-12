@@ -55,7 +55,7 @@ const TIMELINE_END = 22;
 const HOUR_HEIGHT = 60;
 
 export default function CalendarScreen() {
-  const { state, dispatch, getServiceById, getClientById, getStaffById, syncToDb } = useStore();
+  const { state, dispatch, getServiceById, getClientById, getStaffById, syncToDb, filterAppointmentsByLocation } = useStore();
   const colors = useColors();
   const router = useRouter();
   const params = useLocalSearchParams<{ filter?: string }>();
@@ -104,6 +104,12 @@ export default function CalendarScreen() {
 
   const { activeLocation, activeLocations, hasMultipleLocations: hasMultiLoc, setActiveLocation } = useActiveLocation();
   const calLocationFilter = activeLocation?.id ?? null;
+
+  // Location-scoped appointments (single source of truth for this screen)
+  const locationAppointments = useMemo(
+    () => filterAppointmentsByLocation(state.appointments),
+    [state.appointments, filterAppointmentsByLocation]
+  );
 
   const cellSize = Math.floor((width - hp * 2) / 7);
   const todayStr = formatDateStr(now);
@@ -161,30 +167,25 @@ export default function CalendarScreen() {
     return days;
   }, [currentMonth, currentYear]);
 
-  // Status dots
+  // Status dots — scoped to active location
   const dayStatuses = useMemo(() => {
     const statuses: Record<string, Set<string>> = {};
-    state.appointments.forEach((a) => {
+    locationAppointments.forEach((a) => {
       if (!statuses[a.date]) statuses[a.date] = new Set();
       statuses[a.date].add(a.status);
     });
     return statuses;
-  }, [state.appointments]);
+  }, [locationAppointments]);
 
-  const locFilter = useCallback(
-    (appts: Appointment[]) => {
-      if (!calLocationFilter) return appts;
-      return appts.filter((a) => a.locationId === calLocationFilter);
-    },
-    [calLocationFilter]
-  );
+  // locFilter kept for backward-compat (already filtered by location above)
+  const locFilter = useCallback((appts: Appointment[]) => appts, []);
 
   // Selected date appointments
   const selectedDateAppts = useMemo(() => {
-    return locFilter(state.appointments)
+    return locationAppointments
       .filter((a) => a.date === selectedDate)
       .sort((a, b) => a.time.localeCompare(b.time));
-  }, [state.appointments, selectedDate, locFilter]);
+  }, [locationAppointments, selectedDate]);
 
   // Week days
   const weekDays = useMemo(() => {
@@ -206,7 +207,7 @@ export default function CalendarScreen() {
 
   // Filtered appointments list
   const filteredAppointments = useMemo(() => {
-    const base = locFilter(state.appointments);
+    const base = locationAppointments;
     switch (activeFilter) {
       case "upcoming":
         return base.filter((a) => a.status === "confirmed" && a.date >= todayStr)
@@ -222,7 +223,7 @@ export default function CalendarScreen() {
           .sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
       default: return [];
     }
-  }, [state.appointments, activeFilter, todayStr, locFilter]);
+  }, [locationAppointments, activeFilter, todayStr]);
 
   // ─── Navigation ───────────────────────────────────────────────────────
 
@@ -744,10 +745,10 @@ export default function CalendarScreen() {
           {FILTERS.map((f) => {
             const isActive = activeFilter === f.key;
             const count = f.key === "upcoming"
-              ? state.appointments.filter((a) => a.status === "confirmed" && a.date >= todayStr).length
-              : f.key === "requests" ? state.appointments.filter((a) => a.status === "pending").length
-              : f.key === "cancelled" ? state.appointments.filter((a) => a.status === "cancelled").length
-              : state.appointments.filter((a) => a.status === "completed").length;
+              ? locationAppointments.filter((a) => a.status === "confirmed" && a.date >= todayStr).length
+              : f.key === "requests" ? locationAppointments.filter((a) => a.status === "pending").length
+              : f.key === "cancelled" ? locationAppointments.filter((a) => a.status === "cancelled").length
+              : locationAppointments.filter((a) => a.status === "completed").length;
             return (
               <Pressable
                 key={f.key}

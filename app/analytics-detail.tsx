@@ -18,23 +18,24 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { minutesToTime, timeToMinutes } from "@/lib/types";
+import { useActiveLocation } from "@/hooks/use-active-location";
+import { LocationSwitcher } from "@/components/location-switcher";
 
 export default function AnalyticsDetailScreen() {
   const { tab } = useLocalSearchParams<{ tab: string }>();
-  const { state, getServiceById, getClientById } = useStore();
+  const { state, getServiceById, getClientById, filterAppointmentsByLocation, clientsForActiveLocation } = useStore();
+  const { activeLocation, hasMultipleLocations: hasMultiLoc } = useActiveLocation();
   const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
   const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
   const [generating, setGenerating] = useState(false);
-  const [locFilter, setLocFilter] = useState<string | null>(null);
-  const activeLocs = useMemo(() => state.locations.filter((l) => l.active), [state.locations]);
-  const hasMultiLoc = activeLocs.length > 1;
-  const filteredAppts = useMemo(() => {
-    if (!locFilter) return state.appointments;
-    return state.appointments.filter((a) => a.locationId === locFilter);
-  }, [state.appointments, locFilter]);
+  // Use global activeLocationId — no separate local filter needed
+  const filteredAppts = useMemo(
+    () => filterAppointmentsByLocation(state.appointments),
+    [state.appointments, filterAppointmentsByLocation]
+  );
 
   const titles: Record<string, string> = {
     clients: "Total Clients",
@@ -43,9 +44,9 @@ export default function AnalyticsDetailScreen() {
     topservice: "Top Service",
   };
 
-  // Clients analytics
+  // Clients analytics — scoped to active location
   const clientsData = useMemo(() => {
-    return state.clients
+    return clientsForActiveLocation
       .map((c) => {
         const apptCount = filteredAppts.filter(
           (a) => a.clientId === c.id && a.status !== "cancelled"
@@ -60,7 +61,7 @@ export default function AnalyticsDetailScreen() {
         return { ...c, apptCount, totalSpent };
       })
       .sort((a, b) => b.apptCount - a.apptCount);
-  }, [state.clients, filteredAppts, state.services]);
+  }, [clientsForActiveLocation, filteredAppts, state.services]);
 
   // Appointments analytics - by month
   const appointmentsData = useMemo(() => {
@@ -131,8 +132,9 @@ export default function AnalyticsDetailScreen() {
         const businessName = state.settings.businessName || "My Business";
         const profile = state.settings.profile;
 
-        // Filter appointments for the current year
-        const yearAppts = state.appointments.filter((a) =>
+        // Filter appointments for the current year — scoped to active location
+        const locationAppts = filterAppointmentsByLocation(state.appointments);
+        const yearAppts = locationAppts.filter((a) =>
           a.date.startsWith(`${currentYear}`)
         );
         const completedAppts = yearAppts.filter((a) => a.status === "completed");
@@ -285,9 +287,10 @@ export default function AnalyticsDetailScreen() {
           fileName = `${businessName.replace(/\s+/g, "_")}_Client_Report_${currentYear}.csv`;
           csvContent += `"${businessName} - Client Report ${currentYear}"\n`;
           csvContent += `"Generated: ${dateGenerated}"\n\n`;
-          csvContent += `"TOTAL CLIENTS: ${state.clients.length}"\n\n`;
+          const reportClients = filterAppointmentsByLocation === ((a: any[]) => a) ? state.clients : clientsForActiveLocation;
+          csvContent += `"TOTAL CLIENTS: ${reportClients.length}"\n\n`;
           csvContent += `"Client Name","Phone","Email","Total Appointments","Completed","Cancelled","Total Spent","Notes"\n`;
-          state.clients.forEach((c) => {
+          reportClients.forEach((c) => {
             const cAppts = yearAppts.filter((a) => a.clientId === c.id);
             const cCompleted = cAppts.filter((a) => a.status === "completed").length;
             const cCancelled = cAppts.filter((a) => a.status === "cancelled").length;
@@ -366,7 +369,7 @@ export default function AnalyticsDetailScreen() {
         setGenerating(false);
       }
     },
-    [state, getServiceById, getClientById]
+    [state, getServiceById, getClientById, filterAppointmentsByLocation, clientsForActiveLocation]
   );
 
   const getReportType = (): string => {
@@ -413,37 +416,11 @@ export default function AnalyticsDetailScreen() {
         contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Location Filter */}
+        {/* Location Switcher — uses global activeLocationId */}
         {hasMultiLoc && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12, marginBottom: 4 }}>
-            <View style={{ flexDirection: "row", gap: 6 }}>
-              <Pressable
-                onPress={() => setLocFilter(null)}
-                style={({ pressed }) => [{
-                  paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1,
-                  backgroundColor: !locFilter ? colors.primary + "15" : colors.surface,
-                  borderColor: !locFilter ? colors.primary : colors.border,
-                  opacity: pressed ? 0.7 : 1,
-                }]}
-              >
-                <Text style={{ fontSize: 12, fontWeight: "600", color: !locFilter ? colors.primary : colors.muted }}>All Locations</Text>
-              </Pressable>
-              {activeLocs.map((loc) => (
-                <Pressable
-                  key={loc.id}
-                  onPress={() => setLocFilter(loc.id)}
-                  style={({ pressed }) => [{
-                    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1,
-                    backgroundColor: locFilter === loc.id ? colors.primary + "15" : colors.surface,
-                    borderColor: locFilter === loc.id ? colors.primary : colors.border,
-                    opacity: pressed ? 0.7 : 1,
-                  }]}
-                >
-                  <Text style={{ fontSize: 12, fontWeight: "600", color: locFilter === loc.id ? colors.primary : colors.muted }}>{loc.name}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </ScrollView>
+          <View style={{ marginTop: 12, marginBottom: 4 }}>
+            <LocationSwitcher showAll />
+          </View>
         )}
 
         {/* ─── Report Generation Button ─── */}
@@ -479,7 +456,7 @@ export default function AnalyticsDetailScreen() {
               ]}
             >
               <Text style={{ fontSize: 36, fontWeight: "800", color: "#4CAF50" }}>
-                {state.clients.length}
+                {clientsForActiveLocation.length}
               </Text>
               <Text style={{ fontSize: 14, color: "#4CAF50CC", marginTop: 4 }}>
                 Total Clients
