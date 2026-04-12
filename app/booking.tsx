@@ -287,6 +287,69 @@ export default function PublicBookingScreen() {
     return formatTimeDisplay(minutesToTime(timeToMinutes(selectedTime) + selectedService.duration));
   }, [selectedTime, selectedService]);
 
+  // If the pre-selected location (from URL param) is temporarily closed, show a gate screen
+  const isLocationTemporarilyClosed = selectedLocation?.temporarilyClosed === true;
+
+  if (isLocationTemporarilyClosed) {
+    return (
+      <ScreenContainer edges={["top", "bottom", "left", "right"]} style={{ paddingHorizontal: hp }}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+            <IconSymbol name="chevron.left" size={24} color={colors.foreground} />
+          </Pressable>
+          <View style={{ flex: 1, alignItems: "center" }}>
+            <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground }}>Book with {businessName}</Text>
+            <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>Powered by Lime Of Time</Text>
+          </View>
+          <View style={{ width: 24 }} />
+        </View>
+
+        {/* Temporarily Closed Gate */}
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 }}>
+          <View style={{
+            width: 72, height: 72, borderRadius: 36,
+            backgroundColor: colors.warning + "20",
+            alignItems: "center", justifyContent: "center",
+            marginBottom: 20,
+          }}>
+            <IconSymbol name="exclamationmark.triangle.fill" size={36} color={colors.warning} />
+          </View>
+          <Text style={{ fontSize: 22, fontWeight: "700", color: colors.foreground, textAlign: "center", marginBottom: 12 }}>
+            Location Temporarily Unavailable
+          </Text>
+          <Text style={{ fontSize: 15, color: colors.muted, textAlign: "center", lineHeight: 22, marginBottom: 8 }}>
+            <Text style={{ fontWeight: "600", color: colors.foreground }}>{selectedLocation?.name}</Text>
+            {" is temporarily closed and not accepting new bookings at this time."}
+          </Text>
+          <Text style={{ fontSize: 13, color: colors.muted, textAlign: "center", lineHeight: 20 }}>
+            Please check back later or contact us directly to schedule your appointment.
+          </Text>
+          {profile.phone ? (
+            <Pressable
+              onPress={() => Linking.openURL(`tel:${profile.phone}`)}
+              style={({ pressed }) => ({
+                marginTop: 28,
+                flexDirection: "row", alignItems: "center", gap: 8,
+                backgroundColor: colors.primary + "18",
+                borderColor: colors.primary + "40",
+                borderWidth: 1,
+                borderRadius: 12,
+                paddingHorizontal: 20, paddingVertical: 12,
+                opacity: pressed ? 0.7 : 1,
+              })}
+            >
+              <IconSymbol name="phone.fill" size={16} color={colors.primary} />
+              <Text style={{ fontSize: 14, fontWeight: "600", color: colors.primary }}>
+                {formatPhoneNumber(stripPhoneFormat(profile.phone))}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </ScreenContainer>
+    );
+  }
+
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} className="pt-2" style={{ paddingHorizontal: hp }}>
       {/* Header */}
