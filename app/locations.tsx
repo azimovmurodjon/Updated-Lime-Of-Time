@@ -41,20 +41,18 @@ export default function LocationsScreen() {
     [state.locations]
   );
 
-  /** Toggle a location as the single active location. Deactivates all others. */
+  /** Toggle a location's active state. Multiple locations can be active simultaneously. */
   const handleToggleActive = (item: Location, value: boolean) => {
+    // Prevent deactivating the last active location
     if (!value) {
       const otherActive = state.locations.find((l) => l.id !== item.id && l.active);
       if (!otherActive) return;
     }
-    state.locations.forEach((loc) => {
-      const shouldBeActive = loc.id === item.id ? value : value ? false : loc.active;
-      if (loc.active !== shouldBeActive) {
-        const action = { type: "UPDATE_LOCATION" as const, payload: { ...loc, active: shouldBeActive } };
-        dispatch(action);
-        syncToDb(action);
-      }
-    });
+    // Only update the toggled location — do NOT deactivate others
+    const action = { type: "UPDATE_LOCATION" as const, payload: { ...item, active: value } };
+    dispatch(action);
+    syncToDb(action);
+    // If activating, switch the active context to this location
     if (value) setActiveLocation(item.id);
   };
 
