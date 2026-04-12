@@ -28,6 +28,8 @@ interface AppState {
   discounts: Discount[];
   giftCards: GiftCard[];
   customSchedule: CustomScheduleDay[];
+  /** Per-location custom schedule overrides. Key = locationId, value = array of day overrides for that location. */
+  locationCustomSchedule: Record<string, CustomScheduleDay[]>;
   products: Product[];
   staff: StaffMember[];
   locations: Location[];
@@ -66,6 +68,7 @@ const initialState: AppState = {
   discounts: [],
   giftCards: [],
   customSchedule: [],
+  locationCustomSchedule: {},
   products: [],
   staff: [],
   locations: [],
@@ -102,6 +105,8 @@ type Action =
   | { type: "DELETE_GIFT_CARD"; payload: string }
   | { type: "SET_CUSTOM_SCHEDULE"; payload: CustomScheduleDay }
   | { type: "DELETE_CUSTOM_SCHEDULE"; payload: string }
+  | { type: "SET_LOCATION_CUSTOM_SCHEDULE"; payload: { locationId: string; day: CustomScheduleDay } }
+  | { type: "DELETE_LOCATION_CUSTOM_SCHEDULE"; payload: { locationId: string; date: string } }
   | { type: "ADD_PRODUCT"; payload: Product }
   | { type: "UPDATE_PRODUCT"; payload: Product }
   | { type: "DELETE_PRODUCT"; payload: string }
@@ -215,6 +220,21 @@ function reducer(state: AppState, action: Action): AppState {
     }
     case "DELETE_CUSTOM_SCHEDULE":
       return { ...state, customSchedule: state.customSchedule.filter((cs) => cs.date !== action.payload) };
+    case "SET_LOCATION_CUSTOM_SCHEDULE": {
+      const { locationId, day } = action.payload;
+      const existing = (state.locationCustomSchedule[locationId] ?? []);
+      const idx = existing.findIndex((cs) => cs.date === day.date);
+      const updated = idx >= 0
+        ? existing.map((cs, i) => i === idx ? day : cs)
+        : [...existing, day];
+      return { ...state, locationCustomSchedule: { ...state.locationCustomSchedule, [locationId]: updated } };
+    }
+    case "DELETE_LOCATION_CUSTOM_SCHEDULE": {
+      const { locationId, date } = action.payload;
+      const existing = (state.locationCustomSchedule[locationId] ?? []);
+      const updated = existing.filter((cs) => cs.date !== date);
+      return { ...state, locationCustomSchedule: { ...state.locationCustomSchedule, [locationId]: updated } };
+    }
     case "ADD_PRODUCT":
       return { ...state, products: [...state.products, action.payload] };
     case "UPDATE_PRODUCT":
@@ -271,6 +291,8 @@ interface StoreContextType {
   filterAppointmentsByLocation: (appointments: Appointment[]) => Appointment[];
   /** Clients who have had at least one appointment at the active location (all clients when no location selected) */
   clientsForActiveLocation: Client[];
+  /** Returns the custom schedule overrides for the active location (or global if no location active) */
+  getActiveCustomSchedule: () => CustomScheduleDay[];
   /** Sync a specific action to the database */
   syncToDb: (action: Action) => Promise<void>;
   /** Set the active location and persist to AsyncStorage */
@@ -289,6 +311,7 @@ const STORAGE_KEYS = {
   discounts: "@bookease_discounts",
   giftCards: "@bookease_gift_cards",
   customSchedule: "@bookease_custom_schedule",
+  locationCustomSchedule: "@bookease_location_custom_schedule",
   products: "@bookease_products",
   staff: "@bookease_staff",
   locations: "@bookease_locations",
@@ -546,6 +569,7 @@ function dbCustomScheduleToLocal(cs: any): CustomScheduleDay {
     isOpen: cs.isOpen ?? true,
     startTime: cs.startTime ?? undefined,
     endTime: cs.endTime ?? undefined,
+    locationId: cs.locationId ?? null,
   };
 }
 
@@ -683,7 +707,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Fallback: load from AsyncStorage
-        const [servicesRaw, clientsRaw, appointmentsRaw, reviewsRaw, settingsRaw, discountsRaw, giftCardsRaw, customScheduleRaw, productsRaw, staffRaw, locationsRaw] =
+        const [servicesRaw, clientsRaw, appointmentsRaw, reviewsRaw, settingsRaw, discountsRaw, giftCardsRaw, customScheduleRaw, productsRaw, staffRaw, locationsRaw, locationCustomScheduleRaw] =
           await Promise.all([
             AsyncStorage.getItem(STORAGE_KEYS.services),
             AsyncStorage.getItem(STORAGE_KEYS.clients),
@@ -696,6 +720,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             AsyncStorage.getItem(STORAGE_KEYS.products),
             AsyncStorage.getItem(STORAGE_KEYS.staff),
             AsyncStorage.getItem(STORAGE_KEYS.locations),
+            AsyncStorage.getItem(STORAGE_KEYS.locationCustomSchedule),
           ]);
         
         const loadedSettings = settingsRaw
@@ -712,6 +737,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             discounts: discountsRaw ? JSON.parse(discountsRaw) : [],
             giftCards: giftCardsRaw ? JSON.parse(giftCardsRaw) : [],
             customSchedule: customScheduleRaw ? JSON.parse(customScheduleRaw) : [],
+            locationCustomSchedule: locationCustomScheduleRaw ? JSON.parse(locationCustomScheduleRaw) : {},
             products: productsRaw ? JSON.parse(productsRaw) : [],
             staff: staffRaw ? JSON.parse(staffRaw) : [],
             locations: locationsRaw ? JSON.parse(locationsRaw) : [],
@@ -779,6 +805,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!state.loaded) return;
     AsyncStorage.setItem(STORAGE_KEYS.customSchedule, JSON.stringify(state.customSchedule));
   }, [state.customSchedule, state.loaded]);
+
+  useEffect(() => {
+    if (!state.loaded) return;
+    AsyncStorage.setItem(STORAGE_KEYS.locationCustomSchedule, JSON.stringify(state.locationCustomSchedule));
+  }, [state.locationCustomSchedule, state.loaded]);
 
   useEffect(() => {
     if (!state.loaded) return;
@@ -1110,6 +1141,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               isOpen: cs.isOpen,
               startTime: cs.startTime,
               endTime: cs.endTime,
+              locationId: cs.locationId ?? undefined,
             });
             break;
           }
@@ -1117,6 +1149,27 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             await deleteScheduleMut.mutateAsync({
               businessOwnerId: ownerId,
               date: action.payload as string,
+            });
+            break;
+          }
+          case "SET_LOCATION_CUSTOM_SCHEDULE": {
+            const { locationId, day } = action.payload as { locationId: string; day: CustomScheduleDay };
+            await upsertScheduleMut.mutateAsync({
+              businessOwnerId: ownerId,
+              date: day.date,
+              isOpen: day.isOpen,
+              startTime: day.startTime,
+              endTime: day.endTime,
+              locationId,
+            });
+            break;
+          }
+          case "DELETE_LOCATION_CUSTOM_SCHEDULE": {
+            const { locationId, date } = action.payload as { locationId: string; date: string };
+            await deleteScheduleMut.mutateAsync({
+              businessOwnerId: ownerId,
+              date,
+              locationId,
             });
             break;
           }
@@ -1345,6 +1398,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   );
 
   /**
+   * Returns the custom schedule overrides for the active location.
+   * Falls back to the global customSchedule when no location is active.
+   */
+  const getActiveCustomSchedule = useCallback((): CustomScheduleDay[] => {
+    if (!state.activeLocationId) return state.customSchedule;
+    return state.locationCustomSchedule[state.activeLocationId] ?? [];
+  }, [state.activeLocationId, state.locationCustomSchedule, state.customSchedule]);
+
+  /**
    * Clients who have had at least one appointment at the active location.
    * When no location is active, returns all clients.
    */
@@ -1372,6 +1434,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         getTodayStats,
         filterAppointmentsByLocation,
         clientsForActiveLocation,
+        getActiveCustomSchedule,
         syncToDb,
         setActiveLocation,
       }}

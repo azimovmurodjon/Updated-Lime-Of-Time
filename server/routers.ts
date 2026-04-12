@@ -469,6 +469,8 @@ const customScheduleRouter = router({
         isOpen: z.boolean(),
         startTime: z.string().optional(),
         endTime: z.string().optional(),
+        /** When provided, this override applies only to this location */
+        locationId: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -477,15 +479,16 @@ const customScheduleRouter = router({
         input.date,
         input.isOpen,
         input.startTime,
-        input.endTime
+        input.endTime,
+        input.locationId
       );
       return { success: true };
     }),
 
   delete: publicProcedure
-    .input(z.object({ businessOwnerId: z.number(), date: z.string() }))
+    .input(z.object({ businessOwnerId: z.number(), date: z.string(), locationId: z.string().optional() }))
     .mutation(async ({ input }) => {
-      await db.deleteCustomScheduleDay(input.businessOwnerId, input.date);
+      await db.deleteCustomScheduleDay(input.businessOwnerId, input.date, input.locationId);
       return { success: true };
     }),
 });

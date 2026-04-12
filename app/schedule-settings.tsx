@@ -284,48 +284,86 @@ export default function ScheduleSettingsScreen() {
     return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   }, [customCalMonth]);
 
+  // Use per-location custom schedule when a location is active, fall back to global
+  const activeCustomSchedule = useMemo(() => {
+    if (activeLocation) {
+      return state.locationCustomSchedule[activeLocation.id] ?? [];
+    }
+    return state.customSchedule;
+  }, [activeLocation, state.locationCustomSchedule, state.customSchedule]);
+
   const getCustomDayForDate = useCallback((dateStr: string): CustomScheduleDay | undefined => {
-    return state.customSchedule.find((cs) => cs.date === dateStr);
-  }, [state.customSchedule]);
+    return activeCustomSchedule.find((cs) => cs.date === dateStr);
+  }, [activeCustomSchedule]);
 
   const toggleCustomDayOpen = useCallback((dateStr: string) => {
-    const existing = state.customSchedule.find((cs) => cs.date === dateStr);
-    if (existing) {
-      if (existing.isOpen) {
+    const existing = activeCustomSchedule.find((cs) => cs.date === dateStr);
+    if (activeLocation) {
+      // Per-location override
+      if (existing) {
+        if (existing.isOpen) {
+          const cs: CustomScheduleDay = { date: dateStr, isOpen: false, locationId: activeLocation.id };
+          dispatch({ type: "SET_LOCATION_CUSTOM_SCHEDULE", payload: { locationId: activeLocation.id, day: cs } });
+          syncToDb({ type: "SET_LOCATION_CUSTOM_SCHEDULE", payload: { locationId: activeLocation.id, day: cs } });
+        } else {
+          dispatch({ type: "DELETE_LOCATION_CUSTOM_SCHEDULE", payload: { locationId: activeLocation.id, date: dateStr } });
+          syncToDb({ type: "DELETE_LOCATION_CUSTOM_SCHEDULE", payload: { locationId: activeLocation.id, date: dateStr } });
+        }
+      } else {
+        const cs: CustomScheduleDay = { date: dateStr, isOpen: false, locationId: activeLocation.id };
+        dispatch({ type: "SET_LOCATION_CUSTOM_SCHEDULE", payload: { locationId: activeLocation.id, day: cs } });
+        syncToDb({ type: "SET_LOCATION_CUSTOM_SCHEDULE", payload: { locationId: activeLocation.id, day: cs } });
+      }
+    } else {
+      // Global override (no active location)
+      if (existing) {
+        if (existing.isOpen) {
+          const cs: CustomScheduleDay = { date: dateStr, isOpen: false };
+          dispatch({ type: "SET_CUSTOM_SCHEDULE", payload: cs });
+          syncToDb({ type: "SET_CUSTOM_SCHEDULE", payload: cs });
+        } else {
+          dispatch({ type: "DELETE_CUSTOM_SCHEDULE", payload: dateStr });
+          syncToDb({ type: "DELETE_CUSTOM_SCHEDULE", payload: dateStr });
+        }
+      } else {
         const cs: CustomScheduleDay = { date: dateStr, isOpen: false };
         dispatch({ type: "SET_CUSTOM_SCHEDULE", payload: cs });
         syncToDb({ type: "SET_CUSTOM_SCHEDULE", payload: cs });
-      } else {
-        dispatch({ type: "DELETE_CUSTOM_SCHEDULE", payload: dateStr });
-        syncToDb({ type: "DELETE_CUSTOM_SCHEDULE", payload: dateStr });
       }
+    }
+  }, [activeCustomSchedule, activeLocation, dispatch, syncToDb]);
+
+  const setCustomDayOpen = useCallback((dateStr: string) => {
+    if (activeLocation) {
+      const cs: CustomScheduleDay = { date: dateStr, isOpen: true, startTime: "09:00", endTime: "17:00", locationId: activeLocation.id };
+      dispatch({ type: "SET_LOCATION_CUSTOM_SCHEDULE", payload: { locationId: activeLocation.id, day: cs } });
+      syncToDb({ type: "SET_LOCATION_CUSTOM_SCHEDULE", payload: { locationId: activeLocation.id, day: cs } });
     } else {
-      const cs: CustomScheduleDay = { date: dateStr, isOpen: false };
+      const cs: CustomScheduleDay = { date: dateStr, isOpen: true, startTime: "09:00", endTime: "17:00" };
       dispatch({ type: "SET_CUSTOM_SCHEDULE", payload: cs });
       syncToDb({ type: "SET_CUSTOM_SCHEDULE", payload: cs });
     }
-  }, [state.customSchedule, dispatch, syncToDb]);
-
-  const setCustomDayOpen = useCallback((dateStr: string) => {
-    const cs: CustomScheduleDay = { date: dateStr, isOpen: true, startTime: "09:00", endTime: "17:00" };
-    dispatch({ type: "SET_CUSTOM_SCHEDULE", payload: cs });
-    syncToDb({ type: "SET_CUSTOM_SCHEDULE", payload: cs });
-  }, [dispatch, syncToDb]);
+  }, [activeLocation, dispatch, syncToDb]);
 
   const removeCustomOverride = useCallback((dateStr: string) => {
-    dispatch({ type: "DELETE_CUSTOM_SCHEDULE", payload: dateStr });
-    syncToDb({ type: "DELETE_CUSTOM_SCHEDULE", payload: dateStr });
+    if (activeLocation) {
+      dispatch({ type: "DELETE_LOCATION_CUSTOM_SCHEDULE", payload: { locationId: activeLocation.id, date: dateStr } });
+      syncToDb({ type: "DELETE_LOCATION_CUSTOM_SCHEDULE", payload: { locationId: activeLocation.id, date: dateStr } });
+    } else {
+      dispatch({ type: "DELETE_CUSTOM_SCHEDULE", payload: dateStr });
+      syncToDb({ type: "DELETE_CUSTOM_SCHEDULE", payload: dateStr });
+    }
     setSelectedCustomDate(null);
-  }, [dispatch, syncToDb]);
+  }, [activeLocation, dispatch, syncToDb]);
 
   const openCustomTimePicker = useCallback((dateStr: string) => {
-    const existing = state.customSchedule.find((cs) => cs.date === dateStr);
+    const existing = activeCustomSchedule.find((cs) => cs.date === dateStr);
     setCustomDraftStart(existing?.startTime ?? "09:00");
     setCustomDraftEnd(existing?.endTime ?? "17:00");
     setCustomTimeError(null);
     setCustomSubPicker(null);
     setCustomTimePicker({ date: dateStr });
-  }, [state.customSchedule]);
+  }, [activeCustomSchedule]);
 
   const saveCustomTimePicker = useCallback(() => {
     if (!customTimePicker) return;
@@ -336,16 +374,28 @@ export default function ScheduleSettingsScreen() {
       return;
     }
     setCustomTimeError(null);
-    const cs: CustomScheduleDay = {
-      date: customTimePicker.date,
-      isOpen: true,
-      startTime: customDraftStart,
-      endTime: customDraftEnd,
-    };
-    dispatch({ type: "SET_CUSTOM_SCHEDULE", payload: cs });
-    syncToDb({ type: "SET_CUSTOM_SCHEDULE", payload: cs });
+    if (activeLocation) {
+      const cs: CustomScheduleDay = {
+        date: customTimePicker.date,
+        isOpen: true,
+        startTime: customDraftStart,
+        endTime: customDraftEnd,
+        locationId: activeLocation.id,
+      };
+      dispatch({ type: "SET_LOCATION_CUSTOM_SCHEDULE", payload: { locationId: activeLocation.id, day: cs } });
+      syncToDb({ type: "SET_LOCATION_CUSTOM_SCHEDULE", payload: { locationId: activeLocation.id, day: cs } });
+    } else {
+      const cs: CustomScheduleDay = {
+        date: customTimePicker.date,
+        isOpen: true,
+        startTime: customDraftStart,
+        endTime: customDraftEnd,
+      };
+      dispatch({ type: "SET_CUSTOM_SCHEDULE", payload: cs });
+      syncToDb({ type: "SET_CUSTOM_SCHEDULE", payload: cs });
+    }
     setCustomTimePicker(null);
-  }, [customTimePicker, customDraftStart, customDraftEnd, dispatch, syncToDb]);
+  }, [customTimePicker, customDraftStart, customDraftEnd, activeLocation, dispatch, syncToDb]);
 
   // ── Buffer time ────────────────────────────────────────────────────────────
   const setBufferTime = useCallback((mins: number) => {

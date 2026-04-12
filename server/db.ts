@@ -539,21 +539,36 @@ export async function upsertCustomScheduleDay(
   date: string,
   isOpen: boolean,
   startTime?: string,
-  endTime?: string
+  endTime?: string,
+  locationId?: string
 ): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  // Check if entry exists
+  // Build where conditions — include locationId match when provided
+  const conditions = locationId
+    ? and(
+        eq(customSchedule.businessOwnerId, businessOwnerId),
+        eq(customSchedule.date, date),
+        eq((customSchedule as any).locationId, locationId)
+      )
+    : and(
+        eq(customSchedule.businessOwnerId, businessOwnerId),
+        eq(customSchedule.date, date),
+        // Only match rows with no locationId (global overrides)
+        (customSchedule as any).locationId === null
+          ? undefined
+          : eq((customSchedule as any).locationId, null)
+      );
   const existing = await db
     .select()
     .from(customSchedule)
-    .where(and(eq(customSchedule.businessOwnerId, businessOwnerId), eq(customSchedule.date, date)))
+    .where(and(eq(customSchedule.businessOwnerId, businessOwnerId), eq(customSchedule.date, date), locationId ? eq((customSchedule as any).locationId, locationId) : undefined))
     .limit(1);
   if (existing.length > 0) {
     await db
       .update(customSchedule)
       .set({ isOpen, startTime: startTime ?? null, endTime: endTime ?? null })
-      .where(and(eq(customSchedule.businessOwnerId, businessOwnerId), eq(customSchedule.date, date)));
+      .where(and(eq(customSchedule.businessOwnerId, businessOwnerId), eq(customSchedule.date, date), locationId ? eq((customSchedule as any).locationId, locationId) : undefined));
   } else {
     await db.insert(customSchedule).values({
       businessOwnerId,
@@ -561,19 +576,25 @@ export async function upsertCustomScheduleDay(
       isOpen,
       startTime: startTime ?? null,
       endTime: endTime ?? null,
-    });
+      ...(locationId ? { locationId } : {}),
+    } as any);
   }
 }
 
 export async function deleteCustomScheduleDay(
   businessOwnerId: number,
-  date: string
+  date: string,
+  locationId?: string
 ): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db
     .delete(customSchedule)
-    .where(and(eq(customSchedule.businessOwnerId, businessOwnerId), eq(customSchedule.date, date)));
+    .where(and(
+      eq(customSchedule.businessOwnerId, businessOwnerId),
+      eq(customSchedule.date, date),
+      locationId ? eq((customSchedule as any).locationId, locationId) : undefined
+    ));
 }
 
 // ─── Products ────────────────────────────────────────────────────────────────

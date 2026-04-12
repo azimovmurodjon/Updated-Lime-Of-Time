@@ -31,7 +31,7 @@ type CartItem = {
 };
 
 export default function NewBookingScreen() {
-  const { state, dispatch, getServiceById, getClientById, syncToDb, filterAppointmentsByLocation } = useStore();
+  const { state, dispatch, getServiceById, getClientById, syncToDb, filterAppointmentsByLocation, getActiveCustomSchedule } = useStore();
   const { activeLocation, effectiveWorkingHours } = useActiveLocation();
   const colors = useColors();
   const router = useRouter();
@@ -118,6 +118,7 @@ export default function NewBookingScreen() {
     [state.appointments, filterAppointmentsByLocation]
   );
   const locationWorkingHours = effectiveWorkingHours ?? state.settings.workingHours;
+  const activeCustomSchedule = useMemo(() => getActiveCustomSchedule(), [getActiveCustomSchedule]);
   const timeSlots = useMemo(() => {
     return generateAvailableSlots(
       selectedDate,
@@ -125,11 +126,11 @@ export default function NewBookingScreen() {
       locationWorkingHours,
       locationAppts,
       30,
-      state.customSchedule,
+      activeCustomSchedule,
       state.settings.scheduleMode,
       state.settings.bufferTime ?? 0
     );
-  }, [selectedDate, locationWorkingHours, locationAppts, totalDuration, state.customSchedule, state.settings.scheduleMode, state.settings.bufferTime]);
+  }, [selectedDate, locationWorkingHours, locationAppts, totalDuration, activeCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime]);
 
   // Date options: next 14 days with closed-day and no-slots awareness
   const dateOptions = useMemo(() => {
@@ -139,7 +140,7 @@ export default function NewBookingScreen() {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
       const ds = formatDateStr(d);
-      const customDay = state.customSchedule.find((cs) => cs.date === ds);
+      const customDay = activeCustomSchedule.find((cs) => cs.date === ds);
       // Check Active Until expiry first
       const endDate = state.settings.businessHoursEndDate;
       let closed = !!(endDate && ds > endDate);
@@ -159,13 +160,13 @@ export default function NewBookingScreen() {
       }
       let noSlots = false;
       if (!closed) {
-        const slots = generateAvailableSlots(ds, totalDuration, locationWorkingHours, locationAppts, 30, state.customSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
+        const slots = generateAvailableSlots(ds, totalDuration, locationWorkingHours, locationAppts, 30, activeCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
         noSlots = slots.length === 0;
       }
       dates.push({ date: ds, closed, noSlots });
     }
     return dates;
-  }, [state.customSchedule, state.settings.workingHours, state.appointments, totalDuration]);
+  }, [activeCustomSchedule, locationWorkingHours, locationAppts, totalDuration, state.settings.scheduleMode, state.settings.bufferTime, state.settings.businessHoursEndDate]);
 
   const filteredClients = useMemo(() => {
     const q = clientSearch.toLowerCase();

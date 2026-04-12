@@ -55,7 +55,7 @@ const TIMELINE_END = 22;
 const HOUR_HEIGHT = 60;
 
 export default function CalendarScreen() {
-  const { state, dispatch, getServiceById, getClientById, getStaffById, syncToDb, filterAppointmentsByLocation } = useStore();
+  const { state, dispatch, getServiceById, getClientById, getStaffById, syncToDb, filterAppointmentsByLocation, getActiveCustomSchedule } = useStore();
   const colors = useColors();
   const router = useRouter();
   const params = useLocalSearchParams<{ filter?: string }>();
@@ -116,9 +116,12 @@ export default function CalendarScreen() {
 
   // ─── Helpers ──────────────────────────────────────────────────────────
 
+  // Use per-location custom schedule overrides
+  const activeCustomSchedule = useMemo(() => getActiveCustomSchedule(), [getActiveCustomSchedule]);
+
   const getCustomDay = useCallback((dateStr: string): CustomScheduleDay | undefined => {
-    return state.customSchedule.find((cs) => cs.date === dateStr);
-  }, [state.customSchedule]);
+    return activeCustomSchedule.find((cs) => cs.date === dateStr);
+  }, [activeCustomSchedule]);
 
   // A day is "available" if it has a Workday ON override, or if it's a Business Hours working day with no override
   // Also blocked if date is after businessHoursEndDate
@@ -282,12 +285,18 @@ export default function CalendarScreen() {
       setDraftEnd(end);
       setShowTimePickerModal(true);
     } else {
-      // Turning OFF: save as closed override
-      const override: CustomScheduleDay = { date: dateStr, isOpen: false };
-      dispatch({ type: "SET_CUSTOM_SCHEDULE", payload: override });
-      syncToDb({ type: "SET_CUSTOM_SCHEDULE", payload: override });
+      // Turning OFF: save as closed override (per-location if location is active)
+      if (activeLocation) {
+        const override: CustomScheduleDay = { date: dateStr, isOpen: false, locationId: activeLocation.id };
+        dispatch({ type: "SET_LOCATION_CUSTOM_SCHEDULE", payload: { locationId: activeLocation.id, day: override } });
+        syncToDb({ type: "SET_LOCATION_CUSTOM_SCHEDULE", payload: { locationId: activeLocation.id, day: override } });
+      } else {
+        const override: CustomScheduleDay = { date: dateStr, isOpen: false };
+        dispatch({ type: "SET_CUSTOM_SCHEDULE", payload: override });
+        syncToDb({ type: "SET_CUSTOM_SCHEDULE", payload: override });
+      }
     }
-  }, [dispatch, syncToDb, getBusinessHours]);
+  }, [dispatch, syncToDb, getBusinessHours, activeLocation]);
 
   const handleSaveTimeOverride = useCallback(() => {
     const dateToSave = editingDateRef.current ?? editingDate;
@@ -297,19 +306,31 @@ export default function CalendarScreen() {
       return;
     }
     setTimeError(null);
-    const override: CustomScheduleDay = {
-      date: dateToSave,
-      isOpen: true,
-      startTime: draftStart,
-      endTime: draftEnd,
-    };
-    dispatch({ type: "SET_CUSTOM_SCHEDULE", payload: override });
-    syncToDb({ type: "SET_CUSTOM_SCHEDULE", payload: override });
+    if (activeLocation) {
+      const override: CustomScheduleDay = {
+        date: dateToSave,
+        isOpen: true,
+        startTime: draftStart,
+        endTime: draftEnd,
+        locationId: activeLocation.id,
+      };
+      dispatch({ type: "SET_LOCATION_CUSTOM_SCHEDULE", payload: { locationId: activeLocation.id, day: override } });
+      syncToDb({ type: "SET_LOCATION_CUSTOM_SCHEDULE", payload: { locationId: activeLocation.id, day: override } });
+    } else {
+      const override: CustomScheduleDay = {
+        date: dateToSave,
+        isOpen: true,
+        startTime: draftStart,
+        endTime: draftEnd,
+      };
+      dispatch({ type: "SET_CUSTOM_SCHEDULE", payload: override });
+      syncToDb({ type: "SET_CUSTOM_SCHEDULE", payload: override });
+    }
     setShowTimePickerModal(false);
     setEditingDate(null);
     setCalSubPicker(null);
     editingDateRef.current = null;
-  }, [dispatch, syncToDb, draftStart, draftEnd, editingDate]);
+  }, [dispatch, syncToDb, draftStart, draftEnd, editingDate, activeLocation]);
 
   const handleCancelTimeOverride = useCallback(() => {
     setShowTimePickerModal(false);
@@ -484,8 +505,13 @@ export default function CalendarScreen() {
         {hasCustomOverride && (
           <Pressable
             onPress={() => {
-              dispatch({ type: "DELETE_CUSTOM_SCHEDULE", payload: dateStr });
-              syncToDb({ type: "DELETE_CUSTOM_SCHEDULE", payload: dateStr });
+              if (activeLocation) {
+                dispatch({ type: "DELETE_LOCATION_CUSTOM_SCHEDULE", payload: { locationId: activeLocation.id, date: dateStr } });
+                syncToDb({ type: "DELETE_LOCATION_CUSTOM_SCHEDULE", payload: { locationId: activeLocation.id, date: dateStr } });
+              } else {
+                dispatch({ type: "DELETE_CUSTOM_SCHEDULE", payload: dateStr });
+                syncToDb({ type: "DELETE_CUSTOM_SCHEDULE", payload: dateStr });
+              }
             }}
             style={({ pressed }) => [styles.resetBtn, { opacity: pressed ? 0.7 : 1 }]}
           >

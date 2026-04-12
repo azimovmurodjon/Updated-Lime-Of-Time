@@ -164,6 +164,8 @@ export interface CustomScheduleDay {
   isOpen: boolean;
   startTime?: string; // HH:MM
   endTime?: string; // HH:MM
+  /** When set, this override applies only to this location. Null/undefined = global override. */
+  locationId?: string | null;
 }
 
 export interface WorkingHours {
