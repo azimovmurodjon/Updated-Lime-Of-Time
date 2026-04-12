@@ -294,7 +294,7 @@ interface StoreContextType {
   /** Returns the custom schedule overrides for the active location (or global if no location active) */
   getActiveCustomSchedule: () => CustomScheduleDay[];
   /** Sync a specific action to the database */
-  syncToDb: (action: Action) => Promise<void>;
+  syncToDb: (action: Action, ownerIdOverride?: number | null) => Promise<void>;
   /** Set the active location and persist to AsyncStorage */
   setActiveLocation: (locationId: string | null) => void;
 }
@@ -656,6 +656,38 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             const fullData = await trpcUtils.business.getFullData.fetch({ id: ownerId });
             if (fullData && fullData.owner) {
               const settingsFromDb = dbOwnerToSettings(fullData.owner);
+              // If DB has no locations, check AsyncStorage for locally-created locations to recover
+              let dbLocations = (fullData.locations || []).map(dbLocationToLocal);
+              if (dbLocations.length === 0) {
+                const cachedLocsRaw = await AsyncStorage.getItem(STORAGE_KEYS.locations);
+                if (cachedLocsRaw) {
+                  try {
+                    const cachedLocs: Location[] = JSON.parse(cachedLocsRaw);
+                    if (cachedLocs.length > 0) {
+                      // Sync these locations to DB so they persist going forward
+                      dbLocations = cachedLocs;
+                      for (const loc of cachedLocs) {
+                        createLocationMut.mutateAsync({
+                          businessOwnerId: ownerId,
+                          localId: loc.id,
+                          name: loc.name,
+                          address: loc.address || undefined,
+                          city: loc.city || undefined,
+                          state: loc.state || undefined,
+                          zipCode: loc.zipCode || undefined,
+                          phone: loc.phone || undefined,
+                          email: loc.email || undefined,
+                          isDefault: loc.isDefault,
+                          active: loc.active,
+                          temporarilyClosed: loc.temporarilyClosed,
+                          reopenOn: loc.reopenOn,
+                          workingHours: loc.workingHours,
+                        }).catch(() => {});
+                      }
+                    }
+                  } catch { /* ignore parse errors */ }
+                }
+              }
               dispatch({
                 type: "LOAD_DATA",
                 payload: {
@@ -668,14 +700,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                   customSchedule: (fullData.customSchedule || []).map(dbCustomScheduleToLocal),
                   products: (fullData.products || []).map(dbProductToLocal),
                   staff: (fullData.staff || []).map(dbStaffToLocal),
-                  locations: (fullData.locations || []).map(dbLocationToLocal),
+                  locations: dbLocations,
                   settings: { ...initialSettings, ...settingsFromDb },
                   businessOwnerId: ownerId,
                 },
               });
               // Restore active location from AsyncStorage (or auto-set default)
               const storedActiveLoc = await AsyncStorage.getItem(STORAGE_KEYS.activeLocationId);
-              const loadedLocations = (fullData.locations || []).map(dbLocationToLocal);
+              const loadedLocations = dbLocations;
               const activeLocations = loadedLocations.filter((l) => l.active);
               let chosenActiveId: string | null = null;
               if (storedActiveLoc && activeLocations.some((l) => l.id === storedActiveLoc)) {
@@ -726,7 +758,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 (fullData.customSchedule || []).map(dbCustomScheduleToLocal),
                 (fullData.products || []).map(dbProductToLocal),
                 (fullData.staff || []).map(dbStaffToLocal),
-                (fullData.locations || []).map(dbLocationToLocal)
+                dbLocations
               );
               return;
             }
@@ -882,8 +914,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // ─── Sync action to database ────────────────────────────────────
   const syncToDb = useCallback(
-    async (action: Action) => {
-      const ownerId = businessOwnerIdRef.current;
+    async (action: Action, ownerIdOverride?: number | null) => {
+      const ownerId = ownerIdOverride ?? businessOwnerIdRef.current;
       if (!ownerId) return; // No business owner yet, skip DB sync
 
       try {
@@ -1315,22 +1347,45 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           }
           case "UPDATE_LOCATION": {
             const loc = action.payload as Location;
-            await updateLocationMut.mutateAsync({
-              localId: loc.id,
-              businessOwnerId: ownerId,
-              name: loc.name,
-              address: loc.address || undefined,
-              city: loc.city || undefined,
-              state: loc.state || undefined,
-              zipCode: loc.zipCode || undefined,
-              phone: loc.phone || undefined,
-              email: loc.email || undefined,
-              isDefault: loc.isDefault,
-              active: loc.active,
-              temporarilyClosed: loc.temporarilyClosed,
-              reopenOn: loc.reopenOn,
-              workingHours: loc.workingHours,
-            });
+            // Check if location exists in DB first (upsert pattern)
+            const existingLocs = await trpcUtils.locations.list.fetch({ businessOwnerId: ownerId });
+            const existsInDb = existingLocs.some((l: any) => l.localId === loc.id);
+            if (existsInDb) {
+              await updateLocationMut.mutateAsync({
+                localId: loc.id,
+                businessOwnerId: ownerId,
+                name: loc.name,
+                address: loc.address || undefined,
+                city: loc.city || undefined,
+                state: loc.state || undefined,
+                zipCode: loc.zipCode || undefined,
+                phone: loc.phone || undefined,
+                email: loc.email || undefined,
+                isDefault: loc.isDefault,
+                active: loc.active,
+                temporarilyClosed: loc.temporarilyClosed,
+                reopenOn: loc.reopenOn,
+                workingHours: loc.workingHours,
+              });
+            } else {
+              // Location not in DB yet — create it (handles cases where ADD_LOCATION sync failed)
+              await createLocationMut.mutateAsync({
+                businessOwnerId: ownerId,
+                localId: loc.id,
+                name: loc.name,
+                address: loc.address || undefined,
+                city: loc.city || undefined,
+                state: loc.state || undefined,
+                zipCode: loc.zipCode || undefined,
+                phone: loc.phone || undefined,
+                email: loc.email || undefined,
+                isDefault: loc.isDefault,
+                active: loc.active,
+                temporarilyClosed: loc.temporarilyClosed,
+                reopenOn: loc.reopenOn,
+                workingHours: loc.workingHours,
+              });
+            }
             break;
           }
           case "DELETE_LOCATION": {

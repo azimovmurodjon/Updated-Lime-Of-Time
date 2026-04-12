@@ -154,7 +154,8 @@ export default function OnboardingScreen() {
         };
         const locAction = { type: "ADD_LOCATION" as const, payload: defaultLoc };
         dispatch(locAction);
-        syncToDb(locAction);
+        // Pass newOwner.id directly because businessOwnerIdRef may not be updated yet
+        syncToDb(locAction, newOwner.id);
       }
 
       // Update local settings
