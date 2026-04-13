@@ -749,3 +749,16 @@
 - [x] Upgrade KPI cards to full gradient cards (orange, blue, green, purple) with white text
 - [x] Improve Today's Schedule section: count badge, time block pill, improved empty state
 - [x] Upgrade FAB to gradient with scale press feedback and stronger shadow
+
+## Data Persistence / DB Connectivity (TestFlight)
+- [x] Fix API base URL: TestFlight builds must point to production server, not localhost
+- [x] Fix auth login: phone lookup must query DB and return existing owner data
+- [x] Fix data sync: all CRUD operations must write to DB on TestFlight (not just local AsyncStorage)
+- [x] Fix logout: data must persist in DB so re-login restores all data
+- [x] Fix new business registration: owner record must be created in DB on onboarding (no silent fallback)
+- [x] Verify tRPC client URL is set correctly for production builds
+- [x] Test phone 412-482-7733 can find existing owner in DB after fix
+- [x] Fix phone normalization in DB lookup (server/db.ts + server/routers.ts)
+- [x] Fix logout to clear ALL 14 AsyncStorage keys (not just 6)
+- [x] Fix handleDeleteBusiness to clear ALL AsyncStorage keys
+- [x] Improve DB failure logging in store bootstrap and syncToDb

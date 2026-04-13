@@ -321,7 +321,25 @@ export default function OnboardingScreen() {
         return;
       }
     } catch (err) {
-      console.warn("[Onboarding] Phone check failed, continuing to step 2:", err);
+      console.error("[Onboarding] Phone check failed:", err);
+      // If the API is unreachable, show error instead of silently going to step 2
+      // (step 2 would create a new account, losing existing data)
+      const isNetworkError =
+        err instanceof Error &&
+        (err.message.includes("Network") ||
+          err.message.includes("fetch") ||
+          err.message.includes("connect") ||
+          err.message.includes("ECONNREFUSED") ||
+          err.message.includes("Failed to fetch"));
+      if (isNetworkError) {
+        Alert.alert(
+          "Connection Error",
+          "Cannot reach the server. Please check your internet connection and try again.",
+          [{ text: "OK" }]
+        );
+        return;
+      }
+      // Non-network error (e.g. phone not found) — proceed to registration
     } finally {
       setLoading(false);
     }
@@ -393,27 +411,14 @@ export default function OnboardingScreen() {
         router.replace("/(tabs)");
       }
     } catch (err) {
-      console.warn("[Onboarding] Failed to create business:", err);
-      dispatch({
-        type: "UPDATE_SETTINGS",
-        payload: {
-          businessName: businessName.trim(),
-          onboardingComplete: true,
-          profile: {
-            ownerName: "",
-            phone: businessPhone.trim() || phone.trim(),
-            email: email.trim(),
-            address: address.trim(),
-            description: description.trim(),
-            website: website.trim(),
-          },
-        },
-      });
-      if (biometricAvailable && Platform.OS !== "web") {
-        setStep(3);
-      } else {
-        router.replace("/(tabs)");
-      }
+      console.error("[Onboarding] Failed to create business in DB:", err);
+      // Show a clear error — do NOT silently proceed to local-only mode
+      // because the user's data would be lost on logout/reinstall
+      Alert.alert(
+        "Connection Error",
+        "Could not save your business to the server. Please check your internet connection and try again.\n\nYour data will not be saved until this succeeds.",
+        [{ text: "Try Again" }]
+      );
     } finally {
       setLoading(false);
     }

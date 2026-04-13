@@ -12,7 +12,9 @@ const businessRouter = router({
   checkByPhone: publicProcedure
     .input(z.object({ phone: z.string().min(1) }))
     .query(async ({ input }) => {
-      const owner = await db.getBusinessOwnerByPhone(input.phone);
+      // Normalize to 10-digit format so formatting differences don't cause lookup misses
+      const normalized = db.normalizePhone(input.phone);
+      const owner = await db.getBusinessOwnerByPhone(normalized);
       return owner ?? null;
     }),
 
@@ -40,8 +42,10 @@ const businessRouter = router({
       })
     )
     .mutation(async ({ input }) => {
+      // Always store phone in normalized 10-digit format for consistent lookup
+      const normalizedPhone = db.normalizePhone(input.phone);
       const id = await db.createBusinessOwner({
-        phone: input.phone,
+        phone: normalizedPhone,
         businessName: input.businessName,
         ownerName: input.ownerName ?? null,
         email: input.email ?? null,

@@ -102,12 +102,18 @@ export async function getUserByOpenId(openId: string) {
 export async function getBusinessOwnerByPhone(phone: string): Promise<BusinessOwner | undefined> {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db
+  const normalized = normalizePhone(phone);
+  // First try exact match with the normalized form (fast path for new records)
+  const exactResult = await db
     .select()
     .from(businessOwners)
-    .where(eq(businessOwners.phone, phone))
+    .where(eq(businessOwners.phone, normalized))
     .limit(1);
-  return result.length > 0 ? result[0] : undefined;
+  if (exactResult.length > 0) return exactResult[0];
+  // Fallback: scan all owners and compare normalized digits
+  // Handles legacy records stored in non-normalized formats (e.g. "(412) 482-7733")
+  const allOwners = await db.select().from(businessOwners);
+  return allOwners.find((o) => o.phone && normalizePhone(o.phone) === normalized);
 }
 
 export async function getBusinessOwnerById(id: number): Promise<BusinessOwner | undefined> {

@@ -111,6 +111,7 @@ export default function SettingsScreen() {
         onPress: async () => {
           dispatch({ type: "RESET_ALL_DATA" });
           try {
+            // Clear ALL bookease keys so no stale data remains after logout
             await AsyncStorage.multiRemove([
               "@bookease_services",
               "@bookease_clients",
@@ -118,6 +119,14 @@ export default function SettingsScreen() {
               "@bookease_reviews",
               "@bookease_settings",
               "@bookease_business_owner_id",
+              "@bookease_discounts",
+              "@bookease_gift_cards",
+              "@bookease_custom_schedule",
+              "@bookease_location_custom_schedule",
+              "@bookease_products",
+              "@bookease_staff",
+              "@bookease_locations",
+              "@bookease_active_location_id",
             ]);
           } catch {}
           router.replace("/onboarding");
@@ -146,6 +155,7 @@ export default function SettingsScreen() {
             }
             dispatch({ type: "RESET_ALL_DATA" });
             try {
+              // Clear ALL bookease keys
               await AsyncStorage.multiRemove([
                 "@bookease_services",
                 "@bookease_clients",
@@ -153,6 +163,14 @@ export default function SettingsScreen() {
                 "@bookease_reviews",
                 "@bookease_settings",
                 "@bookease_business_owner_id",
+                "@bookease_discounts",
+                "@bookease_gift_cards",
+                "@bookease_custom_schedule",
+                "@bookease_location_custom_schedule",
+                "@bookease_products",
+                "@bookease_staff",
+                "@bookease_locations",
+                "@bookease_active_location_id",
               ]);
             } catch {}
             router.replace("/onboarding");

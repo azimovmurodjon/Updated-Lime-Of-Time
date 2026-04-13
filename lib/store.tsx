@@ -741,11 +741,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               return;
             }
           } catch (err) {
-            console.warn("[Store] Failed to load from DB, falling back to local:", err);
+            // DB load failed — log clearly so it's visible in crash logs
+            console.error("[Store] Failed to load from DB:", err);
+            // The AsyncStorage cache (written on last successful DB load) will be used as offline fallback below
+            // This means the user sees their last-known data instead of a blank app
           }
         }
 
-        // Fallback: load from AsyncStorage
+        // Fallback: load from AsyncStorage cache (written on last successful DB sync)
+        // On first install with no cache, all arrays will be empty and the user will be prompted to log in
         const [servicesRaw, clientsRaw, appointmentsRaw, reviewsRaw, settingsRaw, discountsRaw, giftCardsRaw, customScheduleRaw, productsRaw, staffRaw, locationsRaw, locationCustomScheduleRaw] =
           await Promise.all([
             AsyncStorage.getItem(STORAGE_KEYS.services),
@@ -1428,8 +1432,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             break;
         }
       } catch (err) {
-        console.warn("[Store] Failed to sync to DB:", action.type, err);
-        // Local state is still updated, DB sync failed silently
+        // Log clearly so it's visible in crash reports / Sentry
+        console.error(`[Store] DB sync FAILED for action '${action.type}':`, err);
+        // NOTE: Local state is already updated. The AsyncStorage cache will be written by the
+        // useEffect watchers. On next app launch, if DB is reachable, the bootstrap will load
+        // the correct data from DB. If DB is still unreachable, the cache will be used.
+        // Do NOT re-throw — most call sites are fire-and-forget and would get unhandled rejections
       }
     },
     []
