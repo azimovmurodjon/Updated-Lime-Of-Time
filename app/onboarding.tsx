@@ -177,6 +177,8 @@ export default function OnboardingScreen() {
   const [phone, setPhone] = useState("");
   const [otpValue, setOtpValue] = useState("");
   const [otpError, setOtpError] = useState("");
+  const [otpCountdown, setOtpCountdown] = useState(0); // seconds remaining before resend is allowed
+  const [otpResendLoading, setOtpResendLoading] = useState(false);
   // Pending action after OTP: "existing" = login, "new" = go to step 2
   const [pendingOtpAction, setPendingOtpAction] = useState<"existing" | "new">("new");
   const [pendingExistingId, setPendingExistingId] = useState<number | null>(null);
@@ -250,6 +252,19 @@ export default function OnboardingScreen() {
     inputOpacity.value = withDelay(220, withTiming(1, { duration: 300 }));
     inputTranslateY.value = withDelay(220, withTiming(0, { duration: 300, easing: Easing.out(Easing.quad) }));
     btnOpacity.value = withDelay(320, withTiming(1, { duration: 300 }));
+  }, [step]);
+
+  // OTP countdown timer — counts down from 60 when OTP step is shown
+  useEffect(() => {
+    if (step !== "otp") return;
+    setOtpCountdown(60);
+    const id = setInterval(() => {
+      setOtpCountdown((prev) => {
+        if (prev <= 1) { clearInterval(id); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
   }, [step]);
 
   const logoStyle = useAnimatedStyle(() => ({
@@ -338,6 +353,26 @@ export default function OnboardingScreen() {
     setOtpValue("");
     setOtpError("");
     setStep("otp");
+  };
+
+  const handleOtpResend = async () => {
+    if (otpCountdown > 0 || otpResendLoading) return;
+    setOtpResendLoading(true);
+    setOtpValue("");
+    setOtpError("");
+    try {
+      // In production this would trigger a real SMS; for now just reset the countdown
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      setOtpCountdown(60);
+      const id = setInterval(() => {
+        setOtpCountdown((prev) => {
+          if (prev <= 1) { clearInterval(id); return 0; }
+          return prev - 1;
+        });
+      }, 1000);
+    } finally {
+      setOtpResendLoading(false);
+    }
   };
 
   const handleOtpVerify = async () => {
@@ -688,6 +723,33 @@ export default function OnboardingScreen() {
                   <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", textAlign: "center", marginTop: 8 }}>
                     For testing, use code: 123456
                   </Text>
+                  {/* Resend Code button with countdown */}
+                  <View style={{ alignItems: "center", marginTop: 16 }}>
+                    {otpCountdown > 0 ? (
+                      <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", textAlign: "center" }}>
+                        Resend code in{" "}
+                        <Text style={{ fontWeight: "700", color: "rgba(255,255,255,0.85)" }}>{otpCountdown}s</Text>
+                      </Text>
+                    ) : (
+                      <Pressable
+                        onPress={handleOtpResend}
+                        disabled={otpResendLoading}
+                        style={({ pressed }) => ({
+                          opacity: pressed || otpResendLoading ? 0.6 : 1,
+                          paddingVertical: 6,
+                          paddingHorizontal: 12,
+                        })}
+                      >
+                        {otpResendLoading ? (
+                          <ActivityIndicator size="small" color="rgba(255,255,255,0.8)" />
+                        ) : (
+                          <Text style={{ fontSize: 13, color: "#FFFFFF", fontWeight: "600", textDecorationLine: "underline" }}>
+                            Resend Code
+                          </Text>
+                        )}
+                      </Pressable>
+                    )}
+                  </View>
                 </Animated.View>
 
                 <Animated.View style={btnStyle}>

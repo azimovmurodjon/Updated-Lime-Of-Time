@@ -93,34 +93,60 @@ function TimelineView({
   const showNowLine = isToday && nowTop >= 0 && nowTop <= gridHeight;
   const nowPillLabel = liveNow.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }).replace(" ", "\u202f");
 
-  // Build column layout for overlapping appointments
+  // Build column layout using a proper interval-graph algorithm:
+  // 1. Sort by start time, assign each appointment to the first free column.
+  // 2. Find connected overlap groups (union-find style) so every appointment
+  //    in the same cluster gets the same totalCols value.
   type ApptLayout = { appt: Appointment; col: number; totalCols: number; top: number; height: number };
-  const layouts: ApptLayout[] = [];
-  const colEnds: number[] = [];
 
+  // Step 1: compute top/height and filter out-of-range
+  const items: { appt: Appointment; startMin: number; endMin: number; top: number; height: number }[] = [];
   for (const appt of appts) {
     const startMin = timeToMinutes(appt.time);
     const endMin = startMin + appt.duration;
     const top = (startMin - TIMELINE_START * 60) * (HOUR_HEIGHT / 60);
     const height = Math.max(appt.duration * (HOUR_HEIGHT / 60), 28);
     if (top < 0 || top > gridHeight) continue;
+    items.push({ appt, startMin, endMin, top, height });
+  }
+
+  // Step 2: greedy column assignment — track the end time of the last appt in each column
+  const colEnds: number[] = [];
+  const layouts: ApptLayout[] = items.map(({ appt, startMin, endMin, top, height }) => {
     let col = colEnds.findIndex((end) => end <= startMin);
     if (col === -1) col = colEnds.length;
     colEnds[col] = endMin;
-    layouts.push({ appt, col, totalCols: 0, top, height });
+    return { appt, col, totalCols: 0, top, height };
+  });
+
+  // Step 3: find overlap groups via union-find so every appointment in a
+  // cluster shares the same totalCols (= max col index in cluster + 1).
+  // Two appointments overlap when their time intervals intersect.
+  const parent = layouts.map((_, i) => i);
+  function find(x: number): number {
+    while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; }
+    return x;
   }
+  function union(a: number, b: number) { parent[find(a)] = find(b); }
 
   for (let i = 0; i < layouts.length; i++) {
-    const startMin = timeToMinutes(layouts[i].appt.time);
-    const endMin = startMin + layouts[i].appt.duration;
-    let maxCol = layouts[i].col;
-    for (let j = 0; j < layouts.length; j++) {
-      if (i === j) continue;
-      const oStart = timeToMinutes(layouts[j].appt.time);
-      const oEnd = oStart + layouts[j].appt.duration;
-      if (oStart < endMin && startMin < oEnd) maxCol = Math.max(maxCol, layouts[j].col);
+    const si = items[i].startMin;
+    const ei = items[i].endMin;
+    for (let j = i + 1; j < layouts.length; j++) {
+      const sj = items[j].startMin;
+      const ej = items[j].endMin;
+      if (si < ej && sj < ei) union(i, j); // intervals overlap
     }
-    layouts[i].totalCols = maxCol + 1;
+  }
+
+  // Compute max col per group
+  const groupMaxCol = new Map<number, number>();
+  for (let i = 0; i < layouts.length; i++) {
+    const root = find(i);
+    groupMaxCol.set(root, Math.max(groupMaxCol.get(root) ?? 0, layouts[i].col));
+  }
+  for (let i = 0; i < layouts.length; i++) {
+    layouts[i].totalCols = (groupMaxCol.get(find(i)) ?? 0) + 1;
   }
 
   const GAP = 2;
@@ -162,7 +188,8 @@ function TimelineView({
         const svc = getServiceById(appt.serviceId) as { color?: string; name?: string; duration?: number } | undefined;
         const client = getClientById(appt.clientId) as { name?: string } | undefined;
         const color = (svc as { color?: string } | undefined)?.color ?? tintColor ?? colors.primary;
-        const svcName = svc ? getServiceDisplayName(svc as Parameters<typeof getServiceDisplayName>[0]) : "Appt";
+        // Use svc.name directly (not getServiceDisplayName) to avoid showing duration twice
+        const svcName = (svc as { name?: string } | undefined)?.name ?? "Appt";
         const colWidth = slotAreaWidth > 0 ? (slotAreaWidth - GAP * (totalCols - 1)) / totalCols : 0;
         const blockLeft = LABEL_WIDTH + 4 + col * (colWidth + GAP);
         const blockWidth = colWidth > 0 ? colWidth : undefined;
