@@ -785,3 +785,6 @@
 - [x] Fix phone number formatting in appointment detail: (123) 456-7890 or +1 (123) 456-7890
 - [x] Fix location in appointment detail: show full address (street, city, state, zip)
 - [x] Redesign upcoming appointments section to match screenshot (colored left border, time block, service/client/staff, status badge, price)
+
+## Upcoming Appointments Card Redesign (v2)
+- [x] Redesign upcoming cards: colored left border, date·time range top line, service+duration, client·phone, staff dot, status badge, price

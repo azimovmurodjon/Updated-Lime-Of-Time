@@ -1186,6 +1186,9 @@ export default function HomeScreen() {
                 : appt.status === "completed" ? colors.primary
                 : colors.error;
               const price = appt.totalPrice ?? svc?.price ?? null;
+              // Format date · time range line: "Mon, Apr 13 · 2:30 PM – 3:30 PM"
+              const dateTimeLabel = `${apptDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} · ${formatTime(appt.time)} – ${getEndTime(appt.time, appt.duration)}`;
+              const clientPhone = client?.phone ?? null;
               return (
                 <Pressable
                   key={appt.id}
@@ -1199,66 +1202,45 @@ export default function HomeScreen() {
                       borderLeftWidth: 4,
                       borderLeftColor: accentColor,
                       overflow: "hidden",
-                      opacity: pressed ? 0.8 : 1,
+                      opacity: pressed ? 0.85 : 1,
                       ...(isTablet ? { width: Math.floor((contentWidth - cardGap) / 2) } : {}),
                     },
                   ])}
                 >
-                  <View style={{ flexDirection: "row", alignItems: "stretch", padding: 14, gap: 12 }}>
-                    {/* Left: date + time block */}
-                    <View style={{
-                      width: 72,
-                      backgroundColor: accentColor + "18",
-                      borderRadius: 10,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      paddingVertical: 8,
-                      paddingHorizontal: 4,
-                      flexShrink: 0,
-                    }}>
-                      <Text style={{ fontSize: 9, fontWeight: "800", color: accentColor, textTransform: "uppercase", letterSpacing: 0.5, textAlign: "center" }} numberOfLines={1}>
-                        {dayLabel}
+                  <View style={{ padding: 14, gap: 5 }}>
+                    {/* Row 1: date·time range (left) + status badge (right) */}
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                      <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, flex: 1, marginRight: 8 }} numberOfLines={1}>
+                        {dateTimeLabel}
                       </Text>
-                      <Text style={{ fontSize: 13, fontWeight: "800", color: accentColor, marginTop: 3, textAlign: "center" }}>
-                        {formatTime(appt.time)}
-                      </Text>
-                      <Text style={{ fontSize: 11, color: accentColor + "BB", marginTop: 1, textAlign: "center" }}>
-                        –{getEndTime(appt.time, appt.duration)}
-                      </Text>
-                    </View>
-                    {/* Middle: service, client, staff */}
-                    <View style={{ flex: 1, justifyContent: "center", gap: 3 }}>
-                      <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }} numberOfLines={1}>
-                        {svc?.name ?? "Service"}
-                      </Text>
-                      <Text style={{ fontSize: 13, color: colors.muted }} numberOfLines={1}>
-                        {client?.name ?? "Client"}
-                      </Text>
-                      {staffMember ? (
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 1 }}>
-                          <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: accentColor }} />
-                          <Text style={{ fontSize: 12, color: colors.muted }} numberOfLines={1}>
-                            {staffMember.name}
-                          </Text>
-                        </View>
-                      ) : null}
-                    </View>
-                    {/* Right: status badge + price */}
-                    <View style={{ alignItems: "flex-end", justifyContent: "space-between", flexShrink: 0 }}>
                       <View style={{
                         backgroundColor: statusColor + "22",
                         paddingHorizontal: 9,
-                        paddingVertical: 4,
+                        paddingVertical: 3,
                         borderRadius: 8,
+                        flexShrink: 0,
                       }}>
-                        <Text style={{ fontSize: 11, fontWeight: "700", color: statusColor, textTransform: "capitalize" }}>
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: statusColor }}>
                           {appt.status.charAt(0).toUpperCase() + appt.status.slice(1)}
                         </Text>
                       </View>
-                      {price != null ? (
-                        <Text style={{ fontSize: 15, fontWeight: "800", color: colors.foreground }}>
-                          ${price % 1 === 0 ? price.toLocaleString() : price.toFixed(2)}
-                        </Text>
+                    </View>
+                    {/* Row 2: service name + duration */}
+                    <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }} numberOfLines={1}>
+                      {svc ? `${svc.name} (${appt.duration ?? svc.duration} min)` : "Service"}
+                    </Text>
+                    {/* Row 3: client name · phone + staff dot */}
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                      <Text style={{ fontSize: 13, color: colors.muted, flex: 1, marginRight: 8 }} numberOfLines={1}>
+                        {client?.name ?? "Client"}{clientPhone ? ` · ${clientPhone}` : ""}
+                      </Text>
+                      {staffMember ? (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flexShrink: 0 }}>
+                          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: accentColor }} />
+                          <Text style={{ fontSize: 13, color: accentColor, fontWeight: "600" }} numberOfLines={1}>
+                            {staffMember.name}
+                          </Text>
+                        </View>
                       ) : null}
                     </View>
                   </View>
