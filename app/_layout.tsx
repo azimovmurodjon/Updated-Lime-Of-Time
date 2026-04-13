@@ -9,6 +9,15 @@ import { Platform } from "react-native";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
 import {
+  Inter_300Light,
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+} from "@expo-google-fonts/inter";
+import { useFonts } from "expo-font";
+import * as SplashScreen from "expo-splash-screen";
+import {
   SafeAreaFrameContext,
   SafeAreaInsetsContext,
   SafeAreaProvider,
@@ -22,6 +31,8 @@ import { StoreProvider } from "@/lib/store";
 import { AppLockProvider } from "@/lib/app-lock-provider";
 import { NotificationProvider } from "@/lib/notification-provider";
 
+SplashScreen.preventAutoHideAsync();
+
 const DEFAULT_WEB_INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 const DEFAULT_WEB_FRAME: Rect = { x: 0, y: 0, width: 0, height: 0 };
 
@@ -30,6 +41,20 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    Inter_300Light,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  });
+
+  const onLayoutRootView = useCallback(async () => {
+    if (fontsLoaded) {
+      await SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded]);
+
   const initialInsets = initialWindowMetrics?.insets ?? DEFAULT_WEB_INSETS;
   const initialFrame = initialWindowMetrics?.frame ?? DEFAULT_WEB_FRAME;
 
@@ -81,8 +106,12 @@ export default function RootLayout() {
     };
   }, [initialInsets, initialFrame]);
 
+  if (!fontsLoaded) {
+    return null;
+  }
+
   const content = (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
           <StoreProvider>

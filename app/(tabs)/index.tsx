@@ -13,6 +13,7 @@ import {
   Modal,
   Animated,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatTime, formatDateStr } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
@@ -23,6 +24,67 @@ import { useActiveLocation } from "@/hooks/use-active-location";
 import * as ImagePicker from "expo-image-picker";
 import { MiniBarChart, MiniDonutChart } from "@/components/mini-chart";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+
+// ─── Gradient KPI Card ───────────────────────────────────────────────
+function GradientKpiCard({
+  gradientColors,
+  iconBg,
+  icon,
+  value,
+  label,
+  sublabel,
+  badge,
+  miniStats,
+  onPress,
+  width: cardWidth,
+}: {
+  gradientColors: [string, string];
+  iconBg: string;
+  icon: React.ReactNode;
+  value: string;
+  label: string;
+  sublabel?: string;
+  badge?: React.ReactNode;
+  miniStats?: React.ReactNode;
+  onPress?: () => void;
+  width: number;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1, width: cardWidth, marginBottom: 0 }]}
+    >
+      <LinearGradient
+        colors={gradientColors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{
+          borderRadius: 18,
+          padding: 14,
+          minHeight: 120,
+          shadowColor: gradientColors[0],
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.25,
+          shadowRadius: 12,
+          elevation: 4,
+        }}
+      >
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+          <View style={{ width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: iconBg }}>
+            {icon}
+          </View>
+          {badge}
+        </View>
+        <Text style={{ fontSize: 24, fontWeight: "800", color: "#FFFFFF", lineHeight: 30, letterSpacing: -0.5 }} numberOfLines={1}>
+          {value}
+        </Text>
+        <Text style={{ fontSize: 12, fontWeight: "600", color: "rgba(255,255,255,0.8)", marginTop: 2 }}>{label}</Text>
+        {sublabel ? <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.65)", marginTop: 3 }}>{sublabel}</Text> : null}
+        {miniStats}
+      </LinearGradient>
+    </Pressable>
+  );
+}
 
 // ─── Progress Bar (inline, lightweight) ────────────────────────────
 function ProgressBar({
@@ -344,35 +406,41 @@ export default function HomeScreen() {
         }}
       >
         {/* ─── Business Header ──────────────────────────────────── */}
-        <View style={styles.businessHeader}>
-          <Pressable
-            onPress={handlePickLogo}
-            style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
-          >
-            <Image source={logoSource} style={styles.businessLogo} resizeMode="cover" />
-            <View style={[styles.cameraOverlay, { backgroundColor: colors.primary }]}>
-              <IconSymbol name="photo" size={10} color="#FFF" />
-            </View>
-          </Pressable>
-          <View style={styles.headerTextWrap}>
-            <Text
-              style={[styles.businessName, { color: colors.foreground }]}
-              numberOfLines={1}
+        <LinearGradient
+          colors={[colors.primary + "18", colors.primary + "05"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.headerGradientBanner, { borderColor: colors.primary + "20" }]}
+        >
+          <View style={styles.businessHeader}>
+            <Pressable
+              onPress={handlePickLogo}
+              style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
             >
-              {state.settings.businessName}
-            </Text>
-            <Text style={[styles.greetingText, { color: colors.muted }]}>{greeting}</Text>
-          </View>
-          {state.settings.temporaryClosed && (
-            <View style={[styles.closedBadge, { backgroundColor: colors.error + "15" }]}>
-              <Text style={{ fontSize: 10, fontWeight: "700", color: colors.error }}>
-                CLOSED
+              <Image source={logoSource} style={styles.businessLogo} resizeMode="cover" />
+              <View style={[styles.cameraOverlay, { backgroundColor: colors.primary }]}>
+                <IconSymbol name="photo" size={10} color="#FFF" />
+              </View>
+            </Pressable>
+            <View style={styles.headerTextWrap}>
+              <Text
+                style={[styles.businessName, { color: colors.foreground }]}
+                numberOfLines={1}
+              >
+                {state.settings.businessName}
               </Text>
+              <Text style={[styles.greetingText, { color: colors.muted }]}>{greeting} 🍋</Text>
             </View>
-          )}
-        </View>
-
-        <Text style={[styles.dateLabel, { color: colors.muted }]}>{dateLabel}</Text>
+            {state.settings.temporaryClosed && (
+              <View style={[styles.closedBadge, { backgroundColor: colors.error + "15" }]}>
+                <Text style={{ fontSize: 10, fontWeight: "700", color: colors.error }}>
+                  CLOSED
+                </Text>
+              </View>
+            )}
+          </View>
+          <Text style={[styles.dateLabel, { color: colors.muted }]}>{dateLabel}</Text>
+        </LinearGradient>
 
         {/* Location Filter */}
         {hasMultipleLocations && (
@@ -469,167 +537,69 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* ─── KPI Cards (2x2 grid) ────────────────────────────── */}
+        {/* ─── KPI Cards (2x2 gradient grid) ─────────────────── */}
         <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 20 }]}>
           Overview
         </Text>
         <View style={[styles.kpiGrid, { gap: cardGap }]}>
-          {/* Revenue */}
-          <Pressable
-            onPress={() =>
-              router.push({ pathname: "/analytics-detail", params: { tab: "revenue" } })
-            }
-            style={({ pressed }) => [
-              styles.kpiCard,
-              {
-                width: cardW,
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-                opacity: pressed ? 0.85 : 1,
-              },
-            ]}
-          >
-            <View style={styles.kpiHeader}>
-              <View style={[styles.kpiIconBg, { backgroundColor: "#FF980020" }]}>
-                <IconSymbol name="dollarsign.circle.fill" size={20} color="#FF9800" />
-              </View>
-              {revenueChange !== 0 && (
-                <View
-                  style={[
-                    styles.changeBadge,
-                    {
-                      backgroundColor:
-                        revenueChange > 0
-                          ? colors.success + "15"
-                          : colors.error + "15",
-                    },
-                  ]}
-                >
-                  <IconSymbol
-                    name="arrow.up.right"
-                    size={10}
-                    color={revenueChange > 0 ? colors.success : colors.error}
-                  />
-                  <Text
-                    style={{
-                      fontSize: 10,
-                      fontWeight: "700",
-                      color: revenueChange > 0 ? colors.success : colors.error,
-                    }}
-                  >
-                    {Math.abs(revenueChange)}%
-                  </Text>
+          <GradientKpiCard
+            width={cardW}
+            gradientColors={["#E65100", "#FF9800"]}
+            iconBg="rgba(255,255,255,0.25)"
+            icon={<IconSymbol name="dollarsign.circle.fill" size={20} color="#FFF" />}
+            value={`$${analytics.weekRevenue.toLocaleString()}`}
+            label="This Week"
+            sublabel={`$${analytics.totalRevenue.toLocaleString()} total`}
+            badge={
+              revenueChange !== 0 ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.25)" }}>
+                  <IconSymbol name={revenueChange > 0 ? "arrow.up.right" : "arrow.down.right"} size={10} color="#FFF" />
+                  <Text style={{ fontSize: 10, fontWeight: "700", color: "#FFF" }}>{Math.abs(revenueChange)}%</Text>
                 </View>
-              )}
-            </View>
-            <Text style={[styles.kpiValue, { color: colors.foreground }]}>
-              ${analytics.weekRevenue.toLocaleString()}
-            </Text>
-            <Text style={[styles.kpiLabel, { color: colors.muted }]}>This Week</Text>
-            <Text style={[styles.kpiTotal, { color: colors.muted }]}>
-              ${analytics.totalRevenue.toLocaleString()} total
-            </Text>
-          </Pressable>
-
-          {/* Appointments */}
-          <Pressable
-            onPress={() =>
-              router.push({
-                pathname: "/analytics-detail",
-                params: { tab: "appointments" },
-              })
+              ) : undefined
             }
-            style={({ pressed }) => [
-              styles.kpiCard,
-              {
-                width: cardW,
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-                opacity: pressed ? 0.85 : 1,
-              },
-            ]}
-          >
-            <View style={[styles.kpiIconBg, { backgroundColor: "#2196F320" }]}>
-              <IconSymbol name="calendar" size={20} color="#2196F3" />
-            </View>
-            <Text style={[styles.kpiValue, { color: colors.foreground }]}>
-              {analytics.totalAppointments}
-            </Text>
-            <Text style={[styles.kpiLabel, { color: colors.muted }]}>Appointments</Text>
-            <View style={styles.miniStatRow}>
-              <View style={[styles.miniStat, { backgroundColor: "#FF980015" }]}>
-                <Text style={{ fontSize: 10, fontWeight: "700", color: "#FF9800" }}>
-                  {analytics.statusCounts.pending}
-                </Text>
-                <Text style={{ fontSize: 9, color: "#FF9800" }}>Pending</Text>
+            onPress={() => router.push({ pathname: "/analytics-detail", params: { tab: "revenue" } })}
+          />
+          <GradientKpiCard
+            width={cardW}
+            gradientColors={["#1565C0", "#2196F3"]}
+            iconBg="rgba(255,255,255,0.25)"
+            icon={<IconSymbol name="calendar" size={20} color="#FFF" />}
+            value={String(analytics.totalAppointments)}
+            label="Appointments"
+            miniStats={
+              <View style={{ flexDirection: "row", gap: 6, marginTop: 6 }}>
+                <View style={{ backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, alignItems: "center" }}>
+                  <Text style={{ fontSize: 10, fontWeight: "700", color: "#FFF" }}>{analytics.statusCounts.pending}</Text>
+                  <Text style={{ fontSize: 9, color: "rgba(255,255,255,0.75)" }}>Pending</Text>
+                </View>
+                <View style={{ backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, alignItems: "center" }}>
+                  <Text style={{ fontSize: 10, fontWeight: "700", color: "#FFF" }}>{analytics.statusCounts.confirmed}</Text>
+                  <Text style={{ fontSize: 9, color: "rgba(255,255,255,0.75)" }}>Active</Text>
+                </View>
               </View>
-              <View style={[styles.miniStat, { backgroundColor: colors.success + "15" }]}>
-                <Text style={{ fontSize: 10, fontWeight: "700", color: colors.success }}>
-                  {analytics.statusCounts.confirmed}
-                </Text>
-                <Text style={{ fontSize: 9, color: colors.success }}>Active</Text>
-              </View>
-            </View>
-          </Pressable>
-
-          {/* Clients */}
-          <Pressable
-            onPress={() =>
-              router.push({ pathname: "/analytics-detail", params: { tab: "clients" } })
             }
-            style={({ pressed }) => [
-              styles.kpiCard,
-              {
-                width: cardW,
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-                opacity: pressed ? 0.85 : 1,
-              },
-            ]}
-          >
-            <View style={[styles.kpiIconBg, { backgroundColor: "#4CAF5020" }]}>
-              <IconSymbol name="person.2.fill" size={20} color="#4CAF50" />
-            </View>
-            <Text style={[styles.kpiValue, { color: colors.foreground }]}>
-              {analytics.totalClients}
-            </Text>
-            <Text style={[styles.kpiLabel, { color: colors.muted }]}>Total Clients</Text>
-          </Pressable>
-
-          {/* Top Service */}
-          <Pressable
-            onPress={() =>
-              router.push({
-                pathname: "/analytics-detail",
-                params: { tab: "topservice" },
-              })
-            }
-            style={({ pressed }) => [
-              styles.kpiCard,
-              {
-                width: cardW,
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-                opacity: pressed ? 0.85 : 1,
-              },
-            ]}
-          >
-            <View style={[styles.kpiIconBg, { backgroundColor: "#9C27B020" }]}>
-              <IconSymbol name="crown.fill" size={20} color="#9C27B0" />
-            </View>
-            <Text
-              style={[styles.kpiValue, { color: colors.foreground }]}
-              numberOfLines={1}
-            >
-              {analytics.topService?.name ?? "N/A"}
-            </Text>
-            <Text style={[styles.kpiLabel, { color: colors.muted }]}>Top Service</Text>
-            {analytics.topCount > 0 && (
-              <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>
-                {analytics.topCount} bookings
-              </Text>
-            )}
-          </Pressable>
+            onPress={() => router.push({ pathname: "/analytics-detail", params: { tab: "appointments" } })}
+          />
+          <GradientKpiCard
+            width={cardW}
+            gradientColors={["#2E7D32", "#4CAF50"]}
+            iconBg="rgba(255,255,255,0.25)"
+            icon={<IconSymbol name="person.2.fill" size={20} color="#FFF" />}
+            value={String(analytics.totalClients)}
+            label="Total Clients"
+            onPress={() => router.push({ pathname: "/analytics-detail", params: { tab: "clients" } })}
+          />
+          <GradientKpiCard
+            width={cardW}
+            gradientColors={["#6A1B9A", "#9C27B0"]}
+            iconBg="rgba(255,255,255,0.25)"
+            icon={<IconSymbol name="crown.fill" size={20} color="#FFF" />}
+            value={analytics.topService?.name ?? "N/A"}
+            label="Top Service"
+            sublabel={analytics.topCount > 0 ? `${analytics.topCount} bookings` : undefined}
+            onPress={() => router.push({ pathname: "/analytics-detail", params: { tab: "topservice" } })}
+          />
         </View>
 
         {/* ─── Revenue Chart ─────────────────────────────────────── */}
@@ -845,9 +815,12 @@ export default function HomeScreen() {
         </View>
 
         {/* ─── Today's Schedule ────────────────────────────────────── */}
-        <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 24 }]}>
-          Today's Schedule
-        </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 24, marginBottom: 12 }}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>Today's Schedule</Text>
+          <View style={{ backgroundColor: colors.primary + "15", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 }}>
+            <Text style={{ fontSize: 12, fontWeight: "700", color: colors.primary }}>{todayAppts.length} appts</Text>
+          </View>
+        </View>
         {todayAppts.length === 0 ? (
           <View
             style={[
@@ -855,10 +828,11 @@ export default function HomeScreen() {
               { backgroundColor: colors.surface, borderColor: colors.border },
             ]}
           >
-            <IconSymbol name="calendar" size={36} color={colors.muted + "60"} />
-            <Text style={{ color: colors.muted, fontSize: 14, marginTop: 8 }}>
-              No appointments today
-            </Text>
+            <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: colors.primary + "12", alignItems: "center", justifyContent: "center", marginBottom: 4 }}>
+              <IconSymbol name="calendar" size={32} color={colors.primary + "80"} />
+            </View>
+            <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "600", marginTop: 4 }}>No appointments today</Text>
+            <Text style={{ color: colors.muted, fontSize: 13, marginTop: 4, textAlign: "center" }}>Your schedule is clear — enjoy your day!</Text>
             <Pressable
               onPress={() => router.push("/new-booking")}
               style={({ pressed }) => [
@@ -904,10 +878,11 @@ export default function HomeScreen() {
                   ]}
                 >
                   <View style={styles.apptRow}>
+                    <View style={[styles.apptTimeBlock, { backgroundColor: statusColor + "18" }]}>
+                      <Text style={{ fontSize: 11, fontWeight: "700", color: statusColor }}>{formatTime(appt.time)}</Text>
+                      <Text style={{ fontSize: 10, color: statusColor + "CC" }}>–{getEndTime(appt.time, appt.duration)}</Text>
+                    </View>
                     <View style={styles.apptInfo}>
-                      <Text style={[styles.apptTime, { color: colors.foreground }]}>
-                        {formatTime(appt.time)} - {getEndTime(appt.time, appt.duration)}
-                      </Text>
                       <Text style={[styles.apptService, { color: colors.foreground }]}>
                         {svc?.name ?? "Service"}
                       </Text>
@@ -940,10 +915,17 @@ export default function HomeScreen() {
         onPress={() => router.push("/new-booking")}
         style={({ pressed }) => [
           styles.fab,
-          { backgroundColor: colors.primary, right: hp, opacity: pressed ? 0.85 : 1 },
+          { right: hp, transform: [{ scale: pressed ? 0.93 : 1 }] },
         ]}
       >
-        <IconSymbol name="plus" size={28} color="#FFF" />
+        <LinearGradient
+          colors={[colors.primary, colors.primary + "CC"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{ width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center" }}
+        >
+          <IconSymbol name="plus" size={28} color="#FFF" />
+        </LinearGradient>
       </Pressable>
 
       {/* Tutorial Walkthrough Overlay */}
@@ -1057,11 +1039,17 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   // ─── Header ──────────────────────────────────────────────
+  headerGradientBanner: {
+    borderRadius: 18,
+    padding: 14,
+    marginTop: 4,
+    marginBottom: 4,
+    borderWidth: 1,
+  },
   businessHeader: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 4,
-    paddingTop: 4,
   },
   businessLogo: {
     width: 52,
@@ -1286,6 +1274,15 @@ const styles = StyleSheet.create({
   apptRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 10,
+  },
+  apptTimeBlock: {
+    width: 56,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
   },
   apptInfo: {
     flex: 1,
@@ -1297,8 +1294,8 @@ const styles = StyleSheet.create({
   },
   apptService: {
     fontSize: 14,
-    fontWeight: "500",
-    marginTop: 2,
+    fontWeight: "600",
+    lineHeight: 19,
   },
   statusBadge: {
     paddingHorizontal: 10,
@@ -1306,7 +1303,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
 
-  // ─── FAB ─────────────────────────────────────────────────
+  // ─── FAB ─────────────────────────────────────────────────────
   fab: {
     position: "absolute",
     bottom: 24,
@@ -1315,11 +1312,11 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    elevation: 8,
+    shadowColor: "#4A7C59",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
   },
 
   // ─── Tutorial Walkthrough ─────────────────────────────────

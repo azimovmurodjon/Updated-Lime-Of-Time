@@ -1,14 +1,29 @@
 /** @type {const} */
 const themeColors = {
-  primary: { light: '#4CAF50', dark: '#66BB6A' },
-  background: { light: '#FAFFF5', dark: '#151718' },
-  surface: { light: '#F0F7E8', dark: '#1E2420' },
-  foreground: { light: '#1B2E1B', dark: '#E8F5E9' },
-  muted: { light: '#6B8E6B', dark: '#8FBB8F' },
-  border: { light: '#D4E8C4', dark: '#2E4A2E' },
-  success: { light: '#2E7D32', dark: '#4CAF50' },
-  warning: { light: '#F9A825', dark: '#FFD54F' },
-  error: { light: '#D32F2F', dark: '#EF5350' },
+  // Primary: deep sage green — main brand color
+  primary:         { light: '#4A7C59', dark: '#6AAF80' },
+  // Accent: lime green — highlights, badges, active states
+  accent:          { light: '#8FBF6A', dark: '#A8D485' },
+  // Tint: alias for primary (used by tab bar, links)
+  tint:            { light: '#4A7C59', dark: '#6AAF80' },
+  // Background: off-white / deep navy
+  background:      { light: '#F8FAF7', dark: '#0D1B2A' },
+  // Surface: cards, sheets
+  surface:         { light: '#FFFFFF', dark: '#152233' },
+  // Surface elevated: modals, popovers
+  surfaceElevated: { light: '#FFFFFF', dark: '#1C2E42' },
+  // Surface alt: subtle tinted backgrounds
+  surfaceAlt:      { light: '#EEF5E8', dark: '#162030' },
+  // Foreground: primary text
+  foreground:      { light: '#111827', dark: '#EEF2F0' },
+  // Muted: secondary text, placeholders
+  muted:           { light: '#6B7280', dark: '#8FA3A0' },
+  // Border: dividers, input borders
+  border:          { light: '#E5EDE8', dark: '#243547' },
+  // Semantic
+  success:         { light: '#22C55E', dark: '#4ADE80' },
+  warning:         { light: '#F59E0B', dark: '#FBBF24' },
+  error:           { light: '#EF4444', dark: '#F87171' },
 };
 
 module.exports = { themeColors };

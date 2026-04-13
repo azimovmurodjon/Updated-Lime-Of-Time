@@ -40,14 +40,15 @@ type RuntimePalette = SchemePaletteItem & {
 
 function buildRuntimePalette(scheme: ColorScheme): RuntimePalette {
   const base = SchemeColors[scheme];
+  const tintColor = (base as any).tint ?? base.primary;
   return {
     ...base,
     text: base.foreground,
     background: base.background,
-    tint: base.primary,
+    tint: tintColor,
     icon: base.muted,
     tabIconDefault: base.muted,
-    tabIconSelected: base.primary,
+    tabIconSelected: tintColor,
     border: base.border,
   };
 }
@@ -61,25 +62,43 @@ export type ThemeColorPalette = (typeof Colors)[ColorScheme];
 
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: "system-ui",
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
+    sans: "Inter_400Regular",
+    sansLight: "Inter_300Light",
+    sansMedium: "Inter_500Medium",
+    sansSemiBold: "Inter_600SemiBold",
+    sansBold: "Inter_700Bold",
     serif: "ui-serif",
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
     rounded: "ui-rounded",
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
     mono: "ui-monospace",
   },
-  default: {
-    sans: "normal",
+  android: {
+    sans: "Inter_400Regular",
+    sansLight: "Inter_300Light",
+    sansMedium: "Inter_500Medium",
+    sansSemiBold: "Inter_600SemiBold",
+    sansBold: "Inter_700Bold",
     serif: "serif",
-    rounded: "normal",
+    rounded: "Inter_400Regular",
+    mono: "monospace",
+  },
+  default: {
+    sans: "Inter_400Regular",
+    sansLight: "Inter_300Light",
+    sansMedium: "Inter_500Medium",
+    sansSemiBold: "Inter_600SemiBold",
+    sansBold: "Inter_700Bold",
+    serif: "serif",
+    rounded: "Inter_400Regular",
     mono: "monospace",
   },
   web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    sans: "'Inter', system-ui, -apple-system, sans-serif",
+    sansLight: "'Inter', system-ui, sans-serif",
+    sansMedium: "'Inter', system-ui, sans-serif",
+    sansSemiBold: "'Inter', system-ui, sans-serif",
+    sansBold: "'Inter', system-ui, sans-serif",
     serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
-    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+    rounded: "'Inter', sans-serif",
+    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Courier New', monospace",
   },
 });

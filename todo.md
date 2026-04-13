@@ -739,3 +739,13 @@
 - [ ] All pages update in real-time when toggle changes (no reload required)
 - [ ] Test full address display on client booking page
 - [ ] Fix any address display bugs on client booking page
+
+## UI/Design Overhaul
+- [x] Update theme.config.js with deep sage green / dark navy brand palette
+- [x] Add surfaceElevated and surfaceAlt tokens to theme.config.d.ts
+- [x] Load Inter font weights (300–700) in app/_layout.tsx
+- [x] Redesign onboarding screen: animated gradient background, floating particles, logo ring, progress dots, spring button
+- [x] Redesign home screen header: gradient greeting banner with brand color
+- [x] Upgrade KPI cards to full gradient cards (orange, blue, green, purple) with white text
+- [x] Improve Today's Schedule section: count badge, time block pill, improved empty state
+- [x] Upgrade FAB to gradient with scale press feedback and stronger shadow

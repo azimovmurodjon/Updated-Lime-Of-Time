@@ -13,10 +13,9 @@ import {
   Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   formatPhoneNumber,
   stripPhoneFormat,
@@ -40,16 +39,136 @@ import {
 import { trpc } from "@/lib/trpc";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAppLockContext } from "@/lib/app-lock-provider";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withDelay,
+  withSpring,
+  withRepeat,
+  withSequence,
+  Easing,
+  interpolate,
+  runOnJS,
+} from "react-native-reanimated";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
 
 type Step = 1 | 2 | 3;
+
+// ─── Floating Particle ─────────────────────────────────────────────
+function FloatingParticle({
+  x,
+  y,
+  size,
+  delay,
+  duration,
+  opacity: baseOpacity,
+}: {
+  x: number;
+  y: number;
+  size: number;
+  delay: number;
+  duration: number;
+  opacity: number;
+}) {
+  const translateY = useSharedValue(0);
+  const opacity = useSharedValue(0);
+
+  useEffect(() => {
+    opacity.value = withDelay(delay, withTiming(baseOpacity, { duration: 800 }));
+    translateY.value = withDelay(
+      delay,
+      withRepeat(
+        withSequence(
+          withTiming(-18, { duration, easing: Easing.inOut(Easing.sin) }),
+          withTiming(0, { duration, easing: Easing.inOut(Easing.sin) }),
+        ),
+        -1,
+        false,
+      ),
+    );
+  }, []);
+
+  const style = useAnimatedStyle(() => ({
+    position: "absolute",
+    left: x,
+    top: y,
+    width: size,
+    height: size,
+    borderRadius: size / 2,
+    backgroundColor: "rgba(255,255,255,0.6)",
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  return <Animated.View style={style} />;
+}
+
+// ─── Clock Icon SVG-like (drawn with Views) ─────────────────────────
+function ClockIcon({ size, color }: { size: number; color: string }) {
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        borderWidth: 3,
+        borderColor: color,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      {/* Hour hand */}
+      <View
+        style={{
+          position: "absolute",
+          width: 2,
+          height: size * 0.25,
+          backgroundColor: color,
+          bottom: "50%",
+          left: "50%",
+          marginLeft: -1,
+          borderRadius: 1,
+          transformOrigin: "bottom",
+          transform: [{ rotate: "-30deg" }],
+        }}
+      />
+      {/* Minute hand */}
+      <View
+        style={{
+          position: "absolute",
+          width: 2,
+          height: size * 0.32,
+          backgroundColor: color,
+          bottom: "50%",
+          left: "50%",
+          marginLeft: -1,
+          borderRadius: 1,
+          transformOrigin: "bottom",
+          transform: [{ rotate: "60deg" }],
+        }}
+      />
+      {/* Center dot */}
+      <View
+        style={{
+          width: 4,
+          height: 4,
+          borderRadius: 2,
+          backgroundColor: color,
+        }}
+      />
+    </View>
+  );
+}
 
 export default function OnboardingScreen() {
   const { dispatch, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const isTablet = width >= 768;
-  const hp = isTablet ? 32 : Math.max(16, width * 0.05);
+  const hp = isTablet ? 32 : Math.max(20, width * 0.06);
 
   const [step, setStep] = useState<Step>(1);
   const { biometricAvailable, biometricType, toggleBiometric } = useAppLockContext();
@@ -65,9 +184,85 @@ export default function OnboardingScreen() {
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [onboardingErrors, setOnboardingErrors] = useState<{ businessName?: string; address?: string }>({});
+  const [inputFocused, setInputFocused] = useState(false);
 
   const trpcUtils = trpc.useUtils();
   const createBusinessMut = trpc.business.create.useMutation();
+
+  // ─── Entrance animations ─────────────────────────────────────────
+  const logoScale = useSharedValue(0.6);
+  const logoOpacity = useSharedValue(0);
+  const titleOpacity = useSharedValue(0);
+  const titleTranslateY = useSharedValue(20);
+  const subtitleOpacity = useSharedValue(0);
+  const subtitleTranslateY = useSharedValue(20);
+  const inputOpacity = useSharedValue(0);
+  const inputTranslateY = useSharedValue(20);
+  const btnScale = useSharedValue(1);
+  const btnOpacity = useSharedValue(0);
+  const gradientShift = useSharedValue(0);
+
+  useEffect(() => {
+    // Staggered entrance
+    logoScale.value = withDelay(100, withSpring(1, { damping: 14, stiffness: 120 }));
+    logoOpacity.value = withDelay(100, withTiming(1, { duration: 500 }));
+    titleOpacity.value = withDelay(300, withTiming(1, { duration: 400 }));
+    titleTranslateY.value = withDelay(300, withTiming(0, { duration: 400, easing: Easing.out(Easing.quad) }));
+    subtitleOpacity.value = withDelay(450, withTiming(1, { duration: 400 }));
+    subtitleTranslateY.value = withDelay(450, withTiming(0, { duration: 400, easing: Easing.out(Easing.quad) }));
+    inputOpacity.value = withDelay(600, withTiming(1, { duration: 400 }));
+    inputTranslateY.value = withDelay(600, withTiming(0, { duration: 400, easing: Easing.out(Easing.quad) }));
+    btnOpacity.value = withDelay(750, withTiming(1, { duration: 400 }));
+    // Slow gradient animation
+    gradientShift.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 4000, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0, { duration: 4000, easing: Easing.inOut(Easing.sin) }),
+      ),
+      -1,
+      false,
+    );
+  }, []);
+
+  // Re-animate on step change
+  useEffect(() => {
+    titleOpacity.value = 0;
+    titleTranslateY.value = 16;
+    subtitleOpacity.value = 0;
+    subtitleTranslateY.value = 16;
+    inputOpacity.value = 0;
+    inputTranslateY.value = 16;
+    btnOpacity.value = 0;
+
+    titleOpacity.value = withDelay(60, withTiming(1, { duration: 300 }));
+    titleTranslateY.value = withDelay(60, withTiming(0, { duration: 300, easing: Easing.out(Easing.quad) }));
+    subtitleOpacity.value = withDelay(140, withTiming(1, { duration: 300 }));
+    subtitleTranslateY.value = withDelay(140, withTiming(0, { duration: 300, easing: Easing.out(Easing.quad) }));
+    inputOpacity.value = withDelay(220, withTiming(1, { duration: 300 }));
+    inputTranslateY.value = withDelay(220, withTiming(0, { duration: 300, easing: Easing.out(Easing.quad) }));
+    btnOpacity.value = withDelay(320, withTiming(1, { duration: 300 }));
+  }, [step]);
+
+  const logoStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: logoScale.value }],
+    opacity: logoOpacity.value,
+  }));
+  const titleStyle = useAnimatedStyle(() => ({
+    opacity: titleOpacity.value,
+    transform: [{ translateY: titleTranslateY.value }],
+  }));
+  const subtitleStyle = useAnimatedStyle(() => ({
+    opacity: subtitleOpacity.value,
+    transform: [{ translateY: subtitleTranslateY.value }],
+  }));
+  const inputStyle = useAnimatedStyle(() => ({
+    opacity: inputOpacity.value,
+    transform: [{ translateY: inputTranslateY.value }],
+  }));
+  const btnStyle = useAnimatedStyle(() => ({
+    opacity: btnOpacity.value,
+    transform: [{ scale: btnScale.value }],
+  }));
 
   const handlePhoneChange = (text: string) => {
     setPhone(formatPhoneNumber(text));
@@ -77,18 +272,26 @@ export default function OnboardingScreen() {
     setBusinessPhone(formatPhoneNumber(text));
   };
 
+  const handleBtnPress = (cb: () => void) => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    btnScale.value = withSequence(
+      withTiming(0.96, { duration: 80 }),
+      withSpring(1, { damping: 12, stiffness: 200 }),
+    );
+    cb();
+  };
+
   const handlePhoneNext = async () => {
     if (!phone.trim()) return;
     setLoading(true);
     try {
-      // Check if a business owner already exists with this phone number
       const rawPhone = stripPhoneFormat(phone);
       const existing = await trpcUtils.business.checkByPhone.fetch({ phone: rawPhone });
       if (existing) {
-        // Business owner already exists – load their data and go to home
         dispatch({ type: "SET_BUSINESS_OWNER_ID", payload: existing.id });
         await AsyncStorage.setItem("@bookease_business_owner_id", String(existing.id));
-        // Load full data from DB
         const fullData = await trpcUtils.business.getFullData.fetch({ id: existing.id });
         if (fullData && fullData.owner) {
           const settingsFromDb = dbOwnerToSettings(fullData.owner);
@@ -110,7 +313,6 @@ export default function OnboardingScreen() {
             },
           });
         }
-        // Check if biometrics available and offer setup
         if (biometricAvailable && Platform.OS !== "web") {
           setStep(3);
         } else {
@@ -139,7 +341,6 @@ export default function OnboardingScreen() {
     setLoading(true);
     try {
       const rawPhone = stripPhoneFormat(businessPhone.trim() || phone.trim());
-      // Create business owner in database
       const newOwner = await createBusinessMut.mutateAsync({
         phone: rawPhone,
         businessName: businessName.trim(),
@@ -150,12 +351,8 @@ export default function OnboardingScreen() {
         workingHours: DEFAULT_WORKING_HOURS,
         cancellationPolicy: DEFAULT_CANCELLATION_POLICY,
       });
-
-      // Store the business owner ID
       dispatch({ type: "SET_BUSINESS_OWNER_ID", payload: newOwner.id });
       await AsyncStorage.setItem("@bookease_business_owner_id", String(newOwner.id));
-
-      // Create default location from onboarding address
       if (address.trim()) {
         const defaultLoc = {
           id: generateId(),
@@ -173,11 +370,8 @@ export default function OnboardingScreen() {
         };
         const locAction = { type: "ADD_LOCATION" as const, payload: defaultLoc };
         dispatch(locAction);
-        // Pass newOwner.id directly because businessOwnerIdRef may not be updated yet
         syncToDb(locAction, newOwner.id);
       }
-
-      // Update local settings
       dispatch({
         type: "UPDATE_SETTINGS",
         payload: {
@@ -193,7 +387,6 @@ export default function OnboardingScreen() {
           },
         },
       });
-      // Check if biometrics available and offer setup
       if (biometricAvailable && Platform.OS !== "web") {
         setStep(3);
       } else {
@@ -201,7 +394,6 @@ export default function OnboardingScreen() {
       }
     } catch (err) {
       console.warn("[Onboarding] Failed to create business:", err);
-      // Fallback: save locally only
       dispatch({
         type: "UPDATE_SETTINGS",
         payload: {
@@ -243,439 +435,472 @@ export default function OnboardingScreen() {
     router.replace("/(tabs)");
   }, [router]);
 
+  // ─── Particles (only on step 1) ─────────────────────────────────
+  const particles = [
+    { x: width * 0.08, y: height * 0.12, size: 8, delay: 200, duration: 3200, opacity: 0.35 },
+    { x: width * 0.82, y: height * 0.08, size: 12, delay: 600, duration: 2800, opacity: 0.25 },
+    { x: width * 0.15, y: height * 0.35, size: 6, delay: 1000, duration: 3600, opacity: 0.3 },
+    { x: width * 0.75, y: height * 0.28, size: 10, delay: 400, duration: 3000, opacity: 0.2 },
+    { x: width * 0.55, y: height * 0.06, size: 7, delay: 800, duration: 2600, opacity: 0.3 },
+    { x: width * 0.9, y: height * 0.42, size: 9, delay: 300, duration: 3400, opacity: 0.2 },
+  ];
+
   return (
-    <ScreenContainer edges={["top", "bottom", "left", "right"]}>
+    <View style={{ flex: 1 }}>
+      {/* ─── Animated Gradient Background ─────────────────────── */}
+      <LinearGradient
+        colors={["#1A3A28", "#2D5A3D", "#4A7C59", "#3D6B4A"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
+      />
+
+      {/* ─── Floating Particles ────────────────────────────────── */}
+      {step === 1 && particles.map((p, i) => (
+        <FloatingParticle key={i} {...p} />
+      ))}
+
+      {/* ─── Bottom Wave Decoration ────────────────────────────── */}
+      <View
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: height * 0.38,
+          backgroundColor: "rgba(255,255,255,0.06)",
+          borderTopLeftRadius: width * 0.5,
+          borderTopRightRadius: width * 0.5,
+        }}
+      />
+      <View
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: height * 0.28,
+          backgroundColor: "rgba(255,255,255,0.05)",
+          borderTopLeftRadius: width * 0.6,
+          borderTopRightRadius: width * 0.6,
+        }}
+      />
+
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1, paddingHorizontal: hp }}
+          contentContainerStyle={{
+            flexGrow: 1,
+            paddingHorizontal: hp,
+            paddingTop: 60,
+            paddingBottom: 40,
+          }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Logo */}
-          <View style={styles.logoContainer}>
-            <Image
-              source={require("@/assets/images/icon.png")}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-            <Text style={[styles.appName, { color: colors.primary }]}>Lime Of Time</Text>
-          </View>
+          {/* ─── Logo + App Name ─────────────────────────────── */}
+          <Animated.View style={[styles.logoContainer, logoStyle]}>
+            <View style={styles.logoRing}>
+              <Image
+                source={require("@/assets/images/icon.png")}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.appName}>Lime Of Time</Text>
+            <Text style={styles.appTagline}>Smart scheduling for your business</Text>
+          </Animated.View>
 
-          {/* Progress */}
-          <View style={[styles.progressRow, { paddingHorizontal: 0 }]}>
+          {/* ─── Progress Dots ───────────────────────────────── */}
+          <View style={styles.progressRow}>
             {[1, 2, 3].map((s) => (
               <View
                 key={s}
                 style={[
-                  styles.progressBar,
-                  { backgroundColor: s <= step ? colors.primary : colors.border },
+                  styles.progressDot,
+                  {
+                    backgroundColor: s <= step ? "#8FBF6A" : "rgba(255,255,255,0.25)",
+                    width: s === step ? 24 : 8,
+                  },
                 ]}
               />
             ))}
           </View>
 
-          {step === 1 && (
-            <View style={styles.stepContainer}>
-              <Text style={[styles.stepTitle, { color: colors.foreground }]}>
-                Welcome! Let's get started
-              </Text>
-              <Text style={[styles.stepSubtitle, { color: colors.muted }]}>
-                Enter your phone number to set up your account
-              </Text>
-
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: colors.muted }]}>Phone Number</Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: colors.border,
-                      color: colors.foreground,
-                    },
-                  ]}
-                  placeholder="(000) 000-0000"
-                  placeholderTextColor={colors.muted}
-                  value={phone}
-                  onChangeText={handlePhoneChange}
-                  keyboardType="phone-pad"
-                  returnKeyType="done"
-                  onSubmitEditing={handlePhoneNext}
-                  maxLength={14}
-                  autoFocus
-                  editable={!loading}
-                />
-              </View>
-
-              <Pressable
-                onPress={handlePhoneNext}
-                style={({ pressed }) => [
-                  styles.primaryBtn,
-                  {
-                    backgroundColor: phone.trim() && !loading ? colors.primary : colors.muted,
-                    opacity: pressed && phone.trim() && !loading ? 0.8 : 1,
-                  },
-                ]}
-                disabled={!phone.trim() || loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#FFF" size="small" />
-                ) : (
-                  <Text style={styles.primaryBtnText}>Continue</Text>
-                )}
-              </Pressable>
-            </View>
-          )}
-
-          {step === 2 && (
-            <View style={styles.stepContainer}>
-              <Text style={[styles.stepTitle, { color: colors.foreground }]}>
-                Business Information
-              </Text>
-              <Text style={[styles.stepSubtitle, { color: colors.muted }]}>
-                Tell us about your business
-              </Text>
-
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: colors.muted }]}>Business Name *</Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: onboardingErrors.businessName ? colors.error : colors.border,
-                      color: colors.foreground,
-                    },
-                  ]}
-                  placeholder="Your Business Name"
-                  placeholderTextColor={colors.muted}
-                  value={businessName}
-                  onChangeText={(v) => { setBusinessName(v); if (onboardingErrors.businessName) setOnboardingErrors((e) => ({ ...e, businessName: undefined })); }}
-                  returnKeyType="next"
-                  autoFocus
-                  editable={!loading}
-                />
-                {onboardingErrors.businessName ? <Text style={{ color: colors.error, fontSize: 12, marginTop: 4 }}>{onboardingErrors.businessName}</Text> : null}
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: colors.muted }]}>Street Address *</Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: onboardingErrors.address ? colors.error : colors.border,
-                      color: colors.foreground,
-                    },
-                  ]}
-                  placeholder="e.g. 123 Main Street"
-                  placeholderTextColor={colors.muted}
-                  value={address}
-                  onChangeText={(v) => { setAddress(v); if (onboardingErrors.address) setOnboardingErrors((e) => ({ ...e, address: undefined })); }}
-                  returnKeyType="next"
-                  editable={!loading}
-                />
-                {onboardingErrors.address ? <Text style={{ color: colors.error, fontSize: 12, marginTop: 4 }}>{onboardingErrors.address}</Text> : null}
-              </View>
-
-              {/* City / State / ZIP */}
-              <View style={[styles.inputGroup, { flexDirection: "row", gap: 8 }]}>
-                <View style={{ flex: 2 }}>
-                  <Text style={[styles.inputLabel, { color: colors.muted }]}>City</Text>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground },
-                    ]}
-                    placeholder="e.g. New York"
-                    placeholderTextColor={colors.muted}
-                    value={city}
-                    onChangeText={setCity}
-                    returnKeyType="next"
-                    editable={!loading}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.inputLabel, { color: colors.muted }]}>State</Text>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground },
-                    ]}
-                    placeholder="NY"
-                    placeholderTextColor={colors.muted}
-                    value={locationState}
-                    onChangeText={setLocationState}
-                    autoCapitalize="characters"
-                    maxLength={2}
-                    returnKeyType="next"
-                    editable={!loading}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.inputLabel, { color: colors.muted }]}>ZIP</Text>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground },
-                    ]}
-                    placeholder="10001"
-                    placeholderTextColor={colors.muted}
-                    value={zipCode}
-                    onChangeText={setZipCode}
-                    keyboardType="numeric"
-                    maxLength={10}
-                    returnKeyType="next"
-                    editable={!loading}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: colors.muted }]}>Phone Number</Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: colors.border,
-                      color: colors.foreground,
-                    },
-                  ]}
-                  placeholder="(000) 000-0000"
-                  placeholderTextColor={colors.muted}
-                  value={businessPhone}
-                  onChangeText={handleBusinessPhoneChange}
-                  keyboardType="phone-pad"
-                  returnKeyType="next"
-                  maxLength={14}
-                  editable={!loading}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: colors.muted }]}>
-                  Email (optional)
-                </Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: colors.border,
-                      color: colors.foreground,
-                    },
-                  ]}
-                  placeholder="email@business.com"
-                  placeholderTextColor={colors.muted}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  returnKeyType="next"
-                  editable={!loading}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: colors.muted }]}>
-                  Website (optional)
-                </Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: colors.border,
-                      color: colors.foreground,
-                    },
-                  ]}
-                  placeholder="https://www.yourbusiness.com"
-                  placeholderTextColor={colors.muted}
-                  value={website}
-                  onChangeText={setWebsite}
-                  autoCapitalize="none"
-                  returnKeyType="next"
-                  editable={!loading}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: colors.muted }]}>
-                  Description (optional)
-                </Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: colors.border,
-                      color: colors.foreground,
-                      minHeight: 80,
-                      textAlignVertical: "top",
-                    },
-                  ]}
-                  placeholder="Brief description of your business..."
-                  placeholderTextColor={colors.muted}
-                  value={description}
-                  onChangeText={setDescription}
-                  multiline
-                  numberOfLines={3}
-                  editable={!loading}
-                />
-              </View>
-
-              <View style={styles.buttonRow}>
-                <Pressable
-                  onPress={() => setStep(1)}
-                  style={({ pressed }) => [
-                    styles.secondaryBtn,
-                    { borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
-                  ]}
-                  disabled={loading}
-                >
-                  <Text style={[styles.secondaryBtnText, { color: colors.foreground }]}>Back</Text>
-                </Pressable>
-                <Pressable
-                  onPress={handleComplete}
-                  style={({ pressed }) => [
-                    styles.primaryBtn,
-                    {
-                      flex: 1,
-                      backgroundColor: businessName.trim() && !loading ? colors.primary : colors.muted,
-                      opacity: pressed && businessName.trim() && !loading ? 0.8 : 1,
-                    },
-                  ]}
-                  disabled={!businessName.trim() || loading}
-                >
-                  {loading ? (
-                    <ActivityIndicator color="#FFF" size="small" />
-                  ) : (
-                    <Text style={styles.primaryBtnText}>Get Started</Text>
-                  )}
-                </Pressable>
-              </View>
-            </View>
-          )}
-
-          {step === 3 && (
-            <View style={styles.stepContainer}>
-              <View style={{ alignItems: "center", marginBottom: 24 }}>
-                <View style={{
-                  width: 80,
-                  height: 80,
-                  borderRadius: 40,
-                  backgroundColor: colors.primary + "15",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginBottom: 16,
-                }}>
-                  <Text style={{ fontSize: 40 }}>
-                    {biometricType === "face" ? "🔐" : "👆"}
+          {/* ─── White Card ──────────────────────────────────── */}
+          <View style={styles.card}>
+            {/* Step 1: Phone */}
+            {step === 1 && (
+              <>
+                <Animated.View style={titleStyle}>
+                  <Text style={styles.stepTitle}>Welcome back!</Text>
+                  <Text style={styles.stepSubtitle}>
+                    Enter your phone number to continue
                   </Text>
-                </View>
-                <Text style={[styles.stepTitle, { color: colors.foreground, textAlign: "center" }]}>
-                  {biometricType === "face" ? "Enable Face ID?" : "Enable Fingerprint?"}
-                </Text>
-                <Text style={[styles.stepSubtitle, { color: colors.muted, textAlign: "center" }]}>
-                  Secure your app with {biometricType === "face" ? "Face ID" : "fingerprint"} authentication. You'll be prompted to unlock when you open the app.
-                </Text>
-              </View>
+                </Animated.View>
 
-              <Pressable
-                onPress={handleEnableFaceId}
-                style={({ pressed }) => [
-                  styles.primaryBtn,
-                  {
-                    backgroundColor: !loading ? colors.primary : colors.muted,
-                    opacity: pressed && !loading ? 0.8 : 1,
-                  },
-                ]}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#FFF" size="small" />
-                ) : (
-                  <Text style={styles.primaryBtnText}>
-                    Enable {biometricType === "face" ? "Face ID" : "Fingerprint"}
+                <Animated.View style={[styles.inputGroup, inputStyle]}>
+                  <Text style={styles.inputLabel}>Phone Number</Text>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      inputFocused && styles.inputFocused,
+                    ]}
+                    placeholder="(000) 000-0000"
+                    placeholderTextColor="#9CA3AF"
+                    value={phone}
+                    onChangeText={handlePhoneChange}
+                    keyboardType="phone-pad"
+                    returnKeyType="done"
+                    onSubmitEditing={() => handleBtnPress(handlePhoneNext)}
+                    maxLength={14}
+                    autoFocus
+                    editable={!loading}
+                    onFocus={() => setInputFocused(true)}
+                    onBlur={() => setInputFocused(false)}
+                  />
+                </Animated.View>
+
+                <Animated.View style={btnStyle}>
+                  <Pressable
+                    onPress={() => handleBtnPress(handlePhoneNext)}
+                    style={({ pressed }) => [
+                      styles.primaryBtn,
+                      {
+                        backgroundColor: phone.trim() && !loading ? "#4A7C59" : "#9CA3AF",
+                        opacity: pressed ? 0.9 : 1,
+                      },
+                    ]}
+                    disabled={!phone.trim() || loading}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#FFF" size="small" />
+                    ) : (
+                      <Text style={styles.primaryBtnText}>Continue</Text>
+                    )}
+                  </Pressable>
+                </Animated.View>
+              </>
+            )}
+
+            {/* Step 2: Business Info */}
+            {step === 2 && (
+              <>
+                <Animated.View style={titleStyle}>
+                  <Text style={styles.stepTitle}>Business Information</Text>
+                  <Text style={styles.stepSubtitle}>Tell us about your business</Text>
+                </Animated.View>
+
+                <Animated.View style={inputStyle}>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Business Name *</Text>
+                    <TextInput
+                      style={[
+                        styles.input,
+                        onboardingErrors.businessName && styles.inputError,
+                      ]}
+                      placeholder="Your Business Name"
+                      placeholderTextColor="#9CA3AF"
+                      value={businessName}
+                      onChangeText={(v) => {
+                        setBusinessName(v);
+                        if (onboardingErrors.businessName) setOnboardingErrors((e) => ({ ...e, businessName: undefined }));
+                      }}
+                      returnKeyType="next"
+                      autoFocus
+                      editable={!loading}
+                    />
+                    {onboardingErrors.businessName ? (
+                      <Text style={styles.errorText}>{onboardingErrors.businessName}</Text>
+                    ) : null}
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Street Address *</Text>
+                    <TextInput
+                      style={[
+                        styles.input,
+                        onboardingErrors.address && styles.inputError,
+                      ]}
+                      placeholder="e.g. 123 Main Street"
+                      placeholderTextColor="#9CA3AF"
+                      value={address}
+                      onChangeText={(v) => {
+                        setAddress(v);
+                        if (onboardingErrors.address) setOnboardingErrors((e) => ({ ...e, address: undefined }));
+                      }}
+                      returnKeyType="next"
+                      editable={!loading}
+                    />
+                    {onboardingErrors.address ? (
+                      <Text style={styles.errorText}>{onboardingErrors.address}</Text>
+                    ) : null}
+                  </View>
+
+                  <View style={[styles.inputGroup, { flexDirection: "row", gap: 8 }]}>
+                    <View style={{ flex: 2 }}>
+                      <Text style={styles.inputLabel}>City</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="e.g. New York"
+                        placeholderTextColor="#9CA3AF"
+                        value={city}
+                        onChangeText={setCity}
+                        returnKeyType="next"
+                        editable={!loading}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.inputLabel}>State</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="NY"
+                        placeholderTextColor="#9CA3AF"
+                        value={locationState}
+                        onChangeText={setLocationState}
+                        autoCapitalize="characters"
+                        maxLength={2}
+                        returnKeyType="next"
+                        editable={!loading}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.inputLabel}>ZIP</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="10001"
+                        placeholderTextColor="#9CA3AF"
+                        value={zipCode}
+                        onChangeText={setZipCode}
+                        keyboardType="numeric"
+                        maxLength={10}
+                        returnKeyType="next"
+                        editable={!loading}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Phone Number</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="(000) 000-0000"
+                      placeholderTextColor="#9CA3AF"
+                      value={businessPhone}
+                      onChangeText={handleBusinessPhoneChange}
+                      keyboardType="phone-pad"
+                      returnKeyType="next"
+                      maxLength={14}
+                      editable={!loading}
+                    />
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Email (optional)</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="email@business.com"
+                      placeholderTextColor="#9CA3AF"
+                      value={email}
+                      onChangeText={setEmail}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      returnKeyType="next"
+                      editable={!loading}
+                    />
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Website (optional)</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="https://www.yourbusiness.com"
+                      placeholderTextColor="#9CA3AF"
+                      value={website}
+                      onChangeText={setWebsite}
+                      autoCapitalize="none"
+                      returnKeyType="next"
+                      editable={!loading}
+                    />
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Description (optional)</Text>
+                    <TextInput
+                      style={[styles.input, { minHeight: 80, textAlignVertical: "top" }]}
+                      placeholder="Brief description of your business..."
+                      placeholderTextColor="#9CA3AF"
+                      value={description}
+                      onChangeText={setDescription}
+                      multiline
+                      numberOfLines={3}
+                      editable={!loading}
+                    />
+                  </View>
+                </Animated.View>
+
+                <Animated.View style={btnStyle}>
+                  <View style={styles.buttonRow}>
+                    <Pressable
+                      onPress={() => setStep(1)}
+                      style={({ pressed }) => [
+                        styles.secondaryBtn,
+                        { opacity: pressed ? 0.7 : 1 },
+                      ]}
+                      disabled={loading}
+                    >
+                      <Text style={styles.secondaryBtnText}>Back</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => handleBtnPress(handleComplete)}
+                      style={({ pressed }) => [
+                        styles.primaryBtn,
+                        {
+                          flex: 1,
+                          backgroundColor: businessName.trim() && !loading ? "#4A7C59" : "#9CA3AF",
+                          opacity: pressed ? 0.9 : 1,
+                        },
+                      ]}
+                      disabled={!businessName.trim() || loading}
+                    >
+                      {loading ? (
+                        <ActivityIndicator color="#FFF" size="small" />
+                      ) : (
+                        <Text style={styles.primaryBtnText}>Get Started</Text>
+                      )}
+                    </Pressable>
+                  </View>
+                </Animated.View>
+              </>
+            )}
+
+            {/* Step 3: Biometrics */}
+            {step === 3 && (
+              <>
+                <Animated.View style={[titleStyle, { alignItems: "center" }]}>
+                  <View style={styles.biometricIcon}>
+                    <Text style={{ fontSize: 40 }}>
+                      {biometricType === "face" ? "🔐" : "👆"}
+                    </Text>
+                  </View>
+                  <Text style={[styles.stepTitle, { textAlign: "center" }]}>
+                    {biometricType === "face" ? "Enable Face ID?" : "Enable Fingerprint?"}
                   </Text>
-                )}
-              </Pressable>
+                  <Text style={[styles.stepSubtitle, { textAlign: "center" }]}>
+                    Secure your app with {biometricType === "face" ? "Face ID" : "fingerprint"} authentication.
+                  </Text>
+                </Animated.View>
 
-              <Pressable
-                onPress={handleSkipFaceId}
-                style={({ pressed }) => [
-                  {
-                    width: "100%" as const,
-                    paddingVertical: 16,
-                    alignItems: "center" as const,
-                    justifyContent: "center" as const,
-                    marginTop: 12,
-                    opacity: pressed ? 0.6 : 1,
-                  },
-                ]}
-                disabled={loading}
-              >
-                <Text style={{ fontSize: 16, fontWeight: "600", color: colors.muted }}>
-                  Skip for now
-                </Text>
-              </Pressable>
-            </View>
-          )}
-
-          <View style={{ height: 40 }} />
+                <Animated.View style={btnStyle}>
+                  <Pressable
+                    onPress={() => handleBtnPress(handleEnableFaceId)}
+                    style={({ pressed }) => [
+                      styles.primaryBtn,
+                      {
+                        backgroundColor: !loading ? "#4A7C59" : "#9CA3AF",
+                        opacity: pressed ? 0.9 : 1,
+                      },
+                    ]}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#FFF" size="small" />
+                    ) : (
+                      <Text style={styles.primaryBtnText}>
+                        Enable {biometricType === "face" ? "Face ID" : "Fingerprint"}
+                      </Text>
+                    )}
+                  </Pressable>
+                  <Pressable
+                    onPress={handleSkipFaceId}
+                    style={({ pressed }) => [
+                      styles.skipBtn,
+                      { opacity: pressed ? 0.6 : 1 },
+                    ]}
+                    disabled={loading}
+                  >
+                    <Text style={styles.skipBtnText}>Skip for now</Text>
+                  </Pressable>
+                </Animated.View>
+              </>
+            )}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </ScreenContainer>
+    </View>
   );
 }
-
-
-
-
 
 const styles = StyleSheet.create({
   logoContainer: {
     alignItems: "center",
-    marginTop: 40,
-    marginBottom: 24,
+    marginBottom: 28,
+  },
+  logoRing: {
+    width: 96,
+    height: 96,
+    borderRadius: 28,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.25)",
   },
   logo: {
-    width: 80,
-    height: 80,
+    width: 72,
+    height: 72,
     borderRadius: 20,
   },
   appName: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: "800",
-    marginTop: 12,
+    color: "#FFFFFF",
+    letterSpacing: -0.5,
+    fontFamily: Platform.OS === "ios" ? "Inter_700Bold" : undefined,
+  },
+  appTagline: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.7)",
+    marginTop: 4,
+    fontFamily: Platform.OS === "ios" ? "Inter_400Regular" : undefined,
   },
   progressRow: {
     flexDirection: "row",
-    gap: 8,
-    marginBottom: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 20,
   },
-  progressBar: {
-    flex: 1,
-    height: 4,
-    borderRadius: 2,
+  progressDot: {
+    height: 8,
+    borderRadius: 4,
   },
-  stepContainer: {
-    flex: 1,
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 8,
   },
   stepTitle: {
     fontSize: 22,
     fontWeight: "700",
+    color: "#111827",
     marginBottom: 6,
+    fontFamily: Platform.OS === "ios" ? "Inter_700Bold" : undefined,
   },
   stepSubtitle: {
     fontSize: 14,
+    color: "#6B7280",
     marginBottom: 24,
     lineHeight: 20,
+    fontFamily: Platform.OS === "ios" ? "Inter_400Regular" : undefined,
   },
   inputGroup: {
     marginBottom: 16,
@@ -684,17 +909,40 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 12,
     fontWeight: "600",
+    color: "#374151",
     marginBottom: 6,
     marginLeft: 2,
+    fontFamily: Platform.OS === "ios" ? "Inter_600SemiBold" : undefined,
   },
   input: {
     width: "100%",
     borderRadius: 14,
-    borderWidth: 1,
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 15,
     lineHeight: 20,
+    color: "#111827",
+    backgroundColor: "#F9FAFB",
+    fontFamily: Platform.OS === "ios" ? "Inter_400Regular" : undefined,
+  },
+  inputFocused: {
+    borderColor: "#4A7C59",
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#4A7C59",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+  },
+  inputError: {
+    borderColor: "#EF4444",
+  },
+  errorText: {
+    color: "#EF4444",
+    fontSize: 12,
+    marginTop: 4,
+    fontFamily: Platform.OS === "ios" ? "Inter_400Regular" : undefined,
   },
   primaryBtn: {
     width: "100%",
@@ -710,12 +958,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     lineHeight: 22,
+    fontFamily: Platform.OS === "ios" ? "Inter_700Bold" : undefined,
   },
   secondaryBtn: {
     paddingVertical: 16,
     paddingHorizontal: 24,
     borderRadius: 14,
-    borderWidth: 1,
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
     alignItems: "center",
     justifyContent: "center",
     marginTop: 8,
@@ -724,12 +974,35 @@ const styles = StyleSheet.create({
   secondaryBtnText: {
     fontSize: 16,
     fontWeight: "600",
-    lineHeight: 22,
+    color: "#374151",
+    fontFamily: Platform.OS === "ios" ? "Inter_600SemiBold" : undefined,
   },
   buttonRow: {
     flexDirection: "row",
     gap: 12,
     marginTop: 8,
     width: "100%",
+  },
+  biometricIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#F0FDF4",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  skipBtn: {
+    width: "100%",
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 12,
+  },
+  skipBtnText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#6B7280",
+    fontFamily: Platform.OS === "ios" ? "Inter_600SemiBold" : undefined,
   },
 });
