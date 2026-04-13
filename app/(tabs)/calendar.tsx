@@ -433,7 +433,7 @@ export default function CalendarScreen() {
       <View key={appt.id} style={[styles.apptCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: svc?.color ?? colors.primary }]}>
         <Pressable
           onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })}
-          style={{ flex: 1 }}
+          style={{ alignSelf: "stretch" }}
         >
           <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>
             {showDate ? `${formatDateDisplay(appt.date)} · ` : ""}{formatTime(appt.time)} – {getEndTime(appt.time, appt.duration)}

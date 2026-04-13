@@ -32,7 +32,7 @@ export default function BusinessProfileScreen() {
 
   const [businessName, setBusinessName] = useState(state.settings.businessName);
   const [ownerName, setOwnerName] = useState(profile.ownerName);
-  const [phone, setPhone] = useState(profile.phone);
+  const [phone, setPhone] = useState(formatPhoneNumber(profile.phone || ""));
   const [email, setEmail] = useState(profile.email);
   const [website, setWebsite] = useState(profile.website);
   const [description, setDescription] = useState(profile.description);

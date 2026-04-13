@@ -42,7 +42,7 @@ export default function LocationFormScreen() {
   const [city, setCity] = useState(existing?.city ?? "");
   const [locationState, setLocationState] = useState(existing?.state ?? "");
   const [zipCode, setZipCode] = useState(existing?.zipCode ?? "");
-  const [phone, setPhone] = useState(existing?.phone ?? "");
+  const [phone, setPhone] = useState(formatPhoneNumber(existing?.phone ?? ""));
   const [email, setEmail] = useState(existing?.email ?? "");
   // Validation errors
   const [errors, setErrors] = useState<{ name?: string; address?: string }>({});

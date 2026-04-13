@@ -1190,38 +1190,42 @@ function baseStyles(): string {
       }
       .header {
         text-align: center;
-        padding: 24px 0 16px;
+        padding: 28px 0 20px;
       }
       .header .biz-logo {
-        width: 64px; height: 64px;
-        border-radius: 16px;
+        width: 72px; height: 72px;
+        border-radius: 20px;
         object-fit: cover;
-        margin-bottom: 8px;
+        margin-bottom: 12px;
         border: 2px solid var(--border);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.1);
       }
       .header h1 {
-        font-size: 22px;
-        font-weight: 700;
+        font-size: 24px;
+        font-weight: 800;
         color: var(--accent-dark);
         margin-bottom: 4px;
+        letter-spacing: -0.5px;
       }
       .header .subtitle {
         font-size: 12px;
         color: var(--text-muted);
+        font-weight: 500;
       }
       .card {
         background: var(--bg-card);
-        border-radius: 16px;
-        padding: 20px;
+        border-radius: 20px;
+        padding: 22px;
         margin-bottom: 16px;
         border: 1px solid var(--border);
-        box-shadow: 0 1px 3px var(--shadow);
+        box-shadow: 0 2px 12px var(--shadow), 0 1px 3px rgba(0,0,0,0.04);
       }
       .card h2 {
-        font-size: 16px;
-        font-weight: 600;
+        font-size: 17px;
+        font-weight: 700;
         color: var(--text);
-        margin-bottom: 12px;
+        margin-bottom: 14px;
+        letter-spacing: -0.3px;
       }
       .biz-info { display: flex; flex-direction: column; gap: 6px; }
       .biz-info-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
@@ -1229,19 +1233,29 @@ function baseStyles(): string {
       .btn {
         display: block;
         width: 100%;
-        padding: 14px;
+        padding: 15px;
         border: none;
-        border-radius: 12px;
+        border-radius: 14px;
         font-size: 16px;
         font-weight: 600;
         cursor: pointer;
         text-align: center;
-        transition: opacity 0.15s, transform 0.1s;
+        transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s;
+        letter-spacing: -0.1px;
       }
-      .btn:active { opacity: 0.85; transform: scale(0.98); }
-      .btn-primary { background: var(--accent); color: #fff; }
-      .btn-primary:disabled { background: var(--btn-disabled); cursor: not-allowed; }
-      .btn-secondary { background: var(--accent-bg); color: var(--accent-dark); }
+      .btn:active { opacity: 0.88; transform: scale(0.98); }
+      .btn-primary {
+        background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+        color: #fff;
+        box-shadow: 0 4px 14px rgba(74,140,63,0.35);
+      }
+      .btn-primary:hover:not(:disabled) { box-shadow: 0 6px 18px rgba(74,140,63,0.45); }
+      .btn-primary:disabled { background: var(--btn-disabled); cursor: not-allowed; box-shadow: none; }
+      .btn-secondary {
+        background: var(--accent-bg);
+        color: var(--accent-dark);
+        border: 1.5px solid var(--border);
+      }
       .input-group { margin-bottom: 14px; }
       .input-group label {
         display: block;
@@ -1274,14 +1288,15 @@ function baseStyles(): string {
       .service-item {
         display: flex;
         align-items: center;
-        padding: 14px;
-        border: 2px solid var(--border);
-        border-radius: 12px;
+        padding: 14px 16px;
+        border: 1.5px solid var(--border);
+        border-radius: 14px;
         cursor: pointer;
-        transition: border-color 0.2s, background 0.2s;
+        transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+        background: var(--bg-card);
       }
-      .service-item:hover { background: var(--bg-card-hover); }
-      .service-item.selected { border-color: var(--accent); background: var(--accent-bg-light); }
+      .service-item:hover { background: var(--bg-card-hover); border-color: var(--accent); }
+      .service-item.selected { border-color: var(--accent); background: var(--accent-bg-light); box-shadow: 0 0 0 3px rgba(74,140,63,0.12); }
       .service-dot {
         width: 12px; height: 12px;
         border-radius: 50%;
@@ -1304,15 +1319,15 @@ function baseStyles(): string {
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        border-radius: 10px;
+        border-radius: 12px;
         cursor: pointer;
         font-size: 14px;
         font-weight: 500;
-        border: 2px solid transparent;
+        border: 1.5px solid transparent;
         transition: all 0.15s;
       }
-      .date-cell:hover:not(.disabled) { background: var(--accent-bg-light); }
-      .date-cell.selected { border-color: var(--accent); background: var(--bg-selected); color: var(--accent-dark); }
+      .date-cell:hover:not(.disabled) { background: var(--accent-bg-light); border-color: var(--accent); }
+      .date-cell.selected { border-color: var(--accent); background: var(--bg-selected); color: var(--accent-dark); font-weight: 700; box-shadow: 0 0 0 3px rgba(74,140,63,0.12); }
       .date-cell.disabled { opacity: 0.3; cursor: not-allowed; }
       .date-cell .day-name { font-size: 10px; color: var(--text-hint); font-weight: 400; }
       .date-cell .day-num { font-size: 15px; }
@@ -1322,17 +1337,18 @@ function baseStyles(): string {
         gap: 8px;
       }
       .time-slot {
-        padding: 10px;
+        padding: 11px 8px;
         text-align: center;
-        border: 2px solid var(--border);
-        border-radius: 10px;
+        border: 1.5px solid var(--border);
+        border-radius: 12px;
         cursor: pointer;
         font-size: 14px;
         font-weight: 500;
         transition: all 0.15s;
+        background: var(--bg-card);
       }
-      .time-slot:hover { background: var(--accent-bg-light); }
-      .time-slot.selected { border-color: var(--accent); background: var(--bg-selected); color: var(--accent-dark); }
+      .time-slot:hover { background: var(--accent-bg-light); border-color: var(--accent); }
+      .time-slot.selected { border-color: var(--accent); background: var(--bg-selected); color: var(--accent-dark); font-weight: 700; box-shadow: 0 0 0 3px rgba(74,140,63,0.12); }
       .confirm-row {
         display: flex;
         justify-content: space-between;
@@ -1355,18 +1371,67 @@ function baseStyles(): string {
       }
       .step-indicator {
         display: flex;
+        align-items: flex-start;
         justify-content: center;
-        gap: 8px;
-        margin-bottom: 20px;
+        gap: 0;
+        margin-bottom: 24px;
+        padding: 0 4px;
+      }
+      .step-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        flex: 1;
+        position: relative;
+      }
+      .step-item:not(:last-child)::after {
+        content: '';
+        position: absolute;
+        top: 13px;
+        left: calc(50% + 14px);
+        right: calc(-50% + 14px);
+        height: 2px;
+        background: var(--border);
+        transition: background 0.3s;
+        z-index: 0;
+      }
+      .step-item.done:not(:last-child)::after {
+        background: var(--accent);
       }
       .step-dot {
-        width: 8px; height: 8px;
+        width: 26px; height: 26px;
         border-radius: 50%;
-        background: #dde3dd;
-        transition: background 0.2s;
+        background: var(--bg-card);
+        border: 2px solid var(--border);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 11px; font-weight: 700;
+        color: var(--text-hint);
+        transition: all 0.25s;
+        position: relative; z-index: 1;
+        margin-bottom: 4px;
       }
-      .step-dot.active { background: var(--accent); }
-      .step-dot.done { background: #8cc084; }
+      .step-dot.active {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+        box-shadow: 0 0 0 4px rgba(74,140,63,0.15);
+      }
+      .step-dot.done {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      .step-label {
+        font-size: 9px;
+        font-weight: 500;
+        color: var(--text-hint);
+        text-align: center;
+        transition: color 0.25s;
+        line-height: 1.2;
+        white-space: nowrap;
+      }
+      .step-item.active .step-label { color: var(--accent-dark); font-weight: 700; }
+      .step-item.done .step-label { color: var(--accent); }
       .closed-banner {
         background: var(--error-bg);
         border: 1px solid var(--error-border);
@@ -1576,12 +1641,27 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       <div class="subtitle">Powered by Lime Of Time</div>
     </div>
 
-    <div id="step-indicator" class="step-indicator">
-      <div class="step-dot active" id="dot-0"></div>
-      <div class="step-dot" id="dot-1"></div>
-      <div class="step-dot" id="dot-2"></div>
-      <div class="step-dot" id="dot-3"></div>
-      <div class="step-dot" id="dot-4"></div>
+    <div id="step-indicator" class="step-indicator" role="navigation" aria-label="Booking steps">
+      <div class="step-item active" id="step-item-0">
+        <div class="step-dot active" id="dot-0">1</div>
+        <span class="step-label">Info</span>
+      </div>
+      <div class="step-item" id="step-item-1">
+        <div class="step-dot" id="dot-1">2</div>
+        <span class="step-label">Service</span>
+      </div>
+      <div class="step-item" id="step-item-2">
+        <div class="step-dot" id="dot-2">3</div>
+        <span class="step-label">Date</span>
+      </div>
+      <div class="step-item" id="step-item-3">
+        <div class="step-dot" id="dot-3">4</div>
+        <span class="step-label">Extras</span>
+      </div>
+      <div class="step-item" id="step-item-4">
+        <div class="step-dot" id="dot-4">5</div>
+        <span class="step-label">Confirm</span>
+      </div>
     </div>
 
     <!-- Business Info Card -->
@@ -1731,6 +1811,10 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
 
   <!-- Legal Footer -->
   <div class="legal-footer" style="max-width:480px;margin:0 auto;">
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px;">
+      <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/jHoNjHdLsUGgpFhz.png" alt="Lime Of Time" style="width:28px;height:28px;border-radius:8px;object-fit:cover;border:1px solid var(--border);">
+      <span style="font-size:12px;font-weight:600;color:var(--text-muted);">Lime Of Time</span>
+    </div>
     <a href="/api/legal/privacy" target="_blank">Privacy Policy</a>
     <a href="/api/legal/terms" target="_blank">Terms of Service</a>
     <a href="/api/legal/data-deletion" target="_blank">Data Deletion</a>
@@ -1850,6 +1934,13 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     }
 
     function escText(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    function formatPhoneNumber(phone) {
+      if (!phone) return phone;
+      var digits = phone.replace(/\D/g, '');
+      if (digits.length === 11 && digits.charAt(0) === '1') return '+1 (' + digits.slice(1,4) + ') ' + digits.slice(4,7) + '-' + digits.slice(7);
+      if (digits.length === 10) return '(' + digits.slice(0,3) + ') ' + digits.slice(3,6) + '-' + digits.slice(6);
+      return phone;
+    }
 
     function renderLocationSelector() {
       if (locations.length <= 1) return;
@@ -1859,12 +1950,13 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       var html = '<div style="margin-bottom:16px;"><h3 style="font-size:16px;font-weight:600;margin-bottom:8px;">Select Location</h3>';
       locations.forEach(function(loc) {
         var isSelected = selectedLocation === loc.localId;
-        var border = isSelected ? '#4CAF50' : '#e0e0e0';
-        var bg = isSelected ? '#E8F5E9' : '#fff';
-        html += '<div onclick="selectLocation(&apos;' + loc.localId + '&apos;)" style="padding:12px;border:2px solid ' + border + ';border-radius:10px;margin-bottom:8px;cursor:pointer;background:' + bg + ';transition:all 0.2s;">';
-        html += '<div style="font-weight:600;font-size:14px;">' + escText(loc.name) + '</div>';
-        if (loc.address) html += '<div style="font-size:12px;color:#666;margin-top:2px;">' + escText(loc.address) + '</div>';
-        if (loc.phone) html += '<div style="font-size:12px;color:#666;">' + escText(loc.phone) + '</div>';
+        var borderColor = isSelected ? 'var(--accent)' : 'var(--border)';
+        var bgColor = isSelected ? 'var(--bg-selected)' : 'var(--bg-card)';
+        var shadow = isSelected ? '0 0 0 3px rgba(74,140,63,0.12)' : 'none';
+        html += '<div onclick="selectLocation(&apos;' + loc.localId + '&apos;)" style="padding:14px 16px;border:1.5px solid ' + borderColor + ';border-radius:14px;margin-bottom:8px;cursor:pointer;background:' + bgColor + ';transition:all 0.2s;box-shadow:' + shadow + ';">';
+        html += '<div style="font-weight:600;font-size:14px;color:var(--text);">' + escText(loc.name) + '</div>';
+        if (loc.address) html += '<div style="font-size:12px;color:var(--text-secondary);margin-top:3px;">' + escText(loc.address) + '</div>';
+        if (loc.phone) html += '<div style="font-size:12px;color:var(--accent);margin-top:2px;font-weight:500;">' + escText(formatPhoneNumber(loc.phone)) + '</div>';
         html += '</div>';
       });
       html += '</div>';
@@ -2057,6 +2149,8 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       for (let i = 0; i < 5; i++) {
         const dot = document.getElementById("dot-" + i);
         if (dot) dot.className = "step-dot" + (i < step ? " done" : i === step ? " active" : "");
+        const item = document.getElementById("step-item-" + i);
+        if (item) item.className = "step-item" + (i < step ? " done" : i === step ? " active" : "");
       }
 
       if (step === 2) renderCalendar();
