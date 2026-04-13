@@ -233,23 +233,64 @@ export default function NewBookingScreen() {
     if (!selectedLocationId) return state.customSchedule ?? [];
     return (state as any).locationCustomSchedule?.[selectedLocationId] ?? [];
   }, [selectedLocationId, (state as any).locationCustomSchedule, state.customSchedule]);
-  const timeSlots = useMemo(() => {
-    return generateAvailableSlots(
-      selectedDate,
-      totalDuration,
-      locationWorkingHours,
-      locationAppts,
-      30,
-      activeCustomSchedule,
-      state.settings.scheduleMode,
-      state.settings.bufferTime ?? 0
-    );
-  }, [selectedDate, locationWorkingHours, locationAppts, totalDuration, activeCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime]);
+  // isAllMode: no location pre-selected and multiple active locations exist.
+  // In this mode the time slot list is the UNION of all open locations' slots so the user
+  // can see every possible time across all locations before choosing one.
+  const isAllMode = !selectedLocationId && activeLocations.length > 1;
 
-  // Bidirectional sync: if the user picks a location first and the previously selected time
-  // is no longer available at that location, clear it so the UI stays consistent.
-  if (selectedTime && timeSlots.length > 0 && !timeSlots.includes(selectedTime)) {
+  const timeSlots = useMemo(() => {
+    if (!isAllMode) {
+      // Single-location mode: use the selected (or only) location's hours and appointments
+      return generateAvailableSlots(
+        selectedDate,
+        totalDuration,
+        locationWorkingHours,
+        locationAppts,
+        30,
+        activeCustomSchedule,
+        state.settings.scheduleMode,
+        state.settings.bufferTime ?? 0
+      );
+    }
+    // All-mode: union of available slots across every open, non-temporarily-closed location
+    const slotSet = new Set<string>();
+    for (const loc of activeLocations) {
+      if (locationOpenOnDate[loc.id] === false) continue;
+      const locCustomSchedule = (state as any).locationCustomSchedule?.[loc.id] ?? [];
+      const locWH = (loc.workingHours && Object.keys(loc.workingHours).length > 0)
+        ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
+        : state.settings.workingHours;
+      const locAppts = state.appointments.filter((a) => a.locationId === loc.id);
+      const slots = generateAvailableSlots(
+        selectedDate, totalDuration, locWH, locAppts, 30,
+        locCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0
+      );
+      slots.forEach((s) => slotSet.add(s));
+    }
+    // Sort chronologically
+    return Array.from(slotSet).sort();
+  }, [isAllMode, selectedDate, locationWorkingHours, locationAppts, totalDuration,
+      activeCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime,
+      activeLocations, locationOpenOnDate, state.appointments, state.settings.workingHours,
+      (state as any).locationCustomSchedule]);
+
+  // Bidirectional sync (location → time):
+  // If a specific location is selected and the previously chosen time is no longer in its
+  // slot list, clear it. Only applies in single-location mode to avoid clearing valid
+  // union-mode times when switching to All.
+  if (!isAllMode && selectedTime && timeSlots.length > 0 && !timeSlots.includes(selectedTime)) {
     setSelectedTime(null);
+  }
+
+  // Auto-select location when only one location has the chosen time available.
+  // This gives the user instant feedback without requiring an extra tap.
+  if (isAllMode && selectedTime && !selectedLocationId) {
+    const availableForTime = activeLocations.filter(
+      (loc) => locationTimeAvailable[loc.id] === true
+    );
+    if (availableForTime.length === 1) {
+      setSelectedLocationId(availableForTime[0].id);
+    }
   }
 
   // Date options: next 14 days with closed-day and no-slots awareness
