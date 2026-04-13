@@ -83,6 +83,7 @@ export default function AppointmentDetailScreen() {
     if (client?.phone) {
       const msg = generateAcceptMessage(
         biz.businessName,
+        // Use location address if assigned, otherwise fall back to full profile address
         assignedLocation?.address || profile.address,
         client.name,
         service ? getServiceDisplayName(service) : "Service",
@@ -95,9 +96,9 @@ export default function AppointmentDetailScreen() {
         assignedLocation?.name,
         assignedLocation?.id,
         biz.customSlug,
-        assignedLocation?.city,
-        assignedLocation?.state,
-        assignedLocation?.zipCode
+        assignedLocation?.city ?? profile.city,
+        assignedLocation?.state ?? profile.state,
+        assignedLocation?.zipCode ?? profile.zipCode
       );
       openSms(client.phone, msg);
     }
@@ -112,7 +113,9 @@ export default function AppointmentDetailScreen() {
       if (client?.phone) {
         let msg = "";
         if (status === "completed") {
-          const completedFullAddr = formatFullAddress(assignedLocation?.address || "", assignedLocation?.city, assignedLocation?.state, assignedLocation?.zipCode) || profile.address;
+          const completedFullAddr = assignedLocation
+            ? formatFullAddress(assignedLocation.address, assignedLocation.city, assignedLocation.state, assignedLocation.zipCode)
+            : formatFullAddress(profile.address, profile.city, profile.state, profile.zipCode);
           const completedLocLine = assignedLocation?.name
             ? (completedFullAddr ? `${assignedLocation.name} — ${completedFullAddr}` : assignedLocation.name)
             : completedFullAddr;
@@ -129,10 +132,10 @@ export default function AppointmentDetailScreen() {
             feeStr,
             assignedLocation?.phone || profile.phone,
             assignedLocation?.name,
-            assignedLocation?.address,
-            assignedLocation?.city,
-            assignedLocation?.state,
-            assignedLocation?.zipCode
+            assignedLocation?.address ?? profile.address,
+            assignedLocation?.city ?? profile.city,
+            assignedLocation?.state ?? profile.state,
+            assignedLocation?.zipCode ?? profile.zipCode
           );
         }
         openSms(client.phone, msg);
@@ -185,9 +188,9 @@ export default function AppointmentDetailScreen() {
       appointment.time,
       assignedLocation?.phone || profile.phone,
       assignedLocation?.name,
-      assignedLocation?.city,
-      assignedLocation?.state,
-      assignedLocation?.zipCode
+      assignedLocation?.city ?? profile.city,
+      assignedLocation?.state ?? profile.state,
+      assignedLocation?.zipCode ?? profile.zipCode
     );
     openSms(client.phone, msg);
   };

@@ -152,9 +152,10 @@ export default function ClientDetailScreen() {
       const apptLocation = appt.locationId ? getLocationById(appt.locationId) : null;
       const addr = apptLocation?.address || profile.address;
       const locName = apptLocation?.name;
-      const locCity = apptLocation?.city;
-      const locState = apptLocation?.state;
-      const locZip = apptLocation?.zipCode;
+      // Fall back to profile city/state/zip when no location is assigned
+      const locCity = apptLocation?.city ?? profile.city;
+      const locState = apptLocation?.state ?? profile.state;
+      const locZip = apptLocation?.zipCode ?? profile.zipCode;
       const locPhone = apptLocation?.phone || bizPhone;
       const locId = apptLocation?.id;
 
@@ -211,7 +212,7 @@ export default function ClientDetailScreen() {
     const recentLoc = recentAppt?.locationId ? state.locations.find((l) => l.id === recentAppt.locationId) : null;
     const addr = recentLoc
       ? formatFullAddress(recentLoc.address, recentLoc.city, recentLoc.state, recentLoc.zipCode)
-      : profile.address;
+      : formatFullAddress(profile.address, profile.city, profile.state, profile.zipCode);
     const followUpSlug = biz.customSlug || biz.businessName.replace(/\s+/g, "-").toLowerCase();
     const bookUrl = recentLoc?.id
       ? `${PUBLIC_BOOKING_URL}/book/${followUpSlug}?location=${recentLoc.id}`

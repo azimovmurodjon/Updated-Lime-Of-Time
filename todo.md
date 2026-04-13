@@ -870,3 +870,11 @@
 - [ ] Fix phone number input placeholder showing (000) 000-0000 style
 - [ ] Fix Get Started button appearing greyed out on Business Information screen
 - [ ] Fix splash screen not showing on TestFlight builds (app.config.ts)
+
+## Phase: Location/Address Bug Fixes
+
+- [x] Fix onboarding: await syncToDb for first location so it saves to DB before navigating away
+- [x] Fix onboarding: save city/state/zip to BusinessProfile for SMS fallback
+- [x] Fix share link: handle case where location not yet in DB (use slug-only fallback)
+- [x] Fix SMS messages: use full address (city, state, zip) from location, not just street
+- [x] Fix clients page: ensure location address displays correctly

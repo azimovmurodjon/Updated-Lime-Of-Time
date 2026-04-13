@@ -516,7 +516,11 @@ export default function OnboardingScreen() {
         };
         const locAction = { type: "ADD_LOCATION" as const, payload: defaultLoc };
         dispatch(locAction);
-        syncToDb(locAction, newOwner.id);
+        // Await the DB sync so the location is persisted before navigating away
+        await syncToDb(locAction, newOwner.id);
+        // Auto-select the first location immediately
+        dispatch({ type: "SET_ACTIVE_LOCATION", payload: defaultLoc.id });
+        await AsyncStorage.setItem("@bookease_active_location_id", defaultLoc.id);
       }
       dispatch({
         type: "UPDATE_SETTINGS",
@@ -527,7 +531,11 @@ export default function OnboardingScreen() {
             ownerName: "",
             phone: businessPhone.trim() || phone.trim(),
             email: email.trim(),
+            // Store full address parts for SMS fallback when no location assigned
             address: address.trim(),
+            city: city.trim(),
+            state: locationState.trim(),
+            zipCode: zipCode.trim(),
             description: description.trim(),
             website: website.trim(),
           },

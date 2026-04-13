@@ -183,6 +183,12 @@ export interface BusinessProfile {
   phone: string;
   email: string;
   address: string;
+  /** City — stored alongside address for full-address SMS fallback */
+  city?: string;
+  /** State/Province — stored alongside address for full-address SMS fallback */
+  state?: string;
+  /** ZIP code — stored alongside address for full-address SMS fallback */
+  zipCode?: string;
   description: string;
   website: string;
 }
