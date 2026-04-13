@@ -878,3 +878,10 @@
 - [x] Fix share link: handle case where location not yet in DB (use slug-only fallback)
 - [x] Fix SMS messages: use full address (city, state, zip) from location, not just street
 - [x] Fix clients page: ensure location address displays correctly
+
+## Phase: Location Edit & Public Booking Page Improvements
+
+- [x] Verify location edit flow updates store correctly (address, city, state, zip reflected in share links)
+- [x] Fix location edit: ensure UPDATE_LOCATION action syncs city/state/zip to DB
+- [x] Public booking page: pre-select location from ?location= URL param
+- [x] Public booking page: show full address (street + city + state + zip) prominently when location is pre-selected

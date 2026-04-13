@@ -2082,14 +2082,36 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         var borderColor = isSelected ? 'var(--accent)' : 'var(--border)';
         var bgColor = isSelected ? 'var(--bg-selected)' : 'var(--bg-card)';
         var shadow = isSelected ? '0 0 0 3px rgba(74,140,63,0.12)' : 'none';
+        // Build full address: street, city, state zip
+        var fullAddr = buildFullAddress(loc.address, loc.city, loc.state, loc.zipCode);
+        var mapUrl = fullAddr ? 'https://maps.google.com/?q=' + encodeURIComponent(fullAddr) : '';
         html += '<div onclick="selectLocation(&apos;' + loc.localId + '&apos;)" style="padding:14px 16px;border:1.5px solid ' + borderColor + ';border-radius:14px;margin-bottom:8px;cursor:pointer;background:' + bgColor + ';transition:all 0.2s;box-shadow:' + shadow + ';">';
         html += '<div style="font-weight:600;font-size:14px;color:var(--text);">' + escText(loc.name) + '</div>';
-        if (loc.address) html += '<div style="font-size:12px;color:var(--text-secondary);margin-top:3px;">' + escText(loc.address) + '</div>';
+        if (fullAddr) {
+          html += '<div style="font-size:12px;color:var(--text-secondary);margin-top:3px;">';
+          if (mapUrl) html += '<a href="' + mapUrl + '" target="_blank" onclick="event.stopPropagation()" style="color:var(--accent);text-decoration:underline;font-size:12px;">' + escText(fullAddr) + '</a>';
+          else html += escText(fullAddr);
+          html += '</div>';
+        } else if (loc.address) {
+          html += '<div style="font-size:12px;color:var(--text-secondary);margin-top:3px;">' + escText(loc.address) + '</div>';
+        }
         if (loc.phone) html += '<div style="font-size:12px;color:var(--accent);margin-top:2px;font-weight:500;">' + escText(formatPhoneNumber(loc.phone)) + '</div>';
         html += '</div>';
       });
       html += '</div>';
       container.innerHTML = html;
+    }
+
+    function buildFullAddress(street, city, state, zip) {
+      // Builds "123 Main St, New York NY, 10001" style address
+      var parts = [];
+      if (street && street.trim()) parts.push(street.trim());
+      if (city && city.trim()) parts.push(city.trim());
+      var stateZip = '';
+      if (state && state.trim()) stateZip += state.trim();
+      if (zip && zip.trim()) stateZip += (stateZip ? ' ' : '') + zip.trim();
+      if (stateZip) parts.push(stateZip);
+      return parts.join(', ');
     }
 
     function updateBizAddressCard() {
@@ -2103,7 +2125,11 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       } else if (locations.length === 1) {
         effectiveLoc = locations[0];
       }
-      if (effectiveLoc && effectiveLoc.address) addr = effectiveLoc.address;
+      if (effectiveLoc) {
+        // Build full address: street, city, state zip
+        addr = buildFullAddress(effectiveLoc.address, effectiveLoc.city, effectiveLoc.state, effectiveLoc.zipCode);
+        if (!addr) addr = effectiveLoc.address || '';
+      }
       if (!addr) addr = ${JSON.stringify(owner.address || '')};
       if (addr) {
         addrRow.innerHTML = '<div class="biz-info-row"><span>📍</span><a href="https://maps.google.com/?q=' + encodeURIComponent(addr) + '" target="_blank" style="color:var(--accent);text-decoration:underline;">' + escText(addr) + '</a></div>';
@@ -2757,8 +2783,11 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       if (selectedLocation) {
         const loc = locations.find(l => l.localId === selectedLocation);
         if (loc) {
-          const locLabel = loc.address ? esc(loc.name) + ' — ' + esc(loc.address) : esc(loc.name);
-          locationHtml = '<div class="confirm-row"><span class="confirm-label">Location</span><span class="confirm-value">📍 ' + locLabel + '</span></div>';
+          const fullLocAddr = buildFullAddress(loc.address, loc.city, loc.state, loc.zipCode) || loc.address || '';
+          const locLabel = fullLocAddr ? esc(loc.name) + ' — ' + esc(fullLocAddr) : esc(loc.name);
+          const mapUrl = fullLocAddr ? 'https://maps.google.com/?q=' + encodeURIComponent(fullLocAddr) : '';
+          const addrLink = mapUrl ? '<a href="' + mapUrl + '" target="_blank" style="color:var(--accent);text-decoration:underline;">' + locLabel + '</a>' : locLabel;
+          locationHtml = '<div class="confirm-row"><span class="confirm-label">Location</span><span class="confirm-value">📍 ' + addrLink + '</span></div>';
         }
       }
 
@@ -2891,7 +2920,8 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       if (selectedLocation) {
         const locR = locations.find(l => l.localId === selectedLocation);
         if (locR) {
-          const locLabelR = locR.address ? esc(locR.name) + ' — ' + esc(locR.address) : esc(locR.name);
+          const fullLocAddrR = buildFullAddress(locR.address, locR.city, locR.state, locR.zipCode) || locR.address || '';
+          const locLabelR = fullLocAddrR ? esc(locR.name) + ' — ' + esc(fullLocAddrR) : esc(locR.name);
           html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#666;">Location</span><span style="font-weight:600;">📍 ' + locLabelR + '</span></div>';
         }
       }
