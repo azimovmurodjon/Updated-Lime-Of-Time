@@ -52,7 +52,7 @@ function GradientKpiCard({
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1, width: cardWidth, marginBottom: 0 }]}
+      style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1, width: cardWidth, marginBottom: 0, alignSelf: "stretch" }]}
     >
       <LinearGradient
         colors={gradientColors}
@@ -61,7 +61,8 @@ function GradientKpiCard({
         style={{
           borderRadius: 18,
           padding: 14,
-          minHeight: 120,
+          flex: 1,
+          minHeight: 130,
           shadowColor: gradientColors[0],
           shadowOffset: { width: 0, height: 4 },
           shadowOpacity: 0.25,
@@ -303,6 +304,29 @@ export default function HomeScreen() {
     });
     const topService = state.services.find((s) => s.id === topServiceId);
 
+    // ─── 7-day daily chart data ─────────────────────────────
+    const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const weeklyDailyData: { label: string; value: number; color: string; apptCount: number }[] = [];
+    const weeklyColors = ["#FF9800", "#4CAF50", "#2196F3", "#9C27B0", "#E91E63", "#00BCD4", "#FF5722"];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      const dStr = formatDateStr(d);
+      const dayAppts = completedAppts.filter((a) => a.date === dStr);
+      const dayRev = dayAppts.reduce((sum, a) => {
+        if (a.totalPrice != null) return sum + a.totalPrice;
+        const svc = state.services.find((s) => s.id === a.serviceId);
+        return sum + (svc?.price ?? 0);
+      }, 0);
+      const allDayAppts = filterByLocation(state.appointments).filter((a) => a.date === dStr && a.status !== "cancelled");
+      weeklyDailyData.push({
+        label: dayLabels[d.getDay()],
+        value: Math.round(dayRev),
+        color: weeklyColors[d.getDay()],
+        apptCount: allDayAppts.length,
+      });
+    }
+
     return {
       totalClients,
       totalAppointments,
@@ -310,12 +334,30 @@ export default function HomeScreen() {
       weekRevenue,
       prevWeekRevenue,
       monthlyData,
+      weeklyDailyData,
       serviceBreakdown,
       statusCounts,
       topService,
       topCount,
     };
   }, [state.clients, state.appointments, state.services, filterByLocation, clientsForActiveLocation]);
+
+  // ─── Upcoming Appointments (next 10, future dates + today future times) ──────
+  const upcomingAppointments = useMemo(() => {
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    return filterByLocation(state.appointments)
+      .filter((a) => {
+        if (a.status === "cancelled" || a.status === "completed") return false;
+        if (a.date > todayStr) return true;
+        if (a.date === todayStr) return timeToMinutes(a.time) > nowMinutes;
+        return false;
+      })
+      .sort((a, b) => {
+        if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+        return timeToMinutes(a.time) - timeToMinutes(b.time);
+      })
+      .slice(0, 10);
+  }, [state.appointments, filterByLocation, todayStr, now]);
 
   const pendingCount = analytics.statusCounts.pending;
   const revenueChange =
@@ -602,26 +644,61 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* ─── Revenue Chart ─────────────────────────────────────── */}
-        <View
-          style={[
-            styles.chartCard,
-            {
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-              marginTop: 16,
-            },
-          ]}
-        >
+        {/* ─── Weekly Overview Chart ─────────────────────────────── */}
+        <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 16 }]}>
           <View style={styles.chartHeader}>
-            <Text style={[styles.chartTitle, { color: colors.foreground }]}>
-              Revenue Trend
-            </Text>
-            <Text style={[styles.chartSubtitle, { color: colors.muted }]}>
-              Last 6 months
-            </Text>
+            <View>
+              <Text style={[styles.chartTitle, { color: colors.foreground }]}>This Week</Text>
+              <Text style={[styles.chartSubtitle, { color: colors.muted }]}>Daily revenue · last 7 days</Text>
+            </View>
+            <View style={{ alignItems: "flex-end" }}>
+              <Text style={{ fontSize: 18, fontWeight: "800", color: colors.foreground }}>
+                ${analytics.weekRevenue.toLocaleString()}
+              </Text>
+              {revenueChange !== 0 && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 }}>
+                  <IconSymbol
+                    name={revenueChange > 0 ? "arrow.up.right" : "arrow.down.right"}
+                    size={11}
+                    color={revenueChange > 0 ? colors.success : colors.error}
+                  />
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: revenueChange > 0 ? colors.success : colors.error }}>
+                    {Math.abs(revenueChange)}% vs last week
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
-          <MiniBarChart data={analytics.monthlyData} height={200} width={contentWidth - 32} />
+          <MiniBarChart
+            data={analytics.weeklyDailyData}
+            height={isTablet ? 220 : 180}
+            width={contentWidth - 32}
+          />
+          {/* Appointment count row below bars */}
+          <View style={{ flexDirection: "row", marginTop: 8, paddingHorizontal: 4 }}>
+            {analytics.weeklyDailyData.map((d, i) => (
+              <View key={i} style={{ flex: 1, alignItems: "center" }}>
+                <View style={[
+                  { paddingHorizontal: 4, paddingVertical: 2, borderRadius: 6, minWidth: 22, alignItems: "center" },
+                  d.apptCount > 0 ? { backgroundColor: d.color + "20" } : {},
+                ]}>
+                  <Text style={{ fontSize: 10, fontWeight: "700", color: d.apptCount > 0 ? d.color : colors.border }}>
+                    {d.apptCount > 0 ? `${d.apptCount}` : "–"}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 9, color: colors.muted, marginTop: 1 }}>appts</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* ─── Revenue Trend (6-month) ──────────────────────────────── */}
+        <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 12 }]}>
+          <View style={styles.chartHeader}>
+            <Text style={[styles.chartTitle, { color: colors.foreground }]}>Revenue Trend</Text>
+            <Text style={[styles.chartSubtitle, { color: colors.muted }]}>Last 6 months</Text>
+          </View>
+          <MiniBarChart data={analytics.monthlyData} height={isTablet ? 220 : 190} width={contentWidth - 32} />
         </View>
 
         {/* ─── Service Breakdown + Status (side by side) ──────── */}
@@ -908,6 +985,92 @@ export default function HomeScreen() {
             })}
           </View>
         )}
+        {/* ─── Upcoming Appointments ──────────────────────────────── */}
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 28, marginBottom: 12 }}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>Upcoming</Text>
+          <View style={{ backgroundColor: colors.primary + "15", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 }}>
+            <Text style={{ fontSize: 12, fontWeight: "700", color: colors.primary }}>{upcomingAppointments.length} scheduled</Text>
+          </View>
+        </View>
+        {upcomingAppointments.length === 0 ? (
+          <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border, paddingVertical: 24 }]}>
+            <IconSymbol name="calendar.badge.checkmark" size={32} color={colors.primary + "60"} />
+            <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "600", marginTop: 10 }}>No upcoming appointments</Text>
+            <Text style={{ color: colors.muted, fontSize: 13, marginTop: 4, textAlign: "center" }}>All clear — add a booking to see it here.</Text>
+          </View>
+        ) : (
+          <View style={isTablet ? { flexDirection: "row", flexWrap: "wrap", gap: cardGap } : undefined}>
+            {upcomingAppointments.map((appt) => {
+              const svc = getServiceById(appt.serviceId);
+              const client = getClientById(appt.clientId);
+              const isToday = appt.date === todayStr;
+              const apptDate = new Date(appt.date + "T00:00:00");
+              const dayLabel = isToday
+                ? "Today"
+                : apptDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+              const statusColor =
+                appt.status === "confirmed"
+                  ? colors.success
+                  : appt.status === "pending"
+                  ? "#FF9800"
+                  : colors.primary;
+              return (
+                <Pressable
+                  key={appt.id}
+                  onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })}
+                  style={({ pressed }) => [
+                    styles.apptCard,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      borderLeftColor: svc?.color ?? colors.primary,
+                      opacity: pressed ? 0.8 : 1,
+                      ...(isTablet ? { width: Math.floor((contentWidth - cardGap) / 2) } : {}),
+                    },
+                  ]}
+                >
+                  <View style={styles.apptRow}>
+                    <View style={[styles.apptTimeBlock, { backgroundColor: statusColor + "18", minWidth: 60 }]}>
+                      <Text style={{ fontSize: 9, fontWeight: "700", color: statusColor, textTransform: "uppercase", letterSpacing: 0.3 }} numberOfLines={1}>
+                        {dayLabel}
+                      </Text>
+                      <Text style={{ fontSize: 11, fontWeight: "700", color: statusColor, marginTop: 2 }}>{formatTime(appt.time)}</Text>
+                      <Text style={{ fontSize: 10, color: statusColor + "CC" }}>–{getEndTime(appt.time, appt.duration)}</Text>
+                    </View>
+                    <View style={styles.apptInfo}>
+                      <Text style={[styles.apptService, { color: colors.foreground }]} numberOfLines={1}>
+                        {svc?.name ?? "Service"}
+                      </Text>
+                      <Text style={{ fontSize: 13, color: colors.muted }} numberOfLines={1}>
+                        {client?.name ?? "Client"}
+                      </Text>
+                      {appt.staffId && (() => {
+                        const staffMember = state.staff.find((s) => s.id === appt.staffId);
+                        return staffMember ? (
+                          <Text style={{ fontSize: 11, color: colors.muted + "AA", marginTop: 1 }} numberOfLines={1}>
+                            with {staffMember.name}
+                          </Text>
+                        ) : null;
+                      })()}
+                    </View>
+                    <View style={{ alignItems: "flex-end", gap: 4 }}>
+                      <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
+                        <Text style={{ fontSize: 11, fontWeight: "600", color: statusColor, textTransform: "capitalize" }}>
+                          {appt.status}
+                        </Text>
+                      </View>
+                      {svc?.price != null && (
+                        <Text style={{ fontSize: 12, fontWeight: "700", color: colors.foreground }}>
+                          ${(appt.totalPrice ?? svc.price).toLocaleString()}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
       </ScrollView>
 
       {/* FAB */}
@@ -1123,6 +1286,7 @@ const styles = StyleSheet.create({
   kpiGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
+    alignItems: "stretch",
   },
   kpiCard: {
     borderRadius: 16,

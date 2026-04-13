@@ -762,3 +762,10 @@
 - [x] Fix logout to clear ALL 14 AsyncStorage keys (not just 6)
 - [x] Fix handleDeleteBusiness to clear ALL AsyncStorage keys
 - [x] Improve DB failure logging in store bootstrap and syncToDb
+
+## Home Page UI & Build Fixes
+- [x] Fix @expo-google-fonts/inter build error - remove package, use system fonts
+- [x] Fix KPI card grid alignment (equal height, proper 2-col grid on all screen sizes)
+- [x] Add modern weekly revenue/appointments bar chart to home page
+- [x] Add upcoming appointments section at bottom of home page (max 10, sorted by date/time)
+- [x] Responsive layout audit: tablets and phones across all tab screens

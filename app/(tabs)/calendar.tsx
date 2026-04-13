@@ -61,7 +61,9 @@ export default function CalendarScreen() {
   const params = useLocalSearchParams<{ filter?: string }>();
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
-  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
+  const isLargeTablet = width >= 1024;
+  const hp = isLargeTablet ? 48 : isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
+  const maxContentWidth = isLargeTablet ? 1280 : isTablet ? Math.min(width, 960) : width;
 
   const now = new Date();
   // Live clock for the current-time indicator — updates every 30 seconds
@@ -1095,7 +1097,7 @@ export default function CalendarScreen() {
 
   return (
     <ScreenContainer tabletMaxWidth={0}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100, alignSelf: "center", width: "100%", maxWidth: maxContentWidth }}>
         {/* Header */}
         <View style={{ paddingHorizontal: hp, paddingTop: 4 }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>

@@ -14,11 +14,13 @@ export default function ServicesScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
-  const hp = isTablet ? 32 : Math.max(16, width * 0.05);
+  const isLargeTablet = width >= 1024;
+  const hp = isLargeTablet ? 48 : isTablet ? 32 : Math.max(16, width * 0.05);
+  const maxContentWidth = isLargeTablet ? 1280 : isTablet ? Math.min(width, 960) : width;
   const [activeTab, setActiveTab] = useState<Tab>("services");
 
   return (
-    <ScreenContainer className="pt-2" style={{ paddingHorizontal: hp }} tabletMaxWidth={0}>
+    <ScreenContainer className="pt-2" style={{ paddingHorizontal: hp, alignSelf: "center", width: "100%", maxWidth: maxContentWidth }} tabletMaxWidth={0}>
       {/* Header */}
       <View style={styles.header}>
         <Text className="text-2xl font-bold text-foreground">

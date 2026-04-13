@@ -87,6 +87,8 @@ const MAPPING = {
   "doc.on.doc.fill": "file-copy",
   "rectangle.stack.fill": "layers",
   "chevron.down": "expand-more",
+  "calendar.badge.checkmark": "event-available",
+  "arrow.down.right": "trending-down",
 } as unknown as IconMapping;
 
 export function IconSymbol({

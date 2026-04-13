@@ -17,7 +17,9 @@ export default function ClientsScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
-  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
+  const isLargeTablet = width >= 1024;
+  const hp = isLargeTablet ? 48 : isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
+  const maxContentWidth = isLargeTablet ? 1280 : isTablet ? Math.min(width, 960) : width;
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
@@ -152,6 +154,7 @@ export default function ClientsScreen() {
 
   return (
     <ScreenContainer tabletMaxWidth={0}>
+      <View style={{ alignSelf: "center", width: "100%", maxWidth: maxContentWidth }}>
       <View style={{ paddingHorizontal: hp }}>
         <View style={styles.header}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -327,6 +330,7 @@ export default function ClientsScreen() {
           </View>
         }
       />
+      </View>
     </ScreenContainer>
   );
 }
