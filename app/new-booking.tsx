@@ -246,6 +246,12 @@ export default function NewBookingScreen() {
     );
   }, [selectedDate, locationWorkingHours, locationAppts, totalDuration, activeCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime]);
 
+  // Bidirectional sync: if the user picks a location first and the previously selected time
+  // is no longer available at that location, clear it so the UI stays consistent.
+  if (selectedTime && timeSlots.length > 0 && !timeSlots.includes(selectedTime)) {
+    setSelectedTime(null);
+  }
+
   // Date options: next 14 days with closed-day and no-slots awareness
   // When no location is selected (All mode), aggregate across all active locations:
   // a day is open if ANY location has it open, and has slots if ANY location has slots.
