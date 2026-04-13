@@ -305,12 +305,7 @@ export default function CalendarScreen() {
   const { activeLocation, activeLocations, hasMultipleLocations: hasMultiLoc, setActiveLocation } = useActiveLocation();
   const calLocationFilter = activeLocation?.id ?? null;
 
-  // Auto-select the first location when multiple locations exist and none is selected
-  useEffect(() => {
-    if (hasMultiLoc && !calLocationFilter && activeLocations.length > 0) {
-      setActiveLocation(activeLocations[0].id);
-    }
-  }, [hasMultiLoc, calLocationFilter, activeLocations, setActiveLocation]);
+  // Do NOT auto-select a location — null means "All locations" which is a valid state
 
   // Use per-location workingHours if available, fall back to global settings (same logic as schedule-settings.tsx)
   const effectiveWorkingHours = useMemo(() => {
@@ -319,6 +314,32 @@ export default function CalendarScreen() {
     }
     return state.settings.workingHours;
   }, [activeLocation, state.settings.workingHours]);
+
+  // When "All" is selected (no active location), aggregate working hours across all active locations
+  // A day is open if ANY location has it open; effective hours = widest window across locations
+  const allLocationsWorkingHours = useMemo(() => {
+    if (calLocationFilter !== null || activeLocations.length === 0) return null;
+    // Merge: for each day, find the earliest start and latest end across all locations
+    const merged: Record<string, { enabled: boolean; start: string; end: string }> = {};
+    for (const loc of activeLocations) {
+      const wh = (loc.workingHours && Object.keys(loc.workingHours).length > 0)
+        ? loc.workingHours
+        : state.settings.workingHours;
+      if (!wh) continue;
+      for (const [day, hours] of Object.entries(wh)) {
+        if (!hours || !(hours as any).enabled) continue;
+        const h = hours as { enabled: boolean; start: string; end: string };
+        if (!merged[day] || !merged[day].enabled) {
+          merged[day] = { enabled: true, start: h.start, end: h.end };
+        } else {
+          // Widen the window
+          if (h.start < merged[day].start) merged[day].start = h.start;
+          if (h.end > merged[day].end) merged[day].end = h.end;
+        }
+      }
+    }
+    return merged;
+  }, [calLocationFilter, activeLocations, state.settings.workingHours]);
 
   // Location-scoped appointments (single source of truth for this screen)
   const locationAppointments = useMemo(
@@ -341,6 +362,23 @@ export default function CalendarScreen() {
   // A day is "available" if it has a Workday ON override, or if it's a Business Hours working day with no override
   // Also blocked if date is after businessHoursEndDate or location is temporarily closed
   const isDayAvailable = useCallback((dateStr: string): boolean => {
+    // In "All" mode: available if any location has this day open
+    if (calLocationFilter === null && allLocationsWorkingHours) {
+      const endDate = state.settings.businessHoursEndDate;
+      if (endDate && dateStr > endDate) return false;
+      // Check any per-location custom schedule
+      for (const loc of activeLocations) {
+        const locCustom = state.locationCustomSchedule?.[loc.id]?.find((cs: CustomScheduleDay) => cs.date === dateStr);
+        if (locCustom) { if (locCustom.isOpen) return true; continue; }
+        const d = new Date(dateStr + "T12:00:00");
+        const dayName = DAY_NAMES[d.getDay()];
+        const wh = (loc.workingHours && Object.keys(loc.workingHours).length > 0)
+          ? (loc.workingHours as any)[dayName]
+          : state.settings.workingHours?.[dayName];
+        if (wh && wh.enabled && !loc.temporarilyClosed) return true;
+      }
+      return false;
+    }
     // Block all days when location is temporarily closed
     if (activeLocation?.temporarilyClosed) return false;
     // Check Active Until expiry
@@ -353,10 +391,37 @@ export default function CalendarScreen() {
     const dayName = DAY_NAMES[d.getDay()];
     const wh = effectiveWorkingHours?.[dayName];
     return !!(wh && wh.enabled);
-  }, [getCustomDay, effectiveWorkingHours, state.settings.businessHoursEndDate, activeLocation?.temporarilyClosed]);
+  }, [calLocationFilter, allLocationsWorkingHours, activeLocations, state.locationCustomSchedule, getCustomDay, effectiveWorkingHours, state.settings.businessHoursEndDate, activeLocation?.temporarilyClosed]);
 
   // Get effective working hours for a date (custom override or business hours)
   const getEffectiveHours = useCallback((dateStr: string): { start: string; end: string } | null => {
+    // In "All" mode: return the widest window across all locations for this day
+    if (calLocationFilter === null && allLocationsWorkingHours) {
+      let earliest: string | null = null;
+      let latest: string | null = null;
+      for (const loc of activeLocations) {
+        const locCustom = state.locationCustomSchedule?.[loc.id]?.find((cs: CustomScheduleDay) => cs.date === dateStr);
+        if (locCustom) {
+          if (!locCustom.isOpen) continue;
+          const s = locCustom.startTime ?? null;
+          const e = locCustom.endTime ?? null;
+          if (s && (!earliest || s < earliest)) earliest = s;
+          if (e && (!latest || e > latest)) latest = e;
+          continue;
+        }
+        const d = new Date(dateStr + "T12:00:00");
+        const dayName = DAY_NAMES[d.getDay()];
+        const wh = (loc.workingHours && Object.keys(loc.workingHours).length > 0)
+          ? (loc.workingHours as any)[dayName]
+          : state.settings.workingHours?.[dayName];
+        if (wh && wh.enabled && !loc.temporarilyClosed) {
+          if (!earliest || wh.start < earliest) earliest = wh.start;
+          if (!latest || wh.end > latest) latest = wh.end;
+        }
+      }
+      if (earliest && latest) return { start: earliest, end: latest };
+      return null;
+    }
     const custom = getCustomDay(dateStr);
     if (custom && custom.isOpen && custom.startTime && custom.endTime) {
       return { start: custom.startTime, end: custom.endTime };
@@ -366,7 +431,7 @@ export default function CalendarScreen() {
     const wh = effectiveWorkingHours?.[dayName];
     if (wh && wh.enabled) return { start: wh.start, end: wh.end };
     return null;
-  }, [getCustomDay, effectiveWorkingHours]);
+  }, [calLocationFilter, allLocationsWorkingHours, activeLocations, state.locationCustomSchedule, getCustomDay, effectiveWorkingHours]);
 
   // Get business hours for a day (for picker min/max)
   const getBusinessHours = useCallback((dateStr: string): { start: string; end: string } | null => {
@@ -885,7 +950,7 @@ export default function CalendarScreen() {
           <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>
             {formatDateDisplay(selectedDate)}
           </Text>
-          {isDayAvailable(selectedDate) && !isDateInPast(selectedDate) && !activeLocation?.temporarilyClosed && (
+          {isDayAvailable(selectedDate) && !isDateInPast(selectedDate) && (calLocationFilter === null || !activeLocation?.temporarilyClosed) && (
             <Pressable
               onPress={() => router.push({ pathname: "/new-booking", params: { date: selectedDate } })}
               style={({ pressed }) => ({
@@ -1005,7 +1070,8 @@ export default function CalendarScreen() {
   // ─── Day View ─────────────────────────────────────────────────────────
 
   const renderDayView = () => {
-    const dayAppts = locFilter(state.appointments)
+    // Use locationAppointments which already respects the active location filter (null = all)
+    const dayAppts = locationAppointments
       .filter((a) => a.date === selectedDate)
       .sort((a, b) => a.time.localeCompare(b.time));
 
@@ -1031,24 +1097,24 @@ export default function CalendarScreen() {
           {renderWorkdayPanel(selectedDate)}
         </View>
 
-        {/* Book Button */}
-        {isDayAvailable(selectedDate) && !isDateInPast(selectedDate) && !activeLocation?.temporarilyClosed && (
-          <View style={{ paddingHorizontal: hp, marginBottom: 12 }}>
-            <Pressable
-              onPress={() => router.push({ pathname: "/new-booking", params: { date: selectedDate } })}
-              style={({ pressed }) => [styles.bookBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
-            >
-              <IconSymbol name="plus" size={16} color="#FFF" />
-              <Text style={{ color: "#FFF", fontSize: 14, fontWeight: "700", marginLeft: 6 }}>Book Appointment</Text>
-            </Pressable>
-          </View>
-        )}
+          {/* Book Button */}
+          {isDayAvailable(selectedDate) && !isDateInPast(selectedDate) && (calLocationFilter === null || !activeLocation?.temporarilyClosed) && (
+            <View style={{ paddingHorizontal: hp, marginBottom: 12 }}>
+              <Pressable
+                onPress={() => router.push({ pathname: "/new-booking", params: { date: selectedDate } })}
+                style={({ pressed }) => [styles.bookBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
+              >
+                <IconSymbol name="plus" size={16} color="#FFF" />
+                <Text style={{ color: "#FFF", fontSize: 14, fontWeight: "700", marginLeft: 6 }}>Book Appointment</Text>
+              </Pressable>
+            </View>
+          )}
 
-        {/* Timeline */}
-        <View style={{ paddingHorizontal: hp }}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Timeline</Text>
-          {renderTimeline(selectedDate, dayAppts)}
-        </View>
+          {/* Timeline */}
+          <View style={{ paddingHorizontal: hp }}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Timeline</Text>
+            {renderTimeline(selectedDate, dayAppts)}
+          </View>
       </>
     );
   };
@@ -1155,7 +1221,7 @@ export default function CalendarScreen() {
           )}
 
           {/* Book Button */}
-          {isDayAvailable(selectedDate) && !isDateInPast(selectedDate) && !activeLocation?.temporarilyClosed && (
+          {isDayAvailable(selectedDate) && !isDateInPast(selectedDate) && (calLocationFilter === null || !activeLocation?.temporarilyClosed) && (
             <Pressable
               onPress={() => router.push({ pathname: "/new-booking", params: { date: selectedDate } })}
               style={({ pressed }) => [styles.bookBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1, marginBottom: 12 }]}
@@ -1169,7 +1235,7 @@ export default function CalendarScreen() {
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Timeline</Text>
           {renderTimeline(
             selectedDate,
-            locFilter(state.appointments)
+            locationAppointments
               .filter((a) => a.date === selectedDate)
               .sort((a, b) => a.time.localeCompare(b.time))
           )}
@@ -1193,10 +1259,22 @@ export default function CalendarScreen() {
             <Text style={{ fontSize: 24, fontWeight: "700", color: colors.foreground }}>Calendar</Text>
           </View>
 
-          {/* Location Filter — shown when multiple locations exist, no All option */}
+          {/* Location Filter — shown when multiple locations exist, includes All chip */}
           {hasMultiLoc && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
               <View style={{ flexDirection: "row", gap: 6 }}>
+                {/* All chip */}
+                <Pressable
+                  onPress={() => setActiveLocation(null)}
+                  style={({ pressed }) => [{
+                    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1,
+                    backgroundColor: calLocationFilter === null ? colors.primary + "15" : colors.surface,
+                    borderColor: calLocationFilter === null ? colors.primary : colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                  }]}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: calLocationFilter === null ? colors.primary : colors.muted }}>All</Text>
+                </Pressable>
                 {activeLocations.map((loc) => (
                   <Pressable key={loc.id} onPress={() => setActiveLocation(loc.id)} style={({ pressed }) => [{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, backgroundColor: calLocationFilter === loc.id ? colors.primary + "15" : colors.surface, borderColor: calLocationFilter === loc.id ? colors.primary : colors.border, opacity: pressed ? 0.7 : 1 }]}>
                     <Text style={{ fontSize: 12, fontWeight: "600", color: calLocationFilter === loc.id ? colors.primary : colors.muted }}>{loc.name}</Text>
@@ -1230,8 +1308,8 @@ export default function CalendarScreen() {
           </View>
         </View>
 
-        {/* Temporarily Closed Banner */}
-        {activeLocation?.temporarilyClosed && (
+        {/* Temporarily Closed Banner — only shown when a specific location is selected */}
+        {calLocationFilter !== null && activeLocation?.temporarilyClosed && (
           <View style={{
             marginHorizontal: hp, marginTop: 8, marginBottom: 4,
             backgroundColor: colors.error + "18",
