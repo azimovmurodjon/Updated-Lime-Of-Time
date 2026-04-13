@@ -203,10 +203,12 @@ function FullBarChart({
   data,
   w,
   h,
+  formatValue,
 }: {
   data: { label: string; value: number; color?: string }[];
   w: number;
   h: number;
+  formatValue?: (v: number) => string;
 }) {
   if (data.length === 0) return null;
   const leftPad = 44;
@@ -232,10 +234,11 @@ function FullBarChart({
       {[0, 0.5, 1].map((pct) => {
         const y = topPad + chartH * (1 - pct);
         const val = Math.round(gridMax * pct);
+        const fmtFn = formatValue ?? fmt;
         return (
           <G key={pct}>
             <Line x1={leftPad} y1={y} x2={w} y2={y} stroke="#33333320" strokeWidth={0.5} strokeDasharray="4,4" />
-            <SvgText x={leftPad - 6} y={y + 4} fontSize={10} fill="#888" textAnchor="end">{fmt(val)}</SvgText>
+            <SvgText x={leftPad - 6} y={y + 4} fontSize={10} fill="#888" textAnchor="end">{fmtFn(val)}</SvgText>
           </G>
         );
       })}
@@ -243,12 +246,13 @@ function FullBarChart({
         const barH = gridMax > 0 ? Math.max(2, (d.value / gridMax) * chartH) : 2;
         const x = leftPad + gap + i * (barW + gap);
         const y = topPad + chartH - barH;
+        const fmtFn = formatValue ?? fmt;
         return (
           <G key={i}>
             <Rect x={x} y={y} width={barW} height={barH} rx={barW > 16 ? 5 : 3} fill={`url(#bg${i})`} />
             <SvgText x={x + barW / 2} y={h - 6} fontSize={10} fill="#888" textAnchor="middle">{d.label}</SvgText>
             {d.value > 0 && (
-              <SvgText x={x + barW / 2} y={y - 5} fontSize={10} fill="#555" textAnchor="middle" fontWeight="700">{fmt(d.value)}</SvgText>
+              <SvgText x={x + barW / 2} y={y - 5} fontSize={10} fill="#555" textAnchor="middle" fontWeight="700">{fmtFn(d.value)}</SvgText>
             )}
           </G>
         );
@@ -494,6 +498,7 @@ export function KpiDetailSheet({
                   data={appointmentsData.weeklyDailyData.map((d) => ({ label: d.label, value: d.apptCount, color: d.color }))}
                   w={chartW}
                   h={180}
+                  formatValue={(v) => String(v)}
                 />
 
                 <View style={{ height: 16 }} />
