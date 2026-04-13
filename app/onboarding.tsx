@@ -53,8 +53,9 @@ import Animated, {
 } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import { CountryCodePicker, DEFAULT_COUNTRY, type Country } from "@/components/country-code-picker";
 
-type Step = 1 | 2 | 3;
+type Step = 1 | "otp" | 2 | 3;
 
 // ─── Floating Particle ─────────────────────────────────────────────
 function FloatingParticle({
@@ -172,7 +173,15 @@ export default function OnboardingScreen() {
 
   const [step, setStep] = useState<Step>(1);
   const { biometricAvailable, biometricType, toggleBiometric } = useAppLockContext();
+  const [selectedCountry, setSelectedCountry] = useState<Country>(DEFAULT_COUNTRY);
   const [phone, setPhone] = useState("");
+  const [otpValue, setOtpValue] = useState("");
+  const [otpError, setOtpError] = useState("");
+  // Pending action after OTP: "existing" = login, "new" = go to step 2
+  const [pendingOtpAction, setPendingOtpAction] = useState<"existing" | "new">("new");
+  const [pendingExistingId, setPendingExistingId] = useState<number | null>(null);
+  const [pendingFullData, setPendingFullData] = useState<any>(null);
+  const STATIC_OTP = "123456";
   const [businessName, setBusinessName] = useState("");
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
@@ -287,43 +296,24 @@ export default function OnboardingScreen() {
     if (!phone.trim()) return;
     setLoading(true);
     try {
-      const rawPhone = stripPhoneFormat(phone);
+      // For non-US numbers, prepend the dial code; for US (+1) keep existing 10-digit format
+      const stripped = stripPhoneFormat(phone);
+      const rawPhone = selectedCountry.dial === "+1" ? stripped : `${selectedCountry.dial.replace("+", "")}${stripped}`;
       const existing = await trpcUtils.business.checkByPhone.fetch({ phone: rawPhone });
       if (existing) {
-        dispatch({ type: "SET_BUSINESS_OWNER_ID", payload: existing.id });
-        await AsyncStorage.setItem("@bookease_business_owner_id", String(existing.id));
+        // Existing user — fetch full data, then show OTP before logging in
         const fullData = await trpcUtils.business.getFullData.fetch({ id: existing.id });
-        if (fullData && fullData.owner) {
-          const settingsFromDb = dbOwnerToSettings(fullData.owner);
-          dispatch({
-            type: "LOAD_DATA",
-            payload: {
-              services: (fullData.services || []).map(dbServiceToLocal),
-              clients: (fullData.clients || []).map(dbClientToLocal),
-              appointments: (fullData.appointments || []).map(dbAppointmentToLocal),
-              reviews: (fullData.reviews || []).map(dbReviewToLocal),
-              discounts: (fullData.discounts || []).map(dbDiscountToLocal),
-              giftCards: (fullData.giftCards || []).map(dbGiftCardToLocal),
-              locations: (fullData.locations || []).map(dbLocationToLocal),
-              products: (fullData.products || []).map(dbProductToLocal),
-              staff: (fullData.staff || []).map(dbStaffToLocal),
-              customSchedule: (fullData.customSchedule || []).map(dbCustomScheduleToLocal),
-              settings: settingsFromDb as any,
-              businessOwnerId: existing.id,
-            },
-          });
-        }
-        if (biometricAvailable && Platform.OS !== "web") {
-          setStep(3);
-        } else {
-          router.replace("/(tabs)");
-        }
+        setPendingExistingId(existing.id);
+        setPendingFullData(fullData);
+        setPendingOtpAction("existing");
+        setOtpValue("");
+        setOtpError("");
+        setStep("otp");
         return;
       }
     } catch (err) {
       console.error("[Onboarding] Phone check failed:", err);
       // If the API is unreachable, show error instead of silently going to step 2
-      // (step 2 would create a new account, losing existing data)
       const isNetworkError =
         err instanceof Error &&
         (err.message.includes("Network") ||
@@ -339,12 +329,62 @@ export default function OnboardingScreen() {
         );
         return;
       }
-      // Non-network error (e.g. phone not found) — proceed to registration
+      // Non-network error (e.g. phone not found) — proceed to registration via OTP
     } finally {
       setLoading(false);
     }
-    setBusinessPhone(phone);
-    setStep(2);
+    // New user — show OTP before registration
+    setPendingOtpAction("new");
+    setOtpValue("");
+    setOtpError("");
+    setStep("otp");
+  };
+
+  const handleOtpVerify = async () => {
+    if (otpValue.trim() !== STATIC_OTP) {
+      setOtpError("Incorrect code. Please try again.");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (pendingOtpAction === "existing" && pendingExistingId !== null) {
+      setLoading(true);
+      try {
+        dispatch({ type: "SET_BUSINESS_OWNER_ID", payload: pendingExistingId });
+        await AsyncStorage.setItem("@bookease_business_owner_id", String(pendingExistingId));
+        if (pendingFullData && pendingFullData.owner) {
+          const settingsFromDb = dbOwnerToSettings(pendingFullData.owner);
+          dispatch({
+            type: "LOAD_DATA",
+            payload: {
+              services: (pendingFullData.services || []).map(dbServiceToLocal),
+              clients: (pendingFullData.clients || []).map(dbClientToLocal),
+              appointments: (pendingFullData.appointments || []).map(dbAppointmentToLocal),
+              reviews: (pendingFullData.reviews || []).map(dbReviewToLocal),
+              discounts: (pendingFullData.discounts || []).map(dbDiscountToLocal),
+              giftCards: (pendingFullData.giftCards || []).map(dbGiftCardToLocal),
+              locations: (pendingFullData.locations || []).map(dbLocationToLocal),
+              products: (pendingFullData.products || []).map(dbProductToLocal),
+              staff: (pendingFullData.staff || []).map(dbStaffToLocal),
+              customSchedule: (pendingFullData.customSchedule || []).map(dbCustomScheduleToLocal),
+              settings: settingsFromDb as any,
+              businessOwnerId: pendingExistingId,
+            },
+          });
+        }
+        if (biometricAvailable && Platform.OS !== "web") {
+          setStep(3);
+        } else {
+          router.replace("/(tabs)");
+        }
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      // New user — proceed to business registration
+      setBusinessPhone(phone);
+      setStep(2);
+    }
   };
 
   const handleComplete = async () => {
@@ -520,18 +560,21 @@ export default function OnboardingScreen() {
 
           {/* ─── Progress Dots ───────────────────────────────── */}
           <View style={styles.progressRow}>
-            {[1, 2, 3].map((s) => (
-              <View
-                key={s}
-                style={[
-                  styles.progressDot,
-                  {
-                    backgroundColor: s <= step ? "#8FBF6A" : "rgba(255,255,255,0.25)",
-                    width: s === step ? 24 : 8,
-                  },
-                ]}
-              />
-            ))}
+            {[1, 2, 3].map((s) => {
+              const numericStep = step === "otp" ? 1 : (step as number);
+              return (
+                <View
+                  key={s}
+                  style={[
+                    styles.progressDot,
+                    {
+                      backgroundColor: s <= numericStep ? "#8FBF6A" : "rgba(255,255,255,0.25)",
+                      width: s === numericStep ? 24 : 8,
+                    },
+                  ]}
+                />
+              );
+            })}
           </View>
 
           {/* ─── White Card ──────────────────────────────────── */}
@@ -548,24 +591,34 @@ export default function OnboardingScreen() {
 
                 <Animated.View style={[styles.inputGroup, inputStyle]}>
                   <Text style={styles.inputLabel}>Phone Number</Text>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      inputFocused && styles.inputFocused,
-                    ]}
-                    placeholder="(000) 000-0000"
-                    placeholderTextColor="#9CA3AF"
-                    value={phone}
-                    onChangeText={handlePhoneChange}
-                    keyboardType="phone-pad"
-                    returnKeyType="done"
-                    onSubmitEditing={() => handleBtnPress(handlePhoneNext)}
-                    maxLength={14}
-                    autoFocus
-                    editable={!loading}
-                    onFocus={() => setInputFocused(true)}
-                    onBlur={() => setInputFocused(false)}
-                  />
+                  <View style={styles.phoneRow}>
+                    <CountryCodePicker
+                      selected={selectedCountry}
+                      onSelect={setSelectedCountry}
+                      backgroundColor="rgba(255,255,255,0.12)"
+                      textColor="#FFFFFF"
+                      borderColor="rgba(255,255,255,0.25)"
+                    />
+                    <TextInput
+                      style={[
+                        styles.input,
+                        styles.phoneInput,
+                        inputFocused && styles.inputFocused,
+                      ]}
+                      placeholder={selectedCountry.dial === "+1" ? "(000) 000-0000" : "Phone number"}
+                      placeholderTextColor="#9CA3AF"
+                      value={phone}
+                      onChangeText={handlePhoneChange}
+                      keyboardType="phone-pad"
+                      returnKeyType="done"
+                      onSubmitEditing={() => handleBtnPress(handlePhoneNext)}
+                      maxLength={selectedCountry.dial === "+1" ? 14 : 15}
+                      autoFocus
+                      editable={!loading}
+                      onFocus={() => setInputFocused(true)}
+                      onBlur={() => setInputFocused(false)}
+                    />
+                  </View>
                 </Animated.View>
 
                 <Animated.View style={btnStyle}>
@@ -586,6 +639,81 @@ export default function OnboardingScreen() {
                       <Text style={styles.primaryBtnText}>Continue</Text>
                     )}
                   </Pressable>
+                </Animated.View>
+              </>
+            )}
+
+            {/* Step OTP: Verification */}
+            {step === "otp" && (
+              <>
+                <Animated.View style={[titleStyle, { alignItems: "center" }]}>
+                  <View style={{
+                    width: 72, height: 72, borderRadius: 20,
+                    backgroundColor: "rgba(255,255,255,0.15)",
+                    alignItems: "center", justifyContent: "center",
+                    marginBottom: 16, borderWidth: 2,
+                    borderColor: "rgba(255,255,255,0.25)",
+                  }}>
+                    <Text style={{ fontSize: 36 }}>🔐</Text>
+                  </View>
+                  <Text style={[styles.stepTitle, { textAlign: "center" }]}>Verify Your Number</Text>
+                  <Text style={[styles.stepSubtitle, { textAlign: "center" }]}>
+                    Enter the 6-digit code sent to{"\n"}{selectedCountry.dial} {phone}
+                  </Text>
+                </Animated.View>
+
+                <Animated.View style={[styles.inputGroup, inputStyle]}>
+                  <Text style={styles.inputLabel}>Verification Code</Text>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      { textAlign: "center", fontSize: 28, fontWeight: "700", letterSpacing: 12 },
+                      inputFocused && styles.inputFocused,
+                      otpError ? styles.inputError : undefined,
+                    ]}
+                    placeholder="------"
+                    placeholderTextColor="#9CA3AF"
+                    value={otpValue}
+                    onChangeText={(t) => { setOtpValue(t.replace(/[^0-9]/g, "").slice(0, 6)); setOtpError(""); }}
+                    keyboardType="number-pad"
+                    returnKeyType="done"
+                    maxLength={6}
+                    autoFocus
+                    editable={!loading}
+                    onFocus={() => setInputFocused(true)}
+                    onBlur={() => setInputFocused(false)}
+                    onSubmitEditing={() => handleBtnPress(handleOtpVerify)}
+                  />
+                  {otpError ? <Text style={styles.errorText}>{otpError}</Text> : null}
+                  <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", textAlign: "center", marginTop: 8 }}>
+                    For testing, use code: 123456
+                  </Text>
+                </Animated.View>
+
+                <Animated.View style={btnStyle}>
+                  <View style={styles.buttonRow}>
+                    <Pressable
+                      onPress={() => { setStep(1); setOtpValue(""); setOtpError(""); }}
+                      style={({ pressed }) => [styles.secondaryBtn, { opacity: pressed ? 0.7 : 1 }]}
+                      disabled={loading}
+                    >
+                      <Text style={styles.secondaryBtnText}>Back</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => handleBtnPress(handleOtpVerify)}
+                      style={({ pressed }) => [
+                        styles.primaryBtn,
+                        { flex: 1, backgroundColor: otpValue.length === 6 && !loading ? "#4A7C59" : "#9CA3AF", opacity: pressed ? 0.9 : 1 },
+                      ]}
+                      disabled={otpValue.length !== 6 || loading}
+                    >
+                      {loading ? (
+                        <ActivityIndicator color="#FFF" size="small" />
+                      ) : (
+                        <Text style={styles.primaryBtnText}>Verify</Text>
+                      )}
+                    </Pressable>
+                  </View>
                 </Animated.View>
               </>
             )}
@@ -939,6 +1067,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.12,
     shadowRadius: 6,
+  },
+  phoneRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    width: "100%",
+  },
+  phoneInput: {
+    flex: 1,
+    width: undefined,
   },
   inputError: {
     borderColor: "#EF4444",

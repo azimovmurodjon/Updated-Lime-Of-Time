@@ -277,7 +277,7 @@ export default function ClientsScreen() {
                 <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }} numberOfLines={1}>{item.name}</Text>
                 <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
                   <Text style={{ fontSize: 12, color: colors.muted }} numberOfLines={1}>
-                    {item.phone || item.email || "No contact info"}
+                    {item.phone ? formatPhoneNumber(item.phone) : (item.email || "No contact info")}
                   </Text>
                   {apptCount > 0 && (
                     <Text style={{ fontSize: 11, color: colors.muted, marginLeft: 8 }}>

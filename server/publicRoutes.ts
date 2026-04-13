@@ -9,7 +9,33 @@ import {
   notifyWaitlist,
 } from "./push";
 
-// ─── Helper: Generate available time slots ──────────────────────────
+// ─── Rate limiter for Manus platform notifyOwner ────────────────────────────
+// Manus platform notifications have a strict rate limit per project.
+// We throttle to at most 1 notification per 60 seconds globally to avoid
+// "Rate Exceeded" errors when multiple bookings arrive in quick succession.
+const NOTIFY_OWNER_COOLDOWN_MS = 60_000; // 60 seconds
+let lastNotifyOwnerAt = 0;
+
+async function throttledNotifyOwner(payload: Parameters<typeof notifyOwner>[0]): Promise<boolean> {
+  const now = Date.now();
+  if (now - lastNotifyOwnerAt < NOTIFY_OWNER_COOLDOWN_MS) {
+    console.log("[Notify] Skipping Manus notification (rate limit cooldown active)");
+    return false;
+  }
+  lastNotifyOwnerAt = now;
+  try {
+    return await notifyOwner(payload);
+  } catch (err: any) {
+    // Silently swallow rate limit errors so they don't break the booking flow
+    if (err?.message?.includes("Rate") || err?.message?.includes("rate") || err?.code === "TOO_MANY_REQUESTS") {
+      console.warn("[Notify] Manus notification rate limit hit, skipping.");
+      return false;
+    }
+    throw err;
+  }
+}
+
+// ─── Helper: Generate available time slots ──────────────────────────────────
 const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 function timeToMinutes(t: string): number {
@@ -732,7 +758,7 @@ export function registerPublicRoutes(app: Express) {
           const extrasLabel = extras.length > 0 ? ` + ${extras.length} extra` : "";
           const phoneLabel = clientPhone ? ` | 📞 ${clientPhone}` : "";
           const priceLabel = finalTotal > 0 ? ` | $${finalTotal.toFixed(2)}` : "";
-          await notifyOwner({
+          await throttledNotifyOwner({
             title: `📅 New Booking Request — ${owner.businessName}`,
             content: `${clientName}${phoneLabel} requested ${svc?.name ?? "a service"}${extrasLabel}\nDate: ${date} at ${time} (${dur} min)${priceLabel}\nTap to review and confirm.`,
           });
@@ -917,7 +943,7 @@ export function registerPublicRoutes(app: Express) {
             appointmentId
           );
         } else {
-          await notifyOwner({
+          await throttledNotifyOwner({
             title: `❌ Appointment Cancelled — ${owner.businessName}`,
             content: `${client?.name || "A client"} cancelled their ${svc?.name || "appointment"}\nDate: ${appt.date} at ${appt.time} (${appt.duration} min)\nTap to view your calendar.`,
           });
@@ -1026,7 +1052,7 @@ export function registerPublicRoutes(app: Express) {
             appointmentId
           );
         } else {
-          await notifyOwner({
+          await throttledNotifyOwner({
             title: `🔄 Appointment Rescheduled — ${owner.businessName}`,
             content: `${client?.name || "A client"} rescheduled their ${svc?.name || "appointment"}\nNew date: ${newDate} at ${newTime}\nTap to review and confirm.`,
           });
@@ -1081,7 +1107,7 @@ export function registerPublicRoutes(app: Express) {
             preferredDate
           );
         } else {
-          await notifyOwner({
+          await throttledNotifyOwner({
             title: `⏳ New Waitlist Entry — ${owner.businessName}`,
             content: `${clientName} joined the waitlist for ${svc?.name || "a service"}\nPreferred date: ${preferredDate}\nTap to view waitlist.`,
           });

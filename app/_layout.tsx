@@ -23,6 +23,7 @@ import { StoreProvider } from "@/lib/store";
 import { AppLockProvider } from "@/lib/app-lock-provider";
 import { NotificationProvider } from "@/lib/notification-provider";
 import { initSentry, withSentryWrapper } from "@/lib/sentry";
+import { AnimatedSplash } from "@/components/animated-splash";
 
 // Initialize Sentry as early as possible (before any React rendering)
 initSentry();
@@ -39,8 +40,10 @@ export const unstable_settings = {
 function RootLayout() {
   // Use system fonts (SF Pro on iOS, Roboto on Android) — no external font package needed
   const fontsLoaded = true;
+  const [splashDone, setSplashDone] = useState(false);
 
   const onLayoutRootView = useCallback(async () => {
+    // Hide the native splash immediately — we use our own animated splash instead
     await SplashScreen.hideAsync();
   }, []);
 
@@ -97,6 +100,15 @@ function RootLayout() {
 
   if (!fontsLoaded) {
     return null;
+  }
+
+  // Show our custom animated splash before the app content
+  if (!splashDone) {
+    return (
+      <AnimatedSplash
+        onFinish={() => setSplashDone(true)}
+      />
+    );
   }
 
   const content = (

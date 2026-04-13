@@ -834,3 +834,11 @@
 - [x] Fix SMS phone number format (showing raw digits instead of formatted e.g. (412) 555-0001)
 - [x] Restore SMS pre-fill with appointment details after clicking Confirm Booking (was already present and working)
 - [x] Fix Business Profile text inputs losing focus/keyboard dismissing after first character typed (moved Field component outside screen function)
+
+## Session 8 (Apr 13, 2026)
+- [x] Fix share link on Home page broken on TestFlight (Share API correct; issue is lime-of-time.com domain not deployed yet)
+- [x] Fix client phone number display format in Clients list (raw digits → formatted)
+- [x] Replace static splash screen with creative animated splash (AnimatedSplash with Reanimated)
+- [x] Add country code picker (+1 US, +44 UK, all countries) to login phone input
+- [x] Add static OTP verification screen (code: 123456) for all users after phone entry
+- [x] Fix Rate Exceeded errors across the app (throttledNotifyOwner with 60s cooldown)
