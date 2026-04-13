@@ -121,7 +121,8 @@ describe("Business Data Flow", () => {
 
   it("should have correct default cancellation policy", async () => {
     const { DEFAULT_CANCELLATION_POLICY } = await import("../lib/types");
-    expect(DEFAULT_CANCELLATION_POLICY.enabled).toBe(true);
+    // Cancellation fee is disabled by default — owner must explicitly opt in
+    expect(DEFAULT_CANCELLATION_POLICY.enabled).toBe(false);
     expect(DEFAULT_CANCELLATION_POLICY.hoursBeforeAppointment).toBe(2);
     expect(DEFAULT_CANCELLATION_POLICY.feePercentage).toBe(50);
   });
@@ -254,9 +255,9 @@ describe("Custom Schedule Slot Generation", () => {
 
   it("should fall back to weekly hours when no custom override exists", async () => {
     const { generateAvailableSlots, DEFAULT_WORKING_HOURS } = await import("../lib/types");
-    // Use a future Monday (2026-04-13)
+    // Use a future Monday (2026-04-20 is the next Monday after Apr 13)
     const slots = generateAvailableSlots(
-      "2026-04-13",
+      "2026-04-20",
       60,
       DEFAULT_WORKING_HOURS,
       [],

@@ -856,3 +856,17 @@
 - [ ] Settings → Schedule Hours: add per-location selector so each location has individual business hours
 - [ ] Social login: add Google / Apple / Microsoft sign-in buttons on login page
 - [ ] Social login: collect phone number from new social-login users on first sign-in
+
+## Bug Fixes & Feature Requests (Apr 13 2026)
+
+- [ ] Fix calendar tab showing wrong day of week (Apr 13 2026 shows Wednesday instead of Monday)
+- [ ] Add custom buffer time option (free-text minutes input alongside preset chips)
+- [ ] Set cancellation fee disabled by default, add helper text explaining it
+- [ ] Fix Active Until toggle — cannot switch it back off after turning on
+- [ ] Change workday minute picker steps from 0/15/30/45 to 0/5/10/15/20/25/30/35/40/45/50/55
+- [ ] Build Notifications management page under Settings (manage message content, toggle per notification type)
+- [ ] Fix OTP input showing raw digits instead of styled OTP boxes
+- [ ] Fix Apple sign-in button showing wrong/missing icon
+- [ ] Fix phone number input placeholder showing (000) 000-0000 style
+- [ ] Fix Get Started button appearing greyed out on Business Information screen
+- [ ] Fix splash screen not showing on TestFlight builds (app.config.ts)

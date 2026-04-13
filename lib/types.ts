@@ -248,7 +248,7 @@ export const SERVICE_COLORS = [
 ];
 
 export const DEFAULT_CANCELLATION_POLICY: CancellationPolicy = {
-  enabled: true,
+  enabled: false,
   hoursBeforeAppointment: 2,
   feePercentage: 50,
 };

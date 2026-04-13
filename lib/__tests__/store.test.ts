@@ -441,7 +441,8 @@ describe("Time Helpers", () => {
 
 describe("Cancellation Policy", () => {
   it("should have default cancellation policy", () => {
-    expect(DEFAULT_CANCELLATION_POLICY.enabled).toBe(true);
+    // Cancellation fee is disabled by default — owner must explicitly opt in
+    expect(DEFAULT_CANCELLATION_POLICY.enabled).toBe(false);
     expect(DEFAULT_CANCELLATION_POLICY.hoursBeforeAppointment).toBe(2);
     expect(DEFAULT_CANCELLATION_POLICY.feePercentage).toBe(50);
   });
@@ -466,7 +467,8 @@ describe("Cancellation Policy", () => {
       autoCompleteEnabled: false,
       autoCompleteDelayMinutes: 5,
     };
-    expect(settings.cancellationPolicy.enabled).toBe(true);
+    // Cancellation fee is disabled by default — owner must explicitly opt in
+    expect(settings.cancellationPolicy.enabled).toBe(false);
     expect(settings.onboardingComplete).toBe(false);
   });
 });

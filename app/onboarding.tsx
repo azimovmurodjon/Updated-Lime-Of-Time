@@ -887,9 +887,6 @@ export default function OnboardingScreen() {
                       </Text>
                     </View>
                   ) : null}
-                  <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", textAlign: "center", marginTop: 8 }}>
-                    For testing, use code: 123456
-                  </Text>
                   {/* Resend Code button with countdown */}
                   <View style={{ alignItems: "center", marginTop: 16 }}>
                     {otpCountdown > 0 ? (

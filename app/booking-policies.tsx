@@ -84,6 +84,11 @@ export default function BookingPoliciesScreen() {
               thumbColor={policy.enabled ? colors.primary : colors.muted}
             />
           </View>
+          {!policy.enabled && (
+            <Text style={{ fontSize: 12, color: colors.muted, marginTop: 8, lineHeight: 16 }}>
+              Enable to charge a cancellation fee when clients cancel within a set window. The fee is calculated as a percentage of the service price.
+            </Text>
+          )}
           {policy.enabled && (
             <View style={{ marginTop: 14 }}>
               <Text style={{ fontSize: 12, fontWeight: "500", color: colors.muted, marginBottom: 8 }}>Hours Before Appointment</Text>

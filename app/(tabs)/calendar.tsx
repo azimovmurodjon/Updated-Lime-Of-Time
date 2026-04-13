@@ -263,8 +263,10 @@ export default function CalendarScreen() {
   const params = useLocalSearchParams<{ filter?: string }>();
   const { width, isTablet, isLargeTablet, hp, maxContentWidth } = useResponsive();
 
-  const now = new Date();
   // Live clock for the current-time indicator — updates every 30 seconds
+  // NOTE: Do NOT use a bare `const now = new Date()` here; it becomes stale after the component
+  // first renders and causes wrong weekday labels. Use lazy initialisers so each useState
+  // captures a fresh Date() at mount time, and use liveNow for any derived values.
   const [liveNow, setLiveNow] = useState(() => new Date());
   useEffect(() => {
     const id = setInterval(() => setLiveNow(new Date()), 30_000);
@@ -272,9 +274,9 @@ export default function CalendarScreen() {
   }, []);
 
   const [calendarView, setCalendarView] = useState<CalendarView>("month");
-  const [currentMonth, setCurrentMonth] = useState(now.getMonth());
-  const [currentYear, setCurrentYear] = useState(now.getFullYear());
-  const [selectedDate, setSelectedDate] = useState(formatDateStr(now));
+  const [currentMonth, setCurrentMonth] = useState(() => new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
+  const [selectedDate, setSelectedDate] = useState(() => formatDateStr(new Date()));
   const initialFilter = (params.filter as FilterKey) || "upcoming";
   const [activeFilter, setActiveFilter] = useState<FilterKey>(initialFilter);
   // Workday override modal state
@@ -291,7 +293,7 @@ export default function CalendarScreen() {
 
   // Week view: track the week start (Sunday)
   const [weekStart, setWeekStart] = useState<Date>(() => {
-    const d = new Date(now);
+    const d = new Date();
     d.setDate(d.getDate() - d.getDay());
     return d;
   });
@@ -348,7 +350,7 @@ export default function CalendarScreen() {
   );
 
   const cellSize = Math.floor((width - hp * 2) / 7);
-  const todayStr = formatDateStr(now);
+  const todayStr = formatDateStr(liveNow);
 
   // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -541,12 +543,13 @@ export default function CalendarScreen() {
     setSelectedDate(formatDateStr(d));
   };
   const jumpToToday = () => {
-    setSelectedDate(todayStr);
-    const d = new Date(now);
+    const freshNow = new Date();
+    setSelectedDate(formatDateStr(freshNow));
+    const d = new Date(freshNow);
     d.setDate(d.getDate() - d.getDay());
     setWeekStart(d);
-    setCurrentMonth(now.getMonth());
-    setCurrentYear(now.getFullYear());
+    setCurrentMonth(freshNow.getMonth());
+    setCurrentYear(freshNow.getFullYear());
   };
 
   // ─── Workday Override ─────────────────────────────────────────────────

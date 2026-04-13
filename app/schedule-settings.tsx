@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
-import { Text, View, Pressable, StyleSheet, Switch, Modal, ScrollView } from "react-native";
+import { Text, View, Pressable, StyleSheet, Switch, Modal, ScrollView, TextInput } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
@@ -228,18 +228,25 @@ export default function ScheduleSettingsScreen() {
   const activeUntilEnabled = !!settings.businessHoursEndDate;
   const todayStr = formatDateStr(new Date());
 
-  const toggleActiveUntil = useCallback(() => {
-    const newVal = activeUntilEnabled ? null : null; // toggle off = null, toggle on = show calendar (no date yet)
-    if (activeUntilEnabled) {
-      const action = { type: "UPDATE_SETTINGS" as const, payload: { businessHoursEndDate: null } };
-      dispatch(action);
-      syncToDb(action);
-    }
-    // If turning on, just show the calendar — user picks the date
-    setShowActiveUntilCal(!activeUntilEnabled);
-  }, [activeUntilEnabled, dispatch, syncToDb]);
-
   const [showActiveUntilCal, setShowActiveUntilCal] = useState(false);
+  const [customBufferInput, setCustomBufferInput] = useState("");
+  const [showCustomBuffer, setShowCustomBuffer] = useState(false);
+
+  const toggleActiveUntil = useCallback(() => {
+    const currentlyOn = activeUntilEnabled || showActiveUntilCal;
+    if (currentlyOn) {
+      // Turn off: clear the date and hide the calendar
+      if (activeUntilEnabled) {
+        const action = { type: "UPDATE_SETTINGS" as const, payload: { businessHoursEndDate: null } };
+        dispatch(action);
+        syncToDb(action);
+      }
+      setShowActiveUntilCal(false);
+    } else {
+      // Turn on: show the calendar so user picks a date
+      setShowActiveUntilCal(true);
+    }
+  }, [activeUntilEnabled, showActiveUntilCal, dispatch, syncToDb]);
 
   const selectActiveUntilDate = useCallback((dateStr: string) => {
     const action = { type: "UPDATE_SETTINGS" as const, payload: { businessHoursEndDate: dateStr } };
@@ -468,22 +475,63 @@ export default function ScheduleSettingsScreen() {
             {[0, 5, 10, 15, 30, 60].map((mins) => (
               <Pressable
                 key={mins}
-                onPress={() => setBufferTime(mins)}
+                onPress={() => { setBufferTime(mins); setShowCustomBuffer(false); setCustomBufferInput(""); }}
                 style={({ pressed }) => [
                   styles.chip,
                   {
-                    backgroundColor: (settings.bufferTime ?? 0) === mins ? colors.primary : colors.background,
-                    borderColor: (settings.bufferTime ?? 0) === mins ? colors.primary : colors.border,
+                    backgroundColor: (settings.bufferTime ?? 0) === mins && !showCustomBuffer ? colors.primary : colors.background,
+                    borderColor: (settings.bufferTime ?? 0) === mins && !showCustomBuffer ? colors.primary : colors.border,
                     opacity: pressed ? 0.7 : 1,
                   },
                 ]}
               >
-                <Text style={{ fontSize: 13, fontWeight: "500", color: (settings.bufferTime ?? 0) === mins ? "#FFFFFF" : colors.foreground }}>
+                <Text style={{ fontSize: 13, fontWeight: "500", color: (settings.bufferTime ?? 0) === mins && !showCustomBuffer ? "#FFFFFF" : colors.foreground }}>
                   {mins === 0 ? "None" : `${mins}m`}
                 </Text>
               </Pressable>
             ))}
+            {/* Custom buffer time chip */}
+            <Pressable
+              onPress={() => { setShowCustomBuffer(true); setCustomBufferInput(String(settings.bufferTime ?? "")); }}
+              style={({ pressed }) => [
+                styles.chip,
+                {
+                  backgroundColor: showCustomBuffer ? colors.primary : colors.background,
+                  borderColor: showCustomBuffer ? colors.primary : colors.border,
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              <Text style={{ fontSize: 13, fontWeight: "500", color: showCustomBuffer ? "#FFFFFF" : colors.foreground }}>Custom</Text>
+            </Pressable>
           </View>
+          {showCustomBuffer && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 }}>
+              <TextInput
+                style={{ flex: 1, backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, borderWidth: 1 }}
+                value={customBufferInput}
+                onChangeText={setCustomBufferInput}
+                keyboardType="number-pad"
+                placeholder="e.g. 20"
+                placeholderTextColor={colors.muted}
+                returnKeyType="done"
+                onSubmitEditing={() => {
+                  const v = parseInt(customBufferInput, 10);
+                  if (!isNaN(v) && v >= 0 && v <= 480) { setBufferTime(v); setShowCustomBuffer(false); }
+                }}
+              />
+              <Text style={{ fontSize: 13, color: colors.muted }}>min</Text>
+              <Pressable
+                onPress={() => {
+                  const v = parseInt(customBufferInput, 10);
+                  if (!isNaN(v) && v >= 0 && v <= 480) { setBufferTime(v); setShowCustomBuffer(false); }
+                }}
+                style={({ pressed }) => [styles.chip, { backgroundColor: colors.primary, borderColor: colors.primary, opacity: pressed ? 0.7 : 1 }]}
+              >
+                <Text style={{ fontSize: 13, fontWeight: "600", color: "#fff" }}>Set</Text>
+              </Pressable>
+            </View>
+          )}
         </View>
 
         {/* ── Schedule Mode ────────────────────────────────────────────────── */}
@@ -820,7 +868,7 @@ export default function ScheduleSettingsScreen() {
               <Text style={{ fontSize: 17, fontWeight: "700", color: colors.primary }}>{formatTimeLabel(draftStart)}</Text>
             </Pressable>
             {weekSubPicker === "start" && (
-              <TapTimePicker value={draftStart} onChange={(v) => { setDraftStart(v); setWeekTimeError(null); }} stepMinutes={15} />
+              <TapTimePicker value={draftStart} onChange={(v) => { setDraftStart(v); setWeekTimeError(null); }} stepMinutes={5} />
             )}
 
             {/* End row */}
@@ -832,7 +880,7 @@ export default function ScheduleSettingsScreen() {
               <Text style={{ fontSize: 17, fontWeight: "700", color: colors.primary }}>{formatTimeLabel(draftEnd)}</Text>
             </Pressable>
             {weekSubPicker === "end" && (
-              <TapTimePicker value={draftEnd} onChange={(v) => { setDraftEnd(v); setWeekTimeError(null); }} stepMinutes={15} />
+              <TapTimePicker value={draftEnd} onChange={(v) => { setDraftEnd(v); setWeekTimeError(null); }} stepMinutes={5} />
             )}
 
             {weekTimeError ? (
@@ -873,7 +921,7 @@ export default function ScheduleSettingsScreen() {
               <Text style={{ fontSize: 17, fontWeight: "700", color: colors.primary }}>{formatTimeLabel(customDraftStart)}</Text>
             </Pressable>
             {customSubPicker === "start" && (
-              <TapTimePicker value={customDraftStart} onChange={(v) => { setCustomDraftStart(v); setCustomTimeError(null); }} stepMinutes={15} />
+              <TapTimePicker value={customDraftStart} onChange={(v) => { setCustomDraftStart(v); setCustomTimeError(null); }} stepMinutes={5} />
             )}
 
             {/* End row */}
@@ -885,7 +933,7 @@ export default function ScheduleSettingsScreen() {
               <Text style={{ fontSize: 17, fontWeight: "700", color: colors.primary }}>{formatTimeLabel(customDraftEnd)}</Text>
             </Pressable>
             {customSubPicker === "end" && (
-              <TapTimePicker value={customDraftEnd} onChange={(v) => { setCustomDraftEnd(v); setCustomTimeError(null); }} stepMinutes={15} />
+              <TapTimePicker value={customDraftEnd} onChange={(v) => { setCustomDraftEnd(v); setCustomTimeError(null); }} stepMinutes={5} />
             )}
 
             {customTimeError ? (

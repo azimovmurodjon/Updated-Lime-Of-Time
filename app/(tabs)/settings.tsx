@@ -340,63 +340,24 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Notifications */}
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          {/* Master toggle */}
+        {/* Notifications — navigate to dedicated management page */}
+        <Pressable
+          onPress={() => router.push("/notification-settings")}
+          style={({ pressed }) => [styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.75 : 1 }]}
+        >
           <View style={styles.switchRow}>
             <View style={styles.switchLabel}>
               <IconSymbol name="bell.fill" size={20} color={colors.primary} />
-              <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground, marginLeft: 12 }}>Notifications</Text>
+              <View style={{ marginLeft: 12 }}>
+                <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground }}>Notifications</Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
+                  {settings.notificationsEnabled ? "Active — tap to manage" : "Paused — tap to manage"}
+                </Text>
+              </View>
             </View>
-            <Switch
-              value={settings.notificationsEnabled}
-              onValueChange={toggleNotifications}
-              trackColor={{ false: colors.border, true: colors.primary + "60" }}
-              thumbColor={settings.notificationsEnabled ? colors.primary : colors.muted}
-            />
+            <IconSymbol name="chevron.right" size={16} color={colors.muted} />
           </View>
-
-          {/* Per-event preferences — only visible when notifications are enabled */}
-          {settings.notificationsEnabled && (
-            <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 }}>
-              <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Push Notifications</Text>
-
-              {([
-                { key: "pushOnNewBooking" as const, label: "New booking request" },
-                { key: "pushOnCancellation" as const, label: "Client cancellation" },
-                { key: "pushOnReschedule" as const, label: "Client reschedule" },
-                { key: "pushOnWaitlist" as const, label: "Waitlist entry" },
-              ] as const).map(({ key, label }) => (
-                <View key={key} style={[styles.switchRow, { paddingVertical: 6 }]}>
-                  <Text style={{ fontSize: 14, color: colors.foreground, flex: 1 }}>{label}</Text>
-                  <Switch
-                    value={(settings.notificationPreferences ?? DEFAULT_NOTIFICATION_PREFERENCES)[key]}
-                    onValueChange={() => toggleNotificationPref(key)}
-                    trackColor={{ false: colors.border, true: colors.primary + "60" }}
-                    thumbColor={(settings.notificationPreferences ?? DEFAULT_NOTIFICATION_PREFERENCES)[key] ? colors.primary : colors.muted}
-                  />
-                </View>
-              ))}
-
-              <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 10, marginTop: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>Email Notifications</Text>
-
-              {([
-                { key: "emailOnNewBooking" as const, label: "New booking request (to you)" },
-                { key: "emailClientOnConfirmation" as const, label: "Confirmation to client on accept" },
-              ] as const).map(({ key, label }) => (
-                <View key={key} style={[styles.switchRow, { paddingVertical: 6 }]}>
-                  <Text style={{ fontSize: 14, color: colors.foreground, flex: 1 }}>{label}</Text>
-                  <Switch
-                    value={(settings.notificationPreferences ?? DEFAULT_NOTIFICATION_PREFERENCES)[key]}
-                    onValueChange={() => toggleNotificationPref(key)}
-                    trackColor={{ false: colors.border, true: colors.primary + "60" }}
-                    thumbColor={(settings.notificationPreferences ?? DEFAULT_NOTIFICATION_PREFERENCES)[key] ? colors.primary : colors.muted}
-                  />
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
+        </Pressable>
 
         {/* Face ID / Biometric Lock */}
         {Platform.OS !== "web" && biometricAvailable && (

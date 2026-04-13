@@ -1,0 +1,530 @@
+import { useState, useCallback } from "react";
+import {
+  Text,
+  View,
+  Pressable,
+  StyleSheet,
+  Switch,
+  ScrollView,
+  TextInput,
+  Modal,
+} from "react-native";
+import { useRouter } from "expo-router";
+import { ScreenContainer } from "@/components/screen-container";
+import { useStore } from "@/lib/store";
+import { useColors } from "@/hooks/use-colors";
+import { IconSymbol } from "@/components/ui/icon-symbol";
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  type NotificationPreferences,
+} from "@/lib/types";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface NotifEvent {
+  key: keyof NotificationPreferences;
+  label: string;
+  description: string;
+  channel: "push" | "email";
+  /** Template variables available in the message */
+  vars: string[];
+  /** Default message template */
+  defaultMessage: string;
+}
+
+const NOTIF_EVENTS: NotifEvent[] = [
+  {
+    key: "pushOnNewBooking",
+    label: "New Booking Request",
+    description: "Sent to you when a client submits a new booking.",
+    channel: "push",
+    vars: ["{clientName}", "{service}", "{date}", "{time}", "{location}"],
+    defaultMessage:
+      "📅 New booking from {clientName} — {service} on {date} at {time} ({location}). Open the app to review and confirm.",
+  },
+  {
+    key: "pushOnCancellation",
+    label: "Client Cancellation",
+    description: "Sent to you when a client cancels their appointment.",
+    channel: "push",
+    vars: ["{clientName}", "{service}", "{date}", "{time}"],
+    defaultMessage:
+      "❌ {clientName} has cancelled their {service} appointment scheduled for {date} at {time}. The slot is now available.",
+  },
+  {
+    key: "pushOnReschedule",
+    label: "Client Reschedule",
+    description: "Sent to you when a client requests to reschedule.",
+    channel: "push",
+    vars: ["{clientName}", "{service}", "{oldDate}", "{oldTime}", "{newDate}", "{newTime}"],
+    defaultMessage:
+      "🔄 {clientName} rescheduled their {service} from {oldDate} at {oldTime} to {newDate} at {newTime}. Please review the change.",
+  },
+  {
+    key: "pushOnWaitlist",
+    label: "Waitlist Entry",
+    description: "Sent to you when a client joins the waitlist.",
+    channel: "push",
+    vars: ["{clientName}", "{service}", "{date}"],
+    defaultMessage:
+      "⏳ {clientName} has joined the waitlist for {service} on {date}. You will be notified when a slot opens.",
+  },
+  {
+    key: "emailOnNewBooking",
+    label: "New Booking (Email to You)",
+    description: "Email sent to your business address on each new booking.",
+    channel: "email",
+    vars: ["{clientName}", "{service}", "{date}", "{time}", "{location}", "{notes}"],
+    defaultMessage:
+      "You have received a new booking request from {clientName} for {service} on {date} at {time} at {location}. Notes: {notes}. Log in to confirm or decline.",
+  },
+  {
+    key: "emailClientOnConfirmation",
+    label: "Confirmation to Client",
+    description: "Email sent to the client when you confirm their appointment.",
+    channel: "email",
+    vars: ["{clientName}", "{service}", "{date}", "{time}", "{location}", "{businessName}"],
+    defaultMessage:
+      "Hi {clientName}, your appointment for {service} has been confirmed for {date} at {time} at {location}. We look forward to seeing you! — {businessName}",
+  },
+];
+
+// ─── Message Preview ──────────────────────────────────────────────────────────
+
+function MessagePreview({ template, vars }: { template: string; vars: string[] }) {
+  const colors = useColors();
+  const preview = vars.reduce((msg, v) => {
+    const sampleMap: Record<string, string> = {
+      "{clientName}": "Jane Smith",
+      "{service}": "Haircut & Style",
+      "{date}": "Mon, Apr 14",
+      "{time}": "2:00 PM",
+      "{location}": "Main Street Studio",
+      "{notes}": "Prefers no heat styling",
+      "{oldDate}": "Mon, Apr 14",
+      "{oldTime}": "2:00 PM",
+      "{newDate}": "Tue, Apr 15",
+      "{newTime}": "3:30 PM",
+      "{businessName}": "Lime Of Time",
+    };
+    return msg.replace(new RegExp(v.replace(/[{}]/g, "\\$&"), "g"), sampleMap[v] ?? v);
+  }, template);
+
+  return (
+    <View
+      style={{
+        backgroundColor: colors.background,
+        borderRadius: 12,
+        padding: 14,
+        borderWidth: 1,
+        borderColor: colors.border,
+        marginTop: 10,
+      }}
+    >
+      <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>
+        Preview
+      </Text>
+      <Text style={{ fontSize: 13, color: colors.foreground, lineHeight: 19 }}>{preview}</Text>
+    </View>
+  );
+}
+
+// ─── Edit Message Modal ───────────────────────────────────────────────────────
+
+function EditMessageModal({
+  visible,
+  event,
+  currentMessage,
+  onSave,
+  onClose,
+}: {
+  visible: boolean;
+  event: NotifEvent | null;
+  currentMessage: string;
+  onSave: (msg: string) => void;
+  onClose: () => void;
+}) {
+  const colors = useColors();
+  const [draft, setDraft] = useState(currentMessage);
+
+  if (!event) return null;
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        {/* Header */}
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingHorizontal: 20,
+            paddingTop: 20,
+            paddingBottom: 14,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.border,
+          }}
+        >
+          <Pressable onPress={onClose} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
+            <Text style={{ fontSize: 16, color: colors.primary }}>Cancel</Text>
+          </Pressable>
+          <Text style={{ fontSize: 17, fontWeight: "600", color: colors.foreground }}>Edit Message</Text>
+          <Pressable
+            onPress={() => { onSave(draft); onClose(); }}
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+          >
+            <Text style={{ fontSize: 16, fontWeight: "600", color: colors.primary }}>Save</Text>
+          </Pressable>
+        </View>
+
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
+          <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground, marginBottom: 4 }}>
+            {event.label}
+          </Text>
+          <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 16 }}>{event.description}</Text>
+
+          {/* Available variables */}
+          <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>
+            Available Variables
+          </Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+            {event.vars.map((v) => (
+              <Pressable
+                key={v}
+                onPress={() => setDraft((prev) => prev + v)}
+                style={({ pressed }) => ({
+                  backgroundColor: colors.primary + "18",
+                  borderRadius: 8,
+                  paddingHorizontal: 10,
+                  paddingVertical: 5,
+                  opacity: pressed ? 0.7 : 1,
+                })}
+              >
+                <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>{v}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {/* Message editor */}
+          <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>
+            Message
+          </Text>
+          <TextInput
+            style={{
+              backgroundColor: colors.surface,
+              borderRadius: 12,
+              padding: 14,
+              fontSize: 14,
+              color: colors.foreground,
+              borderWidth: 1,
+              borderColor: colors.border,
+              minHeight: 120,
+              textAlignVertical: "top",
+            }}
+            value={draft}
+            onChangeText={setDraft}
+            multiline
+            placeholder="Enter notification message..."
+            placeholderTextColor={colors.muted}
+          />
+
+          {/* Reset to default */}
+          <Pressable
+            onPress={() => setDraft(event.defaultMessage)}
+            style={({ pressed }) => ({
+              marginTop: 10,
+              alignSelf: "flex-end",
+              opacity: pressed ? 0.6 : 1,
+            })}
+          >
+            <Text style={{ fontSize: 13, color: colors.muted }}>Reset to default</Text>
+          </Pressable>
+
+          {/* Live preview */}
+          <MessagePreview template={draft} vars={event.vars} />
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
+
+export default function NotificationSettingsScreen() {
+  const router = useRouter();
+  const colors = useColors();
+  const { state, dispatch, syncToDb } = useStore();
+  const settings = state.settings;
+  const prefs = settings.notificationPreferences ?? DEFAULT_NOTIFICATION_PREFERENCES;
+
+  // Custom message templates (stored locally per session; persist via notificationPreferences extension)
+  const [customMessages, setCustomMessages] = useState<Partial<Record<keyof NotificationPreferences, string>>>({});
+  const [editingEvent, setEditingEvent] = useState<NotifEvent | null>(null);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+
+  const toggleMaster = useCallback(() => {
+    const action = { type: "UPDATE_SETTINGS" as const, payload: { notificationsEnabled: !settings.notificationsEnabled } };
+    dispatch(action);
+    syncToDb(action);
+  }, [settings.notificationsEnabled, dispatch, syncToDb]);
+
+  const togglePref = useCallback(
+    (key: keyof NotificationPreferences) => {
+      const current = prefs;
+      const updated = { ...current, [key]: !current[key] };
+      const action = { type: "UPDATE_SETTINGS" as const, payload: { notificationPreferences: updated } };
+      dispatch(action);
+      syncToDb(action);
+    },
+    [prefs, dispatch, syncToDb]
+  );
+
+  const handleEditMessage = (event: NotifEvent) => {
+    setEditingEvent(event);
+    setEditModalVisible(true);
+  };
+
+  const handleSaveMessage = (msg: string) => {
+    if (!editingEvent) return;
+    setCustomMessages((prev) => ({ ...prev, [editingEvent.key]: msg }));
+  };
+
+  const pushEvents = NOTIF_EVENTS.filter((e) => e.channel === "push");
+  const emailEvents = NOTIF_EVENTS.filter((e) => e.channel === "email");
+
+  return (
+    <ScreenContainer>
+      {/* Header */}
+      <View style={styles.header}>
+        <Pressable
+          onPress={() => router.back()}
+          style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]}
+        >
+          <IconSymbol name="chevron.left.forwardslash.chevron.right" size={10} color={colors.primary} style={{ transform: [{ rotate: "0deg" }] }} />
+          <Text style={{ fontSize: 16, color: colors.primary, marginLeft: 4 }}>Back</Text>
+        </Pressable>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Notifications</Text>
+        <View style={{ width: 70 }} />
+      </View>
+
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+        {/* Master toggle */}
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.switchRow}>
+            <View style={styles.switchLabel}>
+              <IconSymbol name="bell.fill" size={20} color={colors.primary} />
+              <View style={{ marginLeft: 12 }}>
+                <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Enable Notifications</Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
+                  {settings.notificationsEnabled ? "Notifications are active" : "All notifications are paused"}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={settings.notificationsEnabled}
+              onValueChange={toggleMaster}
+              trackColor={{ false: colors.border, true: colors.primary + "60" }}
+              thumbColor={settings.notificationsEnabled ? colors.primary : colors.muted}
+            />
+          </View>
+        </View>
+
+        {!settings.notificationsEnabled && (
+          <View style={{ backgroundColor: colors.warning + "18", borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: colors.warning + "40" }}>
+            <Text style={{ fontSize: 13, color: colors.warning, lineHeight: 18 }}>
+              All notifications are currently disabled. Enable the master toggle above to start receiving alerts.
+            </Text>
+          </View>
+        )}
+
+        {/* Push Notifications */}
+        <Text style={[styles.sectionHeader, { color: colors.muted }]}>Push Notifications</Text>
+        <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10, marginTop: -4 }}>
+          Sent directly to your device. Tap "Edit" to customise the message text.
+        </Text>
+
+        {pushEvents.map((event) => {
+          const enabled = prefs[event.key];
+          const message = customMessages[event.key] ?? event.defaultMessage;
+          return (
+            <View
+              key={event.key}
+              style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: settings.notificationsEnabled ? 1 : 0.5 }]}
+            >
+              <View style={styles.switchRow}>
+                <View style={{ flex: 1, marginRight: 12 }}>
+                  <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{event.label}</Text>
+                  <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 16 }}>{event.description}</Text>
+                </View>
+                <Switch
+                  value={enabled}
+                  onValueChange={() => togglePref(event.key)}
+                  trackColor={{ false: colors.border, true: colors.primary + "60" }}
+                  thumbColor={enabled ? colors.primary : colors.muted}
+                  disabled={!settings.notificationsEnabled}
+                />
+              </View>
+
+              {enabled && settings.notificationsEnabled && (
+                <>
+                  <MessagePreview template={message} vars={event.vars} />
+                  <Pressable
+                    onPress={() => handleEditMessage(event)}
+                    style={({ pressed }) => ({
+                      marginTop: 10,
+                      alignSelf: "flex-end",
+                      backgroundColor: colors.primary + "15",
+                      borderRadius: 8,
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      opacity: pressed ? 0.7 : 1,
+                    })}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: "600", color: colors.primary }}>Edit Message</Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
+          );
+        })}
+
+        {/* Email Notifications */}
+        <Text style={[styles.sectionHeader, { color: colors.muted, marginTop: 20 }]}>Email Notifications</Text>
+        <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10, marginTop: -4 }}>
+          Sent via email. Confirmation emails go to your clients; booking alerts go to your business address.
+        </Text>
+
+        {emailEvents.map((event) => {
+          const enabled = prefs[event.key];
+          const message = customMessages[event.key] ?? event.defaultMessage;
+          return (
+            <View
+              key={event.key}
+              style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: settings.notificationsEnabled ? 1 : 0.5 }]}
+            >
+              <View style={styles.switchRow}>
+                <View style={{ flex: 1, marginRight: 12 }}>
+                  <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{event.label}</Text>
+                  <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 16 }}>{event.description}</Text>
+                </View>
+                <Switch
+                  value={enabled}
+                  onValueChange={() => togglePref(event.key)}
+                  trackColor={{ false: colors.border, true: colors.primary + "60" }}
+                  thumbColor={enabled ? colors.primary : colors.muted}
+                  disabled={!settings.notificationsEnabled}
+                />
+              </View>
+
+              {enabled && settings.notificationsEnabled && (
+                <>
+                  <MessagePreview template={message} vars={event.vars} />
+                  <Pressable
+                    onPress={() => handleEditMessage(event)}
+                    style={({ pressed }) => ({
+                      marginTop: 10,
+                      alignSelf: "flex-end",
+                      backgroundColor: colors.primary + "15",
+                      borderRadius: 8,
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      opacity: pressed ? 0.7 : 1,
+                    })}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: "600", color: colors.primary }}>Edit Message</Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
+          );
+        })}
+
+        {/* Auto-Complete Notification */}
+        <Text style={[styles.sectionHeader, { color: colors.muted, marginTop: 20 }]}>Auto-Complete Notification</Text>
+        <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10, marginTop: -4 }}>
+          Sent when an appointment is automatically marked as completed after the scheduled end time.
+        </Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: settings.notificationsEnabled ? 1 : 0.5 }]}>
+          <View style={styles.switchRow}>
+            <View style={{ flex: 1, marginRight: 12 }}>
+              <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>Auto-Complete Alert</Text>
+              <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 16 }}>
+                Notifies you when an appointment is automatically marked as completed{settings.autoCompleteEnabled ? ` (${settings.autoCompleteDelayMinutes} min after end time)` : ""}.
+              </Text>
+            </View>
+            <Switch
+              value={settings.autoCompleteEnabled && settings.notificationsEnabled}
+              onValueChange={() => {
+                const action = { type: "UPDATE_SETTINGS" as const, payload: { autoCompleteEnabled: !settings.autoCompleteEnabled } };
+                dispatch(action);
+                syncToDb(action);
+              }}
+              trackColor={{ false: colors.border, true: colors.primary + "60" }}
+              thumbColor={settings.autoCompleteEnabled ? colors.primary : colors.muted}
+              disabled={!settings.notificationsEnabled}
+            />
+          </View>
+          {settings.autoCompleteEnabled && settings.notificationsEnabled && (
+            <MessagePreview
+              template="✅ Appointment Completed — {clientName}'s {service} on {date} at {time} has been automatically marked as completed. Duration: {duration}."
+              vars={["{clientName}", "{service}", "{date}", "{time}", "{duration}"]}
+            />
+          )}
+        </View>
+      </ScrollView>
+
+      {/* Edit message modal */}
+      <EditMessageModal
+        visible={editModalVisible}
+        event={editingEvent}
+        currentMessage={editingEvent ? (customMessages[editingEvent.key] ?? editingEvent.defaultMessage) : ""}
+        onSave={handleSaveMessage}
+        onClose={() => setEditModalVisible(false)}
+      />
+    </ScreenContainer>
+  );
+}
+
+const styles = StyleSheet.create({
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  backBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: 70,
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+  },
+  card: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  switchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  switchLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  sectionHeader: {
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 8,
+    marginTop: 8,
+  },
+});

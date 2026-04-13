@@ -62,6 +62,16 @@ const config: ExpoConfig = {
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
     },
+    splash: {
+      image: "./assets/images/splash-icon.png",
+      resizeMode: "contain",
+      backgroundColor: "#F0FFF0",
+      dark: {
+        image: "./assets/images/splash-icon.png",
+        resizeMode: "contain",
+        backgroundColor: "#1a2e1a",
+      },
+    },
   },
 
   android: {
