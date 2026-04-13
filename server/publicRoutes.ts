@@ -3504,6 +3504,7 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any)
   const now = new Date();
   const hoursUntil = (apptDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
   const canReschedule = isConfirmed && hoursUntil > 24;
+  const apptLocationId = appt.locationId || "";
   const apiBase = "";
 
   return `<!DOCTYPE html>
@@ -3745,6 +3746,7 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any)
   <script>
     const SLUG = '${slug.replace(/'/g, "\\'")}';
     const APPT_ID = '${(appt.localId || "").replace(/'/g, "\\'")}';
+    const APPT_LOCATION_ID = '${apptLocationId.replace(/'/g, "\\'")}';
     const API_BASE = '${apiBase}';
     let selectedSlot = null;
 
@@ -3796,7 +3798,8 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any)
       selectedSlot = null;
       document.getElementById('confirm-reschedule-btn').disabled = true;
       try {
-        const res = await fetch(API_BASE + '/api/public/business/' + SLUG + '/slots?date=' + date + '&duration=${appt.duration || 60}');
+        const locParam = APPT_LOCATION_ID ? '&locationId=' + encodeURIComponent(APPT_LOCATION_ID) : '';
+        const res = await fetch(API_BASE + '/api/public/business/' + SLUG + '/slots?date=' + date + '&duration=${appt.duration || 60}' + locParam);
         const data = await res.json();
         if (data.slots && data.slots.length > 0) {
           container.innerHTML = '<div class="slot-grid">' + data.slots.map(function(s) {
