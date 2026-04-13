@@ -801,7 +801,7 @@ export default function NewBookingScreen() {
               <Text className="text-xs text-muted mt-1">Try a different date or check working hours</Text>
             </View>
           ) : (
-            <View className="flex-row flex-wrap gap-2 mb-4">
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16, justifyContent: "center" }}>
               {timeSlots.map((t) => {
                 const isSelected = t === selectedTime;
                 return (
@@ -814,12 +814,13 @@ export default function NewBookingScreen() {
                         backgroundColor: isSelected ? colors.primary : colors.surface,
                         borderColor: isSelected ? colors.primary : colors.border,
                         opacity: pressed ? 0.7 : 1,
+                        width: 100,
                       },
                     ]}
                   >
                     <Text
-                      className="text-sm font-medium"
-                      style={{ color: isSelected ? "#FFFFFF" : colors.foreground }}
+                      className="text-sm font-semibold"
+                      style={{ color: isSelected ? "#FFFFFF" : colors.foreground, textAlign: "center" }}
                     >
                       {formatTime(t)}
                     </Text>
@@ -828,6 +829,7 @@ export default function NewBookingScreen() {
                         fontSize: 10,
                         color: isSelected ? "#FFFFFF99" : colors.muted,
                         marginTop: 1,
+                        textAlign: "center",
                       }}
                     >
                       to {getEndTime(t)}

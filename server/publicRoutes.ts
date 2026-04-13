@@ -3515,6 +3515,10 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any,
     const parts = [apptLocation.address, apptLocation.city, apptLocation.state, apptLocation.zipCode].filter(Boolean);
     return parts.join(", ");
   })();
+  const apptLocationPhone = apptLocation?.phone || "";
+  const apptLocationMapUrl = apptLocationAddr
+    ? `https://maps.apple.com/?q=${encodeURIComponent(apptLocationAddr)}`
+    : "";
   const apiBase = "";
 
   return `<!DOCTYPE html>
@@ -3696,7 +3700,8 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any,
         <span class="appt-label">Location</span>
         <span class="appt-value" style="text-align:right;max-width:60%;">
           ${escHtml(apptLocationName)}
-          ${apptLocationAddr ? `<br/><span style="font-size:12px;font-weight:400;color:var(--text-secondary);">${escHtml(apptLocationAddr)}</span>` : ""}
+          ${apptLocationAddr ? `<br/>${apptLocationMapUrl ? `<a href="${escHtml(apptLocationMapUrl)}" target="_blank" rel="noopener" style="font-size:12px;font-weight:400;color:var(--accent);text-decoration:none;">${escHtml(apptLocationAddr)} ↗</a>` : `<span style="font-size:12px;font-weight:400;color:var(--text-secondary);">${escHtml(apptLocationAddr)}</span>`}` : ""}
+          ${apptLocationPhone ? `<br/><a href="tel:${escHtml(apptLocationPhone)}" style="font-size:12px;font-weight:400;color:var(--accent);text-decoration:none;">📞 ${escHtml(apptLocationPhone)}</a>` : ""}
         </span>
       </div>` : ""}
     </div>
