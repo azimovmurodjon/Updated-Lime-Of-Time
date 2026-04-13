@@ -6,9 +6,25 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { trpc } from "@/lib/trpc";
+import { useStore } from "@/lib/store";
+import {
+  dbServiceToLocal,
+  dbClientToLocal,
+  dbAppointmentToLocal,
+  dbReviewToLocal,
+  dbDiscountToLocal,
+  dbGiftCardToLocal,
+  dbLocationToLocal,
+  dbProductToLocal,
+  dbStaffToLocal,
+  dbCustomScheduleToLocal,
+  dbOwnerToSettings,
+} from "@/lib/store";
 
 export default function OAuthCallback() {
   const router = useRouter();
+  const { dispatch } = useStore();
   const params = useLocalSearchParams<{
     code?: string;
     state?: string;
@@ -18,33 +34,25 @@ export default function OAuthCallback() {
   }>();
   const [status, setStatus] = useState<"processing" | "success" | "error">("processing");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const trpcUtils = trpc.useUtils();
 
   useEffect(() => {
     const handleCallback = async () => {
       console.log("[OAuth] Callback handler triggered");
-      console.log("[OAuth] Params received:", {
-        code: params.code,
-        state: params.state,
-        error: params.error,
-        sessionToken: params.sessionToken ? "present" : "missing",
-        user: params.user ? "present" : "missing",
-      });
       try {
-        // Check for sessionToken in params first (web OAuth callback from server redirect)
-        if (params.sessionToken) {
-          console.log("[OAuth] Session token found in params (web callback)");
-          await Auth.setSessionToken(params.sessionToken);
+        let userInfo: Auth.User | null = null;
 
-          // Decode and store user info if available
+        // ── Web callback: sessionToken in params ──────────────────────
+        if (params.sessionToken) {
+          await Auth.setSessionToken(params.sessionToken);
           if (params.user) {
             try {
-              // Use atob for base64 decoding (works in both web and React Native)
               const userJson =
                 typeof atob !== "undefined"
                   ? atob(params.user)
                   : Buffer.from(params.user, "base64").toString("utf-8");
               const userData = JSON.parse(userJson);
-              const userInfo: Auth.User = {
+              userInfo = {
                 id: userData.id,
                 openId: userData.openId,
                 name: userData.name,
@@ -53,175 +61,140 @@ export default function OAuthCallback() {
                 lastSignedIn: new Date(userData.lastSignedIn || Date.now()),
               };
               await Auth.setUserInfo(userInfo);
-              console.log("[OAuth] User info stored:", userInfo);
             } catch (err) {
               console.error("[OAuth] Failed to parse user data:", err);
             }
           }
-
-          setStatus("success");
-          console.log("[OAuth] Web authentication successful, redirecting to home...");
-          setTimeout(() => {
-            router.replace("/(tabs)");
-          }, 1000);
-          return;
-        }
-
-        // Get URL from params or Linking
-        let url: string | null = null;
-
-        // Try to get from local search params first (works with expo-router)
-        if (params.code || params.state || params.error) {
-          console.log("[OAuth] Found params in route params");
-          // Extract from params
-          const urlParams = new URLSearchParams();
-          if (params.code) urlParams.set("code", params.code);
-          if (params.state) urlParams.set("state", params.state);
-          if (params.error) urlParams.set("error", params.error);
-          url = `?${urlParams.toString()}`;
-          console.log("[OAuth] Constructed URL from params:", url);
         } else {
-          console.log("[OAuth] No params found, checking Linking.getInitialURL()...");
-          // Fallback: try to get from Linking
-          const initialUrl = await Linking.getInitialURL();
-          console.log("[OAuth] Linking.getInitialURL():", initialUrl);
-          if (initialUrl) {
-            url = initialUrl;
+          // ── Native / code exchange flow ───────────────────────────────
+          let url: string | null = null;
+          if (params.code || params.state || params.error) {
+            const urlParams = new URLSearchParams();
+            if (params.code) urlParams.set("code", params.code);
+            if (params.state) urlParams.set("state", params.state);
+            if (params.error) urlParams.set("error", params.error);
+            url = `?${urlParams.toString()}`;
+          } else {
+            const initialUrl = await Linking.getInitialURL();
+            if (initialUrl) url = initialUrl;
           }
-        }
 
-        // Check for error
-        const error =
-          params.error || (url ? new URL(url, "http://dummy").searchParams.get("error") : null);
-        if (error) {
-          console.error("[OAuth] Error parameter found:", error);
-          setStatus("error");
-          setErrorMessage(error || "OAuth error occurred");
-          return;
-        }
+          const error =
+            params.error || (url ? new URL(url, "http://dummy").searchParams.get("error") : null);
+          if (error) {
+            setStatus("error");
+            setErrorMessage(error || "OAuth error occurred");
+            return;
+          }
 
-        // Check for code and state
-        let code: string | null = null;
-        let state: string | null = null;
-        let sessionToken: string | null = null;
+          let code: string | null = null;
+          let state: string | null = null;
+          let sessionToken: string | null = null;
 
-        // Try to get from params first
-        if (params.code && params.state) {
-          console.log("[OAuth] Using code and state from route params");
-          code = params.code;
-          state = params.state;
-        } else if (url) {
-          console.log("[OAuth] Parsing code and state from URL:", url);
-          // Parse from URL
-          try {
-            const urlObj = new URL(url);
-            code = urlObj.searchParams.get("code");
-            state = urlObj.searchParams.get("state");
-            sessionToken = urlObj.searchParams.get("sessionToken");
-            console.log("[OAuth] Extracted from URL:", {
-              code: code?.substring(0, 20) + "...",
-              state: state?.substring(0, 20) + "...",
-              sessionToken: sessionToken ? "present" : "missing",
-            });
-          } catch (e) {
-            console.log("[OAuth] Failed to parse as full URL, trying regex:", e);
-            // Try parsing as relative URL with query params
-            const match = url.match(/[?&](code|state|sessionToken)=([^&]+)/g);
-            if (match) {
-              match.forEach((param) => {
-                const [key, value] = param.substring(1).split("=");
-                if (key === "code") code = decodeURIComponent(value);
-                if (key === "state") state = decodeURIComponent(value);
-                if (key === "sessionToken") sessionToken = decodeURIComponent(value);
-              });
-              console.log("[OAuth] Extracted from regex:", {
-                code: code?.substring(0, 20) + "...",
-                state: state?.substring(0, 20) + "...",
-                sessionToken: sessionToken ? "present" : "missing",
-              });
+          if (params.code && params.state) {
+            code = params.code;
+            state = params.state;
+          } else if (url) {
+            try {
+              const urlObj = new URL(url);
+              code = urlObj.searchParams.get("code");
+              state = urlObj.searchParams.get("state");
+              sessionToken = urlObj.searchParams.get("sessionToken");
+            } catch {
+              const match = url.match(/[?&](code|state|sessionToken)=([^&]+)/g);
+              if (match) {
+                match.forEach((param) => {
+                  const [key, value] = param.substring(1).split("=");
+                  if (key === "code") code = decodeURIComponent(value);
+                  if (key === "state") state = decodeURIComponent(value);
+                  if (key === "sessionToken") sessionToken = decodeURIComponent(value);
+                });
+              }
             }
           }
-        }
 
-        console.log("[OAuth] Final extracted values:", {
-          hasCode: !!code,
-          hasState: !!state,
-          hasSessionToken: !!sessionToken,
-        });
-
-        // If we have sessionToken directly from URL, use it
-        if (sessionToken) {
-          console.log("[OAuth] Session token found in URL, storing...");
-          await Auth.setSessionToken(sessionToken);
-          console.log("[OAuth] Session token stored successfully");
-          // User info is already in the OAuth callback response
-          // No need to fetch from API
-          setStatus("success");
-          console.log("[OAuth] Redirecting to home...");
-          setTimeout(() => {
-            router.replace("/(tabs)");
-          }, 1000);
-          return;
-        }
-
-        // Otherwise, exchange code for session token
-        if (!code || !state) {
-          console.error("[OAuth] Missing code or state parameter", {
-            hasCode: !!code,
-            hasState: !!state,
-          });
-          setStatus("error");
-          setErrorMessage("Missing code or state parameter");
-          return;
-        }
-
-        // Exchange code for session token
-        console.log("[OAuth] Exchanging code for session token...", {
-          code: code.substring(0, 20) + "...",
-          state: state.substring(0, 20) + "...",
-        });
-        const result = await Api.exchangeOAuthCode(code, state);
-        console.log("[OAuth] Exchange result:", {
-          hasSessionToken: !!result.sessionToken,
-          hasUser: !!result.user,
-        });
-
-        if (result.sessionToken) {
-          console.log("[OAuth] Session token received, storing...");
-          // Store session token
-          await Auth.setSessionToken(result.sessionToken);
-          console.log("[OAuth] Session token stored successfully");
-
-          // Store user info if available
-          if (result.user) {
-            console.log("[OAuth] User data received:", result.user);
-            const userInfo: Auth.User = {
-              id: result.user.id,
-              openId: result.user.openId,
-              name: result.user.name,
-              email: result.user.email,
-              loginMethod: result.user.loginMethod,
-              lastSignedIn: new Date(result.user.lastSignedIn || Date.now()),
-            };
-            await Auth.setUserInfo(userInfo);
-            console.log("[OAuth] User info stored:", userInfo);
+          if (sessionToken) {
+            await Auth.setSessionToken(sessionToken);
+          } else if (code && state) {
+            const result = await Api.exchangeOAuthCode(code, state);
+            if (!result.sessionToken) {
+              setStatus("error");
+              setErrorMessage("No session token received");
+              return;
+            }
+            await Auth.setSessionToken(result.sessionToken);
+            if (result.user) {
+              userInfo = {
+                id: result.user.id,
+                openId: result.user.openId,
+                name: result.user.name,
+                email: result.user.email,
+                loginMethod: result.user.loginMethod,
+                lastSignedIn: new Date(result.user.lastSignedIn || Date.now()),
+              };
+              await Auth.setUserInfo(userInfo);
+            }
           } else {
-            console.log("[OAuth] No user data in result");
+            setStatus("error");
+            setErrorMessage("Missing code or state parameter");
+            return;
           }
-
-          setStatus("success");
-          console.log("[OAuth] Authentication successful, redirecting to home...");
-
-          // Redirect to home after a short delay
-          setTimeout(() => {
-            console.log("[OAuth] Executing redirect...");
-            router.replace("/(tabs)");
-          }, 1000);
-        } else {
-          console.error("[OAuth] No session token in result:", result);
-          setStatus("error");
-          setErrorMessage("No session token received");
         }
+
+        // ── Check if a business owner exists for this social user ─────
+        // Load userInfo from storage if not already set
+        if (!userInfo) {
+          userInfo = await Auth.getUserInfo();
+        }
+
+        const email = userInfo?.email;
+        if (email) {
+          try {
+            const existing = await trpcUtils.business.checkByEmail.fetch({ email });
+            if (existing) {
+              // Existing business owner — load full data and go to home
+              console.log("[OAuth] Found existing business owner by email, loading data...");
+              const fullData = await trpcUtils.business.getFullData.fetch({ id: existing.id });
+              if (fullData) {
+                dispatch({ type: "LOAD_DATA", payload: {
+                  settings: fullData.owner ? (dbOwnerToSettings(fullData.owner) as any) : undefined,
+                  services: (fullData.services || []).map(dbServiceToLocal),
+                  clients: (fullData.clients || []).map(dbClientToLocal),
+                  appointments: (fullData.appointments || []).map(dbAppointmentToLocal),
+                  reviews: (fullData.reviews || []).map(dbReviewToLocal),
+                  discounts: (fullData.discounts || []).map(dbDiscountToLocal),
+                  giftCards: (fullData.giftCards || []).map(dbGiftCardToLocal),
+                  locations: (fullData.locations || []).map(dbLocationToLocal),
+                  products: (fullData.products || []).map(dbProductToLocal),
+                  staff: (fullData.staff || []).map(dbStaffToLocal),
+                  customSchedule: (fullData.customSchedule || []).map(dbCustomScheduleToLocal),
+                  businessOwnerId: existing.id,
+                }});
+              }
+              setStatus("success");
+              setTimeout(() => router.replace("/(tabs)"), 800);
+              return;
+            }
+          } catch (err) {
+            console.warn("[OAuth] checkByEmail failed:", err);
+          }
+        }
+
+        // ── New social user — redirect to onboarding to collect phone ──
+        console.log("[OAuth] New social user, redirecting to onboarding for phone collection...");
+        setStatus("success");
+        const socialName = userInfo?.name ?? "";
+        const socialEmail = userInfo?.email ?? "";
+        setTimeout(() => {
+          router.replace({
+            pathname: "/onboarding",
+            params: {
+              socialLogin: "1",
+              socialName,
+              socialEmail,
+            },
+          });
+        }, 500);
       } catch (error) {
         console.error("[OAuth] Callback error:", error);
         setStatus("error");
@@ -247,11 +220,9 @@ export default function OAuthCallback() {
         )}
         {status === "success" && (
           <>
-            <Text className="text-base leading-6 text-center text-foreground">
-              Authentication successful!
-            </Text>
-            <Text className="text-base leading-6 text-center text-foreground">
-              Redirecting...
+            <ActivityIndicator size="large" />
+            <Text className="mt-4 text-base leading-6 text-center text-foreground">
+              Setting up your account...
             </Text>
           </>
         )}

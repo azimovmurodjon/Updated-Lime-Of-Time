@@ -847,3 +847,12 @@
 - [ ] Fix login page: show dial code number (+1) next to flag in country code picker
 - [ ] Fix calendar timeline: appointments overlapping when multiple locations exist
 - [ ] Add location filter to calendar timeline view
+
+## Phase: Current Sprint
+
+- [ ] OTP screen: show inline error message when incorrect code entered
+- [ ] OTP screen: ensure Resend Code link is always visible after countdown
+- [ ] Calendar: remove "All" from location filter chips; default to first location
+- [ ] Settings → Schedule Hours: add per-location selector so each location has individual business hours
+- [ ] Social login: add Google / Apple / Microsoft sign-in buttons on login page
+- [ ] Social login: collect phone number from new social-login users on first sign-in

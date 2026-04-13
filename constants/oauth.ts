@@ -78,7 +78,7 @@ export const getRedirectUri = () => {
   }
 };
 
-export const getLoginUrl = () => {
+export const getLoginUrl = (loginHint?: string) => {
   const redirectUri = getRedirectUri();
   const state = encodeState(redirectUri);
 
@@ -87,6 +87,10 @@ export const getLoginUrl = () => {
   url.searchParams.set("redirectUri", redirectUri);
   url.searchParams.set("state", state);
   url.searchParams.set("type", "signIn");
+  if (loginHint) {
+    // Pass provider hint — portal will pre-select the provider if it supports it
+    url.searchParams.set("loginHint", loginHint);
+  }
 
   return url.toString();
 };
@@ -99,10 +103,11 @@ export const getLoginUrl = () => {
  *
  * On web, this simply redirects to the login URL.
  *
+ * @param loginHint Optional provider hint: "google", "apple", "microsoft"
  * @returns Always null, the callback is handled via deep link.
  */
-export async function startOAuthLogin(): Promise<string | null> {
-  const loginUrl = getLoginUrl();
+export async function startOAuthLogin(loginHint?: string): Promise<string | null> {
+  const loginUrl = getLoginUrl(loginHint);
 
   if (ReactNative.Platform.OS === "web") {
     // On web, just redirect
@@ -115,7 +120,6 @@ export async function startOAuthLogin(): Promise<string | null> {
   const supported = await Linking.canOpenURL(loginUrl);
   if (!supported) {
     console.warn("[OAuth] Cannot open login URL: URL scheme not supported");
-    // 可考虑抛出错误或返回错误状态，让调用方处理
     return null;
   }
 
@@ -123,7 +127,6 @@ export async function startOAuthLogin(): Promise<string | null> {
     await Linking.openURL(loginUrl);
   } catch (error) {
     console.error("[OAuth] Failed to open login URL:", error);
-    // 可考虑抛出错误让调用方处理
   }
 
   // The OAuth callback will reopen the app via deep link.

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { Text, View, Pressable, StyleSheet, Switch, Modal, ScrollView } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
@@ -152,7 +152,14 @@ export default function ScheduleSettingsScreen() {
   const router = useRouter();
   const { isTablet, hp } = useResponsive();
   const settings = state.settings;
-  const { activeLocation, hasMultipleLocations } = useActiveLocation();
+  const { activeLocation, activeLocations, hasMultipleLocations, setActiveLocation } = useActiveLocation();
+
+  // Auto-select the first location when multiple locations exist and none is selected
+  useEffect(() => {
+    if (hasMultipleLocations && !activeLocation && activeLocations.length > 0) {
+      setActiveLocation(activeLocations[0].id);
+    }
+  }, [hasMultipleLocations, activeLocation, activeLocations, setActiveLocation]);
 
   // Use the active location's working hours when a location is selected;
   // fall back to global settings.workingHours for single-location businesses.
@@ -414,8 +421,38 @@ export default function ScheduleSettingsScreen() {
           <IconSymbol name="arrow.left" size={22} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Schedule & Hours</Text>
-        {hasMultipleLocations ? <LocationSwitcher compact /> : <View style={{ width: 36 }} />}
+        <View style={{ width: 36 }} />
       </View>
+
+      {/* Location selector — shown when multiple locations exist */}
+      {hasMultipleLocations && (
+        <View style={{ borderBottomWidth: 1, borderBottomColor: colors.border, paddingHorizontal: hp, paddingVertical: 10, backgroundColor: colors.background }}>
+          <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Editing hours for</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={{ flexDirection: "row", gap: 6 }}>
+              {activeLocations.map((loc) => (
+                <Pressable
+                  key={loc.id}
+                  onPress={() => setActiveLocation(loc.id)}
+                  style={({ pressed }) => ({
+                    paddingHorizontal: 14,
+                    paddingVertical: 7,
+                    borderRadius: 18,
+                    borderWidth: 1.5,
+                    backgroundColor: activeLocation?.id === loc.id ? colors.primary + "18" : colors.surface,
+                    borderColor: activeLocation?.id === loc.id ? colors.primary : colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                  })}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: activeLocation?.id === loc.id ? colors.primary : colors.muted }}>
+                    {loc.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </ScrollView>
+        </View>
+      )}
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: hp, paddingVertical: 16, paddingBottom: 60 }}>
 
         {/* ── Buffer Time ──────────────────────────────────────────────────── */}

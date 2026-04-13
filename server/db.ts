@@ -116,6 +116,21 @@ export async function getBusinessOwnerByPhone(phone: string): Promise<BusinessOw
   return allOwners.find((o) => o.phone && normalizePhone(o.phone) === normalized);
 }
 
+export async function getBusinessOwnerByEmail(email: string): Promise<BusinessOwner | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const lowerEmail = email.toLowerCase();
+  const result = await db
+    .select()
+    .from(businessOwners)
+    .where(eq(businessOwners.email, lowerEmail))
+    .limit(1);
+  if (result.length > 0) return result[0];
+  // Fallback: case-insensitive scan for legacy records
+  const allOwners = await db.select().from(businessOwners);
+  return allOwners.find((o) => o.email && o.email.toLowerCase() === lowerEmail);
+}
+
 export async function getBusinessOwnerById(id: number): Promise<BusinessOwner | undefined> {
   const db = await getDb();
   if (!db) return undefined;

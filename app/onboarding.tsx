@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { useResponsive } from "@/hooks/use-responsive";
@@ -54,8 +54,9 @@ import Animated, {
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { CountryCodePicker, DEFAULT_COUNTRY, type Country } from "@/components/country-code-picker";
+import { startOAuthLogin } from "@/constants/oauth";
 
-type Step = 1 | "otp" | 2 | 3;
+type Step = 1 | "otp" | 2 | 3 | "socialPhone";
 
 // ─── Floating Particle ─────────────────────────────────────────────
 function FloatingParticle({
@@ -169,7 +170,9 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const { isTablet, hp, width, height } = useResponsive();
 
-  const [step, setStep] = useState<Step>(1);
+  const socialParams = useLocalSearchParams<{ socialLogin?: string; socialName?: string; socialEmail?: string }>();
+  const isSocialFlow = socialParams.socialLogin === "1";
+  const [step, setStep] = useState<Step>(isSocialFlow ? "socialPhone" : 1);
   const { biometricAvailable, biometricType, toggleBiometric } = useAppLockContext();
   const [selectedCountry, setSelectedCountry] = useState<Country>(DEFAULT_COUNTRY);
   const [phone, setPhone] = useState("");
@@ -351,6 +354,57 @@ export default function OnboardingScreen() {
     setOtpValue("");
     setOtpError("");
     setStep("otp");
+  };
+
+  const handleSocialPhoneNext = async () => {
+    if (!phone.trim()) return;
+    setLoading(true);
+    try {
+      const stripped = stripPhoneFormat(phone);
+      const rawPhone = selectedCountry.dial === "+1" ? stripped : `${selectedCountry.dial.replace("+", "")}${stripped}`;
+      // Check if a business owner already exists with this phone
+      const existing = await trpcUtils.business.checkByPhone.fetch({ phone: rawPhone });
+      if (existing) {
+        // Link social account to existing business owner and log in
+        const fullData = await trpcUtils.business.getFullData.fetch({ id: existing.id });
+        dispatch({ type: "SET_BUSINESS_OWNER_ID", payload: existing.id });
+        await AsyncStorage.setItem("@bookease_business_owner_id", String(existing.id));
+        if (fullData && fullData.owner) {
+          dispatch({
+            type: "LOAD_DATA",
+            payload: {
+              services: (fullData.services || []).map(dbServiceToLocal),
+              clients: (fullData.clients || []).map(dbClientToLocal),
+              appointments: (fullData.appointments || []).map(dbAppointmentToLocal),
+              reviews: (fullData.reviews || []).map(dbReviewToLocal),
+              discounts: (fullData.discounts || []).map(dbDiscountToLocal),
+              giftCards: (fullData.giftCards || []).map(dbGiftCardToLocal),
+              locations: (fullData.locations || []).map(dbLocationToLocal),
+              products: (fullData.products || []).map(dbProductToLocal),
+              staff: (fullData.staff || []).map(dbStaffToLocal),
+              customSchedule: (fullData.customSchedule || []).map(dbCustomScheduleToLocal),
+              settings: dbOwnerToSettings(fullData.owner) as any,
+              businessOwnerId: existing.id,
+            },
+          });
+        }
+        if (biometricAvailable && Platform.OS !== "web") {
+          setStep(3);
+        } else {
+          router.replace("/(tabs)");
+        }
+        return;
+      }
+      // New user — pre-fill from social data and go to business registration
+      if (socialParams.socialEmail) setEmail(socialParams.socialEmail);
+      setBusinessPhone(phone);
+      setStep(2);
+    } catch (err) {
+      console.error("[Onboarding] Social phone check failed:", err);
+      Alert.alert("Connection Error", "Cannot reach the server. Please check your internet connection and try again.", [{ text: "OK" }]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleOtpResend = async () => {
@@ -672,6 +726,105 @@ export default function OnboardingScreen() {
                       <Text style={styles.primaryBtnText}>Continue</Text>
                     )}
                   </Pressable>
+
+                  {/* ─── Social Login Divider ─────────────────── */}
+                  <View style={styles.dividerRow}>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.dividerText}>or continue with</Text>
+                    <View style={styles.dividerLine} />
+                  </View>
+
+                  {/* ─── Social Login Buttons ─────────────────── */}
+                  <View style={styles.socialRow}>
+                    <Pressable
+                      onPress={() => startOAuthLogin("google")}
+                      style={({ pressed }) => [styles.socialBtn, { opacity: pressed ? 0.75 : 1 }]}
+                    >
+                      <Text style={styles.socialBtnIcon}>G</Text>
+                      <Text style={styles.socialBtnText}>Google</Text>
+                    </Pressable>
+                    {Platform.OS === "ios" && (
+                      <Pressable
+                        onPress={() => startOAuthLogin("apple")}
+                        style={({ pressed }) => [styles.socialBtn, { opacity: pressed ? 0.75 : 1 }]}
+                      >
+                        <Text style={styles.socialBtnIcon}></Text>
+                        <Text style={styles.socialBtnText}>Apple</Text>
+                      </Pressable>
+                    )}
+                    <Pressable
+                      onPress={() => startOAuthLogin("microsoft")}
+                      style={({ pressed }) => [styles.socialBtn, { opacity: pressed ? 0.75 : 1 }]}
+                    >
+                      <Text style={styles.socialBtnIcon}>M</Text>
+                      <Text style={styles.socialBtnText}>Microsoft</Text>
+                    </Pressable>
+                  </View>
+                </Animated.View>
+              </>
+            )}
+
+            {/* Step socialPhone: Phone collection for new social login users */}
+            {step === "socialPhone" && (
+              <>
+                <Animated.View style={titleStyle}>
+                  <Text style={styles.stepTitle}>One more step!</Text>
+                  <Text style={styles.stepSubtitle}>
+                    {socialParams.socialName ? `Welcome, ${socialParams.socialName}! ` : ""}
+                    Please enter your phone number to complete setup.
+                  </Text>
+                </Animated.View>
+
+                <Animated.View style={[styles.inputGroup, inputStyle]}>
+                  <Text style={styles.inputLabel}>Phone Number</Text>
+                  <View style={styles.phoneRow}>
+                    <CountryCodePicker
+                      selected={selectedCountry}
+                      onSelect={setSelectedCountry}
+                      backgroundColor="#F9FAFB"
+                      textColor="#111827"
+                      borderColor="#E5E7EB"
+                    />
+                    <TextInput
+                      style={[
+                        styles.input,
+                        styles.phoneInput,
+                        inputFocused && styles.inputFocused,
+                      ]}
+                      placeholder={selectedCountry.dial === "+1" ? "(000) 000-0000" : "Phone number"}
+                      placeholderTextColor="#9CA3AF"
+                      value={phone}
+                      onChangeText={handlePhoneChange}
+                      keyboardType="phone-pad"
+                      returnKeyType="done"
+                      onSubmitEditing={() => handleBtnPress(handleSocialPhoneNext)}
+                      maxLength={selectedCountry.dial === "+1" ? 14 : 15}
+                      autoFocus
+                      editable={!loading}
+                      onFocus={() => setInputFocused(true)}
+                      onBlur={() => setInputFocused(false)}
+                    />
+                  </View>
+                </Animated.View>
+
+                <Animated.View style={btnStyle}>
+                  <Pressable
+                    onPress={() => handleBtnPress(handleSocialPhoneNext)}
+                    style={({ pressed }) => [
+                      styles.primaryBtn,
+                      {
+                        backgroundColor: phone.trim() && !loading ? "#4A7C59" : "#9CA3AF",
+                        opacity: pressed ? 0.9 : 1,
+                      },
+                    ]}
+                    disabled={!phone.trim() || loading}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#FFF" size="small" />
+                    ) : (
+                      <Text style={styles.primaryBtnText}>Continue</Text>
+                    )}
+                  </Pressable>
                 </Animated.View>
               </>
             )}
@@ -717,7 +870,22 @@ export default function OnboardingScreen() {
                     onBlur={() => setInputFocused(false)}
                     onSubmitEditing={() => handleBtnPress(handleOtpVerify)}
                   />
-                  {otpError ? <Text style={styles.errorText}>{otpError}</Text> : null}
+                  {otpError ? (
+                    <View style={{
+                      backgroundColor: "rgba(239,68,68,0.18)",
+                      borderWidth: 1,
+                      borderColor: "rgba(239,68,68,0.6)",
+                      borderRadius: 10,
+                      paddingHorizontal: 14,
+                      paddingVertical: 8,
+                      marginTop: 10,
+                      alignItems: "center",
+                    }}>
+                      <Text style={{ color: "#FF6B6B", fontSize: 13, fontWeight: "600", textAlign: "center" }}>
+                        {otpError}
+                      </Text>
+                    </View>
+                  ) : null}
                   <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", textAlign: "center", marginTop: 8 }}>
                     For testing, use code: 123456
                   </Text>
@@ -1206,6 +1374,52 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#6B7280",
+    fontFamily: Platform.OS === "ios" ? "Inter_600SemiBold" : undefined,
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 20,
+    marginBottom: 16,
+    gap: 10,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#E5E7EB",
+  },
+  dividerText: {
+    fontSize: 12,
+    color: "#9CA3AF",
+    fontWeight: "500",
+  },
+  socialRow: {
+    flexDirection: "row",
+    gap: 10,
+    justifyContent: "center",
+  },
+  socialBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#F9FAFB",
+  },
+  socialBtnIcon: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#374151",
+  },
+  socialBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#374151",
     fontFamily: Platform.OS === "ios" ? "Inter_600SemiBold" : undefined,
   },
 });

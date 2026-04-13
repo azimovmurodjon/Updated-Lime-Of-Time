@@ -305,6 +305,13 @@ export default function CalendarScreen() {
   const { activeLocation, activeLocations, hasMultipleLocations: hasMultiLoc, setActiveLocation } = useActiveLocation();
   const calLocationFilter = activeLocation?.id ?? null;
 
+  // Auto-select the first location when multiple locations exist and none is selected
+  useEffect(() => {
+    if (hasMultiLoc && !calLocationFilter && activeLocations.length > 0) {
+      setActiveLocation(activeLocations[0].id);
+    }
+  }, [hasMultiLoc, calLocationFilter, activeLocations, setActiveLocation]);
+
   // Use per-location workingHours if available, fall back to global settings (same logic as schedule-settings.tsx)
   const effectiveWorkingHours = useMemo(() => {
     if (activeLocation?.workingHours && Object.keys(activeLocation.workingHours).length > 0) {
@@ -1186,13 +1193,10 @@ export default function CalendarScreen() {
             <Text style={{ fontSize: 24, fontWeight: "700", color: colors.foreground }}>Calendar</Text>
           </View>
 
-          {/* Location Filter — shown when multiple locations exist */}
+          {/* Location Filter — shown when multiple locations exist, no All option */}
           {hasMultiLoc && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
               <View style={{ flexDirection: "row", gap: 6 }}>
-                <Pressable onPress={() => setActiveLocation(null)} style={({ pressed }) => [{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, backgroundColor: !calLocationFilter ? colors.primary + "15" : colors.surface, borderColor: !calLocationFilter ? colors.primary : colors.border, opacity: pressed ? 0.7 : 1 }]}>
-                  <Text style={{ fontSize: 12, fontWeight: "600", color: !calLocationFilter ? colors.primary : colors.muted }}>All</Text>
-                </Pressable>
                 {activeLocations.map((loc) => (
                   <Pressable key={loc.id} onPress={() => setActiveLocation(loc.id)} style={({ pressed }) => [{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, backgroundColor: calLocationFilter === loc.id ? colors.primary + "15" : colors.surface, borderColor: calLocationFilter === loc.id ? colors.primary : colors.border, opacity: pressed ? 0.7 : 1 }]}>
                     <Text style={{ fontSize: 12, fontWeight: "600", color: calLocationFilter === loc.id ? colors.primary : colors.muted }}>{loc.name}</Text>

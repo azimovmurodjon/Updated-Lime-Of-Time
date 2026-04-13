@@ -19,6 +19,14 @@ const businessRouter = router({
       return owner ?? null;
     }),
 
+  /** Check if a business owner exists by email (used for social login matching) */
+  checkByEmail: publicProcedure
+    .input(z.object({ email: z.string().email() }))
+    .query(async ({ input }) => {
+      const owner = await db.getBusinessOwnerByEmail(input.email.toLowerCase());
+      return owner ?? null;
+    }),
+
   /** Get business owner by ID */
   getById: publicProcedure
     .input(z.object({ id: z.number() }))
