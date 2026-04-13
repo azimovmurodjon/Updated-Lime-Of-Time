@@ -822,3 +822,6 @@
 - [x] Install and configure @sentry/react-native for automatic crash reporting
 - [x] Wire Sentry into app _layout.tsx as error boundary
 - [x] Add SENTRY_DSN environment variable (EXPO_PUBLIC_SENTRY_DSN — user must set from Sentry dashboard)
+
+## EAS Build Fix (Apr 13, 2026 - Session 5)
+- [x] Fix EAS iOS build failure: sentry-cli requires auth token for source map upload — add SENTRY_ALLOW_FAILURE=true to eas.json so build succeeds without a Sentry account configured
