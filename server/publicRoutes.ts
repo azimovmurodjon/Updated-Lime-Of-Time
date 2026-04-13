@@ -751,7 +751,13 @@ export function registerPublicRoutes(app: Express) {
             svc?.name ?? "a service",
             date,
             time,
-            appointmentLocalId
+            appointmentLocalId,
+            {
+              duration: dur,
+              locationName: bookLocationName || undefined,
+              clientPhone: clientPhone || undefined,
+              notes: enrichedNotes || undefined,
+            }
           );
         } else {
           // Fallback: Manus platform notification (no device token registered yet)
@@ -932,6 +938,12 @@ export function registerPublicRoutes(app: Express) {
         const svcList = await db.getServicesByOwner(owner.id);
         const svc = svcList.find((s) => s.localId === appt.serviceLocalId);
         const ownerPushToken = (owner as any).expoPushToken as string | null | undefined;
+        // Resolve location name for enriched notification
+        let cancelLocationName: string | undefined;
+        if (appt.locationId) {
+          const locs = await db.getLocationsByOwner(owner.id);
+          cancelLocationName = (locs as any[]).find((l: any) => l.localId === appt.locationId)?.name;
+        }
         if (ownerPushToken) {
           await notifyCancellation(
             ownerPushToken,
@@ -940,7 +952,12 @@ export function registerPublicRoutes(app: Express) {
             svc?.name || "appointment",
             appt.date,
             appt.time,
-            appointmentId
+            appointmentId,
+            {
+              duration: appt.duration || undefined,
+              locationName: cancelLocationName,
+              clientPhone: client?.phone || undefined,
+            }
           );
         } else {
           await throttledNotifyOwner({
@@ -1041,6 +1058,12 @@ export function registerPublicRoutes(app: Express) {
         const svcList = await db.getServicesByOwner(owner.id);
         const svc = svcList.find((s) => s.localId === appt.serviceLocalId);
         const ownerPushToken = (owner as any).expoPushToken as string | null | undefined;
+        // Resolve location name for enriched notification
+        let reschedLocationName: string | undefined;
+        if (appt.locationId) {
+          const locs = await db.getLocationsByOwner(owner.id);
+          reschedLocationName = (locs as any[]).find((l: any) => l.localId === appt.locationId)?.name;
+        }
         if (ownerPushToken) {
           await notifyReschedule(
             ownerPushToken,
@@ -1049,7 +1072,14 @@ export function registerPublicRoutes(app: Express) {
             svc?.name || "appointment",
             newDate,
             newTime,
-            appointmentId
+            appointmentId,
+            {
+              oldDate: appt.date,
+              oldTime: appt.time,
+              duration: appt.duration || undefined,
+              locationName: reschedLocationName,
+              clientPhone: client?.phone || undefined,
+            }
           );
         } else {
           await throttledNotifyOwner({
@@ -1104,7 +1134,11 @@ export function registerPublicRoutes(app: Express) {
             owner.businessName,
             clientName,
             svc?.name || "a service",
-            preferredDate
+            preferredDate,
+            {
+              clientPhone: clientPhone || undefined,
+              notes: notes || undefined,
+            }
           );
         } else {
           await throttledNotifyOwner({

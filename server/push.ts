@@ -2,10 +2,8 @@
  * Expo Push Notification Service
  *
  * Sends push notifications directly to the business owner's device via
- * the Expo Push API. Notifications appear as "Lime Of Time" on the device.
- *
- * Deep-link data payloads allow tapping a notification to navigate to
- * the correct screen in the app.
+ * the Expo Push API. All notifications include full appointment details
+ * and professional messaging.
  */
 
 export type PushNotificationData = {
@@ -16,6 +14,7 @@ export type PushNotificationData = {
     | "appointment_rescheduled"
     | "waitlist"
     | "appointment_reminder"
+    | "appointment_completed"
     | "general";
   /** Appointment local ID for navigating to the specific appointment */
   appointmentId?: string;
@@ -91,9 +90,11 @@ export async function sendExpoPush(
   }
 }
 
+// ─── Notification Functions ────────────────────────────────────────────────
+
 /**
- * Send a push notification for a new appointment request.
- * Tapping navigates to the Calendar → Requests tab.
+ * New appointment booking request from a client.
+ * Tapping navigates to Calendar → Requests tab.
  */
 export async function notifyNewBooking(
   expoPushToken: string,
@@ -102,23 +103,42 @@ export async function notifyNewBooking(
   serviceName: string,
   date: string,
   time: string,
-  appointmentId: string
+  appointmentId: string,
+  opts?: {
+    duration?: number;
+    locationName?: string;
+    clientPhone?: string;
+    staffName?: string;
+    notes?: string;
+  }
 ): Promise<boolean> {
+  const endTime = opts?.duration ? computeEndTime(time, opts.duration) : null;
+  const timeRange = endTime ? `${fmt12(time)} – ${fmt12(endTime)}` : fmt12(time);
+  const lines = [
+    `A new appointment request requires your review.`,
+    ``,
+    `👤 Client: ${clientName}${opts?.clientPhone ? ` · ${opts.clientPhone}` : ""}`,
+    `💈 Service: ${serviceName}${opts?.duration ? ` (${opts.duration} min)` : ""}`,
+    `📅 Date: ${date}`,
+    `⏰ Time: ${timeRange}`,
+    opts?.locationName ? `📍 Location: ${opts.locationName}` : null,
+    opts?.staffName ? `🧑‍💼 Staff: ${opts.staffName}` : null,
+    opts?.notes ? `📝 Notes: ${opts.notes}` : null,
+    ``,
+    `Tap to confirm or decline this request.`,
+  ].filter((l) => l !== null).join("\n");
+
   return sendExpoPush(expoPushToken, {
     title: `📅 New Booking Request — ${businessName}`,
-    body: `${clientName} requested ${serviceName} on ${date} at ${formatTime12(time)}. Tap to review.`,
-    data: {
-      type: "appointment_request",
-      appointmentId,
-      filter: "requests",
-    },
+    body: lines,
+    data: { type: "appointment_request", appointmentId, filter: "requests" },
     channelId: "appointments",
   });
 }
 
 /**
- * Send a push notification for a client-initiated cancellation.
- * Tapping navigates to the Calendar → Cancelled tab.
+ * Client-initiated appointment cancellation.
+ * Tapping navigates to Calendar → Cancelled tab.
  */
 export async function notifyCancellation(
   expoPushToken: string,
@@ -127,23 +147,44 @@ export async function notifyCancellation(
   serviceName: string,
   date: string,
   time: string,
-  appointmentId: string
+  appointmentId: string,
+  opts?: {
+    duration?: number;
+    locationName?: string;
+    clientPhone?: string;
+    cancellationFee?: number;
+    reason?: string;
+  }
 ): Promise<boolean> {
+  const endTime = opts?.duration ? computeEndTime(time, opts.duration) : null;
+  const timeRange = endTime ? `${fmt12(time)} – ${fmt12(endTime)}` : fmt12(time);
+  const lines = [
+    `An appointment has been cancelled by the client.`,
+    ``,
+    `👤 Client: ${clientName}${opts?.clientPhone ? ` · ${opts.clientPhone}` : ""}`,
+    `💈 Service: ${serviceName}${opts?.duration ? ` (${opts.duration} min)` : ""}`,
+    `📅 Date: ${date}`,
+    `⏰ Time: ${timeRange}`,
+    opts?.locationName ? `📍 Location: ${opts.locationName}` : null,
+    opts?.reason ? `💬 Reason: ${opts.reason}` : null,
+    opts?.cancellationFee && opts.cancellationFee > 0
+      ? `💳 Cancellation Fee: $${opts.cancellationFee.toFixed(2)}`
+      : null,
+    ``,
+    `This time slot is now available for new bookings.`,
+  ].filter((l) => l !== null).join("\n");
+
   return sendExpoPush(expoPushToken, {
     title: `❌ Appointment Cancelled — ${businessName}`,
-    body: `${clientName} cancelled their ${serviceName} on ${date} at ${formatTime12(time)}.`,
-    data: {
-      type: "appointment_cancelled",
-      appointmentId,
-      filter: "cancelled",
-    },
+    body: lines,
+    data: { type: "appointment_cancelled", appointmentId, filter: "cancelled" },
     channelId: "appointments",
   });
 }
 
 /**
- * Send a push notification for a client-initiated reschedule.
- * Tapping navigates to the Calendar → Requests tab (needs re-confirmation).
+ * Client-initiated appointment reschedule request.
+ * Tapping navigates to Calendar → Requests tab for re-confirmation.
  */
 export async function notifyReschedule(
   expoPushToken: string,
@@ -152,47 +193,136 @@ export async function notifyReschedule(
   serviceName: string,
   newDate: string,
   newTime: string,
-  appointmentId: string
+  appointmentId: string,
+  opts?: {
+    oldDate?: string;
+    oldTime?: string;
+    duration?: number;
+    locationName?: string;
+    clientPhone?: string;
+  }
 ): Promise<boolean> {
+  const endTime = opts?.duration ? computeEndTime(newTime, opts.duration) : null;
+  const timeRange = endTime ? `${fmt12(newTime)} – ${fmt12(endTime)}` : fmt12(newTime);
+  const lines = [
+    `A client has requested to reschedule their appointment.`,
+    ``,
+    `👤 Client: ${clientName}${opts?.clientPhone ? ` · ${opts.clientPhone}` : ""}`,
+    `💈 Service: ${serviceName}${opts?.duration ? ` (${opts.duration} min)` : ""}`,
+    opts?.oldDate && opts?.oldTime
+      ? `📅 Original: ${opts.oldDate} at ${fmt12(opts.oldTime)}`
+      : null,
+    `📅 Requested: ${newDate}`,
+    `⏰ New Time: ${timeRange}`,
+    opts?.locationName ? `📍 Location: ${opts.locationName}` : null,
+    ``,
+    `Tap to confirm or decline the new time.`,
+  ].filter((l) => l !== null).join("\n");
+
   return sendExpoPush(expoPushToken, {
-    title: `🔄 Appointment Rescheduled — ${businessName}`,
-    body: `${clientName} rescheduled their ${serviceName} to ${newDate} at ${formatTime12(newTime)}. Tap to confirm.`,
-    data: {
-      type: "appointment_rescheduled",
-      appointmentId,
-      filter: "requests",
-    },
+    title: `🔄 Reschedule Request — ${businessName}`,
+    body: lines,
+    data: { type: "appointment_rescheduled", appointmentId, filter: "requests" },
     channelId: "appointments",
   });
 }
 
 /**
- * Send a push notification for a new waitlist entry.
- * Tapping navigates to the Calendar → Requests tab.
+ * New waitlist entry from a client.
+ * Tapping navigates to Calendar → Requests tab.
  */
 export async function notifyWaitlist(
   expoPushToken: string,
   businessName: string,
   clientName: string,
   serviceName: string,
-  preferredDate: string
+  preferredDate: string,
+  opts?: {
+    clientPhone?: string;
+    preferredTime?: string;
+    notes?: string;
+  }
 ): Promise<boolean> {
+  const lines = [
+    `A client has joined the waitlist and is requesting an appointment.`,
+    ``,
+    `👤 Client: ${clientName}${opts?.clientPhone ? ` · ${opts.clientPhone}` : ""}`,
+    `💈 Service: ${serviceName}`,
+    `📅 Preferred Date: ${preferredDate}`,
+    opts?.preferredTime ? `⏰ Preferred Time: ${fmt12(opts.preferredTime)}` : null,
+    opts?.notes ? `📝 Notes: ${opts.notes}` : null,
+    ``,
+    `Tap to review and schedule this client.`,
+  ].filter((l) => l !== null).join("\n");
+
   return sendExpoPush(expoPushToken, {
     title: `⏳ New Waitlist Entry — ${businessName}`,
-    body: `${clientName} joined the waitlist for ${serviceName} on ${preferredDate}.`,
-    data: {
-      type: "waitlist",
-      filter: "requests",
-    },
+    body: lines,
+    data: { type: "waitlist", filter: "requests" },
     channelId: "appointments",
   });
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────
+/**
+ * Appointment automatically marked as completed by the system.
+ * Tapping navigates to the specific appointment detail screen.
+ */
+export async function notifyAutoComplete(
+  expoPushToken: string,
+  businessName: string,
+  clientName: string,
+  serviceName: string,
+  date: string,
+  time: string,
+  appointmentId: string,
+  opts?: {
+    duration?: number;
+    locationName?: string;
+    clientPhone?: string;
+    staffName?: string;
+    delayMinutes?: number;
+  }
+): Promise<boolean> {
+  const endTime = opts?.duration ? computeEndTime(time, opts.duration) : null;
+  const timeRange = endTime ? `${fmt12(time)} – ${fmt12(endTime)}` : fmt12(time);
+  const delay = opts?.delayMinutes ?? 5;
+  const lines = [
+    `The following appointment has been automatically marked as completed.`,
+    ``,
+    `👤 Client: ${clientName}${opts?.clientPhone ? ` · ${opts.clientPhone}` : ""}`,
+    `💈 Service: ${serviceName}${opts?.duration ? ` (${opts.duration} min)` : ""}`,
+    `📅 Date: ${date}`,
+    `⏰ Time: ${timeRange}`,
+    opts?.locationName ? `📍 Location: ${opts.locationName}` : null,
+    opts?.staffName ? `🧑‍💼 Staff: ${opts.staffName}` : null,
+    ``,
+    `Auto-completed ${delay} minute${delay !== 1 ? "s" : ""} after the scheduled end time.`,
+    `Tap to view the full appointment record.`,
+  ].filter((l) => l !== null).join("\n");
 
-function formatTime12(time: string): string {
+  return sendExpoPush(expoPushToken, {
+    title: `✅ Appointment Completed — ${businessName}`,
+    body: lines,
+    data: { type: "appointment_completed", appointmentId, filter: "completed" },
+    channelId: "completions",
+  });
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────
+
+/** Format "HH:MM" → "h:MM AM/PM" */
+function fmt12(time: string): string {
   const [h, m] = time.split(":").map(Number);
   const ampm = h >= 12 ? "PM" : "AM";
   const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
   return `${hour12}:${m.toString().padStart(2, "0")} ${ampm}`;
+}
+
+/** Compute end time "HH:MM" from start time + duration in minutes */
+function computeEndTime(startTime: string, durationMinutes: number): string {
+  const [h, m] = startTime.split(":").map(Number);
+  const totalMins = h * 60 + m + durationMinutes;
+  const endH = Math.floor(totalMins / 60) % 24;
+  const endM = totalMins % 60;
+  return `${endH.toString().padStart(2, "0")}:${endM.toString().padStart(2, "0")}`;
 }

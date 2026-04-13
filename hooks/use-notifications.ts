@@ -31,6 +31,7 @@ export type NotificationData = {
     | "appointment_request"
     | "appointment_cancelled"
     | "appointment_rescheduled"
+    | "appointment_completed"
     | "waitlist"
     | "general";
   /** Appointment ID to navigate to */
@@ -54,13 +55,20 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
     return null;
   }
 
-  // Set up Android notification channel
+  // Set up Android notification channels
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("appointments", {
       name: "Appointment Notifications",
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: "#4a8c3f",
+      sound: "default",
+    });
+    await Notifications.setNotificationChannelAsync("completions", {
+      name: "Appointment Completions",
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 100, 100, 100],
+      lightColor: "#22C55E",
       sound: "default",
     });
     await Notifications.setNotificationChannelAsync("default", {
@@ -103,19 +111,44 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
   }
 }
 
+/** Format a time string "HH:MM" to "h:MM AM/PM" */
+function fmt12(time: string): string {
+  const [h, m] = time.split(":").map(Number);
+  const period = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 === 0 ? 12 : h % 12;
+  return `${hour}:${m.toString().padStart(2, "0")} ${period}`;
+}
+
+/** Format a date string "YYYY-MM-DD" to "Mon, Apr 14, 2026" */
+function fmtDate(dateStr: string): string {
+  const d = new Date(dateStr + "T12:00:00");
+  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+}
+
+/** Compute appointment end time string "HH:MM" from start time + duration */
+function computeEndTime(startTime: string, durationMinutes: number): string {
+  const [h, m] = startTime.split(":").map(Number);
+  const totalMins = h * 60 + m + durationMinutes;
+  const endH = Math.floor(totalMins / 60) % 24;
+  const endM = totalMins % 60;
+  return `${endH.toString().padStart(2, "0")}:${endM.toString().padStart(2, "0")}`;
+}
+
 /**
  * Hook to manage push notification registration, local appointment reminders,
- * and notification tap deep-link navigation.
+ * auto-complete scheduling, and notification tap deep-link navigation.
  */
 export function useNotifications() {
-  const { state } = useStore();
+  const { state, dispatch, syncToDb } = useStore();
   const router = useRouter();
   const scheduledRef = useRef<Set<string>>(new Set());
   const listenerSetupRef = useRef(false);
   const tokenRegisteredRef = useRef(false);
 
   // Get business name for notification titles
-  const businessName = state.settings.businessName || "Lime Of Time";
+  const businessName = state.settings.businessName || "Your Business";
+  const autoCompleteEnabled = state.settings.autoCompleteEnabled ?? false;
+  const autoCompleteDelayMinutes = state.settings.autoCompleteDelayMinutes ?? 5;
 
   // tRPC mutation to save push token to server
   const updateBusiness = trpc.business.update.useMutation();
@@ -135,56 +168,38 @@ export function useNotifications() {
       switch (notifType) {
         case "appointment_request":
         case "appointment_rescheduled":
-          // New booking or reschedule → go to Requests tab
-          router.push({
-            pathname: "/(tabs)/calendar",
-            params: { filter: "requests" },
-          });
+          router.push({ pathname: "/(tabs)/calendar", params: { filter: "requests" } });
           break;
 
         case "appointment_cancelled":
-          // Client cancelled → go to Cancelled tab
-          router.push({
-            pathname: "/(tabs)/calendar",
-            params: { filter: "cancelled" },
-          });
+          router.push({ pathname: "/(tabs)/calendar", params: { filter: "cancelled" } });
+          break;
+
+        case "appointment_completed":
+          if (appointmentId) {
+            router.push({ pathname: "/appointment-detail", params: { id: appointmentId } });
+          } else {
+            router.push({ pathname: "/(tabs)/calendar", params: { filter: "completed" } });
+          }
           break;
 
         case "waitlist":
-          // Waitlist entry → go to Requests tab
-          router.push({
-            pathname: "/(tabs)/calendar",
-            params: { filter: "requests" },
-          });
+          router.push({ pathname: "/(tabs)/calendar", params: { filter: "requests" } });
           break;
 
         case "appointment_reminder":
-          // Appointment reminder → go to appointment detail if we have ID
           if (appointmentId) {
-            router.push({
-              pathname: "/appointment-detail",
-              params: { id: appointmentId },
-            });
+            router.push({ pathname: "/appointment-detail", params: { id: appointmentId } });
           } else {
-            router.push({
-              pathname: "/(tabs)/calendar",
-              params: { filter: "upcoming" },
-            });
+            router.push({ pathname: "/(tabs)/calendar", params: { filter: "upcoming" } });
           }
           break;
 
         default:
-          // Generic: use filter param if present, otherwise appointment detail or home
           if (filter) {
-            router.push({
-              pathname: "/(tabs)/calendar",
-              params: { filter },
-            });
+            router.push({ pathname: "/(tabs)/calendar", params: { filter } });
           } else if (appointmentId) {
-            router.push({
-              pathname: "/appointment-detail",
-              params: { id: appointmentId },
-            });
+            router.push({ pathname: "/appointment-detail", params: { id: appointmentId } });
           } else if (data.url && typeof data.url === "string") {
             router.push(data.url as any);
           }
@@ -205,19 +220,11 @@ export function useNotifications() {
 
     registerForPushNotificationsAsync().then((token) => {
       if (token && state.businessOwnerId) {
-        // Save the push token to the server so it can send notifications
         updateBusiness.mutate(
+          { id: state.businessOwnerId, expoPushToken: token },
           {
-            id: state.businessOwnerId,
-            expoPushToken: token,
-          },
-          {
-            onSuccess: () => {
-              logger.log("[Notifications] Push token saved to server");
-            },
-            onError: (err) => {
-              logger.warn("[Notifications] Failed to save push token:", err);
-            },
+            onSuccess: () => logger.log("[Notifications] Push token saved to server"),
+            onError: (err) => logger.warn("[Notifications] Failed to save push token:", err),
           }
         );
       }
@@ -230,27 +237,20 @@ export function useNotifications() {
     if (listenerSetupRef.current) return;
     listenerSetupRef.current = true;
 
-    // Handle notification taps when app is running (foreground/background)
-    const responseSubscription =
-      Notifications.addNotificationResponseReceivedListener((response) => {
-        const data = response.notification.request.content
-          .data as NotificationData;
-        if (data) {
-          // Small delay to ensure navigation is ready
-          setTimeout(() => handleNotificationNavigation(data), 300);
-        }
-      });
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as NotificationData;
+      if (data) {
+        setTimeout(() => handleNotificationNavigation(data), 300);
+      }
+    });
 
     // Handle cold-start: check if app was opened from a notification
     const checkInitialNotification = async () => {
       try {
-        const lastResponse =
-          await Notifications.getLastNotificationResponseAsync();
+        const lastResponse = await Notifications.getLastNotificationResponseAsync();
         if (lastResponse) {
-          const data = lastResponse.notification.request.content
-            .data as NotificationData;
+          const data = lastResponse.notification.request.content.data as NotificationData;
           if (data) {
-            // Longer delay for cold start to ensure app is fully loaded
             setTimeout(() => handleNotificationNavigation(data), 1000);
           }
         }
@@ -266,12 +266,13 @@ export function useNotifications() {
     };
   }, [handleNotificationNavigation]);
 
-  // Schedule local reminders for upcoming appointments
+  // Schedule local reminders and auto-complete notifications for upcoming appointments
   useEffect(() => {
     if (Platform.OS === "web") return;
     if (!state.settings.notificationsEnabled) return;
 
     const now = new Date();
+
     const upcomingAppts = state.appointments.filter((a) => {
       if (a.status !== "confirmed" && a.status !== "pending") return false;
       const [h, m] = a.time.split(":").map(Number);
@@ -279,66 +280,147 @@ export function useNotifications() {
       apptDate.setHours(h, m, 0, 0);
       // Only schedule for appointments in the future (within 7 days)
       const diffMs = apptDate.getTime() - now.getTime();
-      return diffMs > 30 * 60 * 1000 && diffMs < 7 * 24 * 60 * 60 * 1000;
+      return diffMs > 0 && diffMs < 7 * 24 * 60 * 60 * 1000;
     });
 
     upcomingAppts.forEach(async (appt) => {
-      const key = `reminder-${appt.id}`;
-      if (scheduledRef.current.has(key)) return;
-      scheduledRef.current.add(key);
+      const svc = state.services.find((s) => s.id === appt.serviceId);
+      const client = state.clients.find((c) => c.id === appt.clientId);
+      const location = state.locations?.find((l) => l.id === appt.locationId);
+
+      const clientName = client?.name || "Client";
+      const svcName = svc?.name || "Service";
+      const duration = appt.duration;
+      const startFmt = fmt12(appt.time);
+      const endTime = computeEndTime(appt.time, duration);
+      const endFmt = fmt12(endTime);
+      const dateFmt = fmtDate(appt.date);
+      const locationLine = location?.name ? `📍 ${location.name}` : "";
+      const staff = state.staff?.find((s: any) => s.id === appt.staffId);
+      const staffLine = staff?.name ? `👤 ${staff.name}` : "";
 
       const [h, m] = appt.time.split(":").map(Number);
       const apptDate = new Date(appt.date + "T00:00:00");
       apptDate.setHours(h, m, 0, 0);
 
-      const svc = state.services.find((s) => s.id === appt.serviceId);
-      const client = state.clients.find((c) => c.id === appt.clientId);
-
-      // Schedule 30-minute reminder
-      const reminderDate = new Date(apptDate.getTime() - 30 * 60 * 1000);
-      if (reminderDate.getTime() > now.getTime()) {
-        try {
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: `⏰ Appointment in 30 min — ${businessName}`,
-              body: `${client?.name || "Client"} | ${svc?.name || "Service"} at ${appt.time} (${appt.duration} min) on ${appt.date}`,
-              data: {
-                type: "appointment_reminder",
-                appointmentId: appt.id,
-              } as NotificationData,
-              sound: true,
-            },
-            trigger: {
-              type: Notifications.SchedulableTriggerInputTypes.DATE,
-              date: reminderDate,
-            },
-          });
-        } catch (err) {
-          logger.warn("[Notifications] Failed to schedule 30-min reminder:", err);
+      // ── 1-hour reminder ────────────────────────────────────────────────
+      const hourReminderKey = `reminder-1h-${appt.id}`;
+      if (!scheduledRef.current.has(hourReminderKey)) {
+        scheduledRef.current.add(hourReminderKey);
+        const hourReminderDate = new Date(apptDate.getTime() - 60 * 60 * 1000);
+        if (hourReminderDate.getTime() > now.getTime()) {
+          try {
+            await Notifications.scheduleNotificationAsync({
+              content: {
+                title: `⏰ Upcoming Appointment in 1 Hour — ${businessName}`,
+                body: [
+                  `Client: ${clientName}`,
+                  `Service: ${svcName} (${duration} min)`,
+                  `Time: ${startFmt} – ${endFmt}`,
+                  `Date: ${dateFmt}`,
+                  locationLine,
+                  staffLine,
+                ].filter(Boolean).join("\n"),
+                data: { type: "appointment_reminder", appointmentId: appt.id } as NotificationData,
+                sound: true,
+              },
+              trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: hourReminderDate },
+            });
+          } catch (err) {
+            logger.warn("[Notifications] Failed to schedule 1-hour reminder:", err);
+          }
         }
       }
 
-      // Schedule 1-hour reminder
-      const hourReminderDate = new Date(apptDate.getTime() - 60 * 60 * 1000);
-      if (hourReminderDate.getTime() > now.getTime()) {
-        try {
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: `⏰ Appointment in 1 Hour — ${businessName}`,
-              body: `${client?.name || "Client"} | ${svc?.name || "Service"} at ${appt.time} (${appt.duration} min) on ${appt.date}`,
-              data: {
-                type: "appointment_reminder",
-                appointmentId: appt.id,
-              } as NotificationData,
-              sound: true,
-            },
-            trigger: {
-              type: Notifications.SchedulableTriggerInputTypes.DATE,
-              date: hourReminderDate,
-            },
-          });
-        } catch (err) {
-          logger.warn("[Notifications] Failed to schedule 1-hour reminder:", err);
+      // ── 30-minute reminder ─────────────────────────────────────────────
+      const reminderKey = `reminder-30m-${appt.id}`;
+      if (!scheduledRef.current.has(reminderKey)) {
+        scheduledRef.current.add(reminderKey);
+        const reminderDate = new Date(apptDate.getTime() - 30 * 60 * 1000);
+        if (reminderDate.getTime() > now.getTime()) {
+          try {
+            await Notifications.scheduleNotificationAsync({
+              content: {
+                title: `⏰ Appointment in 30 min — ${businessName}`,
+                body: [
+                  `Client: ${clientName}`,
+                  `Service: ${svcName} (${duration} min)`,
+                  `Time: ${startFmt} – ${endFmt}`,
+                  `Date: ${dateFmt}`,
+                  locationLine,
+                  staffLine,
+                  `Please ensure everything is ready for your client's arrival.`,
+                ].filter(Boolean).join("\n"),
+                data: { type: "appointment_reminder", appointmentId: appt.id } as NotificationData,
+                sound: true,
+              },
+              trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: reminderDate },
+            });
+          } catch (err) {
+            logger.warn("[Notifications] Failed to schedule 30-min reminder:", err);
+          }
+        }
+      }
+
+      // ── Auto-complete notification ──────────────────────────────────────
+      if (autoCompleteEnabled) {
+        const autoCompleteKey = `autocomplete-${appt.id}-${autoCompleteDelayMinutes}`;
+        if (!scheduledRef.current.has(autoCompleteKey)) {
+          scheduledRef.current.add(autoCompleteKey);
+
+          // End time = start time + duration + delay
+          const [endH, endM] = endTime.split(":").map(Number);
+          const autoCompleteDate = new Date(appt.date + "T00:00:00");
+          autoCompleteDate.setHours(endH, endM + autoCompleteDelayMinutes, 0, 0);
+
+          if (autoCompleteDate.getTime() > now.getTime()) {
+            try {
+              await Notifications.scheduleNotificationAsync({
+                content: {
+                  title: `✅ Appointment Completed — ${businessName}`,
+                  body: [
+                    `The following appointment has been automatically marked as completed:`,
+                    ``,
+                    `Client: ${clientName}`,
+                    `Service: ${svcName} (${duration} min)`,
+                    `Time: ${startFmt} – ${endFmt}`,
+                    `Date: ${dateFmt}`,
+                    locationLine,
+                    staffLine,
+                    ``,
+                    `Tap to view the appointment details.`,
+                  ].filter(Boolean).join("\n"),
+                  data: {
+                    type: "appointment_completed",
+                    appointmentId: appt.id,
+                    filter: "completed",
+                  } as NotificationData,
+                  sound: true,
+                },
+                trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: autoCompleteDate },
+              });
+
+              // Also schedule the actual status update via a separate identifier
+              // We use a second notification with a special marker that the listener
+              // will intercept to trigger the store update
+              await Notifications.scheduleNotificationAsync({
+                identifier: `autocomplete-action-${appt.id}`,
+                content: {
+                  title: `_autocomplete_`,
+                  body: `_autocomplete_${appt.id}`,
+                  data: {
+                    type: "appointment_completed",
+                    appointmentId: appt.id,
+                    _action: "mark_complete",
+                  } as any,
+                  sound: false,
+                },
+                trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: autoCompleteDate },
+              });
+            } catch (err) {
+              logger.warn("[Notifications] Failed to schedule auto-complete notification:", err);
+            }
+          }
         }
       }
     });
@@ -346,9 +428,36 @@ export function useNotifications() {
     state.appointments,
     state.services,
     state.clients,
+    state.locations,
     state.settings.notificationsEnabled,
+    autoCompleteEnabled,
+    autoCompleteDelayMinutes,
     businessName,
   ]);
+
+  // Handle auto-complete action notifications (mark appointment as completed in store)
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    const subscription = Notifications.addNotificationReceivedListener((notification) => {
+      const data = notification.request.content.data as any;
+      if (data?._action === "mark_complete" && data?.appointmentId) {
+        const apptId = data.appointmentId as string;
+        const appt = state.appointments.find((a) => a.id === apptId);
+        if (appt && appt.status === "confirmed") {
+          const updateAction = {
+            type: "UPDATE_APPOINTMENT_STATUS" as const,
+            payload: { id: apptId, status: "completed" as const },
+          };
+          dispatch(updateAction);
+          syncToDb(updateAction);
+          logger.log("[Notifications] Auto-completed appointment:", apptId);
+        }
+      }
+    });
+
+    return () => subscription.remove();
+  }, [state.appointments, dispatch, syncToDb]);
 
   const cancelAllReminders = useCallback(async () => {
     if (Platform.OS === "web") return;

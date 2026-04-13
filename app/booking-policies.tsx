@@ -15,6 +15,21 @@ export default function BookingPoliciesScreen() {
   const settings = state.settings;
   const policy = settings.cancellationPolicy;
 
+  const autoComplete = settings.autoCompleteEnabled;
+  const autoCompleteDelay = settings.autoCompleteDelayMinutes ?? 5;
+
+  const toggleAutoComplete = useCallback(() => {
+    const action = { type: "UPDATE_SETTINGS" as const, payload: { autoCompleteEnabled: !autoComplete } };
+    dispatch(action);
+    syncToDb(action);
+  }, [autoComplete, dispatch, syncToDb]);
+
+  const setAutoCompleteDelay = useCallback((minutes: number) => {
+    const action = { type: "UPDATE_SETTINGS" as const, payload: { autoCompleteDelayMinutes: minutes } };
+    dispatch(action);
+    syncToDb(action);
+  }, [dispatch, syncToDb]);
+
   const toggleCancellation = useCallback(() => {
     const action = { type: "UPDATE_SETTINGS" as const, payload: { cancellationPolicy: { ...policy, enabled: !policy.enabled } } };
     dispatch(action);
@@ -115,6 +130,55 @@ export default function BookingPoliciesScreen() {
               </View>
               <Text style={{ fontSize: 11, color: colors.muted, marginTop: 8, lineHeight: 16 }}>
                 Clients will be charged {policy.feePercentage}% of the service price if they cancel within {policy.hoursBeforeAppointment} hour{policy.hoursBeforeAppointment > 1 ? "s" : ""} of the appointment.
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Auto-Complete Appointments */}
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.switchRow}>
+            <View style={styles.switchLabel}>
+              <IconSymbol name="checkmark.circle.fill" size={20} color={colors.success} />
+              <View style={{ marginLeft: 12, flex: 1 }}>
+                <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground }}>Auto-Complete Appointments</Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 16 }}>
+                  Automatically mark appointments as completed after the service ends
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={autoComplete}
+              onValueChange={toggleAutoComplete}
+              trackColor={{ false: colors.border, true: colors.success + "60" }}
+              thumbColor={autoComplete ? colors.success : colors.muted}
+            />
+          </View>
+          {autoComplete && (
+            <View style={{ marginTop: 14 }}>
+              <Text style={{ fontSize: 12, fontWeight: "500", color: colors.muted, marginBottom: 8 }}>Mark Complete After End Time</Text>
+              <View style={styles.chipRow}>
+                {[5, 10, 15, 30].map((m) => (
+                  <Pressable
+                    key={m}
+                    onPress={() => setAutoCompleteDelay(m)}
+                    style={({ pressed }) => [
+                      styles.chip,
+                      {
+                        backgroundColor: autoCompleteDelay === m ? colors.success : colors.background,
+                        borderColor: autoCompleteDelay === m ? colors.success : colors.border,
+                        opacity: pressed ? 0.7 : 1,
+                      },
+                    ]}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: "500", color: autoCompleteDelay === m ? "#FFFFFF" : colors.foreground }}>
+                      +{m} min
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Text style={{ fontSize: 11, color: colors.muted, marginTop: 8, lineHeight: 16 }}>
+                Appointments will be automatically marked as completed {autoCompleteDelay} minute{autoCompleteDelay > 1 ? "s" : ""} after the scheduled end time. A notification will be sent to confirm.
               </Text>
             </View>
           )}

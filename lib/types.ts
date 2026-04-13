@@ -234,6 +234,8 @@ export interface BusinessSettings {
   bufferTime: number; // minutes between appointments (0 = no buffer)
   customSlug: string; // custom booking page slug
   businessHoursEndDate: string | null; // ISO date string "YYYY-MM-DD" or null for open-ended
+  autoCompleteEnabled: boolean; // automatically mark appointments as completed after end time + delay
+  autoCompleteDelayMinutes: number; // minutes after appointment end time to auto-complete (5, 10, 15, 30)
 }
 
 export const SERVICE_COLORS = [

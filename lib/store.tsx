@@ -62,6 +62,8 @@ const initialSettings: BusinessSettings = {
   bufferTime: 0,
   customSlug: "",
   businessHoursEndDate: null,
+  autoCompleteEnabled: false,
+  autoCompleteDelayMinutes: 5,
 };
 
 const initialState: AppState = {
@@ -596,6 +598,8 @@ export function dbOwnerToSettings(owner: any): Partial<BusinessSettings> {
     bufferTime: owner.bufferTime ?? 0,
     customSlug: owner.customSlug ?? "",
     businessHoursEndDate: (owner as any).businessHoursEndDate ?? null,
+    autoCompleteEnabled: (owner as any).autoCompleteEnabled ?? false,
+    autoCompleteDelayMinutes: (owner as any).autoCompleteDelayMinutes ?? 5,
     // Merge with defaults so new fields are always present even for old DB records
     notificationPreferences: {
       ...DEFAULT_NOTIFICATION_PREFERENCES,
@@ -1171,6 +1175,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             if ((settings as any).bufferTime !== undefined) updateData.bufferTime = (settings as any).bufferTime;
             if ((settings as any).customSlug !== undefined) updateData.customSlug = (settings as any).customSlug;
             if ((settings as any).businessHoursEndDate !== undefined) updateData.businessHoursEndDate = (settings as any).businessHoursEndDate;
+            if ((settings as any).autoCompleteEnabled !== undefined) updateData.autoCompleteEnabled = (settings as any).autoCompleteEnabled;
+            if ((settings as any).autoCompleteDelayMinutes !== undefined) updateData.autoCompleteDelayMinutes = (settings as any).autoCompleteDelayMinutes;
+            if ((settings as any).notificationPreferences !== undefined) updateData.notificationPreferences = (settings as any).notificationPreferences;
             // Only update if there's something besides id
             if (Object.keys(updateData).length > 1) {
               await updateBusinessMut.mutateAsync(updateData);

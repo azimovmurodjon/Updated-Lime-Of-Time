@@ -127,6 +127,20 @@
       "when": 1776054980271,
       "tag": "0017_nice_dreadnoughts",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1776108285088,
+      "tag": "0018_lovely_living_tribunal",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1776108405780,
+      "tag": "0019_rich_thaddeus_ross",
+      "breakpoints": true
     }
   ]
 }

@@ -93,6 +93,9 @@ const businessRouter = router({
         customSlug: z.string().optional(),
         businessHoursEndDate: z.string().nullable().optional(),
         expoPushToken: z.string().nullable().optional(),
+        autoCompleteEnabled: z.boolean().optional(),
+        autoCompleteDelayMinutes: z.number().optional(),
+        notificationPreferences: z.any().optional(),
       })
     )
     .mutation(async ({ input }) => {

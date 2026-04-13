@@ -160,6 +160,8 @@ describe("Business Profile", () => {
       bufferTime: 0,
       customSlug: "",
       businessHoursEndDate: null,
+      autoCompleteEnabled: false,
+      autoCompleteDelayMinutes: 5,
     };
     expect(settings.profile).toBeDefined();
     expect(settings.profile.ownerName).toBe("");
@@ -302,6 +304,8 @@ describe("Theme Mode", () => {
       bufferTime: 0,
       customSlug: "",
       businessHoursEndDate: null,
+      autoCompleteEnabled: false,
+      autoCompleteDelayMinutes: 5,
     };
     expect(settings.themeMode).toBe("dark");
   });
@@ -323,6 +327,8 @@ describe("Theme Mode", () => {
       bufferTime: 0,
       customSlug: "",
       businessHoursEndDate: null,
+      autoCompleteEnabled: false,
+      autoCompleteDelayMinutes: 5,
     };
     expect(settings.themeMode).toBe("system");
   });
@@ -457,6 +463,8 @@ describe("Cancellation Policy", () => {
       bufferTime: 0,
       customSlug: "",
       businessHoursEndDate: null,
+      autoCompleteEnabled: false,
+      autoCompleteDelayMinutes: 5,
     };
     expect(settings.cancellationPolicy.enabled).toBe(true);
     expect(settings.onboardingComplete).toBe(false);
@@ -583,6 +591,8 @@ describe("Temporary Closed Feature", () => {
       bufferTime: 0,
       customSlug: "",
       businessHoursEndDate: null,
+      autoCompleteEnabled: false,
+      autoCompleteDelayMinutes: 5,
     };
     expect(settings.temporaryClosed).toBe(true);
   });
@@ -604,6 +614,8 @@ describe("Temporary Closed Feature", () => {
       bufferTime: 0,
       customSlug: "",
       businessHoursEndDate: null,
+      autoCompleteEnabled: false,
+      autoCompleteDelayMinutes: 5,
     };
     expect(settings.temporaryClosed).toBe(false);
   });
@@ -688,6 +700,8 @@ describe("Business Logo URI", () => {
       bufferTime: 0,
       customSlug: "",
       businessHoursEndDate: null,
+      autoCompleteEnabled: false,
+      autoCompleteDelayMinutes: 5,
     };
     expect(settings.businessLogoUri).toBe("file:///data/user/0/com.app/cache/photo.jpg");
   });
@@ -709,6 +723,8 @@ describe("Business Logo URI", () => {
       bufferTime: 0,
       customSlug: "",
       businessHoursEndDate: null,
+      autoCompleteEnabled: false,
+      autoCompleteDelayMinutes: 5,
     };
     expect(settings.businessLogoUri).toBe("");
   });
@@ -732,6 +748,8 @@ describe("Logout and Delete Business", () => {
       bufferTime: 0,
       customSlug: "",
       businessHoursEndDate: null,
+      autoCompleteEnabled: false,
+      autoCompleteDelayMinutes: 5,
     };
     // Simulate logout
     const loggedOut = { ...settings, onboardingComplete: false };

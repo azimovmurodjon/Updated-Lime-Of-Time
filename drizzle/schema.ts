@@ -69,6 +69,12 @@ export const businessOwners = mysqlTable("business_owners", {
   businessHoursEndDate: varchar("businessHoursEndDate", { length: 10 }),
   /** Expo push notification token for sending push notifications to owner's device */
   expoPushToken: varchar("expoPushToken", { length: 255 }),
+  /** Auto-complete appointments: automatically mark as completed after end time + delay */
+  autoCompleteEnabled: boolean("autoCompleteEnabled").default(false).notNull(),
+  /** Minutes after appointment end time to auto-complete (5, 10, 15, 30) */
+  autoCompleteDelayMinutes: int("autoCompleteDelayMinutes").default(5).notNull(),
+  /** Notification preferences JSON: per-event push/email toggles */
+  notificationPreferences: json("notificationPreferences"),
   /** Onboarding completed */
   onboardingComplete: boolean("onboardingComplete").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
