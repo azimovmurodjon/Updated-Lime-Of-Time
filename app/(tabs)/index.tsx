@@ -20,6 +20,7 @@ import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter } from "expo-router";
 import { minutesToTime, timeToMinutes, PUBLIC_BOOKING_URL, formatFullAddress } from "@/lib/types";
+import { formatPhone } from "@/lib/utils";
 import { useActiveLocation } from "@/hooks/use-active-location";
 import * as ImagePicker from "expo-image-picker";
 import { MiniBarChart, MiniDonutChart } from "@/components/mini-chart";
@@ -1188,7 +1189,7 @@ export default function HomeScreen() {
               const price = appt.totalPrice ?? svc?.price ?? null;
               // Format date · time range line: "Mon, Apr 13 · 2:30 PM – 3:30 PM"
               const dateTimeLabel = `${apptDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} · ${formatTime(appt.time)} – ${getEndTime(appt.time, appt.duration)}`;
-              const clientPhone = client?.phone ?? null;
+              const clientPhone = client?.phone ? formatPhone(client.phone) : null;
               return (
                 <Pressable
                   key={appt.id}

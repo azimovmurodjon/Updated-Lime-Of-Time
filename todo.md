@@ -788,3 +788,9 @@
 
 ## Upcoming Appointments Card Redesign (v2)
 - [x] Redesign upcoming cards: colored left border, date·time range top line, service+duration, client·phone, staff dot, status badge, price
+
+## Phone Number Formatting Fix
+- [ ] Add formatPhone utility to lib/utils.ts
+- [ ] Apply formatPhone in home page upcoming cards
+- [ ] Apply formatPhone in calendar appointment list (all tabs)
+- [ ] Apply formatPhone in appointment detail screen

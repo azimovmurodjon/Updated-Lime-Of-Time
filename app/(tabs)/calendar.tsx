@@ -31,6 +31,7 @@ import {
   CustomScheduleDay,
 } from "@/lib/types";
 import { TapTimePicker, timeToMinutes as tapTimeToMinutes } from "@/components/tap-time-picker";
+import { formatPhone } from "@/lib/utils";
 
 type CalendarView = "month" | "day" | "week";
 
@@ -870,7 +871,7 @@ export default function CalendarScreen() {
                       </Text>
                       <Text style={{ fontSize: 13, color: colors.foreground, marginTop: 2 }}>{svc ? getServiceDisplayName(svc) : "Service"}</Text>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 1 }}>
-                        <Text style={{ fontSize: 12, color: colors.muted }}>{client?.name} {client?.phone ? `· ${client.phone}` : ""}</Text>
+                        <Text style={{ fontSize: 12, color: colors.muted }}>{client?.name} {client?.phone ? `· ${formatPhone(client.phone)}` : ""}</Text>
                         {staffMember && (
                           <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginLeft: 4 }}>
                             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: staffMember.color || colors.primary }} />

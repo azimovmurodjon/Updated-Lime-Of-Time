@@ -329,7 +329,7 @@ export default function ClientDetailScreen() {
               {client.phone ? (
                 <Pressable onPress={() => Linking.openURL(`tel:${stripPhoneFormat(client.phone)}`)} style={({ pressed }) => [styles.contactChip, { backgroundColor: colors.primary + "12", opacity: pressed ? 0.7 : 1 }]}>
                   <IconSymbol name="phone.fill" size={14} color={colors.primary} />
-                  <Text style={{ fontSize: 12, color: colors.primary, marginLeft: 6 }}>{client.phone}</Text>
+                  <Text style={{ fontSize: 12, color: colors.primary, marginLeft: 6 }}>{formatPhoneNumber(client.phone)}</Text>
                 </Pressable>
               ) : null}
               {client.email ? (
