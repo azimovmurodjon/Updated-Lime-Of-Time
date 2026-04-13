@@ -52,8 +52,13 @@ export default function NewBookingScreen() {
   const [addMoreTab, setAddMoreTab] = useState<"services" | "products">("services");
   const [recurring, setRecurring] = useState<"none" | "weekly" | "biweekly" | "monthly">("none");
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
-  // Pre-select the currently active location (single source of truth)
+  // Pre-select the currently active location (single source of truth).
+  // When activeLocationId is null (All mode), keep null so the date picker shows all locations.
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(() => {
+    // If user is in "All" mode (null), do not pre-select any location
+    if (state.activeLocationId === null && state.locations.filter((l) => l.active).length > 1) {
+      return null;
+    }
     const activeLoc = state.locations.find((l) => l.id === state.activeLocationId && l.active);
     if (activeLoc) return activeLoc.id;
     const defaultLoc = state.locations.find((l) => l.isDefault && l.active);
@@ -167,40 +172,85 @@ export default function NewBookingScreen() {
   }, [selectedDate, locationWorkingHours, locationAppts, totalDuration, activeCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime]);
 
   // Date options: next 14 days with closed-day and no-slots awareness
+  // When no location is selected (All mode), aggregate across all active locations:
+  // a day is open if ANY location has it open, and has slots if ANY location has slots.
   const dateOptions = useMemo(() => {
     const dates: { date: string; closed: boolean; noSlots: boolean }[] = [];
     const today = new Date();
+    const endDate = state.settings.businessHoursEndDate;
+    // All-locations mode: selectedLocationId is null and there are multiple active locations
+    const isAllMode = !selectedLocationId && activeLocations.length > 1;
     for (let i = 0; i < 14; i++) {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
       const ds = formatDateStr(d);
-      const customDay = activeCustomSchedule.find((cs: { date: string; isOpen: boolean }) => cs.date === ds);
       // Check Active Until expiry first
-      const endDate = state.settings.businessHoursEndDate;
       let closed = !!(endDate && ds > endDate);
       if (!closed) {
-        if (state.settings.scheduleMode === "custom") {
-          closed = !customDay || !customDay.isOpen;
+        if (isAllMode) {
+          // Open if ANY active location has this day open
+          let anyOpen = false;
+          for (const loc of activeLocations) {
+            if (loc.temporarilyClosed) continue;
+            const locCustomSchedule = (state as any).locationCustomSchedule?.[loc.id] ?? [];
+            const locCustomDay = locCustomSchedule.find((cs: { date: string; isOpen: boolean }) => cs.date === ds);
+            const locWH = (loc.workingHours && Object.keys(loc.workingHours).length > 0)
+              ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
+              : state.settings.workingHours;
+            if (state.settings.scheduleMode === "custom") {
+              if (locCustomDay?.isOpen) { anyOpen = true; break; }
+            } else {
+              if (locCustomDay) {
+                if (locCustomDay.isOpen) { anyOpen = true; break; }
+              } else {
+                const dayName = DAYS_OF_WEEK[d.getDay()];
+                const wh = locWH[dayName];
+                if (wh && wh.enabled) { anyOpen = true; break; }
+              }
+            }
+          }
+          closed = !anyOpen;
         } else {
-          if (customDay) {
-            closed = !customDay.isOpen;
+          const customDay = activeCustomSchedule.find((cs: { date: string; isOpen: boolean }) => cs.date === ds);
+          if (state.settings.scheduleMode === "custom") {
+            closed = !customDay || !customDay.isOpen;
           } else {
-            const dayIndex = d.getDay();
-            const dayName = DAYS_OF_WEEK[dayIndex];
-            const wh = locationWorkingHours[dayName];
-            closed = !wh || !wh.enabled;
+            if (customDay) {
+              closed = !customDay.isOpen;
+            } else {
+              const dayIndex = d.getDay();
+              const dayName = DAYS_OF_WEEK[dayIndex];
+              const wh = locationWorkingHours[dayName];
+              closed = !wh || !wh.enabled;
+            }
           }
         }
       }
       let noSlots = false;
       if (!closed) {
-        const slots = generateAvailableSlots(ds, totalDuration, locationWorkingHours, locationAppts, 30, activeCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
-        noSlots = slots.length === 0;
+        if (isAllMode) {
+          // Has slots if ANY location has at least one slot
+          let anySlots = false;
+          for (const loc of activeLocations) {
+            if (loc.temporarilyClosed) continue;
+            const locCustomSchedule = (state as any).locationCustomSchedule?.[loc.id] ?? [];
+            const locWH = (loc.workingHours && Object.keys(loc.workingHours).length > 0)
+              ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
+              : state.settings.workingHours;
+            const locAppts = state.appointments.filter((a) => a.locationId === loc.id);
+            const slots = generateAvailableSlots(ds, totalDuration, locWH, locAppts, 30, locCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
+            if (slots.length > 0) { anySlots = true; break; }
+          }
+          noSlots = !anySlots;
+        } else {
+          const slots = generateAvailableSlots(ds, totalDuration, locationWorkingHours, locationAppts, 30, activeCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
+          noSlots = slots.length === 0;
+        }
       }
       dates.push({ date: ds, closed, noSlots });
     }
     return dates;
-  }, [activeCustomSchedule, locationWorkingHours, locationAppts, totalDuration, state.settings.scheduleMode, state.settings.bufferTime, state.settings.businessHoursEndDate]);
+  }, [selectedLocationId, activeLocations, activeCustomSchedule, locationWorkingHours, locationAppts, totalDuration, state.settings.scheduleMode, state.settings.bufferTime, state.settings.businessHoursEndDate, (state as any).locationCustomSchedule, state.appointments, state.settings.workingHours]);
 
   const filteredClients = useMemo(() => {
     const q = clientSearch.toLowerCase();
