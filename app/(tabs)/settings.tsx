@@ -20,7 +20,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter } from "expo-router";
 import { useThemeContext } from "@/lib/theme-provider";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { formatPhoneNumber, getMapUrl } from "@/lib/types";
+import { formatPhoneNumber, getMapUrl, DEFAULT_NOTIFICATION_PREFERENCES } from "@/lib/types";
 import { trpc } from "@/lib/trpc";
 import { useAppLockContext } from "@/lib/app-lock-provider";
 import { LocationSwitcher } from "@/components/location-switcher";
@@ -89,7 +89,7 @@ export default function SettingsScreen() {
 
   const toggleNotificationPref = useCallback(
     (key: keyof import("@/lib/types").NotificationPreferences) => {
-      const current = settings.notificationPreferences;
+      const current = settings.notificationPreferences ?? DEFAULT_NOTIFICATION_PREFERENCES;
       const updated = { ...current, [key]: !current[key] };
       const action = { type: "UPDATE_SETTINGS" as const, payload: { notificationPreferences: updated } };
       dispatch(action);
@@ -374,10 +374,10 @@ export default function SettingsScreen() {
                 <View key={key} style={[styles.switchRow, { paddingVertical: 6 }]}>
                   <Text style={{ fontSize: 14, color: colors.foreground, flex: 1 }}>{label}</Text>
                   <Switch
-                    value={settings.notificationPreferences[key]}
+                    value={(settings.notificationPreferences ?? DEFAULT_NOTIFICATION_PREFERENCES)[key]}
                     onValueChange={() => toggleNotificationPref(key)}
                     trackColor={{ false: colors.border, true: colors.primary + "60" }}
-                    thumbColor={settings.notificationPreferences[key] ? colors.primary : colors.muted}
+                    thumbColor={(settings.notificationPreferences ?? DEFAULT_NOTIFICATION_PREFERENCES)[key] ? colors.primary : colors.muted}
                   />
                 </View>
               ))}
@@ -391,10 +391,10 @@ export default function SettingsScreen() {
                 <View key={key} style={[styles.switchRow, { paddingVertical: 6 }]}>
                   <Text style={{ fontSize: 14, color: colors.foreground, flex: 1 }}>{label}</Text>
                   <Switch
-                    value={settings.notificationPreferences[key]}
+                    value={(settings.notificationPreferences ?? DEFAULT_NOTIFICATION_PREFERENCES)[key]}
                     onValueChange={() => toggleNotificationPref(key)}
                     trackColor={{ false: colors.border, true: colors.primary + "60" }}
-                    thumbColor={settings.notificationPreferences[key] ? colors.primary : colors.muted}
+                    thumbColor={(settings.notificationPreferences ?? DEFAULT_NOTIFICATION_PREFERENCES)[key] ? colors.primary : colors.muted}
                   />
                 </View>
               ))}

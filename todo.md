@@ -825,3 +825,6 @@
 
 ## EAS Build Fix (Apr 13, 2026 - Session 5)
 - [x] Fix EAS iOS build failure: sentry-cli requires auth token for source map upload — add SENTRY_ALLOW_FAILURE=true to eas.json so build succeeds without a Sentry account configured
+
+## Settings Tab Crash Fix (Apr 13, 2026 - Session 6)
+- [x] Fix crash: settings.notificationPreferences undefined for existing users — add safe fallback merge with DEFAULT_NOTIFICATION_PREFERENCES in store and settings screen

@@ -596,6 +596,11 @@ export function dbOwnerToSettings(owner: any): Partial<BusinessSettings> {
     bufferTime: owner.bufferTime ?? 0,
     customSlug: owner.customSlug ?? "",
     businessHoursEndDate: (owner as any).businessHoursEndDate ?? null,
+    // Merge with defaults so new fields are always present even for old DB records
+    notificationPreferences: {
+      ...DEFAULT_NOTIFICATION_PREFERENCES,
+      ...(owner.notificationPreferences ?? {}),
+    },
     profile: {
       ownerName: owner.ownerName ?? "",
       phone: owner.phone ?? "",
@@ -769,8 +774,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             AsyncStorage.getItem(STORAGE_KEYS.locationCustomSchedule),
           ]);
         
-        const loadedSettings = settingsRaw
-          ? { ...initialSettings, ...JSON.parse(settingsRaw) }
+        const parsedSettings = settingsRaw ? JSON.parse(settingsRaw) : {};
+        const loadedSettings: BusinessSettings = settingsRaw
+          ? {
+              ...initialSettings,
+              ...parsedSettings,
+              // Deep-merge notificationPreferences so new keys added after the user's
+              // last cache write are always present (prevents undefined crash in Settings)
+              notificationPreferences: {
+                ...DEFAULT_NOTIFICATION_PREFERENCES,
+                ...(parsedSettings.notificationPreferences ?? {}),
+              },
+            }
           : initialSettings;
         
         dispatch({
