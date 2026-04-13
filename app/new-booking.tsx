@@ -99,12 +99,6 @@ export default function NewBookingScreen() {
     return result;
   }, [activeLocations, selectedDate, state.settings.businessHoursEndDate, state.settings.scheduleMode, state.settings.workingHours, (state as any).locationCustomSchedule]);
 
-  // Auto-clear selectedLocationId if the chosen location is closed on the newly selected date
-  const prevSelectedLocationId = selectedLocationId;
-  if (prevSelectedLocationId && locationOpenOnDate[prevSelectedLocationId] === false) {
-    setSelectedLocationId(null);
-  }
-
   const activeStaff = useMemo(() => {
     return state.staff.filter((s) => {
       if (!s.active) return false;
@@ -149,6 +143,52 @@ export default function NewBookingScreen() {
   }, [appliedDiscount, selectedService]);
 
   const totalPrice = subtotal - discountAmount;
+
+  // Per-location time-slot availability: when a time is selected, check whether that specific
+  // time slot is available at each location (within working hours + no conflicting appointments).
+  // Returns a map of locationId -> boolean (true = time is available at this location).
+  const locationTimeAvailable = useMemo((): Record<string, boolean> => {
+    // If no time selected yet, all open locations are considered available
+    if (!selectedTime) {
+      const all: Record<string, boolean> = {};
+      for (const loc of activeLocations) all[loc.id] = true;
+      return all;
+    }
+    const result: Record<string, boolean> = {};
+    for (const loc of activeLocations) {
+      // If location is closed on this date, time is also unavailable
+      if (locationOpenOnDate[loc.id] === false) { result[loc.id] = false; continue; }
+      const locCustomSchedule = (state as any).locationCustomSchedule?.[loc.id] ?? [];
+      const locWH = (loc.workingHours && Object.keys(loc.workingHours).length > 0)
+        ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
+        : state.settings.workingHours;
+      const locAppts = state.appointments.filter((a) => a.locationId === loc.id);
+      const slots = generateAvailableSlots(
+        selectedDate, totalDuration, locWH, locAppts, 30,
+        locCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0
+      );
+      result[loc.id] = slots.includes(selectedTime);
+    }
+    return result;
+  }, [activeLocations, selectedTime, selectedDate, totalDuration, locationOpenOnDate,
+      state.appointments, state.settings.workingHours, state.settings.scheduleMode,
+      state.settings.bufferTime, (state as any).locationCustomSchedule]);
+
+  // Combined availability: open on date AND time slot available
+  const locationAvailable = useMemo((): Record<string, boolean> => {
+    const result: Record<string, boolean> = {};
+    for (const loc of activeLocations) {
+      result[loc.id] = (locationOpenOnDate[loc.id] !== false) && (locationTimeAvailable[loc.id] !== false);
+    }
+    return result;
+  }, [activeLocations, locationOpenOnDate, locationTimeAvailable]);
+
+  // Auto-clear selectedLocationId if the chosen location is no longer available
+  // (closed on this date OR time slot not available there)
+  const prevSelectedLocationId = selectedLocationId;
+  if (prevSelectedLocationId && locationAvailable[prevSelectedLocationId] === false) {
+    setSelectedLocationId(null);
+  }
 
   // Per-staff availability: a staff member is unavailable if they have a confirmed/pending
   // appointment that overlaps the selected date + time + totalDuration.
@@ -936,36 +976,42 @@ export default function NewBookingScreen() {
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   {activeLocations.map((loc) => {
-                    const isOpen = locationOpenOnDate[loc.id] !== false;
+                    const isAvailable = locationAvailable[loc.id] !== false;
                     const isSelected = selectedLocationId === loc.id;
+                    // Determine the reason for being unavailable (for the label)
+                    const isClosed = locationOpenOnDate[loc.id] === false;
+                    const noTimeSlot = !isClosed && selectedTime != null && locationTimeAvailable[loc.id] === false;
                     return (
                       <Pressable
                         key={loc.id}
-                        onPress={() => { if (isOpen) setSelectedLocationId(loc.id); }}
+                        onPress={() => { if (isAvailable) setSelectedLocationId(loc.id); }}
                         style={[{
                           paddingHorizontal: 14,
                           paddingVertical: 10,
                           borderRadius: 12,
                           borderWidth: 1.5,
                           backgroundColor: isSelected ? colors.primary + "15" : colors.background,
-                          borderColor: isSelected ? colors.primary : isOpen ? colors.border : colors.error + "40",
-                          opacity: isOpen ? 1 : 0.45,
+                          borderColor: isSelected ? colors.primary : isAvailable ? colors.border : colors.error + "40",
+                          opacity: isAvailable ? 1 : 0.45,
                           flexDirection: "row",
                           alignItems: "center",
                           gap: 8,
                         }]}
                       >
-                        <IconSymbol name="location.fill" size={14} color={isSelected ? colors.primary : isOpen ? colors.muted : colors.error} />
+                        <IconSymbol name="location.fill" size={14} color={isSelected ? colors.primary : isAvailable ? colors.muted : colors.error} />
                         <View>
-                          <Text style={{ fontSize: 13, fontWeight: "600", color: isSelected ? colors.primary : isOpen ? colors.foreground : colors.muted }}>{loc.name}</Text>
+                          <Text style={{ fontSize: 13, fontWeight: "600", color: isSelected ? colors.primary : isAvailable ? colors.foreground : colors.muted }}>{loc.name}</Text>
                           {!!loc.address && (
                             <Text style={{ fontSize: 11, color: colors.muted, marginTop: 1 }} numberOfLines={1}>{loc.address}</Text>
                           )}
-                          {!isOpen && (
+                          {isClosed && (
                             <Text style={{ fontSize: 10, color: colors.error, marginTop: 1, fontWeight: "600" }}>Closed this day</Text>
                           )}
+                          {noTimeSlot && (
+                            <Text style={{ fontSize: 10, color: colors.error, marginTop: 1, fontWeight: "600" }}>Time unavailable here</Text>
+                          )}
                         </View>
-                        {loc.isDefault && isOpen && (
+                        {loc.isDefault && isAvailable && (
                           <View style={{ backgroundColor: colors.primary + "20", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
                             <Text style={{ fontSize: 9, fontWeight: "700", color: colors.primary }}>DEFAULT</Text>
                           </View>
