@@ -688,7 +688,9 @@ export function registerPublicRoutes(app: Express) {
       }
 
       // Send branded email notification via Resend
-      if (owner.email) {
+      const ownerNotifPrefs = (owner as any).notificationPreferences ?? {};
+      const emailOnNewBookingEnabled = ownerNotifPrefs.emailOnNewBooking !== false;
+      if (owner.email && emailOnNewBookingEnabled) {
         try {
           await sendBookingNotificationEmail(owner.email, owner.businessName, {
             clientName,
@@ -711,7 +713,8 @@ export function registerPublicRoutes(app: Express) {
       }
 
       // Send push notification to business owner's device
-      try {
+      const pushOnNewBookingEnabled = ownerNotifPrefs.pushOnNewBooking !== false;
+      if (pushOnNewBookingEnabled) try {
         const ownerPushToken = (owner as any).expoPushToken as string | null | undefined;
         if (ownerPushToken) {
           // Send Expo push notification directly to owner's device (appears as "Lime Of Time")
@@ -897,7 +900,9 @@ export function registerPublicRoutes(app: Express) {
       // If client has no phone on record, allow action without phone verification
       await db.updateAppointment(appointmentId, owner.id, { status: "cancelled" });
       // Notify business owner
-      try {
+      const cancelNotifPrefs = (owner as any).notificationPreferences ?? {};
+      const pushOnCancellationEnabled = cancelNotifPrefs.pushOnCancellation !== false;
+      if (pushOnCancellationEnabled) try {
         const svcList = await db.getServicesByOwner(owner.id);
         const svc = svcList.find((s) => s.localId === appt.serviceLocalId);
         const ownerPushToken = (owner as any).expoPushToken as string | null | undefined;
@@ -1004,7 +1009,9 @@ export function registerPublicRoutes(app: Express) {
         status: "pending",
       });
       // Notify business owner
-      try {
+      const reschedNotifPrefs = (owner as any).notificationPreferences ?? {};
+      const pushOnRescheduleEnabled = reschedNotifPrefs.pushOnReschedule !== false;
+      if (pushOnRescheduleEnabled) try {
         const svcList = await db.getServicesByOwner(owner.id);
         const svc = svcList.find((s) => s.localId === appt.serviceLocalId);
         const ownerPushToken = (owner as any).expoPushToken as string | null | undefined;
@@ -1059,7 +1066,9 @@ export function registerPublicRoutes(app: Express) {
         notes: notes || null,
       });
       // Notify business owner
-      try {
+      const waitlistNotifPrefs = (owner as any).notificationPreferences ?? {};
+      const pushOnWaitlistEnabled = waitlistNotifPrefs.pushOnWaitlist !== false;
+      if (pushOnWaitlistEnabled) try {
         const svcList = await db.getServicesByOwner(owner.id);
         const svc = svcList.find((s) => s.localId === serviceLocalId);
         const ownerPushToken = (owner as any).expoPushToken as string | null | undefined;

@@ -16,6 +16,7 @@ import {
   DEFAULT_WORKING_HOURS,
   DEFAULT_BUSINESS_PROFILE,
   DEFAULT_CANCELLATION_POLICY,
+  DEFAULT_NOTIFICATION_PREFERENCES,
   AppointmentStatus,
 } from "./types";
 import { trpc } from "./trpc";
@@ -48,6 +49,7 @@ const initialSettings: BusinessSettings = {
   businessName: "My Business",
   defaultDuration: 60,
   notificationsEnabled: true,
+  notificationPreferences: DEFAULT_NOTIFICATION_PREFERENCES,
   workingHours: DEFAULT_WORKING_HOURS,
   profile: DEFAULT_BUSINESS_PROFILE,
   themeMode: "system",

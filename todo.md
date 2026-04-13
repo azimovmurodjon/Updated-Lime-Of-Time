@@ -806,3 +806,8 @@
 - [x] Create notification-icon.png for Android notification tray
 - [x] Deep-link routing: appointment_request/rescheduled → Calendar Requests tab; appointment_cancelled → Calendar Cancelled tab; appointment_reminder → appointment detail; waitlist → Calendar Requests tab
 - [x] Set RESEND_API_KEY environment variable for email sending from noreply@lime-of-time.com
+
+## New Features & Fixes (Apr 13, 2026 - Session 2)
+- [x] Fix expo-linear-gradient missing dependency (install package + add to app.config.ts plugins)
+- [x] Add client confirmation email when business owner accepts appointment
+- [x] Build notification preferences screen in Settings (toggle push/email per event type)

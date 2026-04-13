@@ -4,6 +4,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import * as db from "./db";
+import { sendAppointmentConfirmationEmail } from "./email";
 
 // ─── Business Owner Router ───────────────────────────────────────────
 
@@ -290,6 +291,45 @@ const appointmentsRouter = router({
       if (data.discountAmount != null) dbData.discountAmount = String(data.discountAmount);
       if (data.giftUsedAmount != null) dbData.giftUsedAmount = String(data.giftUsedAmount);
       await db.updateAppointment(localId, businessOwnerId, dbData);
+
+      // Send confirmation email to client when appointment is accepted (status → confirmed)
+      if (data.status === "confirmed") {
+        try {
+          const [owner, enrichedAppt] = await Promise.all([
+            db.getBusinessOwnerById(businessOwnerId),
+            db.getEnrichedAppointment(localId, businessOwnerId),
+          ]);
+          if (owner && enrichedAppt) {
+            // Only send if owner has emailClientOnConfirmation preference enabled (default true)
+            const prefs = (owner as any).notificationPreferences ?? {};
+            const emailEnabled = prefs.emailClientOnConfirmation !== false;
+            if (emailEnabled && enrichedAppt.clientEmail && enrichedAppt.clientEmail.includes("@")) {
+              await sendAppointmentConfirmationEmail(owner.businessName, {
+                clientName: enrichedAppt.clientName ?? "Valued Client",
+                clientEmail: enrichedAppt.clientEmail,
+                serviceName: enrichedAppt.serviceName ?? "Service",
+                date: enrichedAppt.date,
+                time: enrichedAppt.time,
+                duration: enrichedAppt.duration ?? 60,
+                totalPrice: enrichedAppt.totalPrice ? Number(enrichedAppt.totalPrice) : undefined,
+                locationName: enrichedAppt.locationName ?? undefined,
+                locationAddress: enrichedAppt.locationAddress ?? undefined,
+                locationCity: enrichedAppt.locationCity ?? undefined,
+                locationState: enrichedAppt.locationState ?? undefined,
+                locationZip: enrichedAppt.locationZip ?? undefined,
+                locationPhone: enrichedAppt.locationPhone ?? undefined,
+                businessPhone: owner.phone ?? undefined,
+                businessAddress: owner.address ?? undefined,
+                customSlug: (owner as any).customSlug ?? undefined,
+                locationId: enrichedAppt.locationId ?? undefined,
+              });
+            }
+          }
+        } catch (emailErr) {
+          console.error("[Email] Failed to send confirmation email:", emailErr);
+        }
+      }
+
       return { success: true };
     }),
 

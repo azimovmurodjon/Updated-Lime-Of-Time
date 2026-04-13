@@ -193,10 +193,36 @@ export interface CancellationPolicy {
   feePercentage: number; // e.g. 50 means 50% of service price
 }
 
+/** Per-event notification preferences for the business owner */
+export interface NotificationPreferences {
+  /** Push notification on new booking request */
+  pushOnNewBooking: boolean;
+  /** Push notification on client cancellation */
+  pushOnCancellation: boolean;
+  /** Push notification on client reschedule */
+  pushOnReschedule: boolean;
+  /** Push notification on waitlist entry */
+  pushOnWaitlist: boolean;
+  /** Email notification to business owner on new booking request */
+  emailOnNewBooking: boolean;
+  /** Email confirmation to client when business owner accepts appointment */
+  emailClientOnConfirmation: boolean;
+}
+
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  pushOnNewBooking: true,
+  pushOnCancellation: true,
+  pushOnReschedule: true,
+  pushOnWaitlist: true,
+  emailOnNewBooking: true,
+  emailClientOnConfirmation: true,
+};
+
 export interface BusinessSettings {
   businessName: string;
   defaultDuration: number;
   notificationsEnabled: boolean;
+  notificationPreferences: NotificationPreferences;
   workingHours: Record<string, WorkingHours>;
   profile: BusinessProfile;
   themeMode: "light" | "dark" | "system";

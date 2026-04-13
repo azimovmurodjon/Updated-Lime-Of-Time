@@ -800,6 +800,48 @@ export async function getAppointmentByLocalId(localId: string, businessOwnerId: 
   return rows[0];
 }
 
+/**
+ * Get an appointment enriched with client, service, and location details.
+ * Used for sending confirmation emails.
+ */
+export async function getEnrichedAppointment(localId: string, businessOwnerId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db
+    .select()
+    .from(appointments)
+    .where(and(eq(appointments.localId, localId), eq(appointments.businessOwnerId, businessOwnerId)))
+    .limit(1);
+  const appt = rows[0];
+  if (!appt) return undefined;
+
+  // Fetch client, service, and location in parallel
+  const [clientRows, serviceRows, locationRows] = await Promise.all([
+    db.select().from(clients).where(and(eq(clients.localId, appt.clientLocalId), eq(clients.businessOwnerId, businessOwnerId))).limit(1),
+    db.select().from(services).where(and(eq(services.localId, appt.serviceLocalId), eq(services.businessOwnerId, businessOwnerId))).limit(1),
+    appt.locationId
+      ? db.select().from(locations).where(and(eq(locations.localId, appt.locationId), eq(locations.businessOwnerId, businessOwnerId))).limit(1)
+      : Promise.resolve([]),
+  ]);
+
+  const client = clientRows[0];
+  const service = serviceRows[0];
+  const location = locationRows[0];
+
+  return {
+    ...appt,
+    clientName: client?.name ?? null,
+    clientEmail: client?.email ?? null,
+    serviceName: service?.name ?? null,
+    locationName: location?.name ?? null,
+    locationAddress: location?.address ?? null,
+    locationCity: location?.city ?? null,
+    locationState: location?.state ?? null,
+    locationZip: location?.zipCode ?? null,
+    locationPhone: location?.phone ?? null,
+  };
+}
+
 // ─── Staff Members ─────────────────────────────────────────────────
 
 export async function getStaffByOwner(businessOwnerId: number) {
