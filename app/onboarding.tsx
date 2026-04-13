@@ -628,9 +628,9 @@ export default function OnboardingScreen() {
                     <CountryCodePicker
                       selected={selectedCountry}
                       onSelect={setSelectedCountry}
-                      backgroundColor="rgba(255,255,255,0.12)"
-                      textColor="#FFFFFF"
-                      borderColor="rgba(255,255,255,0.25)"
+                      backgroundColor="#F9FAFB"
+                      textColor="#111827"
+                      borderColor="#E5E7EB"
                     />
                     <TextInput
                       style={[

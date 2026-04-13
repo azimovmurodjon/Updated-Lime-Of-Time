@@ -931,21 +931,6 @@ export default function CalendarScreen() {
           })}
         </ScrollView>
 
-        {hasMultiLoc && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-            <View style={{ flexDirection: "row", gap: 6 }}>
-              <Pressable onPress={() => setActiveLocation(null)} style={({ pressed }) => [{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, borderWidth: 1, backgroundColor: !calLocationFilter ? colors.primary + "15" : colors.surface, borderColor: !calLocationFilter ? colors.primary : colors.border, opacity: pressed ? 0.7 : 1 }]}>
-                <Text style={{ fontSize: 11, fontWeight: "600", color: !calLocationFilter ? colors.primary : colors.muted }}>All</Text>
-              </Pressable>
-              {activeLocations.map((loc) => (
-                <Pressable key={loc.id} onPress={() => setActiveLocation(loc.id)} style={({ pressed }) => [{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, borderWidth: 1, backgroundColor: calLocationFilter === loc.id ? colors.primary + "15" : colors.surface, borderColor: calLocationFilter === loc.id ? colors.primary : colors.border, opacity: pressed ? 0.7 : 1 }]}>
-                  <Text style={{ fontSize: 11, fontWeight: "600", color: calLocationFilter === loc.id ? colors.primary : colors.muted }}>{loc.name}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </ScrollView>
-        )}
-
         {filteredAppointments.length === 0 ? (
           <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={{ color: colors.muted, fontSize: 13 }}>No {activeFilter} appointments</Text>
@@ -1200,6 +1185,22 @@ export default function CalendarScreen() {
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
             <Text style={{ fontSize: 24, fontWeight: "700", color: colors.foreground }}>Calendar</Text>
           </View>
+
+          {/* Location Filter — shown when multiple locations exist */}
+          {hasMultiLoc && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+              <View style={{ flexDirection: "row", gap: 6 }}>
+                <Pressable onPress={() => setActiveLocation(null)} style={({ pressed }) => [{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, backgroundColor: !calLocationFilter ? colors.primary + "15" : colors.surface, borderColor: !calLocationFilter ? colors.primary : colors.border, opacity: pressed ? 0.7 : 1 }]}>
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: !calLocationFilter ? colors.primary : colors.muted }}>All</Text>
+                </Pressable>
+                {activeLocations.map((loc) => (
+                  <Pressable key={loc.id} onPress={() => setActiveLocation(loc.id)} style={({ pressed }) => [{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, backgroundColor: calLocationFilter === loc.id ? colors.primary + "15" : colors.surface, borderColor: calLocationFilter === loc.id ? colors.primary : colors.border, opacity: pressed ? 0.7 : 1 }]}>
+                    <Text style={{ fontSize: 12, fontWeight: "600", color: calLocationFilter === loc.id ? colors.primary : colors.muted }}>{loc.name}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+          )}
 
           {/* View Switcher */}
           <View style={styles.viewSwitcher}>
