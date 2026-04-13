@@ -70,6 +70,41 @@ export default function NewBookingScreen() {
     [state.locations]
   );
 
+  // Per-location open/closed check for the currently selected date.
+  // Returns a map of locationId -> boolean (true = open, false = closed).
+  const locationOpenOnDate = useMemo((): Record<string, boolean> => {
+    const result: Record<string, boolean> = {};
+    const endDate = state.settings.businessHoursEndDate;
+    const d = new Date(selectedDate + "T12:00:00");
+    const dayName = DAYS_OF_WEEK[d.getDay()];
+    for (const loc of activeLocations) {
+      // Temporarily closed = never open
+      if (loc.temporarilyClosed) { result[loc.id] = false; continue; }
+      // Active Until expiry
+      if (endDate && selectedDate > endDate) { result[loc.id] = false; continue; }
+      const locCustomSchedule = (state as any).locationCustomSchedule?.[loc.id] ?? [];
+      const customDay = locCustomSchedule.find((cs: { date: string; isOpen: boolean }) => cs.date === selectedDate);
+      const locWH = (loc.workingHours && Object.keys(loc.workingHours).length > 0)
+        ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
+        : state.settings.workingHours;
+      if (state.settings.scheduleMode === "custom") {
+        result[loc.id] = !!(customDay?.isOpen);
+      } else if (customDay) {
+        result[loc.id] = customDay.isOpen;
+      } else {
+        const wh = locWH[dayName];
+        result[loc.id] = !!(wh && wh.enabled);
+      }
+    }
+    return result;
+  }, [activeLocations, selectedDate, state.settings.businessHoursEndDate, state.settings.scheduleMode, state.settings.workingHours, (state as any).locationCustomSchedule]);
+
+  // Auto-clear selectedLocationId if the chosen location is closed on the newly selected date
+  const prevSelectedLocationId = selectedLocationId;
+  if (prevSelectedLocationId && locationOpenOnDate[prevSelectedLocationId] === false) {
+    setSelectedLocationId(null);
+  }
+
   const activeStaff = useMemo(() => {
     return state.staff.filter((s) => {
       if (!s.active) return false;
@@ -900,37 +935,44 @@ export default function NewBookingScreen() {
               <Text className="text-xs font-medium text-muted mb-3">Location <Text style={{ color: colors.error }}>*</Text></Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={{ flexDirection: "row", gap: 8 }}>
-                  {activeLocations.map((loc) => (
-                    <Pressable
-                      key={loc.id}
-                      onPress={() => setSelectedLocationId(loc.id)}
-                      style={({ pressed }) => [{
-                        paddingHorizontal: 14,
-                        paddingVertical: 10,
-                        borderRadius: 12,
-                        borderWidth: 1.5,
-                        backgroundColor: selectedLocationId === loc.id ? colors.primary + "15" : colors.background,
-                        borderColor: selectedLocationId === loc.id ? colors.primary : colors.border,
-                        opacity: pressed ? 0.7 : 1,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 8,
-                      }]}
-                    >
-                      <IconSymbol name="location.fill" size={14} color={selectedLocationId === loc.id ? colors.primary : colors.muted} />
-                      <View>
-                        <Text style={{ fontSize: 13, fontWeight: "600", color: selectedLocationId === loc.id ? colors.primary : colors.foreground }}>{loc.name}</Text>
-                        {!!loc.address && (
-                          <Text style={{ fontSize: 11, color: colors.muted, marginTop: 1 }} numberOfLines={1}>{loc.address}</Text>
-                        )}
-                      </View>
-                      {loc.isDefault && (
-                        <View style={{ backgroundColor: colors.primary + "20", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
-                          <Text style={{ fontSize: 9, fontWeight: "700", color: colors.primary }}>DEFAULT</Text>
+                  {activeLocations.map((loc) => {
+                    const isOpen = locationOpenOnDate[loc.id] !== false;
+                    const isSelected = selectedLocationId === loc.id;
+                    return (
+                      <Pressable
+                        key={loc.id}
+                        onPress={() => { if (isOpen) setSelectedLocationId(loc.id); }}
+                        style={[{
+                          paddingHorizontal: 14,
+                          paddingVertical: 10,
+                          borderRadius: 12,
+                          borderWidth: 1.5,
+                          backgroundColor: isSelected ? colors.primary + "15" : colors.background,
+                          borderColor: isSelected ? colors.primary : isOpen ? colors.border : colors.error + "40",
+                          opacity: isOpen ? 1 : 0.45,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                        }]}
+                      >
+                        <IconSymbol name="location.fill" size={14} color={isSelected ? colors.primary : isOpen ? colors.muted : colors.error} />
+                        <View>
+                          <Text style={{ fontSize: 13, fontWeight: "600", color: isSelected ? colors.primary : isOpen ? colors.foreground : colors.muted }}>{loc.name}</Text>
+                          {!!loc.address && (
+                            <Text style={{ fontSize: 11, color: colors.muted, marginTop: 1 }} numberOfLines={1}>{loc.address}</Text>
+                          )}
+                          {!isOpen && (
+                            <Text style={{ fontSize: 10, color: colors.error, marginTop: 1, fontWeight: "600" }}>Closed this day</Text>
+                          )}
                         </View>
-                      )}
-                    </Pressable>
-                  ))}
+                        {loc.isDefault && isOpen && (
+                          <View style={{ backgroundColor: colors.primary + "20", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                            <Text style={{ fontSize: 9, fontWeight: "700", color: colors.primary }}>DEFAULT</Text>
+                          </View>
+                        )}
+                      </Pressable>
+                    );
+                  })}
                 </View>
               </ScrollView>
             </View>
