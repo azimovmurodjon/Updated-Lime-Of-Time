@@ -55,6 +55,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { CountryCodePicker, DEFAULT_COUNTRY, type Country } from "@/components/country-code-picker";
 import { startOAuthLogin } from "@/constants/oauth";
+import { GoogleLogo, MicrosoftLogo, AppleLogo } from "@/components/brand-icons";
 
 type Step = 1 | "otp" | 2 | 3 | "socialPhone";
 
@@ -740,7 +741,7 @@ export default function OnboardingScreen() {
                       onPress={() => startOAuthLogin("google")}
                       style={({ pressed }) => [styles.socialBtn, { opacity: pressed ? 0.75 : 1 }]}
                     >
-                      <Text style={styles.socialBtnIcon}>G</Text>
+                      <GoogleLogo size={18} />
                       <Text style={styles.socialBtnText}>Google</Text>
                     </Pressable>
                     {Platform.OS === "ios" && (
@@ -748,7 +749,7 @@ export default function OnboardingScreen() {
                         onPress={() => startOAuthLogin("apple")}
                         style={({ pressed }) => [styles.socialBtn, { opacity: pressed ? 0.75 : 1 }]}
                       >
-                        <Text style={styles.socialBtnIcon}></Text>
+                        <AppleLogo size={18} color="#000" />
                         <Text style={styles.socialBtnText}>Apple</Text>
                       </Pressable>
                     )}
@@ -756,7 +757,7 @@ export default function OnboardingScreen() {
                       onPress={() => startOAuthLogin("microsoft")}
                       style={({ pressed }) => [styles.socialBtn, { opacity: pressed ? 0.75 : 1 }]}
                     >
-                      <Text style={styles.socialBtnIcon}>M</Text>
+                      <MicrosoftLogo size={18} />
                       <Text style={styles.socialBtnText}>Microsoft</Text>
                     </Pressable>
                   </View>
