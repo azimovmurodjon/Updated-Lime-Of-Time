@@ -22,13 +22,13 @@ import {
   Alert,
   ActivityIndicator,
   FlatList,
-  useWindowDimensions
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ScreenContainer } from '@/components/screen-container';
 import { SimpleTimePicker } from '@/components/ui/time-picker-wheel';
 import { useStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
+import { useResponsive } from '@/hooks/use-responsive';
 
 const DAYS_OF_WEEK = [
   'Monday',
@@ -59,9 +59,7 @@ interface WeeklyHours {
 export default function BusinessHoursSettings() {
   const router = useRouter();
   const { state } = useStore();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
+  const { isTablet, hp } = useResponsive();
 
   const [weeklyHours, setWeeklyHours] = useState<WeeklyHours>({
     Monday: { isEnabled: true, startTime: '09:00', endTime: '17:00' },
@@ -152,7 +150,7 @@ export default function BusinessHoursSettings() {
   }
 
   return (
-    <ScreenContainer className="p-0" tabletMaxWidth={isTablet ? 720 : 0}>
+    <ScreenContainer className="p-0" tabletMaxWidth={720}>
       {/* Header */}
       <View className="bg-primary py-4" style={{ paddingHorizontal: hp }}>
         <Pressable onPress={() => router.back()}>

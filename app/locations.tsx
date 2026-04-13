@@ -6,7 +6,6 @@ import {
   Pressable,
   Switch,
   StyleSheet,
-  useWindowDimensions,
   Linking,
   Share,
 } from "react-native";
@@ -18,15 +17,14 @@ import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Location, LOCATION_COLORS, formatFullAddress, getMapUrl, PUBLIC_BOOKING_URL, formatPhoneNumber } from "@/lib/types";
 import { useActiveLocation } from "@/hooks/use-active-location";
+import { useResponsive } from "@/hooks/use-responsive";
 
 export default function LocationsScreen() {
   const { state, dispatch, syncToDb } = useStore();
   const { activeLocation, setActiveLocation } = useActiveLocation();
   const colors = useColors();
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const hp = isTablet ? 32 : Math.max(16, width * 0.05);
+  const { isTablet, hp } = useResponsive();
 
   // Track which location just had its link copied (for toast feedback)
   const [copiedId, setCopiedId] = useState<string | null>(null);

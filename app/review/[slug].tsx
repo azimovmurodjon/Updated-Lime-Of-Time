@@ -7,7 +7,6 @@ import {
   Pressable,
   StyleSheet,
   ScrollView,
-  useWindowDimensions,
   Alert,
   Platform,
 } from "react-native";
@@ -15,6 +14,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useStore, generateId } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { formatPhoneNumber, stripPhoneFormat } from "@/lib/types";
+import { useResponsive } from "@/hooks/use-responsive";
 
 /**
  * Public route: /review/[slug]
@@ -28,9 +28,7 @@ export default function ReviewSlugScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const { state, dispatch, syncToDb } = useStore();
   const colors = useColors();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const hp = isTablet ? 32 : Math.max(16, width * 0.05);
+  const { isTablet, hp } = useResponsive();
 
   const [clientName, setClientName] = useState("");
   const [rating, setRating] = useState(5);
@@ -67,7 +65,7 @@ export default function ReviewSlugScreen() {
 
   if (submitted) {
     return (
-      <ScreenContainer edges={["top", "bottom", "left", "right"]}>
+      <ScreenContainer edges={["top", "bottom", "left", "right"]} tabletMaxWidth={640}>
         <View style={[styles.centered, { backgroundColor: colors.background, paddingHorizontal: hp }]}>
           <Text style={{ fontSize: 48, marginBottom: 16 }}>✓</Text>
           <Text style={[styles.title, { color: colors.foreground }]}>Thank You!</Text>

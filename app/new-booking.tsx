@@ -9,7 +9,6 @@ import {
   Linking,
   Platform,
   Alert,
-  useWindowDimensions,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -19,6 +18,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useMemo, useCallback } from "react";
 import { Appointment, Client, Product, Discount, DAYS_OF_WEEK, generateAvailableSlots, minutesToTime, timeToMinutes, getApplicableDiscount, generateConfirmationMessage, getServiceDisplayName, stripPhoneFormat, timeSlotsOverlap, PUBLIC_BOOKING_URL } from "@/lib/types";
 import { useActiveLocation } from "@/hooks/use-active-location";
+import { useResponsive } from "@/hooks/use-responsive";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -35,9 +35,7 @@ export default function NewBookingScreen() {
   const { activeLocations: _allActiveLocations } = useActiveLocation();
   const colors = useColors();
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
+  const { isTablet, hp } = useResponsive();
   const params = useLocalSearchParams<{ date?: string }>();
 
   const [step, setStep] = useState<Step>(1);
@@ -358,7 +356,7 @@ export default function NewBookingScreen() {
   const TOTAL_STEPS = 4;
 
   return (
-    <ScreenContainer edges={["top", "bottom", "left", "right"]} tabletMaxWidth={isTablet ? 720 : 0}>
+    <ScreenContainer edges={["top", "bottom", "left", "right"]} tabletMaxWidth={720}>
       {/* Header */}
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8, paddingTop: 8, paddingHorizontal: hp }}>
         <View className="flex-row items-center">

@@ -7,7 +7,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  useWindowDimensions,
   Image,
   ActivityIndicator,
   Alert,
@@ -15,6 +14,7 @@ import {
 import { useRouter } from "expo-router";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
+import { useResponsive } from "@/hooks/use-responsive";
 import { useState, useCallback, useEffect, useRef } from "react";
 import {
   formatPhoneNumber,
@@ -167,9 +167,7 @@ export default function OnboardingScreen() {
   const { dispatch, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
-  const { width, height } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const hp = isTablet ? 32 : Math.max(20, width * 0.06);
+  const { isTablet, hp, width, height } = useResponsive();
 
   const [step, setStep] = useState<Step>(1);
   const { biometricAvailable, biometricType, toggleBiometric } = useAppLockContext();

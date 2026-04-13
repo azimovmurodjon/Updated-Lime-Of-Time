@@ -1,8 +1,9 @@
 import { useState, useCallback } from "react";
-import { Text, View, Pressable, StyleSheet, Switch, TextInput, Alert, ScrollView, Linking, useWindowDimensions } from "react-native";
+import { Text, View, Pressable, StyleSheet, Switch, TextInput, Alert, ScrollView, Linking } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
+import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter } from "expo-router";
 
@@ -10,9 +11,7 @@ export default function BookingPoliciesScreen() {
   const { state, dispatch, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
+  const { isTablet, hp } = useResponsive();
   const settings = state.settings;
   const policy = settings.cancellationPolicy;
 
@@ -45,7 +44,7 @@ export default function BookingPoliciesScreen() {
   }, [settings.temporaryClosed, dispatch, syncToDb]);
 
   return (
-    <ScreenContainer edges={["top", "left", "right"]} tabletMaxWidth={isTablet ? 720 : 0}>
+    <ScreenContainer edges={["top", "left", "right"]} tabletMaxWidth={720}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border, paddingHorizontal: hp }]}>
         <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]}>

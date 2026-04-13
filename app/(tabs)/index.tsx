@@ -5,7 +5,6 @@ import {
   Pressable,
   StyleSheet,
   Share,
-  useWindowDimensions,
   ScrollView,
   Image,
   Alert,
@@ -22,6 +21,7 @@ import { useRouter } from "expo-router";
 import { minutesToTime, timeToMinutes, PUBLIC_BOOKING_URL, formatFullAddress, formatPhoneNumber } from "@/lib/types";
 import { formatPhone } from "@/lib/utils";
 import { useActiveLocation } from "@/hooks/use-active-location";
+import { useResponsive } from "@/hooks/use-responsive";
 import * as ImagePicker from "expo-image-picker";
 import { MiniBarChart, MiniDonutChart } from "@/components/mini-chart";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -206,17 +206,9 @@ export default function HomeScreen() {
     useStore();
   const colors = useColors();
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const isLargeTablet = width >= 1024;
-  const hp = isLargeTablet ? 48 : isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
-  const maxContentWidth = isLargeTablet ? 1280 : isTablet ? Math.min(width, 960) : width;
+  const { width, isTablet, isLargeTablet, hp, maxContentWidth, cardGap, kpiCols, fontScale: fs } = useResponsive();
   const contentWidth = maxContentWidth - hp * 2;
-  const cardGap = isTablet ? 16 : 12;
-  // On tablet: 4 columns for KPI cards; on phone: 2 columns
-  const kpiCols = isLargeTablet ? 4 : isTablet ? 4 : 2;
   const cardW = Math.floor((contentWidth - cardGap * (kpiCols - 1)) / kpiCols);
-  const fs = isTablet ? 1.1 : 1;
 
   useEffect(() => {
     if (state.loaded && !state.settings.onboardingComplete) {

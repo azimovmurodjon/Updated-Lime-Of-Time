@@ -7,7 +7,6 @@ import {
   ScrollView,
   StyleSheet,
   Alert,
-  useWindowDimensions,
   Linking,
   KeyboardAvoidingView,
   Platform,
@@ -16,6 +15,7 @@ import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
+import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { formatPhoneNumber, stripPhoneFormat } from "@/lib/types";
 
@@ -55,9 +55,7 @@ export default function BusinessProfileScreen() {
   const { state, dispatch, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const hp = isTablet ? 32 : Math.max(16, width * 0.05);
+  const { isTablet, hp } = useResponsive();
   const contentMaxWidth = isTablet ? 640 : undefined;
 
   const profile = state.settings.profile;
@@ -119,7 +117,7 @@ export default function BusinessProfileScreen() {
   }, [website]);
 
   return (
-    <ScreenContainer edges={["top", "left", "right"]} style={{ paddingHorizontal: hp }}>
+    <ScreenContainer edges={["top", "left", "right"]} tabletMaxWidth={720} style={{ paddingHorizontal: hp }}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable

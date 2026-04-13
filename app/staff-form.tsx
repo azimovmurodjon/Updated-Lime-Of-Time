@@ -8,7 +8,6 @@ import {
   StyleSheet,
   Alert,
   Switch,
-  useWindowDimensions,
   Platform,
   Modal,
 } from "react-native";
@@ -16,6 +15,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, generateId } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
+import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import {
   StaffMember,
@@ -48,9 +48,7 @@ export default function StaffFormScreen() {
   const { state, dispatch, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const hp = isTablet ? 32 : Math.max(16, width * 0.05);
+  const { isTablet, hp } = useResponsive();
 
   const existing = useMemo(
     () => (id ? state.staff.find((s) => s.id === id) : undefined),
@@ -178,7 +176,7 @@ export default function StaffFormScreen() {
   };
 
   return (
-    <ScreenContainer edges={["top", "left", "right"]} className="pt-2" style={{ paddingHorizontal: hp }}>
+    <ScreenContainer edges={["top", "left", "right"]} tabletMaxWidth={720} className="pt-2" style={{ paddingHorizontal: hp }}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable

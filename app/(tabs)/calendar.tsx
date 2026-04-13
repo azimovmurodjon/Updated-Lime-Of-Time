@@ -7,7 +7,6 @@ import {
   Alert,
   Linking,
   Platform,
-  useWindowDimensions,
   ScrollView,
   Switch,
   Modal,
@@ -18,6 +17,7 @@ import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useActiveLocation } from "@/hooks/use-active-location";
+import { useResponsive } from "@/hooks/use-responsive";
 import {
   Appointment,
   isDateInPast,
@@ -261,11 +261,7 @@ export default function CalendarScreen() {
   const colors = useColors();
   const router = useRouter();
   const params = useLocalSearchParams<{ filter?: string }>();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const isLargeTablet = width >= 1024;
-  const hp = isLargeTablet ? 48 : isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
-  const maxContentWidth = isLargeTablet ? 1280 : isTablet ? Math.min(width, 960) : width;
+  const { width, isTablet, isLargeTablet, hp, maxContentWidth } = useResponsive();
 
   const now = new Date();
   // Live clock for the current-time indicator — updates every 30 seconds

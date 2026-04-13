@@ -5,7 +5,6 @@ import {
   Pressable,
   StyleSheet,
   ScrollView,
-  useWindowDimensions,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatTime, formatDateStr, formatDateDisplay } from "@/lib/store";
@@ -13,6 +12,7 @@ import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useActiveLocation } from "@/hooks/use-active-location";
+import { useResponsive } from "@/hooks/use-responsive";
 import {
   StaffMember,
   Appointment,
@@ -34,9 +34,7 @@ export default function StaffCalendarScreen() {
   const { activeLocation } = useActiveLocation();
   const colors = useColors();
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
+  const { isTablet, hp, width } = useResponsive();
 
   const staff = getStaffById(id ?? "");
   const now = new Date();
@@ -194,7 +192,7 @@ export default function StaffCalendarScreen() {
     : state.services;
 
   return (
-    <ScreenContainer edges={["top", "bottom", "left", "right"]}>
+    <ScreenContainer edges={["top", "bottom", "left", "right"]} tabletMaxWidth={900}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
         {/* Header */}
         <View style={{ paddingHorizontal: hp, paddingTop: 4 }}>

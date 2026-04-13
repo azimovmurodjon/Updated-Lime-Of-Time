@@ -1,8 +1,9 @@
-import { Text, View, Pressable, StyleSheet, TextInput, ScrollView, Alert, Platform, useWindowDimensions } from "react-native";
+import { Text, View, Pressable, StyleSheet, TextInput, ScrollView, Alert, Platform } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, generateId } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
+import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useMemo } from "react";
 import { SERVICE_COLORS, Service } from "@/lib/types";
@@ -15,9 +16,7 @@ export default function ServiceFormScreen() {
   const { state, dispatch, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
+  const { isTablet, hp } = useResponsive();
 
   const existing = useMemo(
     () => (id ? state.services.find((s) => s.id === id) : undefined),
@@ -78,7 +77,7 @@ export default function ServiceFormScreen() {
   };
 
   return (
-    <ScreenContainer edges={["top", "bottom", "left", "right"]} tabletMaxWidth={isTablet ? 680 : 0}>
+    <ScreenContainer edges={["top", "bottom", "left", "right"]} tabletMaxWidth={680}>
       {/* Header - extra top padding to clear status bar on all devices */}
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 24, paddingTop: 16, paddingHorizontal: hp }}>
         <View style={{ flexDirection: "row", alignItems: "center", flex: 1, marginRight: 12 }}>

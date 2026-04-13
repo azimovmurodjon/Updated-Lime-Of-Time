@@ -10,12 +10,12 @@ import {
   Platform,
   Linking,
   ScrollView,
-  useWindowDimensions,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, generateId } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
+import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useCallback, useMemo } from "react";
 import { GiftCard, formatPhoneNumber, stripPhoneFormat, PUBLIC_BOOKING_URL } from "@/lib/types";
@@ -34,9 +34,7 @@ export default function GiftCardsScreen() {
   const { state, dispatch, syncToDb, getServiceById } = useStore();
   const colors = useColors();
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
+  const { isTablet, hp } = useResponsive();
 
   const [showForm, setShowForm] = useState(false);
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);

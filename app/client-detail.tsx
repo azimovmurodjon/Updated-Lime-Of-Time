@@ -8,12 +8,12 @@ import {
   TextInput,
   Alert,
   Linking,
-  useWindowDimensions,
   Platform,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatTime, formatDateDisplay, generateId } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
+import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -40,9 +40,7 @@ export default function ClientDetailScreen() {
   const { state, dispatch, getClientById, getAppointmentsForClient, getServiceById, getReviewsForClient, getLocationById, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
+  const { isTablet, hp } = useResponsive();
 
   const client = getClientById(id ?? "");
   const appointments = getAppointmentsForClient(id ?? "");
@@ -275,7 +273,7 @@ export default function ClientDetailScreen() {
   ];
 
   return (
-    <ScreenContainer edges={["top", "bottom", "left", "right"]}>
+    <ScreenContainer edges={["top", "bottom", "left", "right"]} tabletMaxWidth={720}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}>
         {/* Header */}
         <View style={styles.topBar}>

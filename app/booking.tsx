@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TextInput,
   ScrollView,
-  useWindowDimensions,
   Linking,
   Platform,
 } from "react-native";
@@ -15,6 +14,7 @@ import { useStore, generateId, formatDateStr, formatTime, formatDateDisplay } fr
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useMemo, useCallback } from "react";
+import { useResponsive } from "@/hooks/use-responsive";
 import {
   Appointment,
   Client,
@@ -43,9 +43,7 @@ export default function PublicBookingScreen() {
   const { state, dispatch, getServiceById, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const hp = isTablet ? 32 : Math.max(16, width * 0.05);
+  const { isTablet, hp } = useResponsive();
 
   // Read optional location pre-selection from URL params (e.g. ?location=<locationId>)
   const { location: locationParam } = useLocalSearchParams<{ location?: string }>();
@@ -351,7 +349,7 @@ export default function PublicBookingScreen() {
   }
 
   return (
-    <ScreenContainer edges={["top", "bottom", "left", "right"]} className="pt-2" style={{ paddingHorizontal: hp }}>
+    <ScreenContainer edges={["top", "bottom", "left", "right"]} tabletMaxWidth={720} className="pt-2" style={{ paddingHorizontal: hp }}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable

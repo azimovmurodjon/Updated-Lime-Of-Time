@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from "react";
-import { Text, View, Pressable, StyleSheet, Switch, Modal, ScrollView, useWindowDimensions } from "react-native";
+import { Text, View, Pressable, StyleSheet, Switch, Modal, ScrollView } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
@@ -8,6 +8,7 @@ import { useRouter } from "expo-router";
 import type { CustomScheduleDay } from "@/lib/types";
 import { TapTimePicker, timeToMinutes as tapTimeToMinutes } from "@/components/tap-time-picker";
 import { useActiveLocation } from "@/hooks/use-active-location";
+import { useResponsive } from "@/hooks/use-responsive";
 import { LocationSwitcher } from "@/components/location-switcher";
 
 const DAYS_OF_WEEK = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
@@ -149,9 +150,7 @@ export default function ScheduleSettingsScreen() {
   const { state, dispatch, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
+  const { isTablet, hp } = useResponsive();
   const settings = state.settings;
   const { activeLocation, hasMultipleLocations } = useActiveLocation();
 
@@ -408,7 +407,7 @@ export default function ScheduleSettingsScreen() {
   const pickerDayWH = timePickerDay ? effectiveWorkingHours[timePickerDay] : null;
 
   return (
-    <ScreenContainer edges={["top", "left", "right"]} tabletMaxWidth={isTablet ? 720 : 0}>
+    <ScreenContainer edges={["top", "left", "right"]} tabletMaxWidth={720}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border, paddingHorizontal: hp }]}>
         <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]}>

@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { FlatList, Text, View, Pressable, StyleSheet, useWindowDimensions } from "react-native";
+import { FlatList, Text, View, Pressable, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { useResponsive } from "@/hooks/use-responsive";
 
 type Tab = "services" | "products";
 
@@ -12,11 +13,7 @@ export default function ServicesScreen() {
   const { state } = useStore();
   const colors = useColors();
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const isLargeTablet = width >= 1024;
-  const hp = isLargeTablet ? 48 : isTablet ? 32 : Math.max(16, width * 0.05);
-  const maxContentWidth = isLargeTablet ? 1280 : isTablet ? Math.min(width, 960) : width;
+  const { hp, maxContentWidth } = useResponsive();
   const [activeTab, setActiveTab] = useState<Tab>("services");
 
   return (

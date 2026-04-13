@@ -1,6 +1,6 @@
-import { View, useWindowDimensions, type ViewProps } from "react-native";
+import { View, type ViewProps } from "react-native";
 import { SafeAreaView, type Edge } from "react-native-safe-area-context";
-
+import { useResponsive } from "@/hooks/use-responsive";
 import { cn } from "@/lib/utils";
 
 export interface ScreenContainerProps extends ViewProps {
@@ -22,15 +22,30 @@ export interface ScreenContainerProps extends ViewProps {
    */
   safeAreaClassName?: string;
   /**
-   * Max width for content on tablets. Set to 0 to disable.
-   * Default: 680 (good for forms and detail screens)
+   * Override max width for content on tablets.
+   * Pass 0 to disable centering (full-width, e.g. for list screens).
+   * Defaults to formMaxWidth from useResponsive (720 on large tablet, 640 on tablet, 0 on phone).
    */
   tabletMaxWidth?: number;
+  /**
+   * When true, content fills full width even on tablets (for list/grid screens).
+   */
+  fullWidth?: boolean;
 }
 
 /**
  * A container component that properly handles SafeArea and background colors.
- * On tablets (width >= 768), content is centered with a max-width for readability.
+ *
+ * - On phones: full-width content with safe area insets
+ * - On tablets: content is centered with a max-width for readability
+ * - On tablets in landscape: wider max-width is applied automatically
+ *
+ * Usage:
+ * ```tsx
+ * <ScreenContainer className="p-4">
+ *   <Text>Content</Text>
+ * </ScreenContainer>
+ * ```
  */
 export function ScreenContainer({
   children,
@@ -38,21 +53,28 @@ export function ScreenContainer({
   className,
   containerClassName,
   safeAreaClassName,
-  tabletMaxWidth = 680,
+  tabletMaxWidth,
+  fullWidth = false,
   style,
   ...props
 }: ScreenContainerProps) {
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const shouldConstrain = isTablet && tabletMaxWidth > 0;
+  const { isTablet, formMaxWidth } = useResponsive();
+
+  // Determine effective max width:
+  // - fullWidth=true → no constraint
+  // - tabletMaxWidth provided → use it (0 = no constraint)
+  // - default → use formMaxWidth from hook (0 on phone = no constraint)
+  const effectiveMax = fullWidth
+    ? 0
+    : tabletMaxWidth !== undefined
+    ? tabletMaxWidth
+    : formMaxWidth;
+
+  const shouldConstrain = isTablet && effectiveMax > 0;
 
   return (
     <View
-      className={cn(
-        "flex-1",
-        "bg-background",
-        containerClassName
-      )}
+      className={cn("flex-1", "bg-background", containerClassName)}
       {...props}
     >
       <SafeAreaView
@@ -64,7 +86,7 @@ export function ScreenContainer({
           <View className="flex-1 items-center">
             <View
               className={cn("flex-1 w-full", className)}
-              style={{ maxWidth: tabletMaxWidth }}
+              style={{ maxWidth: effectiveMax }}
             >
               {children}
             </View>

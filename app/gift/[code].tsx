@@ -6,12 +6,12 @@ import {
   Pressable,
   StyleSheet,
   ScrollView,
-  useWindowDimensions,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { getServiceDisplayName } from "@/lib/types";
+import { useResponsive } from "@/hooks/use-responsive";
 
 /**
  * Public route: /gift/[code]
@@ -26,9 +26,7 @@ export default function GiftCodeScreen() {
   const { state, getServiceById } = useStore();
   const colors = useColors();
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const hp = isTablet ? 32 : Math.max(16, width * 0.05);
+  const { isTablet, hp } = useResponsive();
 
   const giftCard = useMemo(() => {
     return state.giftCards.find((g) => g.code === code);
@@ -38,7 +36,7 @@ export default function GiftCodeScreen() {
 
   if (!giftCard) {
     return (
-      <ScreenContainer edges={["top", "bottom", "left", "right"]}>
+      <ScreenContainer edges={["top", "bottom", "left", "right"]} tabletMaxWidth={640}>
         <View style={[styles.centered, { backgroundColor: colors.background, paddingHorizontal: hp }]}>
           <Text style={{ fontSize: 48, marginBottom: 16 }}>🎁</Text>
           <Text style={[styles.title, { color: colors.foreground }]}>Gift Card Not Found</Text>

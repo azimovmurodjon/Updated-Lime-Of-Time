@@ -14,30 +14,35 @@ export interface ResponsiveLayout {
   width: number;
   /** Screen height */
   height: number;
-  /** Horizontal padding: 16 on phone, 32 on tablet, 48 on large tablet */
+  /** true when width > height (landscape) */
+  isLandscape: boolean;
+  /** true when width <= height (portrait) */
+  isPortrait: boolean;
+  /**
+   * Horizontal padding for screen edges.
+   * Phone: 16–20px, Tablet: 32px, Large tablet: 48px
+   */
   hp: number;
   /** Vertical padding for headers/sections */
   vp: number;
-  /** Font scale: 1 on phone, 1.05 on tablet, 1.15 on large tablet */
+  /** Font scale: 1 on phone, 1.05 on tablet, 1.1 on large tablet */
   fontScale: number;
-  /** Number of columns for KPI/stat grid: 2 on phone, 2 on tablet, 4 on large */
+  /** Number of columns for KPI/stat grid: 2 on phone, 4 on tablet */
   kpiCols: number;
-  /** Number of columns for list grid: 1 on phone, 2 on tablet, 3 on large */
+  /** Number of columns for list/card grid: 1 on phone, 2 on tablet, 3 on large */
   listCols: number;
-  /** Number of columns for grid layouts: 1 on phone, 2 on tablet, 3 on large */
-  gridCols: number;
-  /** Card max width for centered content on tablets */
-  cardMaxWidth: number;
-  /** Max width for form/detail screens (centered on tablet/web) */
+  /** Max width for centered content on tablets */
+  maxContentWidth: number;
+  /** Max width for form/detail screens (centered on tablet) */
   formMaxWidth: number;
   /** Gap between cards */
   cardGap: number;
   /** Whether to use side-by-side layout (tablet landscape) */
   useSideBySide: boolean;
-  /** Icon size multiplier */
-  iconScale: number;
-  /** Spacing multiplier */
-  spacingScale: number;
+  /** Icon size for tab bar and headers */
+  iconSize: number;
+  /** Tab bar height (excluding safe area) */
+  tabBarBaseHeight: number;
 }
 
 export function useResponsive(): ResponsiveLayout {
@@ -46,27 +51,51 @@ export function useResponsive(): ResponsiveLayout {
   return useMemo(() => {
     const isTablet = width >= 768;
     const isLargeTablet = width >= 1024;
+    const isLandscape = width > height;
+    const isPortrait = !isLandscape;
 
-    const hp = isLargeTablet ? 48 : isTablet ? 32 : Math.max(16, Math.round(width * 0.045));
+    // On phones in landscape the width jumps but it's still a phone
+    const isPhysicalTablet = isTablet && (
+      // Heuristic: tablets have a minimum dimension >= 600
+      Math.min(width, height) >= 600
+    );
+
+    const hp = isLargeTablet
+      ? 48
+      : isPhysicalTablet
+      ? 32
+      : isLandscape && !isPhysicalTablet
+      ? Math.round(Math.max(20, width * 0.06)) // phone landscape — wider padding
+      : Math.round(Math.max(16, width * 0.045));
+
+    const maxContentWidth = isLargeTablet
+      ? Math.min(width, 1280)
+      : isPhysicalTablet
+      ? Math.min(width, 960)
+      : width;
+
+    const formMaxWidth = isLargeTablet ? 720 : isPhysicalTablet ? 640 : 0;
+
     return {
-      isPhone: !isTablet,
-      isTablet,
+      isPhone: !isPhysicalTablet,
+      isTablet: isPhysicalTablet,
       isLargeTablet,
       isWeb: Platform.OS === "web",
       width,
       height,
+      isLandscape,
+      isPortrait,
       hp,
-      vp: isTablet || isLargeTablet ? 20 : 14,
-      fontScale: isLargeTablet ? 1.15 : isTablet ? 1.05 : 1,
-      kpiCols: isLargeTablet ? 4 : 2,
-      listCols: isLargeTablet ? 3 : isTablet ? 2 : 1,
-      gridCols: isLargeTablet ? 3 : isTablet ? 2 : 1,
-      cardMaxWidth: isTablet ? 600 : width,
-      formMaxWidth: isLargeTablet ? 720 : isTablet ? 640 : 0,
-      cardGap: isTablet || isLargeTablet ? 16 : 12,
-      useSideBySide: isTablet && width > height,
-      iconScale: isTablet ? 1.2 : 1,
-      spacingScale: isTablet ? 1.3 : 1,
+      vp: isPhysicalTablet ? 20 : 14,
+      fontScale: isLargeTablet ? 1.1 : isPhysicalTablet ? 1.05 : 1,
+      kpiCols: isLargeTablet ? 4 : isPhysicalTablet ? 4 : 2,
+      listCols: isLargeTablet ? 3 : isPhysicalTablet ? 2 : 1,
+      maxContentWidth,
+      formMaxWidth,
+      cardGap: isPhysicalTablet ? 16 : 12,
+      useSideBySide: isPhysicalTablet && isLandscape,
+      iconSize: isLargeTablet ? 30 : isPhysicalTablet ? 28 : 26,
+      tabBarBaseHeight: isLargeTablet ? 72 : isPhysicalTablet ? 64 : 56,
     };
   }, [width, height]);
 }

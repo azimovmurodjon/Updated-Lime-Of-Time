@@ -9,7 +9,6 @@ import {
   ScrollView,
   Alert,
   Image,
-  useWindowDimensions,
   Linking,
   Platform,
 } from "react-native";
@@ -25,17 +24,14 @@ import { trpc } from "@/lib/trpc";
 import { useAppLockContext } from "@/lib/app-lock-provider";
 import { LocationSwitcher } from "@/components/location-switcher";
 import { useActiveLocation } from "@/hooks/use-active-location";
+import { useResponsive } from "@/hooks/use-responsive";
 
 export default function SettingsScreen() {
   const { state, dispatch, syncToDb, filterAppointmentsByLocation, clientsForActiveLocation } = useStore();
   const deleteBusinessMut = trpc.business.delete.useMutation();
   const colors = useColors();
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const isLargeTablet = width >= 1024;
-  const hp = isLargeTablet ? 48 : isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
-  const maxContentWidth = isLargeTablet ? 1280 : isTablet ? Math.min(width, 960) : width;
+  const { isTablet, isLargeTablet, hp, maxContentWidth } = useResponsive();
   const { setThemeMode: setThemeOverrideMode } = useThemeContext();
   const { biometricAvailable, biometricEnabled, biometricType, toggleBiometric } = useAppLockContext();
   const settings = state.settings;

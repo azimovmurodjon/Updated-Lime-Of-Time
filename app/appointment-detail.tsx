@@ -1,8 +1,9 @@
-import { Text, View, Pressable, StyleSheet, ScrollView, Alert, Platform, Linking, useWindowDimensions } from "react-native";
+import { Text, View, Pressable, StyleSheet, ScrollView, Alert, Platform, Linking } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatTime, formatDateDisplay } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
+import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useMemo } from "react";
 import {
@@ -26,9 +27,7 @@ export default function AppointmentDetailScreen() {
   const { state, dispatch, getServiceById, getClientById, getStaffById, getLocationById, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
+  const { isTablet, hp } = useResponsive();
 
   const appointment = useMemo(
     () => state.appointments.find((a) => a.id === id),
@@ -200,7 +199,7 @@ export default function AppointmentDetailScreen() {
   };
 
   return (
-    <ScreenContainer edges={["top", "bottom", "left", "right"]} tabletMaxWidth={isTablet ? 680 : 0}>
+    <ScreenContainer edges={["top", "bottom", "left", "right"]} tabletMaxWidth={680}>
       {/* Header */}
       <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 24, paddingTop: 8, paddingHorizontal: hp }}>
         <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>

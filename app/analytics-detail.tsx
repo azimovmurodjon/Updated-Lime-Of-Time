@@ -4,7 +4,6 @@ import {
   View,
   Pressable,
   StyleSheet,
-  useWindowDimensions,
   ScrollView,
   Alert,
   Platform,
@@ -19,6 +18,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { minutesToTime, timeToMinutes } from "@/lib/types";
 import { useActiveLocation } from "@/hooks/use-active-location";
+import { useResponsive } from "@/hooks/use-responsive";
 import { LocationSwitcher } from "@/components/location-switcher";
 
 export default function AnalyticsDetailScreen() {
@@ -27,9 +27,7 @@ export default function AnalyticsDetailScreen() {
   const { activeLocation, hasMultipleLocations: hasMultiLoc } = useActiveLocation();
   const colors = useColors();
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const hp = isTablet ? 32 : Math.round(Math.max(16, width * 0.045));
+  const { isTablet, hp } = useResponsive();
   const [generating, setGenerating] = useState(false);
   // Use global activeLocationId — no separate local filter needed
   const filteredAppts = useMemo(

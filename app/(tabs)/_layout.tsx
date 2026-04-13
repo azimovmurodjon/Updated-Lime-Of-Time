@@ -2,24 +2,20 @@ import { Tabs } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Platform, useWindowDimensions } from "react-native";
+import { Platform } from "react-native";
 import { useColors } from "@/hooks/use-colors";
+import { useResponsive } from "@/hooks/use-responsive";
 
 export default function TabLayout() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const isLargeTablet = width >= 1024;
+  const { isTablet, isLargeTablet, iconSize, tabBarBaseHeight } = useResponsive();
+
   const bottomPadding = Platform.OS === "web"
     ? (isTablet ? 16 : 12)
     : Math.max(insets.bottom, 8);
-  const tabBarHeight = isLargeTablet
-    ? 72 + bottomPadding
-    : isTablet
-    ? 64 + bottomPadding
-    : 56 + bottomPadding;
-  const iconSize = isLargeTablet ? 30 : isTablet ? 28 : 26;
+
+  const tabBarHeight = tabBarBaseHeight + bottomPadding;
   const labelSize = isLargeTablet ? 13 : isTablet ? 12 : 11;
 
   return (
