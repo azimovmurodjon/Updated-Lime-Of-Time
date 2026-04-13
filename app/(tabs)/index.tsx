@@ -24,8 +24,9 @@ import { useActiveLocation } from "@/hooks/use-active-location";
 import * as ImagePicker from "expo-image-picker";
 import { MiniBarChart, MiniDonutChart } from "@/components/mini-chart";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { KpiDetailSheet, MicroSparkLine, MicroBarSpark, type KpiTab } from "@/components/kpi-detail-sheet";
 
-// ─── Gradient KPI Card ───────────────────────────────────────────────
+// ─── Gradient KPI Card (redesigned with sparkline) ────────────────────
 function GradientKpiCard({
   gradientColors,
   iconBg,
@@ -35,6 +36,8 @@ function GradientKpiCard({
   sublabel,
   badge,
   miniStats,
+  sparkData,
+  sparkType,
   onPress,
   width: cardWidth,
 }: {
@@ -46,42 +49,101 @@ function GradientKpiCard({
   sublabel?: string;
   badge?: React.ReactNode;
   miniStats?: React.ReactNode;
+  sparkData?: number[];
+  sparkType?: "line" | "bar";
   onPress?: () => void;
   width: number;
 }) {
+  const sparkW = cardWidth - 28;
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1, width: cardWidth, marginBottom: 0, alignSelf: "stretch" }]}
+      style={({ pressed }) => [{
+        opacity: pressed ? 0.88 : 1,
+        transform: [{ scale: pressed ? 0.97 : 1 }],
+        width: cardWidth,
+        marginBottom: 0,
+        alignSelf: "stretch",
+      }]}
     >
       <LinearGradient
         colors={gradientColors}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={{
-          borderRadius: 18,
+          borderRadius: 20,
           padding: 14,
           flex: 1,
-          minHeight: 130,
+          minHeight: 155,
           shadowColor: gradientColors[0],
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.25,
-          shadowRadius: 12,
-          elevation: 4,
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.35,
+          shadowRadius: 14,
+          elevation: 6,
+          overflow: "hidden",
         }}
       >
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-          <View style={{ width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: iconBg }}>
+        {/* Decorative circle */}
+        <View style={{
+          position: "absolute",
+          top: -20,
+          right: -20,
+          width: 90,
+          height: 90,
+          borderRadius: 45,
+          backgroundColor: "rgba(255,255,255,0.08)",
+        }} />
+        <View style={{
+          position: "absolute",
+          bottom: 20,
+          right: -30,
+          width: 70,
+          height: 70,
+          borderRadius: 35,
+          backgroundColor: "rgba(255,255,255,0.05)",
+        }} />
+
+        {/* Top row: icon + badge */}
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+          <View style={{
+            width: 38,
+            height: 38,
+            borderRadius: 12,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: iconBg,
+            borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.15)",
+          }}>
             {icon}
           </View>
           {badge}
         </View>
-        <Text style={{ fontSize: 24, fontWeight: "800", color: "#FFFFFF", lineHeight: 30, letterSpacing: -0.5 }} numberOfLines={1}>
+
+        {/* Value */}
+        <Text style={{ fontSize: 26, fontWeight: "800", color: "#FFFFFF", lineHeight: 32, letterSpacing: -0.8 }} numberOfLines={1}>
           {value}
         </Text>
-        <Text style={{ fontSize: 12, fontWeight: "600", color: "rgba(255,255,255,0.8)", marginTop: 2 }}>{label}</Text>
-        {sublabel ? <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.65)", marginTop: 3 }}>{sublabel}</Text> : null}
+        <Text style={{ fontSize: 12, fontWeight: "600", color: "rgba(255,255,255,0.82)", marginTop: 1 }}>{label}</Text>
+        {sublabel ? <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>{sublabel}</Text> : null}
         {miniStats}
+
+        {/* Sparkline at bottom */}
+        {sparkData && sparkData.length > 1 && (
+          <View style={{ marginTop: 8, opacity: 0.75 }}>
+            {sparkType === "bar" ? (
+              <MicroBarSpark data={sparkData} w={sparkW} h={28} color="#FFFFFF" />
+            ) : (
+              <MicroSparkLine data={sparkData} w={sparkW} h={28} color="#FFFFFF" />
+            )}
+          </View>
+        )}
+
+        {/* Tap hint */}
+        <View style={{ position: "absolute", bottom: 10, right: 12, flexDirection: "row", alignItems: "center", gap: 3 }}>
+          <Text style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", fontWeight: "600" }}>Details</Text>
+          <IconSymbol name="chevron.right" size={9} color="rgba(255,255,255,0.5)" />
+        </View>
       </LinearGradient>
     </Pressable>
   );
@@ -134,6 +196,9 @@ export default function HomeScreen() {
 
   // ─── Location Share Picker ──────────────────────────────────
   const [showSharePicker, setShowSharePicker] = useState(false);
+
+  // ─── KPI Detail Sheet ─────────────────────────────────────────
+  const [kpiDetailTab, setKpiDetailTab] = useState<KpiTab | null>(null);
 
   // ─── Tutorial Walkthrough ──────────────────────────────────────
   const [showTutorial, setShowTutorial] = useState(false);
@@ -358,6 +423,33 @@ export default function HomeScreen() {
       })
       .slice(0, 10);
   }, [state.appointments, filterByLocation, todayStr, now]);
+
+  // ─── KPI Sheet Data ─────────────────────────────────────────────────────
+  const kpiClientsData = useMemo(() => {
+    const filteredAppts = filterByLocation(state.appointments);
+    const completedAppts = filteredAppts.filter((a) => a.status === "completed");
+    const clientsData = clientsForActiveLocation.map((c) => {
+      const cAppts = completedAppts.filter((a) => a.clientId === c.id);
+      const totalSpent = cAppts.reduce((sum, a) => {
+        if (a.totalPrice != null) return sum + a.totalPrice;
+        const svc = state.services.find((s) => s.id === a.serviceId);
+        return sum + (svc?.price ?? 0);
+      }, 0);
+      return { id: c.id, name: c.name, phone: c.phone, email: c.email, apptCount: cAppts.length, totalSpent };
+    }).filter((c) => c.apptCount > 0).sort((a, b) => b.apptCount - a.apptCount);
+    return { totalClients: clientsForActiveLocation.length, clientsData };
+  }, [state.clients, state.appointments, state.services, filterByLocation, clientsForActiveLocation]);
+
+  const kpiServiceRanking = useMemo(() => {
+    const filteredAppts = filterByLocation(state.appointments).filter((a) => a.status !== "cancelled");
+    return state.services.map((s) => ({
+      id: s.id,
+      name: s.name,
+      color: s.color,
+      price: s.price,
+      bookings: filteredAppts.filter((a) => a.serviceId === s.id).length,
+    })).filter((s) => s.bookings > 0).sort((a, b) => b.bookings - a.bookings);
+  }, [state.services, state.appointments, filterByLocation]);
 
   const pendingCount = analytics.statusCounts.pending;
   const revenueChange =
@@ -584,63 +676,72 @@ export default function HomeScreen() {
           Overview
         </Text>
         <View style={[styles.kpiGrid, { gap: cardGap }]}>
+          {/* Revenue Card */}
           <GradientKpiCard
             width={cardW}
             gradientColors={["#E65100", "#FF9800"]}
-            iconBg="rgba(255,255,255,0.25)"
-            icon={<IconSymbol name="dollarsign.circle.fill" size={20} color="#FFF" />}
+            iconBg="rgba(255,255,255,0.22)"
+            icon={<IconSymbol name="dollarsign.circle.fill" size={22} color="#FFF" />}
             value={`$${analytics.weekRevenue.toLocaleString()}`}
-            label="This Week"
-            sublabel={`$${analytics.totalRevenue.toLocaleString()} total`}
+            label="This Week Revenue"
+            sublabel={`$${analytics.totalRevenue.toLocaleString()} all-time`}
             badge={
               revenueChange !== 0 ? (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.25)" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 10, backgroundColor: revenueChange > 0 ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.18)" }}>
                   <IconSymbol name={revenueChange > 0 ? "arrow.up.right" : "arrow.down.right"} size={10} color="#FFF" />
-                  <Text style={{ fontSize: 10, fontWeight: "700", color: "#FFF" }}>{Math.abs(revenueChange)}%</Text>
+                  <Text style={{ fontSize: 11, fontWeight: "800", color: "#FFF" }}>{Math.abs(revenueChange)}%</Text>
                 </View>
               ) : undefined
             }
-            onPress={() => router.push({ pathname: "/analytics-detail", params: { tab: "revenue" } })}
+            sparkData={analytics.weeklyDailyData.map((d) => d.value)}
+            sparkType="line"
+            onPress={() => setKpiDetailTab("revenue")}
           />
+          {/* Appointments Card */}
           <GradientKpiCard
             width={cardW}
-            gradientColors={["#1565C0", "#2196F3"]}
-            iconBg="rgba(255,255,255,0.25)"
-            icon={<IconSymbol name="calendar" size={20} color="#FFF" />}
+            gradientColors={["#1565C0", "#42A5F5"]}
+            iconBg="rgba(255,255,255,0.22)"
+            icon={<IconSymbol name="calendar" size={22} color="#FFF" />}
             value={String(analytics.totalAppointments)}
-            label="Appointments"
-            miniStats={
-              <View style={{ flexDirection: "row", gap: 6, marginTop: 6 }}>
-                <View style={{ backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, alignItems: "center" }}>
-                  <Text style={{ fontSize: 10, fontWeight: "700", color: "#FFF" }}>{analytics.statusCounts.pending}</Text>
-                  <Text style={{ fontSize: 9, color: "rgba(255,255,255,0.75)" }}>Pending</Text>
+            label="Total Appointments"
+            sublabel={`${analytics.statusCounts.completed} completed`}
+            badge={
+              analytics.statusCounts.pending > 0 ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 10, backgroundColor: "rgba(255,152,0,0.55)" }}>
+                  <Text style={{ fontSize: 11, fontWeight: "800", color: "#FFF" }}>{analytics.statusCounts.pending} pending</Text>
                 </View>
-                <View style={{ backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, alignItems: "center" }}>
-                  <Text style={{ fontSize: 10, fontWeight: "700", color: "#FFF" }}>{analytics.statusCounts.confirmed}</Text>
-                  <Text style={{ fontSize: 9, color: "rgba(255,255,255,0.75)" }}>Active</Text>
-                </View>
-              </View>
+              ) : undefined
             }
-            onPress={() => router.push({ pathname: "/analytics-detail", params: { tab: "appointments" } })}
+            sparkData={analytics.weeklyDailyData.map((d) => d.apptCount)}
+            sparkType="bar"
+            onPress={() => setKpiDetailTab("appointments")}
           />
+          {/* Clients Card */}
           <GradientKpiCard
             width={cardW}
-            gradientColors={["#2E7D32", "#4CAF50"]}
-            iconBg="rgba(255,255,255,0.25)"
-            icon={<IconSymbol name="person.2.fill" size={20} color="#FFF" />}
+            gradientColors={["#1B5E20", "#66BB6A"]}
+            iconBg="rgba(255,255,255,0.22)"
+            icon={<IconSymbol name="person.2.fill" size={22} color="#FFF" />}
             value={String(analytics.totalClients)}
             label="Total Clients"
-            onPress={() => router.push({ pathname: "/analytics-detail", params: { tab: "clients" } })}
+            sublabel={`${kpiClientsData.clientsData.length} active`}
+            sparkData={analytics.monthlyData.map((d) => d.value)}
+            sparkType="bar"
+            onPress={() => setKpiDetailTab("clients")}
           />
+          {/* Top Service Card */}
           <GradientKpiCard
             width={cardW}
-            gradientColors={["#6A1B9A", "#9C27B0"]}
-            iconBg="rgba(255,255,255,0.25)"
-            icon={<IconSymbol name="crown.fill" size={20} color="#FFF" />}
+            gradientColors={["#4A148C", "#AB47BC"]}
+            iconBg="rgba(255,255,255,0.22)"
+            icon={<IconSymbol name="crown.fill" size={22} color="#FFF" />}
             value={analytics.topService?.name ?? "N/A"}
             label="Top Service"
-            sublabel={analytics.topCount > 0 ? `${analytics.topCount} bookings` : undefined}
-            onPress={() => router.push({ pathname: "/analytics-detail", params: { tab: "topservice" } })}
+            sublabel={analytics.topCount > 0 ? `${analytics.topCount} bookings` : "No bookings yet"}
+            sparkData={kpiServiceRanking.slice(0, 6).map((s) => s.bookings)}
+            sparkType="bar"
+            onPress={() => setKpiDetailTab("topservice")}
           />
         </View>
 
@@ -1196,6 +1297,33 @@ export default function HomeScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* ─── KPI Detail Sheet ──────────────────────────────────── */}
+      <KpiDetailSheet
+        visible={kpiDetailTab !== null}
+        tab={kpiDetailTab}
+        onClose={() => setKpiDetailTab(null)}
+        revenueData={{
+          weekRevenue: analytics.weekRevenue,
+          prevWeekRevenue: analytics.prevWeekRevenue,
+          totalRevenue: analytics.totalRevenue,
+          monthlyData: analytics.monthlyData,
+          weeklyDailyData: analytics.weeklyDailyData,
+          serviceBreakdown: analytics.serviceBreakdown,
+        }}
+        appointmentsData={{
+          totalAppointments: analytics.totalAppointments,
+          statusCounts: analytics.statusCounts,
+          weeklyDailyData: analytics.weeklyDailyData,
+          serviceBreakdown: analytics.serviceBreakdown,
+        }}
+        clientsData={kpiClientsData}
+        topServiceData={{
+          topService: analytics.topService,
+          topCount: analytics.topCount,
+          serviceRanking: kpiServiceRanking,
+        }}
+      />
     </ScreenContainer>
   );
 }

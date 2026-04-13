@@ -769,3 +769,11 @@
 - [x] Add modern weekly revenue/appointments bar chart to home page
 - [x] Add upcoming appointments section at bottom of home page (max 10, sorted by date/time)
 - [x] Responsive layout audit: tablets and phones across all tab screens
+
+## KPI Card Redesign & Detail Sheets
+- [x] Redesign KPI cards: embedded sparkline charts, decorative circles, scale press animation, premium typography
+- [x] Revenue KPI detail sheet: monthly bar chart + daily line chart + service breakdown
+- [x] Appointments KPI detail sheet: daily bar chart + status breakdown + by-service breakdown
+- [x] Clients KPI detail sheet: top clients ranked by visits + total spent
+- [x] Top Service KPI detail sheet: all services ranked with horizontal progress bars
+- [x] Wire detail sheets to KPI card onPress (open bottom sheet instead of navigating away)
