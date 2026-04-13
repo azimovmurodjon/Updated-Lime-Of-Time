@@ -1093,6 +1093,7 @@ export default function HomeScreen() {
               const svc = getServiceById(appt.serviceId);
               const client = getClientById(appt.clientId);
               const staffMember = appt.staffId ? state.staff.find((s) => s.id === appt.staffId) : null;
+              const apptLocation = appt.locationId ? state.locations.find((l) => l.id === appt.locationId) : null;
               const accentColor = svc?.color ?? colors.primary;
               const statusColor =
                 appt.status === "confirmed" ? colors.success
@@ -1150,6 +1151,13 @@ export default function HomeScreen() {
                         </View>
                       ) : null}
                     </View>
+                    {/* Row 4: location badge — shown only in All Locations mode */}
+                    {!selectedLocationFilter && apptLocation && (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                        <IconSymbol name="mappin.circle.fill" size={12} color={colors.muted} />
+                        <Text style={{ fontSize: 12, color: colors.muted }} numberOfLines={1}>{apptLocation.name}</Text>
+                      </View>
+                    )}
                   </View>
                 </Pressable>
               );
@@ -1175,6 +1183,7 @@ export default function HomeScreen() {
               const svc = getServiceById(appt.serviceId);
               const client = getClientById(appt.clientId);
               const staffMember = appt.staffId ? state.staff.find((s) => s.id === appt.staffId) : null;
+              const apptLocation = appt.locationId ? state.locations.find((l) => l.id === appt.locationId) : null;
               const isToday = appt.date === todayStr;
               const apptDate = new Date(appt.date + "T00:00:00");
               const dayLabel = isToday
@@ -1244,6 +1253,13 @@ export default function HomeScreen() {
                         </View>
                       ) : null}
                     </View>
+                    {/* Row 4: location badge — shown only in All Locations mode */}
+                    {!selectedLocationFilter && apptLocation && (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                        <IconSymbol name="mappin.circle.fill" size={12} color={colors.muted} />
+                        <Text style={{ fontSize: 12, color: colors.muted }} numberOfLines={1}>{apptLocation.name}</Text>
+                      </View>
+                    )}
                   </View>
                 </Pressable>
               );

@@ -34,6 +34,7 @@ const MAPPING = {
   "arrow.left": "arrow-back",
   "mappin": "place",
   "mappin.and.ellipse": "place",
+  "mappin.circle.fill": "place",
   "globe": "language",
   "message.fill": "message",
   "person.crop.circle.badge.plus": "person-add",
