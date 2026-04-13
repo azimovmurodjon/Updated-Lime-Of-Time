@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { useEffect, useCallback, useRef } from "react";
 import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
@@ -49,7 +50,7 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
 
   // Must be a physical device — simulators don't support push
   if (!Device.isDevice) {
-    console.log("[Notifications] Push notifications require a physical device");
+    logger.log("[Notifications] Push notifications require a physical device");
     return null;
   }
 
@@ -78,7 +79,7 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
   }
 
   if (finalStatus !== "granted") {
-    console.log("[Notifications] Push notification permission denied");
+    logger.log("[Notifications] Push notification permission denied");
     return null;
   }
 
@@ -89,15 +90,15 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
       Constants.easConfig?.projectId;
 
     if (!projectId) {
-      console.warn("[Notifications] No EAS project ID found in app config");
+      logger.warn("[Notifications] No EAS project ID found in app config");
       return null;
     }
 
     const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
-    console.log("[Notifications] Expo push token:", tokenData.data);
+    logger.log("[Notifications] Expo push token:", tokenData.data);
     return tokenData.data;
   } catch (err) {
-    console.warn("[Notifications] Failed to get Expo push token:", err);
+    logger.warn("[Notifications] Failed to get Expo push token:", err);
     return null;
   }
 }
@@ -212,10 +213,10 @@ export function useNotifications() {
           },
           {
             onSuccess: () => {
-              console.log("[Notifications] Push token saved to server");
+              logger.log("[Notifications] Push token saved to server");
             },
             onError: (err) => {
-              console.warn("[Notifications] Failed to save push token:", err);
+              logger.warn("[Notifications] Failed to save push token:", err);
             },
           }
         );
@@ -254,10 +255,7 @@ export function useNotifications() {
           }
         }
       } catch (err) {
-        console.warn(
-          "[Notifications] Failed to get last notification response:",
-          err
-        );
+        logger.warn("[Notifications] Failed to get last notification response:", err);
       }
     };
     checkInitialNotification();
@@ -316,10 +314,7 @@ export function useNotifications() {
             },
           });
         } catch (err) {
-          console.warn(
-            "[Notifications] Failed to schedule 30-min reminder:",
-            err
-          );
+          logger.warn("[Notifications] Failed to schedule 30-min reminder:", err);
         }
       }
 
@@ -343,10 +338,7 @@ export function useNotifications() {
             },
           });
         } catch (err) {
-          console.warn(
-            "[Notifications] Failed to schedule 1-hour reminder:",
-            err
-          );
+          logger.warn("[Notifications] Failed to schedule 1-hour reminder:", err);
         }
       }
     });

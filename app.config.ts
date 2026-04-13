@@ -165,6 +165,14 @@ const config: ExpoConfig = {
           "Allow $(PRODUCT_NAME) to use Face ID to unlock the app.",
       },
     ],
+    [
+      "@sentry/react-native/expo",
+      {
+        url: "https://sentry.io/",
+        project: "lime-of-time",
+        organization: "lime-of-time",
+      },
+    ],
   ],
 
   experiments: {

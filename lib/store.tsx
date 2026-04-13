@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useReducer, useCallback, useMemo, useRef } from "react";
 import { AppState as RNAppState } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { logger } from "@/lib/logger";
 import {
   Service,
   Client,
@@ -744,7 +745,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             }
           } catch (err) {
             // DB load failed — log clearly so it's visible in crash logs
-            console.error("[Store] Failed to load from DB:", err);
+            logger.error("[Store] Failed to load from DB:", err);
             // The AsyncStorage cache (written on last successful DB load) will be used as offline fallback below
             // This means the user sees their last-known data instead of a blank app
           }
@@ -932,7 +933,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.setItem(STORAGE_KEYS.activeLocationId, defaultLoc.id).catch(() => {});
       }
     } catch (err) {
-      console.warn("[Store] refreshFromDb failed:", err);
+      logger.warn("[Store] refreshFromDb failed:", err);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trpcUtils]);
@@ -1435,7 +1436,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (err) {
         // Log clearly so it's visible in crash reports / Sentry
-        console.error(`[Store] DB sync FAILED for action '${action.type}':`, err);
+        logger.captureError(err, { context: "DB sync", action: action.type });
         // NOTE: Local state is already updated. The AsyncStorage cache will be written by the
         // useEffect watchers. On next app launch, if DB is reachable, the bootstrap will load
         // the correct data from DB. If DB is still unreachable, the cache will be used.
@@ -1628,7 +1629,7 @@ async function persistToAsyncStorage(
     if (locations) ops.push(AsyncStorage.setItem(STORAGE_KEYS.locations, JSON.stringify(locations)));
     await Promise.all(ops);
   } catch (err) {
-    console.warn("[Store] Failed to persist to AsyncStorage:", err);
+    logger.warn("[Store] Failed to persist to AsyncStorage:", err);
   }
 }
 

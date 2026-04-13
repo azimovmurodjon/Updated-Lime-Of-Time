@@ -22,6 +22,10 @@ import { initManusRuntime, subscribeSafeAreaInsets } from "@/lib/_core/manus-run
 import { StoreProvider } from "@/lib/store";
 import { AppLockProvider } from "@/lib/app-lock-provider";
 import { NotificationProvider } from "@/lib/notification-provider";
+import { initSentry, withSentryWrapper } from "@/lib/sentry";
+
+// Initialize Sentry as early as possible (before any React rendering)
+initSentry();
 
 SplashScreen.preventAutoHideAsync();
 
@@ -32,7 +36,7 @@ export const unstable_settings = {
   anchor: "(tabs)",
 };
 
-export default function RootLayout() {
+function RootLayout() {
   // Use system fonts (SF Pro on iOS, Roboto on Android) — no external font package needed
   const fontsLoaded = true;
 
@@ -152,3 +156,7 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 }
+
+// Wrap with Sentry for automatic crash reporting and performance monitoring.
+// withSentryWrapper is a no-op when EXPO_PUBLIC_SENTRY_DSN is not set.
+export default withSentryWrapper(RootLayout);

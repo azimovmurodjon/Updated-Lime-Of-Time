@@ -814,3 +814,11 @@
 
 ## iOS Crash Fix (Apr 13, 2026 - Session 3)
 - [x] Fix iOS crash: Object.fromEntries(response.headers.entries()) crashes on iOS 26 / iPhone 16 Pro Max (Hermes SIGSEGV in objectFromEntries)
+
+## Production Quality & Crash Reporting (Apr 13, 2026 - Session 4)
+- [x] Create dev-only logger utility (lib/logger.ts) — replaces console.log with no-ops in production
+- [x] Clean up all debug console.log calls in lib/_core/api.ts
+- [x] Clean up debug console.log calls in other core lib files (auth.ts, store.tsx, trpc.ts)
+- [x] Install and configure @sentry/react-native for automatic crash reporting
+- [x] Wire Sentry into app _layout.tsx as error boundary
+- [x] Add SENTRY_DSN environment variable (EXPO_PUBLIC_SENTRY_DSN — user must set from Sentry dashboard)

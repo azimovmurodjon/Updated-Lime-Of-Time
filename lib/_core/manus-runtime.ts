@@ -10,14 +10,10 @@
 
 import { Platform } from "react-native";
 import type { Metrics } from "react-native-safe-area-context";
+import { logger } from "@/lib/logger";
 
-// Debug logging with timestamps
-const DEBUG = true;
-const log = (msg: string) => {
-  if (!DEBUG) return;
-  const ts = new Date().toISOString();
-  console.log(`[ManusRuntime ${ts}] ${msg}`);
-};
+// Dev-only logger wrapper
+const log = (msg: string) => logger.log(`[ManusRuntime] ${msg}`);
 
 type MessageType = "appDevServerReady";
 type SafeAreaInsets = { top: number; right: number; bottom: number; left: number };
