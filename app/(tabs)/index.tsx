@@ -438,21 +438,24 @@ export default function HomeScreen() {
   }, [state.clients, state.appointments, state.services, filterByLocation, clientsForActiveLocation]);
 
   // ─── Upcoming Appointments (next 10, future dates + today future times) ──────
+  const tomorrowStr = useMemo(() => {
+    const d = new Date(now);
+    d.setDate(d.getDate() + 1);
+    return formatDateStr(d);
+  }, [todayStr]);
+
   const upcomingAppointments = useMemo(() => {
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
     return filterByLocation(state.appointments)
       .filter((a) => {
         if (a.status === "cancelled" || a.status === "completed") return false;
-        if (a.date > todayStr) return true;
-        if (a.date === todayStr) return timeToMinutes(a.time) > nowMinutes;
-        return false;
+        return a.date >= tomorrowStr;
       })
       .sort((a, b) => {
         if (a.date !== b.date) return a.date < b.date ? -1 : 1;
         return timeToMinutes(a.time) - timeToMinutes(b.time);
       })
       .slice(0, 10);
-  }, [state.appointments, filterByLocation, todayStr, now]);
+  }, [state.appointments, filterByLocation, tomorrowStr]);
 
   // ─── KPI Sheet Data ─────────────────────────────────────────────────────
   const kpiClientsData = useMemo(() => {
@@ -1096,59 +1099,63 @@ export default function HomeScreen() {
             {todayAppts.map((appt) => {
               const svc = getServiceById(appt.serviceId);
               const client = getClientById(appt.clientId);
+              const staffMember = appt.staffId ? state.staff.find((s) => s.id === appt.staffId) : null;
+              const accentColor = svc?.color ?? colors.primary;
               const statusColor =
-                appt.status === "confirmed"
-                  ? colors.success
-                  : appt.status === "pending"
-                  ? "#FF9800"
-                  : appt.status === "completed"
-                  ? colors.primary
-                  : colors.error;
+                appt.status === "confirmed" ? colors.success
+                : appt.status === "pending" ? "#FF9800"
+                : appt.status === "completed" ? colors.primary
+                : colors.error;
+              const timeLabel = `${formatTime(appt.time)} – ${getEndTime(appt.time, appt.duration)}`;
+              const clientPhone = client?.phone ? formatPhone(client.phone) : null;
               return (
                 <Pressable
                   key={appt.id}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/appointment-detail",
-                      params: { id: appt.id },
-                    })
-                  }
-                  style={({ pressed }) => [
-                    styles.apptCard,
+                  onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })}
+                  style={({ pressed }) => ([
                     {
                       backgroundColor: colors.surface,
+                      borderRadius: 14,
+                      borderWidth: 1,
                       borderColor: colors.border,
-                      borderLeftColor: svc?.color ?? colors.primary,
-                      opacity: pressed ? 0.8 : 1,
-                      // 2-column on tablet
+                      borderLeftWidth: 4,
+                      borderLeftColor: accentColor,
+                      overflow: "hidden",
+                      marginBottom: 10,
+                      opacity: pressed ? 0.85 : 1,
                       ...(isTablet ? { width: Math.floor((contentWidth - cardGap) / 2) } : {}),
                     },
-                  ]}
+                  ])}
                 >
-                  <View style={styles.apptRow}>
-                    <View style={[styles.apptTimeBlock, { backgroundColor: statusColor + "18" }]}>
-                      <Text style={{ fontSize: 11, fontWeight: "700", color: statusColor }}>{formatTime(appt.time)}</Text>
-                      <Text style={{ fontSize: 10, color: statusColor + "CC" }}>–{getEndTime(appt.time, appt.duration)}</Text>
+                  <View style={{ padding: 14, gap: 5 }}>
+                    {/* Row 1: time range (left) + status badge (right) */}
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                      <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, flex: 1, marginRight: 8 }} numberOfLines={1}>
+                        {timeLabel}
+                      </Text>
+                      <View style={{ backgroundColor: statusColor + "22", paddingHorizontal: 9, paddingVertical: 3, borderRadius: 8, flexShrink: 0 }}>
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: statusColor }}>
+                          {appt.status.charAt(0).toUpperCase() + appt.status.slice(1)}
+                        </Text>
+                      </View>
                     </View>
-                    <View style={styles.apptInfo}>
-                      <Text style={[styles.apptService, { color: colors.foreground }]}>
-                        {svc?.name ?? "Service"}
+                    {/* Row 2: service name + duration */}
+                    <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }} numberOfLines={1}>
+                      {svc ? `${svc.name} (${appt.duration ?? svc.duration} min)` : "Service"}
+                    </Text>
+                    {/* Row 3: client name · phone + staff */}
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                      <Text style={{ fontSize: 13, color: colors.muted, flex: 1, marginRight: 8 }} numberOfLines={1}>
+                        {client?.name ?? "Client"}{clientPhone ? ` · ${clientPhone}` : ""}
                       </Text>
-                      <Text style={{ fontSize: 13, color: colors.muted }}>
-                        {client?.name ?? "Client"}
-                      </Text>
-                    </View>
-                    <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
-                      <Text
-                        style={{
-                          fontSize: 11,
-                          fontWeight: "600",
-                          color: statusColor,
-                          textTransform: "capitalize",
-                        }}
-                      >
-                        {appt.status}
-                      </Text>
+                      {staffMember ? (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flexShrink: 0 }}>
+                          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: accentColor }} />
+                          <Text style={{ fontSize: 13, color: accentColor, fontWeight: "600" }} numberOfLines={1}>
+                            {staffMember.name}
+                          </Text>
+                        </View>
+                      ) : null}
                     </View>
                   </View>
                 </Pressable>

@@ -226,7 +226,7 @@ export default function CalendarScreen() {
     const base = locationAppointments;
     switch (activeFilter) {
       case "upcoming":
-        return base.filter((a) => a.status === "confirmed" && a.date >= todayStr)
+        return base.filter((a) => a.status === "confirmed" && a.date > todayStr)
           .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
       case "requests":
         return base.filter((a) => a.status === "pending")
@@ -813,7 +813,7 @@ export default function CalendarScreen() {
           {FILTERS.map((f) => {
             const isActive = activeFilter === f.key;
             const count = f.key === "upcoming"
-              ? locationAppointments.filter((a) => a.status === "confirmed" && a.date >= todayStr).length
+              ? locationAppointments.filter((a) => a.status === "confirmed" && a.date > todayStr).length
               : f.key === "requests" ? locationAppointments.filter((a) => a.status === "pending").length
               : f.key === "cancelled" ? locationAppointments.filter((a) => a.status === "cancelled").length
               : locationAppointments.filter((a) => a.status === "completed").length;
