@@ -720,10 +720,21 @@ export default function CalendarScreen() {
             )}
           </View>
         </Pressable>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
             <Text style={{ fontSize: 11, fontWeight: "600", color: statusColor, textTransform: "capitalize" }}>{appt.status}</Text>
           </View>
+          {hasMultiLoc && appt.locationId && (() => {
+            const loc = getLocationById(appt.locationId);
+            if (!loc) return null;
+            const locColor = (loc as any).color || colors.primary;
+            return (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: locColor + "18", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
+                <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: locColor }} />
+                <Text style={{ fontSize: 11, fontWeight: "600", color: locColor }} numberOfLines={1}>{loc.name}</Text>
+              </View>
+            );
+          })()}
         </View>
         {isRequest && (
           <View style={[styles.actionRow, { borderTopColor: colors.border }]}>

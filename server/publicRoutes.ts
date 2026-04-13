@@ -3516,9 +3516,14 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any,
     return parts.join(", ");
   })();
   const apptLocationPhone = apptLocation?.phone || "";
-  const apptLocationMapUrl = apptLocationAddr
+  // Build both map URLs — JS on the page will pick the right one based on user agent
+  const apptLocationMapUrlGoogle = apptLocationAddr
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(apptLocationAddr)}`
+    : "";
+  const apptLocationMapUrlApple = apptLocationAddr
     ? `https://maps.apple.com/?q=${encodeURIComponent(apptLocationAddr)}`
     : "";
+  const apptLocationMapUrl = apptLocationMapUrlGoogle; // used as data attribute; JS selects the right one
   const apiBase = "";
 
   return `<!DOCTYPE html>
@@ -3700,7 +3705,7 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any,
         <span class="appt-label">Location</span>
         <span class="appt-value" style="text-align:right;max-width:60%;">
           ${escHtml(apptLocationName)}
-          ${apptLocationAddr ? `<br/>${apptLocationMapUrl ? `<a href="${escHtml(apptLocationMapUrl)}" target="_blank" rel="noopener" style="font-size:12px;font-weight:400;color:var(--accent);text-decoration:none;">${escHtml(apptLocationAddr)} ↗</a>` : `<span style="font-size:12px;font-weight:400;color:var(--text-secondary);">${escHtml(apptLocationAddr)}</span>`}` : ""}
+          ${apptLocationAddr ? `<br/>${apptLocationMapUrlGoogle ? `<a id="map-link" href="${escHtml(apptLocationMapUrlGoogle)}" data-google="${escHtml(apptLocationMapUrlGoogle)}" data-apple="${escHtml(apptLocationMapUrlApple)}" target="_blank" rel="noopener" style="font-size:12px;font-weight:400;color:var(--accent);text-decoration:none;">${escHtml(apptLocationAddr)} ↗</a><script>try{var ua=navigator.userAgent||'';if(/iPad|iPhone|iPod/.test(ua)&&!window.MSStream){var ml=document.getElementById('map-link');if(ml)ml.href=ml.getAttribute('data-apple');}}catch(e){}</script>` : `<span style="font-size:12px;font-weight:400;color:var(--text-secondary);">${escHtml(apptLocationAddr)}</span>`}` : ""}
           ${apptLocationPhone ? `<br/><a href="tel:${escHtml(apptLocationPhone)}" style="font-size:12px;font-weight:400;color:var(--accent);text-decoration:none;">📞 ${escHtml(apptLocationPhone)}</a>` : ""}
         </span>
       </div>` : ""}
