@@ -625,7 +625,7 @@ export default function HomeScreen() {
               >
                 {state.settings.businessName}
               </Text>
-              <Text style={[styles.greetingText, { color: colors.muted }]}>{greeting} 🍋</Text>
+              <Text style={[styles.greetingText, { color: colors.muted }]}>{greeting}</Text>
             </View>
             {state.settings.temporaryClosed && (
               <View style={[styles.closedBadge, { backgroundColor: colors.error + "15" }]}>

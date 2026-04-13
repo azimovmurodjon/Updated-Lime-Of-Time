@@ -723,11 +723,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               let chosenActiveId: string | null = null;
               if (storedActiveLoc && activeLocations.some((l) => l.id === storedActiveLoc)) {
                 chosenActiveId = storedActiveLoc;
-              } else if (activeLocations.length >= 1) {
-                const defaultLoc = activeLocations.find((l) => l.isDefault) ?? activeLocations[0];
-                chosenActiveId = defaultLoc.id;
+              } else if (activeLocations.length === 1) {
+                // Only one location — auto-select it
+                chosenActiveId = activeLocations[0].id;
                 AsyncStorage.setItem(STORAGE_KEYS.activeLocationId, chosenActiveId).catch(() => {});
               }
+              // Multiple locations with no stored preference → leave null (show All Locations)
               if (chosenActiveId) {
                 dispatch({ type: "SET_ACTIVE_LOCATION", payload: chosenActiveId });
                 // Note: all locations remain active in DB; activeLocationId is just a UI filter
@@ -813,13 +814,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (storedActiveLoc2 && activeLocations2.some((l) => l.id === storedActiveLoc2)) {
           dispatch({ type: "SET_ACTIVE_LOCATION", payload: storedActiveLoc2 });
         } else if (activeLocations2.length === 1) {
+          // Only one location — auto-select it
           dispatch({ type: "SET_ACTIVE_LOCATION", payload: activeLocations2[0].id });
           AsyncStorage.setItem(STORAGE_KEYS.activeLocationId, activeLocations2[0].id).catch(() => {});
-        } else if (activeLocations2.length > 1) {
-          const defaultLoc2 = activeLocations2.find((l) => l.isDefault) ?? activeLocations2[0];
-          dispatch({ type: "SET_ACTIVE_LOCATION", payload: defaultLoc2.id });
-          AsyncStorage.setItem(STORAGE_KEYS.activeLocationId, defaultLoc2.id).catch(() => {});
         }
+        // Multiple locations with no stored preference → leave null (show All Locations)
       } catch {
         dispatch({ type: "LOAD_DATA", payload: {} });
       }
@@ -942,11 +941,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const activeLocations = dbLocations.filter((l) => l.active);
       if (storedActiveLoc && activeLocations.some((l) => l.id === storedActiveLoc)) {
         dispatch({ type: "SET_ACTIVE_LOCATION", payload: storedActiveLoc });
-      } else if (activeLocations.length >= 1) {
-        const defaultLoc = activeLocations.find((l) => l.isDefault) ?? activeLocations[0];
-        dispatch({ type: "SET_ACTIVE_LOCATION", payload: defaultLoc.id });
-        AsyncStorage.setItem(STORAGE_KEYS.activeLocationId, defaultLoc.id).catch(() => {});
+      } else if (activeLocations.length === 1) {
+        // Only one location — auto-select it
+        dispatch({ type: "SET_ACTIVE_LOCATION", payload: activeLocations[0].id });
+        AsyncStorage.setItem(STORAGE_KEYS.activeLocationId, activeLocations[0].id).catch(() => {});
       }
+      // Multiple locations with no stored preference → leave null (show All Locations)
     } catch (err) {
       logger.warn("[Store] refreshFromDb failed:", err);
     }
