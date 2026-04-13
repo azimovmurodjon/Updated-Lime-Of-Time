@@ -1,8 +1,11 @@
 import { useEffect, useCallback, useRef } from "react";
 import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
+import * as Device from "expo-device";
+import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import { useStore } from "@/lib/store";
+import { trpc } from "@/lib/trpc";
 
 // Configure foreground notification display
 Notifications.setNotificationHandler({
@@ -22,25 +25,99 @@ Notifications.setNotificationHandler({
  */
 export type NotificationData = {
   /** Type of notification for routing */
-  type: "appointment_reminder" | "appointment_request" | "appointment_cancelled" | "appointment_rescheduled" | "waitlist" | "general";
+  type:
+    | "appointment_reminder"
+    | "appointment_request"
+    | "appointment_cancelled"
+    | "appointment_rescheduled"
+    | "waitlist"
+    | "general";
   /** Appointment ID to navigate to */
   appointmentId?: string;
+  /** Calendar tab filter to open */
+  filter?: "requests" | "cancelled" | "upcoming" | "completed";
   /** URL to navigate to (Expo Router path) */
   url?: string;
 };
 
 /**
- * Hook to manage local appointment reminder notifications
- * and handle notification tap navigation.
+ * Register for Expo push notifications and return the Expo push token.
+ * Returns null if not on a physical device or permissions denied.
+ */
+async function registerForPushNotificationsAsync(): Promise<string | null> {
+  if (Platform.OS === "web") return null;
+
+  // Must be a physical device — simulators don't support push
+  if (!Device.isDevice) {
+    console.log("[Notifications] Push notifications require a physical device");
+    return null;
+  }
+
+  // Set up Android notification channel
+  if (Platform.OS === "android") {
+    await Notifications.setNotificationChannelAsync("appointments", {
+      name: "Appointment Notifications",
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#4a8c3f",
+      sound: "default",
+    });
+    await Notifications.setNotificationChannelAsync("default", {
+      name: "Default",
+      importance: Notifications.AndroidImportance.DEFAULT,
+    });
+  }
+
+  // Request permissions
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  let finalStatus = existingStatus;
+
+  if (existingStatus !== "granted") {
+    const { status } = await Notifications.requestPermissionsAsync();
+    finalStatus = status;
+  }
+
+  if (finalStatus !== "granted") {
+    console.log("[Notifications] Push notification permission denied");
+    return null;
+  }
+
+  // Get the Expo push token
+  try {
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId ??
+      Constants.easConfig?.projectId;
+
+    if (!projectId) {
+      console.warn("[Notifications] No EAS project ID found in app config");
+      return null;
+    }
+
+    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+    console.log("[Notifications] Expo push token:", tokenData.data);
+    return tokenData.data;
+  } catch (err) {
+    console.warn("[Notifications] Failed to get Expo push token:", err);
+    return null;
+  }
+}
+
+/**
+ * Hook to manage push notification registration, local appointment reminders,
+ * and notification tap deep-link navigation.
  */
 export function useNotifications() {
   const { state } = useStore();
   const router = useRouter();
   const scheduledRef = useRef<Set<string>>(new Set());
   const listenerSetupRef = useRef(false);
+  const tokenRegisteredRef = useRef(false);
 
   // Get business name for notification titles
   const businessName = state.settings.businessName || "Lime Of Time";
+
+  // tRPC mutation to save push token to server
+  const updateBusiness = trpc.business.update.useMutation();
 
   /**
    * Navigate based on notification data payload.
@@ -52,33 +129,63 @@ export function useNotifications() {
 
       const notifType = data.type as string;
       const appointmentId = data.appointmentId as string | undefined;
+      const filter = data.filter as string | undefined;
 
       switch (notifType) {
-        case "appointment_reminder":
         case "appointment_request":
-        case "appointment_cancelled":
         case "appointment_rescheduled":
-          if (appointmentId) {
-            // Navigate to appointment detail with the specific appointment
-            router.push({ pathname: "/appointment-detail", params: { id: appointmentId } });
-          } else {
-            // Fallback: go to calendar requests tab
-            router.push({ pathname: "/(tabs)/calendar", params: { filter: "requests" } });
-          }
+          // New booking or reschedule → go to Requests tab
+          router.push({
+            pathname: "/(tabs)/calendar",
+            params: { filter: "requests" },
+          });
+          break;
+
+        case "appointment_cancelled":
+          // Client cancelled → go to Cancelled tab
+          router.push({
+            pathname: "/(tabs)/calendar",
+            params: { filter: "cancelled" },
+          });
           break;
 
         case "waitlist":
-          // Navigate to calendar requests view
-          router.push({ pathname: "/(tabs)/calendar", params: { filter: "requests" } });
+          // Waitlist entry → go to Requests tab
+          router.push({
+            pathname: "/(tabs)/calendar",
+            params: { filter: "requests" },
+          });
+          break;
+
+        case "appointment_reminder":
+          // Appointment reminder → go to appointment detail if we have ID
+          if (appointmentId) {
+            router.push({
+              pathname: "/appointment-detail",
+              params: { id: appointmentId },
+            });
+          } else {
+            router.push({
+              pathname: "/(tabs)/calendar",
+              params: { filter: "upcoming" },
+            });
+          }
           break;
 
         default:
-          // If there's a URL in the data, navigate to it
-          if (data.url && typeof data.url === "string") {
-            router.push(data.url as any);
+          // Generic: use filter param if present, otherwise appointment detail or home
+          if (filter) {
+            router.push({
+              pathname: "/(tabs)/calendar",
+              params: { filter },
+            });
           } else if (appointmentId) {
-            // Fallback: if we have an appointmentId, go to appointment detail
-            router.push({ pathname: "/appointment-detail", params: { id: appointmentId } });
+            router.push({
+              pathname: "/appointment-detail",
+              params: { id: appointmentId },
+            });
+          } else if (data.url && typeof data.url === "string") {
+            router.push(data.url as any);
           }
           break;
       }
@@ -86,24 +193,35 @@ export function useNotifications() {
     [router]
   );
 
-  // Request permissions on mount
+  // Register for push notifications and save token to server
   useEffect(() => {
     if (Platform.OS === "web") return;
-    (async () => {
-      if (Platform.OS === "android") {
-        await Notifications.setNotificationChannelAsync("appointments", {
-          name: "Appointment Reminders",
-          importance: Notifications.AndroidImportance.HIGH,
-          vibrationPattern: [0, 250, 250, 250],
-          lightColor: "#6BBF59",
-        });
+    if (tokenRegisteredRef.current) return;
+    if (!state.businessOwnerId) return;
+    if (!state.settings.notificationsEnabled) return;
+
+    tokenRegisteredRef.current = true;
+
+    registerForPushNotificationsAsync().then((token) => {
+      if (token && state.businessOwnerId) {
+        // Save the push token to the server so it can send notifications
+        updateBusiness.mutate(
+          {
+            id: state.businessOwnerId,
+            expoPushToken: token,
+          },
+          {
+            onSuccess: () => {
+              console.log("[Notifications] Push token saved to server");
+            },
+            onError: (err) => {
+              console.warn("[Notifications] Failed to save push token:", err);
+            },
+          }
+        );
       }
-      const { status } = await Notifications.getPermissionsAsync();
-      if (status !== "granted") {
-        await Notifications.requestPermissionsAsync();
-      }
-    })();
-  }, []);
+    });
+  }, [state.businessOwnerId, state.settings.notificationsEnabled]);
 
   // Set up notification response listener for tap handling (once)
   useEffect(() => {
@@ -112,29 +230,34 @@ export function useNotifications() {
     listenerSetupRef.current = true;
 
     // Handle notification taps when app is running (foreground/background)
-    const responseSubscription = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        const data = response.notification.request.content.data as NotificationData;
+    const responseSubscription =
+      Notifications.addNotificationResponseReceivedListener((response) => {
+        const data = response.notification.request.content
+          .data as NotificationData;
         if (data) {
           // Small delay to ensure navigation is ready
           setTimeout(() => handleNotificationNavigation(data), 300);
         }
-      }
-    );
+      });
 
     // Handle cold-start: check if app was opened from a notification
     const checkInitialNotification = async () => {
       try {
-        const lastResponse = await Notifications.getLastNotificationResponseAsync();
+        const lastResponse =
+          await Notifications.getLastNotificationResponseAsync();
         if (lastResponse) {
-          const data = lastResponse.notification.request.content.data as NotificationData;
+          const data = lastResponse.notification.request.content
+            .data as NotificationData;
           if (data) {
             // Longer delay for cold start to ensure app is fully loaded
             setTimeout(() => handleNotificationNavigation(data), 1000);
           }
         }
       } catch (err) {
-        console.warn("[Notifications] Failed to get last notification response:", err);
+        console.warn(
+          "[Notifications] Failed to get last notification response:",
+          err
+        );
       }
     };
     checkInitialNotification();
@@ -145,7 +268,7 @@ export function useNotifications() {
     };
   }, [handleNotificationNavigation]);
 
-  // Schedule reminders for upcoming appointments
+  // Schedule local reminders for upcoming appointments
   useEffect(() => {
     if (Platform.OS === "web") return;
     if (!state.settings.notificationsEnabled) return;
@@ -193,7 +316,10 @@ export function useNotifications() {
             },
           });
         } catch (err) {
-          console.warn("[Notifications] Failed to schedule 30-min reminder:", err);
+          console.warn(
+            "[Notifications] Failed to schedule 30-min reminder:",
+            err
+          );
         }
       }
 
@@ -217,11 +343,20 @@ export function useNotifications() {
             },
           });
         } catch (err) {
-          console.warn("[Notifications] Failed to schedule 1-hour reminder:", err);
+          console.warn(
+            "[Notifications] Failed to schedule 1-hour reminder:",
+            err
+          );
         }
       }
     });
-  }, [state.appointments, state.services, state.clients, state.settings.notificationsEnabled, businessName]);
+  }, [
+    state.appointments,
+    state.services,
+    state.clients,
+    state.settings.notificationsEnabled,
+    businessName,
+  ]);
 
   const cancelAllReminders = useCallback(async () => {
     if (Platform.OS === "web") return;

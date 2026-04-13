@@ -1,0 +1,1 @@
+ALTER TABLE `business_owners` ADD `expoPushToken` varchar(255);

@@ -67,6 +67,8 @@ export const businessOwners = mysqlTable("business_owners", {
   customSlug: varchar("customSlug", { length: 100 }),
   /** Business Hours end date: ISO date string YYYY-MM-DD, null = open-ended */
   businessHoursEndDate: varchar("businessHoursEndDate", { length: 10 }),
+  /** Expo push notification token for sending push notifications to owner's device */
+  expoPushToken: varchar("expoPushToken", { length: 255 }),
   /** Onboarding completed */
   onboardingComplete: boolean("onboardingComplete").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

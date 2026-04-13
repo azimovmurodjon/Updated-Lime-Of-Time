@@ -794,3 +794,15 @@
 - [ ] Apply formatPhone in home page upcoming cards
 - [ ] Apply formatPhone in calendar appointment list (all tabs)
 - [ ] Apply formatPhone in appointment detail screen
+
+## Push Notifications & Email Deep-Link Routing (Apr 13, 2026)
+- [x] Add expoPushToken column to businessOwners DB schema + migration
+- [x] Add expoPushToken to business.update tRPC router
+- [x] Create server/push.ts with Expo Push API integration (notifyNewBooking, notifyCancellation, notifyReschedule, notifyWaitlist)
+- [x] Update publicRoutes.ts: use Expo push for all 4 notification events (new booking, cancel, reschedule, waitlist) with Manus notifyOwner fallback
+- [x] Update use-notifications.ts: register Expo push token on device, save to server via tRPC
+- [x] Add expo-device package for physical device detection
+- [x] Add expo-notifications plugin to app.config.ts with Android channel config
+- [x] Create notification-icon.png for Android notification tray
+- [x] Deep-link routing: appointment_request/rescheduled → Calendar Requests tab; appointment_cancelled → Calendar Cancelled tab; appointment_reminder → appointment detail; waitlist → Calendar Requests tab
+- [x] Set RESEND_API_KEY environment variable for email sending from noreply@lime-of-time.com

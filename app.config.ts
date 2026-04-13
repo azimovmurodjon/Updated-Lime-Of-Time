@@ -150,6 +150,15 @@ const config: ExpoConfig = {
       },
     ],
     [
+      "expo-notifications",
+      {
+        icon: "./assets/images/notification-icon.png",
+        color: "#4a8c3f",
+        defaultChannel: "appointments",
+        sounds: [],
+      },
+    ],
+    [
       "expo-local-authentication",
       {
         faceIDPermission:

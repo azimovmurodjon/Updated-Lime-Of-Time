@@ -2,6 +2,12 @@ import { Express, Request, Response } from "express";
 import * as db from "./db";
 import { sendBookingNotificationEmail } from "./email";
 import { notifyOwner } from "./_core/notification";
+import {
+  notifyNewBooking,
+  notifyCancellation,
+  notifyReschedule,
+  notifyWaitlist,
+} from "./push";
 
 // ─── Helper: Generate available time slots ──────────────────────────
 const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -706,13 +712,28 @@ export function registerPublicRoutes(app: Express) {
 
       // Send push notification to business owner's device
       try {
-        const extrasLabel = extras.length > 0 ? ` + ${extras.length} extra` : "";
-        const phoneLabel = clientPhone ? ` | 📞 ${clientPhone}` : "";
-        const priceLabel = finalTotal > 0 ? ` | $${finalTotal.toFixed(2)}` : "";
-        await notifyOwner({
-          title: `📅 New Booking Request — ${owner.businessName}`,
-          content: `${clientName}${phoneLabel} requested ${svc?.name ?? "a service"}${extrasLabel}\nDate: ${date} at ${time} (${dur} min)${priceLabel}\nTap to review and confirm.`,
-        });
+        const ownerPushToken = (owner as any).expoPushToken as string | null | undefined;
+        if (ownerPushToken) {
+          // Send Expo push notification directly to owner's device (appears as "Lime Of Time")
+          await notifyNewBooking(
+            ownerPushToken,
+            owner.businessName,
+            clientName,
+            svc?.name ?? "a service",
+            date,
+            time,
+            appointmentLocalId
+          );
+        } else {
+          // Fallback: Manus platform notification (no device token registered yet)
+          const extrasLabel = extras.length > 0 ? ` + ${extras.length} extra` : "";
+          const phoneLabel = clientPhone ? ` | 📞 ${clientPhone}` : "";
+          const priceLabel = finalTotal > 0 ? ` | $${finalTotal.toFixed(2)}` : "";
+          await notifyOwner({
+            title: `📅 New Booking Request — ${owner.businessName}`,
+            content: `${clientName}${phoneLabel} requested ${svc?.name ?? "a service"}${extrasLabel}\nDate: ${date} at ${time} (${dur} min)${priceLabel}\nTap to review and confirm.`,
+          });
+        }
       } catch (pushErr) {
         console.warn("[Public API] Failed to send push notification:", pushErr);
       }
@@ -879,10 +900,23 @@ export function registerPublicRoutes(app: Express) {
       try {
         const svcList = await db.getServicesByOwner(owner.id);
         const svc = svcList.find((s) => s.localId === appt.serviceLocalId);
-        await notifyOwner({
-          title: `❌ Appointment Cancelled — ${owner.businessName}`,
-          content: `${client?.name || "A client"} cancelled their ${svc?.name || "appointment"}\nDate: ${appt.date} at ${appt.time} (${appt.duration} min)\nTap to view your calendar.`,
-        });
+        const ownerPushToken = (owner as any).expoPushToken as string | null | undefined;
+        if (ownerPushToken) {
+          await notifyCancellation(
+            ownerPushToken,
+            owner.businessName,
+            client?.name || "A client",
+            svc?.name || "appointment",
+            appt.date,
+            appt.time,
+            appointmentId
+          );
+        } else {
+          await notifyOwner({
+            title: `❌ Appointment Cancelled — ${owner.businessName}`,
+            content: `${client?.name || "A client"} cancelled their ${svc?.name || "appointment"}\nDate: ${appt.date} at ${appt.time} (${appt.duration} min)\nTap to view your calendar.`,
+          });
+        }
       } catch (pushErr) {
         console.warn("[Public API] Failed to send cancellation notification:", pushErr);
       }
@@ -973,10 +1007,23 @@ export function registerPublicRoutes(app: Express) {
       try {
         const svcList = await db.getServicesByOwner(owner.id);
         const svc = svcList.find((s) => s.localId === appt.serviceLocalId);
-        await notifyOwner({
-          title: `🔄 Appointment Rescheduled — ${owner.businessName}`,
-          content: `${client?.name || "A client"} rescheduled their ${svc?.name || "appointment"}\nNew date: ${newDate} at ${newTime}\nTap to review and confirm.`,
-        });
+        const ownerPushToken = (owner as any).expoPushToken as string | null | undefined;
+        if (ownerPushToken) {
+          await notifyReschedule(
+            ownerPushToken,
+            owner.businessName,
+            client?.name || "A client",
+            svc?.name || "appointment",
+            newDate,
+            newTime,
+            appointmentId
+          );
+        } else {
+          await notifyOwner({
+            title: `🔄 Appointment Rescheduled — ${owner.businessName}`,
+            content: `${client?.name || "A client"} rescheduled their ${svc?.name || "appointment"}\nNew date: ${newDate} at ${newTime}\nTap to review and confirm.`,
+          });
+        }
       } catch (pushErr) {
         console.warn("[Public API] Failed to send reschedule notification:", pushErr);
       }
@@ -1015,10 +1062,21 @@ export function registerPublicRoutes(app: Express) {
       try {
         const svcList = await db.getServicesByOwner(owner.id);
         const svc = svcList.find((s) => s.localId === serviceLocalId);
-        await notifyOwner({
-          title: `⏳ New Waitlist Entry — ${owner.businessName}`,
-          content: `${clientName} joined the waitlist for ${svc?.name || "a service"}\nPreferred date: ${preferredDate}\nTap to view waitlist.`,
-        });
+        const ownerPushToken = (owner as any).expoPushToken as string | null | undefined;
+        if (ownerPushToken) {
+          await notifyWaitlist(
+            ownerPushToken,
+            owner.businessName,
+            clientName,
+            svc?.name || "a service",
+            preferredDate
+          );
+        } else {
+          await notifyOwner({
+            title: `⏳ New Waitlist Entry — ${owner.businessName}`,
+            content: `${clientName} joined the waitlist for ${svc?.name || "a service"}\nPreferred date: ${preferredDate}\nTap to view waitlist.`,
+          });
+        }
       } catch (pushErr) {
         console.warn("[Public API] Failed to send waitlist notification:", pushErr);
       }
