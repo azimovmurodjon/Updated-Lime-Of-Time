@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Modal,
   View,
@@ -61,6 +61,7 @@ interface KpiDetailSheetProps {
   appointmentsData: AppointmentsData;
   clientsData: ClientsData;
   topServiceData: TopServiceData;
+  onExport?: (tab: KpiTab) => Promise<void>;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────
@@ -353,7 +354,19 @@ export function KpiDetailSheet({
   appointmentsData,
   clientsData,
   topServiceData,
+  onExport,
 }: KpiDetailSheetProps) {
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async () => {
+    if (!tab || !onExport || exporting) return;
+    setExporting(true);
+    try {
+      await onExport(tab);
+    } finally {
+      setExporting(false);
+    }
+  };
   const { width, height } = useWindowDimensions();
   const colors = useColors();
   const isTablet = width >= 768;
@@ -614,6 +627,39 @@ export function KpiDetailSheet({
                   ))
                 )}
               </View>
+            )}
+            {/* ─── Download Report Button ───────────────────────── */}
+            {onExport && (
+              <Pressable
+                onPress={handleExport}
+                disabled={exporting}
+                style={({ pressed }) => ({
+                  marginTop: 24,
+                  borderRadius: 14,
+                  overflow: "hidden",
+                  opacity: pressed || exporting ? 0.7 : 1,
+                  transform: [{ scale: pressed ? 0.98 : 1 }],
+                })}
+              >
+                <LinearGradient
+                  colors={cfg.gradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    paddingVertical: 15,
+                    paddingHorizontal: 24,
+                    gap: 10,
+                  }}
+                >
+                  <IconSymbol name="arrow.down.circle.fill" size={20} color="#FFF" />
+                  <Text style={{ fontSize: 15, fontWeight: "700", color: "#FFF", letterSpacing: -0.2 }}>
+                    {exporting ? "Generating Report…" : "Download Report"}
+                  </Text>
+                </LinearGradient>
+              </Pressable>
             )}
           </ScrollView>
         </Pressable>

@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useCallback, useState } from "react";
+import { useMemo, useEffect, useCallback, useState, useRef } from "react";
 import {
   Text,
   View,
@@ -25,6 +25,30 @@ import * as ImagePicker from "expo-image-picker";
 import { MiniBarChart, MiniDonutChart } from "@/components/mini-chart";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { KpiDetailSheet, MicroSparkLine, MicroBarSpark, type KpiTab } from "@/components/kpi-detail-sheet";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
+
+// ─── Count-up hook ──────────────────────────────────────────────────────
+function useCountUp(target: number, duration = 900): number {
+  const [display, setDisplay] = useState(0);
+  const ref = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    if (target === 0) { setDisplay(0); return; }
+    const steps = 40;
+    const stepTime = Math.max(16, Math.floor(duration / steps));
+    let current = 0;
+    ref.current = setInterval(() => {
+      current += 1;
+      setDisplay(Math.round((current / steps) * target));
+      if (current >= steps) {
+        setDisplay(target);
+        if (ref.current) clearInterval(ref.current);
+      }
+    }, stepTime);
+    return () => { if (ref.current) clearInterval(ref.current); };
+  }, [target, duration]);
+  return display;
+}
 
 // ─── Gradient KPI Card (redesigned with sparkline) ────────────────────
 function GradientKpiCard({
@@ -32,6 +56,9 @@ function GradientKpiCard({
   iconBg,
   icon,
   value,
+  numericValue,
+  valuePrefix,
+  valueSuffix,
   label,
   sublabel,
   badge,
@@ -45,6 +72,9 @@ function GradientKpiCard({
   iconBg: string;
   icon: React.ReactNode;
   value: string;
+  numericValue?: number;
+  valuePrefix?: string;
+  valueSuffix?: string;
   label: string;
   sublabel?: string;
   badge?: React.ReactNode;
@@ -55,6 +85,10 @@ function GradientKpiCard({
   width: number;
 }) {
   const sparkW = cardWidth - 28;
+  const animatedNum = useCountUp(numericValue ?? 0);
+  const displayValue = numericValue != null
+    ? `${valuePrefix ?? ""}${animatedNum.toLocaleString()}${valueSuffix ?? ""}`
+    : value;
   return (
     <Pressable
       onPress={onPress}
@@ -122,7 +156,7 @@ function GradientKpiCard({
 
         {/* Value */}
         <Text style={{ fontSize: 26, fontWeight: "800", color: "#FFFFFF", lineHeight: 32, letterSpacing: -0.8 }} numberOfLines={1}>
-          {value}
+          {displayValue}
         </Text>
         <Text style={{ fontSize: 12, fontWeight: "600", color: "rgba(255,255,255,0.82)", marginTop: 1 }}>{label}</Text>
         {sublabel ? <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>{sublabel}</Text> : null}
@@ -139,11 +173,6 @@ function GradientKpiCard({
           </View>
         )}
 
-        {/* Tap hint */}
-        <View style={{ position: "absolute", bottom: 10, right: 12, flexDirection: "row", alignItems: "center", gap: 3 }}>
-          <Text style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", fontWeight: "600" }}>Details</Text>
-          <IconSymbol name="chevron.right" size={9} color="rgba(255,255,255,0.5)" />
-        </View>
       </LinearGradient>
     </Pressable>
   );
@@ -522,6 +551,42 @@ export default function HomeScreen() {
     return formatTime(minutesToTime(timeToMinutes(time) + duration));
   };
 
+  const handleKpiExport = useCallback(async (tab: KpiTab) => {
+    if (Platform.OS === "web") {
+      Alert.alert("Not Available", "PDF export is available on mobile devices.");
+      return;
+    }
+    try {
+      const { generateRevenuePdf, generateAppointmentsPdf, generateClientsPdf, generateServicesPdf, exportPdf } = await import("@/lib/pdf-export");
+      const businessName = state.settings.businessName || "Business";
+      const locationName = activeLocation?.name;
+      const locationAddress = activeLocation?.address;
+      const filteredAppts = filterByLocation(state.appointments);
+      const filteredClients = clientsForActiveLocation;
+      const accent = "#4A7C59";
+      let html = "";
+      let filename = "";
+      const now = new Date();
+      const dateStr = now.toISOString().slice(0, 10);
+      if (tab === "revenue") {
+        html = generateRevenuePdf(businessName, filteredAppts, state.services, accent, locationName, locationAddress);
+        filename = `Revenue_Report_${dateStr}.pdf`;
+      } else if (tab === "appointments") {
+        html = generateAppointmentsPdf(businessName, filteredAppts, state.services, state.clients, accent, locationName, locationAddress);
+        filename = `Appointments_Report_${dateStr}.pdf`;
+      } else if (tab === "clients") {
+        html = generateClientsPdf(businessName, filteredClients, accent, locationName, locationAddress);
+        filename = `Clients_Report_${dateStr}.pdf`;
+      } else if (tab === "topservice") {
+        html = generateServicesPdf(businessName, state.services, filteredAppts, accent, locationName, locationAddress);
+        filename = `Services_Report_${dateStr}.pdf`;
+      }
+      if (html) await exportPdf(html, filename);
+    } catch (e) {
+      Alert.alert("Export Failed", "Could not generate the report. Please try again.");
+    }
+  }, [state, activeLocation, filterByLocation, clientsForActiveLocation]);
+
   const logoSource = state.settings.businessLogoUri
     ? { uri: state.settings.businessLogoUri }
     : require("@/assets/images/icon.png");
@@ -683,6 +748,8 @@ export default function HomeScreen() {
             iconBg="rgba(255,255,255,0.22)"
             icon={<IconSymbol name="dollarsign.circle.fill" size={22} color="#FFF" />}
             value={`$${analytics.weekRevenue.toLocaleString()}`}
+            numericValue={Math.round(analytics.weekRevenue)}
+            valuePrefix="$"
             label="This Week Revenue"
             sublabel={`$${analytics.totalRevenue.toLocaleString()} all-time`}
             badge={
@@ -704,6 +771,7 @@ export default function HomeScreen() {
             iconBg="rgba(255,255,255,0.22)"
             icon={<IconSymbol name="calendar" size={22} color="#FFF" />}
             value={String(analytics.totalAppointments)}
+            numericValue={analytics.totalAppointments}
             label="Total Appointments"
             sublabel={`${analytics.statusCounts.completed} completed`}
             badge={
@@ -724,6 +792,7 @@ export default function HomeScreen() {
             iconBg="rgba(255,255,255,0.22)"
             icon={<IconSymbol name="person.2.fill" size={22} color="#FFF" />}
             value={String(analytics.totalClients)}
+            numericValue={analytics.totalClients}
             label="Total Clients"
             sublabel={`${kpiClientsData.clientsData.length} active`}
             sparkData={analytics.monthlyData.map((d) => d.value)}
@@ -1089,7 +1158,7 @@ export default function HomeScreen() {
         {/* ─── Upcoming Appointments ──────────────────────────────── */}
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 28, marginBottom: 12 }}>
           <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>Upcoming</Text>
-          <View style={{ backgroundColor: colors.primary + "15", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 }}>
+          <View style={{ backgroundColor: colors.primary + "20", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 }}>
             <Text style={{ fontSize: 12, fontWeight: "700", color: colors.primary }}>{upcomingAppointments.length} scheduled</Text>
           </View>
         </View>
@@ -1100,71 +1169,97 @@ export default function HomeScreen() {
             <Text style={{ color: colors.muted, fontSize: 13, marginTop: 4, textAlign: "center" }}>All clear — add a booking to see it here.</Text>
           </View>
         ) : (
-          <View style={isTablet ? { flexDirection: "row", flexWrap: "wrap", gap: cardGap } : undefined}>
+          <View style={isTablet ? { flexDirection: "row", flexWrap: "wrap", gap: cardGap } : { gap: 10 }}>
             {upcomingAppointments.map((appt) => {
               const svc = getServiceById(appt.serviceId);
               const client = getClientById(appt.clientId);
+              const staffMember = appt.staffId ? state.staff.find((s) => s.id === appt.staffId) : null;
               const isToday = appt.date === todayStr;
               const apptDate = new Date(appt.date + "T00:00:00");
               const dayLabel = isToday
-                ? "Today"
-                : apptDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+                ? "TODAY"
+                : apptDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }).toUpperCase();
+              const accentColor = svc?.color ?? colors.primary;
               const statusColor =
-                appt.status === "confirmed"
-                  ? colors.success
-                  : appt.status === "pending"
-                  ? "#FF9800"
-                  : colors.primary;
+                appt.status === "confirmed" ? colors.success
+                : appt.status === "pending" ? "#FF9800"
+                : appt.status === "completed" ? colors.primary
+                : colors.error;
+              const price = appt.totalPrice ?? svc?.price ?? null;
               return (
                 <Pressable
                   key={appt.id}
                   onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })}
-                  style={({ pressed }) => [
-                    styles.apptCard,
+                  style={({ pressed }) => ([
                     {
                       backgroundColor: colors.surface,
+                      borderRadius: 14,
+                      borderWidth: 1,
                       borderColor: colors.border,
-                      borderLeftColor: svc?.color ?? colors.primary,
+                      borderLeftWidth: 4,
+                      borderLeftColor: accentColor,
+                      overflow: "hidden",
                       opacity: pressed ? 0.8 : 1,
                       ...(isTablet ? { width: Math.floor((contentWidth - cardGap) / 2) } : {}),
                     },
-                  ]}
+                  ])}
                 >
-                  <View style={styles.apptRow}>
-                    <View style={[styles.apptTimeBlock, { backgroundColor: statusColor + "18", minWidth: 60 }]}>
-                      <Text style={{ fontSize: 9, fontWeight: "700", color: statusColor, textTransform: "uppercase", letterSpacing: 0.3 }} numberOfLines={1}>
+                  <View style={{ flexDirection: "row", alignItems: "stretch", padding: 14, gap: 12 }}>
+                    {/* Left: date + time block */}
+                    <View style={{
+                      width: 72,
+                      backgroundColor: accentColor + "18",
+                      borderRadius: 10,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      paddingVertical: 8,
+                      paddingHorizontal: 4,
+                      flexShrink: 0,
+                    }}>
+                      <Text style={{ fontSize: 9, fontWeight: "800", color: accentColor, textTransform: "uppercase", letterSpacing: 0.5, textAlign: "center" }} numberOfLines={1}>
                         {dayLabel}
                       </Text>
-                      <Text style={{ fontSize: 11, fontWeight: "700", color: statusColor, marginTop: 2 }}>{formatTime(appt.time)}</Text>
-                      <Text style={{ fontSize: 10, color: statusColor + "CC" }}>–{getEndTime(appt.time, appt.duration)}</Text>
+                      <Text style={{ fontSize: 13, fontWeight: "800", color: accentColor, marginTop: 3, textAlign: "center" }}>
+                        {formatTime(appt.time)}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: accentColor + "BB", marginTop: 1, textAlign: "center" }}>
+                        –{getEndTime(appt.time, appt.duration)}
+                      </Text>
                     </View>
-                    <View style={styles.apptInfo}>
-                      <Text style={[styles.apptService, { color: colors.foreground }]} numberOfLines={1}>
+                    {/* Middle: service, client, staff */}
+                    <View style={{ flex: 1, justifyContent: "center", gap: 3 }}>
+                      <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }} numberOfLines={1}>
                         {svc?.name ?? "Service"}
                       </Text>
                       <Text style={{ fontSize: 13, color: colors.muted }} numberOfLines={1}>
                         {client?.name ?? "Client"}
                       </Text>
-                      {appt.staffId && (() => {
-                        const staffMember = state.staff.find((s) => s.id === appt.staffId);
-                        return staffMember ? (
-                          <Text style={{ fontSize: 11, color: colors.muted + "AA", marginTop: 1 }} numberOfLines={1}>
-                            with {staffMember.name}
+                      {staffMember ? (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 1 }}>
+                          <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: accentColor }} />
+                          <Text style={{ fontSize: 12, color: colors.muted }} numberOfLines={1}>
+                            {staffMember.name}
                           </Text>
-                        ) : null;
-                      })()}
+                        </View>
+                      ) : null}
                     </View>
-                    <View style={{ alignItems: "flex-end", gap: 4 }}>
-                      <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
-                        <Text style={{ fontSize: 11, fontWeight: "600", color: statusColor, textTransform: "capitalize" }}>
-                          {appt.status}
+                    {/* Right: status badge + price */}
+                    <View style={{ alignItems: "flex-end", justifyContent: "space-between", flexShrink: 0 }}>
+                      <View style={{
+                        backgroundColor: statusColor + "22",
+                        paddingHorizontal: 9,
+                        paddingVertical: 4,
+                        borderRadius: 8,
+                      }}>
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: statusColor, textTransform: "capitalize" }}>
+                          {appt.status.charAt(0).toUpperCase() + appt.status.slice(1)}
                         </Text>
                       </View>
-                      {svc?.price != null && (
-                        <Text style={{ fontSize: 12, fontWeight: "700", color: colors.foreground }}>
-                          ${(appt.totalPrice ?? svc.price).toLocaleString()}
+                      {price != null ? (
+                        <Text style={{ fontSize: 15, fontWeight: "800", color: colors.foreground }}>
+                          ${price % 1 === 0 ? price.toLocaleString() : price.toFixed(2)}
                         </Text>
-                      )}
+                      ) : null}
                     </View>
                   </View>
                 </Pressable>
@@ -1303,6 +1398,7 @@ export default function HomeScreen() {
         visible={kpiDetailTab !== null}
         tab={kpiDetailTab}
         onClose={() => setKpiDetailTab(null)}
+        onExport={handleKpiExport}
         revenueData={{
           weekRevenue: analytics.weekRevenue,
           prevWeekRevenue: analytics.prevWeekRevenue,

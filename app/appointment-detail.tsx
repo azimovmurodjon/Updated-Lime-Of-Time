@@ -12,6 +12,7 @@ import {
   getServiceDisplayName,
   getMapUrl,
   stripPhoneFormat,
+  formatPhoneNumber,
   generateAcceptMessage,
   generateRejectMessage,
   generateCancellationMessage,
@@ -379,7 +380,7 @@ export default function AppointmentDetailScreen() {
             onPress={client ? () => router.push({ pathname: "/client-detail" as any, params: { id: client.id } }) : undefined}
           />
           {client?.phone ? (
-            <DetailRow icon="phone.fill" label="Phone" value={client.phone} colors={colors} />
+            <DetailRow icon="phone.fill" label="Phone" value={formatPhoneNumber(client.phone)} colors={colors} />
           ) : null}
           {assignedStaff ? (
             <DetailRow
@@ -393,12 +394,27 @@ export default function AppointmentDetailScreen() {
             <DetailRow
               icon="location.fill"
               label="Location"
-              value={assignedLocation.name + (assignedLocation.address ? ` · ${assignedLocation.address}` : "")}
+              value={(() => {
+                const fullAddr = formatFullAddress(
+                  assignedLocation.address || "",
+                  assignedLocation.city,
+                  assignedLocation.state,
+                  assignedLocation.zipCode
+                );
+                return assignedLocation.name
+                  ? (fullAddr ? `${assignedLocation.name}\n${fullAddr}` : assignedLocation.name)
+                  : (fullAddr || assignedLocation.address || "");
+              })()}
               colors={colors}
               onPress={() => {
-                if (assignedLocation.address) {
-                  Linking.openURL(getMapUrl(assignedLocation.address)).catch(() => {});
-                }
+                const fullAddr = formatFullAddress(
+                  assignedLocation.address || "",
+                  assignedLocation.city,
+                  assignedLocation.state,
+                  assignedLocation.zipCode
+                );
+                const mapAddr = fullAddr || assignedLocation.address;
+                if (mapAddr) Linking.openURL(getMapUrl(mapAddr)).catch(() => {});
               }}
             />
           ) : profile.address ? (

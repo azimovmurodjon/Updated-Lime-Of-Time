@@ -777,3 +777,11 @@
 - [x] Clients KPI detail sheet: top clients ranked by visits + total spent
 - [x] Top Service KPI detail sheet: all services ranked with horizontal progress bars
 - [x] Wire detail sheets to KPI card onPress (open bottom sheet instead of navigating away)
+
+## KPI Card & Home Page Polish
+- [x] Remove "Details ›" text from KPI card bottom-right corner
+- [x] Add count-up animation on KPI values when home screen mounts
+- [x] Add Download Report button to each KPI detail sheet (PDF export)
+- [x] Fix phone number formatting in appointment detail: (123) 456-7890 or +1 (123) 456-7890
+- [x] Fix location in appointment detail: show full address (street, city, state, zip)
+- [x] Redesign upcoming appointments section to match screenshot (colored left border, time block, service/client/staff, status badge, price)
