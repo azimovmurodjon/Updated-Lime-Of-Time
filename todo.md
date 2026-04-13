@@ -842,3 +842,8 @@
 - [x] Add country code picker (+1 US, +44 UK, all countries) to login phone input
 - [x] Add static OTP verification screen (code: 123456) for all users after phone entry
 - [x] Fix Rate Exceeded errors across the app (throttledNotifyOwner with 60s cooldown)
+
+## Session 9 (Apr 13, 2026)
+- [ ] Fix login page: show dial code number (+1) next to flag in country code picker
+- [ ] Fix calendar timeline: appointments overlapping when multiple locations exist
+- [ ] Add location filter to calendar timeline view

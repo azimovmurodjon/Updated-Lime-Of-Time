@@ -55,6 +55,180 @@ const TIMELINE_START = 6;
 const TIMELINE_END = 22;
 const HOUR_HEIGHT = 60;
 
+// ─── TimelineView ───────────────────────────────────────────────────────────────────
+// Proper React component for the timeline grid + appointment blocks.
+// Using a component (not a render function) allows useState for container measurement.
+type TimelineViewProps = {
+  dateStr: string;
+  appts: Appointment[];
+  tintColor?: string;
+  liveNow: Date;
+  timelineHours: string[];
+  effectiveHours: { start: string; end: string } | null;
+  available: boolean;
+  colors: {
+    border: string;
+    muted: string;
+    surface: string;
+    foreground: string;
+    primary: string;
+  };
+  getServiceById: (id: string) => { color?: string; name?: string; duration?: number } | undefined;
+  getClientById: (id: string) => { name?: string } | undefined;
+  onApptPress: (id: string) => void;
+};
+
+function TimelineView({
+  dateStr, appts, tintColor, liveNow, timelineHours, effectiveHours, available,
+  colors, getServiceById, getClientById, onApptPress,
+}: TimelineViewProps) {
+  const [containerWidth, setContainerWidth] = React.useState(0);
+  const LABEL_WIDTH = 56;
+  const totalHours = TIMELINE_END - TIMELINE_START + 1;
+  const gridHeight = totalHours * HOUR_HEIGHT;
+
+  const isToday = dateStr === formatDateStr(liveNow);
+  const nowMinutes = liveNow.getHours() * 60 + liveNow.getMinutes();
+  const nowTop = (nowMinutes - TIMELINE_START * 60) * (HOUR_HEIGHT / 60);
+  const showNowLine = isToday && nowTop >= 0 && nowTop <= gridHeight;
+  const nowPillLabel = liveNow.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }).replace(" ", "\u202f");
+
+  // Build column layout for overlapping appointments
+  type ApptLayout = { appt: Appointment; col: number; totalCols: number; top: number; height: number };
+  const layouts: ApptLayout[] = [];
+  const colEnds: number[] = [];
+
+  for (const appt of appts) {
+    const startMin = timeToMinutes(appt.time);
+    const endMin = startMin + appt.duration;
+    const top = (startMin - TIMELINE_START * 60) * (HOUR_HEIGHT / 60);
+    const height = Math.max(appt.duration * (HOUR_HEIGHT / 60), 28);
+    if (top < 0 || top > gridHeight) continue;
+    let col = colEnds.findIndex((end) => end <= startMin);
+    if (col === -1) col = colEnds.length;
+    colEnds[col] = endMin;
+    layouts.push({ appt, col, totalCols: 0, top, height });
+  }
+
+  for (let i = 0; i < layouts.length; i++) {
+    const startMin = timeToMinutes(layouts[i].appt.time);
+    const endMin = startMin + layouts[i].appt.duration;
+    let maxCol = layouts[i].col;
+    for (let j = 0; j < layouts.length; j++) {
+      if (i === j) continue;
+      const oStart = timeToMinutes(layouts[j].appt.time);
+      const oEnd = oStart + layouts[j].appt.duration;
+      if (oStart < endMin && startMin < oEnd) maxCol = Math.max(maxCol, layouts[j].col);
+    }
+    layouts[i].totalCols = maxCol + 1;
+  }
+
+  const GAP = 2;
+  const PADDING_RIGHT = 4;
+  const slotAreaWidth = containerWidth > 0 ? containerWidth - LABEL_WIDTH - 4 - PADDING_RIGHT : 0;
+
+  return (
+    <View
+      style={[styles.timelineContainer, { borderColor: colors.border }]}
+      onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
+    >
+      {/* Hour rows — background grid */}
+      {timelineHours.map((hour) => {
+        const isWorkingHour = available && effectiveHours
+          ? timeToMinutes(hour) >= timeToMinutes(effectiveHours.start) &&
+            timeToMinutes(hour) < timeToMinutes(effectiveHours.end)
+          : available;
+        return (
+          <View key={hour} style={[styles.timelineRow, { borderBottomColor: colors.border, height: HOUR_HEIGHT }]}>
+            <View style={[styles.timelineLabel, { opacity: isWorkingHour ? 1 : 0.4 }]}>
+              <Text
+                style={{ fontSize: 10, fontWeight: "500", color: colors.muted }}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+              >
+                {formatTimeDisplay(hour)}
+              </Text>
+            </View>
+            <View style={[styles.timelineSlot, {
+              backgroundColor: isWorkingHour ? "transparent" : colors.surface + "80",
+            }]} />
+          </View>
+        );
+      })}
+
+      {/* Appointment blocks — side-by-side columns */}
+      {layouts.map(({ appt, col, totalCols, top, height }) => {
+        const svc = getServiceById(appt.serviceId) as { color?: string; name?: string; duration?: number } | undefined;
+        const client = getClientById(appt.clientId) as { name?: string } | undefined;
+        const color = (svc as { color?: string } | undefined)?.color ?? tintColor ?? colors.primary;
+        const svcName = svc ? getServiceDisplayName(svc as Parameters<typeof getServiceDisplayName>[0]) : "Appt";
+        const colWidth = slotAreaWidth > 0 ? (slotAreaWidth - GAP * (totalCols - 1)) / totalCols : 0;
+        const blockLeft = LABEL_WIDTH + 4 + col * (colWidth + GAP);
+        const blockWidth = colWidth > 0 ? colWidth : undefined;
+        return (
+          <Pressable
+            key={appt.id}
+            onPress={() => onApptPress(appt.id)}
+            style={({ pressed }) => ([
+              styles.timelineApptAbs,
+              {
+                top,
+                height,
+                left: blockWidth ? blockLeft : LABEL_WIDTH + 4,
+                width: blockWidth,
+                right: blockWidth ? undefined : PADDING_RIGHT,
+                backgroundColor: color + "22",
+                borderLeftColor: color,
+                opacity: pressed ? 0.7 : 1,
+              },
+            ])}
+          >
+            <Text style={{ fontSize: 11, fontWeight: "700", color: colors.foreground }} numberOfLines={1}>
+              {formatTime(appt.time)} {svcName} ({appt.duration} min)
+            </Text>
+            {height > 36 && (
+              <Text style={{ fontSize: 10, color: colors.muted }} numberOfLines={1}>{client?.name}</Text>
+            )}
+          </Pressable>
+        );
+      })}
+
+      {/* iOS-style current-time indicator */}
+      {showNowLine && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: nowTop - 9,
+            left: 0,
+            right: 0,
+            height: 18,
+            zIndex: 20,
+            flexDirection: "row",
+            alignItems: "center",
+          }}
+        >
+          <View style={{
+            backgroundColor: "#EF4444",
+            borderRadius: 9,
+            paddingHorizontal: 5,
+            paddingVertical: 2,
+            minWidth: LABEL_WIDTH - 2,
+            alignItems: "center",
+            justifyContent: "center",
+          }}>
+            <Text style={{ fontSize: 9, fontWeight: "700", color: "#fff", letterSpacing: 0.2 }}>
+              {nowPillLabel}
+            </Text>
+          </View>
+          <View style={{ flex: 1, height: 1.5, backgroundColor: "#EF4444" }} />
+        </View>
+      )}
+    </View>
+  );
+}
+
 export default function CalendarScreen() {
   const { state, dispatch, getServiceById, getClientById, getStaffById, getLocationById, syncToDb, filterAppointmentsByLocation, getActiveCustomSchedule } = useStore();
   const colors = useColors();
@@ -551,123 +725,22 @@ export default function CalendarScreen() {
   };
 
   // ─── Timeline Render ──────────────────────────────────────────────────
-  // Each hour row is HOUR_HEIGHT px tall. Appointments are absolutely positioned
-  // over the grid so they never appear twice regardless of how many hours they span.
-
-  const renderTimeline = (dateStr: string, appts: Appointment[], tintColor?: string) => {
-    const effectiveHours = getEffectiveHours(dateStr);
-    const available = isDayAvailable(dateStr);
-    const LABEL_WIDTH = 56;
-    const totalHours = TIMELINE_END - TIMELINE_START + 1;
-    const gridHeight = totalHours * HOUR_HEIGHT;
-
-    // Current-time indicator (uses liveNow so it auto-refreshes every 30s)
-    const isToday = dateStr === formatDateStr(liveNow);
-    const nowMinutes = liveNow.getHours() * 60 + liveNow.getMinutes();
-    const nowTop = (nowMinutes - TIMELINE_START * 60) * (HOUR_HEIGHT / 60);
-    const showNowLine = isToday && nowTop >= 0 && nowTop <= gridHeight;
-    // Format time for the pill label e.g. "12:42"
-    const nowPillLabel = liveNow.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }).replace(" ", "\u202f");
-
-    return (
-      <View style={[styles.timelineContainer, { borderColor: colors.border }]}>
-        {/* Hour rows — background grid only, no appointments rendered here */}
-        {timelineHours.map((hour) => {
-          const isWorkingHour = available && effectiveHours
-            ? timeToMinutes(hour) >= timeToMinutes(effectiveHours.start) &&
-              timeToMinutes(hour) < timeToMinutes(effectiveHours.end)
-            : available;
-          return (
-            <View key={hour} style={[styles.timelineRow, { borderBottomColor: colors.border, height: HOUR_HEIGHT }]}>
-              <View style={[styles.timelineLabel, { opacity: isWorkingHour ? 1 : 0.4 }]}>
-                <Text
-                  style={{ fontSize: 10, fontWeight: "500", color: colors.muted }}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.7}
-                >
-                  {formatTimeDisplay(hour)}
-                </Text>
-              </View>
-              <View style={[styles.timelineSlot, {
-                backgroundColor: isWorkingHour ? "transparent" : colors.surface + "80",
-              }]} />
-            </View>
-          );
-        })}
-
-        {/* Absolutely-positioned appointment blocks — rendered once per appointment */}
-        {appts.map((appt) => {
-          const svc = getServiceById(appt.serviceId);
-          const client = getClientById(appt.clientId);
-          const color = svc?.color ?? tintColor ?? colors.primary;
-          const startMin = timeToMinutes(appt.time);
-          const top = (startMin - TIMELINE_START * 60) * (HOUR_HEIGHT / 60);
-          const height = Math.max(appt.duration * (HOUR_HEIGHT / 60), 28);
-          if (top < 0 || top > gridHeight) return null;
-          return (
-            <Pressable
-              key={appt.id}
-              onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })}
-              style={({ pressed }) => ([
-                styles.timelineApptAbs,
-                {
-                  top,
-                  height,
-                  left: LABEL_WIDTH + 4,
-                  right: 4,
-                  backgroundColor: color + "22",
-                  borderLeftColor: color,
-                  opacity: pressed ? 0.7 : 1,
-                },
-              ])}
-            >
-              <Text style={{ fontSize: 11, fontWeight: "700", color: colors.foreground }} numberOfLines={1}>
-                {formatTime(appt.time)} {svc ? getServiceDisplayName(svc) : "Appt"} ({appt.duration} min)
-              </Text>
-              {height > 36 && (
-                <Text style={{ fontSize: 10, color: colors.muted }} numberOfLines={1}>{client?.name}</Text>
-              )}
-            </Pressable>
-          );
-        })}
-
-        {/* iOS-style live current-time indicator */}
-        {showNowLine && (
-          <View
-            pointerEvents="none"
-            style={{
-              position: "absolute",
-              top: nowTop - 9, // vertically centre the 18px pill on the line
-              left: 0,
-              right: 0,
-              height: 18,
-              zIndex: 20,
-              flexDirection: "row",
-              alignItems: "center",
-            }}
-          >
-            {/* Red pill with time label */}
-            <View style={{
-              backgroundColor: "#EF4444",
-              borderRadius: 9,
-              paddingHorizontal: 5,
-              paddingVertical: 2,
-              minWidth: LABEL_WIDTH - 2,
-              alignItems: "center",
-              justifyContent: "center",
-            }}>
-              <Text style={{ fontSize: 9, fontWeight: "700", color: "#fff", letterSpacing: 0.2 }}>
-                {nowPillLabel}
-              </Text>
-            </View>
-            {/* Full-width red line */}
-            <View style={{ flex: 1, height: 1.5, backgroundColor: "#EF4444" }} />
-          </View>
-        )}
-      </View>
-    );
-  };
+  // Delegates to the TimelineView component defined above CalendarScreen.
+  const renderTimeline = (dateStr: string, appts: Appointment[], tintColor?: string) => (
+    <TimelineView
+      dateStr={dateStr}
+      appts={appts}
+      tintColor={tintColor}
+      liveNow={liveNow}
+      timelineHours={timelineHours}
+      effectiveHours={getEffectiveHours(dateStr)}
+      available={isDayAvailable(dateStr)}
+      colors={colors}
+      getServiceById={getServiceById}
+      getClientById={getClientById}
+      onApptPress={(id) => router.push({ pathname: "/appointment-detail", params: { id } })}
+    />
+  );
 
   // ─── Month View ───────────────────────────────────────────────────────
 
