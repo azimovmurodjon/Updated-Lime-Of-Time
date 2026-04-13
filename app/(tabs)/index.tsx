@@ -19,7 +19,7 @@ import { useStore, formatTime, formatDateStr } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter } from "expo-router";
-import { minutesToTime, timeToMinutes, PUBLIC_BOOKING_URL, formatFullAddress } from "@/lib/types";
+import { minutesToTime, timeToMinutes, PUBLIC_BOOKING_URL, formatFullAddress, formatPhoneNumber } from "@/lib/types";
 import { formatPhone } from "@/lib/utils";
 import { useActiveLocation } from "@/hooks/use-active-location";
 import * as ImagePicker from "expo-image-picker";
@@ -505,7 +505,8 @@ export default function HomeScreen() {
       ? formatFullAddress(loc.address, loc.city, loc.state, loc.zipCode)
       : profile.address;
     const addressLine = displayAddress ? `\n📍 ${displayAddress}` : "";
-    const phoneLine = (loc?.phone || profile.phone) ? `\n📞 ${loc?.phone || profile.phone}` : "";
+    const rawPhone = loc?.phone || profile.phone;
+    const phoneLine = rawPhone ? `\n📞 ${formatPhoneNumber(rawPhone)}` : "";
     const websiteLine = profile.website ? `\n🌐 ${profile.website}` : "";
     try {
       await Share.share({

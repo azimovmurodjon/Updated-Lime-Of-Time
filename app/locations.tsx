@@ -16,7 +16,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Location, LOCATION_COLORS, formatFullAddress, getMapUrl, PUBLIC_BOOKING_URL } from "@/lib/types";
+import { Location, LOCATION_COLORS, formatFullAddress, getMapUrl, PUBLIC_BOOKING_URL, formatPhoneNumber } from "@/lib/types";
 import { useActiveLocation } from "@/hooks/use-active-location";
 
 export default function LocationsScreen() {
@@ -161,7 +161,7 @@ export default function LocationsScreen() {
       try {
         const fullAddr = formatFullAddress(item.address, item.city, item.state, item.zipCode);
         const addrLine = fullAddr ? `\n📍 ${fullAddr}` : "";
-        const phoneLine = item.phone ? `\n📞 ${item.phone}` : "";
+        const phoneLine = item.phone ? `\n📞 ${formatPhoneNumber(item.phone)}` : "";
         await Share.share({
           message: `Book an appointment with ${businessName}!${addrLine}${phoneLine}\n\nSchedule online: ${url}\n\nPowered by Lime Of Time`,
           url, // iOS uses this for the native share card preview

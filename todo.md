@@ -828,3 +828,9 @@
 
 ## Settings Tab Crash Fix (Apr 13, 2026 - Session 6)
 - [x] Fix crash: settings.notificationPreferences undefined for existing users — add safe fallback merge with DEFAULT_NOTIFICATION_PREFERENCES in store and settings screen
+
+## Multi-Bug Fix (Apr 13, 2026 - Session 7)
+- [x] Investigate and fix APK build failure (removed Sentry Expo plugin that blocked Android Gradle build)
+- [x] Fix SMS phone number format (showing raw digits instead of formatted e.g. (412) 555-0001)
+- [x] Restore SMS pre-fill with appointment details after clicking Confirm Booking (was already present and working)
+- [x] Fix Business Profile text inputs losing focus/keyboard dismissing after first character typed (moved Field component outside screen function)
