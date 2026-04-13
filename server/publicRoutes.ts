@@ -1189,8 +1189,10 @@ export function registerPublicRoutes(app: Express) {
       }
       // Load client data to auto-populate phone
       const clientList = await db.getClientsByOwner(owner.id);
-      const client = clientList.find((c) => c.localId === appt.clientLocalId);
-      res.send(manageAppointmentPage(req.params.slug, owner, appt, client || null));
+      const client = clientList.find((c: any) => c.localId === appt.clientLocalId);
+      // Load locations so the manage page can display which location the appointment is at
+      const locationsList = await db.getLocationsByOwner(owner.id);
+      res.send(manageAppointmentPage(req.params.slug, owner, appt, client || null, locationsList));
     } catch (err) {
       console.error("[Public] Error serving manage page:", err);
       res.status(500).send(errorPage());
@@ -3488,7 +3490,7 @@ function escHtml(str: string): string {
 }
 
 
-function manageAppointmentPage(slug: string, owner: any, appt: any, client: any): string {
+function manageAppointmentPage(slug: string, owner: any, appt: any, client: any, locations: any[] = []): string {
   const bizName = escHtml(owner.businessName);
   const logoUri = owner.businessLogoUri || "";
   const logoTag = logoUri ? `<img src="${escHtml(logoUri)}" alt="${bizName}" class="biz-logo" />` : "";
@@ -3505,6 +3507,14 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any)
   const hoursUntil = (apptDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
   const canReschedule = isConfirmed && hoursUntil > 24;
   const apptLocationId = appt.locationId || "";
+  // Resolve the location object for display
+  const apptLocation = locations.find((l: any) => l.localId === appt.locationId) ?? null;
+  const apptLocationName = apptLocation?.name || "";
+  const apptLocationAddr = (() => {
+    if (!apptLocation) return "";
+    const parts = [apptLocation.address, apptLocation.city, apptLocation.state, apptLocation.zipCode].filter(Boolean);
+    return parts.join(", ");
+  })();
   const apiBase = "";
 
   return `<!DOCTYPE html>
@@ -3681,6 +3691,14 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any)
         <span class="appt-label">Status</span>
         <span class="status-badge ${statusClass}">${escHtml(appt.status)}</span>
       </div>
+      ${apptLocationName ? `
+      <div class="appt-row">
+        <span class="appt-label">Location</span>
+        <span class="appt-value" style="text-align:right;max-width:60%;">
+          ${escHtml(apptLocationName)}
+          ${apptLocationAddr ? `<br/><span style="font-size:12px;font-weight:400;color:var(--text-secondary);">${escHtml(apptLocationAddr)}</span>` : ""}
+        </span>
+      </div>` : ""}
     </div>
 
     ${isCancellable ? `
