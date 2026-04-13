@@ -811,3 +811,6 @@
 - [x] Fix expo-linear-gradient missing dependency (install package + add to app.config.ts plugins)
 - [x] Add client confirmation email when business owner accepts appointment
 - [x] Build notification preferences screen in Settings (toggle push/email per event type)
+
+## iOS Crash Fix (Apr 13, 2026 - Session 3)
+- [x] Fix iOS crash: Object.fromEntries(response.headers.entries()) crashes on iOS 26 / iPhone 16 Pro Max (Hermes SIGSEGV in objectFromEntries)
