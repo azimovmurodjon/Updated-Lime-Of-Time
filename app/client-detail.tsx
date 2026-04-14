@@ -66,6 +66,9 @@ export default function ClientDetailScreen() {
   const [editEmail, setEditEmail] = useState(client?.email ?? "");
   const [editNotes, setEditNotes] = useState(client?.notes ?? "");
 
+  // Inline edit errors
+  const [editErrors, setEditErrors] = useState<{ name?: string; phone?: string; email?: string }>({});
+
   // Review form
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [reviewRating, setReviewRating] = useState(5);
@@ -76,7 +79,16 @@ export default function ClientDetailScreen() {
   };
 
   const handleSave = useCallback(() => {
-    if (!editName.trim() || !client) return;
+    if (!client) return;
+    const newErrors: { name?: string; phone?: string; email?: string } = {};
+    if (!editName.trim()) newErrors.name = "Name is required";
+    if (editPhone.trim() && stripPhoneFormat(editPhone).length < 10) newErrors.phone = "Please enter a complete 10-digit phone number";
+    if (editEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail.trim())) newErrors.email = "Please enter a valid email address";
+    if (Object.keys(newErrors).length > 0) {
+      setEditErrors(newErrors);
+      return;
+    }
+    setEditErrors({});
     const action = {
       type: "UPDATE_CLIENT" as const,
       payload: { ...client, name: editName.trim(), phone: editPhone.trim(), email: editEmail.trim(), notes: editNotes.trim() },
@@ -344,9 +356,36 @@ export default function ClientDetailScreen() {
         {editing ? (
           <View style={[styles.editCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground, marginBottom: 12 }}>Edit Client</Text>
-            <TextInput style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]} placeholder="Full Name *" placeholderTextColor={colors.muted} value={editName} onChangeText={setEditName} returnKeyType="next" />
-            <TextInput style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]} placeholder="(000) 000-0000" placeholderTextColor={colors.muted} value={editPhone} onChangeText={handlePhoneChange} keyboardType="phone-pad" returnKeyType="next" />
-            <TextInput style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]} placeholder="Email" placeholderTextColor={colors.muted} value={editEmail} onChangeText={setEditEmail} keyboardType="email-address" autoCapitalize="none" returnKeyType="next" />
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.background, borderColor: editErrors.name ? colors.error : colors.border, color: colors.foreground }]}
+              placeholder="Full Name *"
+              placeholderTextColor={colors.muted}
+              value={editName}
+              onChangeText={(v) => { setEditName(v); if (editErrors.name) setEditErrors((e) => ({ ...e, name: undefined })); }}
+              returnKeyType="next"
+            />
+            {editErrors.name ? <Text style={{ color: colors.error, fontSize: 12, marginBottom: 6, marginTop: -4 }}>{editErrors.name}</Text> : null}
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.background, borderColor: editErrors.phone ? colors.error : colors.border, color: colors.foreground }]}
+              placeholder="(000) 000-0000"
+              placeholderTextColor={colors.muted}
+              value={editPhone}
+              onChangeText={(v) => { handlePhoneChange(v); if (editErrors.phone) setEditErrors((e) => ({ ...e, phone: undefined })); }}
+              keyboardType="phone-pad"
+              returnKeyType="next"
+            />
+            {editErrors.phone ? <Text style={{ color: colors.error, fontSize: 12, marginBottom: 6, marginTop: -4 }}>{editErrors.phone}</Text> : null}
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.background, borderColor: editErrors.email ? colors.error : colors.border, color: colors.foreground }]}
+              placeholder="Email"
+              placeholderTextColor={colors.muted}
+              value={editEmail}
+              onChangeText={(v) => { setEditEmail(v); if (editErrors.email) setEditErrors((e) => ({ ...e, email: undefined })); }}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              returnKeyType="next"
+            />
+            {editErrors.email ? <Text style={{ color: colors.error, fontSize: 12, marginBottom: 6, marginTop: -4 }}>{editErrors.email}</Text> : null}
             <TextInput style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground, minHeight: 60, textAlignVertical: "top" }]} placeholder="Notes" placeholderTextColor={colors.muted} value={editNotes} onChangeText={setEditNotes} multiline numberOfLines={3} returnKeyType="done" />
             <View style={styles.editActions}>
               <Pressable onPress={() => setEditing(false)} style={({ pressed }) => [styles.cancelBtn, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}>

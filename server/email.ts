@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 
 const LOGO_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/jHoNjHdLsUGgpFhz.png";
-const FROM_EMAIL = "Lime Of Time <noreply@lime-of-time.com>";
+const FROM_EMAIL = "Lime Of Time <no-reply@lime-of-time.com>";
 
 let resendClient: Resend | null = null;
 

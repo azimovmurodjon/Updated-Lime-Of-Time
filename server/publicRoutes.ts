@@ -605,7 +605,13 @@ export function registerPublicRoutes(app: Express) {
         const loc = locs.find((l: any) => l.localId === locationId);
         if (loc) {
           bookLocationName = loc.name || undefined;
-          bookLocationAddress = loc.address || undefined;
+          // Build full address including city/state/zip
+          const addrParts = [
+            loc.address?.trim(),
+            loc.city?.trim(),
+            loc.state?.trim() && loc.zipCode?.trim() ? `${loc.state.trim()} ${loc.zipCode.trim()}` : (loc.state?.trim() || loc.zipCode?.trim()),
+          ].filter(Boolean);
+          bookLocationAddress = addrParts.join(", ") || loc.address || undefined;
           if (loc.workingHours) {
             const locWh = typeof loc.workingHours === 'object' ? loc.workingHours : JSON.parse(loc.workingHours as string);
             if (locWh && Object.keys(locWh).length > 0) bookWorkingHours = locWh;

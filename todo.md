@@ -894,3 +894,9 @@
 - [x] Add onboarding intro/welcome screen before Business Information tab
 - [x] Pre-fill location phone from business phone when creating first location
 - [x] Prompt address fields when creating first location (address no longer collected in onboarding)
+- [x] Add validation error messages to staff creation form for required fields
+- [x] Add error message popups throughout the client detail page
+- [x] Fix email sender to no-reply@lime-of-time.com
+- [x] Add location-specific business hours section inside Location edit page
+- [x] Update booking confirmation SMS template to include full address
+- [x] Add QR code generation per location in Location edit page

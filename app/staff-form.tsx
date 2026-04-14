@@ -112,6 +112,9 @@ export default function StaffFormScreen() {
   const [staffTimeError, setStaffTimeError] = useState<string | null>(null);
   const [staffSubPicker, setStaffSubPicker] = useState<"start" | "end" | null>(null);
 
+  // Inline validation errors
+  const [errors, setErrors] = useState<{ name?: string; location?: string; phone?: string }>({});
+
   const openStaffTimePicker = useCallback((day: string) => {
     const ds = weekSchedule[day];
     setStaffDraftStart(ds.start);
@@ -139,18 +142,15 @@ export default function StaffFormScreen() {
   }, [staffTimePicker, staffDraftStart, staffDraftEnd]);
 
   const handleSave = () => {
-    if (!name.trim()) {
-      Alert.alert("Required", "Please enter a staff member name.");
+    const newErrors: { name?: string; location?: string; phone?: string } = {};
+    if (!name.trim()) newErrors.name = "Name is required";
+    if (state.locations.length > 0 && !selectedLocationId) newErrors.location = "Please assign this staff member to a location";
+    if (phone.trim() && stripPhoneFormat(phone).length < 10) newErrors.phone = "Please enter a complete 10-digit phone number, e.g. (555) 555-5555";
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
-    if (state.locations.length > 0 && !selectedLocationId) {
-      Alert.alert("Location Required", "Please assign this staff member to a location before saving.");
-      return;
-    }
-    if (phone.trim() && stripPhoneFormat(phone).length < 10) {
-      Alert.alert("Invalid Phone", "Please enter a complete 10-digit phone number, e.g. (555) 555-5555.");
-      return;
-    }
+    setErrors({});
 
     const member: StaffMember = {
       id: existing?.id ?? generateId(),
@@ -207,12 +207,13 @@ export default function StaffFormScreen() {
           <Text className="text-xs font-medium text-muted mb-1">Name *</Text>
           <TextInput
             value={name}
-            onChangeText={setName}
+            onChangeText={(v) => { setName(v); if (errors.name) setErrors((e) => ({ ...e, name: undefined })); }}
             placeholder="Staff member name"
             placeholderTextColor={colors.muted}
-            style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+            style={[styles.input, { backgroundColor: colors.background, borderColor: errors.name ? colors.error : colors.border, color: colors.foreground }]}
             returnKeyType="done"
           />
+          {errors.name ? <Text style={{ color: colors.error, fontSize: 12, marginTop: 4 }}>{errors.name}</Text> : null}
 
           <Text className="text-xs font-medium text-muted mb-1 mt-3">Role / Title</Text>
           <TextInput
@@ -231,14 +232,16 @@ export default function StaffFormScreen() {
               // Strip non-digits, limit to 10 digits, then auto-format
               const digits = v.replace(/\D/g, "").slice(0, 10);
               setPhone(formatPhoneNumber(digits));
+              if (errors.phone) setErrors((e) => ({ ...e, phone: undefined }));
             }}
             placeholder="(555) 555-5555"
             placeholderTextColor={colors.muted}
             keyboardType="phone-pad"
             maxLength={14}
-            style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+            style={[styles.input, { backgroundColor: colors.background, borderColor: errors.phone ? colors.error : colors.border, color: colors.foreground }]}
             returnKeyType="done"
           />
+          {errors.phone ? <Text style={{ color: colors.error, fontSize: 12, marginTop: 4 }}>{errors.phone}</Text> : null}
 
           <Text className="text-xs font-medium text-muted mb-1 mt-3">Email</Text>
           <TextInput
@@ -355,13 +358,14 @@ export default function StaffFormScreen() {
               Assign this staff member to one location.
             </Text>
 
+            {errors.location ? <Text style={{ color: colors.error, fontSize: 12, marginBottom: 8 }}>{errors.location}</Text> : null}
             <View style={{ gap: 6 }}>
               {state.locations.map((loc) => {
                 const selected = selectedLocationId === loc.id;
                 return (
                   <Pressable
                     key={loc.id}
-                    onPress={() => setSelectedLocationId(loc.id)}
+                    onPress={() => { setSelectedLocationId(loc.id); if (errors.location) setErrors((e) => ({ ...e, location: undefined })); }}
                     style={({ pressed }) => [
                       styles.serviceChip,
                       {

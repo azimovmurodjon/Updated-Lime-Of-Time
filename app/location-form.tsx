@@ -9,6 +9,8 @@ import {
   Alert,
   Share,
   Platform,
+  Switch,
+  Modal,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -21,9 +23,24 @@ import {
   formatPhoneNumber,
   formatFullAddress,
   PUBLIC_BOOKING_URL,
+  WorkingHours,
+  DEFAULT_WORKING_HOURS,
+  DAYS_OF_WEEK,
 } from "@/lib/types";
 import { useActiveLocation } from "@/hooks/use-active-location";
 import { useResponsive } from "@/hooks/use-responsive";
+import { TapTimePicker, timeToMinutes as tapTimeToMinutes } from "@/components/tap-time-picker";
+import QRCode from "react-native-qrcode-svg";
+
+const DAY_LABELS: Record<string, string> = { sunday: "Sun", monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu", friday: "Fri", saturday: "Sat" };
+const DAY_FULL: Record<string, string> = { sunday: "Sunday", monday: "Monday", tuesday: "Tuesday", wednesday: "Wednesday", thursday: "Thursday", friday: "Friday", saturday: "Saturday" };
+
+function formatTimeLabel(t: string) {
+  const [h, m] = t.split(":").map(Number);
+  const ampm = h >= 12 ? "PM" : "AM";
+  const hr = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${hr}:${String(m).padStart(2, "0")} ${ampm}`;
+}
 
 export default function LocationFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -77,7 +94,7 @@ export default function LocationFormScreen() {
       active: existing?.active ?? true,
       temporarilyClosed: existing?.temporarilyClosed,
       reopenOn: existing?.reopenOn,
-      workingHours: existing?.workingHours ?? {},
+      workingHours: useLocationHours ? locationHours : {},
       createdAt: existing?.createdAt ?? new Date().toISOString(),
     };
 
@@ -112,6 +129,50 @@ export default function LocationFormScreen() {
       ]
     );
   };
+
+  // ── Business Hours state ────────────────────────────────────────────────────
+  const [locationHours, setLocationHours] = useState<Record<string, WorkingHours>>(() => {
+    if (existing?.workingHours && Object.keys(existing.workingHours).length > 0) {
+      return existing.workingHours as Record<string, WorkingHours>;
+    }
+    return { ...DEFAULT_WORKING_HOURS };
+  });
+  const [useLocationHours, setUseLocationHours] = useState(
+    !!(existing?.workingHours && Object.keys(existing.workingHours).length > 0)
+  );
+  const [timePickerDay, setTimePickerDay] = useState<string | null>(null);
+  const [draftStart, setDraftStart] = useState("09:00");
+  const [draftEnd, setDraftEnd] = useState("17:00");
+  const [weekTimeError, setWeekTimeError] = useState<string | null>(null);
+  const [weekSubPicker, setWeekSubPicker] = useState<"start" | "end" | null>(null);
+
+  const openTimePicker = useCallback((day: string) => {
+    const wh = locationHours[day];
+    setDraftStart(wh?.start ?? "09:00");
+    setDraftEnd(wh?.end ?? "17:00");
+    setWeekTimeError(null);
+    setWeekSubPicker(null);
+    setTimePickerDay(day);
+  }, [locationHours]);
+
+  const saveTimePicker = useCallback(() => {
+    if (!timePickerDay) return;
+    if (tapTimeToMinutes(draftEnd) <= tapTimeToMinutes(draftStart)) {
+      setWeekTimeError("End time must be after start time.");
+      return;
+    }
+    setWeekTimeError(null);
+    setLocationHours((prev) => ({ ...prev, [timePickerDay]: { ...prev[timePickerDay], start: draftStart, end: draftEnd } }));
+    setTimePickerDay(null);
+    setWeekSubPicker(null);
+  }, [timePickerDay, draftStart, draftEnd]);
+
+  const toggleDay = useCallback((day: string) => {
+    setLocationHours((prev) => ({ ...prev, [day]: { ...prev[day], enabled: !prev[day].enabled } }));
+  }, []);
+
+  // ── QR code modal ────────────────────────────────────────────────────────────
+  const [showQr, setShowQr] = useState(false);
 
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -337,6 +398,84 @@ export default function LocationFormScreen() {
           </View>
         )}
 
+        {/* Business Hours (edit mode only) */}
+        {isEdit && (
+          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Location Business Hours</Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 17 }}>
+                  {useLocationHours ? "Custom hours for this location." : "Using global business hours from Schedule Settings."}
+                </Text>
+              </View>
+              <Switch
+                value={useLocationHours}
+                onValueChange={setUseLocationHours}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor={useLocationHours ? colors.primary : colors.muted}
+              />
+            </View>
+            {useLocationHours && (
+              <View style={{ marginTop: 12 }}>
+                {DAYS_OF_WEEK.map((day, idx) => {
+                  const wh = locationHours[day] ?? { enabled: false, start: "09:00", end: "17:00" };
+                  const isLast = idx === DAYS_OF_WEEK.length - 1;
+                  return (
+                    <View key={day} style={[styles.dayRow, !isLast && { borderBottomWidth: 1, borderBottomColor: colors.border + "40" }]}>
+                      <Switch
+                        value={wh.enabled}
+                        onValueChange={() => toggleDay(day)}
+                        trackColor={{ false: colors.border, true: colors.primary + "60" }}
+                        thumbColor={wh.enabled ? colors.primary : colors.muted}
+                        style={{ transform: [{ scale: 0.8 }] }}
+                      />
+                      <Text style={{ fontSize: 13, fontWeight: "500", width: 44, marginLeft: 8, color: wh.enabled ? colors.foreground : colors.muted }}>
+                        {DAY_LABELS[day]}
+                      </Text>
+                      {wh.enabled && (
+                        <Pressable
+                          onPress={() => openTimePicker(day)}
+                          style={({ pressed }) => [
+                            styles.timeButton,
+                            { backgroundColor: colors.background, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+                          ]}
+                        >
+                          <Text style={{ fontSize: 12, color: colors.foreground }}>
+                            {formatTimeLabel(wh.start)} – {formatTimeLabel(wh.end)}
+                          </Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* QR Code (edit mode only) */}
+        {isEdit && locationBookingUrl && (
+          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+              <IconSymbol name="qrcode" size={15} color={colors.primary} />
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>QR Code</Text>
+            </View>
+            <Text style={{ fontSize: 12, color: colors.muted, lineHeight: 17, marginBottom: 10 }}>
+              Display or print this QR code so walk-in clients can scan it to book online.
+            </Text>
+            <Pressable
+              onPress={() => setShowQr(true)}
+              style={({ pressed }) => [
+                styles.linkBtn,
+                { backgroundColor: colors.primary + "12", borderColor: colors.primary + "30", opacity: pressed ? 0.7 : 1, alignSelf: "flex-start" },
+              ]}
+            >
+              <IconSymbol name="qrcode" size={15} color={colors.primary} />
+              <Text style={{ fontSize: 13, fontWeight: "600", color: colors.primary }}>View QR Code</Text>
+            </Pressable>
+          </View>
+        )}
+
         {/* Delete Button (edit mode only) */}
         {isEdit && (
           <Pressable
@@ -353,6 +492,77 @@ export default function LocationFormScreen() {
           </Pressable>
         )}
       </ScrollView>
+      {/* Time Picker Modal */}
+      <Modal visible={!!timePickerDay} transparent animationType="slide">
+        <Pressable style={styles.modalOverlay} onPress={() => { setTimePickerDay(null); setWeekSubPicker(null); }}>
+          <Pressable style={[styles.modalContent, { backgroundColor: colors.background }]} onPress={() => {}}>
+            <View style={styles.modalHeader}>
+              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>
+                {timePickerDay ? DAY_FULL[timePickerDay] : ""} Hours
+              </Text>
+              <Pressable onPress={() => { setTimePickerDay(null); setWeekSubPicker(null); }} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+                <IconSymbol name="xmark" size={22} color={colors.foreground} />
+              </Pressable>
+            </View>
+            <Pressable
+              onPress={() => setWeekSubPicker(weekSubPicker === "start" ? null : "start")}
+              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, paddingHorizontal: 4, borderRadius: 12, backgroundColor: weekSubPicker === "start" ? colors.primary + "18" : "transparent", marginBottom: 4 }}
+            >
+              <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Start Time</Text>
+              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.primary }}>{formatTimeLabel(draftStart)}</Text>
+            </Pressable>
+            {weekSubPicker === "start" && (
+              <TapTimePicker value={draftStart} onChange={(v) => { setDraftStart(v); setWeekTimeError(null); }} stepMinutes={5} />
+            )}
+            <Pressable
+              onPress={() => setWeekSubPicker(weekSubPicker === "end" ? null : "end")}
+              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, paddingHorizontal: 4, borderRadius: 12, backgroundColor: weekSubPicker === "end" ? colors.primary + "18" : "transparent", marginBottom: 4 }}
+            >
+              <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>End Time</Text>
+              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.primary }}>{formatTimeLabel(draftEnd)}</Text>
+            </Pressable>
+            {weekSubPicker === "end" && (
+              <TapTimePicker value={draftEnd} onChange={(v) => { setDraftEnd(v); setWeekTimeError(null); }} stepMinutes={5} />
+            )}
+            {weekTimeError ? (
+              <Text style={{ color: colors.error, fontSize: 13, textAlign: "center", marginVertical: 8 }}>{weekTimeError}</Text>
+            ) : null}
+            <Pressable
+              onPress={saveTimePicker}
+              style={({ pressed }) => [styles.saveBtn, { backgroundColor: weekTimeError ? colors.border : colors.primary, opacity: pressed ? 0.8 : 1, marginTop: 12 }]}
+            >
+              <Text style={{ color: weekTimeError ? colors.muted : "#fff", fontWeight: "700", fontSize: 16 }}>Save Hours</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* QR Code Modal */}
+      <Modal visible={showQr} transparent animationType="slide">
+        <Pressable style={styles.modalOverlay} onPress={() => setShowQr(false)}>
+          <Pressable style={[styles.qrModalContent, { backgroundColor: colors.background }]} onPress={() => {}}>
+            <View style={[styles.modalHeader, { width: "100%" }]}>
+              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>Booking QR Code</Text>
+              <Pressable onPress={() => setShowQr(false)} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+                <IconSymbol name="xmark" size={22} color={colors.foreground} />
+              </Pressable>
+            </View>
+            {existing && locationBookingUrl && (
+              <>
+                <Text style={{ fontSize: 13, color: colors.muted, textAlign: "center", marginBottom: 20, lineHeight: 18 }}>
+                  Scan to book at {existing.name}
+                </Text>
+                <View style={{ padding: 16, backgroundColor: "#FFFFFF", borderRadius: 16, marginBottom: 20 }}>
+                  <QRCode value={locationBookingUrl} size={200} />
+                </View>
+                <Text style={{ fontSize: 11, color: colors.muted, textAlign: "center", lineHeight: 16 }} numberOfLines={2}>
+                  {locationBookingUrl}
+                </Text>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -416,4 +626,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
   },
+  dayRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10 },
+  timeButton: { flex: 1, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, borderWidth: 1, alignItems: "center", justifyContent: "center", minHeight: 36, marginLeft: 4 },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
+  modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingBottom: 40, paddingHorizontal: 20 },
+  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
+  qrModalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingBottom: 40, paddingHorizontal: 20, alignItems: "center" },
 });
