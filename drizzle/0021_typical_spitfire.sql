@@ -1,0 +1,1 @@
+ALTER TABLE `custom_schedule` ADD `locationId` varchar(100);

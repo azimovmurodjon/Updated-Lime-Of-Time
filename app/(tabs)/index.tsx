@@ -493,9 +493,10 @@ export default function HomeScreen() {
     const locationParam = loc ? `?location=${encodeURIComponent(loc.id)}` : "";
     const url = `${PUBLIC_BOOKING_URL}/book/${slug}${locationParam}`;
     const profile = state.settings.profile;
+    // Use full address (street + city + state + zip) for the share message
     const displayAddress = loc
       ? formatFullAddress(loc.address, loc.city, loc.state, loc.zipCode)
-      : profile.address;
+      : formatFullAddress(profile.address, profile.city, profile.state, profile.zipCode);
     const addressLine = displayAddress ? `\n📍 ${displayAddress}` : "";
     const rawPhone = loc?.phone || profile.phone;
     const phoneLine = rawPhone ? `\n📞 ${formatPhoneNumber(rawPhone)}` : "";
@@ -513,9 +514,12 @@ export default function HomeScreen() {
     if (allLocations.length > 1) {
       // Multiple locations — show picker
       setShowSharePicker(true);
+    } else if (allLocations.length === 1) {
+      // Single location — always share with that location's ID so the booking page pre-selects it
+      doShareForLocation(allLocations[0]);
     } else {
-      // Single or no location — share directly
-      doShareForLocation(activeLocation);
+      // No locations configured — share business link without location param
+      doShareForLocation(null);
     }
   }, [state.locations, activeLocation, doShareForLocation]);
 

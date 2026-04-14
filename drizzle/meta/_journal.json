@@ -141,6 +141,20 @@
       "when": 1776108405780,
       "tag": "0019_rich_thaddeus_ross",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1776126437085,
+      "tag": "0020_green_jean_grey",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1776130986960,
+      "tag": "0021_typical_spitfire",
+      "breakpoints": true
     }
   ]
 }

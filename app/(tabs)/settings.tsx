@@ -359,6 +359,25 @@ export default function SettingsScreen() {
           </View>
         </Pressable>
 
+        {/* SMS Messages — navigate to template manager */}
+        <Pressable
+          onPress={() => router.push("/sms-templates")}
+          style={({ pressed }) => [styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.75 : 1 }]}
+        >
+          <View style={styles.switchRow}>
+            <View style={styles.switchLabel}>
+              <IconSymbol name="message.fill" size={20} color={colors.primary} />
+              <View style={{ marginLeft: 12 }}>
+                <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground }}>SMS Messages</Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
+                  Customize messages sent to clients
+                </Text>
+              </View>
+            </View>
+            <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+          </View>
+        </Pressable>
+
         {/* Face ID / Biometric Lock */}
         {Platform.OS !== "web" && biometricAvailable && (
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
