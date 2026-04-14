@@ -52,8 +52,8 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
   const ring2Scale = useRef(new Animated.Value(1)).current;
   const ring2Opacity = useRef(new Animated.Value(0)).current;
 
-  // Progress bar
-  const progressWidth = useRef(new Animated.Value(0)).current;
+  // Progress bar — use scaleX so we can keep useNativeDriver: true
+  const progressScaleX = useRef(new Animated.Value(0)).current;
 
   // Text
   const titleTranslateY = useRef(new Animated.Value(24)).current;
@@ -146,14 +146,14 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
       ringPulse(ring2Scale, ring2Opacity, 700).start();
     }, 500);
 
-    // Progress bar fills over 1.8s
+    // Progress bar fills over 1.8s (scaleX 0→1 with native driver)
     Animated.sequence([
       Animated.delay(400),
-      Animated.timing(progressWidth, {
-        toValue: width * 0.55,
+      Animated.timing(progressScaleX, {
+        toValue: 1,
         duration: 1800,
         easing: Easing.bezier(0.25, 0.46, 0.45, 0.94),
-        useNativeDriver: false, // width can't use native driver
+        useNativeDriver: true,
       }),
     ]).start();
 
@@ -281,9 +281,24 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
           </View>
         </Animated.View>
 
-        {/* Progress bar */}
+        {/* Progress bar — scaleX grows from left via translateX offset trick */}
         <View style={styles.progressTrack}>
-          <Animated.View style={[styles.progressFill, { width: progressWidth }]} />
+          <Animated.View
+            style={[
+              styles.progressFill,
+              {
+                width: width * 0.55,
+                transform: [
+                  // Shift left by half the track width * (1 - scale) so it appears to grow from the left
+                  { translateX: progressScaleX.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-(width * 0.55) / 2, 0],
+                  }) },
+                  { scaleX: progressScaleX },
+                ],
+              },
+            ]}
+          />
         </View>
 
         {/* App name */}

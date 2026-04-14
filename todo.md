@@ -936,3 +936,5 @@
 - [x] Fix: Schedule & Hours screen in Settings throws error — investigate and fix crash
 - [x] Fix: Delete Client button taps do nothing — deep debug required
 - [x] Fix: email sender shows 'Manus Team' — change to 'Lime Of Time' with no-reply@lime-of-time.com
+- [ ] Fix: Splash screen is static (no animation) and cuts abruptly to dashboard — add logo pulse/scale animation and fade transition
+- [ ] Audit: Workday logic across the app and client page — verify correct behavior everywhere

@@ -2,10 +2,10 @@ import "@/global.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
-import { Platform } from "react-native";
+import { Animated, Platform } from "react-native";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
 import * as SplashScreen from "expo-splash-screen";
@@ -41,6 +41,18 @@ function RootLayout() {
   // Use system fonts (SF Pro on iOS, Roboto on Android) — no external font package needed
   const fontsLoaded = true;
   const [splashDone, setSplashDone] = useState(false);
+  const contentOpacity = useRef(new Animated.Value(0)).current;
+
+  // Fade in the app content after splash exits
+  useEffect(() => {
+    if (splashDone) {
+      Animated.timing(contentOpacity, {
+        toValue: 1,
+        duration: 350,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [splashDone]);
 
   const onLayoutRootView = useCallback(async () => {
     // Hide the native splash immediately — we use our own animated splash instead
@@ -112,6 +124,7 @@ function RootLayout() {
   }
 
   const content = (
+    <Animated.View style={{ flex: 1, opacity: contentOpacity }}>
     <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
@@ -157,6 +170,7 @@ function RootLayout() {
         </QueryClientProvider>
       </trpc.Provider>
     </GestureHandlerRootView>
+    </Animated.View>
   );
 
   const shouldOverrideSafeArea = Platform.OS === "web";
