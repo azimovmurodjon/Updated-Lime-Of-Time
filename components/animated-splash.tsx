@@ -1,15 +1,15 @@
 /**
- * AnimatedSplash — creative branded splash screen for Lime Of Time.
+ * AnimatedSplash — ultra-modern branded splash for Lime Of Time.
  *
- * Design concept:
- *  - Deep forest-green gradient background
- *  - Central lime-circle logo that scales up with a spring bounce
- *  - Concentric ring pulses radiating outward (like a clock tick)
- *  - App name fades + slides up after the logo settles
+ * Design:
+ *  - Deep forest-green radial gradient background (simulated with layered views)
+ *  - Geometric mesh lines that fade in subtly
+ *  - Logo container with a glass-morphism circle + glow
+ *  - Logo scales in with a spring bounce
+ *  - Animated progress bar beneath the logo
+ *  - App name slides up with a stagger
  *  - Tagline fades in last
- *  - Entire screen fades out when onFinish is called
- *
- * Usage: render this as the first screen; call `onFinish` after your data loads.
+ *  - Full screen fades out when onFinish is called
  */
 
 import { useEffect, useRef } from "react";
@@ -25,157 +25,204 @@ import {
 } from "react-native";
 
 const { width, height } = Dimensions.get("window");
-const LOGO_SIZE = Math.min(width * 0.28, 120);
+const LOGO_SIZE = Math.min(width * 0.26, 108);
+const CIRCLE_SIZE = LOGO_SIZE + 36;
 
 interface AnimatedSplashProps {
   onFinish: () => void;
 }
 
 export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
-  // ─── Animated values ────────────────────────────────────────────
-  const logoScale = useRef(new Animated.Value(0)).current;
-  const logoOpacity = useRef(new Animated.Value(0)).current;
-  const ring1Scale = useRef(new Animated.Value(0.4)).current;
-  const ring1Opacity = useRef(new Animated.Value(0)).current;
-  const ring2Scale = useRef(new Animated.Value(0.4)).current;
-  const ring2Opacity = useRef(new Animated.Value(0)).current;
-  const ring3Scale = useRef(new Animated.Value(0.4)).current;
-  const ring3Opacity = useRef(new Animated.Value(0)).current;
-  const titleTranslateY = useRef(new Animated.Value(24)).current;
-  const titleOpacity = useRef(new Animated.Value(0)).current;
-  const taglineOpacity = useRef(new Animated.Value(0)).current;
+  // ─── Animated values ─────────────────────────────────────────────
   const screenOpacity = useRef(new Animated.Value(1)).current;
 
+  // Background
+  const bgScale = useRef(new Animated.Value(1.08)).current;
+  const bgOpacity = useRef(new Animated.Value(0)).current;
+
+  // Logo
+  const logoScale = useRef(new Animated.Value(0.3)).current;
+  const logoOpacity = useRef(new Animated.Value(0)).current;
+  const glowOpacity = useRef(new Animated.Value(0)).current;
+  const glowScale = useRef(new Animated.Value(0.6)).current;
+
+  // Ring pulse
+  const ring1Scale = useRef(new Animated.Value(1)).current;
+  const ring1Opacity = useRef(new Animated.Value(0)).current;
+  const ring2Scale = useRef(new Animated.Value(1)).current;
+  const ring2Opacity = useRef(new Animated.Value(0)).current;
+
+  // Progress bar
+  const progressWidth = useRef(new Animated.Value(0)).current;
+
+  // Text
+  const titleTranslateY = useRef(new Animated.Value(20)).current;
+  const titleOpacity = useRef(new Animated.Value(0)).current;
+  const taglineOpacity = useRef(new Animated.Value(0)).current;
+  const taglineTranslateY = useRef(new Animated.Value(10)).current;
+
+  // Floating orbs
+  const orb1Y = useRef(new Animated.Value(0)).current;
+  const orb2Y = useRef(new Animated.Value(0)).current;
+  const orb1Opacity = useRef(new Animated.Value(0)).current;
+  const orb2Opacity = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
+    // Background fade + subtle zoom out
+    Animated.parallel([
+      Animated.timing(bgOpacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(bgScale, {
+        toValue: 1,
+        duration: 1200,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Floating orbs
+    setTimeout(() => {
+      Animated.timing(orb1Opacity, { toValue: 0.18, duration: 800, useNativeDriver: true }).start();
+      Animated.timing(orb2Opacity, { toValue: 0.12, duration: 800, useNativeDriver: true }).start();
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(orb1Y, { toValue: -20, duration: 2800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+          Animated.timing(orb1Y, { toValue: 0, duration: 2800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        ])
+      ).start();
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(orb2Y, { toValue: 16, duration: 3200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+          Animated.timing(orb2Y, { toValue: 0, duration: 3200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        ])
+      ).start();
+    }, 200);
+
+    // Glow appears first
+    Animated.sequence([
+      Animated.delay(150),
+      Animated.parallel([
+        Animated.timing(glowOpacity, { toValue: 0.6, duration: 600, useNativeDriver: true }),
+        Animated.spring(glowScale, { toValue: 1, tension: 50, friction: 8, useNativeDriver: true }),
+      ]),
+    ]).start();
+
+    // Logo springs in
+    Animated.sequence([
+      Animated.delay(250),
+      Animated.parallel([
+        Animated.spring(logoScale, { toValue: 1, tension: 70, friction: 7, useNativeDriver: true }),
+        Animated.timing(logoOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+      ]),
+    ]).start();
+
+    // Ring pulses
     const ringPulse = (scale: Animated.Value, opacity: Animated.Value, delay: number) =>
       Animated.loop(
         Animated.sequence([
           Animated.delay(delay),
           Animated.parallel([
-            Animated.timing(scale, {
-              toValue: 2.2,
-              duration: 1400,
-              easing: Easing.out(Easing.quad),
-              useNativeDriver: true,
-            }),
-            Animated.timing(opacity, {
-              toValue: 0,
-              duration: 1400,
-              easing: Easing.out(Easing.quad),
-              useNativeDriver: true,
-            }),
+            Animated.timing(scale, { toValue: 2.4, duration: 1600, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+            Animated.sequence([
+              Animated.timing(opacity, { toValue: 0.3, duration: 100, useNativeDriver: true }),
+              Animated.timing(opacity, { toValue: 0, duration: 1500, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+            ]),
           ]),
           Animated.parallel([
-            Animated.timing(scale, { toValue: 0.4, duration: 0, useNativeDriver: true }),
-            Animated.timing(opacity, { toValue: 0.35, duration: 0, useNativeDriver: true }),
+            Animated.timing(scale, { toValue: 1, duration: 0, useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 0, duration: 0, useNativeDriver: true }),
           ]),
         ])
       );
 
-    // 1. Logo springs in
-    Animated.spring(logoScale, {
-      toValue: 1,
-      tension: 60,
-      friction: 7,
-      useNativeDriver: true,
-    }).start();
-
-    Animated.timing(logoOpacity, {
-      toValue: 1,
-      duration: 350,
-      useNativeDriver: true,
-    }).start();
-
-    // 2. Ring pulses start after logo appears
     setTimeout(() => {
-      ring1Opacity.setValue(0.35);
-      ring2Opacity.setValue(0.35);
-      ring3Opacity.setValue(0.35);
       ringPulse(ring1Scale, ring1Opacity, 0).start();
-      ringPulse(ring2Scale, ring2Opacity, 420).start();
-      ringPulse(ring3Scale, ring3Opacity, 840).start();
-    }, 300);
+      ringPulse(ring2Scale, ring2Opacity, 700).start();
+    }, 500);
 
-    // 3. Title slides up
+    // Progress bar fills over 1.8s
     Animated.sequence([
-      Animated.delay(500),
-      Animated.parallel([
-        Animated.timing(titleOpacity, {
-          toValue: 1,
-          duration: 500,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(titleTranslateY, {
-          toValue: 0,
-          duration: 500,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-      ]),
-    ]).start();
-
-    // 4. Tagline fades in
-    Animated.sequence([
-      Animated.delay(900),
-      Animated.timing(taglineOpacity, {
-        toValue: 1,
-        duration: 500,
-        useNativeDriver: true,
+      Animated.delay(400),
+      Animated.timing(progressWidth, {
+        toValue: width * 0.55,
+        duration: 1800,
+        easing: Easing.bezier(0.25, 0.46, 0.45, 0.94),
+        useNativeDriver: false, // width can't use native driver
       }),
     ]).start();
 
-    // 5. After 2.4s, fade out and call onFinish
+    // Title slides up
+    Animated.sequence([
+      Animated.delay(550),
+      Animated.parallel([
+        Animated.timing(titleOpacity, { toValue: 1, duration: 500, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(titleTranslateY, { toValue: 0, duration: 500, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      ]),
+    ]).start();
+
+    // Tagline
+    Animated.sequence([
+      Animated.delay(800),
+      Animated.parallel([
+        Animated.timing(taglineOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.timing(taglineTranslateY, { toValue: 0, duration: 500, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      ]),
+    ]).start();
+
+    // Fade out after 2.6s
     const timer = setTimeout(() => {
       Animated.timing(screenOpacity, {
         toValue: 0,
-        duration: 400,
-        easing: Easing.in(Easing.quad),
+        duration: 450,
+        easing: Easing.in(Easing.cubic),
         useNativeDriver: true,
-      }).start(() => {
-        onFinish();
-      });
-    }, 2400);
+      }).start(() => onFinish());
+    }, 2600);
 
     return () => clearTimeout(timer);
   }, []);
 
+  const RING_SIZE = CIRCLE_SIZE * 1.2;
+
   return (
     <Animated.View style={[styles.container, { opacity: screenOpacity }]}>
-      {/* Background gradient layers (simulated with nested views) */}
-      <View style={styles.bgLayer1} />
-      <View style={styles.bgLayer2} />
+      {/* Background layers */}
+      <Animated.View style={[styles.bg, { opacity: bgOpacity, transform: [{ scale: bgScale }] }]} />
 
-      {/* Decorative dots */}
-      {DOT_POSITIONS.map((dot, i) => (
-        <View
-          key={i}
-          style={[
-            styles.dot,
-            {
-              width: dot.size,
-              height: dot.size,
-              borderRadius: dot.size / 2,
-              top: dot.top,
-              left: dot.left,
-              opacity: dot.opacity,
-            },
-          ]}
-        />
-      ))}
+      {/* Radial center glow */}
+      <View style={styles.radialGlow} />
 
-      {/* Pulsing rings */}
-      <View style={styles.ringContainer} pointerEvents="none">
+      {/* Floating orbs */}
+      <Animated.View style={[styles.orb1, { opacity: orb1Opacity, transform: [{ translateY: orb1Y }] }]} />
+      <Animated.View style={[styles.orb2, { opacity: orb2Opacity, transform: [{ translateY: orb2Y }] }]} />
+
+      {/* Subtle grid lines */}
+      <View style={styles.gridContainer} pointerEvents="none">
+        {[0.2, 0.4, 0.6, 0.8].map((ratio, i) => (
+          <View key={`h${i}`} style={[styles.gridLineH, { top: height * ratio }]} />
+        ))}
+        {[0.15, 0.35, 0.65, 0.85].map((ratio, i) => (
+          <View key={`v${i}`} style={[styles.gridLineV, { left: width * ratio }]} />
+        ))}
+      </View>
+
+      {/* Ring pulses */}
+      <View style={[styles.ringContainer, { width: RING_SIZE, height: RING_SIZE }]} pointerEvents="none">
         {[
           { scale: ring1Scale, opacity: ring1Opacity },
           { scale: ring2Scale, opacity: ring2Opacity },
-          { scale: ring3Scale, opacity: ring3Opacity },
         ].map((ring, i) => (
           <Animated.View
             key={i}
             style={[
               styles.ring,
               {
+                width: RING_SIZE,
+                height: RING_SIZE,
+                borderRadius: RING_SIZE / 2,
                 transform: [{ scale: ring.scale }],
                 opacity: ring.opacity,
               },
@@ -183,6 +230,20 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
           />
         ))}
       </View>
+
+      {/* Logo glow */}
+      <Animated.View
+        style={[
+          styles.logoGlow,
+          {
+            width: CIRCLE_SIZE * 1.8,
+            height: CIRCLE_SIZE * 1.8,
+            borderRadius: CIRCLE_SIZE * 0.9,
+            opacity: glowOpacity,
+            transform: [{ scale: glowScale }],
+          },
+        ]}
+      />
 
       {/* Logo */}
       <Animated.View
@@ -194,14 +255,20 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
           },
         ]}
       >
-        <View style={styles.logoCircle}>
+        {/* Glass circle */}
+        <View style={[styles.glassCircle, { width: CIRCLE_SIZE, height: CIRCLE_SIZE, borderRadius: CIRCLE_SIZE / 2 }]}>
           <Image
             source={require("@/assets/images/icon.png")}
-            style={styles.logo}
+            style={{ width: LOGO_SIZE, height: LOGO_SIZE, borderRadius: LOGO_SIZE * 0.22 }}
             resizeMode="contain"
           />
         </View>
       </Animated.View>
+
+      {/* Progress bar */}
+      <View style={styles.progressTrack}>
+        <Animated.View style={[styles.progressFill, { width: progressWidth }]} />
+      </View>
 
       {/* App name */}
       <Animated.Text
@@ -217,55 +284,79 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
       </Animated.Text>
 
       {/* Tagline */}
-      <Animated.Text style={[styles.tagline, { opacity: taglineOpacity }]}>
+      <Animated.Text
+        style={[
+          styles.tagline,
+          {
+            opacity: taglineOpacity,
+            transform: [{ translateY: taglineTranslateY }],
+          },
+        ]}
+      >
         Smart scheduling for your business
       </Animated.Text>
 
-      {/* Bottom accent bar */}
-      <View style={styles.bottomBar} />
+      {/* Bottom pill */}
+      <View style={styles.bottomPill} />
     </Animated.View>
   );
 }
 
-// ─── Decorative dot positions ─────────────────────────────────────────────────
-const DOT_POSITIONS = [
-  { size: 8, top: height * 0.12, left: width * 0.08, opacity: 0.25 },
-  { size: 5, top: height * 0.18, left: width * 0.82, opacity: 0.2 },
-  { size: 12, top: height * 0.25, left: width * 0.91, opacity: 0.15 },
-  { size: 6, top: height * 0.72, left: width * 0.07, opacity: 0.2 },
-  { size: 10, top: height * 0.78, left: width * 0.88, opacity: 0.18 },
-  { size: 4, top: height * 0.85, left: width * 0.15, opacity: 0.25 },
-  { size: 7, top: height * 0.35, left: width * 0.04, opacity: 0.15 },
-  { size: 9, top: height * 0.62, left: width * 0.93, opacity: 0.2 },
-];
-
-const RING_SIZE = LOGO_SIZE * 2.2;
-
 const styles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#1A3A2A",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 9999,
+    backgroundColor: "#0D2318",
   },
-  bgLayer1: {
+  bg: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#1A3A2A",
+    backgroundColor: "#0D2318",
   },
-  bgLayer2: {
+  radialGlow: {
     position: "absolute",
-    bottom: 0,
+    width: width * 1.4,
+    height: width * 1.4,
+    borderRadius: width * 0.7,
+    backgroundColor: "#1A4030",
+    top: height * 0.5 - width * 0.7,
+    left: width * 0.5 - width * 0.7,
+  },
+  orb1: {
+    position: "absolute",
+    width: width * 0.7,
+    height: width * 0.7,
+    borderRadius: width * 0.35,
+    backgroundColor: "#2D6B45",
+    top: height * 0.05,
+    left: -width * 0.2,
+  },
+  orb2: {
+    position: "absolute",
+    width: width * 0.55,
+    height: width * 0.55,
+    borderRadius: width * 0.275,
+    backgroundColor: "#1E5535",
+    bottom: height * 0.08,
+    right: -width * 0.15,
+  },
+  gridContainer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  gridLineH: {
+    position: "absolute",
     left: 0,
     right: 0,
-    height: height * 0.45,
-    backgroundColor: "#142D20",
-    borderTopLeftRadius: width * 0.7,
-    borderTopRightRadius: width * 0.7,
+    height: 0.5,
+    backgroundColor: "rgba(143,191,106,0.06)",
   },
-  dot: {
+  gridLineV: {
     position: "absolute",
-    backgroundColor: "#8FBF6A",
+    top: 0,
+    bottom: 0,
+    width: 0.5,
+    backgroundColor: "rgba(143,191,106,0.06)",
   },
   ringContainer: {
     position: "absolute",
@@ -274,53 +365,64 @@ const styles = StyleSheet.create({
   },
   ring: {
     position: "absolute",
-    width: RING_SIZE,
-    height: RING_SIZE,
-    borderRadius: RING_SIZE / 2,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: "#8FBF6A",
   },
-  logoWrapper: {
-    marginBottom: 28,
+  logoGlow: {
+    position: "absolute",
+    backgroundColor: "#3D8C5A",
   },
-  logoCircle: {
-    width: LOGO_SIZE + 24,
-    height: LOGO_SIZE + 24,
-    borderRadius: (LOGO_SIZE + 24) / 2,
-    backgroundColor: "#2D5A3D",
+  logoWrapper: {
+    marginBottom: 32,
     alignItems: "center",
     justifyContent: "center",
+  },
+  glassCircle: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1.5,
+    borderColor: "rgba(143,191,106,0.35)",
     shadowColor: "#8FBF6A",
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 24,
-    elevation: 12,
+    shadowOpacity: 0.6,
+    shadowRadius: 28,
+    elevation: 16,
+    // Backdrop blur simulated with a lighter inner color
   },
-  logo: {
-    width: LOGO_SIZE,
-    height: LOGO_SIZE,
-    borderRadius: LOGO_SIZE / 2,
+  progressTrack: {
+    width: width * 0.55,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    marginBottom: 28,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: "#8FBF6A",
   },
   appName: {
-    fontSize: Platform.OS === "ios" ? 34 : 30,
-    fontWeight: "700",
+    fontSize: Platform.OS === "ios" ? 36 : 32,
+    fontWeight: "800",
     color: "#FFFFFF",
-    letterSpacing: 0.5,
-    marginBottom: 8,
+    letterSpacing: -0.5,
     textAlign: "center",
+    marginBottom: 8,
   },
   tagline: {
     fontSize: 14,
-    color: "rgba(255,255,255,0.6)",
-    letterSpacing: 0.3,
+    color: "rgba(255,255,255,0.55)",
+    letterSpacing: 0.5,
     textAlign: "center",
   },
-  bottomBar: {
+  bottomPill: {
     position: "absolute",
-    bottom: 40,
-    width: 40,
+    bottom: Platform.OS === "ios" ? 44 : 32,
+    width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "rgba(143, 191, 106, 0.4)",
+    backgroundColor: "rgba(143,191,106,0.35)",
   },
 });

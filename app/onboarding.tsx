@@ -10,6 +10,8 @@ import {
   Image,
   ActivityIndicator,
   Alert,
+  NativeSyntheticEvent,
+  TextInputKeyPressEventData,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useStore } from "@/lib/store";
@@ -178,6 +180,46 @@ export default function OnboardingScreen() {
   const [selectedCountry, setSelectedCountry] = useState<Country>(DEFAULT_COUNTRY);
   const [phone, setPhone] = useState("");
   const [otpValue, setOtpValue] = useState("");
+  const [otpDigits, setOtpDigits] = useState<string[]>(["" ,"","","","",""]);
+  const otpRefs = useRef<(TextInput | null)[]>([null,null,null,null,null,null]);
+  const otpScale0 = useSharedValue(1); const otpScale1 = useSharedValue(1); const otpScale2 = useSharedValue(1);
+  const otpScale3 = useSharedValue(1); const otpScale4 = useSharedValue(1); const otpScale5 = useSharedValue(1);
+  const otpBorder0 = useSharedValue(0); const otpBorder1 = useSharedValue(0); const otpBorder2 = useSharedValue(0);
+  const otpBorder3 = useSharedValue(0); const otpBorder4 = useSharedValue(0); const otpBorder5 = useSharedValue(0);
+  const otpBoxScales = [otpScale0, otpScale1, otpScale2, otpScale3, otpScale4, otpScale5];
+  const otpBoxBorders = [otpBorder0, otpBorder1, otpBorder2, otpBorder3, otpBorder4, otpBorder5];
+  // Pre-declare animated styles for each OTP box (can't call hooks inside map)
+  const otpBoxStyle0 = useAnimatedStyle(() => ({
+    transform: [{ scale: otpBoxScales[0].value }],
+    borderColor: otpBorder0.value === 1 ? "#4A7C59" : "#E5E7EB",
+    backgroundColor: otpBorder0.value === 1 ? "#F0FFF4" : "#F9FAFB",
+  }));
+  const otpBoxStyle1 = useAnimatedStyle(() => ({
+    transform: [{ scale: otpBoxScales[1].value }],
+    borderColor: otpBorder1.value === 1 ? "#4A7C59" : "#E5E7EB",
+    backgroundColor: otpBorder1.value === 1 ? "#F0FFF4" : "#F9FAFB",
+  }));
+  const otpBoxStyle2 = useAnimatedStyle(() => ({
+    transform: [{ scale: otpBoxScales[2].value }],
+    borderColor: otpBorder2.value === 1 ? "#4A7C59" : "#E5E7EB",
+    backgroundColor: otpBorder2.value === 1 ? "#F0FFF4" : "#F9FAFB",
+  }));
+  const otpBoxStyle3 = useAnimatedStyle(() => ({
+    transform: [{ scale: otpBoxScales[3].value }],
+    borderColor: otpBorder3.value === 1 ? "#4A7C59" : "#E5E7EB",
+    backgroundColor: otpBorder3.value === 1 ? "#F0FFF4" : "#F9FAFB",
+  }));
+  const otpBoxStyle4 = useAnimatedStyle(() => ({
+    transform: [{ scale: otpBoxScales[4].value }],
+    borderColor: otpBorder4.value === 1 ? "#4A7C59" : "#E5E7EB",
+    backgroundColor: otpBorder4.value === 1 ? "#F0FFF4" : "#F9FAFB",
+  }));
+  const otpBoxStyle5 = useAnimatedStyle(() => ({
+    transform: [{ scale: otpBoxScales[5].value }],
+    borderColor: otpBorder5.value === 1 ? "#4A7C59" : "#E5E7EB",
+    backgroundColor: otpBorder5.value === 1 ? "#F0FFF4" : "#F9FAFB",
+  }));
+  const otpBoxAnimStyles = [otpBoxStyle0, otpBoxStyle1, otpBoxStyle2, otpBoxStyle3, otpBoxStyle4, otpBoxStyle5];
   const [otpError, setOtpError] = useState("");
   const [otpCountdown, setOtpCountdown] = useState(0); // seconds remaining before resend is allowed
   const [otpResendLoading, setOtpResendLoading] = useState(false);
@@ -186,6 +228,99 @@ export default function OnboardingScreen() {
   const [pendingExistingId, setPendingExistingId] = useState<number | null>(null);
   const [pendingFullData, setPendingFullData] = useState<any>(null);
   const STATIC_OTP = "123456";
+
+  // ─── 6-box OTP helpers ───────────────────────────────────────────
+  const handleOtpDigitChange = (index: number, value: string) => {
+    const digit = value.replace(/[^0-9]/g, "").slice(-1);
+    const newDigits = [...otpDigits];
+    newDigits[index] = digit;
+    setOtpDigits(newDigits);
+    const combined = newDigits.join("");
+    setOtpValue(combined);
+    setOtpError("");
+    // Animate box
+    if (digit) {
+      otpBoxScales[index].value = withSequence(
+        withTiming(1.12, { duration: 80 }),
+        withSpring(1, { damping: 12, stiffness: 200 }),
+      );
+      otpBoxBorders[index].value = withTiming(1, { duration: 150 });
+      // Move to next box
+      if (index < 5) {
+        setTimeout(() => otpRefs.current[index + 1]?.focus(), 30);
+      } else {
+        // All 6 filled — auto-verify
+        setTimeout(() => handleBtnPress(() => handleOtpVerifyWithCode(combined)), 80);
+      }
+    } else {
+      otpBoxBorders[index].value = withTiming(0, { duration: 150 });
+    }
+  };
+
+  const handleOtpKeyPress = (index: number, e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+    if (e.nativeEvent.key === "Backspace" && !otpDigits[index] && index > 0) {
+      const newDigits = [...otpDigits];
+      newDigits[index - 1] = "";
+      setOtpDigits(newDigits);
+      setOtpValue(newDigits.join(""));
+      otpBoxBorders[index - 1].value = withTiming(0, { duration: 150 });
+      setTimeout(() => otpRefs.current[index - 1]?.focus(), 10);
+    }
+  };
+
+  const handleOtpVerifyWithCode = async (code: string) => {
+    if (code.trim() !== STATIC_OTP) {
+      setOtpError("Incorrect code. Please try again.");
+      // Shake all boxes
+      otpBoxScales.forEach((s, i) => {
+        s.value = withDelay(i * 30, withSequence(
+          withTiming(0.92, { duration: 60 }),
+          withTiming(1.04, { duration: 60 }),
+          withTiming(1, { duration: 60 }),
+        ));
+      });
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (pendingOtpAction === "existing" && pendingExistingId !== null) {
+      setLoading(true);
+      try {
+        dispatch({ type: "SET_BUSINESS_OWNER_ID", payload: pendingExistingId });
+        await AsyncStorage.setItem("@bookease_business_owner_id", String(pendingExistingId));
+        if (pendingFullData && pendingFullData.owner) {
+          const settingsFromDb = dbOwnerToSettings(pendingFullData.owner);
+          dispatch({
+            type: "LOAD_DATA",
+            payload: {
+              services: (pendingFullData.services || []).map(dbServiceToLocal),
+              clients: (pendingFullData.clients || []).map(dbClientToLocal),
+              appointments: (pendingFullData.appointments || []).map(dbAppointmentToLocal),
+              reviews: (pendingFullData.reviews || []).map(dbReviewToLocal),
+              discounts: (pendingFullData.discounts || []).map(dbDiscountToLocal),
+              giftCards: (pendingFullData.giftCards || []).map(dbGiftCardToLocal),
+              locations: (pendingFullData.locations || []).map(dbLocationToLocal),
+              products: (pendingFullData.products || []).map(dbProductToLocal),
+              staff: (pendingFullData.staff || []).map(dbStaffToLocal),
+              customSchedule: (pendingFullData.customSchedule || []).map(dbCustomScheduleToLocal),
+              settings: settingsFromDb as any,
+              businessOwnerId: pendingExistingId,
+            },
+          });
+        }
+        if (biometricAvailable && Platform.OS !== "web") {
+          setStep(3);
+        } else {
+          router.replace("/(tabs)");
+        }
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      setBusinessPhone(phone);
+      setStep(2);
+    }
+  };
   const [businessName, setBusinessName] = useState("");
   const [businessPhone, setBusinessPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -250,6 +385,18 @@ export default function OnboardingScreen() {
     inputOpacity.value = withDelay(220, withTiming(1, { duration: 300 }));
     inputTranslateY.value = withDelay(220, withTiming(0, { duration: 300, easing: Easing.out(Easing.quad) }));
     btnOpacity.value = withDelay(320, withTiming(1, { duration: 300 }));
+  }, [step]);
+
+  // Reset OTP boxes when entering/leaving OTP step
+  useEffect(() => {
+    if (step === "otp") {
+      setOtpDigits(["","","","","",""]);
+      setOtpValue("");
+      setOtpError("");
+      otpBoxScales.forEach(s => { s.value = 1; });
+      otpBoxBorders.forEach(b => { b.value = 0; });
+      setTimeout(() => otpRefs.current[0]?.focus(), 200);
+    }
   }, [step]);
 
   // OTP countdown timer — counts down from 60 when OTP step is shown
@@ -421,53 +568,6 @@ export default function OnboardingScreen() {
       }, 1000);
     } finally {
       setOtpResendLoading(false);
-    }
-  };
-
-  const handleOtpVerify = async () => {
-    if (otpValue.trim() !== STATIC_OTP) {
-      setOtpError("Incorrect code. Please try again.");
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      return;
-    }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    if (pendingOtpAction === "existing" && pendingExistingId !== null) {
-      setLoading(true);
-      try {
-        dispatch({ type: "SET_BUSINESS_OWNER_ID", payload: pendingExistingId });
-        await AsyncStorage.setItem("@bookease_business_owner_id", String(pendingExistingId));
-        if (pendingFullData && pendingFullData.owner) {
-          const settingsFromDb = dbOwnerToSettings(pendingFullData.owner);
-          dispatch({
-            type: "LOAD_DATA",
-            payload: {
-              services: (pendingFullData.services || []).map(dbServiceToLocal),
-              clients: (pendingFullData.clients || []).map(dbClientToLocal),
-              appointments: (pendingFullData.appointments || []).map(dbAppointmentToLocal),
-              reviews: (pendingFullData.reviews || []).map(dbReviewToLocal),
-              discounts: (pendingFullData.discounts || []).map(dbDiscountToLocal),
-              giftCards: (pendingFullData.giftCards || []).map(dbGiftCardToLocal),
-              locations: (pendingFullData.locations || []).map(dbLocationToLocal),
-              products: (pendingFullData.products || []).map(dbProductToLocal),
-              staff: (pendingFullData.staff || []).map(dbStaffToLocal),
-              customSchedule: (pendingFullData.customSchedule || []).map(dbCustomScheduleToLocal),
-              settings: settingsFromDb as any,
-              businessOwnerId: pendingExistingId,
-            },
-          });
-        }
-        if (biometricAvailable && Platform.OS !== "web") {
-          setStep(3);
-        } else {
-          router.replace("/(tabs)");
-        }
-      } finally {
-        setLoading(false);
-      }
-    } else {
-      // New user — proceed to business registration
-      setBusinessPhone(phone);
-      setStep(2);
     }
   };
 
@@ -808,69 +908,62 @@ export default function OnboardingScreen() {
               </>
             )}
 
-            {/* Step OTP: Verification */}
+            {/* Step OTP: Verification — 6-box animated input */}
             {step === "otp" && (
               <>
                 <Animated.View style={[titleStyle, { alignItems: "center" }]}>
-                  <View style={{
-                    width: 72, height: 72, borderRadius: 20,
-                    backgroundColor: "rgba(255,255,255,0.15)",
-                    alignItems: "center", justifyContent: "center",
-                    marginBottom: 16, borderWidth: 2,
-                    borderColor: "rgba(255,255,255,0.25)",
-                  }}>
-                    <Text style={{ fontSize: 36 }}>🔐</Text>
+                  {/* Lock icon with green glow */}
+                  <View style={styles.otpIconWrap}>
+                    <Text style={{ fontSize: 34 }}>🔐</Text>
                   </View>
                   <Text style={[styles.stepTitle, { textAlign: "center" }]}>Verify Your Number</Text>
                   <Text style={[styles.stepSubtitle, { textAlign: "center" }]}>
-                    Enter the 6-digit code sent to{"\n"}{selectedCountry.dial} {phone}
+                    Enter the 6-digit code sent to{"\n"}
+                    <Text style={{ fontWeight: "700", color: "#111827" }}>{selectedCountry.dial} {phone}</Text>
                   </Text>
                 </Animated.View>
 
-                <Animated.View style={[styles.inputGroup, inputStyle]}>
-                  <Text style={styles.inputLabel}>Verification Code</Text>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      { textAlign: "center", fontSize: 28, fontWeight: "700", letterSpacing: 12 },
-                      inputFocused && styles.inputFocused,
-                      otpError ? styles.inputError : undefined,
-                    ]}
-                    placeholder="------"
-                    placeholderTextColor="#9CA3AF"
-                    value={otpValue}
-                    onChangeText={(t) => { setOtpValue(t.replace(/[^0-9]/g, "").slice(0, 6)); setOtpError(""); }}
-                    keyboardType="number-pad"
-                    returnKeyType="done"
-                    maxLength={6}
-                    autoFocus
-                    editable={!loading}
-                    onFocus={() => setInputFocused(true)}
-                    onBlur={() => setInputFocused(false)}
-                    onSubmitEditing={() => handleBtnPress(handleOtpVerify)}
-                  />
+                <Animated.View style={[{ width: "100%" }, inputStyle]}>
+                  {/* 6 individual OTP boxes */}
+                  <View style={styles.otpRow}>
+                    {otpDigits.map((digit, i) => (
+                      <Animated.View
+                        key={i}
+                        style={[
+                          styles.otpBox,
+                          otpBoxAnimStyles[i],
+                          otpError ? { borderColor: "#EF4444" } : undefined,
+                        ]}
+                      >
+                        <TextInput
+                          ref={ref => { otpRefs.current[i] = ref; }}
+                          style={styles.otpInput}
+                          value={digit}
+                          onChangeText={v => handleOtpDigitChange(i, v)}
+                          onKeyPress={e => handleOtpKeyPress(i, e)}
+                          keyboardType="number-pad"
+                          maxLength={1}
+                          editable={!loading}
+                          selectTextOnFocus
+                          caretHidden
+                        />
+                      </Animated.View>
+                    ))}
+                  </View>
+
+                  {/* Error message */}
                   {otpError ? (
-                    <View style={{
-                      backgroundColor: "rgba(239,68,68,0.18)",
-                      borderWidth: 1,
-                      borderColor: "rgba(239,68,68,0.6)",
-                      borderRadius: 10,
-                      paddingHorizontal: 14,
-                      paddingVertical: 8,
-                      marginTop: 10,
-                      alignItems: "center",
-                    }}>
-                      <Text style={{ color: "#FF6B6B", fontSize: 13, fontWeight: "600", textAlign: "center" }}>
-                        {otpError}
-                      </Text>
+                    <View style={styles.otpErrorWrap}>
+                      <Text style={styles.otpErrorText}>{otpError}</Text>
                     </View>
                   ) : null}
-                  {/* Resend Code button with countdown */}
-                  <View style={{ alignItems: "center", marginTop: 16 }}>
+
+                  {/* Resend Code */}
+                  <View style={{ alignItems: "center", marginTop: 20 }}>
                     {otpCountdown > 0 ? (
-                      <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", textAlign: "center" }}>
+                      <Text style={{ fontSize: 13, color: "#6B7280", textAlign: "center" }}>
                         Resend code in{" "}
-                        <Text style={{ fontWeight: "700", color: "rgba(255,255,255,0.85)" }}>{otpCountdown}s</Text>
+                        <Text style={{ fontWeight: "700", color: "#4A7C59" }}>{otpCountdown}s</Text>
                       </Text>
                     ) : (
                       <Pressable
@@ -878,14 +971,16 @@ export default function OnboardingScreen() {
                         disabled={otpResendLoading}
                         style={({ pressed }) => ({
                           opacity: pressed || otpResendLoading ? 0.6 : 1,
-                          paddingVertical: 6,
-                          paddingHorizontal: 12,
+                          paddingVertical: 8,
+                          paddingHorizontal: 16,
+                          borderRadius: 8,
+                          backgroundColor: "rgba(74,124,89,0.08)",
                         })}
                       >
                         {otpResendLoading ? (
-                          <ActivityIndicator size="small" color="rgba(255,255,255,0.8)" />
+                          <ActivityIndicator size="small" color="#4A7C59" />
                         ) : (
-                          <Text style={{ fontSize: 13, color: "#FFFFFF", fontWeight: "600", textDecorationLine: "underline" }}>
+                          <Text style={{ fontSize: 14, color: "#4A7C59", fontWeight: "600" }}>
                             Resend Code
                           </Text>
                         )}
@@ -897,14 +992,14 @@ export default function OnboardingScreen() {
                 <Animated.View style={btnStyle}>
                   <View style={styles.buttonRow}>
                     <Pressable
-                      onPress={() => { setStep(1); setOtpValue(""); setOtpError(""); }}
+                      onPress={() => { setStep(1); setOtpValue(""); setOtpError(""); setOtpDigits(["","","","","",""]); }}
                       style={({ pressed }) => [styles.secondaryBtn, { opacity: pressed ? 0.7 : 1 }]}
                       disabled={loading}
                     >
                       <Text style={styles.secondaryBtnText}>Back</Text>
                     </Pressable>
                     <Pressable
-                      onPress={() => handleBtnPress(handleOtpVerify)}
+                      onPress={() => handleBtnPress(() => handleOtpVerifyWithCode(otpValue))}
                       style={({ pressed }) => [
                         styles.primaryBtn,
                         { flex: 1, backgroundColor: otpValue.length === 6 && !loading ? "#4A7C59" : "#9CA3AF", opacity: pressed ? 0.9 : 1 },
@@ -925,29 +1020,41 @@ export default function OnboardingScreen() {
             {/* Step 2: Business Info */}
             {step === 2 && (
               <>
-                <Animated.View style={titleStyle}>
-                  <Text style={styles.stepTitle}>Business Information</Text>
-                  <Text style={styles.stepSubtitle}>Setup takes about 2 minutes</Text>
+                <Animated.View style={[titleStyle, { alignItems: "center" }]}>
+                  {/* Business icon badge */}
+                  <View style={styles.bizIconWrap}>
+                    <Text style={{ fontSize: 32 }}>🏢</Text>
+                  </View>
+                  <Text style={[styles.stepTitle, { textAlign: "center" }]}>Business Information</Text>
+                  <Text style={[styles.stepSubtitle, { textAlign: "center" }]}>Setup takes about 2 minutes</Text>
                 </Animated.View>
 
                 <Animated.View style={inputStyle}>
                   {/* Quick-setup intro card */}
-                  <View style={{ backgroundColor: "rgba(143,191,106,0.12)", borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: "rgba(143,191,106,0.25)" }}>
-                    <Text style={{ fontSize: 13, color: "#4A7C59", fontWeight: "600", marginBottom: 4 }}>What happens next?</Text>
-                    <Text style={{ fontSize: 12, color: "#687076", lineHeight: 18 }}>
-                      ✓  Your booking page goes live instantly{"\n"}
-                      ✓  Clients can book 24/7 from any device{"\n"}
-                      ✓  You get notified for every new request
-                    </Text>
+                  <View style={styles.bizIntroCard}>
+                    <View style={styles.bizIntroRow}>
+                      <View style={styles.bizIntroDot} />
+                      <Text style={styles.bizIntroItem}>Your booking page goes live instantly</Text>
+                    </View>
+                    <View style={styles.bizIntroRow}>
+                      <View style={styles.bizIntroDot} />
+                      <Text style={styles.bizIntroItem}>Clients can book 24/7 from any device</Text>
+                    </View>
+                    <View style={styles.bizIntroRow}>
+                      <View style={styles.bizIntroDot} />
+                      <Text style={styles.bizIntroItem}>You get notified for every new request</Text>
+                    </View>
                   </View>
+
+                  {/* Required field */}
                   <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Business Name *</Text>
+                    <Text style={styles.inputLabel}>BUSINESS NAME <Text style={{ color: "#EF4444" }}>*</Text></Text>
                     <TextInput
                       style={[
                         styles.input,
                         onboardingErrors.businessName && styles.inputError,
                       ]}
-                      placeholder="Your Business Name"
+                      placeholder="e.g. Lime Cuts & Style"
                       placeholderTextColor="#9CA3AF"
                       value={businessName}
                       onChangeText={(v) => {
@@ -963,8 +1070,15 @@ export default function OnboardingScreen() {
                     ) : null}
                   </View>
 
+                  {/* Section divider */}
+                  <View style={styles.sectionDivider}>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.sectionDividerText}>CONTACT (OPTIONAL)</Text>
+                    <View style={styles.dividerLine} />
+                  </View>
+
                   <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Phone Number</Text>
+                    <Text style={styles.inputLabel}>PHONE NUMBER</Text>
                     <TextInput
                       style={styles.input}
                       placeholder="(000) 000-0000"
@@ -979,7 +1093,7 @@ export default function OnboardingScreen() {
                   </View>
 
                   <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Email (optional)</Text>
+                    <Text style={styles.inputLabel}>EMAIL</Text>
                     <TextInput
                       style={styles.input}
                       placeholder="email@business.com"
@@ -994,7 +1108,7 @@ export default function OnboardingScreen() {
                   </View>
 
                   <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Website (optional)</Text>
+                    <Text style={styles.inputLabel}>WEBSITE</Text>
                     <TextInput
                       style={styles.input}
                       placeholder="https://www.yourbusiness.com"
@@ -1008,9 +1122,9 @@ export default function OnboardingScreen() {
                   </View>
 
                   <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Description (optional)</Text>
+                    <Text style={styles.inputLabel}>DESCRIPTION</Text>
                     <TextInput
-                      style={[styles.input, { minHeight: 80, textAlignVertical: "top" }]}
+                      style={[styles.input, { minHeight: 80, textAlignVertical: "top", paddingTop: 12 }]}
                       placeholder="Brief description of your business..."
                       placeholderTextColor="#9CA3AF"
                       value={description}
@@ -1341,5 +1455,110 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#374151",
     fontFamily: Platform.OS === "ios" ? "Inter_600SemiBold" : undefined,
+  },
+  // Business Info step 2 styles
+  bizIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    backgroundColor: "rgba(74,124,89,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+    borderWidth: 2,
+    borderColor: "rgba(74,124,89,0.2)",
+  },
+  bizIntroCard: {
+    backgroundColor: "rgba(74,124,89,0.07)",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "rgba(74,124,89,0.18)",
+    gap: 8,
+  },
+  bizIntroRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  bizIntroDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#4A7C59",
+  },
+  bizIntroItem: {
+    fontSize: 13,
+    color: "#374151",
+    fontWeight: "500",
+    flex: 1,
+    lineHeight: 18,
+  },
+  sectionDivider: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 16,
+    marginTop: 4,
+  },
+  sectionDividerText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#9CA3AF",
+    letterSpacing: 1,
+  },
+  // OTP 6-box styles
+  otpIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    backgroundColor: "rgba(74,124,89,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: "rgba(74,124,89,0.25)",
+  },
+  otpRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 10,
+    marginBottom: 8,
+    marginTop: 8,
+  },
+  otpBox: {
+    width: 46,
+    height: 56,
+    borderRadius: 12,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  otpInput: {
+    width: 46,
+    height: 56,
+    textAlign: "center",
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#111827",
+    padding: 0,
+  },
+  otpErrorWrap: {
+    backgroundColor: "rgba(239,68,68,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.4)",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginTop: 10,
+    alignItems: "center",
+  },
+  otpErrorText: {
+    color: "#EF4444",
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "center",
   },
 });

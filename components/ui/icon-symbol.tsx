@@ -90,6 +90,7 @@ const MAPPING = {
   "chevron.down": "expand-more",
   "calendar.badge.checkmark": "event-available",
   "arrow.down.right": "trending-down",
+  "arrow.down.to.line": "save-alt",
 } as unknown as IconMapping;
 
 export function IconSymbol({

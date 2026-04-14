@@ -900,3 +900,23 @@
 - [x] Add location-specific business hours section inside Location edit page
 - [x] Update booking confirmation SMS template to include full address
 - [x] Add QR code generation per location in Location edit page
+
+## Phase: Booking Link Fix & UI Modernization (Apr 14 2026)
+- [ ] Fix shared booking link URL format - single location and multi-location
+- [x] Redesign splash screen - modern, works on all iOS/Android sizes
+- [x] Redesign login page - modern UI with animations
+- [x] Redesign OTP page - 6 individual input boxes with forward/backward fill animation
+- [x] Redesign onboarding Business Information page - modern UI
+- [x] Add connected animations between login → OTP → onboarding screens
+- [ ] Add phone widgets - calendar widget and upcoming/requested/cancelled appointments
+- [x] Add Save QR to Photos button in QR code modal
+- [x] Add Business Hours section when creating a new location (Add Location page)
+
+## Phase: UI Modernization & Widgets (Apr 14 2026)
+- [x] Redesign splash screen - modern, works on all iOS/Android sizes
+- [x] Redesign login page - modern UI with smooth animations
+- [x] Redesign OTP page - 6 individual input boxes, fills L→R, deletes R→L, connected animations
+- [x] Modernize onboarding Business Information page with connected animations
+- [x] Add Save QR to Photos button in QR code modal
+- [x] Add Business Hours section when creating a new location (Add Location page)
+- [ ] Add phone widgets - calendar widget and upcoming/requested/cancelled appointments widget

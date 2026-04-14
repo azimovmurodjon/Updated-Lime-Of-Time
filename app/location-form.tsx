@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import {
   ScrollView,
   Text,
@@ -31,6 +31,8 @@ import { useActiveLocation } from "@/hooks/use-active-location";
 import { useResponsive } from "@/hooks/use-responsive";
 import { TapTimePicker, timeToMinutes as tapTimeToMinutes } from "@/components/tap-time-picker";
 import QRCode from "react-native-qrcode-svg";
+import ViewShot, { captureRef } from "react-native-view-shot";
+import * as MediaLibrary from "expo-media-library";
 
 const DAY_LABELS: Record<string, string> = { sunday: "Sun", monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu", friday: "Fri", saturday: "Sat" };
 const DAY_FULL: Record<string, string> = { sunday: "Sunday", monday: "Monday", tuesday: "Tuesday", wednesday: "Wednesday", thursday: "Thursday", friday: "Friday", saturday: "Saturday" };
@@ -173,6 +175,28 @@ export default function LocationFormScreen() {
 
   // ── QR code modal ────────────────────────────────────────────────────────────
   const [showQr, setShowQr] = useState(false);
+  const qrRef = useRef<ViewShot>(null);
+  const [savingQr, setSavingQr] = useState(false);
+
+  const saveQrToPhotos = useCallback(async () => {
+    if (!qrRef.current) return;
+    setSavingQr(true);
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Required", "Please allow access to your photo library to save the QR code.");
+        setSavingQr(false);
+        return;
+      }
+      const uri = await captureRef(qrRef, { format: "png", quality: 1 });
+      await MediaLibrary.saveToLibraryAsync(uri);
+      Alert.alert("Saved!", "QR code saved to your Photos.");
+    } catch {
+      Alert.alert("Error", "Could not save QR code. Please try again.");
+    } finally {
+      setSavingQr(false);
+    }
+  }, []);
 
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -398,8 +422,8 @@ export default function LocationFormScreen() {
           </View>
         )}
 
-        {/* Business Hours (edit mode only) */}
-        {isEdit && (
+        {/* Business Hours (add and edit mode) */}
+        {true && (
           <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
               <View style={{ flex: 1 }}>
@@ -552,12 +576,43 @@ export default function LocationFormScreen() {
                 <Text style={{ fontSize: 13, color: colors.muted, textAlign: "center", marginBottom: 20, lineHeight: 18 }}>
                   Scan to book at {existing.name}
                 </Text>
-                <View style={{ padding: 16, backgroundColor: "#FFFFFF", borderRadius: 16, marginBottom: 20 }}>
+                <ViewShot ref={qrRef} style={{ padding: 16, backgroundColor: "#FFFFFF", borderRadius: 16, marginBottom: 20 }}>
                   <QRCode value={locationBookingUrl} size={200} />
-                </View>
-                <Text style={{ fontSize: 11, color: colors.muted, textAlign: "center", lineHeight: 16 }} numberOfLines={2}>
+                </ViewShot>
+                <Text style={{ fontSize: 11, color: colors.muted, textAlign: "center", lineHeight: 16, marginBottom: 20 }} numberOfLines={2}>
                   {locationBookingUrl}
                 </Text>
+                {/* Action buttons */}
+                <View style={{ flexDirection: "row", gap: 10, width: "100%" }}>
+                  <Pressable
+                    onPress={saveQrToPhotos}
+                    disabled={savingQr}
+                    style={({ pressed }) => [{
+                      flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+                      gap: 6, paddingVertical: 12, borderRadius: 12,
+                      backgroundColor: savingQr ? "#9CA3AF" : "#4A7C59",
+                      opacity: pressed ? 0.85 : 1,
+                    }]}
+                  >
+                    <IconSymbol name="arrow.down.to.line" size={16} color="#FFF" />
+                    <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 14 }}>
+                      {savingQr ? "Saving..." : "Save to Photos"}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => Share.share({ url: locationBookingUrl, message: locationBookingUrl })}
+                    style={({ pressed }) => [{
+                      flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+                      gap: 6, paddingVertical: 12, borderRadius: 12,
+                      borderWidth: 1.5, borderColor: colors.border,
+                      backgroundColor: colors.surface,
+                      opacity: pressed ? 0.7 : 1,
+                    }]}
+                  >
+                    <IconSymbol name="square.and.arrow.up" size={16} color={colors.foreground} />
+                    <Text style={{ color: colors.foreground, fontWeight: "600", fontSize: 14 }}>Share</Text>
+                  </Pressable>
+                </View>
               </>
             )}
           </Pressable>
