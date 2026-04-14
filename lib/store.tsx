@@ -1094,6 +1094,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               giftApplied: appt.giftApplied,
               giftUsedAmount: appt.giftUsedAmount,
               staffId: appt.staffId,
+              locationId: appt.locationId,
             });
             break;
           }
@@ -1115,6 +1116,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               giftApplied: appt.giftApplied,
               giftUsedAmount: appt.giftUsedAmount,
               staffId: appt.staffId,
+              locationId: appt.locationId,
             });
             break;
           }

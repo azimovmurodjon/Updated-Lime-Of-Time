@@ -927,10 +927,19 @@ export default function OnboardingScreen() {
               <>
                 <Animated.View style={titleStyle}>
                   <Text style={styles.stepTitle}>Business Information</Text>
-                  <Text style={styles.stepSubtitle}>Tell us about your business</Text>
+                  <Text style={styles.stepSubtitle}>Setup takes about 2 minutes</Text>
                 </Animated.View>
 
                 <Animated.View style={inputStyle}>
+                  {/* Quick-setup intro card */}
+                  <View style={{ backgroundColor: "rgba(143,191,106,0.12)", borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: "rgba(143,191,106,0.25)" }}>
+                    <Text style={{ fontSize: 13, color: "#4A7C59", fontWeight: "600", marginBottom: 4 }}>What happens next?</Text>
+                    <Text style={{ fontSize: 12, color: "#687076", lineHeight: 18 }}>
+                      ✓  Your booking page goes live instantly{"\n"}
+                      ✓  Clients can book 24/7 from any device{"\n"}
+                      ✓  You get notified for every new request
+                    </Text>
+                  </View>
                   <View style={styles.inputGroup}>
                     <Text style={styles.inputLabel}>Business Name *</Text>
                     <TextInput

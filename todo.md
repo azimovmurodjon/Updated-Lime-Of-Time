@@ -890,3 +890,7 @@
 - [x] Add SMS Message Manager screen under Settings (editable templates per event type, locked Lime Of Time footer)
 - [x] Wire custom SMS templates into appointment-detail.tsx and client-detail.tsx message generators
 - [x] Add followUp template type to SmsTemplates interface and DEFAULT_SMS_TEMPLATES
+- [x] Fix client booking page calendar sync with business calendar (slots not reflecting actual availability)
+- [x] Add onboarding intro/welcome screen before Business Information tab
+- [x] Pre-fill location phone from business phone when creating first location
+- [x] Prompt address fields when creating first location (address no longer collected in onboarding)

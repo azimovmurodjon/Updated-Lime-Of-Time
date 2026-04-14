@@ -45,7 +45,10 @@ export default function LocationFormScreen() {
   const [city, setCity] = useState(existing?.city ?? "");
   const [locationState, setLocationState] = useState(existing?.state ?? "");
   const [zipCode, setZipCode] = useState(existing?.zipCode ?? "");
-  const [phone, setPhone] = useState(formatPhoneNumber(existing?.phone ?? ""));
+  const isFirstLocation = !isEdit && state.locations.length === 0;
+  const [phone, setPhone] = useState(
+    formatPhoneNumber(existing?.phone ?? (isFirstLocation ? (state.settings.profile?.phone ?? "") : ""))
+  );
   const [email, setEmail] = useState(existing?.email ?? "");
   // Validation errors
   const [errors, setErrors] = useState<{ name?: string; address?: string }>({});
@@ -61,8 +64,6 @@ export default function LocationFormScreen() {
     setErrors({});
 
     // New locations default to active. The first location is also set as default.
-    const isFirstLocation = !isEdit && state.locations.length === 0;
-
     const loc: Location = {
       id: existing?.id ?? generateId(),
       name: name.trim(),
@@ -171,6 +172,20 @@ export default function LocationFormScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+        {/* First-location welcome banner */}
+        {isFirstLocation && (
+          <View style={[styles.section, { backgroundColor: colors.primary + "12", borderColor: colors.primary + "30" }]}>
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+              <Text style={{ fontSize: 22 }}>📍</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 15, fontWeight: "700", color: colors.primary, marginBottom: 4 }}>Add Your Business Location</Text>
+                <Text style={{ fontSize: 13, color: colors.muted, lineHeight: 19 }}>
+                  Your address will appear on your booking page so clients know where to find you. You can always add more locations later.
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
         {/* Basic Info */}
         <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text className="text-base font-semibold text-foreground mb-3">Location Details</Text>
