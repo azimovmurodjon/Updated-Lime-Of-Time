@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
-import { Text, View, Pressable, StyleSheet, Switch, Modal, ScrollView, TextInput } from "react-native";
+import { Text, View, Pressable, StyleSheet, Switch, Modal, ScrollView, TextInput, type ViewStyle } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
@@ -145,6 +145,50 @@ function MiniCalendar({
   );
 }
 
+// ─── Calendar Cell helper (avoids block-body map which confuses TSC JSX parser) ─
+function CalCell({
+  day, i, dateStr, customDay, isSelected, isToday, isPast, colors, styles, onPress,
+}: {
+  day: number | null; i: number; dateStr: string; customDay: CustomScheduleDay | null;
+  isSelected: boolean; isToday: boolean; isPast: boolean;
+  colors: ReturnType<typeof import("@/hooks/use-colors").useColors>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  styles: any;
+  onPress: () => void;
+}) {
+  if (day === null) return <View key={`e${i}`} style={styles.calCell} />;
+  const isClosed = customDay?.isOpen === false;
+  const hasCustomHours = customDay?.isOpen === true && !!customDay.startTime;
+  let cellBg = "transparent";
+  let cellBorder = "transparent";
+  let textColor = colors.foreground;
+  if (isPast) textColor = colors.muted + "60";
+  if (isClosed) { cellBg = colors.error + "15"; textColor = colors.error; }
+  if (hasCustomHours) { cellBg = colors.primary + "15"; textColor = colors.primary; }
+  if (isSelected) { cellBorder = colors.primary; cellBg = colors.primary + "20"; }
+  if (isToday) { cellBorder = colors.primary; }
+  return (
+    <Pressable
+      key={day}
+      onPress={onPress}
+      style={({ pressed }): ViewStyle[] => [
+        styles.calCell,
+        {
+          backgroundColor: cellBg,
+          borderColor: cellBorder,
+          borderWidth: isSelected || isToday ? 1.5 : 0,
+          borderRadius: 10,
+          opacity: pressed ? 0.7 : 1,
+        },
+      ]}
+    >
+      <Text style={{ fontSize: 14, fontWeight: isToday ? "700" : "400", color: textColor }}>{day}</Text>
+      {isClosed && <View style={[styles.calDot, { backgroundColor: colors.error }]} />}
+      {hasCustomHours && <View style={[styles.calDot, { backgroundColor: colors.primary }]} />}
+    </Pressable>
+  );
+}
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ScheduleSettingsScreen() {
   const { state, dispatch, syncToDb } = useStore();
@@ -152,77 +196,7 @@ export default function ScheduleSettingsScreen() {
   const router = useRouter();
   const { isTablet, hp } = useResponsive();
   const settings = state.settings;
-  const { activeLocation, activeLocations, hasMultipleLocations, setActiveLocation } = useActiveLocation();
-
-  // Auto-select the first location when multiple locations exist and none is selected
-  useEffect(() => {
-    if (hasMultipleLocations && !activeLocation && activeLocations.length > 0) {
-      setActiveLocation(activeLocations[0].id);
-    }
-  }, [hasMultipleLocations, activeLocation, activeLocations, setActiveLocation]);
-
-  // Use the active location's working hours when a location is selected;
-  // fall back to global settings.workingHours for single-location businesses.
-  const effectiveWorkingHours = (
-    activeLocation?.workingHours && Object.keys(activeLocation.workingHours).length > 0
-  ) ? activeLocation.workingHours : settings.workingHours;
-
-  // Save working hours to the active location or global settings
-  const saveWorkingHours = useCallback((wh: typeof settings.workingHours) => {
-    if (activeLocation) {
-      const action = { type: "UPDATE_LOCATION" as const, payload: { ...activeLocation, workingHours: wh } };
-      dispatch(action);
-      syncToDb(action);
-    } else {
-      const action = { type: "UPDATE_SETTINGS" as const, payload: { workingHours: wh } };
-      dispatch(action);
-      syncToDb(action);
-    }
-  }, [activeLocation, dispatch, syncToDb]);
-
-  const scheduleTab = settings.scheduleMode ?? "weekly";
-  const setScheduleTab = useCallback((mode: "weekly" | "custom") => {
-    const action = { type: "UPDATE_SETTINGS" as const, payload: { scheduleMode: mode } };
-    dispatch(action);
-    syncToDb(action);
-  }, [dispatch, syncToDb]);
-
-  // ── Weekly time picker modal ───────────────────────────────────────────────
-  const [timePickerDay, setTimePickerDay] = useState<string | null>(null);
-  const [draftStart, setDraftStart] = useState("09:00");
-  const [draftEnd, setDraftEnd] = useState("17:00");
-  const [weekTimeError, setWeekTimeError] = useState<string | null>(null);
-  // which sub-picker is open: null | "start" | "end"
-  const [weekSubPicker, setWeekSubPicker] = useState<"start" | "end" | null>(null);
-
-  const openTimePicker = useCallback((day: string) => {
-    const wh = effectiveWorkingHours[day];
-    setDraftStart(wh?.start ?? "09:00");
-    setDraftEnd(wh?.end ?? "17:00");
-    setWeekTimeError(null);
-    setWeekSubPicker(null);
-    setTimePickerDay(day);
-  }, [effectiveWorkingHours]);
-
-  const saveTimePicker = useCallback(() => {
-    if (!timePickerDay) return;
-    if (tapTimeToMinutes(draftEnd) <= tapTimeToMinutes(draftStart)) {
-      setWeekTimeError("End time must be after start time.");
-      return;
-    }
-    setWeekTimeError(null);
-    const wh = { ...effectiveWorkingHours };
-    wh[timePickerDay] = { ...wh[timePickerDay], start: draftStart, end: draftEnd };
-    saveWorkingHours(wh);
-    setTimePickerDay(null);
-    setWeekSubPicker(null);
-  }, [timePickerDay, draftStart, draftEnd, effectiveWorkingHours, saveWorkingHours]);
-
-  const toggleDay = useCallback((day: string) => {
-    const wh = { ...effectiveWorkingHours };
-    wh[day] = { ...wh[day], enabled: !wh[day].enabled };
-    saveWorkingHours(wh);
-  }, [effectiveWorkingHours, saveWorkingHours]);
+  const { activeLocation, activeLocations, hasMultipleLocations, setActiveLocation: setActiveLocationForOverride } = useActiveLocation();
 
   // ── Active Until ───────────────────────────────────────────────────────────
   const activeUntilEnabled = !!settings.businessHoursEndDate;
@@ -315,6 +289,24 @@ export default function ScheduleSettingsScreen() {
   const getCustomDayForDate = useCallback((dateStr: string): CustomScheduleDay | undefined => {
     return activeCustomSchedule.find((cs) => cs.date === dateStr);
   }, [activeCustomSchedule]);
+
+  // Pre-compute selected date detail to avoid IIFE in JSX (which confuses the TSC parser)
+  const selectedCustomDay = useMemo(() => {
+    if (!selectedCustomDate) return null;
+    return activeCustomSchedule.find((cs) => cs.date === selectedCustomDate) ?? null;
+  }, [selectedCustomDate, activeCustomSchedule]);
+
+  const selectedCustomDateLabel = useMemo(() => {
+    if (!selectedCustomDate) return "";
+    const d = new Date(selectedCustomDate + "T12:00:00");
+    return d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+  }, [selectedCustomDate]);
+
+  const customTimePickerLabel = useMemo(() => {
+    if (!customTimePicker) return "";
+    const d = new Date(customTimePicker.date + "T12:00:00");
+    return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  }, [customTimePicker]);
 
   const toggleCustomDayOpen = useCallback((dateStr: string) => {
     const existing = activeCustomSchedule.find((cs) => cs.date === dateStr);
@@ -424,9 +416,6 @@ export default function ScheduleSettingsScreen() {
     syncToDb(action);
   }, [dispatch, syncToDb]);
 
-  // ── Time picker day info ───────────────────────────────────────────────────
-  const pickerDayWH = timePickerDay ? effectiveWorkingHours[timePickerDay] : null;
-
   return (
     <ScreenContainer edges={["top", "left", "right"]} tabletMaxWidth={720}>
       {/* Header */}
@@ -438,35 +427,6 @@ export default function ScheduleSettingsScreen() {
         <View style={{ width: 36 }} />
       </View>
 
-      {/* Location selector — shown when multiple locations exist */}
-      {hasMultipleLocations && (
-        <View style={{ borderBottomWidth: 1, borderBottomColor: colors.border, paddingHorizontal: hp, paddingVertical: 10, backgroundColor: colors.background }}>
-          <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Editing hours for</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={{ flexDirection: "row", gap: 6 }}>
-              {activeLocations.map((loc) => (
-                <Pressable
-                  key={loc.id}
-                  onPress={() => setActiveLocation(loc.id)}
-                  style={({ pressed }) => ({
-                    paddingHorizontal: 14,
-                    paddingVertical: 7,
-                    borderRadius: 18,
-                    borderWidth: 1.5,
-                    backgroundColor: activeLocation?.id === loc.id ? colors.primary + "18" : colors.surface,
-                    borderColor: activeLocation?.id === loc.id ? colors.primary : colors.border,
-                    opacity: pressed ? 0.7 : 1,
-                  })}
-                >
-                  <Text style={{ fontSize: 13, fontWeight: "600", color: activeLocation?.id === loc.id ? colors.primary : colors.muted }}>
-                    {loc.name}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </ScrollView>
-        </View>
-      )}
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: hp, paddingVertical: 16, paddingBottom: 60 }}>
 
         {/* ── Slot Interval ────────────────────────────────────────────────── */}
@@ -575,84 +535,43 @@ export default function ScheduleSettingsScreen() {
           )}
         </View>
 
-        {/* ── Schedule Mode ────────────────────────────────────────────────── */}
+        {/* ── Day Overrides ────────────────────────────────────────────────── */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={{ fontSize: 12, fontWeight: "500", color: colors.muted, marginBottom: 4 }}>Schedule Mode</Text>
+          <Text style={{ fontSize: 12, fontWeight: "500", color: colors.muted, marginBottom: 4 }}>Day Overrides</Text>
           <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 12, lineHeight: 18 }}>
-            {scheduleTab === "weekly"
-              ? "Using recurring weekly hours. The same hours repeat every week."
-              : "Using custom day-by-day schedule. Only days you explicitly add are available for booking."}
+            Override specific dates — mark a day closed or set custom hours that differ from the location's regular schedule.
           </Text>
-          <View style={styles.tabRow}>
-            <Pressable
-              onPress={() => setScheduleTab("weekly")}
-              style={({ pressed }) => [
-                styles.tab,
-                {
-                  backgroundColor: scheduleTab === "weekly" ? colors.primary : colors.background,
-                  borderColor: scheduleTab === "weekly" ? colors.primary : colors.border,
-                  opacity: pressed ? 0.8 : 1,
-                },
-              ]}
-            >
-              <Text style={{ fontSize: 13, fontWeight: "600", color: scheduleTab === "weekly" ? "#fff" : colors.foreground }}>
-                Business Hours
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setScheduleTab("custom")}
-              style={({ pressed }) => [
-                styles.tab,
-                {
-                  backgroundColor: scheduleTab === "custom" ? colors.primary : colors.background,
-                  borderColor: scheduleTab === "custom" ? colors.primary : colors.border,
-                  opacity: pressed ? 0.8 : 1,
-                },
-              ]}
-            >
-              <Text style={{ fontSize: 13, fontWeight: "600", color: scheduleTab === "custom" ? "#fff" : colors.foreground }}>
-                Custom Days
-              </Text>
-            </Pressable>
-          </View>
 
-          {scheduleTab === "weekly" ? (
-            <View>
-              <Text style={{ fontSize: 12, fontWeight: "500", color: colors.muted, marginBottom: 10 }}>Business Hours</Text>
-              {DAYS_OF_WEEK.map((day, idx) => {
-                const wh = effectiveWorkingHours[day];
-                const isLast = idx === DAYS_OF_WEEK.length - 1;
-                return (
-                  <View key={day} style={[styles.dayRow, !isLast && { borderBottomWidth: 1, borderBottomColor: colors.border + "40" }]}>
-                    <Switch
-                      value={wh.enabled}
-                      onValueChange={() => toggleDay(day)}
-                      trackColor={{ false: colors.border, true: colors.primary + "60" }}
-                      thumbColor={wh.enabled ? colors.primary : colors.muted}
-                      style={{ transform: [{ scale: 0.8 }] }}
-                    />
-                    <Text style={{ fontSize: 13, fontWeight: "500", width: 44, marginLeft: 8, color: wh.enabled ? colors.foreground : colors.muted }}>
-                      {DAY_LABELS[day]}
-                    </Text>
-                    {wh.enabled && (
-                      <Pressable
-                        onPress={() => openTimePicker(day)}
-                        style={({ pressed }) => [
-                          styles.timeButton,
-                          { backgroundColor: colors.background, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
-                        ]}
-                      >
-                        <Text style={{ fontSize: 12, color: colors.foreground }}>
-                          {formatTimeLabel(wh.start)} – {formatTimeLabel(wh.end)}
-                        </Text>
-                      </Pressable>
-                    )}
-                  </View>
-                );
-              })}
+          {hasMultipleLocations && (
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Override for location</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: "row", gap: 6 }}>
+                  {activeLocations.map((loc) => (
+                    <Pressable
+                      key={loc.id}
+                      onPress={() => setActiveLocationForOverride(loc.id)}
+                      style={({ pressed }) => ({
+                        paddingHorizontal: 14,
+                        paddingVertical: 7,
+                        borderRadius: 18,
+                        borderWidth: 1.5,
+                        backgroundColor: activeLocation?.id === loc.id ? colors.primary + "18" : colors.surface,
+                        borderColor: activeLocation?.id === loc.id ? colors.primary : colors.border,
+                        opacity: pressed ? 0.7 : 1,
+                      })}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: "600", color: activeLocation?.id === loc.id ? colors.primary : colors.muted }}>
+                        {loc.name}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </ScrollView>
             </View>
-          ) : (
-            <View>
+          )}
+
+          <View>
               <Text style={{ fontSize: 12, fontWeight: "500", color: colors.muted, marginBottom: 12 }}>Custom Day Schedule</Text>
               <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 12, lineHeight: 18 }}>
                 Add dates with specific hours. Only dates you add here will be available for client booking.
@@ -679,160 +598,130 @@ export default function ScheduleSettingsScreen() {
               {/* Calendar Grid */}
               <View style={styles.calGrid}>
                 {customCalDays.map((day, i) => {
-                  if (day === null) return <View key={`e${i}`} style={styles.calCell} />;
-                  const dateStr = getDateStr(day);
-                  const customDay = getCustomDayForDate(dateStr);
-                  const isSelected = selectedCustomDate === dateStr;
                   const todayDateStr = formatDateStr(new Date());
-                  const isToday = dateStr === todayDateStr;
-                  const isPast = dateStr < todayDateStr;
-                  const isClosed = customDay?.isOpen === false;
-                  const hasCustomHours = customDay?.isOpen === true && customDay.startTime;
-
-                  let cellBg = "transparent";
-                  let cellBorder = "transparent";
-                  let textColor = colors.foreground;
-                  if (isPast) textColor = colors.muted + "60";
-                  if (isClosed) { cellBg = colors.error + "15"; textColor = colors.error; }
-                  if (hasCustomHours) { cellBg = colors.primary + "15"; textColor = colors.primary; }
-                  if (isSelected) { cellBorder = colors.primary; cellBg = colors.primary + "20"; }
-                  if (isToday) { cellBorder = colors.primary; }
-
+                  const dateStr = day !== null ? getDateStr(day) : "";
                   return (
-                    <Pressable
-                      key={day}
-                      onPress={() => setSelectedCustomDate(isSelected ? null : dateStr)}
-                      style={({ pressed }) => [
-                        styles.calCell,
-                        {
-                          backgroundColor: cellBg,
-                          borderColor: cellBorder,
-                          borderWidth: isSelected || isToday ? 1.5 : 0,
-                          borderRadius: 10,
-                          opacity: pressed ? 0.7 : 1,
-                        },
-                      ]}
-                    >
-                      <Text style={{ fontSize: 14, fontWeight: isToday ? "700" : "400", color: textColor }}>{day}</Text>
-                      {isClosed && <View style={[styles.calDot, { backgroundColor: colors.error }]} />}
-                      {hasCustomHours && <View style={[styles.calDot, { backgroundColor: colors.primary }]} />}
-                    </Pressable>
+                    <CalCell
+                      key={day !== null ? String(day) : `e${i}`}
+                      day={day}
+                      i={i}
+                      dateStr={dateStr}
+                      customDay={day !== null ? (getCustomDayForDate(dateStr) ?? null) : null}
+                      isSelected={selectedCustomDate === dateStr}
+                      isToday={dateStr === todayDateStr}
+                      isPast={dateStr < todayDateStr}
+                      colors={colors}
+                      styles={styles}
+                      onPress={() => day !== null && setSelectedCustomDate(selectedCustomDate === dateStr ? null : dateStr)}
+                    />
                   );
                 })}
               </View>
 
               {/* Selected Date Detail */}
-              {selectedCustomDate && (() => {
-                const customDay = getCustomDayForDate(selectedCustomDate);
-                const dateObj = new Date(selectedCustomDate + "T12:00:00");
-                const dateLabel = dateObj.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
-                return (
-                  <View style={[styles.detailCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                    <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground, marginBottom: 10 }}>{dateLabel}</Text>
-                    {!customDay ? (
-                      <View>
-                        <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 10 }}>Using default weekly hours</Text>
-                        <View style={{ flexDirection: "row", gap: 8 }}>
-                          <Pressable
-                            onPress={() => setCustomDayOpen(selectedCustomDate)}
-                            style={({ pressed }) => [styles.actionBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
-                          >
-                            <Text style={{ color: "#fff", fontWeight: "600", fontSize: 13 }}>Set Custom Hours</Text>
-                          </Pressable>
-                          <Pressable
-                            onPress={() => toggleCustomDayOpen(selectedCustomDate)}
-                            style={({ pressed }) => [styles.actionBtn, { backgroundColor: colors.error, opacity: pressed ? 0.8 : 1 }]}
-                          >
-                            <Text style={{ color: "#fff", fontWeight: "600", fontSize: 13 }}>Mark Closed</Text>
-                          </Pressable>
-                        </View>
+              {selectedCustomDate && (
+                <View style={[styles.detailCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground, marginBottom: 10 }}>{selectedCustomDateLabel}</Text>
+                  {!selectedCustomDay ? (
+                    <View>
+                      <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 10 }}>Using default weekly hours</Text>
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        <Pressable
+                          onPress={() => setCustomDayOpen(selectedCustomDate)}
+                          style={({ pressed }) => [styles.actionBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
+                        >
+                          <Text style={{ color: "#fff", fontWeight: "600", fontSize: 13 }}>Set Custom Hours</Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => toggleCustomDayOpen(selectedCustomDate)}
+                          style={({ pressed }) => [styles.actionBtn, { backgroundColor: colors.error, opacity: pressed ? 0.8 : 1 }]}
+                        >
+                          <Text style={{ color: "#fff", fontWeight: "600", fontSize: 13 }}>Mark Closed</Text>
+                        </Pressable>
                       </View>
-                    ) : customDay.isOpen === false ? (
-                      <View>
-                        <View style={[styles.closedTag, { backgroundColor: colors.error + "15" }]}>
-                          <Text style={{ fontSize: 13, fontWeight: "600", color: colors.error }}>CLOSED</Text>
-                        </View>
-                        <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
-                          <Pressable
-                            onPress={() => setCustomDayOpen(selectedCustomDate)}
-                            style={({ pressed }) => [styles.actionBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
-                          >
-                            <Text style={{ color: "#fff", fontWeight: "600", fontSize: 13 }}>Set Hours Instead</Text>
-                          </Pressable>
-                          <Pressable
-                            onPress={() => removeCustomOverride(selectedCustomDate)}
-                            style={({ pressed }) => [styles.actionBtn, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, opacity: pressed ? 0.8 : 1 }]}
-                          >
-                            <Text style={{ color: colors.foreground, fontWeight: "600", fontSize: 13 }}>Remove Override</Text>
-                          </Pressable>
-                        </View>
+                    </View>
+                  ) : selectedCustomDay.isOpen === false ? (
+                    <View>
+                      <View style={[styles.closedTag, { backgroundColor: colors.error + "15" }]}>
+                        <Text style={{ fontSize: 13, fontWeight: "600", color: colors.error }}>CLOSED</Text>
                       </View>
-                    ) : (
-                      <View>
-                        <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 8 }}>Custom Hours</Text>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                          <Pressable
-                            onPress={() => openCustomTimePicker(selectedCustomDate)}
-                            style={({ pressed }) => [styles.timeButton, { backgroundColor: colors.background, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
-                          >
-                            <Text style={{ fontSize: 13, color: colors.foreground }}>
-                              {formatTimeLabel(customDay.startTime ?? "09:00")} – {formatTimeLabel(customDay.endTime ?? "17:00")}
-                            </Text>
-                          </Pressable>
-                        </View>
-                        <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
-                          <Pressable
-                            onPress={() => toggleCustomDayOpen(selectedCustomDate)}
-                            style={({ pressed }) => [styles.actionBtn, { backgroundColor: colors.error + "15", opacity: pressed ? 0.8 : 1 }]}
-                          >
-                            <Text style={{ color: colors.error, fontWeight: "600", fontSize: 13 }}>Mark Closed</Text>
-                          </Pressable>
-                          <Pressable
-                            onPress={() => removeCustomOverride(selectedCustomDate)}
-                            style={({ pressed }) => [styles.actionBtn, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, opacity: pressed ? 0.8 : 1 }]}
-                          >
-                            <Text style={{ color: colors.foreground, fontWeight: "600", fontSize: 13 }}>Remove Override</Text>
-                          </Pressable>
-                        </View>
+                      <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+                        <Pressable
+                          onPress={() => setCustomDayOpen(selectedCustomDate)}
+                          style={({ pressed }) => [styles.actionBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
+                        >
+                          <Text style={{ color: "#fff", fontWeight: "600", fontSize: 13 }}>Set Hours Instead</Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => removeCustomOverride(selectedCustomDate)}
+                          style={({ pressed }) => [styles.actionBtn, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, opacity: pressed ? 0.8 : 1 }]}
+                        >
+                          <Text style={{ color: colors.foreground, fontWeight: "600", fontSize: 13 }}>Remove Override</Text>
+                        </Pressable>
                       </View>
-                    )}
-                  </View>
-                );
-              })()}
+                    </View>
+                  ) : (
+                    <View>
+                      <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 8 }}>Custom Hours</Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                        <Pressable
+                          onPress={() => openCustomTimePicker(selectedCustomDate)}
+                          style={({ pressed }) => [styles.timeButton, { backgroundColor: colors.background, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
+                        >
+                          <Text style={{ fontSize: 13, color: colors.foreground }}>
+                            {formatTimeLabel(selectedCustomDay.startTime ?? "09:00")} {"\u2013"} {formatTimeLabel(selectedCustomDay.endTime ?? "17:00")}
+                          </Text>
+                        </Pressable>
+                      </View>
+                      <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+                        <Pressable
+                          onPress={() => toggleCustomDayOpen(selectedCustomDate)}
+                          style={({ pressed }) => [styles.actionBtn, { backgroundColor: colors.error + "15", opacity: pressed ? 0.8 : 1 }]}
+                        >
+                          <Text style={{ color: colors.error, fontWeight: "600", fontSize: 13 }}>Mark Closed</Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => removeCustomOverride(selectedCustomDate)}
+                          style={({ pressed }) => [styles.actionBtn, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, opacity: pressed ? 0.8 : 1 }]}
+                        >
+                          <Text style={{ color: colors.foreground, fontWeight: "600", fontSize: 13 }}>Remove Override</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              )}
 
               {/* Existing Overrides */}
-              {state.customSchedule.length > 0 && (
+              {(activeLocation ? (state.locationCustomSchedule[activeLocation.id] ?? []) : state.customSchedule).length > 0 && (
                 <View style={{ marginTop: 14 }}>
                   <Text style={{ fontSize: 12, fontWeight: "500", color: colors.muted, marginBottom: 8 }}>Active Overrides</Text>
-                  {state.customSchedule
+                  {(activeLocation ? (state.locationCustomSchedule[activeLocation.id] ?? []) : state.customSchedule)
                     .sort((a, b) => a.date.localeCompare(b.date))
-                    .map((cs) => {
-                      const d = new Date(cs.date + "T12:00:00");
-                      const label = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-                      return (
-                        <View key={cs.date} style={[styles.overrideRow, { borderColor: colors.border }]}>
-                          <Text style={{ fontSize: 13, fontWeight: "500", color: colors.foreground, flex: 1 }}>{label}</Text>
-                          {cs.isOpen ? (
-                            <Text style={{ fontSize: 12, color: colors.primary }}>
-                              {formatTimeLabel(cs.startTime ?? "09:00")} – {formatTimeLabel(cs.endTime ?? "17:00")}
-                            </Text>
-                          ) : (
-                            <Text style={{ fontSize: 12, fontWeight: "600", color: colors.error }}>CLOSED</Text>
-                          )}
-                          <Pressable
-                            onPress={() => removeCustomOverride(cs.date)}
-                            style={({ pressed }) => [{ marginLeft: 10, opacity: pressed ? 0.5 : 1 }]}
-                          >
-                            <IconSymbol name="xmark" size={16} color={colors.muted} />
-                          </Pressable>
-                        </View>
-                      );
-                    })}
+                    .map((cs) => (
+                      <View key={cs.date} style={[styles.overrideRow, { borderColor: colors.border }]}>
+                        <Text style={{ fontSize: 13, fontWeight: "500", color: colors.foreground, flex: 1 }}>
+                          {new Date(cs.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                        </Text>
+                        {cs.isOpen ? (
+                          <Text style={{ fontSize: 12, color: colors.primary }}>
+                            {formatTimeLabel(cs.startTime ?? "09:00")} {"-"} {formatTimeLabel(cs.endTime ?? "17:00")}
+                          </Text>
+                        ) : (
+                          <Text style={{ fontSize: 12, fontWeight: "600", color: colors.error }}>CLOSED</Text>
+                        )}
+                        <Pressable
+                          onPress={() => removeCustomOverride(cs.date)}
+                          style={({ pressed }) => [{ marginLeft: 10, opacity: pressed ? 0.5 : 1 }]}
+                        >
+                          <IconSymbol name="xmark" size={16} color={colors.muted} />
+                        </Pressable>
+                      </View>
+                    ))}
                 </View>
               )}
             </View>
-          )}
-        </View>
+          </View>
 
         {/* ── Active Until ─────────────────────────────────────────────────── */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -887,66 +776,13 @@ export default function ScheduleSettingsScreen() {
 
       </ScrollView>
 
-      {/* Weekly Time Picker Modal */}
-      <Modal visible={!!timePickerDay} transparent animationType="slide">
-        <Pressable style={styles.modalOverlay} onPress={() => { setTimePickerDay(null); setWeekSubPicker(null); }}>
-          <Pressable style={[styles.modalContent, { backgroundColor: colors.background }]} onPress={() => {}}>
-            <View style={styles.modalHeader}>
-              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>
-                {timePickerDay ? DAY_FULL[timePickerDay] : ""} Hours
-              </Text>
-              <Pressable onPress={() => { setTimePickerDay(null); setWeekSubPicker(null); }} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
-                <IconSymbol name="xmark" size={22} color={colors.foreground} />
-              </Pressable>
-            </View>
-
-            {/* Start row */}
-            <Pressable
-              onPress={() => setWeekSubPicker(weekSubPicker === "start" ? null : "start")}
-              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, paddingHorizontal: 4, borderRadius: 12, backgroundColor: weekSubPicker === "start" ? colors.primary + "18" : "transparent", marginBottom: 4 }}
-            >
-              <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Start Time</Text>
-              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.primary }}>{formatTimeLabel(draftStart)}</Text>
-            </Pressable>
-            {weekSubPicker === "start" && (
-              <TapTimePicker value={draftStart} onChange={(v) => { setDraftStart(v); setWeekTimeError(null); }} stepMinutes={5} />
-            )}
-
-            {/* End row */}
-            <Pressable
-              onPress={() => setWeekSubPicker(weekSubPicker === "end" ? null : "end")}
-              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, paddingHorizontal: 4, borderRadius: 12, backgroundColor: weekSubPicker === "end" ? colors.primary + "18" : "transparent", marginBottom: 4 }}
-            >
-              <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>End Time</Text>
-              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.primary }}>{formatTimeLabel(draftEnd)}</Text>
-            </Pressable>
-            {weekSubPicker === "end" && (
-              <TapTimePicker value={draftEnd} onChange={(v) => { setDraftEnd(v); setWeekTimeError(null); }} stepMinutes={5} />
-            )}
-
-            {weekTimeError ? (
-              <Text style={{ color: colors.error, fontSize: 13, textAlign: "center", marginVertical: 8 }}>{weekTimeError}</Text>
-            ) : null}
-            <Pressable
-              onPress={saveTimePicker}
-              style={({ pressed }) => [styles.saveBtn, { backgroundColor: weekTimeError ? colors.border : colors.primary, opacity: pressed ? 0.8 : 1, marginTop: 12 }]}
-            >
-              <Text style={{ color: weekTimeError ? colors.muted : "#fff", fontWeight: "700", fontSize: 16 }}>Save Hours</Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
       {/* Custom Schedule Time Picker Modal */}
       <Modal visible={!!customTimePicker} transparent animationType="slide">
         <Pressable style={styles.modalOverlay} onPress={() => { setCustomTimePicker(null); setCustomSubPicker(null); }}>
           <Pressable style={[styles.modalContent, { backgroundColor: colors.background }]} onPress={() => {}}>
             <View style={styles.modalHeader}>
               <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>
-                {customTimePicker ? (() => {
-                  const d = new Date(customTimePicker.date + "T12:00:00");
-                  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-                })() : ""} Hours
+                {customTimePickerLabel} Hours
               </Text>
               <Pressable onPress={() => { setCustomTimePicker(null); setCustomSubPicker(null); }} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
                 <IconSymbol name="xmark" size={22} color={colors.foreground} />

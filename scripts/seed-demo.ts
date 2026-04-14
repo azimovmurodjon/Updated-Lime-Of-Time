@@ -170,9 +170,9 @@ const STAFF_DATA = [
   { name: "Omar Hassan",      role: "Barber",           color: "#FFC107", phone: "(412) 555-1012" },
 ];
 
-const APPT_STATUSES = ["confirmed", "confirmed", "confirmed", "completed", "completed", "cancelled", "pending"] as const;
-const PAST_STATUSES = ["completed", "completed", "completed", "cancelled"] as const;
-const FUTURE_STATUSES = ["confirmed", "confirmed", "pending"] as const;
+const APPT_STATUSES = ["confirmed", "confirmed", "confirmed", "completed", "completed", "cancelled", "pending"];
+const PAST_STATUSES = ["completed", "completed", "completed", "cancelled"];
+const FUTURE_STATUSES = ["confirmed", "confirmed", "pending"];
 
 // ─── main ────────────────────────────────────────────────────────────────────
 async function main() {
