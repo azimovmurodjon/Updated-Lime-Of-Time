@@ -187,16 +187,12 @@ export default function OnboardingScreen() {
   const [pendingFullData, setPendingFullData] = useState<any>(null);
   const STATIC_OTP = "123456";
   const [businessName, setBusinessName] = useState("");
-  const [address, setAddress] = useState("");
-  const [city, setCity] = useState("");
-  const [locationState, setLocationState] = useState("");
-  const [zipCode, setZipCode] = useState("");
   const [businessPhone, setBusinessPhone] = useState("");
   const [email, setEmail] = useState("");
   const [website, setWebsite] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
-  const [onboardingErrors, setOnboardingErrors] = useState<{ businessName?: string; address?: string }>({});
+  const [onboardingErrors, setOnboardingErrors] = useState<{ businessName?: string }>({});
   const [inputFocused, setInputFocused] = useState(false);
 
   const trpcUtils = trpc.useUtils();
@@ -476,9 +472,8 @@ export default function OnboardingScreen() {
   };
 
   const handleComplete = async () => {
-    const newErrors: { businessName?: string; address?: string } = {};
+    const newErrors: { businessName?: string } = {};
     if (!businessName.trim()) newErrors.businessName = "Business name is required";
-    if (!address.trim()) newErrors.address = "Street address is required";
     if (Object.keys(newErrors).length > 0) {
       setOnboardingErrors(newErrors);
       return;
@@ -491,7 +486,6 @@ export default function OnboardingScreen() {
         phone: rawPhone,
         businessName: businessName.trim(),
         email: email.trim() || undefined,
-        address: address.trim() || undefined,
         website: website.trim() || undefined,
         description: description.trim() || undefined,
         workingHours: DEFAULT_WORKING_HOURS,
@@ -499,29 +493,6 @@ export default function OnboardingScreen() {
       });
       dispatch({ type: "SET_BUSINESS_OWNER_ID", payload: newOwner.id });
       await AsyncStorage.setItem("@bookease_business_owner_id", String(newOwner.id));
-      if (address.trim()) {
-        const defaultLoc = {
-          id: generateId(),
-          name: businessName.trim() || "Main Location",
-          address: address.trim(),
-          city: city.trim(),
-          state: locationState.trim(),
-          zipCode: zipCode.trim(),
-          phone: (businessPhone.trim() || phone.trim()),
-          email: email.trim(),
-          isDefault: true,
-          active: true,
-          workingHours: DEFAULT_WORKING_HOURS,
-          createdAt: new Date().toISOString(),
-        };
-        const locAction = { type: "ADD_LOCATION" as const, payload: defaultLoc };
-        dispatch(locAction);
-        // Await the DB sync so the location is persisted before navigating away
-        await syncToDb(locAction, newOwner.id);
-        // Auto-select the first location immediately
-        dispatch({ type: "SET_ACTIVE_LOCATION", payload: defaultLoc.id });
-        await AsyncStorage.setItem("@bookease_active_location_id", defaultLoc.id);
-      }
       dispatch({
         type: "UPDATE_SETTINGS",
         payload: {
@@ -531,11 +502,10 @@ export default function OnboardingScreen() {
             ownerName: "",
             phone: businessPhone.trim() || phone.trim(),
             email: email.trim(),
-            // Store full address parts for SMS fallback when no location assigned
-            address: address.trim(),
-            city: city.trim(),
-            state: locationState.trim(),
-            zipCode: zipCode.trim(),
+            address: "",
+            city: "",
+            state: "",
+            zipCode: "",
             description: description.trim(),
             website: website.trim(),
           },
@@ -982,71 +952,6 @@ export default function OnboardingScreen() {
                     {onboardingErrors.businessName ? (
                       <Text style={styles.errorText}>{onboardingErrors.businessName}</Text>
                     ) : null}
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Street Address *</Text>
-                    <TextInput
-                      style={[
-                        styles.input,
-                        onboardingErrors.address && styles.inputError,
-                      ]}
-                      placeholder="e.g. 123 Main Street"
-                      placeholderTextColor="#9CA3AF"
-                      value={address}
-                      onChangeText={(v) => {
-                        setAddress(v);
-                        if (onboardingErrors.address) setOnboardingErrors((e) => ({ ...e, address: undefined }));
-                      }}
-                      returnKeyType="next"
-                      editable={!loading}
-                    />
-                    {onboardingErrors.address ? (
-                      <Text style={styles.errorText}>{onboardingErrors.address}</Text>
-                    ) : null}
-                  </View>
-
-                  <View style={[styles.inputGroup, { flexDirection: "row", gap: 8 }]}>
-                    <View style={{ flex: 2 }}>
-                      <Text style={styles.inputLabel}>City</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="e.g. New York"
-                        placeholderTextColor="#9CA3AF"
-                        value={city}
-                        onChangeText={setCity}
-                        returnKeyType="next"
-                        editable={!loading}
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.inputLabel}>State</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="NY"
-                        placeholderTextColor="#9CA3AF"
-                        value={locationState}
-                        onChangeText={setLocationState}
-                        autoCapitalize="characters"
-                        maxLength={2}
-                        returnKeyType="next"
-                        editable={!loading}
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.inputLabel}>ZIP</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="10001"
-                        placeholderTextColor="#9CA3AF"
-                        value={zipCode}
-                        onChangeText={setZipCode}
-                        keyboardType="numeric"
-                        maxLength={10}
-                        returnKeyType="next"
-                        editable={!loading}
-                      />
-                    </View>
                   </View>
 
                   <View style={styles.inputGroup}>
