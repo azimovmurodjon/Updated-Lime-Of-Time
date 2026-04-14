@@ -387,6 +387,8 @@ export default function CalendarScreen() {
     const endDate = state.settings.businessHoursEndDate;
     if (endDate && dateStr > endDate) return false;
     const custom = getCustomDay(dateStr);
+    // A Workday override (isOpen: true) always opens the day, even if weekly hours are disabled.
+    // A closed override (isOpen: false) always closes the day.
     if (custom) return custom.isOpen;
     // Fall back to Business Hours
     const d = new Date(dateStr + "T12:00:00");
@@ -425,8 +427,17 @@ export default function CalendarScreen() {
       return null;
     }
     const custom = getCustomDay(dateStr);
-    if (custom && custom.isOpen && custom.startTime && custom.endTime) {
-      return { start: custom.startTime, end: custom.endTime };
+    if (custom && custom.isOpen) {
+      if (custom.startTime && custom.endTime) {
+        // Workday ON with explicit custom hours
+        return { start: custom.startTime, end: custom.endTime };
+      }
+      // Workday ON but no explicit hours — fall back to weekly hours (even if day is normally closed)
+      const d2 = new Date(dateStr + "T12:00:00");
+      const dayName2 = DAY_NAMES[d2.getDay()];
+      const wh2 = effectiveWorkingHours?.[dayName2];
+      if (wh2) return { start: wh2.start, end: wh2.end };
+      return { start: "09:00", end: "17:00" };
     }
     const d = new Date(dateStr + "T12:00:00");
     const dayName = DAY_NAMES[d.getDay()];
@@ -441,7 +452,12 @@ export default function CalendarScreen() {
     const dayName = DAY_NAMES[d.getDay()];
     const wh = effectiveWorkingHours?.[dayName];
     if (wh && wh.enabled) return { start: wh.start, end: wh.end };
-    return null;
+    // Day is normally closed, but return a sensible default so the Workday time picker
+    // pre-fills with reasonable hours rather than a hardcoded 09:00-17:00 fallback.
+    // We use the hours from the working hours object if they exist (even if disabled),
+    // otherwise fall back to 09:00-17:00.
+    if (wh) return { start: wh.start, end: wh.end };
+    return { start: "09:00", end: "17:00" };
   }, [effectiveWorkingHours]);
 
   // Calendar grid
@@ -758,6 +774,19 @@ export default function CalendarScreen() {
   // ─── Workday Panel (shown below selected date in month view) ──────────
 
   const renderWorkdayPanel = (dateStr: string) => {
+    // When All Locations is selected and there are multiple locations, Workday is per-location.
+    // Hide the panel and show an informational message instead.
+    if (calLocationFilter === null && hasMultiLoc) {
+      return (
+        <View style={[styles.workdayPanel, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground, marginBottom: 4 }}>Workday</Text>
+          <Text style={{ fontSize: 12, color: colors.muted, lineHeight: 18 }}>
+            Workday hours are configured per location. Select a specific location to set or edit custom hours for this date.
+          </Text>
+        </View>
+      );
+    }
+
     const custom = getCustomDay(dateStr);
     const isPast = isDateInPast(dateStr);
     const bh = getBusinessHours(dateStr);

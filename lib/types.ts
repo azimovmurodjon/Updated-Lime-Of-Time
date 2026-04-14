@@ -472,6 +472,7 @@ export function generateAvailableSlots(
   if (customDay) {
     if (!customDay.isOpen) return [];
     if (customDay.startTime && customDay.endTime) {
+      // Workday is ON with explicit custom hours — use them regardless of weekly schedule
       const startMin = timeToMinutes(customDay.startTime);
       const endMin = timeToMinutes(customDay.endTime);
       const slots: string[] = [];
@@ -480,6 +481,22 @@ export function generateAvailableSlots(
       }
       return filterSlots(slots, date, serviceDuration, appointments, bufferTime);
     }
+    // Workday is ON but no explicit hours set — use weekly hours as fallback.
+    // IMPORTANT: we still proceed even if the weekly day is normally disabled,
+    // because the Workday override explicitly opens this date.
+    const dateObj2 = new Date(date + "T12:00:00");
+    const dayIndex2 = dateObj2.getDay();
+    const dayName2 = DAYS_OF_WEEK[dayIndex2];
+    const wh2 = workingHours[dayName2] || workingHours[dayName2.toLowerCase()];
+    const fallbackStart = wh2?.start ?? "09:00";
+    const fallbackEnd = wh2?.end ?? "17:00";
+    const startMin2 = timeToMinutes(fallbackStart);
+    const endMin2 = timeToMinutes(fallbackEnd);
+    const slots2: string[] = [];
+    for (let min = startMin2; min + serviceDuration <= endMin2; min += stepMinutes) {
+      slots2.push(minutesToTime(min));
+    }
+    return filterSlots(slots2, date, serviceDuration, appointments, bufferTime);
   }
 
   // Fall back to weekly working hours
