@@ -1048,12 +1048,26 @@ export function registerPublicRoutes(app: Express) {
       }
       // Verify new slot is available
       const appts = await db.getAppointmentsByOwner(owner.id);
-      const schedule = await db.getCustomScheduleByOwner(owner.id);
+      const allReschedSchedule = await db.getCustomScheduleByOwner(owner.id);
       const mode = (owner.scheduleMode as "weekly" | "custom") || "weekly";
       const bufferVal = (owner as any).bufferTime || 0;
+      // Use location-scoped working hours and custom schedule when appointment has a locationId
+      let reschedWorkingHours = owner.workingHours;
+      const reschedLocationId = (appt as any).locationId;
+      const reschedSchedule = reschedLocationId
+        ? allReschedSchedule.filter((cs: any) => cs.locationId === reschedLocationId || cs.locationId == null)
+        : allReschedSchedule;
+      if (reschedLocationId) {
+        const locs = await db.getLocationsByOwner(owner.id);
+        const loc = locs.find((l: any) => l.localId === reschedLocationId);
+        if (loc && loc.workingHours) {
+          const locWh = typeof loc.workingHours === 'object' ? loc.workingHours : JSON.parse(loc.workingHours as string);
+          if (locWh && Object.keys(locWh).length > 0) reschedWorkingHours = locWh;
+        }
+      }
       // Exclude current appointment from conflict check
       const otherAppts = appts.filter((a: any) => a.localId !== appointmentId);
-      const slots = generateAvailableSlots(newDate, appt.duration, owner.workingHours, otherAppts, 30, schedule, mode, bufferVal);
+      const slots = generateAvailableSlots(newDate, appt.duration, reschedWorkingHours, otherAppts, 30, reschedSchedule, mode, bufferVal);
       if (!slots.includes(newTime)) {
         res.status(400).json({ error: "Selected time slot is not available" });
         return;
