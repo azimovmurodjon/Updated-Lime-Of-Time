@@ -945,3 +945,10 @@
 - [x] Configurable slot step interval in Settings (5/10/15/30 min picker)
 - [x] Refresh availability button on booking time slot grid (new-booking + booking screens)
 - [x] Workday "Repeat next week" quick-copy button in calendar Workday panel
+- [ ] Fix clients page scroll (list not scrollable)
+- [ ] Remove center number from "By Service" donut chart on home page
+- [ ] Seed DB: ~6000 past appointments (last 6 months) + 200 upcoming appointments
+- [ ] Seed DB: 200 more clients
+- [ ] Seed DB: 50 more services with different categories
+- [ ] Seed DB: 100 products with different brand names
+- [ ] Seed DB: add discounts and gift cards so Quick Actions shows non-zero counts

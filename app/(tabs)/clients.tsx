@@ -151,7 +151,7 @@ export default function ClientsScreen() {
 
   return (
     <ScreenContainer tabletMaxWidth={0}>
-      <View style={{ alignSelf: "center", width: "100%", maxWidth: maxContentWidth }}>
+      <View style={{ flex: 1, alignSelf: "center", width: "100%", maxWidth: maxContentWidth }}>
       <View style={{ paddingHorizontal: hp }}>
         <View style={styles.header}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>

@@ -1009,7 +1009,6 @@ export default function HomeScreen() {
                 data={analytics.serviceBreakdown.slice(0, 4)}
                 size={70}
                 compact
-                centerValue={String(analytics.serviceBreakdown.reduce((s, d) => s + d.value, 0))}
               />
             ) : (
               <Text
