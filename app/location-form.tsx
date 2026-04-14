@@ -164,13 +164,19 @@ export default function LocationFormScreen() {
       return;
     }
     setWeekTimeError(null);
-    setLocationHours((prev) => ({ ...prev, [timePickerDay]: { ...prev[timePickerDay], start: draftStart, end: draftEnd } }));
+    setLocationHours((prev) => {
+      const existing = prev[timePickerDay] ?? { enabled: true, start: "09:00", end: "17:00" };
+      return { ...prev, [timePickerDay]: { ...existing, start: draftStart, end: draftEnd } };
+    });
     setTimePickerDay(null);
     setWeekSubPicker(null);
   }, [timePickerDay, draftStart, draftEnd]);
 
   const toggleDay = useCallback((day: string) => {
-    setLocationHours((prev) => ({ ...prev, [day]: { ...prev[day], enabled: !prev[day].enabled } }));
+    setLocationHours((prev) => {
+      const existing = prev[day] ?? { enabled: false, start: "09:00", end: "17:00" };
+      return { ...prev, [day]: { ...existing, enabled: !existing.enabled } };
+    });
   }, []);
 
   // ── QR code modal ────────────────────────────────────────────────────────────
