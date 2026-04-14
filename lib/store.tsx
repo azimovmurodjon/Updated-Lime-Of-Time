@@ -686,6 +686,37 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const updateLocationMut = trpc.locations.update.useMutation();
   const deleteLocationMut = trpc.locations.delete.useMutation();
 
+  // ─── Mutation ref: keeps syncToDb's stale closure up-to-date ────
+  // syncToDb has [] deps to avoid re-creating on every render, but it needs the
+  // latest mutation objects. We solve this with a ref that is updated every render.
+  const mutsRef = useRef({
+    createServiceMut, updateServiceMut, deleteServiceMut,
+    createClientMut, updateClientMut, deleteClientMut,
+    createApptMut, updateApptMut, deleteApptMut,
+    createReviewMut, deleteReviewMut,
+    updateBusinessMut,
+    createDiscountMut, updateDiscountMut, deleteDiscountMut,
+    createGiftCardMut, updateGiftCardMut, deleteGiftCardMut,
+    upsertScheduleMut, deleteScheduleMut,
+    createProductMut, updateProductMut, deleteProductMut,
+    createStaffMut, updateStaffMut, deleteStaffMut,
+    createLocationMut, updateLocationMut, deleteLocationMut,
+  });
+  // Update ref every render so syncToDb always has the latest mutateAsync
+  mutsRef.current = {
+    createServiceMut, updateServiceMut, deleteServiceMut,
+    createClientMut, updateClientMut, deleteClientMut,
+    createApptMut, updateApptMut, deleteApptMut,
+    createReviewMut, deleteReviewMut,
+    updateBusinessMut,
+    createDiscountMut, updateDiscountMut, deleteDiscountMut,
+    createGiftCardMut, updateGiftCardMut, deleteGiftCardMut,
+    upsertScheduleMut, deleteScheduleMut,
+    createProductMut, updateProductMut, deleteProductMut,
+    createStaffMut, updateStaffMut, deleteStaffMut,
+    createLocationMut, updateLocationMut, deleteLocationMut,
+  };
+
   // ─── Bootstrap: Load from DB or fallback to AsyncStorage ────────
   useEffect(() => {
     (async () => {
@@ -1001,6 +1032,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     async (action: Action, ownerIdOverride?: number | null) => {
       const ownerId = ownerIdOverride ?? businessOwnerIdRef.current;
       if (!ownerId) return; // No business owner yet, skip DB sync
+      // Always read from ref to get the latest mutateAsync (avoids stale closure bug)
+      const {
+        createServiceMut, updateServiceMut, deleteServiceMut,
+        createClientMut, updateClientMut, deleteClientMut,
+        createApptMut, updateApptMut, deleteApptMut,
+        createReviewMut, deleteReviewMut,
+        updateBusinessMut,
+        createDiscountMut, updateDiscountMut, deleteDiscountMut,
+        createGiftCardMut, updateGiftCardMut, deleteGiftCardMut,
+        upsertScheduleMut, deleteScheduleMut,
+        createProductMut, updateProductMut, deleteProductMut,
+        createStaffMut, updateStaffMut, deleteStaffMut,
+        createLocationMut, updateLocationMut, deleteLocationMut,
+      } = mutsRef.current;
 
       try {
         switch (action.type) {

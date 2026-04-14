@@ -934,3 +934,4 @@
 - [x] Fix: cannot delete client — investigate and fix deletion bug
 - [x] Fix: reviews from deleted clients must be preserved (not cascade-deleted)
 - [x] Fix: Schedule & Hours screen in Settings throws error — investigate and fix crash
+- [x] Fix: Delete Client button taps do nothing — deep debug required
