@@ -20,6 +20,7 @@ import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   DEFAULT_SMS_TEMPLATES,
   AppointmentStatus,
+  timeToMinutes,
 } from "./types";
 import { trpc } from "./trpc";
 
@@ -1043,13 +1044,46 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [trpcUtils]);
 
   // ─── Background-to-foreground sync ───────────────────────────────
+  // Stable refs so the AppState listener can read current values without
+  // being re-created on every render (avoids stale closure).
+  const stateRef = useRef(state);
+  useEffect(() => { stateRef.current = state; });
+  const syncToDbRef = useRef<((action: Action) => void) | null>(null);
   useEffect(() => {
     const sub = RNAppState.addEventListener("change", (nextState) => {
       if (nextState === "active" && businessOwnerIdRef.current) {
         refreshFromDb();
+        // ─── Foreground auto-complete check ────────────────────────
+        // The scheduled notification listener only fires in foreground.
+        // When the app resumes from background, scan for any confirmed
+        // appointments whose end time + delay has already passed and
+        // mark them completed immediately.
+        const s = stateRef.current;
+        if (!s.settings.autoCompleteEnabled) return;
+        const delayMs = (s.settings.autoCompleteDelayMinutes ?? 5) * 60 * 1000;
+        const now = Date.now();
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const toComplete = s.appointments.filter((a) => {
+          if (a.status !== "confirmed") return false;
+          if (a.date > todayStr) return false;
+          const svc = s.services.find((sv) => sv.id === a.serviceId);
+          const duration = svc?.duration ?? (a as any).duration ?? 30;
+          const endMins = timeToMinutes(a.time) + duration;
+          const endDate = new Date(a.date + "T00:00:00");
+          endDate.setMinutes(endDate.getMinutes() + endMins);
+          return now >= endDate.getTime() + delayMs;
+        });
+        if (toComplete.length > 0 && syncToDbRef.current) {
+          toComplete.forEach((a) => {
+            const action = { type: "UPDATE_APPOINTMENT_STATUS" as const, payload: { id: a.id, status: "completed" as AppointmentStatus } };
+            dispatch(action);
+            syncToDbRef.current!(action);
+          });
+        }
       }
     });
     return () => sub.remove();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshFromDb]);
 
   // ─── Sync action to database ────────────────────────────────────
@@ -1563,9 +1597,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         // Do NOT re-throw — most call sites are fire-and-forget and would get unhandled rejections
       }
     },
-    []
+     []
   );
-
+  // Wire up the ref so the foreground auto-complete check can call syncToDb
+  useEffect(() => { syncToDbRef.current = syncToDb; }, [syncToDb]);
   // ─── Selectors ──────────────────────────────────────────────────
   const getServiceById = useCallback(
     (id: string) => state.services.find((s) => s.id === id),

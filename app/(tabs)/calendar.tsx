@@ -586,18 +586,40 @@ export default function CalendarScreen() {
       setDraftEnd(end);
       setShowTimePickerModal(true);
     } else {
-      // Turning OFF: save as closed override (per-location if location is active)
-      if (activeLocation) {
-        const override: CustomScheduleDay = { date: dateStr, isOpen: false, locationId: activeLocation.id };
-        dispatch({ type: "SET_LOCATION_CUSTOM_SCHEDULE", payload: { locationId: activeLocation.id, day: override } });
-        syncToDb({ type: "SET_LOCATION_CUSTOM_SCHEDULE", payload: { locationId: activeLocation.id, day: override } });
+      // Turning OFF: check for confirmed appointments on this day first
+      const confirmedOnDay = state.appointments.filter(
+        (a) => a.date === dateStr && (a.status === "confirmed" || a.status === "pending")
+      );
+      const doClose = () => {
+        if (activeLocation) {
+          const override: CustomScheduleDay = { date: dateStr, isOpen: false, locationId: activeLocation.id };
+          dispatch({ type: "SET_LOCATION_CUSTOM_SCHEDULE", payload: { locationId: activeLocation.id, day: override } });
+          syncToDb({ type: "SET_LOCATION_CUSTOM_SCHEDULE", payload: { locationId: activeLocation.id, day: override } });
+        } else {
+          const override: CustomScheduleDay = { date: dateStr, isOpen: false };
+          dispatch({ type: "SET_CUSTOM_SCHEDULE", payload: override });
+          syncToDb({ type: "SET_CUSTOM_SCHEDULE", payload: override });
+        }
+      };
+      if (confirmedOnDay.length > 0) {
+        const lines = confirmedOnDay.map((a) => {
+          const client = getClientById(a.clientId);
+          const svc = getServiceById(a.serviceId);
+          return `• ${formatTime(a.time)} – ${client?.name ?? "Client"} (${svc?.name ?? "Service"})`;
+        }).join("\n");
+        Alert.alert(
+          "Close Day?",
+          `This day has ${confirmedOnDay.length} appointment${confirmedOnDay.length > 1 ? "s" : ""} that need rescheduling:\n\n${lines}\n\nClose anyway?`,
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Close Day", style: "destructive", onPress: doClose },
+          ]
+        );
       } else {
-        const override: CustomScheduleDay = { date: dateStr, isOpen: false };
-        dispatch({ type: "SET_CUSTOM_SCHEDULE", payload: override });
-        syncToDb({ type: "SET_CUSTOM_SCHEDULE", payload: override });
+        doClose();
       }
     }
-  }, [dispatch, syncToDb, getBusinessHours, activeLocation]);
+  }, [dispatch, syncToDb, getBusinessHours, activeLocation, state.appointments, getClientById, getServiceById]);
 
   const handleSaveTimeOverride = useCallback(() => {
     const dateToSave = editingDateRef.current ?? editingDate;

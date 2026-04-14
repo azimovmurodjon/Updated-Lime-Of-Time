@@ -1,4 +1,5 @@
 import { useMemo, useEffect, useCallback, useState, useRef } from "react";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 import {
   Text,
   View,
@@ -29,6 +30,8 @@ import { KpiDetailSheet, MicroSparkLine, MicroBarSpark, type KpiTab } from "@/co
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 
+// App logo URL (same as app.config.ts logoUrl)
+const APP_LOGO_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/jHoNjHdLsUGgpFhz.png";
 // ─── Count-up hook ──────────────────────────────────────────────────────
 function useCountUp(target: number, duration = 900): number {
   const [display, setDisplay] = useState(0);
@@ -227,6 +230,24 @@ export default function HomeScreen() {
   const [tutorialStep, setTutorialStep] = useState(0);
   const tutorialFade = useState(() => new Animated.Value(0))[0];
 
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
+  // Tutorial card colors that follow system light/dark mode
+  const tutorialCardBg = isDark ? "#0F1F18" : "#FFFFFF";
+  const tutorialCardBorder = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+  const tutorialTitleColor = isDark ? "#FFFFFF" : "#11181C";
+  const tutorialSubtitleColor = isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)";
+  const tutorialDescColor = isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.65)";
+  const tutorialBulletTextColor = isDark ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.75)";
+  const tutorialActionBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)";
+  const tutorialActionBorder = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+  const tutorialActionTextColor = isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)";
+  const tutorialStepCountColor = isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)";
+  const tutorialProgressTrackBg = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)";
+  const tutorialPrevBorderColor = isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)";
+  const tutorialPrevTextColor = isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.5)";
+  const tutorialSkipTextColor = isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.35)";
+  const tutorialSkipMidColor = isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.25)";
   type TutorialStep = {
     title: string;
     subtitle: string;
@@ -321,12 +342,12 @@ export default function HomeScreen() {
   ];
 
   useEffect(() => {
-    if (state.loaded && state.settings.onboardingComplete) {
+    if (state.loaded) {
       AsyncStorage.getItem("@lime_tutorial_seen").then((val) => {
         if (!val) setShowTutorial(true);
       });
     }
-  }, [state.loaded, state.settings.onboardingComplete]);
+  }, [state.loaded]);
 
   useEffect(() => {
     if (showTutorial) {
@@ -1383,9 +1404,9 @@ export default function HomeScreen() {
       {/* Tutorial Walkthrough Overlay */}
       <Modal visible={showTutorial} transparent animationType="none">
         <Animated.View style={[styles.tutorialOverlay, { opacity: tutorialFade }]}>
-          <View style={[styles.tutorialCard, { backgroundColor: "#0F1F18", borderColor: "rgba(255,255,255,0.08)" }]}>
+          <View style={[styles.tutorialCard, { backgroundColor: tutorialCardBg, borderColor: tutorialCardBorder }]}>
             {/* Progress bar */}
-            <View style={styles.tutorialProgressTrack}>
+            <View style={[styles.tutorialProgressTrack, { backgroundColor: tutorialProgressTrackBg }]}>
               <View
                 style={[
                   styles.tutorialProgressBar,
@@ -1394,21 +1415,29 @@ export default function HomeScreen() {
               />
             </View>
 
-            {/* Icon header with colored background */}
+            {/* Icon header — app logo on first step, emoji on others */}
             <View style={[styles.tutorialIconWrap, { backgroundColor: TUTORIAL_STEPS[tutorialStep]?.iconBg ?? "#1A4030" }]}>
-              <Text style={{ fontSize: 36 }}>{TUTORIAL_STEPS[tutorialStep]?.iconText}</Text>
+              {tutorialStep === 0 ? (
+                <Image
+                  source={{ uri: state.settings.businessLogoUri || APP_LOGO_URL }}
+                  style={{ width: 48, height: 48, borderRadius: 12 }}
+                  resizeMode="contain"
+                />
+              ) : (
+                <Text style={{ fontSize: 36 }}>{TUTORIAL_STEPS[tutorialStep]?.iconText}</Text>
+              )}
             </View>
 
             {/* Title & subtitle */}
-            <Text style={styles.tutorialTitle}>
+            <Text style={[styles.tutorialTitle, { color: tutorialTitleColor }]}>
               {TUTORIAL_STEPS[tutorialStep]?.title}
             </Text>
-            <Text style={styles.tutorialSubtitle}>
+            <Text style={[styles.tutorialSubtitle, { color: tutorialSubtitleColor }]}>
               {TUTORIAL_STEPS[tutorialStep]?.subtitle}
             </Text>
 
             {/* Description */}
-            <Text style={styles.tutorialDesc}>
+            <Text style={[styles.tutorialDesc, { color: tutorialDescColor }]}>
               {TUTORIAL_STEPS[tutorialStep]?.desc}
             </Text>
 
@@ -1417,20 +1446,20 @@ export default function HomeScreen() {
               {(TUTORIAL_STEPS[tutorialStep]?.bullets ?? []).map((b, i) => (
                 <View key={i} style={styles.tutorialBulletRow}>
                   <View style={[styles.tutorialBulletDot, { backgroundColor: colors.primary }]} />
-                  <Text style={styles.tutorialBulletText}>{b}</Text>
+                  <Text style={[styles.tutorialBulletText, { color: tutorialBulletTextColor }]}>{b}</Text>
                 </View>
               ))}
             </View>
 
             {/* Action hint */}
-            <View style={styles.tutorialActionHint}>
-              <Text style={styles.tutorialActionText}>
+            <View style={[styles.tutorialActionHint, { backgroundColor: tutorialActionBg, borderColor: tutorialActionBorder }]}>
+              <Text style={[styles.tutorialActionText, { color: tutorialActionTextColor }]}>
                 {TUTORIAL_STEPS[tutorialStep]?.action}
               </Text>
             </View>
 
             {/* Step counter */}
-            <Text style={styles.tutorialStepCount}>
+            <Text style={[styles.tutorialStepCount, { color: tutorialStepCountColor }]}>
               {tutorialStep + 1} of {TUTORIAL_STEPS.length}
             </Text>
 
@@ -1440,16 +1469,16 @@ export default function HomeScreen() {
               {tutorialStep > 0 ? (
                 <Pressable
                   onPress={prevTutorialStep}
-                  style={({ pressed }) => [styles.tutorialPrevBtn, { opacity: pressed ? 0.7 : 1 }]}
+                  style={({ pressed }) => [styles.tutorialPrevBtn, { borderColor: tutorialPrevBorderColor, opacity: pressed ? 0.7 : 1 }]}
                 >
-                  <Text style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", fontWeight: "600" }}>← Back</Text>
+                  <Text style={{ fontSize: 14, color: tutorialPrevTextColor, fontWeight: "600" }}>← Back</Text>
                 </Pressable>
               ) : (
                 <Pressable
                   onPress={dismissTutorial}
                   style={({ pressed }) => [styles.tutorialSkipBtn, { opacity: pressed ? 0.7 : 1 }]}
                 >
-                  <Text style={{ fontSize: 14, color: "rgba(255,255,255,0.4)" }}>Skip</Text>
+                  <Text style={{ fontSize: 14, color: tutorialSkipTextColor }}>Skip</Text>
                 </Pressable>
               )}
 
@@ -1459,7 +1488,7 @@ export default function HomeScreen() {
                   onPress={dismissTutorial}
                   style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1, paddingVertical: 12, paddingHorizontal: 8 }]}
                 >
-                  <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.3)" }}>Skip</Text>
+                  <Text style={{ fontSize: 13, color: tutorialSkipMidColor }}>Skip</Text>
                 </Pressable>
               )}
 
@@ -1873,7 +1902,6 @@ const styles = StyleSheet.create({
   },
   tutorialProgressTrack: {
     height: 3,
-    backgroundColor: "rgba(255,255,255,0.1)",
     width: "100%",
   },
   tutorialProgressBar: {
@@ -1894,7 +1922,6 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "800",
     textAlign: "center",
-    color: "#FFFFFF",
     marginBottom: 4,
     paddingHorizontal: 24,
     letterSpacing: -0.3,
@@ -1902,7 +1929,6 @@ const styles = StyleSheet.create({
   tutorialSubtitle: {
     fontSize: 13,
     textAlign: "center",
-    color: "rgba(255,255,255,0.45)",
     marginBottom: 14,
     paddingHorizontal: 24,
     letterSpacing: 0.2,
@@ -1912,7 +1938,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     textAlign: "center",
-    color: "rgba(255,255,255,0.7)",
     marginBottom: 16,
     paddingHorizontal: 24,
   },
@@ -1935,29 +1960,24 @@ const styles = StyleSheet.create({
   },
   tutorialBulletText: {
     fontSize: 14,
-    color: "rgba(255,255,255,0.8)",
     lineHeight: 20,
     flex: 1,
   },
   tutorialActionHint: {
     marginHorizontal: 24,
     marginBottom: 12,
-    backgroundColor: "rgba(255,255,255,0.06)",
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
   },
   tutorialActionText: {
     fontSize: 12,
-    color: "rgba(255,255,255,0.5)",
     textAlign: "center",
     lineHeight: 18,
   },
   tutorialStepCount: {
     fontSize: 12,
-    color: "rgba(255,255,255,0.3)",
     textAlign: "center",
     marginBottom: 16,
     letterSpacing: 0.5,
@@ -1980,7 +2000,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
   },
   tutorialNextBtn: {
     flex: 2,
