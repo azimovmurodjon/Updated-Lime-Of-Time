@@ -25,8 +25,8 @@ import {
 } from "react-native";
 
 const { width, height } = Dimensions.get("window");
-const LOGO_SIZE = Math.min(width * 0.26, 108);
-const CIRCLE_SIZE = LOGO_SIZE + 36;
+const LOGO_SIZE = Math.min(width * 0.34, 130);
+const CIRCLE_SIZE = LOGO_SIZE + 48;
 
 interface AnimatedSplashProps {
   onFinish: () => void;
@@ -56,10 +56,13 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
   const progressWidth = useRef(new Animated.Value(0)).current;
 
   // Text
-  const titleTranslateY = useRef(new Animated.Value(20)).current;
+  const titleTranslateY = useRef(new Animated.Value(24)).current;
   const titleOpacity = useRef(new Animated.Value(0)).current;
   const taglineOpacity = useRef(new Animated.Value(0)).current;
-  const taglineTranslateY = useRef(new Animated.Value(10)).current;
+  const taglineTranslateY = useRef(new Animated.Value(14)).current;
+
+  // Exit: whole content slides up
+  const contentTranslateY = useRef(new Animated.Value(0)).current;
 
   // Floating orbs
   const orb1Y = useRef(new Animated.Value(0)).current;
@@ -172,14 +175,22 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
       ]),
     ]).start();
 
-    // Fade out after 2.6s
+    // Exit: slide content up + fade out after 2.6s
     const timer = setTimeout(() => {
-      Animated.timing(screenOpacity, {
-        toValue: 0,
-        duration: 450,
-        easing: Easing.in(Easing.cubic),
-        useNativeDriver: true,
-      }).start(() => onFinish());
+      Animated.parallel([
+        Animated.timing(contentTranslateY, {
+          toValue: -height * 0.12,
+          duration: 480,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(screenOpacity, {
+          toValue: 0,
+          duration: 480,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start(() => onFinish());
     }, 2600);
 
     return () => clearTimeout(timer);
@@ -199,6 +210,9 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
       <Animated.View style={[styles.orb1, { opacity: orb1Opacity, transform: [{ translateY: orb1Y }] }]} />
       <Animated.View style={[styles.orb2, { opacity: orb2Opacity, transform: [{ translateY: orb2Y }] }]} />
 
+      {/* All animated content wrapped for slide-up exit */}
+      {/* Note: wrapping View below replaces the inline content placement */}
+
       {/* Subtle grid lines */}
       <View style={styles.gridContainer} pointerEvents="none">
         {[0.2, 0.4, 0.6, 0.8].map((ratio, i) => (
@@ -209,92 +223,95 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
         ))}
       </View>
 
-      {/* Ring pulses */}
-      <View style={[styles.ringContainer, { width: RING_SIZE, height: RING_SIZE }]} pointerEvents="none">
-        {[
-          { scale: ring1Scale, opacity: ring1Opacity },
-          { scale: ring2Scale, opacity: ring2Opacity },
-        ].map((ring, i) => (
-          <Animated.View
-            key={i}
-            style={[
-              styles.ring,
-              {
-                width: RING_SIZE,
-                height: RING_SIZE,
-                borderRadius: RING_SIZE / 2,
-                transform: [{ scale: ring.scale }],
-                opacity: ring.opacity,
-              },
-            ]}
-          />
-        ))}
-      </View>
-
-      {/* Logo glow */}
-      <Animated.View
-        style={[
-          styles.logoGlow,
-          {
-            width: CIRCLE_SIZE * 1.8,
-            height: CIRCLE_SIZE * 1.8,
-            borderRadius: CIRCLE_SIZE * 0.9,
-            opacity: glowOpacity,
-            transform: [{ scale: glowScale }],
-          },
-        ]}
-      />
-
-      {/* Logo */}
-      <Animated.View
-        style={[
-          styles.logoWrapper,
-          {
-            opacity: logoOpacity,
-            transform: [{ scale: logoScale }],
-          },
-        ]}
-      >
-        {/* Glass circle */}
-        <View style={[styles.glassCircle, { width: CIRCLE_SIZE, height: CIRCLE_SIZE, borderRadius: CIRCLE_SIZE / 2 }]}>
-          <Image
-            source={require("@/assets/images/icon.png")}
-            style={{ width: LOGO_SIZE, height: LOGO_SIZE, borderRadius: LOGO_SIZE * 0.22 }}
-            resizeMode="contain"
-          />
+      {/* Animated content wrapper — slides up on exit */}
+      <Animated.View style={[styles.contentWrapper, { transform: [{ translateY: contentTranslateY }] }]}>
+        {/* Ring pulses */}
+        <View style={[styles.ringContainer, { width: RING_SIZE, height: RING_SIZE }]} pointerEvents="none">
+          {[
+            { scale: ring1Scale, opacity: ring1Opacity },
+            { scale: ring2Scale, opacity: ring2Opacity },
+          ].map((ring, i) => (
+            <Animated.View
+              key={i}
+              style={[
+                styles.ring,
+                {
+                  width: RING_SIZE,
+                  height: RING_SIZE,
+                  borderRadius: RING_SIZE / 2,
+                  transform: [{ scale: ring.scale }],
+                  opacity: ring.opacity,
+                },
+              ]}
+            />
+          ))}
         </View>
+
+        {/* Logo glow */}
+        <Animated.View
+          style={[
+            styles.logoGlow,
+            {
+              width: CIRCLE_SIZE * 2.0,
+              height: CIRCLE_SIZE * 2.0,
+              borderRadius: CIRCLE_SIZE * 1.0,
+              opacity: glowOpacity,
+              transform: [{ scale: glowScale }],
+            },
+          ]}
+        />
+
+        {/* Logo */}
+        <Animated.View
+          style={[
+            styles.logoWrapper,
+            {
+              opacity: logoOpacity,
+              transform: [{ scale: logoScale }],
+            },
+          ]}
+        >
+          {/* Glass circle */}
+          <View style={[styles.glassCircle, { width: CIRCLE_SIZE, height: CIRCLE_SIZE, borderRadius: CIRCLE_SIZE / 2 }]}>
+            <Image
+              source={require("@/assets/images/icon.png")}
+              style={{ width: LOGO_SIZE, height: LOGO_SIZE, borderRadius: LOGO_SIZE * 0.22 }}
+              resizeMode="contain"
+            />
+          </View>
+        </Animated.View>
+
+        {/* Progress bar */}
+        <View style={styles.progressTrack}>
+          <Animated.View style={[styles.progressFill, { width: progressWidth }]} />
+        </View>
+
+        {/* App name */}
+        <Animated.Text
+          style={[
+            styles.appName,
+            {
+              opacity: titleOpacity,
+              transform: [{ translateY: titleTranslateY }],
+            },
+          ]}
+        >
+          Lime Of Time
+        </Animated.Text>
+
+        {/* Tagline */}
+        <Animated.Text
+          style={[
+            styles.tagline,
+            {
+              opacity: taglineOpacity,
+              transform: [{ translateY: taglineTranslateY }],
+            },
+          ]}
+        >
+          Smart scheduling for your business
+        </Animated.Text>
       </Animated.View>
-
-      {/* Progress bar */}
-      <View style={styles.progressTrack}>
-        <Animated.View style={[styles.progressFill, { width: progressWidth }]} />
-      </View>
-
-      {/* App name */}
-      <Animated.Text
-        style={[
-          styles.appName,
-          {
-            opacity: titleOpacity,
-            transform: [{ translateY: titleTranslateY }],
-          },
-        ]}
-      >
-        Lime Of Time
-      </Animated.Text>
-
-      {/* Tagline */}
-      <Animated.Text
-        style={[
-          styles.tagline,
-          {
-            opacity: taglineOpacity,
-            transform: [{ translateY: taglineTranslateY }],
-          },
-        ]}
-      >
-        Smart scheduling for your business
-      </Animated.Text>
 
       {/* Bottom pill */}
       <View style={styles.bottomPill} />
@@ -372,8 +389,14 @@ const styles = StyleSheet.create({
     position: "absolute",
     backgroundColor: "#3D8C5A",
   },
+  contentWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    paddingHorizontal: 24,
+  },
   logoWrapper: {
-    marginBottom: 32,
+    marginBottom: 28,
     alignItems: "center",
     justifyContent: "center",
   },

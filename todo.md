@@ -923,3 +923,9 @@
 
 ## Phase: Onboarding Slide Transitions (Apr 14 2026)
 - [x] Add slide-left/slide-right animated transitions between onboarding steps (Step 1 → 2 → 3)
+
+## Phase: Splash/Tour/OTP Improvements (Apr 14 2026)
+- [ ] Make Business Phone a required field on onboarding Business Information step
+- [ ] Add haptic feedback on each OTP box fill and delete
+- [ ] Improve splash screen layout, vertical centering, and animated transition into login page
+- [ ] Build modern guided first-launch tour with rich step-by-step Settings walkthrough popups

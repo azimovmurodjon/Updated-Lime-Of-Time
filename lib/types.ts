@@ -724,7 +724,7 @@ export function generateReminderMessage(
 }
 
 /** Public booking URL base — update this when the production domain changes */
-export const PUBLIC_BOOKING_URL = "https://lime-of-time.com";
+export const PUBLIC_BOOKING_URL = "https://manussched-dw4mhfnu.manus.space";
 
 /** Generate the correct public booking link for a business */
 export function getBookingUrl(businessName: string, customSlug?: string): string {

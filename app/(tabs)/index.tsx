@@ -227,14 +227,97 @@ export default function HomeScreen() {
   const [tutorialStep, setTutorialStep] = useState(0);
   const tutorialFade = useState(() => new Animated.Value(0))[0];
 
-  const TUTORIAL_STEPS = [
-    { title: "Welcome to Lime Of Time!", desc: "Your all-in-one appointment scheduling app. Let's take a quick tour of the key features.", icon: "🍋" },
-    { title: "Dashboard Overview", desc: "The home screen shows your KPIs, today's schedule, analytics charts, and quick actions at a glance.", icon: "📊" },
-    { title: "Book Appointments", desc: "Tap the + button to create new bookings. You can also share your booking link with clients.", icon: "📅" },
-    { title: "Manage Your Calendar", desc: "Use the Calendar tab to view and manage all appointments. Filter by status and navigate by date.", icon: "🗓️" },
-    { title: "Services & Clients", desc: "Set up your services with pricing, categories, and duration. Track client history and notes.", icon: "💼" },
-    { title: "Settings & Customization", desc: "Configure working hours, buffer time, custom booking URL, notifications, and more in Settings.", icon: "⚙️" },
-    { title: "You're All Set!", desc: "Start by adding your first service and booking an appointment. Happy scheduling!", icon: "🎉" },
+  type TutorialStep = {
+    title: string;
+    subtitle: string;
+    desc: string;
+    bullets: string[];
+    action: string;
+    iconBg: string;
+    iconText: string;
+  };
+  const TUTORIAL_STEPS: TutorialStep[] = [
+    {
+      title: "Welcome to Lime Of Time!",
+      subtitle: "Smart scheduling for your business",
+      desc: "Your all-in-one appointment scheduling platform. Let's walk through everything you need to get started.",
+      bullets: ["Book & manage appointments", "Share your booking link", "Track clients & revenue"],
+      action: "Tap Next to begin the tour",
+      iconBg: "#1A4030",
+      iconText: "🍋",
+    },
+    {
+      title: "Dashboard",
+      subtitle: "Your business at a glance",
+      desc: "The home screen gives you a real-time snapshot of your business performance.",
+      bullets: ["KPI cards: revenue, bookings, clients", "Today's upcoming appointments", "Analytics charts & trends", "Quick-action buttons"],
+      action: "Swipe KPI cards to see details",
+      iconBg: "#1A2F4A",
+      iconText: "📊",
+    },
+    {
+      title: "Book Appointments",
+      subtitle: "Create bookings in seconds",
+      desc: "Add new appointments manually or let clients book themselves through your unique link.",
+      bullets: ["Tap + to create a new booking", "Select service, staff & time slot", "Add client notes & reminders", "Share your booking URL with clients"],
+      action: "Tap the + button on the home screen",
+      iconBg: "#2A1A40",
+      iconText: "📅",
+    },
+    {
+      title: "Calendar View",
+      subtitle: "Full schedule management",
+      desc: "The Calendar tab gives you a complete view of all appointments across days and locations.",
+      bullets: ["Day / week / month views", "Filter by location or staff", "Drag to reschedule (coming soon)", "Color-coded by status"],
+      action: "Tap the Calendar tab at the bottom",
+      iconBg: "#1A3A2A",
+      iconText: "🗓️",
+    },
+    {
+      title: "Services & Clients",
+      subtitle: "Build your catalog",
+      desc: "Define your services and build a client database to track history and preferences.",
+      bullets: ["Add services with price & duration", "Organize by category", "View client booking history", "Add notes per client"],
+      action: "Go to Settings → Services to add your first service",
+      iconBg: "#3A2A1A",
+      iconText: "💼",
+    },
+    {
+      title: "Settings: Locations",
+      subtitle: "Where you do business",
+      desc: "Add each physical location where you offer services. Each location gets its own booking link and hours.",
+      bullets: ["Name, address & phone per location", "Custom business hours per location", "Unique booking URL & QR code", "Assign staff to locations"],
+      action: "Settings → Locations → + Add Location",
+      iconBg: "#1A3040",
+      iconText: "📍",
+    },
+    {
+      title: "Settings: Staff",
+      subtitle: "Your team",
+      desc: "Add staff members and assign them to locations and services. Clients can choose their preferred provider.",
+      bullets: ["Name, role & contact info", "Assign to one or more locations", "Set individual availability", "Appears on client booking page"],
+      action: "Settings → Staff → + Add Staff Member",
+      iconBg: "#2A1A3A",
+      iconText: "👥",
+    },
+    {
+      title: "Settings: Schedule",
+      subtitle: "Your working hours",
+      desc: "Define your global business hours and buffer time between appointments.",
+      bullets: ["Set open/close time per day", "Toggle days on/off", "Buffer time between bookings", "Override hours per location"],
+      action: "Settings → Schedule",
+      iconBg: "#1A3A1A",
+      iconText: "⏰",
+    },
+    {
+      title: "You're All Set!",
+      subtitle: "Start scheduling",
+      desc: "You now know the key features. Add your first location, service, and staff member — then share your booking link!",
+      bullets: ["✅ Add a location", "✅ Add a service", "✅ Add a staff member", "✅ Share your booking link"],
+      action: "Tap Get Started to begin!",
+      iconBg: "#1A4020",
+      iconText: "🎉",
+    },
   ];
 
   useEffect(() => {
@@ -1293,34 +1376,64 @@ export default function HomeScreen() {
       {/* Tutorial Walkthrough Overlay */}
       <Modal visible={showTutorial} transparent animationType="none">
         <Animated.View style={[styles.tutorialOverlay, { opacity: tutorialFade }]}>
-          <View style={[styles.tutorialCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={{ fontSize: 48, textAlign: "center", marginBottom: 16 }}>
-              {TUTORIAL_STEPS[tutorialStep]?.icon}
-            </Text>
-            <Text style={[styles.tutorialTitle, { color: colors.foreground }]}>
+          <View style={[styles.tutorialCard, { backgroundColor: "#0F1F18", borderColor: "rgba(255,255,255,0.08)" }]}>
+            {/* Progress bar */}
+            <View style={styles.tutorialProgressTrack}>
+              <View
+                style={[
+                  styles.tutorialProgressBar,
+                  { width: `${((tutorialStep + 1) / TUTORIAL_STEPS.length) * 100}%`, backgroundColor: colors.primary },
+                ]}
+              />
+            </View>
+
+            {/* Icon header with colored background */}
+            <View style={[styles.tutorialIconWrap, { backgroundColor: TUTORIAL_STEPS[tutorialStep]?.iconBg ?? "#1A4030" }]}>
+              <Text style={{ fontSize: 36 }}>{TUTORIAL_STEPS[tutorialStep]?.iconText}</Text>
+            </View>
+
+            {/* Title & subtitle */}
+            <Text style={styles.tutorialTitle}>
               {TUTORIAL_STEPS[tutorialStep]?.title}
             </Text>
-            <Text style={[styles.tutorialDesc, { color: colors.muted }]}>
+            <Text style={styles.tutorialSubtitle}>
+              {TUTORIAL_STEPS[tutorialStep]?.subtitle}
+            </Text>
+
+            {/* Description */}
+            <Text style={styles.tutorialDesc}>
               {TUTORIAL_STEPS[tutorialStep]?.desc}
             </Text>
-            {/* Step indicators */}
-            <View style={styles.tutorialDots}>
-              {TUTORIAL_STEPS.map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.tutorialDot,
-                    { backgroundColor: i === tutorialStep ? colors.primary : colors.border },
-                  ]}
-                />
+
+            {/* Bullet points */}
+            <View style={styles.tutorialBullets}>
+              {(TUTORIAL_STEPS[tutorialStep]?.bullets ?? []).map((b, i) => (
+                <View key={i} style={styles.tutorialBulletRow}>
+                  <View style={[styles.tutorialBulletDot, { backgroundColor: colors.primary }]} />
+                  <Text style={styles.tutorialBulletText}>{b}</Text>
+                </View>
               ))}
             </View>
+
+            {/* Action hint */}
+            <View style={styles.tutorialActionHint}>
+              <Text style={styles.tutorialActionText}>
+                {TUTORIAL_STEPS[tutorialStep]?.action}
+              </Text>
+            </View>
+
+            {/* Step counter */}
+            <Text style={styles.tutorialStepCount}>
+              {tutorialStep + 1} of {TUTORIAL_STEPS.length}
+            </Text>
+
+            {/* Navigation */}
             <View style={styles.tutorialActions}>
               <Pressable
                 onPress={dismissTutorial}
                 style={({ pressed }) => [styles.tutorialSkipBtn, { opacity: pressed ? 0.7 : 1 }]}
               >
-                <Text style={{ fontSize: 14, color: colors.muted }}>Skip</Text>
+                <Text style={{ fontSize: 14, color: "rgba(255,255,255,0.4)" }}>Skip Tour</Text>
               </Pressable>
               <Pressable
                 onPress={nextTutorialStep}
@@ -1329,8 +1442,8 @@ export default function HomeScreen() {
                   { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
                 ]}
               >
-                <Text style={{ fontSize: 14, fontWeight: "600", color: "#FFF" }}>
-                  {tutorialStep === TUTORIAL_STEPS.length - 1 ? "Get Started" : "Next"}
+                <Text style={{ fontSize: 15, fontWeight: "700", color: "#FFF", letterSpacing: 0.3 }}>
+                  {tutorialStep === TUTORIAL_STEPS.length - 1 ? "Get Started" : "Next  →"}
                 </Text>
               </Pressable>
             </View>
@@ -1720,44 +1833,113 @@ const styles = StyleSheet.create({
   },
   tutorialCard: {
     width: "100%",
-    maxWidth: 340,
+    maxWidth: 360,
     borderRadius: 24,
-    padding: 32,
     borderWidth: 1,
-    alignItems: "center",
+    overflow: "hidden",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.4,
+    shadowRadius: 32,
+    elevation: 12,
+  },
+  tutorialProgressTrack: {
+    height: 3,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    width: "100%",
+  },
+  tutorialProgressBar: {
+    height: 3,
+    borderRadius: 2,
+  },
+  tutorialIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+    marginTop: 28,
+    marginBottom: 16,
   },
   tutorialTitle: {
     fontSize: 22,
-    fontWeight: "700",
+    fontWeight: "800",
     textAlign: "center",
-    marginBottom: 8,
+    color: "#FFFFFF",
+    marginBottom: 4,
+    paddingHorizontal: 24,
+    letterSpacing: -0.3,
+  },
+  tutorialSubtitle: {
+    fontSize: 13,
+    textAlign: "center",
+    color: "rgba(255,255,255,0.45)",
+    marginBottom: 14,
+    paddingHorizontal: 24,
+    letterSpacing: 0.2,
+    textTransform: "uppercase",
   },
   tutorialDesc: {
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 21,
     textAlign: "center",
-    marginBottom: 24,
+    color: "rgba(255,255,255,0.7)",
+    marginBottom: 16,
+    paddingHorizontal: 24,
   },
-  tutorialDots: {
+  tutorialBullets: {
+    width: "100%",
+    paddingHorizontal: 24,
+    marginBottom: 16,
+    gap: 8,
+  },
+  tutorialBulletRow: {
     flexDirection: "row",
-    gap: 6,
-    marginBottom: 24,
+    alignItems: "center",
+    gap: 10,
   },
-  tutorialDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  tutorialBulletDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    flexShrink: 0,
+  },
+  tutorialBulletText: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.8)",
+    lineHeight: 20,
+    flex: 1,
+  },
+  tutorialActionHint: {
+    marginHorizontal: 24,
+    marginBottom: 12,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  tutorialActionText: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.5)",
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  tutorialStepCount: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.3)",
+    textAlign: "center",
+    marginBottom: 16,
+    letterSpacing: 0.5,
   },
   tutorialActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
-    width: "100%",
+    gap: 12,
+    paddingHorizontal: 24,
+    paddingBottom: 28,
   },
   tutorialSkipBtn: {
     flex: 1,

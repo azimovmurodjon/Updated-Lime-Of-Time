@@ -268,6 +268,7 @@ export default function OnboardingScreen() {
     setOtpError("");
     // Animate box
     if (digit) {
+      if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       otpBoxScales[index].value = withSequence(
         withTiming(1.12, { duration: 80 }),
         withSpring(1, { damping: 12, stiffness: 200 }),
@@ -281,12 +282,14 @@ export default function OnboardingScreen() {
         setTimeout(() => handleBtnPress(() => handleOtpVerifyWithCode(combined)), 80);
       }
     } else {
+      if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       otpBoxBorders[index].value = withTiming(0, { duration: 150 });
     }
   };
 
   const handleOtpKeyPress = (index: number, e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
     if (e.nativeEvent.key === "Backspace" && !otpDigits[index] && index > 0) {
+      if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       const newDigits = [...otpDigits];
       newDigits[index - 1] = "";
       setOtpDigits(newDigits);
@@ -355,7 +358,7 @@ export default function OnboardingScreen() {
   const [website, setWebsite] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
-  const [onboardingErrors, setOnboardingErrors] = useState<{ businessName?: string }>({});
+  const [onboardingErrors, setOnboardingErrors] = useState<{ businessName?: string; businessPhone?: string }>({});
   const [inputFocused, setInputFocused] = useState(false);
 
   const trpcUtils = trpc.useUtils();
@@ -427,10 +430,10 @@ export default function OnboardingScreen() {
     }
   }, [displayStep]);
 
-  // OTP countdown timer — counts down from 60 when OTP step is shown
+  // OTP countdown timer — counts down from 30 when OTP step is shown
   useEffect(() => {
     if (displayStep !== "otp") return;
-    setOtpCountdown(60);
+    setOtpCountdown(30);
     const id = setInterval(() => {
       setOtpCountdown((prev) => {
         if (prev <= 1) { clearInterval(id); return 0; }
@@ -605,8 +608,9 @@ export default function OnboardingScreen() {
   };
 
   const handleComplete = async () => {
-    const newErrors: { businessName?: string } = {};
+    const newErrors: { businessName?: string; businessPhone?: string } = {};
     if (!businessName.trim()) newErrors.businessName = "Business name is required";
+    if (!businessPhone.trim()) newErrors.businessPhone = "Phone number is required";
     if (Object.keys(newErrors).length > 0) {
       setOnboardingErrors(newErrors);
       return;
@@ -755,6 +759,12 @@ export default function OnboardingScreen() {
             </View>
             <Text style={styles.appName}>Lime Of Time</Text>
             <Text style={styles.appTagline}>Smart scheduling for your business</Text>
+            {/* Decorative tagline separator */}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 }}>
+              <View style={{ width: 24, height: 1, backgroundColor: "rgba(255,255,255,0.3)" }} />
+              <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", letterSpacing: 1.5, textTransform: "uppercase" }}>by Manus</Text>
+              <View style={{ width: 24, height: 1, backgroundColor: "rgba(255,255,255,0.3)" }} />
+            </View>
           </Animated.View>          {/* ─── Progress Dots ──────────────────────────────────── */}
           <View style={styles.progressRow}>
             {[1, 2, 3].map((s) => {
@@ -1103,23 +1113,32 @@ export default function OnboardingScreen() {
                   {/* Section divider */}
                   <View style={styles.sectionDivider}>
                     <View style={styles.dividerLine} />
-                    <Text style={styles.sectionDividerText}>CONTACT (OPTIONAL)</Text>
+                    <Text style={styles.sectionDividerText}>CONTACT</Text>
                     <View style={styles.dividerLine} />
                   </View>
 
                   <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>PHONE NUMBER</Text>
+                    <Text style={styles.inputLabel}>PHONE NUMBER <Text style={{ color: '#EF4444' }}>*</Text></Text>
                     <TextInput
-                      style={styles.input}
+                      style={[
+                        styles.input,
+                        onboardingErrors.businessPhone ? { borderColor: '#EF4444', borderWidth: 1 } : {},
+                      ]}
                       placeholder="(000) 000-0000"
                       placeholderTextColor="#9CA3AF"
                       value={businessPhone}
-                      onChangeText={handleBusinessPhoneChange}
+                      onChangeText={(v) => {
+                        handleBusinessPhoneChange(v);
+                        if (onboardingErrors.businessPhone) setOnboardingErrors((e) => ({ ...e, businessPhone: undefined }));
+                      }}
                       keyboardType="phone-pad"
                       returnKeyType="next"
                       maxLength={14}
                       editable={!loading}
                     />
+                    {onboardingErrors.businessPhone ? (
+                      <Text style={styles.errorText}>{onboardingErrors.businessPhone}</Text>
+                    ) : null}
                   </View>
 
                   <View style={styles.inputGroup}>
@@ -1261,26 +1280,32 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   logoContainer: {
     alignItems: "center",
-    marginBottom: 28,
+    marginBottom: 24,
+    paddingTop: 16,
   },
   logoRing: {
-    width: 96,
-    height: 96,
-    borderRadius: 28,
+    width: 116,
+    height: 116,
+    borderRadius: 32,
     backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 14,
+    marginBottom: 16,
     borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.25)",
+    borderColor: "rgba(255,255,255,0.28)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
   },
   logo: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
+    width: 88,
+    height: 88,
+    borderRadius: 24,
   },
   appName: {
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: "800",
     color: "#FFFFFF",
     letterSpacing: -0.5,
@@ -1289,7 +1314,7 @@ const styles = StyleSheet.create({
   appTagline: {
     fontSize: 14,
     color: "rgba(255,255,255,0.7)",
-    marginTop: 4,
+    marginTop: 3,
     fontFamily: Platform.OS === "ios" ? "Inter_400Regular" : undefined,
   },
   progressRow: {
