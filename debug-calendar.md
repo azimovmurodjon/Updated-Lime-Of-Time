@@ -12,5 +12,5 @@
 The loadWorkingDays() fetch + checkSlotAvailability() batch check may be failing or not completing before the calendar renders. The calendar renders immediately and the async availability check updates later, but maybe the WEEKLY_DAYS is still all false on the deployed version (old code cached).
 
 ## Key: The deployed version may still have the OLD code without the case fix!
-The fix was just applied to the dev server. The deployed version at manus.space may be serving cached/old code.
+The fix was just applied to the dev server. The deployed version at lime-of-time.com may be serving cached/old code.
 Need to check if the WEEKLY_DAYS in the served HTML is correct.

@@ -723,8 +723,8 @@ export function generateReminderMessage(
   return `Dear ${clientName},\n\nThis is a friendly reminder about your upcoming appointment.\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${locationLine}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early. If you need to reschedule or cancel, please contact us as soon as possible.\n\nSee you soon!\n${businessName}`;
 }
 
-/** Public booking URL base — update this when the production domain changes */
-export const PUBLIC_BOOKING_URL = "https://manussched-dw4mhfnu.manus.space";
+/** Public booking URL base — DO NOT CHANGE. Production domain is lime-of-time.com */
+export const PUBLIC_BOOKING_URL = "https://lime-of-time.com";
 
 /** Generate the correct public booking link for a business */
 export function getBookingUrl(businessName: string, customSlug?: string): string {

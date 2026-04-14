@@ -4,7 +4,7 @@
 **Version:** 1.0.0  
 **Platform:** React Native (Expo SDK 54) + Express.js Backend  
 **Database:** PostgreSQL with Drizzle ORM  
-**Deployment:** Manus Platform (manussched-dw4mhfnu.manus.space)
+**Deployment:** lime-of-time.com
 
 ---
 
@@ -1059,7 +1059,7 @@ Response: { success: true }
 
 ### Dashboard Structure
 
-**URL:** `https://manussched-dw4mhfnu.manus.space/api/admin`
+**URL:** `https://lime-of-time.com/api/admin`
 
 **Pages:**
 - Dashboard (overview, stats)
@@ -1113,7 +1113,7 @@ Response: { success: true }
 - Web deployment
 
 **Domain:**
-- `manussched-dw4mhfnu.manus.space` (Manus domain)
+- `lime-of-time.com` (Manus domain)
 - Custom domain support (user's own domain)
 
 ### Build Configuration
