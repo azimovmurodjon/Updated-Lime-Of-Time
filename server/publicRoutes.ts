@@ -1977,6 +1977,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     let staffMembers = [];
     let locations = [];
     let customDays = {};
+    let apiWeeklyDays = null; // weeklyDays from last loadWorkingDays() call (location-scoped)
     let selectedService = null;
     let selectedStaff = null;
     let selectedLocation = ${preselectedLocationId ? `"${preselectedLocationId}"` : 'null'};
@@ -2043,7 +2044,9 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         customDays = data.customDays || {};
         scheduleMode = data.scheduleMode || "weekly";
         businessHoursEndDate = data.businessHoursEndDate || null;
-      } catch(e) { customDays = {}; }
+        // Store location-scoped weekly days so calendar uses correct working hours
+        apiWeeklyDays = data.weeklyDays || null;
+      } catch(e) { customDays = {}; apiWeeklyDays = null; }
     }
 
     // Load staff members
@@ -2168,9 +2171,12 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         });
         return days;
       }
+      // Use API-fetched weeklyDays (location-scoped) if available — this is the most accurate source
+      if (apiWeeklyDays) return apiWeeklyDays;
+      // Fallback: derive from location's workingHours object in the locations array
       if (selectedLocation) {
         const loc = locations.find(l => l.localId === selectedLocation);
-        if (loc && loc.workingHours) {
+        if (loc && loc.workingHours && Object.keys(loc.workingHours).length > 0) {
           const wh = loc.workingHours;
           const days = {};
           ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].forEach(d => {

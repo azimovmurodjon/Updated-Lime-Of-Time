@@ -20,7 +20,20 @@ import {
   generateReminderMessage,
   formatFullAddress,
   PUBLIC_BOOKING_URL,
+  LIME_OF_TIME_FOOTER,
 } from "@/lib/types";
+
+/** Replace {variable} placeholders in a custom template and append the Lime Of Time footer */
+function applyTemplate(
+  template: string,
+  vars: Record<string, string>
+): string {
+  let result = template;
+  for (const [key, val] of Object.entries(vars)) {
+    result = result.replaceAll(`{${key}}`, val);
+  }
+  return result + LIME_OF_TIME_FOOTER;
+}
 
 export default function AppointmentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -81,25 +94,47 @@ export default function AppointmentDetailScreen() {
     dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status: "confirmed" } });
     syncToDb({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status: "confirmed" } });
     if (client?.phone) {
-      const msg = generateAcceptMessage(
-        biz.businessName,
-        // Use location address if assigned, otherwise fall back to full profile address
-        assignedLocation?.address || profile.address,
-        client.name,
-        service ? getServiceDisplayName(service) : "Service",
-        appointment.duration,
-        appointment.date,
-        appointment.time,
-        assignedLocation?.phone || profile.phone,
-        client.phone,
-        appointment.id,
-        assignedLocation?.name,
-        assignedLocation?.id,
-        biz.customSlug,
-        assignedLocation?.city ?? profile.city,
-        assignedLocation?.state ?? profile.state,
-        assignedLocation?.zipCode ?? profile.zipCode
-      );
+      const customTpl = biz.smsTemplates?.confirmation;
+      let msg: string;
+      if (customTpl) {
+        const slug = biz.customSlug || biz.businessName.replace(/\s+/g, "-").toLowerCase();
+        const fullAddr = assignedLocation
+          ? formatFullAddress(assignedLocation.address, assignedLocation.city, assignedLocation.state, assignedLocation.zipCode)
+          : formatFullAddress(profile.address, profile.city, profile.state, profile.zipCode);
+        const locLine = assignedLocation?.name ? (fullAddr ? `${assignedLocation.name} \u2014 ${fullAddr}` : assignedLocation.name) : fullAddr;
+        msg = applyTemplate(customTpl, {
+          clientName: client.name,
+          businessName: biz.businessName,
+          serviceName: service ? getServiceDisplayName(service) : "Service",
+          duration: String(appointment.duration),
+          date: appointment.date,
+          time: appointment.time,
+          location: locLine,
+          phone: formatPhoneNumber(stripPhoneFormat(assignedLocation?.phone || profile.phone)),
+          clientPhone: client.phone,
+          bookingUrl: `${PUBLIC_BOOKING_URL}/book/${slug}${assignedLocation?.id ? "?location=" + assignedLocation.id : ""}`,
+          reviewUrl: `${PUBLIC_BOOKING_URL}/review/${slug}`,
+        });
+      } else {
+        msg = generateAcceptMessage(
+          biz.businessName,
+          assignedLocation?.address || profile.address,
+          client.name,
+          service ? getServiceDisplayName(service) : "Service",
+          appointment.duration,
+          appointment.date,
+          appointment.time,
+          assignedLocation?.phone || profile.phone,
+          client.phone,
+          appointment.id,
+          assignedLocation?.name,
+          assignedLocation?.id,
+          biz.customSlug,
+          assignedLocation?.city ?? profile.city,
+          assignedLocation?.state ?? profile.state,
+          assignedLocation?.zipCode ?? profile.zipCode
+        );
+      }
       openSms(client.phone, msg);
     }
     router.back();
@@ -117,26 +152,62 @@ export default function AppointmentDetailScreen() {
             ? formatFullAddress(assignedLocation.address, assignedLocation.city, assignedLocation.state, assignedLocation.zipCode)
             : formatFullAddress(profile.address, profile.city, profile.state, profile.zipCode);
           const completedLocLine = assignedLocation?.name
-            ? (completedFullAddr ? `${assignedLocation.name} — ${completedFullAddr}` : assignedLocation.name)
+            ? (completedFullAddr ? `${assignedLocation.name} \u2014 ${completedFullAddr}` : assignedLocation.name)
             : completedFullAddr;
           const completedSlug = biz.customSlug || biz.businessName.replace(/\s+/g, "-").toLowerCase();
-          msg = `Dear ${client.name},\n\nThank you for visiting ${biz.businessName}! Your appointment for ${service ? getServiceDisplayName(service) : "service"} on ${formatDateDisplay(appointment.date)} has been completed.\n\nWe hope you had a great experience. We'd love to see you again!\n\n📍 ${completedLocLine}\n📞 ${assignedLocation?.phone || profile.phone}\n\n🔗 Book again: ${PUBLIC_BOOKING_URL}/book/${completedSlug}${assignedLocation?.id ? "?location=" + assignedLocation.id : ""}\n\nBest regards,\n${biz.businessName}`;
+          const customCompletedTpl = biz.smsTemplates?.completed;
+          if (customCompletedTpl) {
+            msg = applyTemplate(customCompletedTpl, {
+              clientName: client.name,
+              businessName: biz.businessName,
+              serviceName: service ? getServiceDisplayName(service) : "service",
+              date: formatDateDisplay(appointment.date),
+              time: appointment.time,
+              location: completedLocLine,
+              phone: formatPhoneNumber(stripPhoneFormat(assignedLocation?.phone || profile.phone)),
+              clientPhone: client.phone,
+              bookingUrl: `${PUBLIC_BOOKING_URL}/book/${completedSlug}${assignedLocation?.id ? "?location=" + assignedLocation.id : ""}`,
+              reviewUrl: `${PUBLIC_BOOKING_URL}/review/${completedSlug}`,
+            });
+          } else {
+            msg = `Dear ${client.name},\n\nThank you for visiting ${biz.businessName}! Your appointment for ${service ? getServiceDisplayName(service) : "service"} on ${formatDateDisplay(appointment.date)} has been completed.\n\nWe hope you had a great experience. We\u2019d love to see you again!\n\n\uD83D\uDCCD ${completedLocLine}\n\uD83D\uDCDE ${formatPhoneNumber(stripPhoneFormat(assignedLocation?.phone || profile.phone))}\n\n\uD83D\uDD17 Book again: ${PUBLIC_BOOKING_URL}/book/${completedSlug}${assignedLocation?.id ? "?location=" + assignedLocation.id : ""}\n\nBest regards,\n${biz.businessName}${LIME_OF_TIME_FOOTER}`;
+          }
         } else {
           const feeStr = cancInfo.feeApplies && cancInfo.fee > 0 ? `$${cancInfo.fee} (${policy.feePercentage}%)` : "";
-          msg = generateCancellationMessage(
-            biz.businessName,
-            client.name,
-            service ? getServiceDisplayName(service) : "Service",
-            appointment.date,
-            appointment.time,
-            feeStr,
-            assignedLocation?.phone || profile.phone,
-            assignedLocation?.name,
-            assignedLocation?.address ?? profile.address,
-            assignedLocation?.city ?? profile.city,
-            assignedLocation?.state ?? profile.state,
-            assignedLocation?.zipCode ?? profile.zipCode
-          );
+          const customCancelTpl = biz.smsTemplates?.cancellation;
+          if (customCancelTpl) {
+            const cancelFullAddr = assignedLocation
+              ? formatFullAddress(assignedLocation.address, assignedLocation.city, assignedLocation.state, assignedLocation.zipCode)
+              : formatFullAddress(profile.address, profile.city, profile.state, profile.zipCode);
+            const cancelLocLine = assignedLocation?.name
+              ? (cancelFullAddr ? `${assignedLocation.name} \u2014 ${cancelFullAddr}` : assignedLocation.name)
+              : cancelFullAddr;
+            msg = applyTemplate(customCancelTpl, {
+              clientName: client.name,
+              businessName: biz.businessName,
+              serviceName: service ? getServiceDisplayName(service) : "Service",
+              date: appointment.date,
+              time: appointment.time,
+              location: cancelLocLine,
+              phone: formatPhoneNumber(stripPhoneFormat(assignedLocation?.phone || profile.phone)),
+              clientPhone: client.phone,
+            });
+          } else {
+            msg = generateCancellationMessage(
+              biz.businessName,
+              client.name,
+              service ? getServiceDisplayName(service) : "Service",
+              appointment.date,
+              appointment.time,
+              feeStr,
+              assignedLocation?.phone || profile.phone,
+              assignedLocation?.name,
+              assignedLocation?.address ?? profile.address,
+              assignedLocation?.city ?? profile.city,
+              assignedLocation?.state ?? profile.state,
+              assignedLocation?.zipCode ?? profile.zipCode
+            );
+          }
         }
         openSms(client.phone, msg);
       }
@@ -178,20 +249,43 @@ export default function AppointmentDetailScreen() {
 
   const handleSendReminder = () => {
     if (!client?.phone) return;
-    const msg = generateReminderMessage(
-      biz.businessName,
-      assignedLocation?.address || profile.address,
-      client.name,
-      service ? getServiceDisplayName(service) : "Service",
-      appointment.duration,
-      appointment.date,
-      appointment.time,
-      assignedLocation?.phone || profile.phone,
-      assignedLocation?.name,
-      assignedLocation?.city ?? profile.city,
-      assignedLocation?.state ?? profile.state,
-      assignedLocation?.zipCode ?? profile.zipCode
-    );
+    const customReminderTpl = biz.smsTemplates?.reminder;
+    let msg: string;
+    if (customReminderTpl) {
+      const slug = biz.customSlug || biz.businessName.replace(/\s+/g, "-").toLowerCase();
+      const fullAddr = assignedLocation
+        ? formatFullAddress(assignedLocation.address, assignedLocation.city, assignedLocation.state, assignedLocation.zipCode)
+        : formatFullAddress(profile.address, profile.city, profile.state, profile.zipCode);
+      const locLine = assignedLocation?.name ? (fullAddr ? `${assignedLocation.name} \u2014 ${fullAddr}` : assignedLocation.name) : fullAddr;
+      msg = applyTemplate(customReminderTpl, {
+        clientName: client.name,
+        businessName: biz.businessName,
+        serviceName: service ? getServiceDisplayName(service) : "Service",
+        duration: String(appointment.duration),
+        date: appointment.date,
+        time: appointment.time,
+        location: locLine,
+        phone: formatPhoneNumber(stripPhoneFormat(assignedLocation?.phone || profile.phone)),
+        clientPhone: client.phone,
+        bookingUrl: `${PUBLIC_BOOKING_URL}/book/${slug}${assignedLocation?.id ? "?location=" + assignedLocation.id : ""}`,
+        reviewUrl: `${PUBLIC_BOOKING_URL}/review/${slug}`,
+      });
+    } else {
+      msg = generateReminderMessage(
+        biz.businessName,
+        assignedLocation?.address || profile.address,
+        client.name,
+        service ? getServiceDisplayName(service) : "Service",
+        appointment.duration,
+        appointment.date,
+        appointment.time,
+        assignedLocation?.phone || profile.phone,
+        assignedLocation?.name,
+        assignedLocation?.city ?? profile.city,
+        assignedLocation?.state ?? profile.state,
+        assignedLocation?.zipCode ?? profile.zipCode
+      );
+    }
     openSms(client.phone, msg);
   };
 

@@ -885,3 +885,8 @@
 - [x] Fix location edit: ensure UPDATE_LOCATION action syncs city/state/zip to DB
 - [x] Public booking page: pre-select location from ?location= URL param
 - [x] Public booking page: show full address (street + city + state + zip) prominently when location is pre-selected
+## Phase: Calendar & SMS Manager (Apr 13 2026)
+- [x] Fix public booking page calendar: apiWeeklyDays not stored from loadWorkingDays response — calendar shows all days greyed out
+- [x] Add SMS Message Manager screen under Settings (editable templates per event type, locked Lime Of Time footer)
+- [x] Wire custom SMS templates into appointment-detail.tsx and client-detail.tsx message generators
+- [x] Add followUp template type to SmsTemplates interface and DEFAULT_SMS_TEMPLATES

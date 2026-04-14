@@ -18,6 +18,7 @@ import {
   DEFAULT_BUSINESS_PROFILE,
   DEFAULT_CANCELLATION_POLICY,
   DEFAULT_NOTIFICATION_PREFERENCES,
+  DEFAULT_SMS_TEMPLATES,
   AppointmentStatus,
 } from "./types";
 import { trpc } from "./trpc";
@@ -64,6 +65,7 @@ const initialSettings: BusinessSettings = {
   businessHoursEndDate: null,
   autoCompleteEnabled: false,
   autoCompleteDelayMinutes: 5,
+  smsTemplates: DEFAULT_SMS_TEMPLATES,
 };
 
 const initialState: AppState = {
@@ -604,6 +606,10 @@ export function dbOwnerToSettings(owner: any): Partial<BusinessSettings> {
     notificationPreferences: {
       ...DEFAULT_NOTIFICATION_PREFERENCES,
       ...(owner.notificationPreferences ?? {}),
+    },
+    smsTemplates: {
+      ...DEFAULT_SMS_TEMPLATES,
+      ...((owner as any).smsTemplates ?? {}),
     },
     profile: {
       ownerName: owner.ownerName ?? "",
@@ -1178,6 +1184,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             if ((settings as any).autoCompleteEnabled !== undefined) updateData.autoCompleteEnabled = (settings as any).autoCompleteEnabled;
             if ((settings as any).autoCompleteDelayMinutes !== undefined) updateData.autoCompleteDelayMinutes = (settings as any).autoCompleteDelayMinutes;
             if ((settings as any).notificationPreferences !== undefined) updateData.notificationPreferences = (settings as any).notificationPreferences;
+            if ((settings as any).smsTemplates !== undefined) updateData.smsTemplates = (settings as any).smsTemplates;
             // Only update if there's something besides id
             if (Object.keys(updateData).length > 1) {
               await updateBusinessMut.mutateAsync(updateData);

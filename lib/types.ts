@@ -215,6 +215,28 @@ export interface NotificationPreferences {
   emailClientOnConfirmation: boolean;
 }
 
+/** Per-event SMS message templates. Each key maps to a custom message body.
+ * The "Lime Of Time" footer is always appended automatically and cannot be removed.
+ */
+export interface SmsTemplates {
+  confirmation?: string;   // sent when owner confirms/accepts appointment
+  reminder?: string;       // sent as upcoming reminder
+  cancellation?: string;   // sent when appointment is cancelled
+  completed?: string;      // sent when appointment is marked complete
+  newBooking?: string;     // sent to owner on new booking request (internal)
+  followUp?: string;       // sent as a follow-up / re-booking nudge from client page
+}
+export const DEFAULT_SMS_TEMPLATES: SmsTemplates = {
+  confirmation: undefined,
+  reminder: undefined,
+  cancellation: undefined,
+  completed: undefined,
+  newBooking: undefined,
+  followUp: undefined,
+};
+
+export const LIME_OF_TIME_FOOTER = "\n\nSent via Lime Of Time";
+
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   pushOnNewBooking: true,
   pushOnCancellation: true,
@@ -242,6 +264,7 @@ export interface BusinessSettings {
   businessHoursEndDate: string | null; // ISO date string "YYYY-MM-DD" or null for open-ended
   autoCompleteEnabled: boolean; // automatically mark appointments as completed after end time + delay
   autoCompleteDelayMinutes: number; // minutes after appointment end time to auto-complete (5, 10, 15, 30)
+  smsTemplates: SmsTemplates; // custom SMS message templates per event type
 }
 
 export const SERVICE_COLORS = [

@@ -75,6 +75,8 @@ export const businessOwners = mysqlTable("business_owners", {
   autoCompleteDelayMinutes: int("autoCompleteDelayMinutes").default(5).notNull(),
   /** Notification preferences JSON: per-event push/email toggles */
   notificationPreferences: json("notificationPreferences"),
+  /** SMS message templates JSON: per-event custom message bodies */
+  smsTemplates: json("smsTemplates"),
   /** Onboarding completed */
   onboardingComplete: boolean("onboardingComplete").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

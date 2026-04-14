@@ -96,6 +96,7 @@ const businessRouter = router({
         autoCompleteEnabled: z.boolean().optional(),
         autoCompleteDelayMinutes: z.number().optional(),
         notificationPreferences: z.any().optional(),
+        smsTemplates: z.any().optional(),
       })
     )
     .mutation(async ({ input }) => {
