@@ -763,6 +763,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                   } catch { /* ignore parse errors */ }
                 }
               }
+              // Split custom schedule entries: global (no locationId) vs per-location
+              const allScheduleEntries = (fullData.customSchedule || []).map(dbCustomScheduleToLocal);
+              const globalSchedule = allScheduleEntries.filter((cs) => !cs.locationId);
+              const locationScheduleMap: Record<string, CustomScheduleDay[]> = {};
+              for (const cs of allScheduleEntries) {
+                if (cs.locationId) {
+                  if (!locationScheduleMap[cs.locationId]) locationScheduleMap[cs.locationId] = [];
+                  locationScheduleMap[cs.locationId].push(cs);
+                }
+              }
               dispatch({
                 type: "LOAD_DATA",
                 payload: {
@@ -772,7 +782,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                   reviews: (fullData.reviews || []).map(dbReviewToLocal),
                   discounts: (fullData.discounts || []).map(dbDiscountToLocal),
                   giftCards: (fullData.giftCards || []).map(dbGiftCardToLocal),
-                  customSchedule: (fullData.customSchedule || []).map(dbCustomScheduleToLocal),
+                  customSchedule: globalSchedule,
+                  locationCustomSchedule: locationScheduleMap,
                   products: (fullData.products || []).map(dbProductToLocal),
                   staff: (fullData.staff || []).map(dbStaffToLocal),
                   locations: dbLocations,
@@ -806,10 +817,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 { ...initialSettings, ...settingsFromDb },
                 (fullData.discounts || []).map(dbDiscountToLocal),
                 (fullData.giftCards || []).map(dbGiftCardToLocal),
-                (fullData.customSchedule || []).map(dbCustomScheduleToLocal),
+                globalSchedule,
                 (fullData.products || []).map(dbProductToLocal),
                 (fullData.staff || []).map(dbStaffToLocal),
-                dbLocations
+                dbLocations,
+                locationScheduleMap
               );
               return;
             }
@@ -984,6 +996,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const fullData = await trpcUtils.business.getFullData.fetch({ id: ownerId });
       if (!fullData || !fullData.owner) return;
       const dbLocations = (fullData.locations || []).map(dbLocationToLocal);
+      // Split custom schedule entries: global (no locationId) vs per-location
+      const allRefreshEntries = (fullData.customSchedule || []).map(dbCustomScheduleToLocal);
+      const refreshGlobalSchedule = allRefreshEntries.filter((cs) => !cs.locationId);
+      const refreshLocationScheduleMap: Record<string, CustomScheduleDay[]> = {};
+      for (const cs of allRefreshEntries) {
+        if (cs.locationId) {
+          if (!refreshLocationScheduleMap[cs.locationId]) refreshLocationScheduleMap[cs.locationId] = [];
+          refreshLocationScheduleMap[cs.locationId].push(cs);
+        }
+      }
       dispatch({
         type: "LOAD_DATA",
         payload: {
@@ -993,7 +1015,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           reviews: (fullData.reviews || []).map(dbReviewToLocal),
           discounts: (fullData.discounts || []).map(dbDiscountToLocal),
           giftCards: (fullData.giftCards || []).map(dbGiftCardToLocal),
-          customSchedule: (fullData.customSchedule || []).map(dbCustomScheduleToLocal),
+          customSchedule: refreshGlobalSchedule,
+          locationCustomSchedule: refreshLocationScheduleMap,
           products: (fullData.products || []).map(dbProductToLocal),
           staff: (fullData.staff || []).map(dbStaffToLocal),
           locations: dbLocations,
@@ -1705,7 +1728,8 @@ async function persistToAsyncStorage(
   customSchedule?: CustomScheduleDay[],
   products?: Product[],
   staff?: StaffMember[],
-  locations?: Location[]
+  locations?: Location[],
+  locationCustomSchedule?: Record<string, CustomScheduleDay[]>
 ) {
   try {
     const ops = [
@@ -1721,6 +1745,7 @@ async function persistToAsyncStorage(
     if (products) ops.push(AsyncStorage.setItem(STORAGE_KEYS.products, JSON.stringify(products)));
     if (staff) ops.push(AsyncStorage.setItem(STORAGE_KEYS.staff, JSON.stringify(staff)));
     if (locations) ops.push(AsyncStorage.setItem(STORAGE_KEYS.locations, JSON.stringify(locations)));
+    if (locationCustomSchedule) ops.push(AsyncStorage.setItem(STORAGE_KEYS.locationCustomSchedule, JSON.stringify(locationCustomSchedule)));
     await Promise.all(ops);
   } catch (err) {
     logger.warn("[Store] Failed to persist to AsyncStorage:", err);

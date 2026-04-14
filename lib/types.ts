@@ -429,11 +429,16 @@ function filterSlots(
     (a) => a.date === date && a.status !== "cancelled"
   );
   return filtered.filter((slot) => {
-    return !dayAppointments.some((a) =>
-      // Check overlap including buffer time: the new slot needs serviceDuration,
-      // and existing appointments occupy their duration + buffer on each side
-      timeSlotsOverlap(slot, serviceDuration, a.time, a.duration + bufferTime)
-    );
+    const slotStart = timeToMinutes(slot);
+    const slotEnd = slotStart + serviceDuration;
+    return !dayAppointments.some((a) => {
+      const apptStart = timeToMinutes(a.time);
+      const apptEnd = apptStart + a.duration;
+      // Block if the new slot overlaps the appointment window expanded by buffer on both sides:
+      // - slot must not start within bufferTime minutes before the appointment ends
+      // - slot must not end within bufferTime minutes after the appointment starts
+      return slotStart < (apptEnd + bufferTime) && slotEnd > (apptStart - bufferTime);
+    });
   });
 }
 
