@@ -58,6 +58,7 @@ import * as Haptics from "expo-haptics";
 import { CountryCodePicker, DEFAULT_COUNTRY, type Country } from "@/components/country-code-picker";
 import { startOAuthLogin } from "@/constants/oauth";
 import { GoogleLogo, MicrosoftLogo, AppleLogo } from "@/components/brand-icons";
+import * as Notifications from "expo-notifications";
 
 type Step = 1 | "otp" | 2 | 3 | "socialPhone";
 
@@ -607,6 +608,19 @@ export default function OnboardingScreen() {
     }
   };
 
+  // ─── Push notification permission request ──────────────────────
+  const requestPushPermission = useCallback(async () => {
+    if (Platform.OS === "web") return;
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      if (existingStatus === "granted") return;
+      await Notifications.requestPermissionsAsync();
+    } catch (err) {
+      // Non-blocking — permission failure should not break onboarding
+      console.warn("[Onboarding] Push permission request failed:", err);
+    }
+  }, []);
+
   const handleComplete = async () => {
     const newErrors: { businessName?: string; businessPhone?: string } = {};
     if (!businessName.trim()) newErrors.businessName = "Business name is required";
@@ -648,6 +662,8 @@ export default function OnboardingScreen() {
           },
         },
       });
+      // Request push notification permission after successful onboarding
+      await requestPushPermission();
       if (biometricAvailable && Platform.OS !== "web") {
         navigateToStep(3);
       } else {

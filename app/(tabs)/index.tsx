@@ -350,6 +350,13 @@ export default function HomeScreen() {
     }
   }, [tutorialStep, TUTORIAL_STEPS.length, dismissTutorial, tutorialFade]);
 
+  const prevTutorialStep = useCallback(() => {
+    if (tutorialStep > 0) {
+      tutorialFade.setValue(0);
+      setTutorialStep((s) => s - 1);
+    }
+  }, [tutorialStep, tutorialFade]);
+
   // ─── Location Filter (global) ──────────────────────────────
   const { activeLocation, activeLocations, hasMultipleLocations, setActiveLocation } = useActiveLocation();
   const selectedLocationFilter = activeLocation?.id ?? null;
@@ -1429,12 +1436,33 @@ export default function HomeScreen() {
 
             {/* Navigation */}
             <View style={styles.tutorialActions}>
-              <Pressable
-                onPress={dismissTutorial}
-                style={({ pressed }) => [styles.tutorialSkipBtn, { opacity: pressed ? 0.7 : 1 }]}
-              >
-                <Text style={{ fontSize: 14, color: "rgba(255,255,255,0.4)" }}>Skip Tour</Text>
-              </Pressable>
+              {/* Previous button — hidden on first step */}
+              {tutorialStep > 0 ? (
+                <Pressable
+                  onPress={prevTutorialStep}
+                  style={({ pressed }) => [styles.tutorialPrevBtn, { opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <Text style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", fontWeight: "600" }}>← Back</Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={dismissTutorial}
+                  style={({ pressed }) => [styles.tutorialSkipBtn, { opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <Text style={{ fontSize: 14, color: "rgba(255,255,255,0.4)" }}>Skip</Text>
+                </Pressable>
+              )}
+
+              {/* Skip link in the middle when not on first step */}
+              {tutorialStep > 0 && (
+                <Pressable
+                  onPress={dismissTutorial}
+                  style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1, paddingVertical: 12, paddingHorizontal: 8 }]}
+                >
+                  <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.3)" }}>Skip</Text>
+                </Pressable>
+              )}
+
               <Pressable
                 onPress={nextTutorialStep}
                 style={({ pressed }) => [
@@ -1945,6 +1973,14 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     paddingVertical: 12,
+  },
+  tutorialPrevBtn: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
   },
   tutorialNextBtn: {
     flex: 2,

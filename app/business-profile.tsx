@@ -64,10 +64,6 @@ export default function BusinessProfileScreen() {
   const [ownerName, setOwnerName] = useState(profile.ownerName ?? "");
   const [phone, setPhone] = useState(formatPhoneNumber(profile.phone || ""));
   const [email, setEmail] = useState(profile.email ?? "");
-  const [address, setAddress] = useState(profile.address ?? "");
-  const [city, setCity] = useState(profile.city ?? "");
-  const [locationState, setLocationState] = useState(profile.state ?? "");
-  const [zipCode, setZipCode] = useState(profile.zipCode ?? "");
   const [website, setWebsite] = useState(profile.website ?? "");
   const [description, setDescription] = useState(profile.description ?? "");
 
@@ -76,10 +72,6 @@ export default function BusinessProfileScreen() {
   const ownerRef = useRef<TextInput>(null);
   const phoneRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
-  const addressRef = useRef<TextInput>(null);
-  const cityRef = useRef<TextInput>(null);
-  const stateRef = useRef<TextInput>(null);
-  const zipRef = useRef<TextInput>(null);
   const websiteRef = useRef<TextInput>(null);
   const descRef = useRef<TextInput>(null);
 
@@ -109,10 +101,6 @@ export default function BusinessProfileScreen() {
           ownerName: ownerName.trim(),
           phone: phone.trim(),
           email: email.trim(),
-          address: address.trim(),
-          city: city.trim(),
-          state: locationState.trim(),
-          zipCode: zipCode.trim(),
           website: website.trim(),
           description: description.trim(),
         },
@@ -121,7 +109,7 @@ export default function BusinessProfileScreen() {
     dispatch(settingsAction);
     syncToDb(settingsAction);
     router.back();
-  }, [businessName, ownerName, phone, email, address, city, locationState, zipCode, website, description, profile, dispatch, syncToDb, router, validate]);
+  }, [businessName, ownerName, phone, email, website, description, profile, dispatch, syncToDb, router, validate]);
 
   const openWebsite = useCallback(() => {
     const url = website.startsWith("http") ? website : `https://${website}`;
@@ -271,128 +259,6 @@ export default function BusinessProfileScreen() {
                     backgroundColor: colors.background,
                     borderColor: errors.email ? colors.error : colors.border,
                     color: colors.foreground,
-                  },
-                ]}
-                returnKeyType="next"
-                blurOnSubmit={false}
-                onSubmitEditing={() => addressRef.current?.focus()}
-              />
-            </Field>
-
-            {/* Address section header */}
-            <View style={[styles.sectionHeader, { borderTopColor: colors.border }]}>
-              <IconSymbol name="mappin.circle.fill" size={16} color={colors.primary} />
-              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Business Address</Text>
-            </View>
-            <Text style={[styles.sectionNote, { color: colors.muted }]}>
-              Used in SMS confirmations and client-facing booking pages when no location address is set.
-            </Text>
-
-            {/* Street Address */}
-            <Field
-              label="Street Address (optional)"
-              errorColor={colors.error}
-              foregroundColor={colors.foreground}
-            >
-              <TextInput
-                ref={addressRef}
-                value={address}
-                onChangeText={setAddress}
-                placeholder="e.g. 123 Main St"
-                placeholderTextColor={colors.muted}
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.background,
-                    borderColor: colors.border,
-                    color: colors.foreground,
-                  },
-                ]}
-                returnKeyType="next"
-                blurOnSubmit={false}
-                onSubmitEditing={() => cityRef.current?.focus()}
-              />
-            </Field>
-
-            {/* City + State row */}
-            <View style={styles.twoColRow}>
-              <View style={{ flex: 2 }}>
-                <Field
-                  label="City (optional)"
-                  errorColor={colors.error}
-                  foregroundColor={colors.foreground}
-                >
-                  <TextInput
-                    ref={cityRef}
-                    value={city}
-                    onChangeText={setCity}
-                    placeholder="e.g. Pittsburgh"
-                    placeholderTextColor={colors.muted}
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: colors.background,
-                        borderColor: colors.border,
-                        color: colors.foreground,
-                      },
-                    ]}
-                    returnKeyType="next"
-                    blurOnSubmit={false}
-                    onSubmitEditing={() => stateRef.current?.focus()}
-                  />
-                </Field>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Field
-                  label="State (optional)"
-                  errorColor={colors.error}
-                  foregroundColor={colors.foreground}
-                >
-                  <TextInput
-                    ref={stateRef}
-                    value={locationState}
-                    onChangeText={setLocationState}
-                    placeholder="PA"
-                    placeholderTextColor={colors.muted}
-                    autoCapitalize="characters"
-                    maxLength={2}
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: colors.background,
-                        borderColor: colors.border,
-                        color: colors.foreground,
-                      },
-                    ]}
-                    returnKeyType="next"
-                    blurOnSubmit={false}
-                    onSubmitEditing={() => zipRef.current?.focus()}
-                  />
-                </Field>
-              </View>
-            </View>
-
-            {/* ZIP Code */}
-            <Field
-              label="ZIP Code (optional)"
-              errorColor={colors.error}
-              foregroundColor={colors.foreground}
-            >
-              <TextInput
-                ref={zipRef}
-                value={zipCode}
-                onChangeText={setZipCode}
-                placeholder="e.g. 15237"
-                placeholderTextColor={colors.muted}
-                keyboardType="number-pad"
-                maxLength={10}
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.background,
-                    borderColor: colors.border,
-                    color: colors.foreground,
-                    width: 160,
                   },
                 ]}
                 returnKeyType="next"
