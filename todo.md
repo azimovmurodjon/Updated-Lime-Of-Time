@@ -935,3 +935,4 @@
 - [x] Fix: reviews from deleted clients must be preserved (not cascade-deleted)
 - [x] Fix: Schedule & Hours screen in Settings throws error — investigate and fix crash
 - [x] Fix: Delete Client button taps do nothing — deep debug required
+- [x] Fix: email sender shows 'Manus Team' — change to 'Lime Of Time' with no-reply@lime-of-time.com

@@ -774,7 +774,7 @@ export function registerPublicRoutes(app: Express) {
         } else {
           // Fallback: Manus platform notification (no device token registered yet)
           const extrasLabel = extras.length > 0 ? ` + ${extras.length} extra` : "";
-          const phoneLabel = clientPhone ? ` | 📞 ${clientPhone}` : "";
+          const phoneLabel = clientPhone ? ` | 📞 ${formatPhoneNumber(clientPhone)}` : "";
           const priceLabel = finalTotal > 0 ? ` | $${finalTotal.toFixed(2)}` : "";
           await throttledNotifyOwner({
             title: `📅 New Booking Request — ${owner.businessName}`,

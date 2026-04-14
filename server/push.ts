@@ -33,6 +33,17 @@ export type PushPayload = {
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
+function fmtPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("1")) {
+    return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  }
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+  return phone;
+}
+
 /**
  * Send a push notification to a specific Expo push token.
  * Returns true if the notification was accepted by Expo, false otherwise.
@@ -117,7 +128,7 @@ export async function notifyNewBooking(
   const lines = [
     `A new appointment request requires your review.`,
     ``,
-    `👤 Client: ${clientName}${opts?.clientPhone ? ` · ${opts.clientPhone}` : ""}`,
+    `👤 Client: ${clientName}${opts?.clientPhone ? ` · ${fmtPhone(opts.clientPhone)}` : ""}`,
     `💈 Service: ${serviceName}${opts?.duration ? ` (${opts.duration} min)` : ""}`,
     `📅 Date: ${date}`,
     `⏰ Time: ${timeRange}`,
@@ -161,7 +172,7 @@ export async function notifyCancellation(
   const lines = [
     `An appointment has been cancelled by the client.`,
     ``,
-    `👤 Client: ${clientName}${opts?.clientPhone ? ` · ${opts.clientPhone}` : ""}`,
+    `👤 Client: ${clientName}${opts?.clientPhone ? ` · ${fmtPhone(opts.clientPhone)}` : ""}`,
     `💈 Service: ${serviceName}${opts?.duration ? ` (${opts.duration} min)` : ""}`,
     `📅 Date: ${date}`,
     `⏰ Time: ${timeRange}`,
@@ -207,7 +218,7 @@ export async function notifyReschedule(
   const lines = [
     `A client has requested to reschedule their appointment.`,
     ``,
-    `👤 Client: ${clientName}${opts?.clientPhone ? ` · ${opts.clientPhone}` : ""}`,
+    `👤 Client: ${clientName}${opts?.clientPhone ? ` · ${fmtPhone(opts.clientPhone)}` : ""}`,
     `💈 Service: ${serviceName}${opts?.duration ? ` (${opts.duration} min)` : ""}`,
     opts?.oldDate && opts?.oldTime
       ? `📅 Original: ${opts.oldDate} at ${fmt12(opts.oldTime)}`
@@ -246,7 +257,7 @@ export async function notifyWaitlist(
   const lines = [
     `A client has joined the waitlist and is requesting an appointment.`,
     ``,
-    `👤 Client: ${clientName}${opts?.clientPhone ? ` · ${opts.clientPhone}` : ""}`,
+    `👤 Client: ${clientName}${opts?.clientPhone ? ` · ${fmtPhone(opts.clientPhone)}` : ""}`,
     `💈 Service: ${serviceName}`,
     `📅 Preferred Date: ${preferredDate}`,
     opts?.preferredTime ? `⏰ Preferred Time: ${fmt12(opts.preferredTime)}` : null,
@@ -289,7 +300,7 @@ export async function notifyAutoComplete(
   const lines = [
     `The following appointment has been automatically marked as completed.`,
     ``,
-    `👤 Client: ${clientName}${opts?.clientPhone ? ` · ${opts.clientPhone}` : ""}`,
+    `👤 Client: ${clientName}${opts?.clientPhone ? ` · ${fmtPhone(opts.clientPhone)}` : ""}`,
     `💈 Service: ${serviceName}${opts?.duration ? ` (${opts.duration} min)` : ""}`,
     `📅 Date: ${date}`,
     `⏰ Time: ${timeRange}`,
