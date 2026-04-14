@@ -164,7 +164,7 @@ export default function NewBookingScreen() {
         : state.settings.workingHours;
       const locAppts = state.appointments.filter((a) => a.locationId === loc.id);
       const slots = generateAvailableSlots(
-        selectedDate, totalDuration, locWH, locAppts, 30,
+        selectedDate, totalDuration, locWH, locAppts, Math.min(totalDuration, 30),
         locCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0
       );
       result[loc.id] = slots.includes(selectedTime);
@@ -230,9 +230,17 @@ export default function NewBookingScreen() {
     [state.appointments, selectedLocationId]
   );
   const activeCustomSchedule = useMemo(() => {
-    if (!selectedLocationId) return state.customSchedule ?? [];
-    return (state as any).locationCustomSchedule?.[selectedLocationId] ?? [];
-  }, [selectedLocationId, (state as any).locationCustomSchedule, state.customSchedule]);
+    if (selectedLocationId) {
+      return (state as any).locationCustomSchedule?.[selectedLocationId] ?? [];
+    }
+    // No location explicitly selected — if there is exactly one active location,
+    // use its per-location custom schedule so Workday overrides are visible.
+    if (activeLocations.length === 1) {
+      return (state as any).locationCustomSchedule?.[activeLocations[0].id] ?? state.customSchedule ?? [];
+    }
+    // Multi-location with no selection: fall back to global custom schedule
+    return state.customSchedule ?? [];
+  }, [selectedLocationId, activeLocations, (state as any).locationCustomSchedule, state.customSchedule]);
   // isAllMode: no location pre-selected and multiple active locations exist.
   // In this mode the time slot list is the UNION of all open locations' slots so the user
   // can see every possible time across all locations before choosing one.
@@ -246,7 +254,7 @@ export default function NewBookingScreen() {
         totalDuration,
         locationWorkingHours,
         locationAppts,
-        30,
+        Math.min(totalDuration, 30),
         activeCustomSchedule,
         state.settings.scheduleMode,
         state.settings.bufferTime ?? 0
@@ -262,7 +270,7 @@ export default function NewBookingScreen() {
         : state.settings.workingHours;
       const locAppts = state.appointments.filter((a) => a.locationId === loc.id);
       const slots = generateAvailableSlots(
-        selectedDate, totalDuration, locWH, locAppts, 30,
+        selectedDate, totalDuration, locWH, locAppts, Math.min(totalDuration, 30),
         locCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0
       );
       slots.forEach((s) => slotSet.add(s));
@@ -287,7 +295,7 @@ export default function NewBookingScreen() {
         : state.settings.workingHours;
       const locAppts = state.appointments.filter((a) => a.locationId === loc.id);
       const slots = generateAvailableSlots(
-        selectedDate, totalDuration, locWH, locAppts, 30,
+        selectedDate, totalDuration, locWH, locAppts, Math.min(totalDuration, 30),
         locCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0
       );
       slots.forEach((s) => { counts[s] = (counts[s] ?? 0) + 1; });
@@ -383,12 +391,12 @@ export default function NewBookingScreen() {
               ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
               : state.settings.workingHours;
             const locAppts = state.appointments.filter((a) => a.locationId === loc.id);
-            const slots = generateAvailableSlots(ds, totalDuration, locWH, locAppts, 30, locCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
+            const slots = generateAvailableSlots(ds, totalDuration, locWH, locAppts, Math.min(totalDuration, 30), locCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
             if (slots.length > 0) { anySlots = true; break; }
           }
           noSlots = !anySlots;
         } else {
-          const slots = generateAvailableSlots(ds, totalDuration, locationWorkingHours, locationAppts, 30, activeCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
+          const slots = generateAvailableSlots(ds, totalDuration, locationWorkingHours, locationAppts, Math.min(totalDuration, 30), activeCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
           noSlots = slots.length === 0;
         }
       }

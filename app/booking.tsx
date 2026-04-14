@@ -136,7 +136,7 @@ export default function PublicBookingScreen() {
       duration,
       locationWorkingHours,
       locationAppointments,
-      30,
+      Math.min(duration, 30),
       locationCustomSchedule,
       state.settings.scheduleMode,
       state.settings.bufferTime ?? 0
@@ -168,7 +168,7 @@ export default function PublicBookingScreen() {
       }
       let noSlots = false;
       if (!closed) {
-        const slots = generateAvailableSlots(ds, duration, locationWorkingHours, locationAppointments, 30, locationCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
+        const slots = generateAvailableSlots(ds, duration, locationWorkingHours, locationAppointments, Math.min(duration, 30), locationCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
         noSlots = slots.length === 0;
       }
       dates.push({ date: ds, closed, noSlots });

@@ -110,9 +110,10 @@ function generateAvailableSlots(
   const today = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, "0")}-${now.getDate().toString().padStart(2, "0")}`;
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
+  // Allow a 5-minute grace window so a slot that just started is still bookable
   for (let t = startMin; t + duration <= endMin; t += interval) {
-    // Skip past times for today
-    if (date === today && t <= currentMinutes) continue;
+    // Skip past times for today (with 5-min grace period)
+    if (date === today && t < currentMinutes - 5) continue;
 
     // Check for conflicts
     const slotEnd = t + duration;
@@ -319,7 +320,7 @@ export function registerPublicRoutes(app: Express) {
             effectiveWorkingHours = staffWh;
           }
         }
-        const slots = generateAvailableSlots(date, duration, effectiveWorkingHours, appts, 30, schedule, mode, buffer);
+        const slots = generateAvailableSlots(date, duration, effectiveWorkingHours, appts, Math.min(duration, 30), schedule, mode, buffer);
         // Single-location: each slot has exactly 1 location
         const slotLocationCounts: Record<string, number> = {};
         slots.forEach((s) => { slotLocationCounts[s] = 1; });
@@ -343,7 +344,7 @@ export function registerPublicRoutes(app: Express) {
             effectiveWorkingHours = staffWh;
           }
         }
-        const slots = generateAvailableSlots(date, duration, effectiveWorkingHours, allAppts, 30, allSchedule, mode, buffer);
+        const slots = generateAvailableSlots(date, duration, effectiveWorkingHours, allAppts, Math.min(duration, 30), allSchedule, mode, buffer);
         const slotLocationCounts: Record<string, number> = {};
         slots.forEach((s) => { slotLocationCounts[s] = 1; });
         res.json({ date, slots, slotLocationCounts });
@@ -372,7 +373,7 @@ export function registerPublicRoutes(app: Express) {
         }
         // Staff hours override location hours
         const effectiveWH = staffWorkingHours ?? locWH;
-        const locSlots = generateAvailableSlots(date, duration, effectiveWH, locAppts, 30, locSchedule, mode, buffer);
+        const locSlots = generateAvailableSlots(date, duration, effectiveWH, locAppts, Math.min(duration, 30), locSchedule, mode, buffer);
         locSlots.forEach((s) => { slotLocationCounts[s] = (slotLocationCounts[s] ?? 0) + 1; });
       }
 
@@ -674,7 +675,7 @@ export function registerPublicRoutes(app: Express) {
 
       const bookMode = (owner.scheduleMode as "weekly" | "custom") || "weekly";
       const bookBuffer = (owner as any).bufferTime || 0;
-      const slots = generateAvailableSlots(date, dur, bookWorkingHours, bookAppts, 30, bookSchedule, bookMode, bookBuffer);
+      const slots = generateAvailableSlots(date, dur, bookWorkingHours, bookAppts, Math.min(dur, 30), bookSchedule, bookMode, bookBuffer);
       if (!slots.includes(time)) {
         res.status(400).json({ error: "Selected time slot is no longer available" });
         return;
@@ -1120,7 +1121,7 @@ export function registerPublicRoutes(app: Express) {
       }
       // Exclude current appointment from conflict check
       const otherAppts = appts.filter((a: any) => a.localId !== appointmentId);
-      const slots = generateAvailableSlots(newDate, appt.duration, reschedWorkingHours, otherAppts, 30, reschedSchedule, mode, bufferVal);
+      const slots = generateAvailableSlots(newDate, appt.duration, reschedWorkingHours, otherAppts, Math.min(appt.duration, 30), reschedSchedule, mode, bufferVal);
       if (!slots.includes(newTime)) {
         res.status(400).json({ error: "Selected time slot is not available" });
         return;
