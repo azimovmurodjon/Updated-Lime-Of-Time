@@ -843,8 +843,17 @@ export default function NewBookingScreen() {
           </View>
           {timeSlots.length === 0 ? (
             <View className="items-center py-8 bg-surface rounded-2xl border border-border">
-              <Text className="text-sm text-muted">No available times for this date</Text>
-              <Text className="text-xs text-muted mt-1">Try a different date or check working hours</Text>
+              {selectedDate === formatDateStr(new Date()) ? (
+                <>
+                  <Text className="text-sm font-semibold text-warning">All slots for today have passed</Text>
+                  <Text className="text-xs text-muted mt-1">Select another date to book an appointment</Text>
+                </>
+              ) : (
+                <>
+                  <Text className="text-sm text-muted">No available times for this date</Text>
+                  <Text className="text-xs text-muted mt-1">Try a different date or check working hours</Text>
+                </>
+              )}
             </View>
           ) : (
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16, justifyContent: "center" }}>

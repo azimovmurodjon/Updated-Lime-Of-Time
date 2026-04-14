@@ -1955,7 +1955,10 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       <div id="timeSection" style="display:none">
         <h2 style="margin-bottom:12px;">Available Times</h2>
         <div id="timeGrid" class="time-grid"></div>
-        <div id="noSlots" style="display:none;text-align:center;color:#888;padding:20px;font-size:14px;">No available time slots for this date.<br><button class="btn btn-secondary" style="margin-top:12px;width:auto;display:inline-block;padding:10px 20px;font-size:13px;" onclick="joinWaitlist()">Join Waitlist</button></div>
+        <div id="noSlots" style="display:none;text-align:center;padding:20px;font-size:14px;">
+          <div id="noSlotsMsg" style="color:#888;">No available time slots for this date.</div>
+          <button class="btn btn-secondary" style="margin-top:12px;width:auto;display:inline-block;padding:10px 20px;font-size:13px;" onclick="joinWaitlist()">Join Waitlist</button>
+        </div>
         <div id="waitlistMsg" style="display:none;text-align:center;padding:12px;margin-top:8px;border-radius:10px;font-size:13px;"></div>
       </div>
       <div id="discountInfo" style="display:none;margin-top:12px;"></div>
@@ -2568,6 +2571,20 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         slotLocationCounts = data.slotLocationCounts || {};
         if (data.slots.length === 0) {
           grid.innerHTML = "";
+          // Show context-aware message: today vs future date
+          const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
+          const noSlotsMsg = document.getElementById('noSlotsMsg');
+          if (noSlotsMsg) {
+            if (date === todayStr) {
+              noSlotsMsg.style.color = '#d97706';
+              noSlotsMsg.style.fontWeight = '600';
+              noSlotsMsg.innerHTML = 'All slots for today have passed.<br><span style="font-size:12px;font-weight:400;color:#888;">Select another date to book an appointment.</span>';
+            } else {
+              noSlotsMsg.style.color = '#888';
+              noSlotsMsg.style.fontWeight = 'normal';
+              noSlotsMsg.innerHTML = 'No available time slots for this date.';
+            }
+          }
           noSlots.style.display = "block";
           return;
         }

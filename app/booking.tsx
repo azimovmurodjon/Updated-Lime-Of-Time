@@ -691,8 +691,17 @@ export default function PublicBookingScreen() {
             </View>
             {timeSlots.length === 0 ? (
               <View style={[styles.emptySlots, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <Text style={{ fontSize: 14, color: colors.muted }}>No available times for this date</Text>
-                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 4 }}>Try a different date</Text>
+                {selectedDate === formatDateStr(new Date()) ? (
+                  <>
+                    <Text style={{ fontSize: 14, fontWeight: "600", color: colors.warning }}>All slots for today have passed</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted, marginTop: 4 }}>Select another date to book an appointment</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={{ fontSize: 14, color: colors.muted }}>No available times for this date</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted, marginTop: 4 }}>Try a different date</Text>
+                  </>
+                )}
               </View>
             ) : (
               <View style={styles.timeGrid}>
