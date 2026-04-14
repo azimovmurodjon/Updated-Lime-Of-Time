@@ -274,6 +274,29 @@ export default function NewBookingScreen() {
       activeLocations, locationOpenOnDate, state.appointments, state.settings.workingHours,
       (state as any).locationCustomSchedule]);
 
+  // Per-slot location count: how many locations are available for each time slot in All mode.
+  // Used to show a badge like "2 locations" on the time chip when multiple locations share a slot.
+  const slotLocationCount = useMemo((): Record<string, number> => {
+    if (!isAllMode) return {};
+    const counts: Record<string, number> = {};
+    for (const loc of activeLocations) {
+      if (locationOpenOnDate[loc.id] === false) continue;
+      const locCustomSchedule = (state as any).locationCustomSchedule?.[loc.id] ?? [];
+      const locWH = (loc.workingHours && Object.keys(loc.workingHours).length > 0)
+        ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
+        : state.settings.workingHours;
+      const locAppts = state.appointments.filter((a) => a.locationId === loc.id);
+      const slots = generateAvailableSlots(
+        selectedDate, totalDuration, locWH, locAppts, 30,
+        locCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0
+      );
+      slots.forEach((s) => { counts[s] = (counts[s] ?? 0) + 1; });
+    }
+    return counts;
+  }, [isAllMode, activeLocations, locationOpenOnDate, selectedDate, totalDuration,
+      state.appointments, state.settings.workingHours, state.settings.scheduleMode,
+      state.settings.bufferTime, (state as any).locationCustomSchedule]);
+
   // Bidirectional sync (location → time):
   // If a specific location is selected and the previously chosen time is no longer in its
   // slot list, clear it. Only applies in single-location mode to avoid clearing valid
@@ -804,6 +827,8 @@ export default function NewBookingScreen() {
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16, justifyContent: "center" }}>
               {timeSlots.map((t) => {
                 const isSelected = t === selectedTime;
+                const locCount = isAllMode ? (slotLocationCount[t] ?? 1) : 1;
+                const multiLoc = isAllMode && locCount > 1;
                 return (
                   <Pressable
                     key={t}
@@ -812,7 +837,7 @@ export default function NewBookingScreen() {
                       styles.timeChip,
                       {
                         backgroundColor: isSelected ? colors.primary : colors.surface,
-                        borderColor: isSelected ? colors.primary : colors.border,
+                        borderColor: isSelected ? colors.primary : multiLoc ? colors.primary + "60" : colors.border,
                         opacity: pressed ? 0.7 : 1,
                         width: 100,
                       },
@@ -834,6 +859,24 @@ export default function NewBookingScreen() {
                     >
                       to {getEndTime(t)}
                     </Text>
+                    {multiLoc && (
+                      <View style={{
+                        marginTop: 3,
+                        backgroundColor: isSelected ? "#FFFFFF30" : colors.primary + "20",
+                        borderRadius: 4,
+                        paddingHorizontal: 4,
+                        paddingVertical: 1,
+                      }}>
+                        <Text style={{
+                          fontSize: 9,
+                          fontWeight: "700",
+                          color: isSelected ? "#FFFFFF" : colors.primary,
+                          textAlign: "center",
+                        }}>
+                          {locCount} locations
+                        </Text>
+                      </View>
+                    )}
                   </Pressable>
                 );
               })}

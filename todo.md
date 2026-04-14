@@ -938,3 +938,7 @@
 - [x] Fix: email sender shows 'Manus Team' — change to 'Lime Of Time' with no-reply@lime-of-time.com
 - [ ] Fix: Splash screen is static (no animation) and cuts abruptly to dashboard — add logo pulse/scale animation and fade transition
 - [ ] Audit: Workday logic across the app and client page — verify correct behavior everywhere
+- [ ] All Locations calendar: show union of all location slots (not just first/active location)
+- [ ] All Locations calendar: show per-slot location count badge (e.g. "3 locations available")
+- [ ] Booking flow: auto-assign correct location when slot selected in All Locations mode
+- [ ] Multi-location availability: consistent across calendar, new-booking, staff-calendar screens

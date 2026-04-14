@@ -283,49 +283,93 @@ export function registerPublicRoutes(app: Express) {
       // Check Active Until expiry
       const endDate = (owner as any).businessHoursEndDate as string | null | undefined;
       if (endDate && date > endDate) {
-        res.json({ date, slots: [] });
+        res.json({ date, slots: [], slotLocationCounts: {} });
         return;
       }
       const allAppts = await db.getAppointmentsByOwner(owner.id);
       const allSchedule = await db.getCustomScheduleByOwner(owner.id);
       const mode = (owner.scheduleMode as "weekly" | "custom") || "weekly";
       const buffer = (owner as any).bufferTime || 0;
-      // Filter appointments and custom schedule to the selected location when provided
-      const appts = locationLocalId
-        ? allAppts.filter((a: any) => a.locationId === locationLocalId)
-        : allAppts;
-      const schedule = locationLocalId
-        ? allSchedule.filter((cs: any) => cs.locationId === locationLocalId || cs.locationId == null)
-        : allSchedule;
-      // Determine effective working hours: staff > location > global (most specific wins)
-      let effectiveWorkingHours = owner.workingHours;
+
+      // When a specific location is requested, use single-location logic (staff > location > global)
       if (locationLocalId) {
+        const appts = allAppts.filter((a: any) => a.locationId === locationLocalId);
+        const schedule = allSchedule.filter((cs: any) => cs.locationId === locationLocalId || cs.locationId == null);
+        let effectiveWorkingHours = owner.workingHours;
         const locs = await db.getLocationsByOwner(owner.id);
         const loc = locs.find((l: any) => l.localId === locationLocalId);
         if (loc && loc.workingHours) {
           const locWh = typeof loc.workingHours === 'object' ? loc.workingHours : JSON.parse(loc.workingHours as string);
           effectiveWorkingHours = locWh;
         }
+        if (staffLocalId) {
+          const staffList = await db.getStaffByOwner(owner.id);
+          const staff = staffList.find((s: any) => s.localId === staffLocalId);
+          if (staff && staff.workingHours) {
+            const staffWh = typeof staff.workingHours === 'object' ? staff.workingHours : JSON.parse(staff.workingHours as string);
+            effectiveWorkingHours = staffWh;
+          }
+        }
+        const slots = generateAvailableSlots(date, duration, effectiveWorkingHours, appts, 30, schedule, mode, buffer);
+        // Single-location: each slot has exactly 1 location
+        const slotLocationCounts: Record<string, number> = {};
+        slots.forEach((s) => { slotLocationCounts[s] = 1; });
+        res.json({ date, slots, slotLocationCounts });
+        return;
       }
+
+      // No location specified: compute UNION of slots across all active locations.
+      // Each slot is annotated with how many locations have it available.
+      const locs = await db.getLocationsByOwner(owner.id);
+      const activeLocs = locs.filter((l: any) => l.active !== false && !l.temporarilyClosed);
+
+      // If no active locations, fall back to global working hours
+      if (activeLocs.length === 0) {
+        let effectiveWorkingHours = owner.workingHours;
+        if (staffLocalId) {
+          const staffList = await db.getStaffByOwner(owner.id);
+          const staff = staffList.find((s: any) => s.localId === staffLocalId);
+          if (staff && staff.workingHours) {
+            const staffWh = typeof staff.workingHours === 'object' ? staff.workingHours : JSON.parse(staff.workingHours as string);
+            effectiveWorkingHours = staffWh;
+          }
+        }
+        const slots = generateAvailableSlots(date, duration, effectiveWorkingHours, allAppts, 30, allSchedule, mode, buffer);
+        const slotLocationCounts: Record<string, number> = {};
+        slots.forEach((s) => { slotLocationCounts[s] = 1; });
+        res.json({ date, slots, slotLocationCounts });
+        return;
+      }
+
+      // Resolve staff working hours override (applies to all locations equally)
+      let staffWorkingHours: any = null;
       if (staffLocalId) {
         const staffList = await db.getStaffByOwner(owner.id);
         const staff = staffList.find((s: any) => s.localId === staffLocalId);
         if (staff && staff.workingHours) {
-          const staffWh = typeof staff.workingHours === 'object' ? staff.workingHours : JSON.parse(staff.workingHours as string);
-          effectiveWorkingHours = staffWh;
+          staffWorkingHours = typeof staff.workingHours === 'object' ? staff.workingHours : JSON.parse(staff.workingHours as string);
         }
       }
-      const slots = generateAvailableSlots(
-        date,
-        duration,
-        effectiveWorkingHours,
-        appts,
-        30,
-        schedule,
-        mode,
-        buffer
-      );
-      res.json({ date, slots });
+
+      // Compute per-location slot counts for the union
+      const slotLocationCounts: Record<string, number> = {};
+      for (const loc of activeLocs) {
+        const locAppts = allAppts.filter((a: any) => a.locationId === loc.localId);
+        const locSchedule = allSchedule.filter((cs: any) => cs.locationId === loc.localId || cs.locationId == null);
+        let locWH = owner.workingHours;
+        if (loc.workingHours) {
+          const parsed = typeof loc.workingHours === 'object' ? loc.workingHours : JSON.parse(loc.workingHours as string);
+          if (parsed && Object.keys(parsed).length > 0) locWH = parsed;
+        }
+        // Staff hours override location hours
+        const effectiveWH = staffWorkingHours ?? locWH;
+        const locSlots = generateAvailableSlots(date, duration, effectiveWH, locAppts, 30, locSchedule, mode, buffer);
+        locSlots.forEach((s) => { slotLocationCounts[s] = (slotLocationCounts[s] ?? 0) + 1; });
+      }
+
+      // Union of all slots, sorted chronologically
+      const slots = Object.keys(slotLocationCounts).sort();
+      res.json({ date, slots, slotLocationCounts });
     } catch (err) {
       console.error("[Public API] Error fetching slots:", err);
       res.status(500).json({ error: "Internal server error" });
@@ -2493,6 +2537,9 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       await loadSlots(date);
     }
 
+    // slotLocationCounts: map of time -> number of locations available at that time (from last loadSlots call)
+    let slotLocationCounts = {};
+
     async function loadSlots(date) {
       const section = document.getElementById("timeSection");
       const grid = document.getElementById("timeGrid");
@@ -2505,18 +2552,25 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         const dur = getTotalDuration();
         const res = await fetch(API + buildSlotParams(date, dur));
         const data = await res.json();
+        slotLocationCounts = data.slotLocationCounts || {};
         if (data.slots.length === 0) {
           grid.innerHTML = "";
           noSlots.style.display = "block";
           return;
         }
+        // Determine if we are in All Locations mode (no specific location selected)
+        const isAllLocMode = !selectedLocation && locations.length > 1;
         grid.innerHTML = data.slots.map(t => {
           const h = parseInt(t.split(":")[0]);
           const m = t.split(":")[1];
           const ampm = h >= 12 ? "PM" : "AM";
           const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
           const label = h12 + ":" + m + " " + ampm;
-         return '<div class="time-slot" onclick="selectTime(&apos;' + t + '&apos;)" data-time="' + t + '">' + label + '</div>';
+          const locCount = slotLocationCounts[t] || 1;
+          const badge = (isAllLocMode && locCount > 1)
+            ? '<span style="display:block;font-size:9px;font-weight:700;color:var(--accent);margin-top:2px;">' + locCount + ' locations</span>'
+            : '';
+          return '<div class="time-slot" onclick="selectTime(&apos;' + t + '&apos;)" data-time="' + t + '">' + label + badge + '</div>';
         }).join("");
       } catch(e) {
         grid.innerHTML = '<div class="error-msg" style="grid-column:1/-1;">Failed to load times</div>';
@@ -2529,6 +2583,39 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         el.classList.toggle("selected", el.dataset.time === time);
       });
       document.getElementById("btnToConfirm").disabled = false;
+      // All Locations mode: auto-assign location when only one location has this slot available.
+      // This mirrors the owner new-booking auto-assign behavior.
+      if (!selectedLocation && locations.length > 1) {
+        const locCount = slotLocationCounts[time] || 1;
+        if (locCount === 1) {
+          // Find which single location has this slot by fetching per-location slot data
+          // We can determine it from slotLocationCounts: if only 1 location has it,
+          // we need to identify which one. We'll re-use the locations list and check
+          // which location's working hours cover this time on the selected date.
+          // For simplicity, we auto-select the first active non-closed location that
+          // has this slot (the server already computed this union, so we trust it).
+          // The booking POST will validate the slot against the submitted locationId.
+          // We do a quick check: fetch slots for each location and find the one with this time.
+          (async function() {
+            const dur = getTotalDuration();
+            for (const loc of locations) {
+              if (loc.temporarilyClosed) continue;
+              try {
+                const r = await fetch(API + "/slots?date=" + selectedDate + "&duration=" + dur + "&locationId=" + encodeURIComponent(loc.localId));
+                const d = await r.json();
+                if (d.slots && d.slots.includes(time)) {
+                  // This location has the slot — auto-select it silently
+                  selectedLocation = loc.localId;
+                  slotCache = {};
+                  renderLocationSelector();
+                  updateBizAddressCard();
+                  break;
+                }
+              } catch(e) { /* ignore */ }
+            }
+          })();
+        }
+      }
       checkDiscount();
     }
 
