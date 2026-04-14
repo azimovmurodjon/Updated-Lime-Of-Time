@@ -419,12 +419,12 @@ function filterSlots(
 ): string[] {
   let filtered = [...slots];
   // Filter out past times for today (using device local time, which is always correct on-device)
-  // Allow a 5-minute grace window so a slot that just started is still bookable
+  // Only show slots that start strictly in the future (current minute is already in progress)
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   if (date === todayStr) {
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    filtered = filtered.filter((s) => timeToMinutes(s) >= currentMinutes - 5);
+    filtered = filtered.filter((s) => timeToMinutes(s) > currentMinutes);
   }
   // Filter out slots that overlap with existing non-cancelled appointments
   const dayAppointments = appointments.filter(

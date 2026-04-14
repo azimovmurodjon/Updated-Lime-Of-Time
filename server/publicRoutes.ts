@@ -110,10 +110,10 @@ function generateAvailableSlots(
   const today = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, "0")}-${now.getDate().toString().padStart(2, "0")}`;
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-  // Allow a 5-minute grace window so a slot that just started is still bookable
+  // Only show slots that start strictly in the future (current minute is already in progress)
   for (let t = startMin; t + duration <= endMin; t += interval) {
-    // Skip past times for today (with 5-min grace period)
-    if (date === today && t < currentMinutes - 5) continue;
+    // Skip past times for today
+    if (date === today && t <= currentMinutes) continue;
 
     // Check for conflicts
     const slotEnd = t + duration;

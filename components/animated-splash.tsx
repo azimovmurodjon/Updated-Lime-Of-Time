@@ -23,6 +23,7 @@ import {
   Text,
   View,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 
 const { width, height } = Dimensions.get("window");
 const LOGO_SIZE = Math.min(width * 0.34, 130);
@@ -200,7 +201,13 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
             useNativeDriver: true,
           }),
         ]),
-      ]).start(() => onFinish());
+      ]).start(() => {
+        // Subtle haptic on splash exit — only on native (no-op on web)
+        if (Platform.OS !== "web") {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+        }
+        onFinish();
+      });
     }, 2600);
 
     return () => clearTimeout(timer);
