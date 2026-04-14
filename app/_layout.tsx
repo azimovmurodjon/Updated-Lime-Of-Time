@@ -2,10 +2,10 @@ import "@/global.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
-import { Animated, Platform } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
 import * as SplashScreen from "expo-splash-screen";
@@ -41,19 +41,6 @@ function RootLayout() {
   // Use system fonts (SF Pro on iOS, Roboto on Android) — no external font package needed
   const fontsLoaded = true;
   const [splashDone, setSplashDone] = useState(false);
-  const contentOpacity = useRef(new Animated.Value(0)).current;
-
-  // Fade in the app content after splash exits
-  useEffect(() => {
-    if (splashDone) {
-      Animated.timing(contentOpacity, {
-        toValue: 1,
-        duration: 350,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [splashDone]);
-
   const onLayoutRootView = useCallback(async () => {
     // Hide the native splash immediately — we use our own animated splash instead
     await SplashScreen.hideAsync();
@@ -114,17 +101,8 @@ function RootLayout() {
     return null;
   }
 
-  // Show our custom animated splash before the app content
-  if (!splashDone) {
-    return (
-      <AnimatedSplash
-        onFinish={() => setSplashDone(true)}
-      />
-    );
-  }
-
   const content = (
-    <Animated.View style={{ flex: 1, opacity: contentOpacity }}>
+    <View style={{ flex: 1 }}>
     <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
@@ -170,7 +148,7 @@ function RootLayout() {
         </QueryClientProvider>
       </trpc.Provider>
     </GestureHandlerRootView>
-    </Animated.View>
+    </View>
   );
 
   const shouldOverrideSafeArea = Platform.OS === "web";
@@ -182,6 +160,11 @@ function RootLayout() {
           <SafeAreaFrameContext.Provider value={frame}>
             <SafeAreaInsetsContext.Provider value={insets}>
               {content}
+              {!splashDone && (
+                <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                  <AnimatedSplash onFinish={() => setSplashDone(true)} />
+                </View>
+              )}
             </SafeAreaInsetsContext.Provider>
           </SafeAreaFrameContext.Provider>
         </SafeAreaProvider>
@@ -191,7 +174,14 @@ function RootLayout() {
 
   return (
     <ThemeProvider>
-      <SafeAreaProvider initialMetrics={providerInitialMetrics}>{content}</SafeAreaProvider>
+      <SafeAreaProvider initialMetrics={providerInitialMetrics}>
+        {content}
+        {!splashDone && (
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <AnimatedSplash onFinish={() => setSplashDone(true)} />
+          </View>
+        )}
+      </SafeAreaProvider>
     </ThemeProvider>
   );
 }

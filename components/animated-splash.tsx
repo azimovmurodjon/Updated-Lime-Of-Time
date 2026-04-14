@@ -175,21 +175,31 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
       ]),
     ]).start();
 
-    // Exit: slide content up + fade out after 2.6s
+    // Exit: logo pulse-scale → content slides up + screen fades out → app content revealed
     const timer = setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(contentTranslateY, {
-          toValue: -height * 0.12,
-          duration: 480,
-          easing: Easing.in(Easing.cubic),
+      Animated.sequence([
+        // 1. Logo pulses up slightly (feels like it's launching the app)
+        Animated.timing(logoScale, {
+          toValue: 1.12,
+          duration: 160,
+          easing: Easing.out(Easing.quad),
           useNativeDriver: true,
         }),
-        Animated.timing(screenOpacity, {
-          toValue: 0,
-          duration: 480,
-          easing: Easing.in(Easing.cubic),
-          useNativeDriver: true,
-        }),
+        // 2. Simultaneously slide content up and fade the whole splash out
+        Animated.parallel([
+          Animated.timing(contentTranslateY, {
+            toValue: -height * 0.10,
+            duration: 400,
+            easing: Easing.in(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(screenOpacity, {
+            toValue: 0,
+            duration: 400,
+            easing: Easing.in(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ]),
       ]).start(() => onFinish());
     }, 2600);
 
