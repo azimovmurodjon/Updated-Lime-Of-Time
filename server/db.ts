@@ -1,4 +1,4 @@
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql2 from "mysql2/promise";
 import {
@@ -631,7 +631,7 @@ export async function upsertCustomScheduleDay(
     .where(and(
       eq(customSchedule.businessOwnerId, businessOwnerId),
       eq(customSchedule.date, date),
-      locationId ? eq(customSchedule.locationId, locationId) : undefined
+      locationId ? eq(customSchedule.locationId, locationId) : isNull(customSchedule.locationId)
     ))
     .limit(1);
   if (existing.length > 0) {
@@ -641,7 +641,7 @@ export async function upsertCustomScheduleDay(
       .where(and(
         eq(customSchedule.businessOwnerId, businessOwnerId),
         eq(customSchedule.date, date),
-        locationId ? eq(customSchedule.locationId, locationId) : undefined
+        locationId ? eq(customSchedule.locationId, locationId) : isNull(customSchedule.locationId)
       ));
   } else {
     await db.insert(customSchedule).values({
@@ -667,7 +667,7 @@ export async function deleteCustomScheduleDay(
     .where(and(
       eq(customSchedule.businessOwnerId, businessOwnerId),
       eq(customSchedule.date, date),
-      locationId ? eq(customSchedule.locationId, locationId) : undefined
+      locationId ? eq(customSchedule.locationId, locationId) : isNull(customSchedule.locationId)
     ));
 }
 

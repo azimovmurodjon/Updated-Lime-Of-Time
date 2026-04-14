@@ -105,7 +105,12 @@ export default function PublicBookingScreen() {
   // ── Location-scoped custom schedule ───────────────────────────────────────
   const locationCustomSchedule = useMemo(() => {
     if (selectedLocationId) {
-      return state.locationCustomSchedule[selectedLocationId] ?? [];
+      // Merge global (no locationId) entries with location-specific ones.
+      // Location-specific entries take precedence for the same date.
+      const locEntries = state.locationCustomSchedule[selectedLocationId] ?? [];
+      const locDates = new Set(locEntries.map((cs) => cs.date));
+      const globalFallback = state.customSchedule.filter((cs) => !locDates.has(cs.date));
+      return [...locEntries, ...globalFallback];
     }
     return state.customSchedule;
   }, [selectedLocationId, state.locationCustomSchedule, state.customSchedule]);

@@ -32,6 +32,13 @@ type CartItem = {
 
 export default function NewBookingScreen() {
   const { state, dispatch, getServiceById, getClientById, getLocationById, syncToDb, filterAppointmentsByLocation, getActiveCustomSchedule } = useStore();
+  // Helper: merge global customSchedule entries with location-specific ones (location takes precedence)
+  const getLocCustomSchedule = useCallback((locId: string): import('@/lib/types').CustomScheduleDay[] => {
+    const locEntries = (state as any).locationCustomSchedule?.[locId] ?? [];
+    const locDates = new Set(locEntries.map((cs: any) => cs.date));
+    const globalFallback = (state.customSchedule ?? []).filter((cs) => !locDates.has(cs.date));
+    return [...locEntries, ...globalFallback];
+  }, [(state as any).locationCustomSchedule, state.customSchedule]);
   const { activeLocations: _allActiveLocations } = useActiveLocation();
   const colors = useColors();
   const router = useRouter();
@@ -83,7 +90,7 @@ export default function NewBookingScreen() {
       if (loc.temporarilyClosed) { result[loc.id] = false; continue; }
       // Active Until expiry
       if (endDate && selectedDate > endDate) { result[loc.id] = false; continue; }
-      const locCustomSchedule = (state as any).locationCustomSchedule?.[loc.id] ?? [];
+      const locCustomSchedule = getLocCustomSchedule(loc.id);
       const customDay = locCustomSchedule.find((cs: { date: string; isOpen: boolean }) => cs.date === selectedDate);
       const locWH = (loc.workingHours && Object.keys(loc.workingHours).length > 0)
         ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
@@ -165,7 +172,7 @@ export default function NewBookingScreen() {
     for (const loc of activeLocations) {
       // If location is closed on this date, time is also unavailable
       if (locationOpenOnDate[loc.id] === false) { result[loc.id] = false; continue; }
-      const locCustomSchedule = (state as any).locationCustomSchedule?.[loc.id] ?? [];
+      const locCustomSchedule = getLocCustomSchedule(loc.id);
       const locWH = (loc.workingHours && Object.keys(loc.workingHours).length > 0)
         ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
         : state.settings.workingHours;
@@ -237,13 +244,19 @@ export default function NewBookingScreen() {
     [state.appointments, selectedLocationId]
   );
   const activeCustomSchedule = useMemo(() => {
+    const mergeWithGlobal = (locId: string) => {
+      const locEntries = (state as any).locationCustomSchedule?.[locId] ?? [];
+      const locDates = new Set(locEntries.map((cs: any) => cs.date));
+      const globalFallback = (state.customSchedule ?? []).filter((cs) => !locDates.has(cs.date));
+      return [...locEntries, ...globalFallback];
+    };
     if (selectedLocationId) {
-      return (state as any).locationCustomSchedule?.[selectedLocationId] ?? [];
+      return mergeWithGlobal(selectedLocationId);
     }
     // No location explicitly selected — if there is exactly one active location,
     // use its per-location custom schedule so Workday overrides are visible.
     if (activeLocations.length === 1) {
-      return (state as any).locationCustomSchedule?.[activeLocations[0].id] ?? state.customSchedule ?? [];
+      return mergeWithGlobal(activeLocations[0].id);
     }
     // Multi-location with no selection: fall back to global custom schedule
     return state.customSchedule ?? [];
@@ -271,7 +284,7 @@ export default function NewBookingScreen() {
     const slotSet = new Set<string>();
     for (const loc of activeLocations) {
       if (locationOpenOnDate[loc.id] === false) continue;
-      const locCustomSchedule = (state as any).locationCustomSchedule?.[loc.id] ?? [];
+      const locCustomSchedule = getLocCustomSchedule(loc.id);
       const locWH = (loc.workingHours && Object.keys(loc.workingHours).length > 0)
         ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
         : state.settings.workingHours;
@@ -296,7 +309,7 @@ export default function NewBookingScreen() {
     const counts: Record<string, number> = {};
     for (const loc of activeLocations) {
       if (locationOpenOnDate[loc.id] === false) continue;
-      const locCustomSchedule = (state as any).locationCustomSchedule?.[loc.id] ?? [];
+      const locCustomSchedule = getLocCustomSchedule(loc.id);
       const locWH = (loc.workingHours && Object.keys(loc.workingHours).length > 0)
         ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
         : state.settings.workingHours;
@@ -352,7 +365,7 @@ export default function NewBookingScreen() {
           let anyOpen = false;
           for (const loc of activeLocations) {
             if (loc.temporarilyClosed) continue;
-            const locCustomSchedule = (state as any).locationCustomSchedule?.[loc.id] ?? [];
+            const locCustomSchedule = getLocCustomSchedule(loc.id);
             const locCustomDay = locCustomSchedule.find((cs: { date: string; isOpen: boolean }) => cs.date === ds);
             const locWH = (loc.workingHours && Object.keys(loc.workingHours).length > 0)
               ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
@@ -393,7 +406,7 @@ export default function NewBookingScreen() {
           let anySlots = false;
           for (const loc of activeLocations) {
             if (loc.temporarilyClosed) continue;
-            const locCustomSchedule = (state as any).locationCustomSchedule?.[loc.id] ?? [];
+            const locCustomSchedule = getLocCustomSchedule(loc.id);
             const locWH = (loc.workingHours && Object.keys(loc.workingHours).length > 0)
               ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
               : state.settings.workingHours;

@@ -1668,7 +1668,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
    */
   const getActiveCustomSchedule = useCallback((): CustomScheduleDay[] => {
     if (!state.activeLocationId) return state.customSchedule;
-    return state.locationCustomSchedule[state.activeLocationId] ?? [];
+    // Merge global (no locationId) entries with location-specific ones.
+    // Location-specific entries take precedence for the same date.
+    const locEntries = state.locationCustomSchedule[state.activeLocationId] ?? [];
+    const locDates = new Set(locEntries.map((cs) => cs.date));
+    const globalFallback = state.customSchedule.filter((cs) => !locDates.has(cs.date));
+    return [...locEntries, ...globalFallback];
   }, [state.activeLocationId, state.locationCustomSchedule, state.customSchedule]);
 
   /**
