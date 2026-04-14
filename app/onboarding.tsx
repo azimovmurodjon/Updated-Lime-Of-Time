@@ -17,7 +17,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { useResponsive } from "@/hooks/use-responsive";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import {
   formatPhoneNumber,
   stripPhoneFormat,
@@ -176,6 +176,34 @@ export default function OnboardingScreen() {
   const socialParams = useLocalSearchParams<{ socialLogin?: string; socialName?: string; socialEmail?: string }>();
   const isSocialFlow = socialParams.socialLogin === "1";
   const [step, setStep] = useState<Step>(isSocialFlow ? "socialPhone" : 1);
+  const prevStepRef = useRef<Step>(isSocialFlow ? "socialPhone" : 1);
+  const [displayStep, setDisplayStep] = useState<Step>(isSocialFlow ? "socialPhone" : 1);
+  const slideX = useSharedValue(0);
+  const slideOpacity = useSharedValue(1);
+
+  // Step order for direction detection
+  const STEP_ORDER: Step[] = [1, "socialPhone", "otp", 2, 3];
+  const stepIndex = (s: Step) => {
+    const idx = STEP_ORDER.indexOf(s);
+    return idx === -1 ? 0 : idx;
+  };
+
+  const navigateToStep = useCallback((nextStep: Step) => {
+    const direction = stepIndex(nextStep) >= stepIndex(prevStepRef.current) ? 1 : -1;
+    const W = 380; // approximate card width
+    // Slide current content out
+    slideX.value = withTiming(direction * -W, { duration: 220, easing: Easing.in(Easing.quad) }, () => {
+      runOnJS(setDisplayStep)(nextStep);
+      // Slide new content in from opposite side
+      slideX.value = direction * W;
+      slideX.value = withTiming(0, { duration: 260, easing: Easing.out(Easing.quad) });
+    });
+    slideOpacity.value = withTiming(0, { duration: 180 }, () => {
+      slideOpacity.value = withTiming(1, { duration: 260 });
+    });
+    prevStepRef.current = nextStep;
+    setStep(nextStep);
+  }, []);
   const { biometricAvailable, biometricType, toggleBiometric } = useAppLockContext();
   const [selectedCountry, setSelectedCountry] = useState<Country>(DEFAULT_COUNTRY);
   const [phone, setPhone] = useState("");
@@ -309,7 +337,7 @@ export default function OnboardingScreen() {
           });
         }
         if (biometricAvailable && Platform.OS !== "web") {
-          setStep(3);
+          navigateToStep(3);
         } else {
           router.replace("/(tabs)");
         }
@@ -318,7 +346,7 @@ export default function OnboardingScreen() {
       }
     } else {
       setBusinessPhone(phone);
-      setStep(2);
+      navigateToStep(2);
     }
   };
   const [businessName, setBusinessName] = useState("");
@@ -368,7 +396,7 @@ export default function OnboardingScreen() {
     );
   }, []);
 
-  // Re-animate on step change
+  // Re-animate on displayStep change
   useEffect(() => {
     titleOpacity.value = 0;
     titleTranslateY.value = 16;
@@ -385,11 +413,11 @@ export default function OnboardingScreen() {
     inputOpacity.value = withDelay(220, withTiming(1, { duration: 300 }));
     inputTranslateY.value = withDelay(220, withTiming(0, { duration: 300, easing: Easing.out(Easing.quad) }));
     btnOpacity.value = withDelay(320, withTiming(1, { duration: 300 }));
-  }, [step]);
+  }, [displayStep]);
 
   // Reset OTP boxes when entering/leaving OTP step
   useEffect(() => {
-    if (step === "otp") {
+    if (displayStep === "otp") {
       setOtpDigits(["","","","","",""]);
       setOtpValue("");
       setOtpError("");
@@ -397,11 +425,11 @@ export default function OnboardingScreen() {
       otpBoxBorders.forEach(b => { b.value = 0; });
       setTimeout(() => otpRefs.current[0]?.focus(), 200);
     }
-  }, [step]);
+  }, [displayStep]);
 
   // OTP countdown timer — counts down from 60 when OTP step is shown
   useEffect(() => {
-    if (step !== "otp") return;
+    if (displayStep !== "otp") return;
     setOtpCountdown(60);
     const id = setInterval(() => {
       setOtpCountdown((prev) => {
@@ -410,7 +438,7 @@ export default function OnboardingScreen() {
       });
     }, 1000);
     return () => clearInterval(id);
-  }, [step]);
+  }, [displayStep]);
 
   const logoStyle = useAnimatedStyle(() => ({
     transform: [{ scale: logoScale.value }],
@@ -431,6 +459,11 @@ export default function OnboardingScreen() {
   const btnStyle = useAnimatedStyle(() => ({
     opacity: btnOpacity.value,
     transform: [{ scale: btnScale.value }],
+  }));
+
+  const slideStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: slideX.value }],
+    opacity: slideOpacity.value,
   }));
 
   const handlePhoneChange = (text: string) => {
@@ -468,7 +501,7 @@ export default function OnboardingScreen() {
         setPendingOtpAction("existing");
         setOtpValue("");
         setOtpError("");
-        setStep("otp");
+        navigateToStep("otp");
         return;
       }
     } catch (err) {
@@ -497,7 +530,7 @@ export default function OnboardingScreen() {
     setPendingOtpAction("new");
     setOtpValue("");
     setOtpError("");
-    setStep("otp");
+    navigateToStep("otp");
   };
 
   const handleSocialPhoneNext = async () => {
@@ -533,7 +566,7 @@ export default function OnboardingScreen() {
           });
         }
         if (biometricAvailable && Platform.OS !== "web") {
-          setStep(3);
+          navigateToStep(3);
         } else {
           router.replace("/(tabs)");
         }
@@ -542,7 +575,7 @@ export default function OnboardingScreen() {
       // New user — pre-fill from social data and go to business registration
       if (socialParams.socialEmail) setEmail(socialParams.socialEmail);
       setBusinessPhone(phone);
-      setStep(2);
+      navigateToStep(2);
     } catch (err) {
       console.error("[Onboarding] Social phone check failed:", err);
       Alert.alert("Connection Error", "Cannot reach the server. Please check your internet connection and try again.", [{ text: "OK" }]);
@@ -612,7 +645,7 @@ export default function OnboardingScreen() {
         },
       });
       if (biometricAvailable && Platform.OS !== "web") {
-        setStep(3);
+        navigateToStep(3);
       } else {
         router.replace("/(tabs)");
       }
@@ -666,8 +699,8 @@ export default function OnboardingScreen() {
         style={StyleSheet.absoluteFillObject}
       />
 
-      {/* ─── Floating Particles ────────────────────────────────── */}
-      {step === 1 && particles.map((p, i) => (
+      {/* ─── Floating Particles ──────────────────────────────────── */}
+      {displayStep === 1 && particles.map((p, i) => (
         <FloatingParticle key={i} {...p} />
       ))}
 
@@ -722,13 +755,10 @@ export default function OnboardingScreen() {
             </View>
             <Text style={styles.appName}>Lime Of Time</Text>
             <Text style={styles.appTagline}>Smart scheduling for your business</Text>
-          </Animated.View>
-
-          {/* ─── Progress Dots ───────────────────────────────── */}
+          </Animated.View>          {/* ─── Progress Dots ──────────────────────────────────── */}
           <View style={styles.progressRow}>
             {[1, 2, 3].map((s) => {
-              const numericStep = step === "otp" ? 1 : (step as number);
-              return (
+              const numericStep = displayStep === "otp" ? 1 : (displayStep as number);              return (
                 <View
                   key={s}
                   style={[
@@ -744,9 +774,9 @@ export default function OnboardingScreen() {
           </View>
 
           {/* ─── White Card ──────────────────────────────────── */}
-          <View style={styles.card}>
+          <Animated.View style={[styles.card, slideStyle]}>
             {/* Step 1: Phone */}
-            {step === 1 && (
+            {displayStep === 1 && (
               <>
                 <Animated.View style={titleStyle}>
                   <Text style={styles.stepTitle}>Welcome back!</Text>
@@ -844,7 +874,7 @@ export default function OnboardingScreen() {
             )}
 
             {/* Step socialPhone: Phone collection for new social login users */}
-            {step === "socialPhone" && (
+            {displayStep === "socialPhone" && (
               <>
                 <Animated.View style={titleStyle}>
                   <Text style={styles.stepTitle}>One more step!</Text>
@@ -909,7 +939,7 @@ export default function OnboardingScreen() {
             )}
 
             {/* Step OTP: Verification — 6-box animated input */}
-            {step === "otp" && (
+            {displayStep === "otp" && (
               <>
                 <Animated.View style={[titleStyle, { alignItems: "center" }]}>
                   {/* Lock icon with green glow */}
@@ -992,7 +1022,7 @@ export default function OnboardingScreen() {
                 <Animated.View style={btnStyle}>
                   <View style={styles.buttonRow}>
                     <Pressable
-                      onPress={() => { setStep(1); setOtpValue(""); setOtpError(""); setOtpDigits(["","","","","",""]); }}
+                      onPress={() => { navigateToStep(1); setOtpValue(""); setOtpError(""); setOtpDigits(["","","","","",""]); }}
                       style={({ pressed }) => [styles.secondaryBtn, { opacity: pressed ? 0.7 : 1 }]}
                       disabled={loading}
                     >
@@ -1018,7 +1048,7 @@ export default function OnboardingScreen() {
             )}
 
             {/* Step 2: Business Info */}
-            {step === 2 && (
+            {displayStep === 2 && (
               <>
                 <Animated.View style={[titleStyle, { alignItems: "center" }]}>
                   {/* Business icon badge */}
@@ -1139,7 +1169,7 @@ export default function OnboardingScreen() {
                 <Animated.View style={btnStyle}>
                   <View style={styles.buttonRow}>
                     <Pressable
-                      onPress={() => setStep(1)}
+                      onPress={() => navigateToStep(1)}
                       style={({ pressed }) => [
                         styles.secondaryBtn,
                         { opacity: pressed ? 0.7 : 1 },
@@ -1172,7 +1202,7 @@ export default function OnboardingScreen() {
             )}
 
             {/* Step 3: Biometrics */}
-            {step === 3 && (
+            {displayStep === 3 && (
               <>
                 <Animated.View style={[titleStyle, { alignItems: "center" }]}>
                   <View style={styles.biometricIcon}>
@@ -1221,7 +1251,7 @@ export default function OnboardingScreen() {
                 </Animated.View>
               </>
             )}
-          </View>
+          </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>

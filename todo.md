@@ -920,3 +920,6 @@
 - [x] Add Save QR to Photos button in QR code modal
 - [x] Add Business Hours section when creating a new location (Add Location page)
 - [ ] Add phone widgets - calendar widget and upcoming/requested/cancelled appointments widget
+
+## Phase: Onboarding Slide Transitions (Apr 14 2026)
+- [x] Add slide-left/slide-right animated transitions between onboarding steps (Step 1 → 2 → 3)
