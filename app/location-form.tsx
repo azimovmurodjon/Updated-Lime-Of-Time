@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import {
   ScrollView,
   Text,
@@ -7,10 +7,7 @@ import {
   Pressable,
   StyleSheet,
   Alert,
-  Share,
-  Platform,
 } from "react-native";
-import * as Clipboard from "expo-clipboard";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, generateId } from "@/lib/store";
@@ -19,8 +16,6 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import {
   Location,
   formatPhoneNumber,
-  formatFullAddress,
-  PUBLIC_BOOKING_URL,
 } from "@/lib/types";
 import { useActiveLocation } from "@/hooks/use-active-location";
 import { useResponsive } from "@/hooks/use-responsive";
@@ -111,40 +106,6 @@ export default function LocationFormScreen() {
       ]
     );
   };
-
-  const [copiedLink, setCopiedLink] = useState(false);
-
-  const locationBookingUrl = useMemo(() => {
-    if (!existing) return null;
-    const slug =
-      state.settings.customSlug ||
-      state.settings.businessName.replace(/\s+/g, "-").toLowerCase();
-    return `${PUBLIC_BOOKING_URL}/book/${slug}?location=${existing.id}`;
-  }, [existing, state.settings.customSlug, state.settings.businessName]);
-
-  const handleCopyLink = useCallback(async () => {
-    if (!locationBookingUrl) return;
-    await Clipboard.setStringAsync(locationBookingUrl);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2500);
-  }, [locationBookingUrl]);
-
-  const handleShareLink = useCallback(async () => {
-    if (!locationBookingUrl || !existing) return;
-    const businessName = state.settings.businessName || "our business";
-    const fullAddr = formatFullAddress(existing.address, existing.city, existing.state, existing.zipCode);
-    const addrLine = fullAddr ? `\n📍 ${fullAddr}` : "";
-    const phoneLine = existing.phone ? `\n📞 ${formatPhoneNumber(existing.phone)}` : "";
-    try {
-      await Share.share({
-        message: `Book an appointment with ${businessName}!${addrLine}${phoneLine}\n\nSchedule online: ${locationBookingUrl}\n\nPowered by Lime Of Time`,
-        url: locationBookingUrl,
-        title: `Book at ${existing.name}`,
-      });
-    } catch {
-      // User dismissed
-    }
-  }, [locationBookingUrl, existing, state.settings.businessName]);
 
   return (
     <ScreenContainer edges={["top", "left", "right"]} tabletMaxWidth={720} className="pt-2" style={{ paddingHorizontal: hp }}>
@@ -262,66 +223,6 @@ export default function LocationFormScreen() {
           />
         </View>
 
-        {/* Booking Link (edit mode only) */}
-        {isEdit && locationBookingUrl && (
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
-              <IconSymbol name="link" size={15} color={colors.primary} />
-              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Booking Link</Text>
-            </View>
-            <Text style={{ fontSize: 12, color: colors.muted, lineHeight: 17, marginBottom: 10 }}>
-              Share this link so clients can book directly at this location.
-            </Text>
-            {/* URL preview */}
-            <View style={[styles.urlPreviewBox, { backgroundColor: colors.background, borderColor: colors.border }]}>
-              <Text style={{ fontSize: 12, color: colors.muted, flex: 1 }} numberOfLines={1}>
-                {locationBookingUrl}
-              </Text>
-            </View>
-            {/* Copy + Share buttons */}
-            <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
-              <Pressable
-                onPress={handleCopyLink}
-                style={({ pressed }) => [
-                  styles.linkBtn,
-                  {
-                    backgroundColor: copiedLink ? colors.success + "18" : colors.primary + "12",
-                    borderColor: copiedLink ? colors.success + "50" : colors.primary + "30",
-                    opacity: pressed ? 0.7 : 1,
-                    flex: 1,
-                  },
-                ]}
-              >
-                <IconSymbol
-                  name={copiedLink ? "checkmark.circle.fill" : "doc.on.doc.fill"}
-                  size={15}
-                  color={copiedLink ? colors.success : colors.primary}
-                />
-                <Text style={{ fontSize: 13, fontWeight: "600", color: copiedLink ? colors.success : colors.primary }}>
-                  {copiedLink ? "Copied!" : "Copy Link"}
-                </Text>
-              </Pressable>
-              {Platform.OS !== "web" && (
-                <Pressable
-                  onPress={handleShareLink}
-                  style={({ pressed }) => [
-                    styles.linkBtn,
-                    {
-                      backgroundColor: colors.primary + "12",
-                      borderColor: colors.primary + "30",
-                      opacity: pressed ? 0.7 : 1,
-                      flex: 1,
-                    },
-                  ]}
-                >
-                  <IconSymbol name="square.and.arrow.up" size={15} color={colors.primary} />
-                  <Text style={{ fontSize: 13, fontWeight: "600", color: colors.primary }}>Share</Text>
-                </Pressable>
-              )}
-            </View>
-          </View>
-        )}
-
         {/* Delete Button (edit mode only) */}
         {isEdit && (
           <Pressable
@@ -384,21 +285,5 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     marginBottom: 16,
-  },
-  urlPreviewBox: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  linkBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    borderWidth: 1,
   },
 });

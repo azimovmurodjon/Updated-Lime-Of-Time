@@ -162,7 +162,6 @@ describe("Business Profile", () => {
       businessHoursEndDate: null,
       autoCompleteEnabled: false,
       autoCompleteDelayMinutes: 5,
-      smsTemplates: {},
     };
     expect(settings.profile).toBeDefined();
     expect(settings.profile.ownerName).toBe("");
@@ -307,7 +306,6 @@ describe("Theme Mode", () => {
       businessHoursEndDate: null,
       autoCompleteEnabled: false,
       autoCompleteDelayMinutes: 5,
-      smsTemplates: {},
     };
     expect(settings.themeMode).toBe("dark");
   });
@@ -331,7 +329,6 @@ describe("Theme Mode", () => {
       businessHoursEndDate: null,
       autoCompleteEnabled: false,
       autoCompleteDelayMinutes: 5,
-      smsTemplates: {},
     };
     expect(settings.themeMode).toBe("system");
   });
@@ -469,7 +466,6 @@ describe("Cancellation Policy", () => {
       businessHoursEndDate: null,
       autoCompleteEnabled: false,
       autoCompleteDelayMinutes: 5,
-      smsTemplates: {},
     };
     // Cancellation fee is disabled by default — owner must explicitly opt in
     expect(settings.cancellationPolicy.enabled).toBe(false);
@@ -599,7 +595,6 @@ describe("Temporary Closed Feature", () => {
       businessHoursEndDate: null,
       autoCompleteEnabled: false,
       autoCompleteDelayMinutes: 5,
-      smsTemplates: {},
     };
     expect(settings.temporaryClosed).toBe(true);
   });
@@ -623,7 +618,6 @@ describe("Temporary Closed Feature", () => {
       businessHoursEndDate: null,
       autoCompleteEnabled: false,
       autoCompleteDelayMinutes: 5,
-      smsTemplates: {},
     };
     expect(settings.temporaryClosed).toBe(false);
   });
@@ -710,7 +704,6 @@ describe("Business Logo URI", () => {
       businessHoursEndDate: null,
       autoCompleteEnabled: false,
       autoCompleteDelayMinutes: 5,
-      smsTemplates: {},
     };
     expect(settings.businessLogoUri).toBe("file:///data/user/0/com.app/cache/photo.jpg");
   });
@@ -734,7 +727,6 @@ describe("Business Logo URI", () => {
       businessHoursEndDate: null,
       autoCompleteEnabled: false,
       autoCompleteDelayMinutes: 5,
-      smsTemplates: {},
     };
     expect(settings.businessLogoUri).toBe("");
   });
@@ -760,7 +752,6 @@ describe("Logout and Delete Business", () => {
       businessHoursEndDate: null,
       autoCompleteEnabled: false,
       autoCompleteDelayMinutes: 5,
-      smsTemplates: {},
     };
     // Simulate logout
     const loggedOut = { ...settings, onboardingComplete: false };

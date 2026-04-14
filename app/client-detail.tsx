@@ -31,16 +31,7 @@ import {
   generateCancellationMessage,
   formatFullAddress,
   PUBLIC_BOOKING_URL,
-  LIME_OF_TIME_FOOTER,
 } from "@/lib/types";
-
-function applyTemplate(template: string, vars: Record<string, string>): string {
-  let result = template;
-  for (const [key, val] of Object.entries(vars)) {
-    result = result.replaceAll(`{${key}}`, val);
-  }
-  return result + LIME_OF_TIME_FOOTER;
-}
 
 type TabKey = "appointments" | "messages" | "reviews";
 
@@ -161,57 +152,33 @@ export default function ClientDetailScreen() {
       const apptLocation = appt.locationId ? getLocationById(appt.locationId) : null;
       const addr = apptLocation?.address || profile.address;
       const locName = apptLocation?.name;
-      // Fall back to profile city/state/zip when no location is assigned
-      const locCity = apptLocation?.city ?? profile.city;
-      const locState = apptLocation?.state ?? profile.state;
-      const locZip = apptLocation?.zipCode ?? profile.zipCode;
+      const locCity = apptLocation?.city;
+      const locState = apptLocation?.state;
+      const locZip = apptLocation?.zipCode;
       const locPhone = apptLocation?.phone || bizPhone;
       const locId = apptLocation?.id;
 
-      const slug = biz.customSlug || bizName.replace(/\s+/g, "-").toLowerCase();
-      const fullAddrStr = formatFullAddress(addr, locCity, locState, locZip);
-      const locLine = locName ? (fullAddrStr ? `${locName} \u2014 ${fullAddrStr}` : locName) : fullAddrStr;
-      const bookUrl = locId ? `${PUBLIC_BOOKING_URL}/book/${slug}?location=${locId}` : `${PUBLIC_BOOKING_URL}/book/${slug}`;
-      const reviewUrl = `${PUBLIC_BOOKING_URL}/review/${slug}`;
-      const phoneFormatted = formatPhoneNumber(stripPhoneFormat(locPhone));
-      const tplVars = {
-        clientName: client.name,
-        businessName: bizName,
-        serviceName: svcName,
-        duration: String(appt.duration),
-        date: appt.date,
-        time: appt.time,
-        location: locLine,
-        phone: phoneFormatted,
-        clientPhone: client.phone ?? "",
-        bookingUrl: bookUrl,
-        reviewUrl,
-      };
-
       switch (type) {
-        case "confirmation": {
-          const tpl = biz.smsTemplates?.confirmation;
-          if (tpl) return applyTemplate(tpl, tplVars);
+        case "confirmation":
           return generateConfirmationMessage(bizName, addr, client.name, svcName, appt.duration, appt.date, appt.time, locPhone, undefined, locName, locId, biz.customSlug, locCity, locState, locZip);
-        }
-        case "reminder": {
-          const tpl = biz.smsTemplates?.reminder;
-          if (tpl) return applyTemplate(tpl, tplVars);
+        case "reminder":
           return generateReminderMessage(bizName, addr, client.name, svcName, appt.duration, appt.date, appt.time, locPhone, locName, locCity, locState, locZip);
-        }
         case "upcoming": {
           const endTime = formatTimeDisplay(minutesToTime(timeToMinutes(appt.time) + appt.duration));
-          return `Dear ${client.name},\n\nYou have an upcoming appointment request pending confirmation.\n\n\uD83D\uDCCB Service: ${svcName}\n\uD83D\uDCC5 Date: ${formatDateLong(appt.date)}\n\u23F0 Time: ${formatTimeDisplay(appt.time)} - ${endTime}\n\uD83D\uDCCD Location: ${locLine}\n\uD83C\uDFE2 Business: ${bizName}\n\uD83D\uDCDE Contact: ${phoneFormatted}\n\n\uD83D\uDD17 Book again: ${bookUrl}\n\nWe will confirm your appointment shortly. Thank you for your patience!\n\n${bizName}${LIME_OF_TIME_FOOTER}`;
+          const bookingSlug = biz.customSlug || bizName.replace(/\s+/g, "-").toLowerCase();
+          const fullAddr = formatFullAddress(addr, locCity, locState, locZip);
+          const upcomingLocLine = locName ? (fullAddr ? `${locName} — ${fullAddr}` : locName) : fullAddr;
+          const upcomingUrl = locId ? `${PUBLIC_BOOKING_URL}/book/${bookingSlug}?location=${locId}` : `${PUBLIC_BOOKING_URL}/book/${bookingSlug}`;
+          return `Dear ${client.name},\n\nYou have an upcoming appointment request pending confirmation.\n\n📋 Service: ${svcName}\n📅 Date: ${formatDateLong(appt.date)}\n⏰ Time: ${formatTimeDisplay(appt.time)} - ${endTime}\n📍 Location: ${upcomingLocLine}\n🏢 Business: ${bizName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(locPhone))}\n\n🔗 Book again: ${upcomingUrl}\n\nWe will confirm your appointment shortly. Thank you for your patience!\n\n${bizName}`;
         }
-        case "cancelled": {
-          const tpl = biz.smsTemplates?.cancellation;
-          if (tpl) return applyTemplate(tpl, tplVars);
+        case "cancelled":
           return generateCancellationMessage(bizName, client.name, svcName, appt.date, appt.time, "", locPhone, locName, apptLocation?.address, locCity, locState, locZip);
-        }
         case "completed": {
-          const tpl = biz.smsTemplates?.completed;
-          if (tpl) return applyTemplate(tpl, tplVars);
-          return `Dear ${client.name},\n\nThank you for visiting ${bizName}! Your appointment for ${svcName} on ${formatDateLong(appt.date)} has been completed.\n\nWe hope you had a wonderful experience and we\u2019d love to see you again!\n\n\uD83D\uDCCD Location: ${locLine}\n\uD83D\uDCDE Contact: ${phoneFormatted}\n\n\uD83D\uDD17 Book again: ${bookUrl}\n\nBest regards,\n${bizName}${LIME_OF_TIME_FOOTER}`;
+          const completedSlug = biz.customSlug || bizName.replace(/\s+/g, "-").toLowerCase();
+          const completedFullAddr = formatFullAddress(addr, locCity, locState, locZip);
+          const completedLocLine = locName ? (completedFullAddr ? `${locName} — ${completedFullAddr}` : locName) : completedFullAddr;
+          const completedUrl = locId ? `${PUBLIC_BOOKING_URL}/book/${completedSlug}?location=${locId}` : `${PUBLIC_BOOKING_URL}/book/${completedSlug}`;
+          return `Dear ${client.name},\n\nThank you for visiting ${bizName}! Your appointment for ${svcName} on ${formatDateLong(appt.date)} has been completed.\n\nWe hope you had a wonderful experience and we'd love to see you again!\n\n📍 Location: ${completedLocLine}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(locPhone))}\n\n🔗 Book again: ${completedUrl}\n\nBest regards,\n${bizName}`;
         }
         default:
           return "";
@@ -244,29 +211,15 @@ export default function ClientDetailScreen() {
     const recentLoc = recentAppt?.locationId ? state.locations.find((l) => l.id === recentAppt.locationId) : null;
     const addr = recentLoc
       ? formatFullAddress(recentLoc.address, recentLoc.city, recentLoc.state, recentLoc.zipCode)
-      : formatFullAddress(profile.address, profile.city, profile.state, profile.zipCode);
+      : profile.address;
     const followUpSlug = biz.customSlug || biz.businessName.replace(/\s+/g, "-").toLowerCase();
     const bookUrl = recentLoc?.id
       ? `${PUBLIC_BOOKING_URL}/book/${followUpSlug}?location=${recentLoc.id}`
       : `${PUBLIC_BOOKING_URL}/book/${followUpSlug}`;
-    const locationLine = addr ? `\n\n\uD83D\uDCCD Location: ${addr}` : "";
-    const customFollowUpTpl = biz.smsTemplates?.followUp;
-    let message: string;
-    if (customFollowUpTpl) {
-      message = applyTemplate(customFollowUpTpl, {
-        clientName: client.name,
-        businessName: biz.businessName,
-        location: addr,
-        phone: formatPhoneNumber(stripPhoneFormat(recentLoc?.phone || profile.phone)),
-        clientPhone: client.phone,
-        bookingUrl: bookUrl,
-        reviewUrl: `${PUBLIC_BOOKING_URL}/review/${followUpSlug}`,
-      });
-    } else {
-      message = `Dear ${client.name},\n\nThank you for being a valued client of ${biz.businessName}! We\u2019d love to schedule your next appointment.${locationLine}\n\n\uD83D\uDCDE Contact: ${formatPhoneNumber(stripPhoneFormat(recentLoc?.phone || profile.phone))}\n\n\uD83D\uDD17 Book now: ${bookUrl}\n\nBest regards,\n${biz.businessName}${LIME_OF_TIME_FOOTER}`;
-    }
+    const locationLine = addr ? `\n\n📍 Location: ${addr}` : "";
+    const message = `Dear ${client.name},\n\nThank you for being a valued client of ${biz.businessName}! We'd love to schedule your next appointment.${locationLine}\n\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(recentLoc?.phone || profile.phone))}\n\n🔗 Book now: ${bookUrl}\n\nBest regards,\n${biz.businessName}`;
     openSMS(client.phone, message);
-  }, [client, biz.businessName, biz.customSlug, biz.smsTemplates, profile, openSMS, state.appointments, state.locations]);
+  }, [client, biz.businessName, biz.customSlug, profile, openSMS, state.appointments, state.locations]);
 
   if (!client) {
     return (

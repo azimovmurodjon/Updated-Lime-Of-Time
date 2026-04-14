@@ -245,16 +245,16 @@ export async function getBusinessOwnerBySlug(slug: string): Promise<BusinessOwne
   // Get all business owners and match by customSlug first, then by auto-generated slug
   const result = await db.select().from(businessOwners);
   const lowerSlug = slug.toLowerCase();
-  // First check customSlug (exact match, return most recently created if multiple)
-  const byCustom = result
-    .filter((owner) => (owner as any).customSlug && (owner as any).customSlug.toLowerCase() === lowerSlug)
-    .sort((a, b) => b.id - a.id)[0];
+  // First check customSlug
+  const byCustom = result.find((owner) => {
+    return (owner as any).customSlug && (owner as any).customSlug.toLowerCase() === lowerSlug;
+  });
   if (byCustom) return byCustom;
-  // Fallback to auto-generated slug from business name (return most recently created if multiple)
-  const byName = result
-    .filter((owner) => owner.businessName.toLowerCase().replace(/\s+/g, "-") === lowerSlug)
-    .sort((a, b) => b.id - a.id)[0];
-  return byName;
+  // Fallback to auto-generated slug from business name
+  return result.find((owner) => {
+    const ownerSlug = owner.businessName.toLowerCase().replace(/\s+/g, "-");
+    return ownerSlug === lowerSlug;
+  });
 }
 
 // ─── Services ────────────────────────────────────────────────────────
@@ -628,24 +628,31 @@ export async function upsertCustomScheduleDay(
 ): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  // Build where conditions — include locationId match when provided
+  const conditions = locationId
+    ? and(
+        eq(customSchedule.businessOwnerId, businessOwnerId),
+        eq(customSchedule.date, date),
+        eq((customSchedule as any).locationId, locationId)
+      )
+    : and(
+        eq(customSchedule.businessOwnerId, businessOwnerId),
+        eq(customSchedule.date, date),
+        // Only match rows with no locationId (global overrides)
+        (customSchedule as any).locationId === null
+          ? undefined
+          : eq((customSchedule as any).locationId, null)
+      );
   const existing = await db
     .select()
     .from(customSchedule)
-    .where(and(
-      eq(customSchedule.businessOwnerId, businessOwnerId),
-      eq(customSchedule.date, date),
-      locationId ? eq(customSchedule.locationId, locationId) : undefined
-    ))
+    .where(and(eq(customSchedule.businessOwnerId, businessOwnerId), eq(customSchedule.date, date), locationId ? eq((customSchedule as any).locationId, locationId) : undefined))
     .limit(1);
   if (existing.length > 0) {
     await db
       .update(customSchedule)
       .set({ isOpen, startTime: startTime ?? null, endTime: endTime ?? null })
-      .where(and(
-        eq(customSchedule.businessOwnerId, businessOwnerId),
-        eq(customSchedule.date, date),
-        locationId ? eq(customSchedule.locationId, locationId) : undefined
-      ));
+      .where(and(eq(customSchedule.businessOwnerId, businessOwnerId), eq(customSchedule.date, date), locationId ? eq((customSchedule as any).locationId, locationId) : undefined));
   } else {
     await db.insert(customSchedule).values({
       businessOwnerId,
@@ -653,8 +660,8 @@ export async function upsertCustomScheduleDay(
       isOpen,
       startTime: startTime ?? null,
       endTime: endTime ?? null,
-      locationId: locationId ?? null,
-    });
+      ...(locationId ? { locationId } : {}),
+    } as any);
   }
 }
 
@@ -670,7 +677,7 @@ export async function deleteCustomScheduleDay(
     .where(and(
       eq(customSchedule.businessOwnerId, businessOwnerId),
       eq(customSchedule.date, date),
-      locationId ? eq(customSchedule.locationId, locationId) : undefined
+      locationId ? eq((customSchedule as any).locationId, locationId) : undefined
     ));
 }
 

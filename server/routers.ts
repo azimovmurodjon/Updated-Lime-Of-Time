@@ -96,7 +96,6 @@ const businessRouter = router({
         autoCompleteEnabled: z.boolean().optional(),
         autoCompleteDelayMinutes: z.number().optional(),
         notificationPreferences: z.any().optional(),
-        smsTemplates: z.any().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -151,7 +150,7 @@ const servicesRouter = router({
   update: publicProcedure
     .input(
       z.object({
-        localId: z.string(),
+        dbId: z.number(),
         businessOwnerId: z.number(),
         name: z.string().optional(),
         duration: z.number().optional(),
@@ -162,10 +161,8 @@ const servicesRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const { localId, businessOwnerId, ...data } = input;
-      const svc = await db.getServiceByLocalId(localId, businessOwnerId);
-      if (!svc) throw new Error(`Service not found: ${localId}`);
-      await db.updateService(svc.id, businessOwnerId, data);
+      const { dbId, businessOwnerId, ...data } = input;
+      await db.updateService(dbId, businessOwnerId, data);
       return { success: true };
     }),
 

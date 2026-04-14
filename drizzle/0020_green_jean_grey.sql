@@ -1,1 +1,0 @@
-ALTER TABLE `business_owners` ADD `smsTemplates` json;
