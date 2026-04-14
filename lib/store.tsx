@@ -24,7 +24,7 @@ import {
 } from "./types";
 import { trpc } from "./trpc";
 
-// ─── State ───────────────────────────────────────────────────────────
+// --- State ---
 interface AppState {
   services: Service[];
   clients: Client[];
@@ -89,7 +89,7 @@ const initialState: AppState = {
   activeLocationId: null,
 };
 
-// ─── Actions ─────────────────────────────────────────────────────────
+// --- Actions ---
 type Action =
   | { type: "LOAD_DATA"; payload: Partial<AppState> }
   | { type: "SET_BUSINESS_OWNER_ID"; payload: number | null }
@@ -287,7 +287,7 @@ function reducer(state: AppState, action: Action): AppState {
   }
 }
 
-// ─── Context ─────────────────────────────────────────────────────────
+// --- Context ---
 interface StoreContextType {
   state: AppState;
   dispatch: React.Dispatch<Action>;
@@ -658,7 +658,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     businessOwnerIdRef.current = state.businessOwnerId;
   }, [state.businessOwnerId]);
 
-  // ─── tRPC mutations ─────────────────────────────────────────────
+  // --- tRPC mutations ---
   const createServiceMut = trpc.services.create.useMutation();
   const updateServiceMut = trpc.services.update.useMutation();
   const deleteServiceMut = trpc.services.delete.useMutation();
@@ -689,7 +689,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const updateLocationMut = trpc.locations.update.useMutation();
   const deleteLocationMut = trpc.locations.delete.useMutation();
 
-  // ─── Mutation ref: keeps syncToDb's stale closure up-to-date ────
+  // --- Mutation ref: keeps syncToDb's stale closure up-to-date ---
   // syncToDb has [] deps to avoid re-creating on every render, but it needs the
   // latest mutation objects. We solve this with a ref that is updated every render.
   const mutsRef = useRef({
@@ -720,7 +720,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     createLocationMut, updateLocationMut, deleteLocationMut,
   };
 
-  // ─── Bootstrap: Load from DB or fallback to AsyncStorage ────────
+  // --- Bootstrap: Load from DB or fallback to AsyncStorage ---
   useEffect(() => {
     (async () => {
       try {
@@ -904,7 +904,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  // ─── Persist to AsyncStorage whenever state changes ─────────────
+  // --- Persist to AsyncStorage whenever state changes ---
   useEffect(() => {
     if (!state.loaded) return;
     AsyncStorage.setItem(STORAGE_KEYS.services, JSON.stringify(state.services));
@@ -969,11 +969,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (state.businessOwnerId !== null) {
       AsyncStorage.setItem(STORAGE_KEYS.businessOwnerId, String(state.businessOwnerId));
     }
-  }, [state.businessOwnerId]);
-
-  // ─── Auto-reopen: check reopenOn dates on load ──────────────────────────────────────────
+  }, [state.businessOwnerId])  // --- Auto-reopen: check reopenOn dates on load ---
   // We use a ref to avoid stale closure on syncToDb (which is defined below)
   const pendingReopenRef = useRef<Location[]>([]);
+  // Pending auto-complete actions to run once syncToDb is available
+  const pendingAutoCompleteRef = useRef<Array<{ id: string }>>([]);
   useEffect(() => {
     if (!state.loaded) return;
     const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
@@ -990,7 +990,39 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.loaded]);
 
-  // ─── refreshFromDb: pull latest data from DB and update store ───
+  // --- Auto-complete on initial load ---
+  // Runs once when data first loads. Marks confirmed appointments whose
+  // end time + delay has already passed (catches the fully-closed-app case).
+  // syncToDb is not yet available here, so we queue IDs and flush them once
+  // syncToDbRef is wired up (see the useEffect after syncToDb is defined).
+  useEffect(() => {
+    if (!state.loaded) return;
+    if (!state.settings.autoCompleteEnabled) return;
+    const delayMs = (state.settings.autoCompleteDelayMinutes ?? 5) * 60 * 1000;
+    const now = Date.now();
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const toComplete = state.appointments.filter((a) => {
+      if (a.status !== "confirmed") return false;
+      if (a.date > todayStr) return false;
+      const svc = state.services.find((sv) => sv.id === a.serviceId);
+      const duration = svc?.duration ?? (a as any).duration ?? 30;
+      const endMins = timeToMinutes(a.time) + duration;
+      const endDate = new Date(a.date + "T00:00:00");
+      endDate.setMinutes(endDate.getMinutes() + endMins);
+      return now >= endDate.getTime() + delayMs;
+    });
+    if (toComplete.length === 0) return;
+    // Dispatch state updates immediately
+    toComplete.forEach((a) => {
+      dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: a.id, status: "completed" as AppointmentStatus } });
+    });
+    // Queue DB sync for after syncToDbRef is wired up
+    pendingAutoCompleteRef.current = toComplete.map((a) => ({ id: a.id }));
+  // Only run on initial load (state.loaded flip)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.loaded]);
+
+  // --- refreshFromDb: pull latest data from DB and update store ---
   const refreshFromDb = useCallback(async () => {
     const ownerId = businessOwnerIdRef.current;
     if (!ownerId) return;
@@ -1043,7 +1075,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trpcUtils]);
 
-  // ─── Background-to-foreground sync ───────────────────────────────
+  // --- Background-to-foreground sync ---
   // Stable refs so the AppState listener can read current values without
   // being re-created on every render (avoids stale closure).
   const stateRef = useRef(state);
@@ -1053,7 +1085,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const sub = RNAppState.addEventListener("change", (nextState) => {
       if (nextState === "active" && businessOwnerIdRef.current) {
         refreshFromDb();
-        // ─── Foreground auto-complete check ────────────────────────
+        // --- Foreground auto-complete check ---
         // The scheduled notification listener only fires in foreground.
         // When the app resumes from background, scan for any confirmed
         // appointments whose end time + delay has already passed and
@@ -1086,7 +1118,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshFromDb]);
 
-  // ─── Sync action to database ────────────────────────────────────
+  // --- Sync action to database ---
   const syncToDb = useCallback(
     async (action: Action, ownerIdOverride?: number | null) => {
       const ownerId = ownerIdOverride ?? businessOwnerIdRef.current;
@@ -1600,8 +1632,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
      []
   );
   // Wire up the ref so the foreground auto-complete check can call syncToDb
-  useEffect(() => { syncToDbRef.current = syncToDb; }, [syncToDb]);
-  // ─── Selectors ──────────────────────────────────────────────────
+  // Also flush any pending auto-complete actions queued during initial load.
+  useEffect(() => {
+    syncToDbRef.current = syncToDb;
+    // Flush queued initial-load auto-complete actions
+    const pending = pendingAutoCompleteRef.current;
+    if (pending.length > 0) {
+      pendingAutoCompleteRef.current = [];
+      pending.forEach(({ id }) => {
+        syncToDb({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id, status: "completed" as AppointmentStatus } });
+      });
+    }
+  }, [syncToDb]);
+  // --- Selectors ---
   const getServiceById = useCallback(
     (id: string) => state.services.find((s) => s.id === id),
     [state.services]
@@ -1759,7 +1802,7 @@ export function useStore() {
   return ctx;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────
+// --- Helpers ---
 async function persistToAsyncStorage(
   services: Service[],
   clients: Client[],
