@@ -929,3 +929,5 @@
 - [ ] Add haptic feedback on each OTP box fill and delete
 - [ ] Improve splash screen layout, vertical centering, and animated transition into login page
 - [ ] Build modern guided first-launch tour with rich step-by-step Settings walkthrough popups
+- [x] App icon badge count — set iOS/Android home screen badge to number of upcoming appointments today
+- [x] Settings tab badge — show red dot badge on Settings tab when push notification permission is denied

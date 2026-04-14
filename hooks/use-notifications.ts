@@ -150,6 +150,27 @@ export function useNotifications() {
   const autoCompleteEnabled = state.settings.autoCompleteEnabled ?? false;
   const autoCompleteDelayMinutes = state.settings.autoCompleteDelayMinutes ?? 5;
 
+  // ── App icon badge count ─────────────────────────────────────────────────
+  // Set the home-screen badge to the number of upcoming (confirmed/pending)
+  // appointments today + tomorrow so the owner always sees at a glance how
+  // many bookings are coming up.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+
+    const upcoming = state.appointments.filter(
+      (a) =>
+        (a.status === "confirmed" || a.status === "pending") &&
+        (a.date === todayStr || a.date === tomorrowStr)
+    );
+
+    Notifications.setBadgeCountAsync(upcoming.length).catch(() => {});
+  }, [state.appointments]);
+
   // tRPC mutation to save push token to server
   const updateBusiness = trpc.business.update.useMutation();
 
