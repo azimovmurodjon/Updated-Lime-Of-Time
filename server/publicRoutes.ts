@@ -1702,7 +1702,9 @@ function baseStyles(): string {
       .cal-day.selected { border-color:var(--accent); background:var(--bg-selected); color:var(--accent-dark); font-weight:700; }
       .cal-day.disabled { opacity:0.25; cursor:not-allowed; color:var(--text-light); }
       .cal-day.empty { cursor:default; }
-      .cal-day.today { font-weight:700; color:var(--accent); }
+      .cal-day.today { font-weight:700; color:var(--accent); border-color:rgba(var(--accent-rgb,10,126,164),0.35); }
+      .cal-day.today .today-label { display:block; font-size:8px; font-weight:700; color:var(--accent); line-height:1; margin-top:1px; text-transform:uppercase; letter-spacing:0.02em; }
+      .cal-day:not(.today) .today-label { display:none; }
       .cal-day.temp-closed { background:rgba(239,68,68,0.1); color:#ef4444; cursor:not-allowed; text-decoration:line-through; opacity:0.85; }
       .cal-day.temp-closed:hover { background:rgba(239,68,68,0.15); }
       .loc-closed-banner { background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.4); border-radius:12px; padding:14px 16px; margin-bottom:16px; display:none; }
@@ -2487,7 +2489,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         if (isSelected) cls += " selected";
         if (isToday && !isDisabled) cls += " today";
         // Working future days get a data-loading attribute, will be updated after slot check
-        html += '<div class="' + cls + '" id="day-' + ds + '" data-date="' + ds + '"' + (!isDisabled ? ' onclick="selectDate(&apos;' + ds + '&apos;)"' : '') + '><span>' + day + '</span></div>';
+        html += '<div class="' + cls + '" id="day-' + ds + '" data-date="' + ds + '"' + (!isDisabled ? ' onclick="selectDate(&apos;' + ds + '&apos;)"' : '') + '><span>' + day + '</span><span class="today-label">Today</span></div>';
         if (!isPast && isWorking) workingDates.push(ds);
       }
       grid.innerHTML = html;

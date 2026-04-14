@@ -649,7 +649,8 @@ export default function PublicBookingScreen() {
                 {dateOptions.map((opt) => {
                   const dateObj = new Date(opt.date + "T12:00:00");
                   const isSelected = opt.date === selectedDate;
-                  const dayName = dateObj.toLocaleDateString("en-US", { weekday: "short" });
+                  const isToday = opt.date === formatDateStr(new Date());
+                  const dayName = isToday ? "Today" : dateObj.toLocaleDateString("en-US", { weekday: "short" });
                   const dayNum = dateObj.getDate();
                   const isUnavailable = opt.closed || opt.noSlots;
                   return (
@@ -665,12 +666,12 @@ export default function PublicBookingScreen() {
                         styles.dateChip,
                         {
                           backgroundColor: isSelected ? colors.primary : isUnavailable ? colors.border + "30" : colors.surface,
-                          borderColor: isSelected ? colors.primary : colors.border,
+                          borderColor: isSelected ? colors.primary : isToday && !isUnavailable ? colors.primary + "60" : colors.border,
                           opacity: isUnavailable ? 0.35 : pressed ? 0.7 : 1,
                         },
                       ]}
                     >
-                      <Text style={{ fontSize: 11, fontWeight: "500", color: isSelected ? "#FFFFFF" : colors.muted }}>{dayName}</Text>
+                      <Text style={{ fontSize: 11, fontWeight: isToday ? "700" : "500", color: isSelected ? "#FFFFFF" : isToday ? colors.primary : colors.muted }}>{dayName}</Text>
                       <Text style={{ fontSize: 18, fontWeight: "700", color: isSelected ? "#FFFFFF" : isUnavailable ? colors.muted : colors.foreground, lineHeight: 24 }}>{dayNum}</Text>
                       {opt.closed && <Text style={{ fontSize: 9, color: colors.error, fontWeight: "600" }}>OFF</Text>}
                       {!opt.closed && opt.noSlots && <Text style={{ fontSize: 9, color: colors.warning, fontWeight: "600" }}>FULL</Text>}

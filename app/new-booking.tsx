@@ -790,7 +790,8 @@ export default function NewBookingScreen() {
               {dateOptions.map((opt) => {
                 const dateObj = new Date(opt.date + "T12:00:00");
                 const isSelected = opt.date === selectedDate;
-                const dayName = dateObj.toLocaleDateString("en-US", { weekday: "short" });
+                const isToday = opt.date === formatDateStr(new Date());
+                const dayName = isToday ? "Today" : dateObj.toLocaleDateString("en-US", { weekday: "short" });
                 const dayNum = dateObj.getDate();
                 const isUnavailable = opt.closed || opt.noSlots;
                 return (
@@ -806,14 +807,14 @@ export default function NewBookingScreen() {
                       styles.dateChip,
                       {
                         backgroundColor: isSelected ? colors.primary : isUnavailable ? colors.border + "30" : colors.surface,
-                        borderColor: isSelected ? colors.primary : colors.border,
+                        borderColor: isSelected ? colors.primary : isToday && !isUnavailable ? colors.primary + "60" : colors.border,
                         opacity: isUnavailable ? 0.35 : pressed ? 0.7 : 1,
                       },
                     ]}
                   >
                     <Text
                       className="text-xs font-medium"
-                      style={{ color: isSelected ? "#FFFFFF" : colors.muted }}
+                      style={{ color: isSelected ? "#FFFFFF" : isToday ? colors.primary : colors.muted, fontWeight: isToday ? "700" : "500" }}
                     >
                       {dayName}
                     </Text>
