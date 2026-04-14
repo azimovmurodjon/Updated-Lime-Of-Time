@@ -164,6 +164,8 @@ function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         clients: state.clients.filter((c) => c.id !== action.payload),
+        // Keep appointments so history is preserved (they become orphaned but still accessible)
+        // Keep reviews so they are preserved even after client is deleted
       };
     case "ADD_APPOINTMENT":
       return { ...state, appointments: [...state.appointments, action.payload] };
@@ -585,6 +587,27 @@ export function dbCustomScheduleToLocal(cs: any): CustomScheduleDay {
   };
 }
 
+/** Normalize working hours keys from any format (Mon/monday/Monday) to full lowercase (monday, tuesday, ...) */
+function normalizeWorkingHours(wh: Record<string, any> | null | undefined): Record<string, any> {
+  if (!wh) return DEFAULT_WORKING_HOURS;
+  const SHORT_TO_FULL: Record<string, string> = {
+    mon: "monday", tue: "tuesday", wed: "wednesday",
+    thu: "thursday", fri: "friday", sat: "saturday", sun: "sunday",
+  };
+  const normalized: Record<string, any> = {};
+  for (const [key, val] of Object.entries(wh)) {
+    const lower = key.toLowerCase();
+    const fullKey = SHORT_TO_FULL[lower] ?? lower; // already full → keep as-is
+    const defaults = DEFAULT_WORKING_HOURS[fullKey] ?? { enabled: false, start: "09:00", end: "17:00" };
+    normalized[fullKey] = { start: defaults.start, end: defaults.end, ...val };
+  }
+  // Ensure all 7 days are present
+  for (const day of Object.keys(DEFAULT_WORKING_HOURS)) {
+    if (!normalized[day]) normalized[day] = { ...DEFAULT_WORKING_HOURS[day] };
+  }
+  return normalized;
+}
+
 export function dbOwnerToSettings(owner: any): Partial<BusinessSettings> {
   return {
     businessName: owner.businessName,
@@ -595,7 +618,7 @@ export function dbOwnerToSettings(owner: any): Partial<BusinessSettings> {
     onboardingComplete: owner.onboardingComplete ?? false,
     businessLogoUri: owner.businessLogoUri ?? "",
     scheduleMode: owner.scheduleMode ?? "weekly",
-    workingHours: owner.workingHours ?? DEFAULT_WORKING_HOURS,
+    workingHours: normalizeWorkingHours(owner.workingHours),
     cancellationPolicy: owner.cancellationPolicy ?? DEFAULT_CANCELLATION_POLICY,
     bufferTime: owner.bufferTime ?? 0,
     customSlug: owner.customSlug ?? "",

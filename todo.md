@@ -931,3 +931,6 @@
 - [ ] Build modern guided first-launch tour with rich step-by-step Settings walkthrough popups
 - [x] App icon badge count — set iOS/Android home screen badge to number of upcoming appointments today
 - [x] Settings tab badge — show red dot badge on Settings tab when push notification permission is denied
+- [x] Fix: cannot delete client — investigate and fix deletion bug
+- [x] Fix: reviews from deleted clients must be preserved (not cascade-deleted)
+- [x] Fix: Schedule & Hours screen in Settings throws error — investigate and fix crash

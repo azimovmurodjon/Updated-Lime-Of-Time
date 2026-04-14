@@ -101,19 +101,29 @@ export default function ClientDetailScreen() {
   const handleDelete = useCallback(() => {
     if (!client) return;
     const doDelete = () => {
-      dispatch({ type: "DELETE_CLIENT", payload: client.id });
-      syncToDb({ type: "DELETE_CLIENT", payload: client.id });
+      // Navigate first to avoid re-render on a now-deleted client
       router.back();
+      // Small delay so navigation is committed before state update
+      setTimeout(() => {
+        dispatch({ type: "DELETE_CLIENT", payload: client.id });
+        syncToDb({ type: "DELETE_CLIENT", payload: client.id });
+      }, 50);
     };
     if (Platform.OS === "web") {
-      doDelete();
+      if (window.confirm(`Delete ${client.name}? This cannot be undone.`)) {
+        doDelete();
+      }
     } else {
-      Alert.alert("Delete Client", "This will remove the client permanently.", [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: doDelete },
-      ]);
+      Alert.alert(
+        "Delete Client",
+        `Remove ${client.name} permanently? Their reviews will be kept.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Delete", style: "destructive", onPress: doDelete },
+        ]
+      );
     }
-  }, [client, dispatch, router]);
+  }, [client, dispatch, syncToDb, router]);
 
   const handleAddReview = useCallback(() => {
     if (!id) return;

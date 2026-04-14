@@ -335,12 +335,7 @@ export async function updateClient(
 export async function deleteClient(localId: string, businessOwnerId: number): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  // Delete related reviews and appointments first
-  await db
-    .delete(reviews)
-    .where(
-      and(eq(reviews.clientLocalId, localId), eq(reviews.businessOwnerId, businessOwnerId))
-    );
+  // Delete appointments for this client first (reviews are intentionally preserved)
   await db
     .delete(appointments)
     .where(
@@ -349,6 +344,8 @@ export async function deleteClient(localId: string, businessOwnerId: number): Pr
         eq(appointments.businessOwnerId, businessOwnerId)
       )
     );
+  // Delete the client record (reviews are kept — their clientLocalId becomes an orphan reference
+  // but the review data remains accessible in the business owner's review list)
   await db
     .delete(clients)
     .where(and(eq(clients.localId, localId), eq(clients.businessOwnerId, businessOwnerId)));

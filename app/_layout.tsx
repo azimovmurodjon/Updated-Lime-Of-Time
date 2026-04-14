@@ -136,6 +136,19 @@ function RootLayout() {
               <Stack.Screen name="review/[slug]" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="gift/[code]" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="oauth/callback" />
+              <Stack.Screen name="schedule-settings" options={{ presentation: "card" }} />
+              <Stack.Screen name="booking-policies" options={{ presentation: "card" }} />
+              <Stack.Screen name="business-profile" options={{ presentation: "card" }} />
+              <Stack.Screen name="locations" options={{ presentation: "card" }} />
+              <Stack.Screen name="location-form" options={{ presentation: "fullScreenModal" }} />
+              <Stack.Screen name="reviews" options={{ presentation: "card" }} />
+              <Stack.Screen name="notification-settings" options={{ presentation: "card" }} />
+              <Stack.Screen name="data-export" options={{ presentation: "card" }} />
+              <Stack.Screen name="staff" options={{ presentation: "card" }} />
+              <Stack.Screen name="staff-form" options={{ presentation: "fullScreenModal" }} />
+              <Stack.Screen name="staff-calendar" options={{ presentation: "card" }} />
+              <Stack.Screen name="product-form" options={{ presentation: "fullScreenModal" }} />
+              <Stack.Screen name="sms-templates" options={{ presentation: "card" }} />
             </Stack>
             <StatusBar style="auto" />
             </NotificationProvider>
