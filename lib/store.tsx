@@ -997,21 +997,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           }
           case "UPDATE_SERVICE": {
             const svc = action.payload as Service;
-            // Find the DB record by localId
-            const dbSvc = await trpcUtils.services.list.fetch({ businessOwnerId: ownerId });
-            const match = dbSvc.find((s: any) => s.localId === svc.id);
-            if (match) {
-              await updateServiceMut.mutateAsync({
-                dbId: match.id,
-                businessOwnerId: ownerId,
-                name: svc.name,
-                duration: svc.duration,
-                price: String(svc.price),
-                color: svc.color,
-                category: svc.category,
-                locationIds: svc.locationIds,
-              });
-            }
+            await updateServiceMut.mutateAsync({
+              localId: svc.id,
+              businessOwnerId: ownerId,
+              name: svc.name,
+              duration: svc.duration,
+              price: String(svc.price),
+              color: svc.color,
+              category: svc.category,
+              locationIds: svc.locationIds,
+            });
             break;
           }
           case "DELETE_SERVICE": {

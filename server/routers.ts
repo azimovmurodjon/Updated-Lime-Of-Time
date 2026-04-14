@@ -151,7 +151,7 @@ const servicesRouter = router({
   update: publicProcedure
     .input(
       z.object({
-        dbId: z.number(),
+        localId: z.string(),
         businessOwnerId: z.number(),
         name: z.string().optional(),
         duration: z.number().optional(),
@@ -162,8 +162,10 @@ const servicesRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const { dbId, businessOwnerId, ...data } = input;
-      await db.updateService(dbId, businessOwnerId, data);
+      const { localId, businessOwnerId, ...data } = input;
+      const svc = await db.getServiceByLocalId(localId, businessOwnerId);
+      if (!svc) throw new Error(`Service not found: ${localId}`);
+      await db.updateService(svc.id, businessOwnerId, data);
       return { success: true };
     }),
 

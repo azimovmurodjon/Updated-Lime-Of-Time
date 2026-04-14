@@ -78,7 +78,10 @@ function generateAvailableSlots(
       startMin = timeToMinutes(customDay.startTime || "09:00");
       endMin = timeToMinutes(customDay.endTime || "17:00");
     } else {
-      const wh = workingHours?.[dayName] || workingHours?.[dayName.toLowerCase()];
+      // workingHours keys may be stored as full names ("Monday"), lowercase ("monday"),
+      // or 3-letter abbreviations ("Mon") — check all three forms.
+      const abbr3 = dayName.slice(0, 3);
+      const wh = workingHours?.[dayName] || workingHours?.[dayName.toLowerCase()] || workingHours?.[abbr3] || workingHours?.[abbr3.toLowerCase()];
       if (!wh || !wh.enabled) return [];
       startMin = timeToMinutes(wh.start || "09:00");
       endMin = timeToMinutes(wh.end || "17:00");
@@ -414,9 +417,12 @@ export function registerPublicRoutes(app: Express) {
         }
       }
       // Build weekly working days
+      // workingHours keys may be stored as full names ("Monday"), lowercase ("monday"),
+      // or 3-letter abbreviations ("Mon") — check all three forms.
       const weeklyDays: Record<string, boolean> = {};
       DAYS_OF_WEEK.forEach((day) => {
-        const entry = wh[day] || wh[day.toLowerCase()];
+        const abbr = day.slice(0, 3); // e.g. "Mon", "Tue"
+        const entry = wh[day] || wh[day.toLowerCase()] || wh[abbr] || wh[abbr.toLowerCase()];
         weeklyDays[day] = !!(entry && entry.enabled);
       });
       // Custom overrides filtered to this location (or global overrides if no locationId)

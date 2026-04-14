@@ -262,6 +262,8 @@ export const customSchedule = mysqlTable("custom_schedule", {
   startTime: varchar("startTime", { length: 5 }),
   /** Custom end time HH:MM */
   endTime: varchar("endTime", { length: 5 }),
+  /** Optional location-scoped override (null = global override for all locations) */
+  locationId: varchar("locationId", { length: 100 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
