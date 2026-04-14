@@ -853,6 +853,32 @@ export default function CalendarScreen() {
             <Text style={{ fontSize: 12, color: colors.muted }}>Reset to Business Hours</Text>
           </Pressable>
         )}
+        {hasCustomOverride && !isPast && (
+          <Pressable
+            onPress={() => {
+              // Compute next-week date (same weekday + 7 days)
+              const base = new Date(dateStr + "T12:00:00");
+              base.setDate(base.getDate() + 7);
+              const nextWeekStr = formatDateStr(base);
+              const nextOverride: import('@/lib/types').CustomScheduleDay = {
+                date: nextWeekStr,
+                isOpen: custom!.isOpen,
+                startTime: custom!.startTime,
+                endTime: custom!.endTime,
+              };
+              if (activeLocation) {
+                dispatch({ type: "SET_LOCATION_CUSTOM_SCHEDULE", payload: { locationId: activeLocation.id, day: nextOverride } });
+                syncToDb({ type: "SET_LOCATION_CUSTOM_SCHEDULE", payload: { locationId: activeLocation.id, day: nextOverride } });
+              } else {
+                dispatch({ type: "SET_CUSTOM_SCHEDULE", payload: nextOverride });
+                syncToDb({ type: "SET_CUSTOM_SCHEDULE", payload: nextOverride });
+              }
+            }}
+            style={({ pressed }) => [styles.resetBtn, { opacity: pressed ? 0.7 : 1 }]}
+          >
+            <Text style={{ fontSize: 12, color: colors.primary }}>Repeat Next Week</Text>
+          </Pressable>
+        )}
         {bh && (
           <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6 }}>
             Business Hours: {formatTimeDisplay(bh.start)} – {formatTimeDisplay(bh.end)}

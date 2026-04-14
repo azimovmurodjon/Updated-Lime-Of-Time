@@ -63,6 +63,7 @@ export default function PublicBookingScreen() {
   }, [locationParam, activeLocations]);
 
   // Start at "location" step when multiple locations exist and no pre-selection, otherwise skip to "info"
+  const [refreshKey, setRefreshKey] = useState(0);
   const [step, setStep] = useState<BookingStep>(() => {
     if (preselectedLocationId) return "info";
     return hasMultipleLocations ? "location" : "info";
@@ -128,6 +129,13 @@ export default function PublicBookingScreen() {
     setClientPhone(formatPhoneNumber(text));
   };
 
+  // Effective slot step: use configured slotInterval when non-zero, else auto (service duration capped at 30)
+  const effectiveStep = useMemo(() => {
+    const configured = (state.settings as any).slotInterval ?? 0;
+    const duration = selectedService?.duration ?? state.settings.defaultDuration;
+    return configured > 0 ? configured : Math.min(duration, 30);
+  }, [(state.settings as any).slotInterval, selectedService, state.settings.defaultDuration]);
+
   // Generate available time slots using location-scoped data
   const timeSlots = useMemo(() => {
     const duration = selectedService?.duration ?? state.settings.defaultDuration;
@@ -136,12 +144,12 @@ export default function PublicBookingScreen() {
       duration,
       locationWorkingHours,
       locationAppointments,
-      Math.min(duration, 30),
+      effectiveStep,
       locationCustomSchedule,
       state.settings.scheduleMode,
       state.settings.bufferTime ?? 0
     );
-  }, [selectedDate, locationWorkingHours, locationAppointments, selectedService, locationCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime, state.settings.defaultDuration]);
+  }, [selectedDate, locationWorkingHours, locationAppointments, selectedService, locationCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime, state.settings.defaultDuration, effectiveStep, refreshKey]);
 
   // Date options: next 30 days — mark closed days and days with no available slots
   const dateOptions = useMemo(() => {
@@ -168,7 +176,7 @@ export default function PublicBookingScreen() {
       }
       let noSlots = false;
       if (!closed) {
-        const slots = generateAvailableSlots(ds, duration, locationWorkingHours, locationAppointments, Math.min(duration, 30), locationCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
+        const slots = generateAvailableSlots(ds, duration, locationWorkingHours, locationAppointments, effectiveStep, locationCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
         noSlots = slots.length === 0;
       }
       dates.push({ date: ds, closed, noSlots });
@@ -672,7 +680,15 @@ export default function PublicBookingScreen() {
               </View>
             </ScrollView>
 
-            <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground, marginBottom: 12 }}>Available Times</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground }}>Available Times</Text>
+              <Pressable
+                onPress={() => setRefreshKey((k) => k + 1)}
+                style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, padding: 4 })}
+              >
+                <IconSymbol name="arrow.clockwise" size={18} color={colors.muted} />
+              </Pressable>
+            </View>
             {timeSlots.length === 0 ? (
               <View style={[styles.emptySlots, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <Text style={{ fontSize: 14, color: colors.muted }}>No available times for this date</Text>

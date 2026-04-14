@@ -300,6 +300,9 @@ export function registerPublicRoutes(app: Express) {
       const allSchedule = await db.getCustomScheduleByOwner(owner.id);
       const mode = (owner.scheduleMode as "weekly" | "custom") || "weekly";
       const buffer = (owner as any).bufferTime || 0;
+      // Effective slot step: use configured slotInterval when non-zero, else auto (duration capped at 30)
+      const configuredInterval = (owner as any).slotInterval ?? 0;
+      const getStep = (dur: number) => configuredInterval > 0 ? configuredInterval : Math.min(dur, 30);
 
       // When a specific location is requested, use single-location logic (staff > location > global)
       if (locationLocalId) {
@@ -320,7 +323,7 @@ export function registerPublicRoutes(app: Express) {
             effectiveWorkingHours = staffWh;
           }
         }
-        const slots = generateAvailableSlots(date, duration, effectiveWorkingHours, appts, Math.min(duration, 30), schedule, mode, buffer);
+        const slots = generateAvailableSlots(date, duration, effectiveWorkingHours, appts, getStep(duration), schedule, mode, buffer);
         // Single-location: each slot has exactly 1 location
         const slotLocationCounts: Record<string, number> = {};
         slots.forEach((s) => { slotLocationCounts[s] = 1; });
@@ -344,7 +347,7 @@ export function registerPublicRoutes(app: Express) {
             effectiveWorkingHours = staffWh;
           }
         }
-        const slots = generateAvailableSlots(date, duration, effectiveWorkingHours, allAppts, Math.min(duration, 30), allSchedule, mode, buffer);
+        const slots = generateAvailableSlots(date, duration, effectiveWorkingHours, allAppts, getStep(duration), allSchedule, mode, buffer);
         const slotLocationCounts: Record<string, number> = {};
         slots.forEach((s) => { slotLocationCounts[s] = 1; });
         res.json({ date, slots, slotLocationCounts });
@@ -373,7 +376,7 @@ export function registerPublicRoutes(app: Express) {
         }
         // Staff hours override location hours
         const effectiveWH = staffWorkingHours ?? locWH;
-        const locSlots = generateAvailableSlots(date, duration, effectiveWH, locAppts, Math.min(duration, 30), locSchedule, mode, buffer);
+        const locSlots = generateAvailableSlots(date, duration, effectiveWH, locAppts, getStep(duration), locSchedule, mode, buffer);
         locSlots.forEach((s) => { slotLocationCounts[s] = (slotLocationCounts[s] ?? 0) + 1; });
       }
 

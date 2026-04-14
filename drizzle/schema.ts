@@ -63,6 +63,8 @@ export const businessOwners = mysqlTable("business_owners", {
   cancellationPolicy: json("cancellationPolicy"),
   /** Buffer time between appointments in minutes (0 = no buffer) */
   bufferTime: int("bufferTime").default(0).notNull(),
+  /** Slot interval in minutes (0 = auto, match service duration capped at 30) */
+  slotInterval: int("slotInterval").default(0).notNull(),
   /** Custom booking slug (overrides auto-generated slug from business name) */
   customSlug: varchar("customSlug", { length: 100 }),
   /** Business Hours end date: ISO date string YYYY-MM-DD, null = open-ended */

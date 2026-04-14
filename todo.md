@@ -942,3 +942,6 @@
 - [ ] All Locations calendar: show per-slot location count badge (e.g. "3 locations available")
 - [ ] Booking flow: auto-assign correct location when slot selected in All Locations mode
 - [ ] Multi-location availability: consistent across calendar, new-booking, staff-calendar screens
+- [x] Configurable slot step interval in Settings (5/10/15/30 min picker)
+- [x] Refresh availability button on booking time slot grid (new-booking + booking screens)
+- [x] Workday "Repeat next week" quick-copy button in calendar Workday panel

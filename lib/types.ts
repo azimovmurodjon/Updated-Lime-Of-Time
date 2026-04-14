@@ -260,6 +260,7 @@ export interface BusinessSettings {
   businessLogoUri: string; // local URI for custom uploaded logo
   scheduleMode: "weekly" | "custom"; // which schedule drives availability
   bufferTime: number; // minutes between appointments (0 = no buffer)
+  slotInterval: number; // time slot step in minutes (5, 10, 15, 30) — 0 means auto (match service duration, capped at 30)
   customSlug: string; // custom booking page slug
   businessHoursEndDate: string | null; // ISO date string "YYYY-MM-DD" or null for open-ended
   autoCompleteEnabled: boolean; // automatically mark appointments as completed after end time + delay

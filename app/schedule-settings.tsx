@@ -232,6 +232,13 @@ export default function ScheduleSettingsScreen() {
   const [customBufferInput, setCustomBufferInput] = useState("");
   const [showCustomBuffer, setShowCustomBuffer] = useState(false);
 
+  // ── Slot interval ──────────────────────────────────────────────────────────
+  const setSlotInterval = useCallback((mins: number) => {
+    const action = { type: "UPDATE_SETTINGS" as const, payload: { slotInterval: mins } };
+    dispatch(action);
+    syncToDb(action);
+  }, [dispatch, syncToDb]);
+
   const toggleActiveUntil = useCallback(() => {
     const currentlyOn = activeUntilEnabled || showActiveUntilCal;
     if (currentlyOn) {
@@ -461,6 +468,40 @@ export default function ScheduleSettingsScreen() {
         </View>
       )}
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: hp, paddingVertical: 16, paddingBottom: 60 }}>
+
+        {/* ── Slot Interval ────────────────────────────────────────────────── */}
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.cardRow}>
+            <IconSymbol name="timer" size={20} color="#2196F3" />
+            <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground, marginLeft: 12 }}>Slot Interval</Text>
+          </View>
+          <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10, marginTop: 4 }}>
+            How often time slots appear on the booking grid. "Auto" matches the service duration (max 30 min).
+          </Text>
+          <View style={styles.chipRow}>
+            {([0, 5, 10, 15, 30] as const).map((mins) => {
+              const isSelected = (settings.slotInterval ?? 0) === mins;
+              return (
+                <Pressable
+                  key={mins}
+                  onPress={() => setSlotInterval(mins)}
+                  style={({ pressed }) => [
+                    styles.chip,
+                    {
+                      backgroundColor: isSelected ? colors.primary : colors.background,
+                      borderColor: isSelected ? colors.primary : colors.border,
+                      opacity: pressed ? 0.7 : 1,
+                    },
+                  ]}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: "500", color: isSelected ? "#FFFFFF" : colors.foreground }}>
+                    {mins === 0 ? "Auto" : `${mins}m`}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
 
         {/* ── Buffer Time ──────────────────────────────────────────────────── */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>

@@ -61,6 +61,7 @@ const initialSettings: BusinessSettings = {
   businessLogoUri: "",
   scheduleMode: "weekly",
   bufferTime: 0,
+  slotInterval: 0, // 0 = auto (match service duration, capped at 30 min)
   customSlug: "",
   businessHoursEndDate: null,
   autoCompleteEnabled: false,
@@ -621,6 +622,7 @@ export function dbOwnerToSettings(owner: any): Partial<BusinessSettings> {
     workingHours: normalizeWorkingHours(owner.workingHours),
     cancellationPolicy: owner.cancellationPolicy ?? DEFAULT_CANCELLATION_POLICY,
     bufferTime: owner.bufferTime ?? 0,
+    slotInterval: (owner as any).slotInterval ?? 0,
     customSlug: owner.customSlug ?? "",
     businessHoursEndDate: (owner as any).businessHoursEndDate ?? null,
     autoCompleteEnabled: (owner as any).autoCompleteEnabled ?? false,
@@ -1267,6 +1269,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             if (settings.workingHours !== undefined) updateData.workingHours = settings.workingHours;
             if (settings.cancellationPolicy !== undefined) updateData.cancellationPolicy = settings.cancellationPolicy;
             if ((settings as any).bufferTime !== undefined) updateData.bufferTime = (settings as any).bufferTime;
+            if ((settings as any).slotInterval !== undefined) updateData.slotInterval = (settings as any).slotInterval;
             if ((settings as any).customSlug !== undefined) updateData.customSlug = (settings as any).customSlug;
             if ((settings as any).businessHoursEndDate !== undefined) updateData.businessHoursEndDate = (settings as any).businessHoursEndDate;
             if ((settings as any).autoCompleteEnabled !== undefined) updateData.autoCompleteEnabled = (settings as any).autoCompleteEnabled;

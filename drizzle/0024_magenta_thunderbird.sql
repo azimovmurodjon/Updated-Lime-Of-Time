@@ -1,0 +1,1 @@
+ALTER TABLE `business_owners` ADD `slotInterval` int DEFAULT 0 NOT NULL;

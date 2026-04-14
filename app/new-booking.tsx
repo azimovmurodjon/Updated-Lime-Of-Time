@@ -54,6 +54,7 @@ export default function NewBookingScreen() {
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   // Pre-select the currently active location (single source of truth).
   // When activeLocationId is null (All mode), keep null so the date picker shows all locations.
+  const [refreshKey, setRefreshKey] = useState(0);
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(() => {
     // If user is in "All" mode (null), do not pre-select any location
     if (state.activeLocationId === null && state.locations.filter((l) => l.active).length > 1) {
@@ -131,6 +132,12 @@ export default function NewBookingScreen() {
     return basePrice + cart.reduce((sum, item) => sum + item.price, 0);
   }, [selectedService, cart]);
 
+  // Effective slot step: use configured slotInterval when non-zero, else auto (service duration capped at 30)
+  const effectiveStep = useMemo(() => {
+    const configured = (state.settings as any).slotInterval ?? 0;
+    return configured > 0 ? configured : Math.min(totalDuration, 30);
+  }, [(state.settings as any).slotInterval, totalDuration]);
+
   // Auto-detect applicable discount
   const appliedDiscount = useMemo(() => {
     if (!selectedServiceId || !selectedDate || !selectedTime) return null;
@@ -164,7 +171,7 @@ export default function NewBookingScreen() {
         : state.settings.workingHours;
       const locAppts = state.appointments.filter((a) => a.locationId === loc.id);
       const slots = generateAvailableSlots(
-        selectedDate, totalDuration, locWH, locAppts, Math.min(totalDuration, 30),
+        selectedDate, totalDuration, locWH, locAppts, effectiveStep,
         locCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0
       );
       result[loc.id] = slots.includes(selectedTime);
@@ -254,7 +261,7 @@ export default function NewBookingScreen() {
         totalDuration,
         locationWorkingHours,
         locationAppts,
-        Math.min(totalDuration, 30),
+        effectiveStep,
         activeCustomSchedule,
         state.settings.scheduleMode,
         state.settings.bufferTime ?? 0
@@ -270,7 +277,7 @@ export default function NewBookingScreen() {
         : state.settings.workingHours;
       const locAppts = state.appointments.filter((a) => a.locationId === loc.id);
       const slots = generateAvailableSlots(
-        selectedDate, totalDuration, locWH, locAppts, Math.min(totalDuration, 30),
+        selectedDate, totalDuration, locWH, locAppts, effectiveStep,
         locCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0
       );
       slots.forEach((s) => slotSet.add(s));
@@ -280,7 +287,7 @@ export default function NewBookingScreen() {
   }, [isAllMode, selectedDate, locationWorkingHours, locationAppts, totalDuration,
       activeCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime,
       activeLocations, locationOpenOnDate, state.appointments, state.settings.workingHours,
-      (state as any).locationCustomSchedule]);
+      (state as any).locationCustomSchedule, refreshKey]);
 
   // Per-slot location count: how many locations are available for each time slot in All mode.
   // Used to show a badge like "2 locations" on the time chip when multiple locations share a slot.
@@ -295,7 +302,7 @@ export default function NewBookingScreen() {
         : state.settings.workingHours;
       const locAppts = state.appointments.filter((a) => a.locationId === loc.id);
       const slots = generateAvailableSlots(
-        selectedDate, totalDuration, locWH, locAppts, Math.min(totalDuration, 30),
+        selectedDate, totalDuration, locWH, locAppts, effectiveStep,
         locCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0
       );
       slots.forEach((s) => { counts[s] = (counts[s] ?? 0) + 1; });
@@ -391,12 +398,12 @@ export default function NewBookingScreen() {
               ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
               : state.settings.workingHours;
             const locAppts = state.appointments.filter((a) => a.locationId === loc.id);
-            const slots = generateAvailableSlots(ds, totalDuration, locWH, locAppts, Math.min(totalDuration, 30), locCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
+            const slots = generateAvailableSlots(ds, totalDuration, locWH, locAppts, effectiveStep, locCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
             if (slots.length > 0) { anySlots = true; break; }
           }
           noSlots = !anySlots;
         } else {
-          const slots = generateAvailableSlots(ds, totalDuration, locationWorkingHours, locationAppts, Math.min(totalDuration, 30), activeCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
+          const slots = generateAvailableSlots(ds, totalDuration, locationWorkingHours, locationAppts, effectiveStep, activeCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
           noSlots = slots.length === 0;
         }
       }
@@ -825,7 +832,15 @@ export default function NewBookingScreen() {
           </ScrollView>
 
           {/* Time Slots */}
-          <Text className="text-xs font-medium text-muted mb-2 ml-1">Available Times</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8, marginHorizontal: 4 }}>
+            <Text className="text-xs font-medium text-muted">Available Times</Text>
+            <Pressable
+              onPress={() => setRefreshKey((k) => k + 1)}
+              style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, padding: 4 })}
+            >
+              <IconSymbol name="arrow.clockwise" size={16} color={colors.muted} />
+            </Pressable>
+          </View>
           {timeSlots.length === 0 ? (
             <View className="items-center py-8 bg-surface rounded-2xl border border-border">
               <Text className="text-sm text-muted">No available times for this date</Text>
