@@ -267,6 +267,14 @@ export default function DiscountsScreen() {
       const dateLabels = (item.dates ?? []).length > 0
         ? (item.dates ?? []).slice(0, 3).map(formatDateLabel).join(", ") + ((item.dates ?? []).length > 3 ? ` +${(item.dates ?? []).length - 3} more` : "")
         : "No dates selected";
+      // Count how many completed appointments used this discount by name
+      const usageCount = state.appointments.filter(
+        (a) => a.status === "completed" && a.discountName === item.name
+      ).length;
+      // Total revenue saved via this discount
+      const totalSaved = state.appointments
+        .filter((a) => a.status === "completed" && a.discountName === item.name)
+        .reduce((sum, a) => sum + (a.discountAmount ?? 0), 0);
 
       return (
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: item.active ? 1 : 0.6 }]}>
@@ -282,6 +290,21 @@ export default function DiscountsScreen() {
               thumbColor={item.active ? colors.primary : colors.muted}
             />
           </View>
+          {/* Usage stats */}
+          {usageCount > 0 && (
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: 10, marginTop: 2 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: colors.primary + "12", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5 }}>
+                <IconSymbol name="checkmark.circle.fill" size={13} color={colors.primary} />
+                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.primary }}>{usageCount} uses</Text>
+              </View>
+              {totalSaved > 0 && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: colors.success + "12", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5 }}>
+                  <IconSymbol name="tag.fill" size={13} color={colors.success} />
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: colors.success }}>${totalSaved.toFixed(0)} saved</Text>
+                </View>
+              )}
+            </View>
+          )}
           <View style={styles.cardDetails}>
             <View style={styles.detailRow}>
               <IconSymbol name="clock.fill" size={14} color={colors.muted} />
@@ -323,7 +346,7 @@ export default function DiscountsScreen() {
         </View>
       );
     },
-    [colors, getServiceById, state.products, handleEdit, handleDelete, handleToggleActive]
+    [colors, getServiceById, state.products, state.appointments, handleEdit, handleDelete, handleToggleActive]
   );
 
   const formContent = showForm ? (

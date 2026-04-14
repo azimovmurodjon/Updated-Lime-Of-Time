@@ -399,7 +399,12 @@ export default function HomeScreen() {
     day: "numeric",
   });
 
-  const todayAppts = useMemo(() => filterByLocation(getAppointmentsForDate(todayStr)), [todayStr, selectedLocationFilter, filterByLocation, getAppointmentsForDate]);
+  const todayAppts = useMemo(() => {
+    const all = filterByLocation(getAppointmentsForDate(todayStr));
+    return all
+      .filter((a) => a.status === "confirmed" || a.status === "pending")
+      .sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
+  }, [todayStr, selectedLocationFilter, filterByLocation, getAppointmentsForDate]);
 
   // ─── Analytics ──────────────────────────────────────────────────
   const analytics = useMemo(() => {
@@ -977,8 +982,30 @@ export default function HomeScreen() {
         {/* ─── Revenue Trend (6-month) ──────────────────────────────── */}
         <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 12 }]}>
           <View style={styles.chartHeader}>
-            <Text style={[styles.chartTitle, { color: colors.foreground }]}>Revenue Trend</Text>
-            <Text style={[styles.chartSubtitle, { color: colors.muted }]}>Last 6 months</Text>
+            <View>
+              <Text style={[styles.chartTitle, { color: colors.foreground }]}>Revenue Trend</Text>
+              <Text style={[styles.chartSubtitle, { color: colors.muted }]}>Last 6 months</Text>
+            </View>
+            <View style={{ alignItems: "flex-end" }}>
+              <Text style={{ fontSize: 18, fontWeight: "800", color: colors.foreground }}>
+                ${analytics.monthlyData.reduce((s, d) => s + d.value, 0).toLocaleString()}
+              </Text>
+              {(() => {
+                const months = analytics.monthlyData;
+                const prev = months[months.length - 2]?.value ?? 0;
+                const curr = months[months.length - 1]?.value ?? 0;
+                const pct = prev > 0 ? Math.round(((curr - prev) / prev) * 100) : curr > 0 ? 100 : 0;
+                if (pct === 0) return null;
+                return (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 }}>
+                    <IconSymbol name={pct > 0 ? "arrow.up.right" : "arrow.down.right"} size={11} color={pct > 0 ? colors.success : colors.error} />
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: pct > 0 ? colors.success : colors.error }}>
+                      {Math.abs(pct)}% vs last month
+                    </Text>
+                  </View>
+                );
+              })()}
+            </View>
           </View>
           <MiniBarChart data={analytics.monthlyData} height={isTablet ? 220 : 190} width={contentWidth - 32} />
         </View>

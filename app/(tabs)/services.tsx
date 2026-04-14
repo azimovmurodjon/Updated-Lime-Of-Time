@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { FlatList, Text, View, Pressable, StyleSheet } from "react-native";
+import { useState, useMemo } from "react";
+import { FlatList, Text, View, Pressable, StyleSheet, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
@@ -15,6 +15,20 @@ export default function ServicesScreen() {
   const router = useRouter();
   const { hp, maxContentWidth } = useResponsive();
   const [activeTab, setActiveTab] = useState<Tab>("services");
+  const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
+
+  // Derive sorted unique brands from products
+  const allBrands = useMemo(() => {
+    const brands = new Set<string>();
+    state.products.forEach((p) => { if (p.brand) brands.add(p.brand); });
+    return Array.from(brands).sort();
+  }, [state.products]);
+
+  // Filtered products by selected brand
+  const filteredProducts = useMemo(() => {
+    if (!selectedBrand) return state.products;
+    return state.products.filter((p) => p.brand === selectedBrand);
+  }, [state.products, selectedBrand]);
 
   return (
     <ScreenContainer className="pt-2" style={{ paddingHorizontal: hp, alignSelf: "center", width: "100%", maxWidth: maxContentWidth }} tabletMaxWidth={0}>
@@ -218,8 +232,34 @@ export default function ServicesScreen() {
 
       {/* Products List */}
       {activeTab === "products" && (
+        <>
+        {/* Brand filter chips */}
+        {allBrands.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 10, gap: 8, flexDirection: "row" }}
+            style={{ marginBottom: 4 }}
+          >
+            <Pressable
+              onPress={() => setSelectedBrand(null)}
+              style={[styles.brandChip, { backgroundColor: !selectedBrand ? colors.primary : colors.surface, borderColor: !selectedBrand ? colors.primary : colors.border }]}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "600", color: !selectedBrand ? "#fff" : colors.muted }}>All</Text>
+            </Pressable>
+            {allBrands.map((brand) => (
+              <Pressable
+                key={brand}
+                onPress={() => setSelectedBrand(selectedBrand === brand ? null : brand)}
+                style={[styles.brandChip, { backgroundColor: selectedBrand === brand ? colors.primary : colors.surface, borderColor: selectedBrand === brand ? colors.primary : colors.border }]}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "600", color: selectedBrand === brand ? "#fff" : colors.muted }} numberOfLines={1}>{brand}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
         <FlatList
-          data={state.products}
+          data={filteredProducts}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
@@ -303,6 +343,7 @@ export default function ServicesScreen() {
           }
           contentContainerStyle={{ paddingBottom: 80 }}
         />
+        </>  
       )}
     </ScreenContainer>
   );
@@ -383,5 +424,11 @@ const styles = StyleSheet.create({
   emptyContainer: {
     alignItems: "center",
     paddingVertical: 48,
+  },
+  brandChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
   },
 });
