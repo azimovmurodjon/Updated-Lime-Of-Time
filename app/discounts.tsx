@@ -61,6 +61,7 @@ export default function DiscountsScreen() {
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("12:00");
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
+  const [repeatWeekly, setRepeatWeekly] = useState(false);
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[] | null>(null);
   const [selectedProductIds, setSelectedProductIds] = useState<string[] | null>(null);
   const [showTimePicker, setShowTimePicker] = useState<"start" | "end" | null>(null);
@@ -127,6 +128,7 @@ export default function DiscountsScreen() {
     setStartTime("09:00");
     setEndTime("12:00");
     setSelectedDates([]);
+    setRepeatWeekly(false);
     setSelectedServiceIds(null);
     setSelectedProductIds(null);
     setEditingId(null);
@@ -140,10 +142,30 @@ export default function DiscountsScreen() {
     setStartTime(disc.startTime);
     setEndTime(disc.endTime);
     setSelectedDates(disc.dates ?? []);
+    setRepeatWeekly(false);
     setSelectedServiceIds(disc.serviceIds);
     setSelectedProductIds(disc.productIds ?? null);
     setShowForm(true);
   }, []);
+
+  // Generate weekly repeat dates for all weekdays present in selectedDates, 12 weeks ahead
+  const buildFinalDates = useCallback((baseDates: string[]): string[] => {
+    if (!repeatWeekly || baseDates.length === 0) return baseDates;
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
+    const weekdays = new Set(baseDates.map((d) => new Date(d + 'T12:00:00').getDay()));
+    const result = new Set<string>(baseDates);
+    weekdays.forEach((wd) => {
+      for (let w = 1; w <= 12; w++) {
+        const d = new Date(todayDate);
+        const diff = ((wd - d.getDay()) + 7) % 7 || 7;
+        d.setDate(d.getDate() + diff + (w - 1) * 7);
+        const str = toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
+        result.add(str);
+      }
+    });
+    return Array.from(result).sort();
+  }, [repeatWeekly]);
 
   const handleSave = useCallback(() => {
     if (!name.trim()) {
@@ -159,6 +181,7 @@ export default function DiscountsScreen() {
       Alert.alert("Required", "Please select at least one date for this discount.");
       return;
     }
+    const finalDates = buildFinalDates(selectedDates);
 
     if (editingId) {
       const updated: Discount = {
@@ -168,7 +191,7 @@ export default function DiscountsScreen() {
         startTime,
         endTime,
         daysOfWeek: [],
-        dates: selectedDates,
+        dates: finalDates,
         serviceIds: selectedServiceIds,
         productIds: selectedProductIds,
         active: state.discounts.find((d) => d.id === editingId)?.active ?? true,
@@ -184,7 +207,7 @@ export default function DiscountsScreen() {
         startTime,
         endTime,
         daysOfWeek: [],
-        dates: selectedDates,
+        dates: finalDates,
         serviceIds: selectedServiceIds,
         productIds: selectedProductIds,
         active: true,
@@ -194,7 +217,7 @@ export default function DiscountsScreen() {
       syncToDb({ type: "ADD_DISCOUNT", payload: newDiscount });
     }
     resetForm();
-  }, [name, percentage, startTime, endTime, selectedDates, selectedServiceIds, selectedProductIds, editingId, state.discounts, dispatch, syncToDb, resetForm]);
+  }, [name, percentage, startTime, endTime, selectedDates, selectedServiceIds, selectedProductIds, editingId, state.discounts, dispatch, syncToDb, resetForm, buildFinalDates]);
 
   const handleDelete = useCallback(
     (id: string) => {
@@ -463,12 +486,29 @@ export default function DiscountsScreen() {
           <View style={styles.selectedSummary}>
             <Text style={[styles.selectedCount, { color: colors.primary }]}>
               {selectedDates.length} date{selectedDates.length !== 1 ? "s" : ""} selected
+              {repeatWeekly && selectedDates.length > 0 ? ` (+${Math.max(0, buildFinalDates(selectedDates).length - selectedDates.length)} weekly)` : ""}
             </Text>
             <Pressable onPress={() => setSelectedDates([])} style={({ pressed }) => [pressed && { opacity: 0.6 }]}>
               <Text style={{ color: colors.error, fontSize: 12, fontWeight: "600" }}>Clear All</Text>
             </Pressable>
           </View>
         )}
+      </View>
+
+      {/* Repeat Weekly Toggle */}
+      <View style={[styles.repeatRow, { backgroundColor: colors.background, borderColor: colors.border }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground, lineHeight: 20 }}>Repeat Weekly</Text>
+          <Text style={{ fontSize: 12, color: colors.muted, lineHeight: 16, marginTop: 2 }}>
+            Auto-apply to the same weekday(s) for 12 weeks
+          </Text>
+        </View>
+        <Switch
+          value={repeatWeekly}
+          onValueChange={setRepeatWeekly}
+          trackColor={{ false: colors.border, true: colors.primary + "60" }}
+          thumbColor={repeatWeekly ? colors.primary : colors.muted}
+        />
       </View>
 
       {/* Service Filter */}
@@ -516,12 +556,20 @@ export default function DiscountsScreen() {
                       {
                         backgroundColor: selectedServiceIds?.includes(svc.id) ? svc.color : colors.background,
                         borderColor: selectedServiceIds?.includes(svc.id) ? svc.color : colors.border,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 4,
                       },
                     ]}
                   >
                     <Text style={{ color: selectedServiceIds?.includes(svc.id) ? "#fff" : colors.foreground, fontSize: 13, fontWeight: "600" }}>
                       {svc.name}
                     </Text>
+                    {selectedServiceIds?.includes(svc.id) && (
+                      <View style={{ backgroundColor: "rgba(0,0,0,0.18)", borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 }}>
+                        <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>−{percentage}%</Text>
+                      </View>
+                    )}
                   </Pressable>
                 ))}
               </View>
@@ -577,12 +625,20 @@ export default function DiscountsScreen() {
                           {
                             backgroundColor: selectedProductIds?.includes(prod.id) ? colors.primary : colors.background,
                             borderColor: selectedProductIds?.includes(prod.id) ? colors.primary : colors.border,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 4,
                           },
                         ]}
                       >
                         <Text style={{ color: selectedProductIds?.includes(prod.id) ? "#fff" : colors.foreground, fontSize: 13, fontWeight: "600" }}>
                           {prod.name}
                         </Text>
+                        {selectedProductIds?.includes(prod.id) && (
+                          <View style={{ backgroundColor: "rgba(0,0,0,0.18)", borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 }}>
+                            <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>−{percentage}%</Text>
+                          </View>
+                        )}
                       </Pressable>
                     ))}
                   </View>
@@ -852,6 +908,17 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
+  },
+  repeatRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 16,
+    width: "100%",
   },
   formActions: { flexDirection: "row", gap: 10, marginTop: 8, width: "100%" },
   formBtnCancel: {
