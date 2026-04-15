@@ -220,8 +220,7 @@ export default function SmsTemplatesScreen() {
           onPress={() => router.back()}
           style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]}
         >
-          <IconSymbol name="chevron.left.forwardslash.chevron.right" size={18} color={colors.primary} />
-          <Text style={{ color: colors.primary, fontSize: 16, marginLeft: 4 }}>Back</Text>
+          <IconSymbol name="chevron.left" size={28} color={colors.primary} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>SMS Messages</Text>
         <View style={{ width: 70 }} />

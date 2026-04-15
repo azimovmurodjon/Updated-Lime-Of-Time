@@ -16,6 +16,7 @@ export default function ServicesScreen() {
   const { hp, maxContentWidth } = useResponsive();
   const [activeTab, setActiveTab] = useState<Tab>("services");
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   // Derive sorted unique brands from products
   const allBrands = useMemo(() => {
@@ -24,11 +25,24 @@ export default function ServicesScreen() {
     return Array.from(brands).sort();
   }, [state.products]);
 
+  // Derive sorted unique service categories
+  const allCategories = useMemo(() => {
+    const cats = new Set<string>();
+    state.services.forEach((s) => { if (s.category) cats.add(s.category); });
+    return Array.from(cats).sort();
+  }, [state.services]);
+
   // Filtered products by selected brand
   const filteredProducts = useMemo(() => {
     if (!selectedBrand) return state.products;
     return state.products.filter((p) => p.brand === selectedBrand);
   }, [state.products, selectedBrand]);
+
+  // Filtered services by selected category
+  const filteredServices = useMemo(() => {
+    if (!selectedCategory) return state.services;
+    return state.services.filter((s) => s.category === selectedCategory);
+  }, [state.services, selectedCategory]);
 
   return (
     <ScreenContainer className="pt-2" style={{ paddingHorizontal: hp, alignSelf: "center", width: "100%", maxWidth: maxContentWidth }} tabletMaxWidth={0}>
@@ -115,11 +129,37 @@ export default function ServicesScreen() {
 
       {/* Services List - grouped by category */}
       {activeTab === "services" && (() => {
-        // Group services by category
+        // Category filter chips
+        const categoryChips = allCategories.length > 0 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 10, gap: 8, flexDirection: "row" }}
+            style={{ marginBottom: 4 }}
+          >
+            <Pressable
+              onPress={() => setSelectedCategory(null)}
+              style={[styles.brandChip, { backgroundColor: !selectedCategory ? colors.primary : colors.surface, borderColor: !selectedCategory ? colors.primary : colors.border }]}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "600", color: !selectedCategory ? "#fff" : colors.muted }}>All</Text>
+            </Pressable>
+            {allCategories.map((cat) => (
+              <Pressable
+                key={cat}
+                onPress={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
+                style={[styles.brandChip, { backgroundColor: selectedCategory === cat ? colors.primary : colors.surface, borderColor: selectedCategory === cat ? colors.primary : colors.border }]}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "600", color: selectedCategory === cat ? "#fff" : colors.muted }} numberOfLines={1}>{cat}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        ) : null;
+
+        // Group filteredServices by category
         const grouped: { category: string; services: typeof state.services }[] = [];
         const uncategorized: typeof state.services = [];
         const catMap = new Map<string, typeof state.services>();
-        state.services.forEach((s) => {
+        filteredServices.forEach((s) => {
           const cat = s.category || "";
           if (!cat) { uncategorized.push(s); return; }
           if (!catMap.has(cat)) catMap.set(cat, []);
@@ -134,7 +174,7 @@ export default function ServicesScreen() {
         // Build flat list data with section headers
         type ListItem = { type: "header"; category: string; key: string } | { type: "service"; item: typeof state.services[0]; key: string };
         const listData: ListItem[] = [];
-        const hasCategories = catMap.size > 0;
+        const hasCategories = catMap.size > 0 && !selectedCategory;
         grouped.forEach((g) => {
           if (hasCategories) {
             listData.push({ type: "header", category: g.category || "Uncategorized", key: `header-${g.category || "uncategorized"}` });
@@ -143,6 +183,8 @@ export default function ServicesScreen() {
         });
 
         return (
+          <>
+          {categoryChips}
           <FlatList
             data={listData}
             keyExtractor={(item) => item.key}
@@ -227,6 +269,7 @@ export default function ServicesScreen() {
             }
             contentContainerStyle={{ paddingBottom: 80 }}
           />
+          </>
         );
       })()}
 
@@ -430,5 +473,9 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 1,
+    alignSelf: "flex-start",
+    height: 34,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

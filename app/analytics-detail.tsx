@@ -36,6 +36,7 @@ export default function AnalyticsDetailScreen() {
   );
 
   const titles: Record<string, string> = {
+    overview: "Analytics Overview",
     clients: "Total Clients",
     appointments: "Appointments",
     revenue: "Revenue",
@@ -119,6 +120,76 @@ export default function AnalyticsDetailScreen() {
   }, [state.services, filteredAppts]);
 
   const maxBar = Math.max(...serviceRanking.map((s) => s.bookings), 1);
+
+  // ─── Overview analytics ────────────────────────────────────────────
+  const overviewData = useMemo(() => {
+    const completed = filteredAppts.filter((a) => a.status === "completed");
+    const cancelled = filteredAppts.filter((a) => a.status === "cancelled");
+    const confirmed = filteredAppts.filter((a) => a.status === "confirmed");
+    const pending = filteredAppts.filter((a) => a.status === "pending");
+    const total = filteredAppts.length;
+    const completionRate = total > 0 ? Math.round((completed.length / total) * 100) : 0;
+    const cancellationRate = total > 0 ? Math.round((cancelled.length / total) * 100) : 0;
+    const avgRevenue = completed.length > 0 ? Math.round(totalRevenue / completed.length) : 0;
+
+    // Monthly revenue for last 6 months
+    const now = new Date();
+    const last6Months: { label: string; revenue: number; count: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleDateString("en-US", { month: "short" });
+      const monthAppts = completed.filter((a) => a.date.startsWith(key));
+      const rev = monthAppts.reduce((s, a) => {
+        if (a.totalPrice != null) return s + a.totalPrice;
+        const svc = getServiceById(a.serviceId);
+        return s + (svc?.price ?? 0);
+      }, 0);
+      last6Months.push({ label, revenue: rev, count: monthAppts.length });
+    }
+    const maxMonthRev = Math.max(...last6Months.map((m) => m.revenue), 1);
+
+    // Busiest day of week
+    const dayCount: number[] = [0, 0, 0, 0, 0, 0, 0];
+    filteredAppts.filter((a) => a.status !== "cancelled").forEach((a) => {
+      const d = new Date(a.date + "T12:00:00");
+      dayCount[d.getDay()]++;
+    });
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const busiestDayIdx = dayCount.indexOf(Math.max(...dayCount));
+    const busiestDay = dayNames[busiestDayIdx];
+
+    // Top client
+    const topClient = clientsData[0];
+    // Top service
+    const topService = serviceRanking[0];
+    // Avg rating
+    const reviews = state.reviews;
+    const avgRating = reviews.length > 0
+      ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
+      : null;
+
+    // New clients last 30 days (by first appointment)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyKey = thirtyDaysAgo.toISOString().substring(0, 10);
+    const recentClientIds = new Set(
+      filteredAppts
+        .filter((a) => a.date >= thirtyKey)
+        .map((a) => a.clientId)
+    );
+    const newClientsLast30 = recentClientIds.size;
+
+    return {
+      total, completed: completed.length, cancelled: cancelled.length,
+      confirmed: confirmed.length, pending: pending.length,
+      completionRate, cancellationRate, avgRevenue,
+      last6Months, maxMonthRev, busiestDay,
+      topClient, topService, avgRating, newClientsLast30,
+      totalClients: clientsForActiveLocation.length,
+      reviewCount: reviews.length,
+    };
+  }, [filteredAppts, totalRevenue, clientsData, serviceRanking, state.reviews, clientsForActiveLocation, getServiceById]);
 
   // ─── Year-End / Tax Report Generation ─────────────────────────────
   const generateYearEndReport = useCallback(
@@ -443,6 +514,121 @@ export default function AnalyticsDetailScreen() {
           </Text>
           <IconSymbol name="square.and.arrow.up" size={16} color="#FFF" />
         </Pressable>
+
+        {/* Overview Tab */}
+        {tab === "overview" && (
+          <View>
+            {/* KPI Grid */}
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12 }}>
+              {[
+                { label: "Total Revenue", value: `$${totalRevenue.toLocaleString()}`, color: "#FF9800", bg: "#FFF3E0" },
+                { label: "Avg / Appt", value: `$${overviewData.avgRevenue}`, color: "#FF9800", bg: "#FFF3E0" },
+                { label: "Total Clients", value: overviewData.totalClients, color: "#4CAF50", bg: "#E8F5E9" },
+                { label: "New (30d)", value: overviewData.newClientsLast30, color: "#4CAF50", bg: "#E8F5E9" },
+                { label: "Completed", value: overviewData.completed, color: "#2196F3", bg: "#E3F2FD" },
+                { label: "Completion %", value: `${overviewData.completionRate}%`, color: "#2196F3", bg: "#E3F2FD" },
+                { label: "Cancelled", value: overviewData.cancelled, color: "#EF4444", bg: "#FEF2F2" },
+                { label: "Cancel Rate", value: `${overviewData.cancellationRate}%`, color: "#EF4444", bg: "#FEF2F2" },
+              ].map((kpi) => (
+                <View key={kpi.label} style={[styles.kpiCard, { backgroundColor: kpi.bg, borderColor: kpi.color + "30" }]}>
+                  <Text style={{ fontSize: 22, fontWeight: "800", color: kpi.color }}>{String(kpi.value)}</Text>
+                  <Text style={{ fontSize: 11, color: kpi.color + "CC", marginTop: 2 }}>{kpi.label}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Revenue Trend — last 6 months */}
+            <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground, marginBottom: 12 }}>Revenue — Last 6 Months</Text>
+              <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 6, height: 80 }}>
+                {overviewData.last6Months.map((m) => (
+                  <View key={m.label} style={{ flex: 1, alignItems: "center" }}>
+                    <View style={{
+                      width: "100%",
+                      height: Math.max((m.revenue / overviewData.maxMonthRev) * 64, m.revenue > 0 ? 4 : 0),
+                      backgroundColor: colors.primary,
+                      borderRadius: 4,
+                    }} />
+                    <Text style={{ fontSize: 10, color: colors.muted, marginTop: 4 }}>{m.label}</Text>
+                    <Text style={{ fontSize: 9, color: colors.primary, fontWeight: "600" }}>
+                      {m.revenue > 0 ? `$${Math.round(m.revenue / 1000)}k` : ""}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            {/* Highlights row */}
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <View style={[styles.sectionCard, { flex: 1, backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 4 }}>Busiest Day</Text>
+                <Text style={{ fontSize: 22, fontWeight: "800", color: colors.primary }}>{overviewData.busiestDay}</Text>
+              </View>
+              <View style={[styles.sectionCard, { flex: 1, backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 4 }}>Avg Rating</Text>
+                <Text style={{ fontSize: 22, fontWeight: "800", color: "#f59e0b" }}>
+                  {overviewData.avgRating ? `${overviewData.avgRating} ★` : "—"}
+                </Text>
+                {overviewData.reviewCount > 0 && (
+                  <Text style={{ fontSize: 10, color: colors.muted }}>{overviewData.reviewCount} reviews</Text>
+                )}
+              </View>
+            </View>
+
+            {/* Top Client */}
+            {overviewData.topClient && (
+              <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground, marginBottom: 8 }}>Top Client</Text>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <View style={[styles.avatar, { backgroundColor: "#4CAF5018" }]}>
+                    <Text style={{ fontSize: 16, fontWeight: "700", color: "#4CAF50" }}>{overviewData.topClient.name.charAt(0).toUpperCase()}</Text>
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{overviewData.topClient.name}</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>{overviewData.topClient.apptCount} appointments · ${overviewData.topClient.totalSpent} spent</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* Top Service */}
+            {overviewData.topService && (
+              <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground, marginBottom: 8 }}>Top Service</Text>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <View style={[styles.avatar, { backgroundColor: overviewData.topService.color + "18" }]}>
+                    <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: overviewData.topService.color }} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{overviewData.topService.name}</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>{overviewData.topService.bookings} bookings · ${overviewData.topService.price}</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* Quick nav to detailed tabs */}
+            <Text style={{ fontSize: 13, fontWeight: "700", color: colors.muted, marginTop: 8, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Detailed Reports</Text>
+            {[
+              { label: "Clients", tab: "clients", icon: "person.2.fill" as const, color: "#4CAF50" },
+              { label: "Appointments", tab: "appointments", icon: "calendar" as const, color: "#2196F3" },
+              { label: "Revenue", tab: "revenue", icon: "chart.bar.fill" as const, color: "#FF9800" },
+              { label: "Top Services", tab: "topservice", icon: "crown.fill" as const, color: "#9C27B0" },
+            ].map((item) => (
+              <Pressable
+                key={item.tab}
+                onPress={() => router.replace({ pathname: "/analytics-detail", params: { tab: item.tab } })}
+                style={({ pressed }) => [styles.listItem, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.8 : 1 }]}
+              >
+                <View style={[styles.avatar, { backgroundColor: item.color + "18" }]}>
+                  <IconSymbol name={item.icon} size={18} color={item.color} />
+                </View>
+                <Text style={{ flex: 1, marginLeft: 12, fontSize: 15, fontWeight: "600", color: colors.foreground }}>{item.label}</Text>
+                <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+              </Pressable>
+            ))}
+          </View>
+        )}
 
         {/* Clients Tab */}
         {tab === "clients" && (
@@ -920,6 +1106,20 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     marginVertical: 16,
+  },
+  kpiCard: {
+    width: "47%",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  sectionCard: {
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 10,
   },
   quickStats: {
     flexDirection: "row",

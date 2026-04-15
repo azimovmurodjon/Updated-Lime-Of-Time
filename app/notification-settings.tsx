@@ -300,8 +300,7 @@ export default function NotificationSettingsScreen() {
           onPress={() => router.back()}
           style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]}
         >
-          <IconSymbol name="chevron.left.forwardslash.chevron.right" size={10} color={colors.primary} style={{ transform: [{ rotate: "0deg" }] }} />
-          <Text style={{ fontSize: 16, color: colors.primary, marginLeft: 4 }}>Back</Text>
+          <IconSymbol name="chevron.left" size={28} color={colors.primary} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Notifications</Text>
         <View style={{ width: 70 }} />

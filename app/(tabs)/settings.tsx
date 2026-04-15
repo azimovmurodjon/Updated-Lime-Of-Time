@@ -232,7 +232,7 @@ export default function SettingsScreen() {
       title: "Analytics",
       subtitle: "Revenue, clients, appointments insights",
       icon: "chart.bar.fill" as const,
-      route: "/analytics-detail?tab=revenue" as const,
+      route: "/analytics-detail?tab=overview" as const,
       color: "#8b5cf6",
     },
     {
