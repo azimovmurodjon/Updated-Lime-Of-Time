@@ -9,9 +9,12 @@ import {
   Alert,
   Linking,
   Platform,
+  Image,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatTime, formatDateDisplay, generateId } from "@/lib/store";
+import { ClientPhoto } from "@/lib/types";
 import { useColors } from "@/hooks/use-colors";
 import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -42,11 +45,11 @@ function applyTemplate(template: string, vars: Record<string, string>): string {
   return result + LIME_OF_TIME_FOOTER;
 }
 
-type TabKey = "appointments" | "messages" | "reviews";
+type TabKey = "appointments" | "messages" | "reviews" | "photos";
 
 export default function ClientDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { state, dispatch, getClientById, getAppointmentsForClient, getServiceById, getReviewsForClient, getLocationById, syncToDb } = useStore();
+  const { state, dispatch, getClientById, getAppointmentsForClient, getServiceById, getReviewsForClient, getPhotosForClient, getLocationById, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
   const { isTablet, hp } = useResponsive();
@@ -54,6 +57,7 @@ export default function ClientDetailScreen() {
   const client = getClientById(id ?? "");
   const appointments = getAppointmentsForClient(id ?? "");
   const reviews = getReviewsForClient(id ?? "");
+  const photos = getPhotosForClient(id ?? "");
   const [activeTab, setActiveTab] = useState<TabKey>("appointments");
 
   const biz = state.settings;
@@ -65,6 +69,7 @@ export default function ClientDetailScreen() {
   const [editPhone, setEditPhone] = useState(client?.phone ?? "");
   const [editEmail, setEditEmail] = useState(client?.email ?? "");
   const [editNotes, setEditNotes] = useState(client?.notes ?? "");
+  const [editBirthday, setEditBirthday] = useState(client?.birthday ?? "");
 
   // Inline edit errors
   const [editErrors, setEditErrors] = useState<{ name?: string; phone?: string; email?: string }>({});
@@ -91,12 +96,12 @@ export default function ClientDetailScreen() {
     setEditErrors({});
     const action = {
       type: "UPDATE_CLIENT" as const,
-      payload: { ...client, name: editName.trim(), phone: editPhone.trim(), email: editEmail.trim(), notes: editNotes.trim() },
+      payload: { ...client, name: editName.trim(), phone: editPhone.trim(), email: editEmail.trim(), notes: editNotes.trim(), birthday: editBirthday.trim() },
     };
     dispatch(action);
     syncToDb(action);
     setEditing(false);
-  }, [editName, editPhone, editEmail, editNotes, client, dispatch]);
+  }, [editName, editPhone, editEmail, editNotes, editBirthday, client, dispatch]);
 
   const handleDelete = useCallback(() => {
     if (!client) return;
@@ -339,7 +344,45 @@ export default function ClientDetailScreen() {
     { key: "appointments", label: "Appointments", count: appointments.length },
     { key: "messages", label: "Messages" },
     { key: "reviews", label: "Reviews", count: reviews.length },
+    { key: "photos", label: "Photos", count: photos.length > 0 ? photos.length : undefined },
   ];
+
+  const handleAddPhoto = useCallback(async (label: ClientPhoto["label"]) => {
+    if (!client) return;
+    if (Platform.OS !== "web") {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission required", "Please allow access to your photo library to add photos.");
+        return;
+      }
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const photo: ClientPhoto = {
+      id: generateId(),
+      clientId: client.id,
+      uri: result.assets[0].uri,
+      label,
+      note: "",
+      takenAt: new Date().toISOString(),
+    };
+    dispatch({ type: "ADD_CLIENT_PHOTO", payload: photo });
+  }, [client, dispatch]);
+
+  const handleDeletePhoto = useCallback((photoId: string) => {
+    if (Platform.OS === "web") {
+      dispatch({ type: "DELETE_CLIENT_PHOTO", payload: photoId });
+    } else {
+      Alert.alert("Delete Photo", "Remove this photo from the client's gallery?", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => dispatch({ type: "DELETE_CLIENT_PHOTO", payload: photoId }) },
+      ]);
+    }
+  }, [dispatch]);
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} tabletMaxWidth={720}>
@@ -352,7 +395,7 @@ export default function ClientDetailScreen() {
           <Text style={{ fontSize: 17, fontWeight: "600", color: colors.foreground }}>Client</Text>
           {!editing ? (
             <Pressable
-              onPress={() => { setEditName(client.name); setEditPhone(client.phone); setEditEmail(client.email); setEditNotes(client.notes); setEditing(true); }}
+              onPress={() => { setEditName(client.name); setEditPhone(client.phone); setEditEmail(client.email); setEditNotes(client.notes); setEditBirthday(client.birthday ?? ""); setEditing(true); }}
               style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}
             >
               <IconSymbol name="pencil" size={20} color={colors.primary} />
@@ -397,6 +440,7 @@ export default function ClientDetailScreen() {
             />
             {editErrors.email ? <Text style={{ color: colors.error, fontSize: 12, marginBottom: 6, marginTop: -4 }}>{editErrors.email}</Text> : null}
             <TextInput style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground, minHeight: 60, textAlignVertical: "top" }]} placeholder="Notes" placeholderTextColor={colors.muted} value={editNotes} onChangeText={setEditNotes} multiline numberOfLines={3} returnKeyType="done" />
+            <TextInput style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]} placeholder="Birthday (MM/DD/YYYY)" placeholderTextColor={colors.muted} value={editBirthday} onChangeText={setEditBirthday} keyboardType="numbers-and-punctuation" returnKeyType="done" />
             <View style={styles.editActions}>
               <Pressable onPress={() => setEditing(false)} style={({ pressed }) => [styles.cancelBtn, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}>
                 <Text style={{ fontSize: 14, color: colors.foreground }}>Cancel</Text>
@@ -437,6 +481,15 @@ export default function ClientDetailScreen() {
               <View style={[styles.notesBox, { backgroundColor: colors.background, borderColor: colors.border }]}>
                 <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 2 }}>Notes</Text>
                 <Text style={{ fontSize: 13, color: colors.foreground, lineHeight: 18 }}>{client.notes}</Text>
+              </View>
+            ) : null}
+            {client.birthday ? (
+              <View style={[styles.notesBox, { backgroundColor: colors.background, borderColor: colors.border, flexDirection: "row", alignItems: "center", gap: 8 }]}>
+                <Text style={{ fontSize: 18 }}>🎂</Text>
+                <View>
+                  <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 2 }}>Birthday</Text>
+                  <Text style={{ fontSize: 13, color: colors.foreground }}>{client.birthday}</Text>
+                </View>
               </View>
             ) : null}
             {client.phone ? (
@@ -629,6 +682,60 @@ export default function ClientDetailScreen() {
               </View>
             )}
 
+            {/* Photos Tab */}
+            {activeTab === "photos" && (
+              <View>
+                <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
+                  <Pressable
+                    onPress={() => handleAddPhoto("before")}
+                    style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderStyle: "dashed", borderColor: "#3B82F6", backgroundColor: pressed ? "#3B82F610" : "transparent", opacity: pressed ? 0.7 : 1 })}
+                  >
+                    <IconSymbol name="plus" size={16} color="#3B82F6" />
+                    <Text style={{ fontSize: 13, fontWeight: "600", color: "#3B82F6" }}>Before</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleAddPhoto("after")}
+                    style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderStyle: "dashed", borderColor: "#10B981", backgroundColor: pressed ? "#10B98110" : "transparent", opacity: pressed ? 0.7 : 1 })}
+                  >
+                    <IconSymbol name="plus" size={16} color="#10B981" />
+                    <Text style={{ fontSize: 13, fontWeight: "600", color: "#10B981" }}>After</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleAddPhoto("other")}
+                    style={({ pressed }) => ({ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderStyle: "dashed", borderColor: colors.muted, backgroundColor: pressed ? colors.muted + "10" : "transparent", opacity: pressed ? 0.7 : 1 })}
+                  >
+                    <IconSymbol name="plus" size={16} color={colors.muted} />
+                    <Text style={{ fontSize: 13, fontWeight: "600", color: colors.muted }}>Other</Text>
+                  </Pressable>
+                </View>
+                {photos.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <IconSymbol name="photo" size={36} color={colors.muted + "60"} />
+                    <Text style={{ color: colors.muted, fontSize: 14, marginTop: 8 }}>No photos yet</Text>
+                    <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4, textAlign: "center" }}>Add before/after photos to track client transformations.</Text>
+                  </View>
+                ) : (
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    {photos.map((photo) => (
+                      <View key={photo.id} style={{ width: "48%", borderRadius: 12, overflow: "hidden", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}>
+                        <Image source={{ uri: photo.uri }} style={{ width: "100%", aspectRatio: 1 }} resizeMode="cover" />
+                        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 8, paddingVertical: 6 }}>
+                          <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: photo.label === "before" ? "#3B82F620" : photo.label === "after" ? "#10B98120" : colors.muted + "20" }}>
+                            <Text style={{ fontSize: 11, fontWeight: "700", color: photo.label === "before" ? "#3B82F6" : photo.label === "after" ? "#10B981" : colors.muted, textTransform: "uppercase" }}>{photo.label}</Text>
+                          </View>
+                          <Pressable onPress={() => handleDeletePhoto(photo.id)} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, padding: 4 })}>
+                            <IconSymbol name="trash" size={14} color={colors.error} />
+                          </Pressable>
+                        </View>
+                        <Text style={{ fontSize: 10, color: colors.muted, paddingHorizontal: 8, paddingBottom: 6 }}>
+                          {new Date(photo.takenAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
             {/* Delete Client */}
             <Pressable onPress={handleDelete} style={({ pressed }) => [styles.deleteBtn, { borderColor: colors.error, opacity: pressed ? 0.7 : 1 }]}>
               <Text style={{ fontSize: 14, fontWeight: "500", color: colors.error }}>Delete Client</Text>

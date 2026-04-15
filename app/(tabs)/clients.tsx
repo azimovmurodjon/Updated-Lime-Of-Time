@@ -66,6 +66,7 @@ export default function ClientsScreen() {
       phone: newPhone.trim(),
       email: newEmail.trim(),
       notes: "",
+      birthday: "",
       createdAt: new Date().toISOString(),
     };
     dispatch({ type: "ADD_CLIENT", payload: client });
@@ -126,6 +127,7 @@ export default function ClientsScreen() {
         phone: formattedPhone,
         email,
         notes: "Imported from contacts",
+        birthday: "",
         createdAt: new Date().toISOString(),
       };
       dispatch({ type: "ADD_CLIENT", payload: client });
@@ -159,6 +161,15 @@ export default function ClientsScreen() {
             {hasMultipleLocations && <LocationSwitcher compact />}
           </View>
           <View style={{ flexDirection: "row", gap: 8 }}>
+            <Pressable
+              onPress={() => router.push("/birthday-campaigns")}
+              style={({ pressed }) => [
+                styles.iconButton,
+                { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+              ]}
+            >
+              <IconSymbol name="birthday.cake" size={20} color="#FF9800" />
+            </Pressable>
             <Pressable
               onPress={handleSelectFromContacts}
               style={({ pressed }) => [

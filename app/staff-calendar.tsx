@@ -23,6 +23,9 @@ import {
   timeToMinutes,
   DAYS_OF_WEEK,
 } from "@/lib/types";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
+import { Alert, Platform } from "react-native";
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DAY_HEADERS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
@@ -172,6 +175,68 @@ export default function StaffCalendarScreen() {
     return formatTimeDisplay(minutesToTime(timeToMinutes(time) + duration));
   };
 
+  // ─── .ics Calendar Export ────────────────────────────────────────────
+  const exportICS = async () => {
+    if (!staff) return;
+    const lines: string[] = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//LimeOfTime//StaffCalendar//EN",
+      `X-WR-CALNAME:${staff.name}'s Schedule`,
+      "CALSCALE:GREGORIAN",
+      "METHOD:PUBLISH",
+    ];
+    staffAppointments
+      .filter((a) => a.status === "confirmed" || a.status === "pending")
+      .forEach((a) => {
+        const svc = getServiceById(a.serviceId);
+        const client = getClientById(a.clientId);
+        const [yr, mo, dy] = a.date.split("-").map(Number);
+        const [hr, mn] = a.time.split(":").map(Number);
+        const dur = svc?.duration ?? 30;
+        const endMins = hr * 60 + mn + dur;
+        const endHr = Math.floor(endMins / 60);
+        const endMn = endMins % 60;
+        const pad = (n: number) => String(n).padStart(2, "0");
+        const dtStart = `${yr}${pad(mo)}${pad(dy)}T${pad(hr)}${pad(mn)}00`;
+        const dtEnd = `${yr}${pad(mo)}${pad(dy)}T${pad(endHr)}${pad(endMn)}00`;
+        lines.push(
+          "BEGIN:VEVENT",
+          `UID:${a.id}@lime-of-time.com`,
+          `DTSTART:${dtStart}`,
+          `DTEND:${dtEnd}`,
+          `SUMMARY:${svc?.name ?? "Appointment"} - ${client?.name ?? "Client"}`,
+          `DESCRIPTION:Status: ${a.status}`,
+          `STATUS:${a.status === "confirmed" ? "CONFIRMED" : "TENTATIVE"}`,
+          "END:VEVENT",
+        );
+      });
+    lines.push("END:VCALENDAR");
+    const icsContent = lines.join("\r\n");
+    try {
+      if (Platform.OS === "web") {
+        const blob = new Blob([icsContent], { type: "text/calendar" });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = `${staff.name.replace(/\s+/g, "_")}_schedule.ics`;
+        anchor.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const path = `${FileSystem.cacheDirectory}${staff.name.replace(/\s+/g, "_")}_schedule.ics`;
+        await FileSystem.writeAsStringAsync(path, icsContent, { encoding: FileSystem.EncodingType.UTF8 });
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(path, { mimeType: "text/calendar", dialogTitle: `${staff.name}'s Schedule` });
+        } else {
+          Alert.alert("Sharing not available", "Cannot share files on this device.");
+        }
+      }
+    } catch {
+      Alert.alert("Export failed", "Could not generate the calendar file.");
+    }
+  };
+
   if (!staff) {
     return (
       <ScreenContainer edges={["top", "bottom", "left", "right"]} className="p-6">
@@ -209,6 +274,24 @@ export default function StaffCalendarScreen() {
                 <Text style={{ fontSize: 13, color: colors.muted }}>{staff.role || "Staff Member"}</Text>
               </View>
             </View>
+            <Pressable
+              onPress={exportICS}
+              style={({ pressed }) => ({
+                opacity: pressed ? 0.6 : 1,
+                backgroundColor: colors.surface,
+                borderRadius: 10,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                borderWidth: 1,
+                borderColor: colors.border,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+              })}
+            >
+              <IconSymbol name="paperplane.fill" size={14} color={colors.primary} />
+              <Text style={{ fontSize: 12, fontWeight: "600", color: colors.primary }}>Export .ics</Text>
+            </Pressable>
           </View>
         </View>
 

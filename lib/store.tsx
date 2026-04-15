@@ -5,6 +5,7 @@ import { logger } from "@/lib/logger";
 import {
   Service,
   Client,
+  ClientPhoto,
   Appointment,
   Review,
   Discount,
@@ -46,6 +47,8 @@ interface AppState {
   syncing: boolean;
   /** The currently active location ID (null = all locations / no filter) */
   activeLocationId: string | null;
+  /** Before/after photos per client, stored locally only (not synced to DB) */
+  clientPhotos: ClientPhoto[];
 }
 
 const initialSettings: BusinessSettings = {
@@ -89,6 +92,7 @@ const initialState: AppState = {
   businessOwnerId: null,
   syncing: false,
   activeLocationId: null,
+  clientPhotos: [],
 };
 
 // --- Actions ---
@@ -129,6 +133,8 @@ type Action =
   | { type: "UPDATE_LOCATION"; payload: Location }
   | { type: "DELETE_LOCATION"; payload: string }
   | { type: "SET_ACTIVE_LOCATION"; payload: string | null }
+  | { type: "ADD_CLIENT_PHOTO"; payload: ClientPhoto }
+  | { type: "DELETE_CLIENT_PHOTO"; payload: string }
   | { type: "RESET_ALL_DATA" };
 
 function reducer(state: AppState, action: Action): AppState {
@@ -282,6 +288,10 @@ function reducer(state: AppState, action: Action): AppState {
       };
     case "DELETE_LOCATION":
       return { ...state, locations: state.locations.filter((l) => l.id !== action.payload) };
+    case "ADD_CLIENT_PHOTO":
+      return { ...state, clientPhotos: [...state.clientPhotos, action.payload] };
+    case "DELETE_CLIENT_PHOTO":
+      return { ...state, clientPhotos: state.clientPhotos.filter((p) => p.id !== action.payload) };
     case "RESET_ALL_DATA":
       return { ...initialState, loaded: true };
     default:
@@ -300,6 +310,7 @@ interface StoreContextType {
   getAppointmentsForDate: (date: string) => Appointment[];
   getAppointmentsForClient: (clientId: string) => Appointment[];
   getReviewsForClient: (clientId: string) => Review[];
+  getPhotosForClient: (clientId: string) => ClientPhoto[];
   getTodayStats: () => { todayCount: number; weekCount: number; weekRevenue: number };
   /** Filter appointments by the active location (pass-through when no location selected) */
   filterAppointmentsByLocation: (appointments: Appointment[]) => Appointment[];
@@ -332,6 +343,7 @@ const STORAGE_KEYS = {
   staff: "@bookease_staff",
   locations: "@bookease_locations",
   activeLocationId: "@bookease_active_location_id",
+  clientPhotos: "@bookease_client_photos",
 };
 
 /** Convert DB rows to local frontend models */
@@ -355,6 +367,7 @@ export function dbClientToLocal(c: any): Client {
     phone: c.phone ?? "",
     email: c.email ?? "",
     notes: c.notes ?? "",
+    birthday: c.birthday ?? "",
     createdAt: c.createdAt ? new Date(c.createdAt).toISOString() : new Date().toISOString(),
   };
 }
@@ -840,7 +853,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
         // Fallback: load from AsyncStorage cache (written on last successful DB sync)
         // On first install with no cache, all arrays will be empty and the user will be prompted to log in
-        const [servicesRaw, clientsRaw, appointmentsRaw, reviewsRaw, settingsRaw, discountsRaw, giftCardsRaw, customScheduleRaw, productsRaw, staffRaw, locationsRaw, locationCustomScheduleRaw] =
+        const [servicesRaw, clientsRaw, appointmentsRaw, reviewsRaw, settingsRaw, discountsRaw, giftCardsRaw, customScheduleRaw, productsRaw, staffRaw, locationsRaw, locationCustomScheduleRaw, clientPhotosRaw] =
           await Promise.all([
             AsyncStorage.getItem(STORAGE_KEYS.services),
             AsyncStorage.getItem(STORAGE_KEYS.clients),
@@ -854,6 +867,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             AsyncStorage.getItem(STORAGE_KEYS.staff),
             AsyncStorage.getItem(STORAGE_KEYS.locations),
             AsyncStorage.getItem(STORAGE_KEYS.locationCustomSchedule),
+            AsyncStorage.getItem(STORAGE_KEYS.clientPhotos),
           ]);
         
         const parsedSettings = settingsRaw ? JSON.parse(settingsRaw) : {};
@@ -886,6 +900,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             locations: locationsRaw ? JSON.parse(locationsRaw) : [],
             settings: loadedSettings,
             businessOwnerId: storedOwnerId ? parseInt(storedOwnerId, 10) : null,
+            clientPhotos: clientPhotosRaw ? JSON.parse(clientPhotosRaw) : [],
           },
         });
         // Restore active location from AsyncStorage (or auto-set default)
@@ -966,6 +981,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!state.loaded) return;
     AsyncStorage.setItem(STORAGE_KEYS.locations, JSON.stringify(state.locations));
   }, [state.locations, state.loaded]);
+
+  useEffect(() => {
+    if (!state.loaded) return;
+    AsyncStorage.setItem(STORAGE_KEYS.clientPhotos, JSON.stringify(state.clientPhotos));
+  }, [state.clientPhotos, state.loaded]);
 
   useEffect(() => {
     if (state.businessOwnerId !== null) {
@@ -1692,6 +1712,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [state.reviews]
   );
 
+  const getPhotosForClient = useCallback(
+    (clientId: string) =>
+      state.clientPhotos.filter((p) => p.clientId === clientId).sort((a, b) => b.takenAt.localeCompare(a.takenAt)),
+    [state.clientPhotos]
+  );
+
   const getTodayStats = useCallback(() => {
     const now = new Date();
     const todayStr = formatDateStr(now);
@@ -1784,6 +1810,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         getAppointmentsForDate,
         getAppointmentsForClient,
         getReviewsForClient,
+        getPhotosForClient,
         getTodayStats,
         filterAppointmentsByLocation,
         clientsForActiveLocation,

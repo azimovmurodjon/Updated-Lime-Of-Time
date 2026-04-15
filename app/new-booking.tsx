@@ -458,6 +458,7 @@ export default function NewBookingScreen() {
       phone: quickPhone.trim(),
       email: "",
       notes: "",
+      birthday: "",
       createdAt: new Date().toISOString(),
     };
     dispatch({ type: "ADD_CLIENT", payload: client });

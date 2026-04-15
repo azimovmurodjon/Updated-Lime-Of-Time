@@ -15,7 +15,18 @@ export interface Client {
   phone: string;
   email: string;
   notes: string;
+  birthday: string; // MM-DD format, e.g. "03-15" for March 15 (empty string = not set)
   createdAt: string;
+}
+
+/** A before/after photo attached to a client profile */
+export interface ClientPhoto {
+  id: string;
+  clientId: string;
+  uri: string; // local file URI or base64 data URI
+  label: "before" | "after" | "other";
+  note: string;
+  takenAt: string; // ISO date string
 }
 
 export type AppointmentStatus = "pending" | "confirmed" | "completed" | "cancelled";

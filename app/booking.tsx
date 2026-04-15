@@ -37,10 +37,10 @@ import {
 } from "@/lib/types";
 
 // "location" is the new first step when the business has multiple active locations
-type BookingStep = "location" | "info" | "service" | "datetime" | "confirm" | "done";
+type BookingStep = "location" | "info" | "service" | "staff" | "datetime" | "confirm" | "done";
 
 export default function PublicBookingScreen() {
-  const { state, dispatch, getServiceById, syncToDb } = useStore();
+  const { state, dispatch, getServiceById, syncToDb, getStaffById } = useStore();
   const colors = useColors();
   const router = useRouter();
   const { isTablet, hp } = useResponsive();
@@ -77,6 +77,7 @@ export default function PublicBookingScreen() {
   const [clientPhone, setClientPhone] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(formatDateStr(new Date()));
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
@@ -240,6 +241,7 @@ export default function PublicBookingScreen() {
         phone: clientPhone.trim(),
         email: clientEmail.trim(),
         notes: "Added via booking link",
+        birthday: "",
         createdAt: new Date().toISOString(),
       };
       dispatch({ type: "ADD_CLIENT", payload: newClient });
@@ -264,6 +266,7 @@ export default function PublicBookingScreen() {
       giftUsedAmount: priceInfo.giftUsed > 0 ? priceInfo.giftUsed : undefined,
       // Attach the selected location so the appointment is properly scoped
       locationId: selectedLocationId ?? undefined,
+      staffId: selectedStaffId ?? undefined,
     };
     dispatch({ type: "ADD_APPOINTMENT", payload: appointment });
     syncToDb({ type: "ADD_APPOINTMENT", payload: appointment });
@@ -283,7 +286,7 @@ export default function PublicBookingScreen() {
     }
 
     setStep("done");
-  }, [selectedServiceId, selectedTime, clientName, clientPhone, clientEmail, notes, selectedDate, selectedService, state, dispatch, appliedGiftCard, syncToDb, priceInfo, selectedLocationId, applicableDiscount]);
+  }, [selectedServiceId, selectedTime, clientName, clientPhone, clientEmail, notes, selectedDate, selectedService, state, dispatch, appliedGiftCard, syncToDb, priceInfo, selectedLocationId, selectedStaffId, applicableDiscount]);
 
   // Resolve the address to show: use selected location's full address if available, else global profile
   const displayAddress = selectedLocation
@@ -384,8 +387,8 @@ export default function PublicBookingScreen() {
       {/* Step Progress Indicator */}
       {step !== "done" && (
         <View style={{ flexDirection: "row", justifyContent: "center", gap: 6, marginBottom: 14 }}>
-          {(hasMultipleLocations ? ["location", "info", "service", "datetime", "confirm"] : ["info", "service", "datetime", "confirm"]).map((s, i) => {
-            const steps = hasMultipleLocations ? ["location", "info", "service", "datetime", "confirm"] : ["info", "service", "datetime", "confirm"];
+          {(hasMultipleLocations ? ["location", "info", "service", "staff", "datetime", "confirm"] : ["info", "service", "staff", "datetime", "confirm"]).map((s, i) => {
+            const steps = hasMultipleLocations ? ["location", "info", "service", "staff", "datetime", "confirm"] : ["info", "service", "staff", "datetime", "confirm"];
             const currentIdx = steps.indexOf(step);
             const isActive = s === step;
             const isPast = steps.indexOf(s) < currentIdx;
@@ -614,7 +617,8 @@ export default function PublicBookingScreen() {
                 key={item.id}
                 onPress={() => {
                   setSelectedServiceId(item.id);
-                  setStep("datetime");
+                  setSelectedStaffId(null);
+                  setStep("staff");
                 }}
                 style={({ pressed }) => [
                   styles.serviceOption,
@@ -641,10 +645,66 @@ export default function PublicBookingScreen() {
           </View>
         )}
 
+        {/* ── Step: Choose Staff ────────────────────────────────────────────── */}
+        {step === "staff" && (() => {
+          const svc = selectedServiceId ? getServiceById(selectedServiceId) : null;
+          const availableStaff = state.staff.filter((m) => {
+            if (!m.active) return false;
+            // Filter by location
+            if (selectedLocationId && m.locationIds && m.locationIds.length > 0) {
+              if (!m.locationIds.includes(selectedLocationId)) return false;
+            }
+            // Filter by service
+            if (svc && m.serviceIds && m.serviceIds.length > 0) {
+              if (!m.serviceIds.includes(svc.id)) return false;
+            }
+            return true;
+          });
+          return (
+            <View>
+              <Pressable onPress={() => setStep("service")} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, marginBottom: 12 }]}>
+                <Text style={{ color: colors.primary, fontSize: 14 }}>← Back</Text>
+              </Pressable>
+              <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground, marginBottom: 4 }}>Choose a Staff Member</Text>
+              <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 14 }}>Optional — skip to let us assign someone</Text>
+              {/* No preference option */}
+              <Pressable
+                onPress={() => { setSelectedStaffId(null); setStep("datetime"); }}
+                style={({ pressed }) => [styles.serviceOption, { backgroundColor: selectedStaffId === null ? colors.primary + "15" : colors.surface, borderColor: selectedStaffId === null ? colors.primary : colors.border, opacity: pressed ? 0.7 : 1 }]}
+              >
+                <View style={[styles.colorDot, { backgroundColor: colors.muted }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>No Preference</Text>
+                  <Text style={{ fontSize: 13, color: colors.muted, marginTop: 2 }}>Any available staff member</Text>
+                </View>
+                {selectedStaffId === null && <IconSymbol name="checkmark.circle.fill" size={20} color={colors.primary} />}
+              </Pressable>
+              {availableStaff.map((member) => (
+                <Pressable
+                  key={member.id}
+                  onPress={() => { setSelectedStaffId(member.id); setStep("datetime"); }}
+                  style={({ pressed }) => [styles.serviceOption, { backgroundColor: selectedStaffId === member.id ? member.color + "15" : colors.surface, borderColor: selectedStaffId === member.id ? member.color : colors.border, opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <View style={[styles.colorDot, { backgroundColor: member.color }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{member.name}</Text>
+                    {member.role ? <Text style={{ fontSize: 13, color: colors.muted, marginTop: 2 }}>{member.role}</Text> : null}
+                  </View>
+                  {selectedStaffId === member.id && <IconSymbol name="checkmark.circle.fill" size={20} color={member.color} />}
+                </Pressable>
+              ))}
+              {availableStaff.length === 0 && (
+                <View style={{ alignItems: "center", paddingVertical: 16 }}>
+                  <Text style={{ fontSize: 13, color: colors.muted }}>No staff listed — we'll assign someone for you.</Text>
+                </View>
+              )}
+            </View>
+          );
+        })()}
         {/* ── Step: Date & Time ─────────────────────────────────────────────── */}
         {step === "datetime" && (
           <View>
-            <Pressable onPress={() => setStep("service")} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, marginBottom: 12 }]}>
+            <Pressable onPress={() => setStep("staff")} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, marginBottom: 12 }]}>
               <Text style={{ color: colors.primary, fontSize: 14 }}>← Back</Text>
             </Pressable>
             <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground, marginBottom: 12 }}>Pick a Date</Text>
@@ -832,6 +892,12 @@ export default function PublicBookingScreen() {
                   <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{clientPhone}</Text>
                 </View>
               ) : null}
+              {selectedStaffId && getStaffById(selectedStaffId) && (
+                <View style={[styles.summaryRow, { borderBottomColor: colors.border + "40" }]}>
+                  <Text style={{ fontSize: 14, color: colors.muted }}>Staff</Text>
+                  <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{getStaffById(selectedStaffId)!.name}</Text>
+                </View>
+              )}
               <View style={[styles.summaryRow, { borderBottomColor: colors.border + "40" }]}>
                 <Text style={{ fontSize: 14, color: colors.muted }}>Service</Text>
                 <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{selectedService ? getServiceDisplayName(selectedService) : ""}</Text>

@@ -164,6 +164,8 @@ describe("Business Profile", () => {
       autoCompleteEnabled: false,
       autoCompleteDelayMinutes: 5,
       smsTemplates: {},
+      monthlyRevenueGoal: 0,
+      staffAlertThreshold: 80,
     };
     expect(settings.profile).toBeDefined();
     expect(settings.profile.ownerName).toBe("");
@@ -310,6 +312,8 @@ describe("Theme Mode", () => {
       autoCompleteEnabled: false,
       autoCompleteDelayMinutes: 5,
       smsTemplates: {},
+      monthlyRevenueGoal: 0,
+      staffAlertThreshold: 80,
     };
     expect(settings.themeMode).toBe("dark");
   });
@@ -335,6 +339,8 @@ describe("Theme Mode", () => {
       autoCompleteEnabled: false,
       autoCompleteDelayMinutes: 5,
       smsTemplates: {},
+      monthlyRevenueGoal: 0,
+      staffAlertThreshold: 80,
     };
     expect(settings.themeMode).toBe("system");
   });
@@ -474,6 +480,8 @@ describe("Cancellation Policy", () => {
       autoCompleteEnabled: false,
       autoCompleteDelayMinutes: 5,
       smsTemplates: {},
+      monthlyRevenueGoal: 0,
+      staffAlertThreshold: 80,
     };
     // Cancellation fee is disabled by default — owner must explicitly opt in
     expect(settings.cancellationPolicy.enabled).toBe(false);
@@ -605,6 +613,8 @@ describe("Temporary Closed Feature", () => {
       autoCompleteEnabled: false,
       autoCompleteDelayMinutes: 5,
       smsTemplates: {},
+      monthlyRevenueGoal: 0,
+      staffAlertThreshold: 80,
     };
     expect(settings.temporaryClosed).toBe(true);
   });
@@ -630,6 +640,8 @@ describe("Temporary Closed Feature", () => {
       autoCompleteEnabled: false,
       autoCompleteDelayMinutes: 5,
       smsTemplates: {},
+      monthlyRevenueGoal: 0,
+      staffAlertThreshold: 80,
     };
     expect(settings.temporaryClosed).toBe(false);
   });
@@ -718,6 +730,8 @@ describe("Business Logo URI", () => {
       autoCompleteEnabled: false,
       autoCompleteDelayMinutes: 5,
       smsTemplates: {},
+      monthlyRevenueGoal: 0,
+      staffAlertThreshold: 80,
     };
     expect(settings.businessLogoUri).toBe("file:///data/user/0/com.app/cache/photo.jpg");
   });
@@ -743,6 +757,8 @@ describe("Business Logo URI", () => {
       autoCompleteEnabled: false,
       autoCompleteDelayMinutes: 5,
       smsTemplates: {},
+      monthlyRevenueGoal: 0,
+      staffAlertThreshold: 80,
     };
     expect(settings.businessLogoUri).toBe("");
   });
@@ -770,6 +786,8 @@ describe("Logout and Delete Business", () => {
       autoCompleteEnabled: false,
       autoCompleteDelayMinutes: 5,
       smsTemplates: {},
+      monthlyRevenueGoal: 0,
+      staffAlertThreshold: 80,
     };
     // Simulate logout
     const loggedOut = { ...settings, onboardingComplete: false };

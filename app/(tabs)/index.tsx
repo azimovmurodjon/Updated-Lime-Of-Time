@@ -406,7 +406,20 @@ export default function HomeScreen() {
       .sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
   }, [todayStr, selectedLocationFilter, filterByLocation, getAppointmentsForDate]);
 
-  // ─── Analytics ──────────────────────────────────────────────────
+  // ─── Birthday Clients ─────────────────────────────────────────────
+  const birthdayClients = useMemo(() => {
+    const todayMD = todayStr.slice(5); // "MM-DD"
+    return state.clients.filter((c) => {
+      if (!c.birthday) return false;
+      const parts = c.birthday.replace(/-/g, "/").split("/");
+      if (parts.length < 2) return false;
+      const mm = parts[0].padStart(2, "0");
+      const dd = parts[1].padStart(2, "0");
+      return `${mm}-${dd}` === todayMD;
+    });
+  }, [state.clients, todayStr]);
+
+  // ─── Analytics ──────────────────────────────────────────────
   const analytics = useMemo(() => {
     const totalClients = clientsForActiveLocation.length;
     const filteredAppts = filterByLocation(state.appointments);
@@ -1118,8 +1131,45 @@ export default function HomeScreen() {
             </View>
           </View>
         </View>
+        {/* ─── Birthday Banner ──────────────────────────────────────── */}
+        {birthdayClients.length > 0 && (
+          <View style={{ marginTop: 20, borderRadius: 16, overflow: "hidden" }}>
+            <LinearGradient
+              colors={["#FF6B9D", "#FF8E53"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ padding: 14, borderRadius: 16 }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+                <Text style={{ fontSize: 22, marginRight: 8 }}>🎂</Text>
+                <Text style={{ fontSize: 15, fontWeight: "700", color: "#FFF" }}>
+                  {birthdayClients.length === 1
+                    ? `Today is ${birthdayClients[0].name}'s Birthday!`
+                    : `${birthdayClients.length} Clients Have Birthdays Today!`}
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                {birthdayClients.map((c) => (
+                  <Pressable
+                    key={c.id}
+                    onPress={() => router.push({ pathname: "/client-detail", params: { id: c.id } })}
+                    style={({ pressed }) => [{
+                      backgroundColor: "rgba(255,255,255,0.25)",
+                      borderRadius: 20,
+                      paddingHorizontal: 12,
+                      paddingVertical: 5,
+                      opacity: pressed ? 0.7 : 1,
+                    }]}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: "600", color: "#FFF" }}>{c.name}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </LinearGradient>
+          </View>
+        )}
 
-        {/* ─── Quick Actions ──────────────────────────────────────── */}
+        {/* ─── Quick Actions ────────────────────────────────────────────── */}
         <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 24 }]}>
           Quick Actions
         </Text>

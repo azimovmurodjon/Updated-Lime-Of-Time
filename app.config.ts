@@ -109,6 +109,13 @@ const config: ExpoConfig = {
   plugins: [
     "expo-router",
     [
+      "expo-image-picker",
+      {
+        "photosPermission": "Allow $(PRODUCT_NAME) to access your photos for client before/after gallery.",
+        "cameraPermission": "Allow $(PRODUCT_NAME) to take photos for client before/after gallery."
+      }
+    ],
+    [
       "expo-contacts",
       {
         contactsPermission:
