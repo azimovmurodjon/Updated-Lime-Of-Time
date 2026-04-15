@@ -502,7 +502,7 @@ export default function DiscountsScreen() {
           });
           const hasMultiCat = catEntries.length > 1;
           return catEntries.map(([cat, svcs]) => (
-            <View key={cat}>
+            <View key={cat} style={{ width: "100%" }}>
               {hasMultiCat && (
                 <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, marginTop: 6, marginBottom: 2 }}>{cat}</Text>
               )}
@@ -563,7 +563,7 @@ export default function DiscountsScreen() {
               });
               const hasMultiBrand = brandEntries.length > 1;
               return brandEntries.map(([brand, prods]) => (
-                <View key={brand}>
+                <View key={brand} style={{ width: "100%" }}>
                   {hasMultiBrand && (
                     <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, marginTop: 6, marginBottom: 2 }}>{brand}</Text>
                   )}
