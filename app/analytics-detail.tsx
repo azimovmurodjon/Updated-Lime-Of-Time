@@ -516,7 +516,13 @@ export default function AnalyticsDetailScreen() {
         ]}
       >
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => {
+            if (tab && tab !== "overview") {
+              router.replace({ pathname: "/analytics-detail", params: { tab: "overview" } });
+            } else {
+              router.back();
+            }
+          }}
           style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
         >
           <IconSymbol name="arrow.left" size={24} color={colors.foreground} />
