@@ -605,6 +605,45 @@ export default function HomeScreen() {
     })).filter((s) => s.bookings > 0).sort((a, b) => b.bookings - a.bookings);
   }, [state.services, state.appointments, filterByLocation]);
 
+  // ─── Revenue Forecast (current month) ────────────────────────────────────
+  const revenueForecast = useMemo(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const dayOfMonth = now.getDate();
+    const mStart = `${year}-${String(month + 1).padStart(2, "0")}-01`;
+    const mEnd = `${year}-${String(month + 1).padStart(2, "0")}-${String(daysInMonth).padStart(2, "0")}`;
+    const todayStr2 = formatDateStr(now);
+    // Revenue earned so far this month (completed)
+    const completedThisMonth = filterByLocation(state.appointments).filter(
+      (a) => a.status === "completed" && a.date >= mStart && a.date <= mEnd
+    );
+    const earnedSoFar = completedThisMonth.reduce((sum, a) => {
+      if (a.totalPrice != null) return sum + a.totalPrice;
+      const svc = state.services.find((s) => s.id === a.serviceId);
+      return sum + (svc?.price ?? 0);
+    }, 0);
+    // Revenue from upcoming confirmed/pending appointments this month
+    const scheduledThisMonth = filterByLocation(state.appointments).filter(
+      (a) => (a.status === "confirmed" || a.status === "pending") && a.date > todayStr2 && a.date <= mEnd
+    );
+    const scheduledRevenue = scheduledThisMonth.reduce((sum, a) => {
+      if (a.totalPrice != null) return sum + a.totalPrice;
+      const svc = state.services.find((s) => s.id === a.serviceId);
+      return sum + (svc?.price ?? 0);
+    }, 0);
+    // Projected end-of-month based on daily run-rate
+    const dailyRate = dayOfMonth > 0 ? earnedSoFar / dayOfMonth : 0;
+    const remainingDays = daysInMonth - dayOfMonth;
+    const projected = Math.round(earnedSoFar + dailyRate * remainingDays);
+    const goal = state.settings.monthlyRevenueGoal ?? 0;
+    const progressPct = goal > 0 ? Math.min(100, Math.round((earnedSoFar / goal) * 100)) : 0;
+    const projectedPct = goal > 0 ? Math.min(100, Math.round((projected / goal) * 100)) : 0;
+    const monthName = now.toLocaleDateString("en-US", { month: "long" });
+    return { earnedSoFar, scheduledRevenue, projected, goal, progressPct, projectedPct, monthName, daysInMonth, dayOfMonth, remainingDays };
+  }, [state.appointments, state.services, state.settings.monthlyRevenueGoal, filterByLocation]);
+
   const pendingCount = analytics.statusCounts.pending;
   const revenueChange =
     analytics.prevWeekRevenue > 0
@@ -1168,6 +1207,70 @@ export default function HomeScreen() {
             </LinearGradient>
           </View>
         )}
+
+        {/* ─── Revenue Forecast Widget ────────────────────────────────── */}
+        <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 24 }]}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <View>
+              <Text style={[styles.chartTitle, { color: colors.foreground }]}>{revenueForecast.monthName} Forecast</Text>
+              <Text style={[styles.chartSubtitle, { color: colors.muted }]}>Day {revenueForecast.dayOfMonth} of {revenueForecast.daysInMonth}</Text>
+            </View>
+            <Pressable
+              onPress={() => router.push("/schedule-settings" as any)}
+              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+            >
+              {revenueForecast.goal > 0 ? (
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={{ fontSize: 11, color: colors.muted }}>Goal</Text>
+                  <Text style={{ fontSize: 15, fontWeight: "800", color: colors.foreground }}>${revenueForecast.goal.toLocaleString()}</Text>
+                </View>
+              ) : (
+                <View style={{ backgroundColor: colors.primary + "15", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}>
+                  <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>Set Goal</Text>
+                </View>
+              )}
+            </Pressable>
+          </View>
+
+          {/* Three stat columns */}
+          <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
+            <View style={{ flex: 1, backgroundColor: colors.background, borderRadius: 10, padding: 10, alignItems: "center" }}>
+              <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 2 }}>Earned</Text>
+              <Text style={{ fontSize: 16, fontWeight: "800", color: colors.foreground }}>${Math.round(revenueForecast.earnedSoFar).toLocaleString()}</Text>
+            </View>
+            <View style={{ flex: 1, backgroundColor: colors.background, borderRadius: 10, padding: 10, alignItems: "center" }}>
+              <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 2 }}>Scheduled</Text>
+              <Text style={{ fontSize: 16, fontWeight: "800", color: "#3B82F6" }}>${Math.round(revenueForecast.scheduledRevenue).toLocaleString()}</Text>
+            </View>
+            <View style={{ flex: 1, backgroundColor: colors.background, borderRadius: 10, padding: 10, alignItems: "center" }}>
+              <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 2 }}>Projected</Text>
+              <Text style={{ fontSize: 16, fontWeight: "800", color: revenueForecast.goal > 0 && revenueForecast.projected >= revenueForecast.goal ? "#22C55E" : colors.primary }}>
+                ${revenueForecast.projected.toLocaleString()}
+              </Text>
+            </View>
+          </View>
+
+          {/* Progress bar — only shown when goal is set */}
+          {revenueForecast.goal > 0 && (
+            <View>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                <Text style={{ fontSize: 11, color: colors.muted }}>Progress toward goal</Text>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: revenueForecast.progressPct >= 100 ? "#22C55E" : colors.primary }}>
+                  {revenueForecast.progressPct}%
+                </Text>
+              </View>
+              <View style={{ height: 8, backgroundColor: colors.border, borderRadius: 4, overflow: "hidden" }}>
+                {/* Projected bar (lighter) */}
+                <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${revenueForecast.projectedPct}%`, backgroundColor: colors.primary + "40", borderRadius: 4 }} />
+                {/* Earned bar (solid) */}
+                <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${revenueForecast.progressPct}%`, backgroundColor: revenueForecast.progressPct >= 100 ? "#22C55E" : colors.primary, borderRadius: 4 }} />
+              </View>
+              {revenueForecast.progressPct >= 100 && (
+                <Text style={{ fontSize: 12, color: "#22C55E", fontWeight: "700", marginTop: 6, textAlign: "center" }}>🎉 Goal reached!</Text>
+              )}
+            </View>
+          )}
+        </View>
 
         {/* ─── Quick Actions ────────────────────────────────────────────── */}
         <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 24 }]}>

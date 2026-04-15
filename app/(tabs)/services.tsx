@@ -247,12 +247,21 @@ export default function ServicesScreen() {
                       ) : null}
                     </View>
                   </View>
-                  <IconSymbol
-                    name="chevron.right"
-                    size={16}
-                    color={colors.muted}
-                    style={{ marginRight: 14 }}
-                  />
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginRight: 8 }}>
+                    <Pressable
+                      onPress={() => router.push({ pathname: "/service-gallery" as any, params: { serviceId: svc.id } })}
+                      style={({ pressed }) => ({
+                        backgroundColor: colors.primary + "15",
+                        borderRadius: 8,
+                        paddingHorizontal: 8,
+                        paddingVertical: 5,
+                        opacity: pressed ? 0.7 : 1,
+                      })}
+                    >
+                      <IconSymbol name="photo.fill" size={14} color={colors.primary} />
+                    </Pressable>
+                    <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+                  </View>
                 </Pressable>
               );
             }}

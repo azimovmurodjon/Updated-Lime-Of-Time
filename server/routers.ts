@@ -297,6 +297,7 @@ const appointmentsRouter = router({
         giftUsedAmount: z.number().optional(),
         staffId: z.string().optional(),
         locationId: z.string().optional(),
+        cancellationReason: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -735,6 +736,46 @@ const locationsRouter = router({
     }),
 });
 
+// ─── Twilio SMS Router ─────────────────────────────────────────────────────
+
+const twilioRouter = router({
+  sendSms: publicProcedure
+    .input(
+      z.object({
+        accountSid: z.string(),
+        authToken: z.string(),
+        fromNumber: z.string(),
+        toNumber: z.string(),
+        body: z.string(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { accountSid, authToken, fromNumber, toNumber, body } = input;
+      if (!accountSid || !authToken || !fromNumber) {
+        throw new Error("Twilio credentials are not configured.");
+      }
+      const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+      const params = new URLSearchParams();
+      params.append("From", fromNumber);
+      params.append("To", toNumber);
+      params.append("Body", body);
+      const credentials = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${credentials}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: params.toString(),
+      });
+      const data = await response.json() as any;
+      if (!response.ok) {
+        throw new Error(data.message ?? "Failed to send SMS via Twilio");
+      }
+      return { success: true, sid: data.sid as string };
+    }),
+});
+
 // ─── Root Router ─────────────────────────────────────────────────────
 
 export const appRouter = router({
@@ -758,6 +799,7 @@ export const appRouter = router({
   products: productsRouter,
   staff: staffRouter,
   locations: locationsRouter,
+  twilio: twilioRouter,
 });
 
 export type AppRouter = typeof appRouter;

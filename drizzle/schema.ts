@@ -168,6 +168,8 @@ export const appointments = mysqlTable("appointments", {
   staffId: varchar("staffId", { length: 64 }),
   /** Location localId for multi-location businesses */
   locationId: varchar("locationId", { length: 64 }),
+  /** Reason provided when appointment was cancelled */
+  cancellationReason: varchar("cancellationReason", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

@@ -17,6 +17,7 @@ import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter } from "expo-router";
 import { Client, formatPhoneNumber, stripPhoneFormat, LIME_OF_TIME_FOOTER } from "@/lib/types";
+import { trpc } from "@/lib/trpc";
 
 // Parse birthday string (MM/DD/YYYY or MM/DD) and return { month, day }
 function parseBirthday(birthday: string): { month: number; day: number } | null {
@@ -54,6 +55,7 @@ type BirthdayFilter = "upcoming" | "today" | "all";
 export default function BirthdayCampaignsScreen() {
   const { state } = useStore();
   const colors = useColors();
+  const sendSmsMutation = trpc.twilio.sendSms.useMutation();
   const router = useRouter();
   const { hp } = useResponsive();
   const [filter, setFilter] = useState<BirthdayFilter>("upcoming");
@@ -101,16 +103,43 @@ export default function BirthdayCampaignsScreen() {
         return;
       }
       const message = generateBirthdayMessage(client);
-      if (Platform.OS === "web") {
-        Alert.alert("Birthday Message", message);
-        return;
-      }
+      const biz2 = state.settings;
       const rawPhone = stripPhoneFormat(client.phone);
-      const separator = Platform.OS === "ios" ? "&" : "?";
-      const url = `sms:${rawPhone}${separator}body=${encodeURIComponent(message)}`;
-      Linking.openURL(url).catch(() => Alert.alert("Birthday Message", message));
+      const twilioReady =
+        biz2.twilioEnabled &&
+        biz2.twilioBirthdaySms &&
+        biz2.twilioAccountSid &&
+        biz2.twilioAuthToken &&
+        biz2.twilioFromNumber;
+      if (twilioReady) {
+        const toNumber = rawPhone.startsWith("+") ? rawPhone : `+1${rawPhone.replace(/\D/g, "")}`;
+        sendSmsMutation
+          .mutateAsync({
+            accountSid: biz2.twilioAccountSid!,
+            authToken: biz2.twilioAuthToken!,
+            fromNumber: biz2.twilioFromNumber!,
+            toNumber,
+            body: message,
+          })
+          .then(() => Alert.alert("Sent!", `Birthday SMS sent to ${client.name}.`))
+          .catch(() => {
+            if (Platform.OS === "web") {
+              Alert.alert("Birthday Message", message);
+            } else {
+              const separator = Platform.OS === "ios" ? "&" : "?";
+              const url = `sms:${rawPhone}${separator}body=${encodeURIComponent(message)}`;
+              Linking.openURL(url).catch(() => Alert.alert("Birthday Message", message));
+            }
+          });
+      } else if (Platform.OS === "web") {
+        Alert.alert("Birthday Message", message);
+      } else {
+        const separator = Platform.OS === "ios" ? "&" : "?";
+        const url = `sms:${rawPhone}${separator}body=${encodeURIComponent(message)}`;
+        Linking.openURL(url).catch(() => Alert.alert("Birthday Message", message));
+      }
     },
-    [generateBirthdayMessage]
+    [generateBirthdayMessage, state.settings, sendSmsMutation]
   );
 
   const handleSendAll = useCallback(() => {

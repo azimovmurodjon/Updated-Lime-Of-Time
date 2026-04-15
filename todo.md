@@ -1000,3 +1000,15 @@
 - [ ] Step 2: "Most Popular" horizontal scroll row above category tiles (top 3-5 most-booked services)
 - [ ] Step 2 detail sheet: improve photo placeholder when no photoUri set
 - [ ] Fix Staff Performance screen: "6 Mo" tab clipped off-screen, stat boxes overlapping
+
+## Batch 10 Features (Apr 15 2026)
+- [x] Remove hardcoded phone number 4124827733 from all non-seed files
+- [ ] Staff commission tracking (commission % field + Commission Due on Staff Performance)
+- [x] Cancellation reason tracking (prompt on cancel + breakdown chart in Analytics)
+- [x] Revenue forecast widget on home dashboard
+- [x] Appointment note templates (reusable notes per client profile)
+- [ ] Client birthday field and birthday discount auto-apply logic
+- [x] Before/after photo gallery per service (service-gallery.tsx with before/after tagging)
+- [ ] Waitlist feature for fully-booked slots (booking page)
+- [x] Service bundle/package deals (packages.tsx with purchase + redemption tracking)
+- [x] Twilio SMS: booking reminders, rebooking nudge, birthday SMS (twilio-setup.tsx + sms-automation.tsx)

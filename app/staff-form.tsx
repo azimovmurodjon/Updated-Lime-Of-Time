@@ -63,6 +63,9 @@ export default function StaffFormScreen() {
   const [role, setRole] = useState(existing?.role ?? "");
   const [color, setColor] = useState(existing?.color ?? STAFF_COLORS[0]);
   const [active, setActive] = useState(existing?.active ?? true);
+  const [commissionRate, setCommissionRate] = useState<string>(
+    existing?.commissionRate != null ? String(existing.commissionRate) : ""
+  );
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>(
     existing?.serviceIds ?? []
   );
@@ -164,6 +167,7 @@ export default function StaffFormScreen() {
       workingHours: useCustomSchedule ? (weekSchedule as any) : null,
       active,
       createdAt: existing?.createdAt ?? new Date().toISOString(),
+      commissionRate: commissionRate.trim() ? parseFloat(commissionRate) : null,
     };
 
     const action = isEdit
@@ -221,6 +225,17 @@ export default function StaffFormScreen() {
             onChangeText={setRole}
             placeholder="e.g. Stylist, Therapist, Manager"
             placeholderTextColor={colors.muted}
+            style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+            returnKeyType="done"
+          />
+
+          <Text className="text-xs font-medium text-muted mb-1 mt-3">Commission Rate (%)</Text>
+          <TextInput
+            value={commissionRate}
+            onChangeText={(v) => setCommissionRate(v.replace(/[^0-9.]/g, ""))}
+            placeholder="e.g. 40 (staff earns 40% of revenue)"
+            placeholderTextColor={colors.muted}
+            keyboardType="decimal-pad"
             style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
             returnKeyType="done"
           />

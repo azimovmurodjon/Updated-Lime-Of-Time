@@ -690,7 +690,7 @@ function dataDeletionPage(): string {
 
         <div class="form-group">
           <label for="phone">Phone Number</label>
-          <input type="tel" id="phone" name="phone" placeholder="(412) 482-7733">
+          <input type="tel" id="phone" name="phone" placeholder="(555) 000-0000">
         </div>
 
         <div class="form-group">

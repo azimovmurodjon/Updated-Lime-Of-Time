@@ -9,6 +9,7 @@ import {
   Linking,
   Platform,
   Alert,
+  Modal,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -17,6 +18,7 @@ import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useMemo, useCallback } from "react";
 import { Appointment, Client, Product, Discount, DAYS_OF_WEEK, generateAvailableSlots, minutesToTime, timeToMinutes, getApplicableDiscount, generateConfirmationMessage, getServiceDisplayName, stripPhoneFormat, timeSlotsOverlap, PUBLIC_BOOKING_URL } from "@/lib/types";
+import { trpc } from "@/lib/trpc";
 import { useActiveLocation } from "@/hooks/use-active-location";
 import { useResponsive } from "@/hooks/use-responsive";
 
@@ -45,12 +47,15 @@ export default function NewBookingScreen() {
   const { isTablet, hp } = useResponsive();
   const params = useLocalSearchParams<{ date?: string }>();
 
+  const sendSmsMutation = trpc.twilio.sendSms.useMutation();
+
   const [step, setStep] = useState<Step>(1);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(params.date ?? formatDateStr(new Date()));
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
+  const [showTemplatesPicker, setShowTemplatesPicker] = useState(false);
   const [clientSearch, setClientSearch] = useState("");
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickName, setQuickName] = useState("");
@@ -555,7 +560,27 @@ export default function NewBookingScreen() {
         apptLoc?.zipCode
       );
       const rawPhone = stripPhoneFormat(selectedClient.phone);
-      if (Platform.OS === "web") {
+      // Try Twilio first; fall back to native SMS app
+      const twilioReady =
+        biz.twilioEnabled &&
+        biz.twilioBookingReminder &&
+        biz.twilioAccountSid &&
+        biz.twilioAuthToken &&
+        biz.twilioFromNumber;
+      if (twilioReady) {
+        const toNumber = rawPhone.startsWith("+") ? rawPhone : `+1${rawPhone.replace(/\D/g, "")}`;
+        sendSmsMutation
+          .mutateAsync({
+            accountSid: biz.twilioAccountSid!,
+            authToken: biz.twilioAuthToken!,
+            fromNumber: biz.twilioFromNumber!,
+            toNumber,
+            body: msg,
+          })
+          .catch(() => {
+            // Silently fall back — don't block booking flow
+          });
+      } else if (Platform.OS === "web") {
         Alert.alert("SMS Message", msg);
       } else {
         const separator = Platform.OS === "ios" ? "&" : "?";
@@ -565,7 +590,7 @@ export default function NewBookingScreen() {
     }
 
     router.back();
-  }, [selectedServiceId, selectedClientId, selectedDate, selectedTime, totalDuration, notes, cart, recurring, dispatch, router, appliedDiscount, discountAmount, totalPrice, subtotal, selectedStaffId, selectedLocationId, syncToDb, selectedService, selectedClient, state.settings]);
+  }, [selectedServiceId, selectedClientId, selectedDate, selectedTime, totalDuration, notes, cart, recurring, dispatch, router, appliedDiscount, discountAmount, totalPrice, subtotal, selectedStaffId, selectedLocationId, syncToDb, selectedService, selectedClient, state.settings, sendSmsMutation]);
 
   const getInitials = (name: string) => {
     const parts = name.split(" ");
@@ -931,7 +956,18 @@ export default function NewBookingScreen() {
           )}
 
           {/* Notes */}
-          <Text className="text-xs font-medium text-muted mb-1 ml-1 mt-2">Notes (optional)</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4, marginTop: 8 }}>
+            <Text className="text-xs font-medium text-muted ml-1">Notes (optional)</Text>
+            {(state.noteTemplates ?? []).length > 0 && (
+              <Pressable
+                onPress={() => setShowTemplatesPicker(true)}
+                style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, flexDirection: "row", alignItems: "center", gap: 4 })}
+              >
+                <IconSymbol name="doc.text.fill" size={13} color={colors.primary} />
+                <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>Templates</Text>
+              </Pressable>
+            )}
+          </View>
           <TextInput
             className="bg-surface rounded-xl px-4 py-3 text-sm mb-4 border border-border"
             placeholder="Add any notes..."
@@ -1405,6 +1441,48 @@ export default function NewBookingScreen() {
           <View style={{ height: 40 }} />
         </ScrollView>
       )}
+      {/* Note Templates Picker Modal */}
+      <Modal
+        visible={showTemplatesPicker}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowTemplatesPicker(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: colors.border }}>
+            <Pressable onPress={() => setShowTemplatesPicker(false)} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
+              <Text style={{ fontSize: 16, color: colors.muted }}>Cancel</Text>
+            </Pressable>
+            <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>Note Templates</Text>
+            <View style={{ width: 60 }} />
+          </View>
+          <FlatList
+            data={state.noteTemplates ?? []}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+            renderItem={({ item }) => (
+              <Pressable
+                onPress={() => {
+                  setNotes((prev) => prev ? `${prev}\n${item.body}` : item.body);
+                  setShowTemplatesPicker(false);
+                }}
+                style={({ pressed }) => ({
+                  backgroundColor: pressed ? colors.primary + "15" : colors.surface,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 14,
+                  marginBottom: 10,
+                  opacity: pressed ? 0.9 : 1,
+                })}
+              >
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, marginBottom: 4 }}>{item.title}</Text>
+                <Text style={{ fontSize: 13, color: colors.muted, lineHeight: 18 }} numberOfLines={3}>{item.body}</Text>
+              </Pressable>
+            )}
+          />
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }

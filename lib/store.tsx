@@ -22,6 +22,10 @@ import {
   DEFAULT_SMS_TEMPLATES,
   AppointmentStatus,
   timeToMinutes,
+  NoteTemplate,
+  WaitlistEntry,
+  ServicePackage,
+  ServicePhoto,
 } from "./types";
 import { trpc } from "./trpc";
 
@@ -49,6 +53,14 @@ interface AppState {
   activeLocationId: string | null;
   /** Before/after photos per client, stored locally only (not synced to DB) */
   clientPhotos: ClientPhoto[];
+  /** Reusable appointment note templates */
+  noteTemplates: NoteTemplate[];
+  /** Waitlist entries for fully-booked slots */
+  waitlist: WaitlistEntry[];
+  /** Service bundle / package deals */
+  packages: ServicePackage[];
+  /** Before/after photos per service */
+  servicePhotos: ServicePhoto[];
 }
 
 const initialSettings: BusinessSettings = {
@@ -73,6 +85,15 @@ const initialSettings: BusinessSettings = {
   smsTemplates: DEFAULT_SMS_TEMPLATES,
   monthlyRevenueGoal: 0,
   staffAlertThreshold: 80,
+  twilioAccountSid: "",
+  twilioAuthToken: "",
+  twilioFromNumber: "",
+  twilioEnabled: false,
+  twilioBookingReminder: true,
+  twilioReminderHoursBeforeAppt: 24,
+  twilioRebookingNudge: false,
+  twilioRebookingNudgeDays: 14,
+  twilioBirthdaySms: false,
 };
 
 const initialState: AppState = {
@@ -93,6 +114,10 @@ const initialState: AppState = {
   syncing: false,
   activeLocationId: null,
   clientPhotos: [],
+  noteTemplates: [],
+  waitlist: [],
+  packages: [],
+  servicePhotos: [],
 };
 
 // --- Actions ---
@@ -108,7 +133,7 @@ type Action =
   | { type: "DELETE_CLIENT"; payload: string }
   | { type: "ADD_APPOINTMENT"; payload: Appointment }
   | { type: "UPDATE_APPOINTMENT"; payload: Appointment }
-  | { type: "UPDATE_APPOINTMENT_STATUS"; payload: { id: string; status: AppointmentStatus } }
+  | { type: "UPDATE_APPOINTMENT_STATUS"; payload: { id: string; status: AppointmentStatus; cancellationReason?: string } }
   | { type: "DELETE_APPOINTMENT"; payload: string }
   | { type: "UPDATE_SETTINGS"; payload: Partial<BusinessSettings> }
   | { type: "ADD_REVIEW"; payload: Review }
@@ -134,7 +159,20 @@ type Action =
   | { type: "DELETE_LOCATION"; payload: string }
   | { type: "SET_ACTIVE_LOCATION"; payload: string | null }
   | { type: "ADD_CLIENT_PHOTO"; payload: ClientPhoto }
+  | { type: "UPDATE_CLIENT_PHOTO"; payload: ClientPhoto }
   | { type: "DELETE_CLIENT_PHOTO"; payload: string }
+  | { type: "ADD_NOTE_TEMPLATE"; payload: NoteTemplate }
+  | { type: "UPDATE_NOTE_TEMPLATE"; payload: NoteTemplate }
+  | { type: "DELETE_NOTE_TEMPLATE"; payload: string }
+  | { type: "ADD_WAITLIST_ENTRY"; payload: WaitlistEntry }
+  | { type: "UPDATE_WAITLIST_ENTRY"; payload: WaitlistEntry }
+  | { type: "DELETE_WAITLIST_ENTRY"; payload: string }
+  | { type: "ADD_PACKAGE"; payload: ServicePackage }
+  | { type: "UPDATE_PACKAGE"; payload: ServicePackage }
+  | { type: "DELETE_PACKAGE"; payload: string }
+  | { type: "ADD_SERVICE_PHOTO"; payload: ServicePhoto }
+  | { type: "UPDATE_SERVICE_PHOTO"; payload: ServicePhoto }
+  | { type: "DELETE_SERVICE_PHOTO"; payload: string }
   | { type: "RESET_ALL_DATA" };
 
 function reducer(state: AppState, action: Action): AppState {
@@ -202,7 +240,15 @@ function reducer(state: AppState, action: Action): AppState {
       };
     case "UPDATE_APPOINTMENT_STATUS": {
       const updatedAppts = state.appointments.map((a) =>
-        a.id === action.payload.id ? { ...a, status: action.payload.status } : a
+        a.id === action.payload.id
+          ? {
+              ...a,
+              status: action.payload.status,
+              ...(action.payload.cancellationReason != null
+                ? { cancellationReason: action.payload.cancellationReason }
+                : {}),
+            }
+          : a
       );
       // Auto-deactivate discount if maxUses reached when appointment is completed
       let discountsAfterUpdate = state.discounts;
@@ -318,8 +364,34 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, locations: state.locations.filter((l) => l.id !== action.payload) };
     case "ADD_CLIENT_PHOTO":
       return { ...state, clientPhotos: [...state.clientPhotos, action.payload] };
+    case "UPDATE_CLIENT_PHOTO":
+      return { ...state, clientPhotos: state.clientPhotos.map((p) => p.id === action.payload.id ? action.payload : p) };
     case "DELETE_CLIENT_PHOTO":
       return { ...state, clientPhotos: state.clientPhotos.filter((p) => p.id !== action.payload) };
+    case "ADD_NOTE_TEMPLATE":
+      return { ...state, noteTemplates: [...(state.noteTemplates ?? []), action.payload] };
+    case "UPDATE_NOTE_TEMPLATE":
+      return { ...state, noteTemplates: (state.noteTemplates ?? []).map((t) => t.id === action.payload.id ? action.payload : t) };
+    case "DELETE_NOTE_TEMPLATE":
+      return { ...state, noteTemplates: (state.noteTemplates ?? []).filter((t) => t.id !== action.payload) };
+    case "ADD_WAITLIST_ENTRY":
+      return { ...state, waitlist: [...(state.waitlist ?? []), action.payload] };
+    case "UPDATE_WAITLIST_ENTRY":
+      return { ...state, waitlist: (state.waitlist ?? []).map((w) => w.id === action.payload.id ? action.payload : w) };
+    case "DELETE_WAITLIST_ENTRY":
+      return { ...state, waitlist: (state.waitlist ?? []).filter((w) => w.id !== action.payload) };
+    case "ADD_PACKAGE":
+      return { ...state, packages: [...(state.packages ?? []), action.payload] };
+    case "UPDATE_PACKAGE":
+      return { ...state, packages: (state.packages ?? []).map((p) => p.id === action.payload.id ? action.payload : p) };
+    case "DELETE_PACKAGE":
+      return { ...state, packages: (state.packages ?? []).filter((p) => p.id !== action.payload) };
+    case "ADD_SERVICE_PHOTO":
+      return { ...state, servicePhotos: [...(state.servicePhotos ?? []), action.payload] };
+    case "UPDATE_SERVICE_PHOTO":
+      return { ...state, servicePhotos: (state.servicePhotos ?? []).map((p) => p.id === action.payload.id ? action.payload : p) };
+    case "DELETE_SERVICE_PHOTO":
+      return { ...state, servicePhotos: (state.servicePhotos ?? []).filter((p) => p.id !== action.payload) };
     case "RESET_ALL_DATA":
       return { ...initialState, loaded: true };
     default:
@@ -372,6 +444,8 @@ const STORAGE_KEYS = {
   locations: "@bookease_locations",
   activeLocationId: "@bookease_active_location_id",
   clientPhotos: "@bookease_client_photos",
+  packages: "@bookease_packages",
+  servicePhotos: "@bookease_service_photos",
 };
 
 /** Convert DB rows to local frontend models */
@@ -881,7 +955,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
         // Fallback: load from AsyncStorage cache (written on last successful DB sync)
         // On first install with no cache, all arrays will be empty and the user will be prompted to log in
-        const [servicesRaw, clientsRaw, appointmentsRaw, reviewsRaw, settingsRaw, discountsRaw, giftCardsRaw, customScheduleRaw, productsRaw, staffRaw, locationsRaw, locationCustomScheduleRaw, clientPhotosRaw] =
+        const [servicesRaw, clientsRaw, appointmentsRaw, reviewsRaw, settingsRaw, discountsRaw, giftCardsRaw, customScheduleRaw, productsRaw, staffRaw, locationsRaw, locationCustomScheduleRaw, clientPhotosRaw, packagesRaw, servicePhotosRaw] =
           await Promise.all([
             AsyncStorage.getItem(STORAGE_KEYS.services),
             AsyncStorage.getItem(STORAGE_KEYS.clients),
@@ -896,6 +970,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             AsyncStorage.getItem(STORAGE_KEYS.locations),
             AsyncStorage.getItem(STORAGE_KEYS.locationCustomSchedule),
             AsyncStorage.getItem(STORAGE_KEYS.clientPhotos),
+            AsyncStorage.getItem(STORAGE_KEYS.packages),
+            AsyncStorage.getItem(STORAGE_KEYS.servicePhotos),
           ]);
         
         const parsedSettings = settingsRaw ? JSON.parse(settingsRaw) : {};
@@ -929,6 +1005,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             settings: loadedSettings,
             businessOwnerId: storedOwnerId ? parseInt(storedOwnerId, 10) : null,
             clientPhotos: clientPhotosRaw ? JSON.parse(clientPhotosRaw) : [],
+            packages: packagesRaw ? JSON.parse(packagesRaw) : [],
+            servicePhotos: servicePhotosRaw ? JSON.parse(servicePhotosRaw) : [],
           },
         });
         // Restore active location from AsyncStorage (or auto-set default)
@@ -1014,12 +1092,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!state.loaded) return;
     AsyncStorage.setItem(STORAGE_KEYS.clientPhotos, JSON.stringify(state.clientPhotos));
   }, [state.clientPhotos, state.loaded]);
-
+  useEffect(() => {
+    if (!state.loaded) return;
+    AsyncStorage.setItem(STORAGE_KEYS.packages, JSON.stringify(state.packages ?? []));
+  }, [state.packages, state.loaded]);
+  useEffect(() => {
+    if (!state.loaded) return;
+    AsyncStorage.setItem(STORAGE_KEYS.servicePhotos, JSON.stringify(state.servicePhotos ?? []));
+  }, [state.servicePhotos, state.loaded]);
   useEffect(() => {
     if (state.businessOwnerId !== null) {
       AsyncStorage.setItem(STORAGE_KEYS.businessOwnerId, String(state.businessOwnerId));
     }
-  }, [state.businessOwnerId])  // --- Auto-reopen: check reopenOn dates on load ---
+  }, [state.businessOwnerId]);  // --- Auto-reopen: check reopenOn dates on load ---
   // We use a ref to avoid stale closure on syncToDb (which is defined below)
   const pendingReopenRef = useRef<Location[]>([]);
   // Pending auto-complete actions to run once syncToDb is available
@@ -1362,11 +1447,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             break;
           }
           case "UPDATE_APPOINTMENT_STATUS": {
-            const { id, status } = action.payload as { id: string; status: AppointmentStatus };
+            const { id, status, cancellationReason } = action.payload as { id: string; status: AppointmentStatus; cancellationReason?: string };
             await updateApptMut.mutateAsync({
               localId: id,
               businessOwnerId: ownerId,
               status,
+              ...(cancellationReason != null ? { cancellationReason } : {}),
             });
             break;
           }

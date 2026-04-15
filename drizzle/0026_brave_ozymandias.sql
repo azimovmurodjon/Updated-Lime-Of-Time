@@ -1,0 +1,1 @@
+ALTER TABLE `appointments` ADD `cancellationReason` varchar(255);

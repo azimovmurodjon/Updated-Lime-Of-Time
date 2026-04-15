@@ -29,6 +29,18 @@ export interface ClientPhoto {
   label: "before" | "after" | "other";
   note: string;
   takenAt: string; // ISO date string
+  /** Optional service this photo is tagged to (e.g. "Balayage") */
+  serviceId?: string;
+  serviceName?: string;
+}
+
+export interface ServicePhoto {
+  id: string;
+  serviceId: string;
+  uri: string; // local file URI or base64 data URI
+  label: "before" | "after" | "other";
+  note: string;
+  takenAt: string; // ISO date string
 }
 
 export type AppointmentStatus = "pending" | "confirmed" | "completed" | "cancelled";
@@ -69,6 +81,8 @@ export interface Appointment {
   discountName?: string;
   /** Location assigned to this appointment */
   locationId?: string;
+  /** Reason for cancellation (set when status changes to 'cancelled') */
+  cancellationReason?: string;
 }
 
 export interface Review {
@@ -169,6 +183,8 @@ export interface StaffMember {
   workingHours: Record<string, WorkingHours> | null; // null = use business hours
   active: boolean;
   createdAt: string;
+  /** Commission rate as a percentage (0-100). e.g. 40 means staff earns 40% of service revenue */
+  commissionRate?: number | null;
 }
 
 export const STAFF_COLORS = [
@@ -181,6 +197,46 @@ export const STAFF_COLORS = [
   "#06B6D4", // cyan
   "#F97316", // orange
 ];
+
+/** Reusable appointment note template saved per client or globally */
+export interface NoteTemplate {
+  id: string;
+  title: string; // short label e.g. "Prefers no heat styling"
+  body: string;  // full note text
+  createdAt: string;
+}
+
+/** A service bundle / package deal — multiple services sold together at a discounted price */
+export interface ServicePackage {
+  id: string;
+  name: string;
+  description: string;
+  /** Service localIds included in this package */
+  serviceIds: string[];
+  /** Total price for the bundle (should be less than sum of individual prices) */
+  price: number;
+  /** Optional number of sessions (e.g. 5-session package) */
+  sessions?: number;
+  /** Whether this package is currently active / available for booking */
+  active: boolean;
+  /** Optional expiry in days from purchase date (null = no expiry) */
+  expiryDays?: number | null;
+  createdAt: string;
+}
+
+/** Waitlist entry for a fully-booked time slot */
+export interface WaitlistEntry {
+  id: string;
+  clientName: string;
+  clientPhone: string;
+  serviceId: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:MM
+  locationId?: string;
+  staffId?: string;
+  createdAt: string;
+  notified: boolean; // true once we've sent the "slot available" SMS
+}
 
 export interface CustomScheduleDay {
   date: string; // YYYY-MM-DD
@@ -293,6 +349,16 @@ export interface BusinessSettings {
   smsTemplates: SmsTemplates; // custom SMS message templates per event type
   monthlyRevenueGoal: number; // monthly revenue target in dollars (0 = no goal set)
   staffAlertThreshold: number; // completion rate % below which staff alert fires (0 = disabled)
+  // Twilio SMS integration (all optional so existing settings objects remain valid)
+  twilioAccountSid?: string; // Twilio Account SID (starts with AC)
+  twilioAuthToken?: string; // Twilio Auth Token
+  twilioFromNumber?: string; // Twilio phone number in E.164 format e.g. +14124827733
+  twilioEnabled?: boolean; // master on/off switch for Twilio SMS sending
+  twilioBookingReminder?: boolean; // send reminder SMS before appointment
+  twilioReminderHoursBeforeAppt?: number; // hours before appointment to send reminder (e.g. 24)
+  twilioRebookingNudge?: boolean; // send rebooking nudge after appointment
+  twilioRebookingNudgeDays?: number; // days after appointment to send rebooking nudge
+  twilioBirthdaySms?: boolean; // send birthday SMS to clients
 }
 
 export const SERVICE_COLORS = [

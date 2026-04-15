@@ -1022,6 +1022,36 @@ export default function AnalyticsDetailScreen() {
                 No appointment data yet
               </Text>
             )}
+            {/* Cancellation Reason Breakdown */}
+            {(() => {
+              const cancelledWithReason = state.appointments.filter((a) => a.status === "cancelled" && a.cancellationReason);
+              if (cancelledWithReason.length === 0) return null;
+              const reasonMap: Record<string, number> = {};
+              cancelledWithReason.forEach((a) => {
+                const r = a.cancellationReason!;
+                reasonMap[r] = (reasonMap[r] ?? 0) + 1;
+              });
+              const sorted = Object.entries(reasonMap).sort((a, b) => b[1] - a[1]);
+              const maxCount = sorted[0]?.[1] ?? 1;
+              const REASON_COLORS = ["#EF4444", "#F97316", "#EAB308", "#8B5CF6", "#06B6D4", "#64748B"];
+              return (
+                <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 12 }]}>
+                  <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground, marginBottom: 12 }}>Cancellation Reasons</Text>
+                  {sorted.map(([reason, count], idx) => (
+                    <View key={reason} style={{ marginBottom: 10 }}>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                        <Text style={{ fontSize: 13, color: colors.foreground, flex: 1 }} numberOfLines={1}>{reason}</Text>
+                        <Text style={{ fontSize: 13, fontWeight: "700", color: REASON_COLORS[idx % REASON_COLORS.length] }}>{count}</Text>
+                      </View>
+                      <View style={{ height: 8, backgroundColor: colors.border, borderRadius: 4, overflow: "hidden" }}>
+                        <View style={{ height: 8, width: `${Math.round((count / maxCount) * 100)}%`, backgroundColor: REASON_COLORS[idx % REASON_COLORS.length], borderRadius: 4 }} />
+                      </View>
+                    </View>
+                  ))}
+                  <Text style={{ fontSize: 11, color: colors.muted, marginTop: 4 }}>{cancelledWithReason.length} of {state.appointments.filter((a) => a.status === "cancelled").length} cancelled appointments have a recorded reason</Text>
+                </View>
+              );
+            })()}
           </View>
         )}
 
@@ -1251,6 +1281,9 @@ export default function AnalyticsDetailScreen() {
                 smAppts.length > 0
                   ? Math.round((completed.length / smAppts.length) * 100)
                   : 0;
+              const commissionDue = sm.commissionRate != null
+                ? Math.round(revenue * (sm.commissionRate / 100) * 100) / 100
+                : null;
               return {
                 ...sm,
                 apptCount: smAppts.length,
@@ -1259,6 +1292,7 @@ export default function AnalyticsDetailScreen() {
                 avgRating,
                 reviewCount: smReviews.length,
                 completionRate,
+                commissionDue,
               };
             })
             .sort((a, b) => b.revenue - a.revenue);
@@ -1281,6 +1315,14 @@ export default function AnalyticsDetailScreen() {
                     <Text style={{ fontSize: 18, fontWeight: "700", color: "#2196F3" }}>{staffData.reduce((s, m) => s + m.apptCount, 0)}</Text>
                     <Text style={{ fontSize: 11, color: "#2196F3CC" }}>Total Appts</Text>
                   </View>
+                  {staffData.some((m) => m.commissionDue != null) && (
+                    <View style={[styles.quickStatCard, { backgroundColor: "#E8F5E9", borderColor: "#4CAF5030" }]}>
+                      <Text style={{ fontSize: 18, fontWeight: "700", color: "#4CAF50" }}>
+                        ${staffData.reduce((s, m) => s + (m.commissionDue ?? 0), 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: "#4CAF50CC" }}>Commission Due</Text>
+                    </View>
+                  )}
                 </View>
               </View>
 
@@ -1358,7 +1400,14 @@ export default function AnalyticsDetailScreen() {
                       <View style={{ marginTop: 8, height: 4, backgroundColor: colors.border, borderRadius: 2, overflow: "hidden" }}>
                         <View style={{ height: 4, width: `${(sm.revenue / maxRevenue) * 100}%`, backgroundColor: sm.color, borderRadius: 2 }} />
                       </View>
-                      <Text style={{ fontSize: 11, color: sm.color, fontWeight: "600", marginTop: 3 }}>${sm.revenue.toLocaleString()} revenue</Text>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 3 }}>
+                        <Text style={{ fontSize: 11, color: sm.color, fontWeight: "600" }}>${sm.revenue.toLocaleString()} revenue</Text>
+                        {sm.commissionDue != null && (
+                          <Text style={{ fontSize: 11, color: "#4CAF50", fontWeight: "600" }}>
+                            ${sm.commissionDue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} commission ({sm.commissionRate}%)
+                          </Text>
+                        )}
+                      </View>
                     </View>
                   </View>
                 ))

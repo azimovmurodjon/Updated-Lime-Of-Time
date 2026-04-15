@@ -1,11 +1,12 @@
-import { Text, View, Pressable, StyleSheet, ScrollView, Alert, Platform, Linking } from "react-native";
+import { Text, View, Pressable, StyleSheet, ScrollView, Alert, Platform, Linking, Modal, TextInput, TouchableOpacity } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatTime, formatDateDisplay } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { trpc } from "@/lib/trpc";
 import {
   minutesToTime,
   timeToMinutes,
@@ -41,6 +42,7 @@ export default function AppointmentDetailScreen() {
   const colors = useColors();
   const router = useRouter();
   const { isTablet, hp } = useResponsive();
+  const sendSmsMutation = trpc.twilio.sendSms.useMutation();
 
   const appointment = useMemo(
     () => state.appointments.find((a) => a.id === id),
@@ -140,11 +142,24 @@ export default function AppointmentDetailScreen() {
     router.back();
   };
 
+  const [cancelReasonModal, setCancelReasonModal] = useState(false);
+  const [selectedReason, setSelectedReason] = useState("");
+  const [customReason, setCustomReason] = useState("");
+
+  const CANCEL_REASONS = [
+    "Client requested",
+    "No-show",
+    "Staff unavailable",
+    "Rescheduled",
+    "Weather / emergency",
+    "Other",
+  ];
+
   const handleStatusChange = (status: "completed" | "cancelled") => {
     const cancInfo = getCancellationInfo();
-    const doIt = () => {
-      dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status } });
-      syncToDb({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status } });
+    const doIt = (cancellationReason?: string) => {
+      dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status, ...(cancellationReason ? { cancellationReason } : {}) } });
+      syncToDb({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status, ...(cancellationReason ? { cancellationReason } : {}) } });
       if (client?.phone) {
         let msg = "";
         if (status === "completed") {
@@ -209,23 +224,49 @@ export default function AppointmentDetailScreen() {
             );
           }
         }
-        openSms(client.phone, msg);
+        // Try Twilio first for completed (rebooking nudge) and cancelled; fall back to native SMS
+        const biz2 = state.settings;
+        const isCompleted = status === "completed";
+        const twilioReady =
+          biz2.twilioEnabled &&
+          biz2.twilioAccountSid &&
+          biz2.twilioAuthToken &&
+          biz2.twilioFromNumber &&
+          ((isCompleted && biz2.twilioRebookingNudge) || !isCompleted);
+        const rawPhone2 = stripPhoneFormat(client.phone);
+        if (twilioReady) {
+          const toNumber2 = rawPhone2.startsWith("+") ? rawPhone2 : `+1${rawPhone2.replace(/\D/g, "")}`;
+          sendSmsMutation
+            .mutateAsync({
+              accountSid: biz2.twilioAccountSid!,
+              authToken: biz2.twilioAuthToken!,
+              fromNumber: biz2.twilioFromNumber!,
+              toNumber: toNumber2,
+              body: msg,
+            })
+            .catch(() => openSms(client.phone, msg));
+        } else {
+          openSms(client.phone, msg);
+        }
       }
       router.back();
     };
+    if (status === "cancelled") {
+      // Show reason picker modal for cancellations
+      setSelectedReason("");
+      setCustomReason("");
+      setCancelReasonModal(true);
+      return;
+    }
     if (Platform.OS === "web") {
       doIt();
     } else {
-      let alertMsg = `Are you sure you want to mark this appointment as ${status}?`;
-      if (status === "cancelled" && cancInfo.feeApplies && cancInfo.fee > 0) {
-        alertMsg += `\n\nA cancellation fee of $${cancInfo.fee} (${policy.feePercentage}%) applies.`;
-      }
       Alert.alert(
-        status === "completed" ? "Complete Appointment" : "Cancel Appointment",
-        alertMsg,
+        "Complete Appointment",
+        "Are you sure you want to mark this appointment as completed?",
         [
           { text: "No", style: "cancel" },
-          { text: "Yes", onPress: doIt },
+          { text: "Yes", onPress: () => doIt() },
         ]
       );
     }
@@ -534,6 +575,13 @@ export default function AppointmentDetailScreen() {
           </View>
         )}
 
+        {/* Cancellation Reason */}
+        {appointment.status === "cancelled" && appointment.cancellationReason ? (
+          <View style={{ backgroundColor: colors.error + "12", borderColor: colors.error + "40", borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 16 }}>
+            <Text style={{ fontSize: 11, fontWeight: "700", color: colors.error, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Cancellation Reason</Text>
+            <Text style={{ fontSize: 14, color: colors.foreground }}>{appointment.cancellationReason}</Text>
+          </View>
+        ) : null}
         {/* Notes */}
         {appointment.notes ? (
           <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
@@ -604,6 +652,85 @@ export default function AppointmentDetailScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Cancellation Reason Modal */}
+      <Modal visible={cancelReasonModal} transparent animationType="slide">
+        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" }}>
+          <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
+            <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground, marginBottom: 4 }}>Cancel Appointment</Text>
+            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 20 }}>Select a reason for cancellation</Text>
+            {CANCEL_REASONS.map((r) => (
+              <TouchableOpacity
+                key={r}
+                onPress={() => setSelectedReason(r)}
+                style={{ flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}
+              >
+                <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: selectedReason === r ? colors.primary : colors.border, alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                  {selectedReason === r && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary }} />}
+                </View>
+                <Text style={{ fontSize: 15, color: colors.foreground }}>{r}</Text>
+              </TouchableOpacity>
+            ))}
+            {selectedReason === "Other" && (
+              <TextInput
+                value={customReason}
+                onChangeText={setCustomReason}
+                placeholder="Describe the reason..."
+                placeholderTextColor={colors.muted}
+                style={{ marginTop: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, fontSize: 14, color: colors.foreground, backgroundColor: colors.background }}
+                multiline
+                numberOfLines={2}
+              />
+            )}
+            <View style={{ flexDirection: "row", gap: 12, marginTop: 24 }}>
+              <TouchableOpacity
+                onPress={() => setCancelReasonModal(false)}
+                style={{ flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, alignItems: "center" }}
+              >
+                <Text style={{ fontSize: 15, fontWeight: "600", color: colors.muted }}>Go Back</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  const reason = selectedReason === "Other" ? (customReason.trim() || "Other") : selectedReason;
+                  setCancelReasonModal(false);
+                  const cancInfo = getCancellationInfo();
+                  const proceed = () => {
+                    dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status: "cancelled", cancellationReason: reason || undefined } });
+                    syncToDb({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status: "cancelled", cancellationReason: reason || undefined } });
+                    if (client?.phone) {
+                      const feeStr = cancInfo.feeApplies && cancInfo.fee > 0 ? `$${cancInfo.fee} (${policy.feePercentage}%)` : "";
+                      const msg = generateCancellationMessage(
+                        biz.businessName, client.name,
+                        service ? getServiceDisplayName(service) : "Service",
+                        appointment.date, appointment.time, feeStr,
+                        assignedLocation?.phone || profile.phone,
+                        assignedLocation?.name,
+                        assignedLocation?.address ?? profile.address,
+                        assignedLocation?.city ?? profile.city,
+                        assignedLocation?.state ?? profile.state,
+                        assignedLocation?.zipCode ?? profile.zipCode
+                      );
+                      openSms(client.phone, msg);
+                    }
+                    router.back();
+                  };
+                  if (cancInfo.feeApplies && cancInfo.fee > 0 && Platform.OS !== "web") {
+                    Alert.alert("Cancellation Fee", `A fee of $${cancInfo.fee} (${policy.feePercentage}%) applies.`, [
+                      { text: "Cancel", style: "cancel" },
+                      { text: "Confirm", onPress: proceed },
+                    ]);
+                  } else {
+                    proceed();
+                  }
+                }}
+                style={{ flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: colors.error, alignItems: "center" }}
+              >
+                <Text style={{ fontSize: 15, fontWeight: "700", color: "#FFF" }}>Cancel Appointment</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }
