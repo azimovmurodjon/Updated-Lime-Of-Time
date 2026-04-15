@@ -29,11 +29,56 @@ export default function AnalyticsDetailScreen() {
   const router = useRouter();
   const { isTablet, hp } = useResponsive();
   const [generating, setGenerating] = useState(false);
+  const [dateRange, setDateRange] = useState<"this_month" | "last_month" | "last_3m" | "last_6m" | "this_year" | "all">("last_6m");
+
+  const DATE_RANGES: { key: typeof dateRange; label: string }[] = [
+    { key: "this_month", label: "This Month" },
+    { key: "last_month", label: "Last Month" },
+    { key: "last_3m", label: "3 Months" },
+    { key: "last_6m", label: "6 Months" },
+    { key: "this_year", label: "This Year" },
+    { key: "all", label: "All Time" },
+  ];
+
+  const dateRangeFilter = useMemo(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    if (dateRange === "this_month") {
+      const start = new Date(y, m, 1).toISOString().substring(0, 10);
+      const end = new Date(y, m + 1, 0).toISOString().substring(0, 10);
+      return { start, end };
+    } else if (dateRange === "last_month") {
+      const start = new Date(y, m - 1, 1).toISOString().substring(0, 10);
+      const end = new Date(y, m, 0).toISOString().substring(0, 10);
+      return { start, end };
+    } else if (dateRange === "last_3m") {
+      const start = new Date(y, m - 2, 1).toISOString().substring(0, 10);
+      const end = new Date(y, m + 1, 0).toISOString().substring(0, 10);
+      return { start, end };
+    } else if (dateRange === "last_6m") {
+      const start = new Date(y, m - 5, 1).toISOString().substring(0, 10);
+      const end = new Date(y, m + 1, 0).toISOString().substring(0, 10);
+      return { start, end };
+    } else if (dateRange === "this_year") {
+      const start = new Date(y, 0, 1).toISOString().substring(0, 10);
+      const end = new Date(y, 11, 31).toISOString().substring(0, 10);
+      return { start, end };
+    }
+    return null; // all time
+  }, [dateRange]);
+
   // Use global activeLocationId — no separate local filter needed
-  const filteredAppts = useMemo(
+  const allLocationAppts = useMemo(
     () => filterAppointmentsByLocation(state.appointments),
     [state.appointments, filterAppointmentsByLocation]
   );
+  const filteredAppts = useMemo(() => {
+    if (!dateRangeFilter) return allLocationAppts;
+    return allLocationAppts.filter(
+      (a) => a.date >= dateRangeFilter.start && a.date <= dateRangeFilter.end
+    );
+  }, [allLocationAppts, dateRangeFilter]);
 
   const titles: Record<string, string> = {
     overview: "Analytics Overview",
@@ -41,6 +86,7 @@ export default function AnalyticsDetailScreen() {
     appointments: "Appointments",
     revenue: "Revenue",
     topservice: "Top Service",
+    staff: "Staff Performance",
   };
 
   // Clients analytics — scoped to active location
@@ -492,6 +538,31 @@ export default function AnalyticsDetailScreen() {
           </View>
         )}
 
+        {/* ─── Date Range Picker ─── */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 8, paddingVertical: 12, flexDirection: "row" }}
+        >
+          {DATE_RANGES.map((r) => (
+            <Pressable
+              key={r.key}
+              onPress={() => setDateRange(r.key)}
+              style={[
+                styles.dateChip,
+                {
+                  backgroundColor: dateRange === r.key ? colors.primary : colors.surface,
+                  borderColor: dateRange === r.key ? colors.primary : colors.border,
+                },
+              ]}
+            >
+              <Text style={{ fontSize: 13, fontWeight: "600", color: dateRange === r.key ? "#fff" : colors.muted }}>
+                {r.label}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+
         {/* ─── Report Generation Button ─── */}
         <Pressable
           onPress={() => generateYearEndReport(getReportType())}
@@ -614,6 +685,7 @@ export default function AnalyticsDetailScreen() {
               { label: "Appointments", tab: "appointments", icon: "calendar" as const, color: "#2196F3" },
               { label: "Revenue", tab: "revenue", icon: "chart.bar.fill" as const, color: "#FF9800" },
               { label: "Top Services", tab: "topservice", icon: "crown.fill" as const, color: "#9C27B0" },
+              { label: "Staff Performance", tab: "staff", icon: "person.2.fill" as const, color: "#6366f1" },
             ].map((item) => (
               <Pressable
                 key={item.tab}
@@ -1063,11 +1135,127 @@ export default function AnalyticsDetailScreen() {
                       backgroundColor: s.color + "30",
                     },
                   ]}
-                />
+                 />
               </View>
             ))}
           </View>
         )}
+
+        {/* Staff Performance Tab */}
+        {tab === "staff" && (() => {
+          const staffData = state.staff
+            .filter((sm) => sm.active)
+            .map((sm) => {
+              const smAppts = filteredAppts.filter(
+                (a) => a.staffId === sm.id && a.status !== "cancelled"
+              );
+              const completed = smAppts.filter((a) => a.status === "completed");
+              const revenue = completed.reduce((sum, a) => {
+                if (a.totalPrice != null) return sum + a.totalPrice;
+                const svc = getServiceById(a.serviceId);
+                return sum + (svc?.price ?? 0);
+              }, 0);
+              // Avg rating from reviews linked to appointments by this staff
+              const smApptIds = new Set(smAppts.map((a) => a.id));
+              const smReviews = state.reviews.filter(
+                (r) => r.appointmentId && smApptIds.has(r.appointmentId)
+              );
+              const avgRating =
+                smReviews.length > 0
+                  ? smReviews.reduce((s, r) => s + r.rating, 0) / smReviews.length
+                  : null;
+              const completionRate =
+                smAppts.length > 0
+                  ? Math.round((completed.length / smAppts.length) * 100)
+                  : 0;
+              return {
+                ...sm,
+                apptCount: smAppts.length,
+                completedCount: completed.length,
+                revenue,
+                avgRating,
+                reviewCount: smReviews.length,
+                completionRate,
+              };
+            })
+            .sort((a, b) => b.revenue - a.revenue);
+
+          const maxRevenue = Math.max(...staffData.map((s) => s.revenue), 1);
+          const totalStaffRevenue = staffData.reduce((s, m) => s + m.revenue, 0);
+
+          return (
+            <View>
+              {/* Summary */}
+              <View style={[styles.summaryCard, { backgroundColor: "#F3E8FF", borderColor: "#9C27B030" }]}>
+                <Text style={{ fontSize: 36, fontWeight: "800", color: "#9C27B0" }}>{staffData.length}</Text>
+                <Text style={{ fontSize: 14, color: "#9C27B0CC", marginTop: 4 }}>Active Staff Members</Text>
+                <View style={[styles.quickStats, { marginTop: 16 }]}>
+                  <View style={[styles.quickStatCard, { backgroundColor: "#FFF3E0", borderColor: "#FF980030" }]}>
+                    <Text style={{ fontSize: 18, fontWeight: "700", color: "#FF9800" }}>${totalStaffRevenue.toLocaleString()}</Text>
+                    <Text style={{ fontSize: 11, color: "#FF9800CC" }}>Total Revenue</Text>
+                  </View>
+                  <View style={[styles.quickStatCard, { backgroundColor: "#E3F2FD", borderColor: "#2196F330" }]}>
+                    <Text style={{ fontSize: 18, fontWeight: "700", color: "#2196F3" }}>{staffData.reduce((s, m) => s + m.apptCount, 0)}</Text>
+                    <Text style={{ fontSize: 11, color: "#2196F3CC" }}>Total Appts</Text>
+                  </View>
+                </View>
+              </View>
+
+              {staffData.length === 0 ? (
+                <View style={{ alignItems: "center", paddingVertical: 40 }}>
+                  <Text style={{ fontSize: 15, color: colors.muted }}>No staff data for this period</Text>
+                </View>
+              ) : (
+                staffData.map((sm, idx) => (
+                  <View
+                    key={sm.id}
+                    style={[styles.listItem, { backgroundColor: colors.surface, borderColor: colors.border, marginBottom: 10 }]}
+                  >
+                    {/* Rank badge */}
+                    <View
+                      style={[styles.avatar, {
+                        backgroundColor:
+                          idx === 0 ? "#FFD70020" :
+                          idx === 1 ? "#C0C0C020" :
+                          idx === 2 ? "#CD7F3220" :
+                          sm.color + "18",
+                      }]}
+                    >
+                      {idx < 3 ? (
+                        <Text style={{ fontSize: 14 }}>
+                          {idx === 0 ? "🥇" : idx === 1 ? "🥈" : "🥉"}
+                        </Text>
+                      ) : (
+                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: sm.color }} />
+                      )}
+                    </View>
+
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>{sm.name}</Text>
+                        <View style={{ backgroundColor: sm.color + "20", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                          <Text style={{ fontSize: 10, fontWeight: "600", color: sm.color }}>{sm.role}</Text>
+                        </View>
+                      </View>
+                      <View style={{ flexDirection: "row", gap: 12, marginTop: 4 }}>
+                        <Text style={{ fontSize: 12, color: colors.muted }}>{sm.apptCount} appts</Text>
+                        <Text style={{ fontSize: 12, color: "#4CAF50" }}>{sm.completionRate}% done</Text>
+                        {sm.avgRating !== null && (
+                          <Text style={{ fontSize: 12, color: "#f59e0b" }}>★ {sm.avgRating.toFixed(1)}</Text>
+                        )}
+                      </View>
+                      {/* Revenue bar */}
+                      <View style={{ marginTop: 8, height: 4, backgroundColor: colors.border, borderRadius: 2, overflow: "hidden" }}>
+                        <View style={{ height: 4, width: `${(sm.revenue / maxRevenue) * 100}%`, backgroundColor: sm.color, borderRadius: 2 }} />
+                      </View>
+                      <Text style={{ fontSize: 11, color: sm.color, fontWeight: "600", marginTop: 3 }}>${sm.revenue.toLocaleString()} revenue</Text>
+                    </View>
+                  </View>
+                ))
+              )}
+            </View>
+          );
+        })()}
       </ScrollView>
     </ScreenContainer>
   );
@@ -1106,6 +1294,13 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     marginVertical: 16,
+  },
+  dateChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignSelf: "flex-start",
   },
   kpiCard: {
     width: "47%",
