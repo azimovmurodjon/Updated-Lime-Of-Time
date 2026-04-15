@@ -177,8 +177,22 @@ function reducer(state: AppState, action: Action): AppState {
         // Keep appointments so history is preserved (they become orphaned but still accessible)
         // Keep reviews so they are preserved even after client is deleted
       };
-    case "ADD_APPOINTMENT":
-      return { ...state, appointments: [...state.appointments, action.payload] };
+    case "ADD_APPOINTMENT": {
+      const newAppts = [...state.appointments, action.payload];
+      // Auto-deactivate discount if maxUses reached (count completed appointments)
+      const addDiscountName = action.payload.discountName;
+      let discountsAfterAdd = state.discounts;
+      if (addDiscountName) {
+        discountsAfterAdd = state.discounts.map((d) => {
+          if (d.name === addDiscountName && d.maxUses != null && d.active) {
+            const usedCount = newAppts.filter((a) => a.discountName === d.name && a.status === "completed").length;
+            if (usedCount >= d.maxUses) return { ...d, active: false };
+          }
+          return d;
+        });
+      }
+      return { ...state, appointments: newAppts, discounts: discountsAfterAdd };
+    }
     case "UPDATE_APPOINTMENT":
       return {
         ...state,
@@ -186,13 +200,27 @@ function reducer(state: AppState, action: Action): AppState {
           a.id === action.payload.id ? action.payload : a
         ),
       };
-    case "UPDATE_APPOINTMENT_STATUS":
-      return {
-        ...state,
-        appointments: state.appointments.map((a) =>
-          a.id === action.payload.id ? { ...a, status: action.payload.status } : a
-        ),
-      };
+    case "UPDATE_APPOINTMENT_STATUS": {
+      const updatedAppts = state.appointments.map((a) =>
+        a.id === action.payload.id ? { ...a, status: action.payload.status } : a
+      );
+      // Auto-deactivate discount if maxUses reached when appointment is completed
+      let discountsAfterUpdate = state.discounts;
+      if (action.payload.status === "completed") {
+        const completedAppt = updatedAppts.find((a) => a.id === action.payload.id);
+        const completedDiscountName = completedAppt?.discountName;
+        if (completedDiscountName) {
+          discountsAfterUpdate = state.discounts.map((d) => {
+            if (d.name === completedDiscountName && d.maxUses != null && d.active) {
+              const usedCount = updatedAppts.filter((a) => a.discountName === d.name && a.status === "completed").length;
+              if (usedCount >= d.maxUses) return { ...d, active: false };
+            }
+            return d;
+          });
+        }
+      }
+      return { ...state, appointments: updatedAppts, discounts: discountsAfterUpdate };
+    }
     case "DELETE_APPOINTMENT":
       return {
         ...state,

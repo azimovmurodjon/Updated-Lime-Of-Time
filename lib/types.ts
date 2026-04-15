@@ -92,6 +92,8 @@ export interface Discount {
   productIds?: string[] | null; // null = all products, [] = no products
   active: boolean;
   createdAt: string;
+  /** Optional max number of uses; discount auto-deactivates when reached */
+  maxUses?: number | null;
 }
 
 export interface GiftCard {

@@ -62,6 +62,7 @@ export default function DiscountsScreen() {
   const [endTime, setEndTime] = useState("12:00");
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [repeatWeekly, setRepeatWeekly] = useState(false);
+  const [maxUses, setMaxUses] = useState("");
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[] | null>(null);
   const [selectedProductIds, setSelectedProductIds] = useState<string[] | null>(null);
   const [showTimePicker, setShowTimePicker] = useState<"start" | "end" | null>(null);
@@ -129,6 +130,7 @@ export default function DiscountsScreen() {
     setEndTime("12:00");
     setSelectedDates([]);
     setRepeatWeekly(false);
+    setMaxUses("");
     setSelectedServiceIds(null);
     setSelectedProductIds(null);
     setEditingId(null);
@@ -143,6 +145,7 @@ export default function DiscountsScreen() {
     setEndTime(disc.endTime);
     setSelectedDates(disc.dates ?? []);
     setRepeatWeekly(false);
+    setMaxUses(disc.maxUses != null ? String(disc.maxUses) : "");
     setSelectedServiceIds(disc.serviceIds);
     setSelectedProductIds(disc.productIds ?? null);
     setShowForm(true);
@@ -184,6 +187,7 @@ export default function DiscountsScreen() {
     const finalDates = buildFinalDates(selectedDates);
 
     if (editingId) {
+      const parsedMaxUses = maxUses.trim() !== "" ? parseInt(maxUses.trim(), 10) : null;
       const updated: Discount = {
         id: editingId,
         name: name.trim(),
@@ -196,10 +200,12 @@ export default function DiscountsScreen() {
         productIds: selectedProductIds,
         active: state.discounts.find((d) => d.id === editingId)?.active ?? true,
         createdAt: state.discounts.find((d) => d.id === editingId)?.createdAt ?? new Date().toISOString(),
+        maxUses: (!isNaN(parsedMaxUses as number) && (parsedMaxUses as number) > 0) ? parsedMaxUses : null,
       };
       dispatch({ type: "UPDATE_DISCOUNT", payload: updated });
       syncToDb({ type: "UPDATE_DISCOUNT", payload: updated });
     } else {
+      const parsedMaxUsesNew = maxUses.trim() !== "" ? parseInt(maxUses.trim(), 10) : null;
       const newDiscount: Discount = {
         id: generateId(),
         name: name.trim(),
@@ -212,12 +218,13 @@ export default function DiscountsScreen() {
         productIds: selectedProductIds,
         active: true,
         createdAt: new Date().toISOString(),
+        maxUses: (!isNaN(parsedMaxUsesNew as number) && (parsedMaxUsesNew as number) > 0) ? parsedMaxUsesNew : null,
       };
       dispatch({ type: "ADD_DISCOUNT", payload: newDiscount });
       syncToDb({ type: "ADD_DISCOUNT", payload: newDiscount });
     }
     resetForm();
-  }, [name, percentage, startTime, endTime, selectedDates, selectedServiceIds, selectedProductIds, editingId, state.discounts, dispatch, syncToDb, resetForm, buildFinalDates]);
+  }, [name, percentage, startTime, endTime, selectedDates, selectedServiceIds, selectedProductIds, editingId, maxUses, state.discounts, dispatch, syncToDb, resetForm, buildFinalDates]);
 
   const handleDelete = useCallback(
     (id: string) => {
@@ -298,13 +305,46 @@ export default function DiscountsScreen() {
       const totalSaved = state.appointments
         .filter((a) => a.status === "completed" && a.discountName === item.name)
         .reduce((sum, a) => sum + (a.discountAmount ?? 0), 0);
+      // Expiry: find the latest future date
+      const today2 = new Date(); today2.setHours(0, 0, 0, 0);
+      const todayStr2 = toDateStr(today2.getFullYear(), today2.getMonth(), today2.getDate());
+      const futureDates = (item.dates ?? []).filter((d) => d >= todayStr2).sort();
+      const latestDate = futureDates.length > 0 ? futureDates[futureDates.length - 1] : null;
+      const daysUntilExpiry = latestDate ? Math.round((new Date(latestDate + "T12:00:00").getTime() - today2.getTime()) / 86400000) : null;
+      const isExpired = (item.dates ?? []).length > 0 && futureDates.length === 0;
+      // Max uses progress
+      const maxUsesReached = item.maxUses != null && usageCount >= item.maxUses;
 
       return (
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: item.active ? 1 : 0.6 }]}>
           <View style={styles.cardHeader}>
             <View style={{ flex: 1 }}>
               <Text style={[styles.cardTitle, { color: colors.foreground }]} numberOfLines={1}>{item.name}</Text>
-              <Text style={[styles.cardSubtitle, { color: colors.primary }]}>{item.percentage}% off</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 2 }}>
+                <Text style={[styles.cardSubtitle, { color: colors.primary, marginTop: 0 }]}>{item.percentage}% off</Text>
+                {isExpired ? (
+                  <View style={{ backgroundColor: colors.error + "20", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}>
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: colors.error }}>Expired</Text>
+                  </View>
+                ) : daysUntilExpiry !== null && daysUntilExpiry <= 7 ? (
+                  <View style={{ backgroundColor: colors.warning + "20", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}>
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: colors.warning }}>
+                      {daysUntilExpiry === 0 ? "Expires today" : `Expires in ${daysUntilExpiry}d`}
+                    </Text>
+                  </View>
+                ) : daysUntilExpiry !== null ? (
+                  <View style={{ backgroundColor: colors.success + "15", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}>
+                    <Text style={{ fontSize: 11, fontWeight: "600", color: colors.success }}>Expires in {daysUntilExpiry}d</Text>
+                  </View>
+                ) : null}
+                {item.maxUses != null && (
+                  <View style={{ backgroundColor: maxUsesReached ? colors.error + "20" : colors.muted + "20", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}>
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: maxUsesReached ? colors.error : colors.muted }}>
+                      {usageCount}/{item.maxUses} uses{maxUsesReached ? " (limit reached)" : ""}
+                    </Text>
+                  </View>
+                )}
+              </View>
             </View>
             <Switch
               value={item.active}
@@ -423,6 +463,50 @@ export default function DiscountsScreen() {
           <Text style={[styles.timeBtnText, { color: colors.foreground }]}>{formatTimeDisplay(endTime)}</Text>
         </Pressable>
       </View>
+
+      {/* Weekday Quick-Select */}
+      <Text style={[styles.fieldLabel, { color: colors.muted }]}>Quick-Select Weekday</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((label, wd) => {
+          // Generate all future dates for this weekday for the next 12 weeks
+          const genDates = () => {
+            const today2 = new Date();
+            today2.setHours(0, 0, 0, 0);
+            const dates: string[] = [];
+            for (let w = 0; w < 12; w++) {
+              const d = new Date(today2);
+              const diff = ((wd - d.getDay()) + 7) % 7 || 7;
+              d.setDate(d.getDate() + diff + w * 7);
+              dates.push(toDateStr(d.getFullYear(), d.getMonth(), d.getDate()));
+            }
+            return dates;
+          };
+          const isAllSelected = genDates().every((ds) => selectedDates.includes(ds));
+          return (
+            <Pressable
+              key={label}
+              onPress={() => {
+                const dates = genDates();
+                if (isAllSelected) {
+                  setSelectedDates((prev) => prev.filter((d) => !dates.includes(d)));
+                } else {
+                  setSelectedDates((prev) => Array.from(new Set([...prev, ...dates])).sort());
+                }
+              }}
+              style={[{
+                paddingHorizontal: 14,
+                paddingVertical: 8,
+                borderRadius: 20,
+                borderWidth: 1.5,
+                borderColor: isAllSelected ? colors.primary : colors.border,
+                backgroundColor: isAllSelected ? colors.primary : colors.background,
+              }]}
+            >
+              <Text style={{ fontSize: 13, fontWeight: "700", color: isAllSelected ? "#fff" : colors.foreground }}>{label}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
 
       {/* Calendar Date Picker */}
       <Text style={[styles.fieldLabel, { color: colors.muted }]}>Select Dates (future only)</Text>
@@ -647,6 +731,28 @@ export default function DiscountsScreen() {
             })()}
           </View>
         </>
+      )}
+
+      {/* Max Uses Cap */}
+      <Text style={[styles.fieldLabel, { color: colors.muted }]}>Max Uses (Optional)</Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 }}>
+        <TextInput
+          style={[styles.input, { flex: 1, color: colors.foreground, backgroundColor: colors.background, borderColor: colors.border, marginBottom: 0 }]}
+          value={maxUses}
+          onChangeText={setMaxUses}
+          keyboardType="number-pad"
+          placeholder="e.g. 20 (leave blank for unlimited)"
+          placeholderTextColor={colors.muted + "80"}
+          returnKeyType="done"
+        />
+      </View>
+      {maxUses.trim() !== "" && !isNaN(parseInt(maxUses.trim(), 10)) && parseInt(maxUses.trim(), 10) > 0 && (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12, backgroundColor: colors.warning + "15", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
+          <IconSymbol name="exclamationmark.circle.fill" size={14} color={colors.warning} />
+          <Text style={{ fontSize: 12, color: colors.warning, fontWeight: "600", flex: 1 }}>
+            Discount auto-deactivates after {parseInt(maxUses.trim(), 10)} use{parseInt(maxUses.trim(), 10) !== 1 ? "s" : ""}
+          </Text>
+        </View>
       )}
 
       {/* Actions */}
