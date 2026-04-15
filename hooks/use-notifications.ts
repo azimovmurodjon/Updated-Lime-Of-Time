@@ -480,10 +480,93 @@ export function useNotifications() {
     return () => subscription.remove();
   }, [state.appointments, dispatch, syncToDb]);
 
+  // ── Daily birthday reminder at 8:00 AM ────────────────────────────────────
+  // Schedules a single daily notification that fires every morning at 8 AM.
+  // When the notification fires, it lists all clients whose birthday is today.
+  // We re-schedule whenever the client list changes to keep the body up-to-date.
+  const birthdayReminderScheduledRef = useRef(false);
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    if (!state.settings.notificationsEnabled) return;
+    if (!state.loaded) return;
+
+    // Build today's birthday list to decide whether to schedule
+    const todayClients = state.clients.filter((c) => {
+      if (!c.birthday) return false;
+      const parts = c.birthday.trim().split(/[-\/]/);
+      if (parts.length < 2) return false;
+      const today = new Date();
+      // Support MM/DD/YYYY, MM-DD-YYYY, MM/DD, MM-DD
+      const month = parseInt(parts[0], 10);
+      const day = parseInt(parts[1], 10);
+      return month === today.getMonth() + 1 && day === today.getDate();
+    });
+
+    const scheduleKey = `birthday-daily-${state.clients.length}`;
+    if (birthdayReminderScheduledRef.current && scheduleKey === (birthdayReminderScheduledRef as any)._lastKey) return;
+    (birthdayReminderScheduledRef as any)._lastKey = scheduleKey;
+    birthdayReminderScheduledRef.current = true;
+
+    const doSchedule = async () => {
+      try {
+        // Cancel any previously scheduled birthday reminder before re-scheduling
+        const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+        for (const n of scheduled) {
+          if (n.identifier?.startsWith("birthday-daily-reminder")) {
+            await Notifications.cancelScheduledNotificationAsync(n.identifier);
+          }
+        }
+
+        // Set up Android channel for birthdays
+        if (Platform.OS === "android") {
+          await Notifications.setNotificationChannelAsync("birthdays", {
+            name: "Birthday Reminders",
+            importance: Notifications.AndroidImportance.HIGH,
+            vibrationPattern: [0, 200, 100, 200],
+            lightColor: "#F59E0B",
+            sound: "default",
+          });
+        }
+
+        // Build a preview of today's birthdays for the notification body
+        const previewNames = todayClients.slice(0, 3).map((c) => c.name);
+        const extraCount = todayClients.length - previewNames.length;
+        const bodyToday =
+          todayClients.length === 0
+            ? "No client birthdays today."
+            : previewNames.join(", ") + (extraCount > 0 ? ` +${extraCount} more` : "");
+
+        await Notifications.scheduleNotificationAsync({
+          identifier: "birthday-daily-reminder",
+          content: {
+            title: todayClients.length > 0
+              ? `🎂 ${todayClients.length} Birthday${todayClients.length > 1 ? "s" : ""} Today!`
+              : `🎂 Birthday Check — ${businessName}`,
+            body: bodyToday,
+            data: { type: "general", url: "/birthday-campaigns" },
+            sound: true,
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DAILY,
+            hour: 8,
+            minute: 0,
+            ...(Platform.OS === "android" ? { channelId: "birthdays" } : {}),
+          },
+        });
+        logger.log("[Notifications] Birthday daily reminder scheduled for 8:00 AM");
+      } catch (err) {
+        logger.warn("[Notifications] Failed to schedule birthday reminder:", err);
+      }
+    };
+
+    doSchedule();
+  }, [state.clients, state.settings.notificationsEnabled, state.loaded, businessName]);
+
   const cancelAllReminders = useCallback(async () => {
     if (Platform.OS === "web") return;
     await Notifications.cancelAllScheduledNotificationsAsync();
     scheduledRef.current.clear();
+    birthdayReminderScheduledRef.current = false;
   }, []);
 
   return { cancelAllReminders };

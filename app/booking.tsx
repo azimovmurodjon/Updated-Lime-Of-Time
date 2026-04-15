@@ -648,6 +648,7 @@ export default function PublicBookingScreen() {
         {/* ── Step: Choose Staff ────────────────────────────────────────────── */}
         {step === "staff" && (() => {
           const svc = selectedServiceId ? getServiceById(selectedServiceId) : null;
+          const duration = svc?.duration ?? state.settings.defaultDuration;
           const availableStaff = state.staff.filter((m) => {
             if (!m.active) return false;
             // Filter by location
@@ -660,6 +661,36 @@ export default function PublicBookingScreen() {
             }
             return true;
           });
+
+          /**
+           * Determine if a staff member has at least one open slot on the selected date.
+           * Uses the staff member's own working hours (if set) or falls back to location/business hours.
+           * Excludes time slots already booked by this staff member.
+           */
+          const isStaffAvailableOnDate = (memberId: string): boolean => {
+            const member = state.staff.find((m) => m.id === memberId);
+            if (!member) return false;
+            // Use staff-specific working hours if set, else location/business hours
+            const effectiveWH = (member.workingHours && Object.keys(member.workingHours).length > 0)
+              ? member.workingHours
+              : locationWorkingHours;
+            // Appointments for this staff member on the selected date
+            const staffAppts = locationAppointments.filter(
+              (a) => a.staffId === memberId && a.date === selectedDate && a.status !== "cancelled"
+            );
+            const slots = generateAvailableSlots(
+              selectedDate,
+              duration,
+              effectiveWH,
+              staffAppts,
+              effectiveStep,
+              locationCustomSchedule,
+              state.settings.scheduleMode,
+              state.settings.bufferTime ?? 0
+            );
+            return slots.length > 0;
+          };
+
           return (
             <View>
               <Pressable onPress={() => setStep("service")} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, marginBottom: 12 }]}>
@@ -679,20 +710,33 @@ export default function PublicBookingScreen() {
                 </View>
                 {selectedStaffId === null && <IconSymbol name="checkmark.circle.fill" size={20} color={colors.primary} />}
               </Pressable>
-              {availableStaff.map((member) => (
-                <Pressable
-                  key={member.id}
-                  onPress={() => { setSelectedStaffId(member.id); setStep("datetime"); }}
-                  style={({ pressed }) => [styles.serviceOption, { backgroundColor: selectedStaffId === member.id ? member.color + "15" : colors.surface, borderColor: selectedStaffId === member.id ? member.color : colors.border, opacity: pressed ? 0.7 : 1 }]}
-                >
-                  <View style={[styles.colorDot, { backgroundColor: member.color }]} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{member.name}</Text>
-                    {member.role ? <Text style={{ fontSize: 13, color: colors.muted, marginTop: 2 }}>{member.role}</Text> : null}
-                  </View>
-                  {selectedStaffId === member.id && <IconSymbol name="checkmark.circle.fill" size={20} color={member.color} />}
-                </Pressable>
-              ))}
+              {availableStaff.map((member) => {
+                const isAvailable = isStaffAvailableOnDate(member.id);
+                return (
+                  <Pressable
+                    key={member.id}
+                    onPress={() => { setSelectedStaffId(member.id); setStep("datetime"); }}
+                    style={({ pressed }) => [styles.serviceOption, { backgroundColor: selectedStaffId === member.id ? member.color + "15" : colors.surface, borderColor: selectedStaffId === member.id ? member.color : colors.border, opacity: pressed ? 0.7 : 1 }]}
+                  >
+                    <View style={[styles.colorDot, { backgroundColor: member.color }]} />
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{member.name}</Text>
+                        {/* Availability dot: green = has open slots on selected date, grey = fully booked / unavailable */}
+                        <View style={{
+                          width: 8, height: 8, borderRadius: 4,
+                          backgroundColor: isAvailable ? "#22C55E" : "#9CA3AF",
+                        }} />
+                        <Text style={{ fontSize: 11, color: isAvailable ? "#22C55E" : "#9CA3AF", fontWeight: "500" }}>
+                          {isAvailable ? "Available" : "Unavailable"}
+                        </Text>
+                      </View>
+                      {member.role ? <Text style={{ fontSize: 13, color: colors.muted, marginTop: 2 }}>{member.role}</Text> : null}
+                    </View>
+                    {selectedStaffId === member.id && <IconSymbol name="checkmark.circle.fill" size={20} color={member.color} />}
+                  </Pressable>
+                );
+              })}
               {availableStaff.length === 0 && (
                 <View style={{ alignItems: "center", paddingVertical: 16 }}>
                   <Text style={{ fontSize: 13, color: colors.muted }}>No staff listed — we'll assign someone for you.</Text>

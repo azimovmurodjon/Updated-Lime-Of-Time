@@ -12,6 +12,7 @@ import {
   Image,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import { PhotoLightbox } from "@/components/photo-lightbox";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatTime, formatDateDisplay, generateId } from "@/lib/store";
 import { ClientPhoto } from "@/lib/types";
@@ -59,6 +60,7 @@ export default function ClientDetailScreen() {
   const reviews = getReviewsForClient(id ?? "");
   const photos = getPhotosForClient(id ?? "");
   const [activeTab, setActiveTab] = useState<TabKey>("appointments");
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const biz = state.settings;
   const profile = biz.profile;
@@ -716,9 +718,11 @@ export default function ClientDetailScreen() {
                   </View>
                 ) : (
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {photos.map((photo) => (
+                    {photos.map((photo, photoIdx) => (
                       <View key={photo.id} style={{ width: "48%", borderRadius: 12, overflow: "hidden", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}>
-                        <Image source={{ uri: photo.uri }} style={{ width: "100%", aspectRatio: 1 }} resizeMode="cover" />
+                        <Pressable onPress={() => setLightboxIndex(photoIdx)} style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}>
+                          <Image source={{ uri: photo.uri }} style={{ width: "100%", aspectRatio: 1 }} resizeMode="cover" />
+                        </Pressable>
                         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 8, paddingVertical: 6 }}>
                           <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: photo.label === "before" ? "#3B82F620" : photo.label === "after" ? "#10B98120" : colors.muted + "20" }}>
                             <Text style={{ fontSize: 11, fontWeight: "700", color: photo.label === "before" ? "#3B82F6" : photo.label === "after" ? "#10B981" : colors.muted, textTransform: "uppercase" }}>{photo.label}</Text>
@@ -735,6 +739,15 @@ export default function ClientDetailScreen() {
                   </View>
                 )}
               </View>
+            )}
+            {/* Photo Lightbox */}
+            {lightboxIndex !== null && (
+              <PhotoLightbox
+                photos={photos}
+                initialIndex={lightboxIndex}
+                visible={lightboxIndex !== null}
+                onClose={() => setLightboxIndex(null)}
+              />
             )}
             {/* Delete Client */}
             <Pressable onPress={handleDelete} style={({ pressed }) => [styles.deleteBtn, { borderColor: colors.error, opacity: pressed ? 0.7 : 1 }]}>

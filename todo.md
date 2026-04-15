@@ -959,3 +959,6 @@
 - [x] Staff selection saved to appointment.staffId, shown in booking summary confirm step
 - [x] Calendar Sync (.ics export): confirmed present in Staff Calendar screen
 - [x] GitHub dev branch pushed with all new features
+- [x] Birthday auto-reminders — daily 8 AM push notification listing today's birthdays
+- [x] Photo lightbox — full-screen swipe gallery with pinch-to-zoom for before/after photos
+- [x] Staff availability indicator — green/grey dot on booking staff picker
