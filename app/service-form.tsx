@@ -1,4 +1,4 @@
-import { Text, View, Pressable, StyleSheet, TextInput, ScrollView, Alert, Platform } from "react-native";
+import { Text, View, Pressable, StyleSheet, TextInput, ScrollView, Alert, Platform, Image } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, generateId } from "@/lib/store";
@@ -8,8 +8,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useMemo } from "react";
 import { SERVICE_COLORS, Service } from "@/lib/types";
 import { TapDurationPicker, formatDuration } from "@/components/tap-duration-picker";
-
-
+import * as ImagePicker from "expo-image-picker";
 
 export default function ServiceFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -28,6 +27,7 @@ export default function ServiceFormScreen() {
   const [price, setPrice] = useState(existing?.price?.toString() ?? "");
   const [color, setColor] = useState(existing?.color ?? SERVICE_COLORS[0]);
   const [category, setCategory] = useState(existing?.category ?? "");
+  const [photoUri, setPhotoUri] = useState<string | undefined>(existing?.photoUri);
 
   const isEdit = !!existing;
 
@@ -38,6 +38,23 @@ export default function ServiceFormScreen() {
     return Array.from(cats).sort();
   }, [state.services]);
 
+  const pickPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Please allow access to your photo library to add a service photo.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setPhotoUri(result.assets[0].uri);
+    }
+  };
+
   const handleSave = () => {
     if (!name.trim()) return;
     const service: Service = {
@@ -47,6 +64,7 @@ export default function ServiceFormScreen() {
       price: parseFloat(price) || 0,
       color,
       category: category.trim() || undefined,
+      photoUri: photoUri || undefined,
       createdAt: existing?.createdAt ?? new Date().toISOString(),
     };
     if (isEdit) {
@@ -78,7 +96,7 @@ export default function ServiceFormScreen() {
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} tabletMaxWidth={680}>
-      {/* Header - extra top padding to clear status bar on all devices */}
+      {/* Header */}
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 24, paddingTop: 16, paddingHorizontal: hp }}>
         <View style={{ flexDirection: "row", alignItems: "center", flex: 1, marginRight: 12 }}>
           <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, padding: 4 }]}>
@@ -189,6 +207,37 @@ export default function ServiceFormScreen() {
             />
           ))}
         </View>
+
+        {/* Photo (optional) */}
+        <Text className="text-xs font-medium text-muted mb-2 ml-1">Service Photo (optional)</Text>
+        <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 8, marginLeft: 4, lineHeight: 15 }}>
+          Shown to clients on the booking page. Helps them understand what to expect.
+        </Text>
+        <Pressable
+          onPress={pickPhoto}
+          style={({ pressed }) => [{
+            borderRadius: 12, borderWidth: 1.5, borderColor: colors.border, borderStyle: "dashed",
+            overflow: "hidden", marginBottom: photoUri ? 6 : 16, opacity: pressed ? 0.7 : 1,
+            backgroundColor: colors.surface, minHeight: 110, alignItems: "center", justifyContent: "center",
+          }]}
+        >
+          {photoUri ? (
+            <Image source={{ uri: photoUri }} style={{ width: "100%", height: 150, borderRadius: 10 }} resizeMode="cover" />
+          ) : (
+            <View style={{ alignItems: "center", paddingVertical: 22, gap: 6 }}>
+              <IconSymbol name="photo.badge.plus" size={28} color={colors.muted} />
+              <Text style={{ fontSize: 13, color: colors.muted }}>Tap to add a photo</Text>
+            </View>
+          )}
+        </Pressable>
+        {photoUri && (
+          <Pressable
+            onPress={() => setPhotoUri(undefined)}
+            style={({ pressed }) => [{ alignSelf: "flex-start", marginBottom: 16, opacity: pressed ? 0.6 : 1 }]}
+          >
+            <Text style={{ fontSize: 12, color: colors.error }}>Remove photo</Text>
+          </Pressable>
+        )}
 
         {/* Preview */}
         <View className="bg-surface rounded-2xl p-4 mb-6 border border-border">

@@ -7,6 +7,7 @@ import {
   ScrollView,
   Linking,
   Platform,
+  Image,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -606,44 +607,89 @@ export default function PublicBookingScreen() {
         )}
 
         {/* ── Step: Select Service ──────────────────────────────────────────── */}
-        {step === "service" && (
-          <View>
-            <Pressable onPress={() => setStep("info")} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, marginBottom: 12 }]}>
-              <Text style={{ color: colors.primary, fontSize: 14 }}>← Back</Text>
-            </Pressable>
-            <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground, marginBottom: 12 }}>Choose a Service</Text>
-            {locationServices.map((item) => (
-              <Pressable
-                key={item.id}
-                onPress={() => {
-                  setSelectedServiceId(item.id);
-                  setSelectedStaffId(null);
-                  setStep("staff");
-                }}
-                style={({ pressed }) => [
-                  styles.serviceOption,
-                  {
-                    backgroundColor: selectedServiceId === item.id ? item.color + "15" : colors.surface,
-                    borderColor: selectedServiceId === item.id ? item.color : colors.border,
-                    opacity: pressed ? 0.7 : 1,
-                  },
-                ]}
-              >
-                <View style={[styles.colorDot, { backgroundColor: item.color }]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{getServiceDisplayName(item)}</Text>
-                  <Text style={{ fontSize: 13, color: colors.muted, marginTop: 2 }}>${item.price} · {item.duration} min</Text>
-                </View>
-                <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+        {step === "service" && (() => {
+          // Group services by category for a cleaner layout
+          const catMap = new Map<string, typeof locationServices>();
+          const uncategorized: typeof locationServices = [];
+          locationServices.forEach((svc) => {
+            if (svc.category) {
+              if (!catMap.has(svc.category)) catMap.set(svc.category, []);
+              catMap.get(svc.category)!.push(svc);
+            } else {
+              uncategorized.push(svc);
+            }
+          });
+          const groups: { label: string; items: typeof locationServices }[] = [];
+          catMap.forEach((items, label) => groups.push({ label, items }));
+          if (uncategorized.length > 0) groups.push({ label: "", items: uncategorized });
+          const hasCats = catMap.size > 0;
+          return (
+            <View>
+              <Pressable onPress={() => setStep("info")} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, marginBottom: 12 }]}>
+                <Text style={{ color: colors.primary, fontSize: 14 }}>← Back</Text>
               </Pressable>
-            ))}
-            {locationServices.length === 0 && (
-              <View style={{ alignItems: "center", paddingVertical: 32 }}>
-                <Text style={{ fontSize: 14, color: colors.muted }}>No services available at this location</Text>
-              </View>
-            )}
-          </View>
-        )}
+              <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground, marginBottom: 12 }}>Choose a Service</Text>
+              {groups.map((group) => (
+                <View key={group.label || "__uncategorized__"}>
+                  {hasCats && group.label !== "" && (
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8, marginTop: 6 }}>
+                      {group.label}
+                    </Text>
+                  )}
+                  {group.items.map((item) => (
+                    <Pressable
+                      key={item.id}
+                      onPress={() => {
+                        setSelectedServiceId(item.id);
+                        setSelectedStaffId(null);
+                        setStep("staff");
+                      }}
+                      style={({ pressed }) => [
+                        styles.serviceOption,
+                        {
+                          backgroundColor: selectedServiceId === item.id ? item.color + "15" : colors.surface,
+                          borderColor: selectedServiceId === item.id ? item.color : colors.border,
+                          opacity: pressed ? 0.7 : 1,
+                          padding: 0,
+                          overflow: "hidden",
+                        },
+                      ]}
+                    >
+                      {item.photoUri ? (
+                        <View style={{ flexDirection: "row", alignItems: "center" }}>
+                          <Image
+                            source={{ uri: item.photoUri }}
+                            style={{ width: 72, height: 72, borderTopLeftRadius: 11, borderBottomLeftRadius: 11 }}
+                            resizeMode="cover"
+                          />
+                          <View style={{ flex: 1, paddingHorizontal: 12, paddingVertical: 10 }}>
+                            <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{getServiceDisplayName(item)}</Text>
+                            <Text style={{ fontSize: 13, color: colors.muted, marginTop: 2 }}>${item.price} · {item.duration} min</Text>
+                          </View>
+                          <IconSymbol name="chevron.right" size={16} color={colors.muted} style={{ marginRight: 12 }} />
+                        </View>
+                      ) : (
+                        <View style={{ flexDirection: "row", alignItems: "center", padding: 14 }}>
+                          <View style={[styles.colorDot, { backgroundColor: item.color }]} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{getServiceDisplayName(item)}</Text>
+                            <Text style={{ fontSize: 13, color: colors.muted, marginTop: 2 }}>${item.price} · {item.duration} min</Text>
+                          </View>
+                          <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+                        </View>
+                      )}
+                    </Pressable>
+                  ))}
+                </View>
+              ))}
+              {locationServices.length === 0 && (
+                <View style={{ alignItems: "center", paddingVertical: 32 }}>
+                  <Text style={{ fontSize: 14, color: colors.muted }}>No services available at this location</Text>
+                </View>
+              )}
+            </View>
+          );
+        })()}
 
         {/* ── Step: Choose Staff ────────────────────────────────────────────── */}
         {step === "staff" && (() => {

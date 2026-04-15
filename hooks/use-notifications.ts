@@ -487,8 +487,20 @@ export function useNotifications() {
   const birthdayReminderScheduledRef = useRef(false);
   useEffect(() => {
     if (Platform.OS === "web") return;
-    if (!state.settings.notificationsEnabled) return;
     if (!state.loaded) return;
+    const birthdayEnabled = state.settings.notificationPreferences?.birthdayReminderEnabled ?? true;
+    // If master notifications off OR birthday toggle off — cancel any existing reminder and bail
+    if (!state.settings.notificationsEnabled || !birthdayEnabled) {
+      Notifications.getAllScheduledNotificationsAsync().then((scheduled) => {
+        for (const n of scheduled) {
+          if (n.identifier?.startsWith("birthday-daily-reminder")) {
+            Notifications.cancelScheduledNotificationAsync(n.identifier);
+          }
+        }
+      }).catch(() => {});
+      birthdayReminderScheduledRef.current = false;
+      return;
+    }
 
     // Build today's birthday list to decide whether to schedule
     const todayClients = state.clients.filter((c) => {
@@ -560,7 +572,7 @@ export function useNotifications() {
     };
 
     doSchedule();
-  }, [state.clients, state.settings.notificationsEnabled, state.loaded, businessName]);
+  }, [state.clients, state.settings.notificationsEnabled, state.settings.notificationPreferences?.birthdayReminderEnabled, state.loaded, businessName]);
 
   const cancelAllReminders = useCallback(async () => {
     if (Platform.OS === "web") return;

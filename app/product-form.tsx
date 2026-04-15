@@ -10,6 +10,7 @@ import {
   Switch,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,6 +20,7 @@ import { useColors } from "@/hooks/use-colors";
 import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import type { Product } from "@/lib/types";
+import * as ImagePicker from "expo-image-picker";
 
 export default function ProductFormScreen() {
   const { state, dispatch, syncToDb } = useStore();
@@ -37,7 +39,9 @@ export default function ProductFormScreen() {
   const [price, setPrice] = useState(existing ? String(existing.price) : "");
   const [description, setDescription] = useState(existing?.description ?? "");
   const [brand, setBrand] = useState(existing?.brand ?? "");
+  const [category, setCategory] = useState(existing?.category ?? "");
   const [available, setAvailable] = useState(existing?.available ?? true);
+  const [photoUri, setPhotoUri] = useState<string | undefined>(existing?.photoUri);
 
   // Collect existing brands for suggestions
   const existingBrands = React.useMemo(() => {
@@ -48,15 +52,43 @@ export default function ProductFormScreen() {
     return Array.from(brands).sort();
   }, [state.products]);
 
+  // Collect existing categories for suggestions
+  const existingCategories = React.useMemo(() => {
+    const cats = new Set<string>();
+    state.products.forEach((p) => {
+      if (p.category && p.category.trim()) cats.add(p.category.trim());
+    });
+    return Array.from(cats).sort();
+  }, [state.products]);
+
   useEffect(() => {
     if (existing) {
       setName(existing.name);
       setPrice(String(existing.price));
       setDescription(existing.description);
       setBrand(existing.brand ?? "");
+      setCategory(existing.category ?? "");
       setAvailable(existing.available);
+      setPhotoUri(existing.photoUri);
     }
   }, [existing?.id]);
+
+  const pickPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Please allow access to your photo library to add a product photo.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setPhotoUri(result.assets[0].uri);
+    }
+  };
 
   const handleSave = () => {
     if (!name.trim()) {
@@ -76,7 +108,9 @@ export default function ProductFormScreen() {
         price: parsedPrice,
         description: description.trim(),
         brand: brand.trim() || undefined,
+        category: category.trim() || undefined,
         available,
+        photoUri: photoUri || undefined,
       };
       dispatch({ type: "UPDATE_PRODUCT", payload: updated });
       syncToDb({ type: "UPDATE_PRODUCT", payload: updated });
@@ -87,7 +121,9 @@ export default function ProductFormScreen() {
         price: parsedPrice,
         description: description.trim(),
         brand: brand.trim() || undefined,
+        category: category.trim() || undefined,
         available,
+        photoUri: photoUri || undefined,
         createdAt: new Date().toISOString(),
       };
       dispatch({ type: "ADD_PRODUCT", payload: newProduct });
@@ -205,6 +241,45 @@ export default function ProductFormScreen() {
             returnKeyType="done"
           />
 
+          {/* Category */}
+          <Text
+            className="text-sm font-medium text-muted"
+            style={{ marginBottom: 6, marginTop: 16 }}
+          >
+            Category (optional)
+          </Text>
+          <TextInput
+            value={category}
+            onChangeText={setCategory}
+            placeholder="e.g. Hair Care, Styling, Treatment"
+            placeholderTextColor={colors.muted}
+            style={[
+              styles.input,
+              {
+                backgroundColor: colors.surface,
+                color: colors.foreground,
+                borderColor: colors.border,
+              },
+            ]}
+            returnKeyType="next"
+          />
+          {existingCategories.length > 0 && !category && (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+              {existingCategories.map((cat) => (
+                <Pressable
+                  key={cat}
+                  onPress={() => setCategory(cat)}
+                  style={({ pressed }) => [{
+                    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1,
+                    borderColor: colors.border, backgroundColor: colors.surface, opacity: pressed ? 0.7 : 1,
+                  }]}
+                >
+                  <Text style={{ fontSize: 13, color: colors.muted }}>{cat}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+
           {/* Brand */}
           <Text
             className="text-sm font-medium text-muted"
@@ -278,6 +353,39 @@ export default function ProductFormScreen() {
               },
             ]}
           />
+
+          {/* Photo (optional) */}
+          <Text className="text-sm font-medium text-muted" style={{ marginBottom: 6, marginTop: 16 }}>
+            Product Photo (optional)
+          </Text>
+          <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 8, lineHeight: 15 }}>
+            Shown to clients on the booking page. Helps them identify the product.
+          </Text>
+          <Pressable
+            onPress={pickPhoto}
+            style={({ pressed }) => [{
+              borderRadius: 12, borderWidth: 1.5, borderColor: colors.border, borderStyle: "dashed",
+              overflow: "hidden", marginBottom: photoUri ? 6 : 16, opacity: pressed ? 0.7 : 1,
+              backgroundColor: colors.surface, minHeight: 110, alignItems: "center", justifyContent: "center",
+            }]}
+          >
+            {photoUri ? (
+              <Image source={{ uri: photoUri }} style={{ width: "100%", height: 150, borderRadius: 10 }} resizeMode="cover" />
+            ) : (
+              <View style={{ alignItems: "center", paddingVertical: 22, gap: 6 }}>
+                <IconSymbol name="photo.badge.plus" size={28} color={colors.muted} />
+                <Text style={{ fontSize: 13, color: colors.muted }}>Tap to add a photo</Text>
+              </View>
+            )}
+          </Pressable>
+          {photoUri && (
+            <Pressable
+              onPress={() => setPhotoUri(undefined)}
+              style={({ pressed }) => [{ alignSelf: "flex-start", marginBottom: 16, opacity: pressed ? 0.6 : 1 }]}
+            >
+              <Text style={{ fontSize: 12, color: colors.error }}>Remove photo</Text>
+            </Pressable>
+          )}
 
           {/* Available Toggle */}
           <View style={[styles.toggleRow, { marginTop: 20 }]}>

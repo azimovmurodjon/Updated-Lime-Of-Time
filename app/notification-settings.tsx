@@ -387,6 +387,36 @@ export default function NotificationSettingsScreen() {
           );
         })}
 
+        {/* Birthday Reminders */}
+        <Text style={[styles.sectionHeader, { color: colors.muted, marginTop: 20 }]}>Birthday Reminders</Text>
+        <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10, marginTop: -4 }}>
+          A daily push notification at 8:00 AM listing all clients with birthdays today.
+        </Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: settings.notificationsEnabled ? 1 : 0.5 }]}>
+          <View style={styles.switchRow}>
+            <View style={{ flex: 1, marginRight: 12 }}>
+              <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>Daily Birthday Alert</Text>
+              <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 16 }}>
+                Fires every morning at 8 AM if any client has a birthday that day. Tapping it opens Birthday Campaigns.
+              </Text>
+            </View>
+            <Switch
+              value={(prefs.birthdayReminderEnabled ?? true) && settings.notificationsEnabled}
+              onValueChange={() => togglePref("birthdayReminderEnabled")}
+              trackColor={{ false: colors.border, true: "#EC489960" }}
+              thumbColor={(prefs.birthdayReminderEnabled ?? true) ? "#EC4899" : colors.muted}
+              disabled={!settings.notificationsEnabled}
+            />
+          </View>
+          {(prefs.birthdayReminderEnabled ?? true) && settings.notificationsEnabled && (
+            <View style={{ marginTop: 10, backgroundColor: "#EC489915", borderRadius: 10, padding: 10 }}>
+              <Text style={{ fontSize: 12, color: "#EC4899", lineHeight: 18 }}>
+                Preview: "🎂 Birthday today: Jane Smith. Open Birthday Campaigns to send a greeting!"
+              </Text>
+            </View>
+          )}
+        </View>
+
         {/* Email Notifications */}
         <Text style={[styles.sectionHeader, { color: colors.muted, marginTop: 20 }]}>Email Notifications</Text>
         <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10, marginTop: -4 }}>

@@ -229,7 +229,7 @@ export default function LocationsScreen() {
           {!!item.phone && (
             <View style={styles.infoRow}>
               <IconSymbol name="phone.fill" size={13} color={colors.muted} />
-              <Text style={{ fontSize: 13, color: colors.muted }}>{item.phone}</Text>
+              <Text style={{ fontSize: 13, color: colors.muted }}>{formatPhoneNumber(item.phone)}</Text>
             </View>
           )}
           {!!item.email && (

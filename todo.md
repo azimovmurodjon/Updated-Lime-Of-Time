@@ -962,3 +962,15 @@
 - [x] Birthday auto-reminders — daily 8 AM push notification listing today's birthdays
 - [x] Photo lightbox — full-screen swipe gallery with pinch-to-zoom for before/after photos
 - [x] Staff availability indicator — green/grey dot on booking staff picker
+- [ ] Birthday notification toggle in Notification Settings
+- [ ] Location Active Until date field in location add/edit
+- [ ] Phone number format fix in Locations list
+- [ ] Service/product category grouping + optional photos on booking page
+- [ ] Workday close guard — popup + no-new-bookings mode
+- [x] Birthday notification toggle in Notification Settings
+- [x] Location Active Until date field in location add/edit form
+- [x] Phone number formatting fix in Locations list
+- [x] Service category grouping on public booking page
+- [x] Service optional photos on public booking page
+- [x] Product optional photos in product form
+- [x] Workday close guard - popup when appointments exist on that day

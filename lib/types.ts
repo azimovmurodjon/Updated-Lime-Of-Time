@@ -5,6 +5,7 @@ export interface Service {
   price: number;
   color: string;
   category?: string; // service category for grouping
+  photoUri?: string; // optional photo shown on booking page
   locationIds?: string[] | null; // null = all locations
   createdAt: string;
 }
@@ -117,6 +118,8 @@ export interface Product {
   price: number;
   description: string;
   brand?: string; // product brand for grouping
+  category?: string; // product category for grouping
+  photoUri?: string; // optional photo shown on booking page
   available: boolean;
   createdAt: string;
 }
@@ -136,6 +139,8 @@ export interface Location {
   temporarilyClosed?: boolean;
   /** ISO date string YYYY-MM-DD: if set, location auto-reopens on this date */
   reopenOn?: string;
+  /** ISO date string YYYY-MM-DD: if set, this location stops accepting bookings after this date */
+  activeUntil?: string;
   workingHours: Record<string, WorkingHours> | null; // null = use business hours
   createdAt: string;
 }
@@ -224,6 +229,8 @@ export interface NotificationPreferences {
   emailOnNewBooking: boolean;
   /** Email confirmation to client when business owner accepts appointment */
   emailClientOnConfirmation: boolean;
+  /** Daily 8 AM push notification listing clients with birthdays today */
+  birthdayReminderEnabled?: boolean;
 }
 
 /** Per-event SMS message templates. Each key maps to a custom message body.
@@ -255,6 +262,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   pushOnWaitlist: true,
   emailOnNewBooking: true,
   emailClientOnConfirmation: true,
+  birthdayReminderEnabled: true,
 };
 
 export interface BusinessSettings {

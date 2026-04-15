@@ -94,6 +94,8 @@ const MAPPING = {
   "calendar.badge.checkmark": "event-available",
   "arrow.down.right": "trending-down",
   "arrow.down.to.line": "save-alt",
+  "photo.badge.plus": "add-photo-alternate",
+  "photo.fill": "image",
 } as unknown as IconMapping;
 
 export function IconSymbol({

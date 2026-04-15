@@ -46,7 +46,7 @@ function formatTimeLabel(t: string) {
 
 export default function LocationFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const { state, dispatch, syncToDb } = useStore();
+  const { state, dispatch, syncToDb, getClientById } = useStore();
   const { setActiveLocation } = useActiveLocation();
   const colors = useColors();
   const router = useRouter();
@@ -96,6 +96,7 @@ export default function LocationFormScreen() {
       active: existing?.active ?? true,
       temporarilyClosed: existing?.temporarilyClosed,
       reopenOn: existing?.reopenOn,
+      activeUntil: activeUntil,
       workingHours: useLocationHours ? locationHours : {},
       createdAt: existing?.createdAt ?? new Date().toISOString(),
     };
@@ -142,6 +143,30 @@ export default function LocationFormScreen() {
   const [useLocationHours, setUseLocationHours] = useState(
     !!(existing?.workingHours && Object.keys(existing.workingHours).length > 0)
   );
+  // ── Active Until ────────────────────────────────────────────────────────────
+  const [activeUntil, setActiveUntil] = useState<string | undefined>(existing?.activeUntil);
+  const [showActiveUntilPicker, setShowActiveUntilPicker] = useState(false);
+  const [activeUntilCalMonth, setActiveUntilCalMonth] = useState(() => new Date().getMonth());
+  const [activeUntilCalYear, setActiveUntilCalYear] = useState(() => new Date().getFullYear());
+  const todayStr = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; })();
+  const CAL_MONTHS_AU = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const CAL_DAYS_AU = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+  const buildActiveUntilGrid = (year: number, month: number) => {
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells: (number | null)[] = [];
+    for (let i = 0; i < firstDay; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+    while (cells.length % 7 !== 0) cells.push(null);
+    return cells;
+  };
+  const formatActiveUntilLabel = (dateStr?: string) => {
+    if (!dateStr) return null;
+    try {
+      const [y, m, d] = dateStr.split("-").map(Number);
+      return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    } catch { return null; }
+  };
   const [timePickerDay, setTimePickerDay] = useState<string | null>(null);
   const [draftStart, setDraftStart] = useState("09:00");
   const [draftEnd, setDraftEnd] = useState("17:00");
@@ -173,11 +198,54 @@ export default function LocationFormScreen() {
   }, [timePickerDay, draftStart, draftEnd]);
 
   const toggleDay = useCallback((day: string) => {
+    const currentHours = locationHours[day] ?? { enabled: false, start: "09:00", end: "17:00" };
+    // Only check for conflicts when disabling (turning OFF) a day that is currently enabled
+    if (currentHours.enabled) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dayIndex = DAYS_OF_WEEK.indexOf(day as typeof DAYS_OF_WEEK[number]);
+      const upcomingOnDay = state.appointments.filter((appt) => {
+        if (appt.status === "cancelled" || appt.status === "completed") return false;
+        const apptDate = new Date(appt.date + "T00:00:00");
+        if (apptDate < today) return false;
+        if (apptDate.getDay() !== dayIndex) return false;
+        if (existing?.id && appt.locationId && appt.locationId !== existing.id) return false;
+        return true;
+      });
+      if (upcomingOnDay.length > 0) {
+        const clientNames = upcomingOnDay
+          .slice(0, 3)
+          .map((a) => {
+            const client = getClientById(a.clientId);
+            return client ? client.name : "Client";
+          })
+          .join(", ");
+        const moreCount = upcomingOnDay.length > 3 ? ` +${upcomingOnDay.length - 3} more` : "";
+        Alert.alert(
+          "Upcoming Appointments",
+          `${DAY_FULL[day]} has ${upcomingOnDay.length} upcoming appointment${upcomingOnDay.length > 1 ? "s" : ""}: ${clientNames}${moreCount}.\n\nYou cannot close this day while appointments are scheduled.`,
+          [
+            { text: "Keep Open", style: "cancel" },
+            {
+              text: "Stop New Bookings Only",
+              onPress: () => {
+                Alert.alert(
+                  "Stop New Bookings",
+                  `${DAY_FULL[day]} will stay open for existing appointments. To stop new bookings for this location entirely, use the 'Accepting Bookings' toggle on the Locations screen.`,
+                  [{ text: "OK" }]
+                );
+              },
+            },
+          ]
+        );
+        return;
+      }
+    }
     setLocationHours((prev) => {
-      const existing = prev[day] ?? { enabled: false, start: "09:00", end: "17:00" };
-      return { ...prev, [day]: { ...existing, enabled: !existing.enabled } };
+      const cur = prev[day] ?? { enabled: false, start: "09:00", end: "17:00" };
+      return { ...prev, [day]: { ...cur, enabled: !cur.enabled } };
     });
-  }, []);
+  }, [locationHours, state.appointments, existing, getClientById]);
 
   // ── QR code modal ────────────────────────────────────────────────────────────
   const [showQr, setShowQr] = useState(false);
@@ -482,6 +550,119 @@ export default function LocationFormScreen() {
             )}
           </View>
         )}
+
+        {/* Active Until */}
+        <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <View style={{ flex: 1, marginRight: 12 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <IconSymbol name="calendar.badge.clock" size={16} color="#9C27B0" />
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Active Until</Text>
+              </View>
+              <Text style={{ fontSize: 12, color: colors.muted, marginTop: 3, lineHeight: 17 }}>
+                {activeUntil
+                  ? `Bookings accepted until ${formatActiveUntilLabel(activeUntil)}. After this date, no slots are shown.`
+                  : "Optionally set an end date. After this date, no booking slots will be shown for this location."}
+              </Text>
+            </View>
+            <Switch
+              value={!!activeUntil || showActiveUntilPicker}
+              onValueChange={(v) => {
+                if (!v) { setActiveUntil(undefined); setShowActiveUntilPicker(false); }
+                else { setShowActiveUntilPicker(true); }
+              }}
+              trackColor={{ false: colors.border, true: "#9C27B060" }}
+              thumbColor={activeUntil ? "#9C27B0" : colors.muted}
+            />
+          </View>
+          {activeUntil && !showActiveUntilPicker && (
+            <View style={{ marginTop: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#9C27B015", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: "#9C27B040" }}>
+                <IconSymbol name="calendar" size={14} color="#9C27B0" />
+                <Text style={{ fontSize: 13, fontWeight: "600", color: "#9C27B0" }}>{formatActiveUntilLabel(activeUntil)}</Text>
+              </View>
+              <Pressable
+                onPress={() => setShowActiveUntilPicker(true)}
+                style={({ pressed }) => [{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: 10, borderWidth: 1, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
+              >
+                <Text style={{ fontSize: 12, color: colors.foreground }}>Change</Text>
+              </Pressable>
+            </View>
+          )}
+          {showActiveUntilPicker && (
+            <View style={{ marginTop: 12 }}>
+              {/* Month navigation */}
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <Pressable
+                  onPress={() => {
+                    if (activeUntilCalMonth === 0) { setActiveUntilCalMonth(11); setActiveUntilCalYear(y => y - 1); }
+                    else setActiveUntilCalMonth(m => m - 1);
+                  }}
+                  style={({ pressed }) => [{ padding: 6, opacity: pressed ? 0.5 : 1 }]}
+                >
+                  <IconSymbol name="chevron.left" size={18} color={colors.foreground} />
+                </Pressable>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>
+                  {CAL_MONTHS_AU[activeUntilCalMonth]} {activeUntilCalYear}
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    if (activeUntilCalMonth === 11) { setActiveUntilCalMonth(0); setActiveUntilCalYear(y => y + 1); }
+                    else setActiveUntilCalMonth(m => m + 1);
+                  }}
+                  style={({ pressed }) => [{ padding: 6, opacity: pressed ? 0.5 : 1 }]}
+                >
+                  <IconSymbol name="chevron.right" size={18} color={colors.foreground} />
+                </Pressable>
+              </View>
+              {/* Day headers */}
+              <View style={{ flexDirection: "row", marginBottom: 4 }}>
+                {CAL_DAYS_AU.map(d => (
+                  <Text key={d} style={{ flex: 1, textAlign: "center", fontSize: 11, fontWeight: "600", color: colors.muted }}>{d}</Text>
+                ))}
+              </View>
+              {/* Calendar grid */}
+              {(() => {
+                const cells = buildActiveUntilGrid(activeUntilCalYear, activeUntilCalMonth);
+                const rows: (number | null)[][] = [];
+                for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
+                return rows.map((row, ri) => (
+                  <View key={ri} style={{ flexDirection: "row", marginBottom: 2 }}>
+                    {row.map((day, ci) => {
+                      const dateStr = day ? `${activeUntilCalYear}-${String(activeUntilCalMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}` : null;
+                      const isPast = dateStr ? dateStr < todayStr : false;
+                      const isSelected = dateStr === activeUntil;
+                      return (
+                        <Pressable
+                          key={ci}
+                          onPress={() => {
+                            if (!day || isPast) return;
+                            if (dateStr) { setActiveUntil(dateStr); setShowActiveUntilPicker(false); }
+                          }}
+                          style={({ pressed }) => [{
+                            flex: 1, alignItems: "center", paddingVertical: 6, borderRadius: 8, margin: 1,
+                            backgroundColor: isSelected ? "#9C27B0" : "transparent",
+                            opacity: isPast ? 0.3 : pressed ? 0.7 : 1,
+                          }]}
+                        >
+                          <Text style={{ fontSize: 13, fontWeight: isSelected ? "700" : "400", color: isSelected ? "#fff" : colors.foreground }}>
+                            {day ?? ""}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                ));
+              })()}
+              <Pressable
+                onPress={() => { setActiveUntil(undefined); setShowActiveUntilPicker(false); }}
+                style={({ pressed }) => [{ marginTop: 10, alignSelf: "center", opacity: pressed ? 0.6 : 1 }]}
+              >
+                <Text style={{ fontSize: 13, color: colors.muted }}>Clear date</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
 
         {/* QR Code (edit mode only) */}
         {isEdit && locationBookingUrl && (
