@@ -996,3 +996,7 @@
 - [x] Test full booking flow on live site and fix any issues found
 - [x] Fix Auto-Complete Appointments not marking past confirmed appointments as completed
 - [x] Step 2 primary service selection: category tile drill-down (category tiles → service list → detail sheet with Select button)
+- [ ] Step 2 search: match category names in addition to service names
+- [ ] Step 2: "Most Popular" horizontal scroll row above category tiles (top 3-5 most-booked services)
+- [ ] Step 2 detail sheet: improve photo placeholder when no photoUri set
+- [ ] Fix Staff Performance screen: "6 Mo" tab clipped off-screen, stat boxes overlapping

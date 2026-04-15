@@ -590,7 +590,7 @@ export default function AnalyticsDetailScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 8, paddingVertical: 12, flexDirection: "row" }}
+          contentContainerStyle={{ gap: 8, paddingVertical: 12, flexDirection: "row", paddingRight: hp }}
         >
           {DATE_RANGES.map((r) => (
             <Pressable
@@ -1272,7 +1272,7 @@ export default function AnalyticsDetailScreen() {
               <View style={[styles.summaryCard, { backgroundColor: "#F3E8FF", borderColor: "#9C27B030" }]}>
                 <Text style={{ fontSize: 36, fontWeight: "800", color: "#9C27B0" }}>{staffData.length}</Text>
                 <Text style={{ fontSize: 14, color: "#9C27B0CC", marginTop: 4 }}>Active Staff Members</Text>
-                <View style={[styles.quickStats, { marginTop: 16 }]}>
+                <View style={[styles.quickStats, { marginTop: 16, alignSelf: "stretch" }]}>
                   <View style={[styles.quickStatCard, { backgroundColor: "#FFF3E0", borderColor: "#FF980030" }]}>
                     <Text style={{ fontSize: 18, fontWeight: "700", color: "#FF9800" }}>${totalStaffRevenue.toLocaleString()}</Text>
                     <Text style={{ fontSize: 11, color: "#FF9800CC" }}>Total Revenue</Text>
@@ -1401,7 +1401,8 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     alignItems: "center",
-    paddingVertical: 28,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
     borderRadius: 20,
     borderWidth: 1,
     marginVertical: 16,

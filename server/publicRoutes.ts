@@ -200,6 +200,14 @@ export function registerPublicRoutes(app: Express) {
             return locIds.includes(locationIdFilter);
           })
         : servicesList;
+      // Count appointments per service for "Most Popular" ranking
+      const appts = await db.getAppointmentsByOwner(owner.id);
+      const apptCountMap: Record<string, number> = {};
+      appts.forEach((a: any) => {
+        if (a.serviceLocalId) {
+          apptCountMap[a.serviceLocalId] = (apptCountMap[a.serviceLocalId] || 0) + 1;
+        }
+      });
       res.json(filteredServices.map((s) => ({
         localId: s.localId,
         name: s.name,
@@ -209,6 +217,7 @@ export function registerPublicRoutes(app: Express) {
         category: s.category || null,
         description: (s as any).description || null,
         photoUri: (s as any).photoUri || null,
+        appointmentCount: apptCountMap[s.localId] || 0,
         locationIds: Array.isArray(s.locationIds)
           ? s.locationIds
           : s.locationIds
@@ -1743,7 +1752,8 @@ function baseStyles(): string {
       .detail-sheet { background:var(--bg-card); border-radius:24px 24px 0 0; padding:24px 20px 40px; max-width:480px; width:100%; max-height:85vh; overflow-y:auto; position:relative; }
       .detail-sheet .drag-handle { width:40px; height:4px; background:var(--border); border-radius:2px; margin:0 auto 20px; }
       .detail-sheet .detail-photo { width:100%; height:180px; object-fit:cover; border-radius:12px; margin-bottom:14px; }
-      .detail-sheet .detail-photo-placeholder { width:100%; height:120px; background:var(--accent-bg-light); border-radius:12px; display:flex; align-items:center; justify-content:center; margin-bottom:14px; font-size:40px; }
+      .detail-sheet .detail-photo-placeholder { width:100%; height:120px; background:var(--accent-bg-light); border-radius:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; margin-bottom:14px; font-size:36px; }
+      .detail-sheet .detail-photo-placeholder .ph-hint { font-size:11px; color:var(--text-muted); font-weight:500; text-align:center; padding:0 12px; }
       .detail-sheet .detail-badge { display:inline-block; background:var(--accent-bg-light); color:var(--accent-dark); font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; margin-bottom:8px; }
       .detail-sheet .detail-name { font-size:20px; font-weight:800; color:var(--text); margin-bottom:6px; }
       .detail-sheet .detail-price { font-size:22px; font-weight:800; color:var(--accent-dark); margin-bottom:8px; }
@@ -1956,6 +1966,11 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       <div style="margin-bottom:12px;">
         <input id="svcSearch" type="text" placeholder="&#128269; Search services..." oninput="onSvcSearch(this.value)"
           style="width:100%;box-sizing:border-box;padding:10px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;background:var(--bg-card);color:var(--text);outline:none;">
+      </div>
+      <!-- Most Popular row -->
+      <div id="svcPopularRow" style="display:none;margin-bottom:16px;">
+        <div style="font-size:12px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">&#11088; Most Popular</div>
+        <div id="svcPopularList" style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:none;"></div>
       </div>
       <!-- Category tiles -->
       <div id="svcCatGrid" class="tile-grid"></div>
@@ -2363,7 +2378,43 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       selectedSvcCat = null;
       document.getElementById('svcItemList').style.display = 'none';
       document.getElementById('svcSearchResults').style.display = 'none';
+      renderSvcPopularRow();
       renderSvcCategoryTiles();
+    }
+
+    function renderSvcPopularRow() {
+      // Rank services by appointment count (use appointmentCount field if available, else random stable sort)
+      var ranked = services.slice().sort(function(a, b) {
+        return (b.appointmentCount || 0) - (a.appointmentCount || 0);
+      });
+      // Take top 5; if no counts available, take first 5 alphabetically
+      var top = ranked.slice(0, 5);
+      if (top.length === 0) return;
+      var popularRow = document.getElementById('svcPopularRow');
+      var popularList = document.getElementById('svcPopularList');
+      var html = '';
+      top.forEach(function(s) {
+        var dur = s.duration >= 60 ? (s.duration / 60) + ' hr' + (s.duration > 60 ? 's' : '') : s.duration + ' min';
+        var photoEl = s.photoUri
+          ? '<img src="' + esc(s.photoUri) + '" style="width:100%;height:70px;object-fit:cover;border-radius:8px;margin-bottom:8px;" />'
+          : '<div style="width:28px;height:28px;border-radius:50%;background:' + (s.color || '#4a8c3f') + ';margin-bottom:8px;"></div>';
+        html += '<div class="popular-card" data-svc-id="' + esc(s.localId) + '" style="' +
+          'flex:0 0 auto;min-width:130px;max-width:150px;background:var(--bg-card);border:1.5px solid var(--border);' +
+          'border-radius:12px;padding:' + (s.photoUri ? '0' : '12px') + ' 0 10px;overflow:hidden;cursor:pointer;transition:box-shadow 0.15s;">' +
+          photoEl +
+          '<div style="padding:' + (s.photoUri ? '8px 10px 0' : '0 10px') + ';">' +
+          '<div style="font-size:13px;font-weight:600;color:var(--text);line-height:1.3;margin-bottom:4px;">' + esc(s.name) + '</div>' +
+          '<div style="font-size:11px;color:#888;">' + dur + '</div>' +
+          '<div style="font-size:13px;font-weight:700;color:var(--accent);margin-top:6px;">$' + parseFloat(s.price).toFixed(2) + '</div>' +
+          '</div></div>';
+      });
+      popularList.innerHTML = html;
+      popularList.querySelectorAll('.popular-card[data-svc-id]').forEach(function(card) {
+        card.addEventListener('click', function() {
+          openSvcDetail(card.getAttribute('data-svc-id'));
+        });
+      });
+      popularRow.style.display = 'block';
     }
 
     function renderSvcCategoryTiles() {
@@ -3098,7 +3149,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       if (s.photoUri) {
         html += '<img class="detail-photo" src="' + esc(s.photoUri) + '" />';
       } else {
-        html += '<div class="detail-photo-placeholder">✂️</div>';
+        html += '<div class="detail-photo-placeholder">✂️<span class="ph-hint">Add a photo in the app to help clients visualise this service</span></div>';
       }
       if (s.category) html += '<div class="detail-badge">' + esc(s.category) + '</div>';
       html += '<div class="detail-name">' + esc(s.name) + '</div>';
@@ -3221,7 +3272,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       if (p.photoUri) {
         html += '<img class="detail-photo" src="' + esc(p.photoUri) + '" />';
       } else {
-        html += '<div class="detail-photo-placeholder">🛍️</div>';
+        html += '<div class="detail-photo-placeholder">🛍️<span class="ph-hint">Add a photo in the app so clients can see this product</span></div>';
       }
       if (p.brand) html += '<div class="detail-badge">' + esc(p.brand) + '</div>';
       html += '<div class="detail-name">' + esc(p.name) + '</div>';
