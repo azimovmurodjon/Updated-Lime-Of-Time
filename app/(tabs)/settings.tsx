@@ -508,7 +508,7 @@ export default function SettingsScreen() {
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Monthly Revenue Goal</Text>
             {editingGoal ? (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 }}>
+              <View style={{ marginTop: 6 }}>
                 <TextInput
                   value={goalInput}
                   onChangeText={setGoalInput}
@@ -517,15 +517,17 @@ export default function SettingsScreen() {
                   placeholderTextColor={colors.muted}
                   returnKeyType="done"
                   onSubmitEditing={saveGoal}
-                  style={{ flex: 1, fontSize: 15, color: colors.foreground, borderBottomWidth: 1, borderBottomColor: colors.primary, paddingVertical: 4 }}
+                  style={{ fontSize: 15, color: colors.foreground, borderBottomWidth: 1, borderBottomColor: colors.primary, paddingVertical: 4 }}
                   autoFocus
                 />
-                <Pressable onPress={saveGoal} style={{ backgroundColor: colors.primary, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}>
-                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>Save</Text>
-                </Pressable>
-                <Pressable onPress={() => setEditingGoal(false)}>
-                  <Text style={{ color: colors.muted, fontSize: 13 }}>Cancel</Text>
-                </Pressable>
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+                  <Pressable onPress={saveGoal} style={{ flex: 1, backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 8, alignItems: "center" }}>
+                    <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>Save</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setEditingGoal(false)} style={{ flex: 1, borderRadius: 8, paddingVertical: 8, alignItems: "center", borderWidth: 1, borderColor: colors.border }}>
+                    <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "600" }}>Cancel</Text>
+                  </Pressable>
+                </View>
               </View>
             ) : (
               <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
@@ -548,25 +550,29 @@ export default function SettingsScreen() {
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Staff Alert Threshold</Text>
             {editingThreshold ? (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 }}>
-                <TextInput
-                  value={alertThresholdInput}
-                  onChangeText={setAlertThresholdInput}
-                  keyboardType="numeric"
-                  placeholder="e.g. 80"
-                  placeholderTextColor={colors.muted}
-                  returnKeyType="done"
-                  onSubmitEditing={saveThreshold}
-                  style={{ flex: 1, fontSize: 15, color: colors.foreground, borderBottomWidth: 1, borderBottomColor: colors.primary, paddingVertical: 4 }}
-                  autoFocus
-                />
-                <Text style={{ fontSize: 13, color: colors.muted }}>%</Text>
-                <Pressable onPress={saveThreshold} style={{ backgroundColor: colors.primary, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}>
-                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>Save</Text>
-                </Pressable>
-                <Pressable onPress={() => setEditingThreshold(false)}>
-                  <Text style={{ color: colors.muted, fontSize: 13 }}>Cancel</Text>
-                </Pressable>
+              <View style={{ marginTop: 6 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <TextInput
+                    value={alertThresholdInput}
+                    onChangeText={setAlertThresholdInput}
+                    keyboardType="numeric"
+                    placeholder="e.g. 80"
+                    placeholderTextColor={colors.muted}
+                    returnKeyType="done"
+                    onSubmitEditing={saveThreshold}
+                    style={{ flex: 1, fontSize: 15, color: colors.foreground, borderBottomWidth: 1, borderBottomColor: colors.primary, paddingVertical: 4 }}
+                    autoFocus
+                  />
+                  <Text style={{ fontSize: 13, color: colors.muted }}>%</Text>
+                </View>
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+                  <Pressable onPress={saveThreshold} style={{ flex: 1, backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 8, alignItems: "center" }}>
+                    <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>Save</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setEditingThreshold(false)} style={{ flex: 1, borderRadius: 8, paddingVertical: 8, alignItems: "center", borderWidth: 1, borderColor: colors.border }}>
+                    <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "600" }}>Cancel</Text>
+                  </Pressable>
+                </View>
               </View>
             ) : (
               <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
