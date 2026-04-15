@@ -993,3 +993,5 @@
 - [x] Extras step: "All" tile at top of category/brand grids to browse all items
 - [x] Extras step: real-time search bar filtering services/products by name
 - [x] Service form: photo upload field so photoUri is set and shows in booking detail sheet (already existed)
+- [x] Test full booking flow on live site and fix any issues found
+- [x] Fix Auto-Complete Appointments not marking past confirmed appointments as completed

@@ -207,6 +207,8 @@ export function registerPublicRoutes(app: Express) {
         price: s.price,
         color: s.color,
         category: s.category || null,
+        description: (s as any).description || null,
+        photoUri: (s as any).photoUri || null,
         locationIds: Array.isArray(s.locationIds)
           ? s.locationIds
           : s.locationIds
@@ -449,6 +451,7 @@ export function registerPublicRoutes(app: Express) {
         name: p.name,
         price: p.price,
         description: p.description,
+        brand: p.brand || null,
       })));
     } catch (err) {
       console.error("[Public API] Error fetching products:", err);
@@ -2200,6 +2203,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     }
 
     function escText(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    var Q = "'"; // single-quote helper for onclick attribute strings
     function formatPhoneNumber(phone) {
       if (!phone) return phone;
       var digits = phone.replace(/\D/g, '');
@@ -2890,19 +2894,23 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         listEl.style.display = 'none';
         let html = '<div class="tile-grid">';
         // "All" tile first
-        html += '<div class="tile-card" onclick="drillIntoCategory(\'__all__\')" style="border-color:var(--accent);">' +
+        html += '<div class="tile-card" onclick="drillIntoCategory(&quot;__all__&quot;)" style="border-color:var(--accent);">' +
           '<div class="tile-name">All</div>' +
           '<div class="tile-count">' + available.length + ' service' + (available.length !== 1 ? 's' : '') + '</div>' +
           '</div>';
         cats.forEach(cat => {
           const count = catMap[cat].length;
-          html += '<div class="tile-card" onclick="drillIntoCategory(' + JSON.stringify(cat) + ')">' +
+          html += '<div class="tile-card" data-cat="' + esc(cat) + '">' +
             '<div class="tile-name">' + esc(cat) + '</div>' +
             '<div class="tile-count">' + count + ' service' + (count !== 1 ? 's' : '') + '</div>' +
             '</div>';
         });
         html += '</div>';
         catsEl.innerHTML = html;
+        // Attach click handlers via JS — use currentTarget to avoid closure capture bug
+        catsEl.querySelectorAll('.tile-card[data-cat]').forEach(function(tile) {
+          tile.addEventListener('click', function(e) { drillIntoCategory(e.currentTarget.getAttribute('data-cat')); });
+        });
         catsEl.style.display = 'block';
       } else {
         // Level 1: service list for selected category (or all)
@@ -2915,7 +2923,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         } else {
           catServices.forEach(s => {
             const dur = s.duration >= 60 ? (s.duration/60) + " hr" : s.duration + " min";
-            html += '<div class="service-item" onclick="openServiceDetail(' + JSON.stringify(s.localId) + ')">' +
+            html += '<div class="service-item" data-svc-id="' + esc(s.localId) + '">' +
               (s.photoUri ? '<img src="' + esc(s.photoUri) + '" style="width:56px;height:56px;border-radius:10px;object-fit:cover;margin-right:12px;flex-shrink:0;" />' :
                 '<div class="service-dot" style="background:' + (s.color||'#4a8c3f') + '"></div>') +
               '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div><div class="service-meta">' + dur + '</div></div>' +
@@ -2923,6 +2931,10 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
           });
         }
         listEl.innerHTML = html;
+        // Attach click handlers for service items via data attribute
+        listEl.querySelectorAll('.service-item[data-svc-id]').forEach(function(item) {
+          item.addEventListener('click', function(e) { openServiceDetail(e.currentTarget.getAttribute('data-svc-id')); });
+        });
         listEl.style.display = 'block';
       }
     }
@@ -2954,9 +2966,9 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       html += '<div class="detail-meta">' + dur + '</div>';
       if (s.description) html += '<div class="detail-desc">' + esc(s.description) + '</div>';
       if (inCart) {
-        html += '<button class="detail-add-btn" style="background:#e5f0e3;color:#2d5a27;" onclick="removeServiceFromCart(' + JSON.stringify(id) + ');closeItemDetail()">✓ Added — Remove</button>';
+        html += '<button class="detail-add-btn" style="background:#e5f0e3;color:#2d5a27;" onclick="removeServiceFromCart(' + Q + id + Q + ');closeItemDetail()">✓ Added — Remove</button>';
       } else {
-        html += '<button class="detail-add-btn" onclick="addServiceToCart(' + JSON.stringify(id) + ');closeItemDetail()">Add to Booking</button>';
+        html += '<button class="detail-add-btn" onclick="addServiceToCart(' + Q + id + Q + ');closeItemDetail()">Add to Booking</button>';
       }
       html += '<button class="detail-dismiss" onclick="closeItemDetail()">Close</button>';
       document.getElementById("itemDetailContent").innerHTML = html;
@@ -3007,19 +3019,23 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         listEl.style.display = 'none';
         let html = '<div class="tile-grid">';
         // "All" tile first
-        html += '<div class="tile-card" onclick="drillIntoBrand(\'__all__\')" style="border-color:var(--accent);">' +
+        html += '<div class="tile-card" onclick="drillIntoBrand(&quot;__all__&quot;)" style="border-color:var(--accent);">' +
           '<div class="tile-name">All</div>' +
           '<div class="tile-count">' + available.length + ' product' + (available.length !== 1 ? 's' : '') + '</div>' +
           '</div>';
         brands.forEach(brand => {
           const count = brandMap[brand].length;
-          html += '<div class="tile-card" onclick="drillIntoBrand(' + JSON.stringify(brand) + ')">' +
+          html += '<div class="tile-card" data-brand="' + esc(brand) + '">' +
             '<div class="tile-name">' + esc(brand) + '</div>' +
             '<div class="tile-count">' + count + ' product' + (count !== 1 ? 's' : '') + '</div>' +
             '</div>';
         });
         html += '</div>';
         brandsEl.innerHTML = html;
+        // Attach click handlers via JS — use currentTarget to avoid closure capture bug
+        brandsEl.querySelectorAll('.tile-card[data-brand]').forEach(function(tile) {
+          tile.addEventListener('click', function(e) { drillIntoBrand(e.currentTarget.getAttribute('data-brand')); });
+        });
         brandsEl.style.display = 'block';
       } else {
         // Level 1: product list for selected brand (or all)
@@ -3031,7 +3047,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
           html += '<div style="text-align:center;color:#888;padding:16px;font-size:13px;">No products in this brand</div>';
         } else {
           brandProducts.forEach(p => {
-            html += '<div class="product-item" onclick="openProductDetail(' + JSON.stringify(p.localId) + ')">' +
+            html += '<div class="product-item" data-prod-id="' + esc(p.localId) + '">' +
               (p.photoUri ? '<img src="' + esc(p.photoUri) + '" style="width:56px;height:56px;border-radius:10px;object-fit:cover;margin-right:12px;flex-shrink:0;" />' : '') +
               '<div style="flex:1;"><div style="font-size:15px;font-weight:600;">' + esc(p.name) + '</div>' +
               (p.description ? '<div style="font-size:12px;color:#888;margin-top:2px;">' + esc(p.description) + '</div>' : '') + '</div>' +
@@ -3039,6 +3055,10 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
           });
         }
         listEl.innerHTML = html;
+        // Attach click handlers for product items via data attribute
+        listEl.querySelectorAll('.product-item[data-prod-id]').forEach(function(item) {
+          item.addEventListener('click', function(e) { openProductDetail(e.currentTarget.getAttribute('data-prod-id')); });
+        });
         listEl.style.display = 'block';
       }
     }
@@ -3068,9 +3088,9 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       html += '<div class="detail-price">$' + parseFloat(p.price).toFixed(2) + '</div>';
       if (p.description) html += '<div class="detail-desc">' + esc(p.description) + '</div>';
       if (inCart) {
-        html += '<button class="detail-add-btn" style="background:#e5f0e3;color:#2d5a27;" onclick="removeProductFromCart(' + JSON.stringify(id) + ');closeItemDetail()">✓ Added — Remove</button>';
+        html += '<button class="detail-add-btn" style="background:#e5f0e3;color:#2d5a27;" onclick="removeProductFromCart(' + Q + id + Q + ');closeItemDetail()">✓ Added — Remove</button>';
       } else {
-        html += '<button class="detail-add-btn" onclick="addProductToCart(' + JSON.stringify(id) + ');closeItemDetail()">Add to Booking</button>';
+        html += '<button class="detail-add-btn" onclick="addProductToCart(' + Q + id + Q + ');closeItemDetail()">Add to Booking</button>';
       }
       html += '<button class="detail-dismiss" onclick="closeItemDetail()">Close</button>';
       document.getElementById("itemDetailContent").innerHTML = html;

@@ -1140,6 +1140,38 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshFromDb]);
 
+  // --- Periodic auto-complete check (every 60 seconds while app is open) ---
+  // Catches the case where the app stays in the foreground all day without
+  // being backgrounded/foregrounded, so the AppState listener never fires.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const s = stateRef.current;
+      if (!s.settings.autoCompleteEnabled) return;
+      if (!syncToDbRef.current) return;
+      const delayMs = (s.settings.autoCompleteDelayMinutes ?? 5) * 60 * 1000;
+      const now = Date.now();
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const toComplete = s.appointments.filter((a) => {
+        if (a.status !== "confirmed") return false;
+        if (a.date > todayStr) return false;
+        const svc = s.services.find((sv) => sv.id === a.serviceId);
+        const duration = svc?.duration ?? (a as any).duration ?? 30;
+        const endMins = timeToMinutes(a.time) + duration;
+        const endDate = new Date(a.date + "T00:00:00");
+        endDate.setMinutes(endDate.getMinutes() + endMins);
+        return now >= endDate.getTime() + delayMs;
+      });
+      if (toComplete.length > 0) {
+        toComplete.forEach((a) => {
+          const action = { type: "UPDATE_APPOINTMENT_STATUS" as const, payload: { id: a.id, status: "completed" as AppointmentStatus } };
+          dispatch(action);
+          syncToDbRef.current!(action);
+        });
+      }
+    }, 60_000); // every 60 seconds
+    return () => clearInterval(interval);
+  }, []); // empty deps — uses stable refs only
+
   // --- Sync action to database ---
   const syncToDb = useCallback(
     async (action: Action, ownerIdOverride?: number | null) => {
