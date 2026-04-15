@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useRef } from "react";
 import {
   Text,
   View,
@@ -8,6 +8,7 @@ import {
   Alert,
   Platform,
   ActivityIndicator,
+  PanResponder,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatDateDisplay, formatTime } from "@/lib/store";
@@ -80,6 +81,7 @@ export default function AnalyticsDetailScreen() {
     );
   }, [allLocationAppts, dateRangeFilter]);
 
+  const TAB_ORDER = ["overview", "clients", "appointments", "revenue", "topservice", "staff"] as const;
   const titles: Record<string, string> = {
     overview: "Analytics Overview",
     clients: "Total Clients",
@@ -88,6 +90,30 @@ export default function AnalyticsDetailScreen() {
     topservice: "Top Service",
     staff: "Staff Performance",
   };
+
+  const currentTabIndex = TAB_ORDER.indexOf((tab ?? "overview") as typeof TAB_ORDER[number]);
+
+  const swipePanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gs) =>
+        Math.abs(gs.dx) > 20 && Math.abs(gs.dx) > Math.abs(gs.dy) * 1.5,
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dx < -50) {
+          // Swipe left → next tab
+          const nextIdx = currentTabIndex + 1;
+          if (nextIdx < TAB_ORDER.length) {
+            router.replace({ pathname: "/analytics-detail", params: { tab: TAB_ORDER[nextIdx] } });
+          }
+        } else if (gs.dx > 50) {
+          // Swipe right → previous tab
+          const prevIdx = currentTabIndex - 1;
+          if (prevIdx >= 0) {
+            router.replace({ pathname: "/analytics-detail", params: { tab: TAB_ORDER[prevIdx] } });
+          }
+        }
+      },
+    })
+  ).current;
 
   // Clients analytics — scoped to active location
   const clientsData = useMemo(() => {
@@ -533,6 +559,22 @@ export default function AnalyticsDetailScreen() {
         <View style={{ width: 24 }} />
       </View>
 
+      {/* Tab position dots */}
+      <View style={{ flexDirection: "row", justifyContent: "center", gap: 6, paddingVertical: 8 }}>
+        {TAB_ORDER.map((t, i) => (
+          <Pressable
+            key={t}
+            onPress={() => router.replace({ pathname: "/analytics-detail", params: { tab: t } })}
+            style={{
+              width: i === currentTabIndex ? 18 : 6,
+              height: 6,
+              borderRadius: 3,
+              backgroundColor: i === currentTabIndex ? colors.primary : colors.border,
+            }}
+          />
+        ))}
+      </View>
+      <View style={{ flex: 1 }} {...swipePanResponder.panHandlers}>
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
@@ -1325,6 +1367,7 @@ export default function AnalyticsDetailScreen() {
           );
         })()}
       </ScrollView>
+      </View>
     </ScreenContainer>
   );
 }
