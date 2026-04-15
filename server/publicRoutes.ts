@@ -1952,11 +1952,19 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     <div id="step-1" class="card" style="display:none">
       <div id="locationSelector" style="display:none;"></div>
       <h2>Select a Service</h2>
-      <div id="serviceList" class="service-list">
-        <div class="skeleton skeleton-block"></div>
-        <div class="skeleton skeleton-block"></div>
-        <div class="skeleton skeleton-block"></div>
+      <!-- Search bar -->
+      <div style="margin-bottom:12px;">
+        <input id="svcSearch" type="text" placeholder="&#128269; Search services..." oninput="onSvcSearch(this.value)"
+          style="width:100%;box-sizing:border-box;padding:10px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;background:var(--bg-card);color:var(--text);outline:none;">
       </div>
+      <!-- Category tiles -->
+      <div id="svcCatGrid" class="tile-grid"></div>
+      <!-- Service list (after drilling into a category) -->
+      <div id="svcItemList" style="display:none;"></div>
+      <!-- Search results -->
+      <div id="svcSearchResults" style="display:none;"></div>
+      <!-- Selected service summary -->
+      <div id="svcSelectedSummary" style="display:none;margin-top:12px;padding:10px 14px;background:var(--accent-bg-light);border:1.5px solid var(--accent);border-radius:10px;font-size:14px;color:var(--accent);font-weight:600;"></div>
       <div id="staffSection" style="display:none;margin-top:20px;">
         <h3 style="font-size:15px;font-weight:600;margin-bottom:10px;">Choose a Staff Member <span style="font-size:12px;color:#888;font-weight:400;">(optional)</span></h3>
         <div id="staffList" class="service-list"></div>
@@ -1965,6 +1973,10 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         <button class="btn btn-secondary" onclick="goToStep(0)" style="flex:1">Back</button>
         <button class="btn btn-primary" onclick="goToStep(2)" id="btnToDate" disabled style="flex:1">Continue</button>
       </div>
+    </div>
+    <!-- Service primary detail overlay -->
+    <div id="svcDetailOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:flex-end;justify-content:center;">
+      <div id="svcDetailContent" style="background:var(--bg-card);border-radius:20px 20px 0 0;padding:24px 20px 36px;width:100%;max-width:520px;max-height:85vh;overflow-y:auto;"></div>
     </div>
 
     <!-- Step 2: Select Date & Time (Monthly Calendar) -->
@@ -2340,52 +2352,180 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       return getEffectiveWorkingDays()[dayName] || false;
     }
 
+    // ── Step 1 drill-down state ──────────────────────────────────────────
+    var selectedSvcCat = null; // null = show tiles, string = show list for that cat
+
     function renderServices() {
-      const list = document.getElementById("serviceList");
       if (services.length === 0) {
-        list.innerHTML = '<div style="text-align:center;color:#888;padding:20px;">No services available</div>';
+        document.getElementById('svcCatGrid').innerHTML = '<div style="text-align:center;color:#888;padding:20px;">No services available</div>';
         return;
       }
-      // Group by category
-      const catMap = {};
-      services.forEach(s => {
-        const cat = (s.category || '').trim() || 'General';
+      selectedSvcCat = null;
+      document.getElementById('svcItemList').style.display = 'none';
+      document.getElementById('svcSearchResults').style.display = 'none';
+      renderSvcCategoryTiles();
+    }
+
+    function renderSvcCategoryTiles() {
+      var catMap = {};
+      services.forEach(function(s) {
+        var cat = (s.category || '').trim() || 'General';
         if (!catMap[cat]) catMap[cat] = [];
         catMap[cat].push(s);
       });
-      const cats = Object.keys(catMap).sort((a, b) => {
+      var cats = Object.keys(catMap).sort(function(a, b) {
         if (a === 'General') return 1;
         if (b === 'General') return -1;
         return a.localeCompare(b);
       });
-      const hasMultiCat = cats.length > 1;
-      let html = '';
-      cats.forEach(cat => {
-        if (hasMultiCat) {
-          html += '<div style="display:flex;align-items:center;gap:6px;margin:12px 0 6px;">' +
-            '<div style="width:6px;height:6px;border-radius:50%;background:var(--accent)"></div>' +
-            '<span style="font-size:13px;font-weight:700;color:#333;">' + esc(cat) + '</span>' +
-            '<span style="font-size:12px;color:#888;">(' + catMap[cat].length + ')</span></div>';
-        }
-        catMap[cat].forEach(s => {
-          const dur = s.duration >= 60 ? (s.duration / 60) + " hr" + (s.duration > 60 ? "s" : "") : s.duration + " min";
-          html += '<div class="service-item" id="svc-' + s.localId + '" onclick="selectService(&apos;' + s.localId + '&apos;)" style="' + (hasMultiCat ? 'margin-left:4px;' : '') + '">'+
-            '<div class="service-dot" style="background:' + (s.color||'#4a8c3f') + '"></div>'+
-            '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div>'+
-            '<div class="service-meta">' + dur + '</div></div>'+
-            '<div class="service-price">$' + parseFloat(s.price).toFixed(2) + '</div></div>';
+      var grid = document.getElementById('svcCatGrid');
+      var html = '';
+      // All tile
+      html += '<div class="tile-card tile-all" data-svc-cat="__all__">' +
+        '<div class="tile-name">All</div>' +
+        '<div class="tile-count">' + services.length + '</div></div>';
+      cats.forEach(function(cat) {
+        html += '<div class="tile-card" data-svc-cat="' + esc(cat) + '">' +
+          '<div class="tile-name">' + esc(cat) + '</div>' +
+          '<div class="tile-count">' + catMap[cat].length + '</div></div>';
+      });
+      grid.innerHTML = html;
+      grid.style.display = 'grid';
+      grid.querySelectorAll('.tile-card[data-svc-cat]').forEach(function(el) {
+        el.addEventListener('click', function() {
+          drillIntoSvcCategory(el.getAttribute('data-svc-cat'));
         });
       });
-      list.innerHTML = html;
+    }
+
+    function drillIntoSvcCategory(cat) {
+      selectedSvcCat = cat;
+      var filtered = cat === '__all__' ? services : services.filter(function(s) {
+        return ((s.category || '').trim() || 'General') === cat;
+      });
+      var listEl = document.getElementById('svcItemList');
+      var catLabel = cat === '__all__' ? 'All Services' : cat;
+      var html = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">' +
+        '<button onclick="resetSvcDrillDown()" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--accent);font-weight:600;padding:0;">&#8592; ' + esc(catLabel) + '</button></div>';
+      html += '<div class="service-list">';
+      filtered.forEach(function(s) {
+        var dur = s.duration >= 60 ? (s.duration / 60) + ' hr' + (s.duration > 60 ? 's' : '') : s.duration + ' min';
+        html += '<div class="service-item" data-svc-id="' + esc(s.localId) + '">' +
+          '<div class="service-dot" style="background:' + (s.color || '#4a8c3f') + '"></div>' +
+          '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div>' +
+          '<div class="service-meta">' + dur + '</div></div>' +
+          '<div class="service-price">$' + parseFloat(s.price).toFixed(2) + '</div></div>';
+      });
+      html += '</div>';
+      listEl.innerHTML = html;
+      listEl.style.display = 'block';
+      document.getElementById('svcCatGrid').style.display = 'none';
+      listEl.querySelectorAll('.service-item[data-svc-id]').forEach(function(item) {
+        item.addEventListener('click', function() {
+          openSvcDetail(item.getAttribute('data-svc-id'));
+        });
+      });
+    }
+
+    function resetSvcDrillDown() {
+      selectedSvcCat = null;
+      document.getElementById('svcItemList').style.display = 'none';
+      document.getElementById('svcCatGrid').style.display = 'grid';
+    }
+
+    function openSvcDetail(id) {
+      var s = services.find(function(x) { return x.localId === id; });
+      if (!s) return;
+      var dur = s.duration >= 60 ? (s.duration / 60) + ' hr' + (s.duration > 60 ? 's' : '') : s.duration + ' min';
+      var isSelected = selectedService && selectedService.localId === id;
+      var html = '';
+      if (s.photoUri) html += '<img src="' + esc(s.photoUri) + '" style="width:100%;height:180px;object-fit:cover;border-radius:12px;margin-bottom:14px;">';
+      html += '<div style="display:inline-block;background:var(--accent-bg-light);color:var(--accent);font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;margin-bottom:8px;">' + esc((s.category || 'General').trim() || 'General') + '</div>';
+      html += '<div class="detail-name">' + esc(s.name) + '</div>';
+      html += '<div class="detail-price">$' + parseFloat(s.price).toFixed(2) + '</div>';
+      html += '<div class="detail-meta">' + dur + '</div>';
+      if (s.description) html += '<div class="detail-desc">' + esc(s.description) + '</div>';
+      if (isSelected) {
+        html += '<button class="detail-add-btn" style="background:#e5f0e3;color:#2d5a27;" onclick="deselectSvc();closeSvcDetail()">&#10003; Selected &#8212; Deselect</button>';
+      } else {
+        html += '<button class="detail-add-btn" onclick="selectService(' + Q + id + Q + ');closeSvcDetail()">Select This Service</button>';
+      }
+      html += '<button class="detail-dismiss" onclick="closeSvcDetail()">Close</button>';
+      document.getElementById('svcDetailContent').innerHTML = html;
+      document.getElementById('svcDetailOverlay').style.display = 'flex';
+    }
+
+    function closeSvcDetail() {
+      document.getElementById('svcDetailOverlay').style.display = 'none';
+    }
+
+    function deselectSvc() {
+      selectedService = null;
+      document.getElementById('btnToDate').disabled = true;
+      document.getElementById('staffSection').style.display = 'none';
+      document.getElementById('svcSelectedSummary').style.display = 'none';
+    }
+
+    function onSvcSearch(query) {
+      var q = query.trim().toLowerCase();
+      var resultsEl = document.getElementById('svcSearchResults');
+      var catGrid = document.getElementById('svcCatGrid');
+      var listEl = document.getElementById('svcItemList');
+      if (!q) {
+        resultsEl.style.display = 'none';
+        if (selectedSvcCat) {
+          listEl.style.display = 'block';
+        } else {
+          catGrid.style.display = 'grid';
+          listEl.style.display = 'none';
+        }
+        return;
+      }
+      catGrid.style.display = 'none';
+      listEl.style.display = 'none';
+      var matches = services.filter(function(s) {
+        return s.name.toLowerCase().includes(q) ||
+          (s.category || '').toLowerCase().includes(q) ||
+          (s.description || '').toLowerCase().includes(q);
+      });
+      if (matches.length === 0) {
+        resultsEl.innerHTML = '<div style="text-align:center;color:#888;padding:20px;">No services found</div>';
+      } else {
+        var html = '<div class="service-list">';
+        matches.forEach(function(s) {
+          var dur = s.duration >= 60 ? (s.duration / 60) + ' hr' + (s.duration > 60 ? 's' : '') : s.duration + ' min';
+          html += '<div class="service-item" data-svc-id="' + esc(s.localId) + '">' +
+            '<div class="service-dot" style="background:' + (s.color || '#4a8c3f') + '"></div>' +
+            '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div>' +
+            '<div class="service-meta">' + dur + (s.category ? ' · ' + esc(s.category) : '') + '</div></div>' +
+            '<div class="service-price">$' + parseFloat(s.price).toFixed(2) + '</div></div>';
+        });
+        html += '</div>';
+        resultsEl.innerHTML = html;
+        resultsEl.querySelectorAll('.service-item[data-svc-id]').forEach(function(item) {
+          item.addEventListener('click', function() {
+            openSvcDetail(item.getAttribute('data-svc-id'));
+          });
+        });
+      }
+      resultsEl.style.display = 'block';
     }
 
     function selectService(id) {
-      selectedService = services.find(s => s.localId === id);
+      selectedService = services.find(function(s) { return s.localId === id; });
       selectedStaff = null;
-      document.querySelectorAll("#serviceList .service-item").forEach(el => el.classList.remove("selected"));
-      const el = document.getElementById("svc-" + id);
-      if (el) el.classList.add("selected");
-      document.getElementById("btnToDate").disabled = false;
+      document.getElementById('btnToDate').disabled = false;
+      // Show selected service summary banner
+      var summaryEl = document.getElementById('svcSelectedSummary');
+      if (selectedService) {
+        var dur = selectedService.duration >= 60
+          ? (selectedService.duration / 60) + ' hr' + (selectedService.duration > 60 ? 's' : '')
+          : selectedService.duration + ' min';
+        summaryEl.innerHTML = '&#10003; ' + esc(selectedService.name) + ' &mdash; $' + parseFloat(selectedService.price).toFixed(2) + ' &middot; ' + dur;
+        summaryEl.style.display = 'block';
+      } else {
+        summaryEl.style.display = 'none';
+      }
       // Show staff selection for this service
       renderStaffForService(id);
     }

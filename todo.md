@@ -995,3 +995,4 @@
 - [x] Service form: photo upload field so photoUri is set and shows in booking detail sheet (already existed)
 - [x] Test full booking flow on live site and fix any issues found
 - [x] Fix Auto-Complete Appointments not marking past confirmed appointments as completed
+- [x] Step 2 primary service selection: category tile drill-down (category tiles → service list → detail sheet with Select button)
