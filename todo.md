@@ -952,3 +952,10 @@
 - [ ] Seed DB: 50 more services with different categories
 - [ ] Seed DB: 100 products with different brand names
 - [ ] Seed DB: add discounts and gift cards so Quick Actions shows non-zero counts
+- [x] Before/After Photo Gallery per client: ClientPhoto type, clientPhotos state, Photos tab in client detail
+- [x] Birthday Campaigns screen: filter today/upcoming/all, send SMS with discount code
+- [x] Birthday cake button in Clients tab header → Birthday Campaigns screen
+- [x] Online Booking: staff picker step added (service → staff → datetime)
+- [x] Staff selection saved to appointment.staffId, shown in booking summary confirm step
+- [x] Calendar Sync (.ics export): confirmed present in Staff Calendar screen
+- [x] GitHub dev branch pushed with all new features
