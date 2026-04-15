@@ -1583,13 +1583,15 @@ function baseStyles(): string {
       .confirm-row {
         display: flex;
         justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
         padding: 8px 0;
         border-bottom: 1px solid #f0f0f0;
         font-size: 14px;
       }
       .confirm-row:last-child { border-bottom: none; }
-      .confirm-label { color: var(--text-muted); }
-      .confirm-value { font-weight: 600; color: var(--text); }
+      .confirm-label { color: var(--text-muted); flex-shrink: 0; }
+      .confirm-value { font-weight: 600; color: var(--text); text-align: right; }
       .success-icon {
         width: 64px; height: 64px;
         border-radius: 50%;
@@ -1748,6 +1750,7 @@ function baseStyles(): string {
       /* Category / Brand tile grid */
       .tile-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:8px; }
       .tile-card { background:var(--bg-card); border:2px solid var(--border); border-radius:14px; padding:16px 12px; cursor:pointer; text-align:center; transition:all 0.15s; }
+      .tile-card .tile-emoji { font-size:24px; margin-bottom:6px; line-height:1; }
       .tile-card:hover { border-color:var(--accent); background:var(--accent-bg-light); }
       .tile-card .tile-name { font-size:14px; font-weight:700; color:var(--text); margin-bottom:4px; }
       .tile-card .tile-count { font-size:12px; color:var(--text-muted); }
@@ -2425,7 +2428,24 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       popularRow.style.display = 'block';
     }
 
-    function renderSvcCategoryTiles() {
+    var CATEGORY_EMOJI = {
+      'all': '✨', 'hair': '✂️', 'nails': '💅', 'skin': '🌿', 'body': '💆',
+      'makeup': '💄', 'waxing': '🪒', 'massage': '🙌', 'facial': '🧖',
+      'lashes': '👁️', 'brows': '🪸', 'tanning': '☀️', 'teeth': '🦷',
+      'spa': '🛁', 'wellness': '🌸', 'fitness': '💪', 'yoga': '🧘',
+      'barber': '💈', 'color': '🎨', 'coloring': '🎨', 'styling': '💇',
+      'threading': '🧵', 'piercing': '💎', 'tattoo': '🖊️', 'general': '🔖'
+    };
+    function getCategoryEmoji(name) {
+      if (!name) return '🔖';
+      var key = name.toLowerCase().trim();
+      if (CATEGORY_EMOJI[key]) return CATEGORY_EMOJI[key];
+      for (var k in CATEGORY_EMOJI) {
+        if (key.includes(k) || k.includes(key)) return CATEGORY_EMOJI[k];
+      }
+      return '🔖';
+    }
+        function renderSvcCategoryTiles() {
       var catMap = {};
       services.forEach(function(s) {
         var cat = (s.category || '').trim() || 'General';
@@ -2441,10 +2461,12 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       var html = '';
       // All tile
       html += '<div class="tile-card tile-all" data-svc-cat="__all__">' +
+        '<div class="tile-emoji">' + getCategoryEmoji('all') + '</div>' +
         '<div class="tile-name">All</div>' +
         '<div class="tile-count">' + services.length + '</div></div>';
       cats.forEach(function(cat) {
         html += '<div class="tile-card" data-svc-cat="' + esc(cat) + '">' +
+          '<div class="tile-emoji">' + getCategoryEmoji(cat) + '</div>' +
           '<div class="tile-name">' + esc(cat) + '</div>' +
           '<div class="tile-count">' + catMap[cat].length + '</div></div>';
       });
@@ -3102,12 +3124,14 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         let html = '<div class="tile-grid">';
         // "All" tile first
         html += '<div class="tile-card" onclick="drillIntoCategory(&quot;__all__&quot;)" style="border-color:var(--accent);">' +
+          '<div class="tile-emoji">' + getCategoryEmoji('all') + '</div>' +
           '<div class="tile-name">All</div>' +
           '<div class="tile-count">' + available.length + ' service' + (available.length !== 1 ? 's' : '') + '</div>' +
           '</div>';
         cats.forEach(cat => {
           const count = catMap[cat].length;
           html += '<div class="tile-card" data-cat="' + esc(cat) + '">' +
+            '<div class="tile-emoji">' + getCategoryEmoji(cat) + '</div>' +
             '<div class="tile-name">' + esc(cat) + '</div>' +
             '<div class="tile-count">' + count + ' service' + (count !== 1 ? 's' : '') + '</div>' +
             '</div>';
@@ -3606,7 +3630,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         if (locR) {
           const fullLocAddrR = buildFullAddress(locR.address, locR.city, locR.state, locR.zipCode) || locR.address || '';
           const locLabelR = fullLocAddrR ? esc(locR.name) + ' — ' + esc(fullLocAddrR) : esc(locR.name);
-          html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#666;">Location</span><span style="font-weight:600;">📍 ' + locLabelR + '</span></div>';
+          html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:4px 0;font-size:13px;"><span style="color:#666;flex-shrink:0;">Location</span><span style="font-weight:600;text-align:right;">📍 ' + locLabelR + '</span></div>';
         }
       }
       html += '</div>';
