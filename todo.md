@@ -987,3 +987,6 @@
 - [x] Appointment saved with extraItems (product line items) and updated totalPrice including products
 - [x] Confirm step back button navigates to products step when products exist
 - [x] Datetime step continue button navigates to products step when products exist, otherwise directly to confirm
+- [x] Extras step: Services tab — show category tiles first, tap category → service list, tap service → detail sheet with photo
+- [x] Extras step: Products tab — show brand tiles first, tap brand → product list, tap product → detail sheet with photo
+- [x] Remove flat list view from both Services and Products tabs in Extras step
