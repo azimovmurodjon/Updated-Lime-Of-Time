@@ -2003,6 +2003,13 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         <div class="seg-btn active" onclick="switchAddTab('services')">Services</div>
         <div class="seg-btn" onclick="switchAddTab('products')">Products</div>
       </div>
+      <!-- Search bar -->
+      <div style="position:relative;margin-bottom:12px;">
+        <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:15px;color:#aaa;">&#128269;</span>
+        <input id="addMoreSearch" type="search" placeholder="Search..." oninput="onAddMoreSearch(this.value)" style="width:100%;box-sizing:border-box;padding:10px 12px 10px 36px;border:1.5px solid var(--border-input);border-radius:12px;font-size:14px;background:var(--bg-card);color:var(--text);outline:none;" />
+      </div>
+      <!-- Search results panel (shown when query is non-empty) -->
+      <div id="addMoreSearchResults" style="display:none"></div>
       <!-- Services drill-down: level 0 = category tiles, level 1 = service list -->
       <div id="addServicePanel">
         <div id="addServiceCats"></div>
@@ -2719,12 +2726,17 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     let addTab = 'services'; // 'services' | 'products'
     let selectedAddCat = null;  // null = show category tiles; string = show service list for that category
     let selectedAddBrand = null; // null = show brand tiles; string = show product list for that brand
+    let addMoreSearchQuery = ''; // live search query
 
     function initAddMoreStep() {
       // Reset drill-down state each time step 3 is entered
       addTab = 'services';
       selectedAddCat = null;
       selectedAddBrand = null;
+      addMoreSearchQuery = '';
+      const searchEl = document.getElementById("addMoreSearch");
+      if (searchEl) searchEl.value = '';
+      document.getElementById("addMoreSearchResults").style.display = 'none';
       // Show services panel, hide products panel
       document.getElementById("addServicePanel").style.display = 'block';
       document.getElementById("addProductPanel").style.display = 'none';
@@ -2733,6 +2745,65 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         el.classList.toggle("active", i === 0);
       });
       renderAddMore();
+    }
+
+    function onAddMoreSearch(query) {
+      addMoreSearchQuery = (query || '').trim().toLowerCase();
+      const resultsEl = document.getElementById("addMoreSearchResults");
+      const servicePanel = document.getElementById("addServicePanel");
+      const productPanel = document.getElementById("addProductPanel");
+      if (!addMoreSearchQuery) {
+        resultsEl.style.display = 'none';
+        // Restore normal panels
+        servicePanel.style.display = addTab === 'services' ? 'block' : 'none';
+        productPanel.style.display = addTab === 'products' ? 'block' : 'none';
+        return;
+      }
+      // Hide normal drill-down panels while searching
+      servicePanel.style.display = 'none';
+      productPanel.style.display = 'none';
+      resultsEl.style.display = 'block';
+
+      const cartSvcIds = cart.filter(c => c.type === 'service').map(c => c.id);
+      const cartProdIds = cart.filter(c => c.type === 'product').map(c => c.id);
+      const matchedSvcs = services.filter(s =>
+        s.localId !== selectedService.localId &&
+        !cartSvcIds.includes(s.localId) &&
+        (s.name || '').toLowerCase().includes(addMoreSearchQuery)
+      );
+      const matchedProds = products.filter(p =>
+        !cartProdIds.includes(p.localId) &&
+        (p.name || '').toLowerCase().includes(addMoreSearchQuery)
+      );
+
+      if (matchedSvcs.length === 0 && matchedProds.length === 0) {
+        resultsEl.innerHTML = '<div style="text-align:center;color:#888;padding:20px;font-size:13px;">No results found</div>';
+        return;
+      }
+
+      let html = '';
+      if (matchedSvcs.length > 0) {
+        html += '<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Services</div>';
+        matchedSvcs.forEach(s => {
+          const dur = s.duration >= 60 ? (s.duration/60) + " hr" : s.duration + " min";
+          html += '<div class="service-item" onclick="openServiceDetail(' + JSON.stringify(s.localId) + ')">' +
+            (s.photoUri ? '<img src="' + esc(s.photoUri) + '" style="width:48px;height:48px;border-radius:8px;object-fit:cover;margin-right:12px;flex-shrink:0;" />' :
+              '<div class="service-dot" style="background:' + (s.color||'#4a8c3f') + '"></div>') +
+            '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div><div class="service-meta">' + dur + (s.category ? ' · ' + esc(s.category) : '') + '</div></div>' +
+            '<div class="service-price">+ $' + parseFloat(s.price).toFixed(2) + '</div></div>';
+        });
+      }
+      if (matchedProds.length > 0) {
+        html += '<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.05em;margin:' + (matchedSvcs.length > 0 ? '12px' : '0') + ' 0 6px;">Products</div>';
+        matchedProds.forEach(p => {
+          html += '<div class="product-item" onclick="openProductDetail(' + JSON.stringify(p.localId) + ')">' +
+            (p.photoUri ? '<img src="' + esc(p.photoUri) + '" style="width:48px;height:48px;border-radius:8px;object-fit:cover;margin-right:12px;flex-shrink:0;" />' : '') +
+            '<div style="flex:1;"><div style="font-size:15px;font-weight:600;">' + esc(p.name) + '</div>' +
+            (p.brand ? '<div style="font-size:12px;color:#888;margin-top:2px;">' + esc(p.brand) + '</div>' : '') + '</div>' +
+            '<div style="font-size:15px;font-weight:700;color:#2d5a27;">+ $' + parseFloat(p.price).toFixed(2) + '</div></div>';
+        });
+      }
+      resultsEl.innerHTML = html;
     }
 
     function renderAddMore() {
@@ -2808,15 +2879,21 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         return;
       }
 
-      // Only one category (or no categories at all) — skip tile level, show list directly
+      // Only one category — skip tile level, show list directly (no need for All tile)
       if (cats.length <= 1) {
         selectedAddCat = cats[0] || 'General';
       }
+      // More than one category: always show tile grid (including All tile)
 
       if (selectedAddCat === null) {
         // Level 0: category tiles
         listEl.style.display = 'none';
         let html = '<div class="tile-grid">';
+        // "All" tile first
+        html += '<div class="tile-card" onclick="drillIntoCategory(\'__all__\')" style="border-color:var(--accent);">' +
+          '<div class="tile-name">All</div>' +
+          '<div class="tile-count">' + available.length + ' service' + (available.length !== 1 ? 's' : '') + '</div>' +
+          '</div>';
         cats.forEach(cat => {
           const count = catMap[cat].length;
           html += '<div class="tile-card" onclick="drillIntoCategory(' + JSON.stringify(cat) + ')">' +
@@ -2828,10 +2905,11 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         catsEl.innerHTML = html;
         catsEl.style.display = 'block';
       } else {
-        // Level 1: service list for selected category
+        // Level 1: service list for selected category (or all)
         catsEl.style.display = 'none';
-        const catServices = catMap[selectedAddCat] || [];
-        let html = '<div class="drill-back" onclick="drillBackServices()">&#8592; ' + esc(selectedAddCat) + '</div>';
+        const catServices = selectedAddCat === '__all__' ? available : (catMap[selectedAddCat] || []);
+        const backLabel = selectedAddCat === '__all__' ? 'All Services' : selectedAddCat;
+        let html = '<div class="drill-back" onclick="drillBackServices()">&#8592; ' + esc(backLabel) + '</div>';
         if (catServices.length === 0) {
           html += '<div style="text-align:center;color:#888;padding:16px;font-size:13px;">No services in this category</div>';
         } else {
@@ -2918,15 +2996,21 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         return;
       }
 
-      // Only one brand — skip tile level
+      // Only one brand — skip tile level, show list directly (no need for All tile)
       if (brands.length <= 1) {
         selectedAddBrand = brands[0] || 'Other';
       }
+      // More than one brand: always show tile grid (including All tile)
 
       if (selectedAddBrand === null) {
         // Level 0: brand tiles
         listEl.style.display = 'none';
         let html = '<div class="tile-grid">';
+        // "All" tile first
+        html += '<div class="tile-card" onclick="drillIntoBrand(\'__all__\')" style="border-color:var(--accent);">' +
+          '<div class="tile-name">All</div>' +
+          '<div class="tile-count">' + available.length + ' product' + (available.length !== 1 ? 's' : '') + '</div>' +
+          '</div>';
         brands.forEach(brand => {
           const count = brandMap[brand].length;
           html += '<div class="tile-card" onclick="drillIntoBrand(' + JSON.stringify(brand) + ')">' +
@@ -2938,10 +3022,11 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         brandsEl.innerHTML = html;
         brandsEl.style.display = 'block';
       } else {
-        // Level 1: product list for selected brand
+        // Level 1: product list for selected brand (or all)
         brandsEl.style.display = 'none';
-        const brandProducts = brandMap[selectedAddBrand] || [];
-        let html = brands.length > 1 ? '<div class="drill-back" onclick="drillBackProducts()">&#8592; ' + esc(selectedAddBrand) + '</div>' : '';
+        const brandProducts = selectedAddBrand === '__all__' ? available : (brandMap[selectedAddBrand] || []);
+        const backLabel = selectedAddBrand === '__all__' ? 'All Products' : selectedAddBrand;
+        let html = brands.length > 1 || selectedAddBrand === '__all__' ? '<div class="drill-back" onclick="drillBackProducts()">&#8592; ' + esc(backLabel) + '</div>' : '';
         if (brandProducts.length === 0) {
           html += '<div style="text-align:center;color:#888;padding:16px;font-size:13px;">No products in this brand</div>';
         } else {

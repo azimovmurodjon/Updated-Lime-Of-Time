@@ -990,3 +990,6 @@
 - [x] Extras step: Services tab — show category tiles first, tap category → service list, tap service → detail sheet with photo
 - [x] Extras step: Products tab — show brand tiles first, tap brand → product list, tap product → detail sheet with photo
 - [x] Remove flat list view from both Services and Products tabs in Extras step
+- [x] Extras step: "All" tile at top of category/brand grids to browse all items
+- [x] Extras step: real-time search bar filtering services/products by name
+- [x] Service form: photo upload field so photoUri is set and shows in booking detail sheet (already existed)
