@@ -27,6 +27,7 @@ export default function ServiceFormScreen() {
   const [price, setPrice] = useState(existing?.price?.toString() ?? "");
   const [color, setColor] = useState(existing?.color ?? SERVICE_COLORS[0]);
   const [category, setCategory] = useState(existing?.category ?? "");
+  const [description, setDescription] = useState(existing?.description ?? "");
   const [photoUri, setPhotoUri] = useState<string | undefined>(existing?.photoUri);
 
   const isEdit = !!existing;
@@ -64,6 +65,7 @@ export default function ServiceFormScreen() {
       price: parseFloat(price) || 0,
       color,
       category: category.trim() || undefined,
+      description: description.trim() || undefined,
       photoUri: photoUri || undefined,
       createdAt: existing?.createdAt ?? new Date().toISOString(),
     };
@@ -187,6 +189,20 @@ export default function ServiceFormScreen() {
           </View>
         )}
         {!existingCategories.length && <View style={{ height: 8 }} />}
+
+        {/* Description */}
+        <Text className="text-xs font-medium text-muted mb-1 ml-1">Description (optional)</Text>
+        <TextInput
+          className="bg-surface rounded-xl px-4 py-3.5 text-base mb-6 border border-border"
+          placeholder="Brief description shown to clients on the booking page..."
+          placeholderTextColor={colors.muted}
+          value={description}
+          onChangeText={setDescription}
+          style={{ color: colors.foreground, minHeight: 72, textAlignVertical: "top" }}
+          multiline
+          numberOfLines={3}
+          returnKeyType="done"
+        />
 
         {/* Color */}
         <Text className="text-xs font-medium text-muted mb-2 ml-1">Color</Text>

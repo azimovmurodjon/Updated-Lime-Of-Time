@@ -977,3 +977,8 @@
 - [x] Birthday reminder time picker in Notification Settings
 - [x] Category Management screen (service categories, product categories, product brands)
 - [x] Services/Products layout gap fix when switching categories
+- [x] Booking page service step: two-level drill-down (category tiles → service list → detail bottom sheet with select button)
+- [x] Service form: optional description field added (shown in booking page detail sheet)
+- [x] Services/Products tab: layout gap fixed (flex:1 propagation corrected)
+- [x] Birthday reminder time picker in Notification Settings (6 AM–10 AM)
+- [x] Category Management screen in Settings (service categories + product categories/brands)

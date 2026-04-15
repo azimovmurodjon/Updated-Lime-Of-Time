@@ -85,6 +85,12 @@ export default function PublicBookingScreen() {
   const [giftCode, setGiftCode] = useState("");
   const [giftApplied, setGiftApplied] = useState<string | null>(null);
 
+  // ── Service drill-down state ───────────────────────────────────────────────
+  // null = show category tiles; string = show services in that category; "__all__" = no categories exist
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null);
+  // Service detail bottom sheet
+  const [serviceDetailId, setServiceDetailId] = useState<string | null>(null);
+
   const selectedService = selectedServiceId ? getServiceById(selectedServiceId) : null;
   const businessName = state.settings.businessName || "Our Business";
   const profile = state.settings.profile;
@@ -608,83 +614,266 @@ export default function PublicBookingScreen() {
 
         {/* ── Step: Select Service ──────────────────────────────────────────── */}
         {step === "service" && (() => {
-          // Group services by category for a cleaner layout
+          // ── Build category map ─────────────────────────────────────────────────────────────────
           const catMap = new Map<string, typeof locationServices>();
           const uncategorized: typeof locationServices = [];
           locationServices.forEach((svc) => {
-            if (svc.category) {
-              if (!catMap.has(svc.category)) catMap.set(svc.category, []);
-              catMap.get(svc.category)!.push(svc);
+            if (svc.category?.trim()) {
+              const cat = svc.category.trim();
+              if (!catMap.has(cat)) catMap.set(cat, []);
+              catMap.get(cat)!.push(svc);
             } else {
               uncategorized.push(svc);
             }
           });
-          const groups: { label: string; items: typeof locationServices }[] = [];
-          catMap.forEach((items, label) => groups.push({ label, items }));
-          if (uncategorized.length > 0) groups.push({ label: "", items: uncategorized });
           const hasCats = catMap.size > 0;
-          return (
-            <View>
-              <Pressable onPress={() => setStep("info")} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, marginBottom: 12 }]}>
-                <Text style={{ color: colors.primary, fontSize: 14 }}>← Back</Text>
-              </Pressable>
-              <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground, marginBottom: 12 }}>Choose a Service</Text>
-              {groups.map((group) => (
-                <View key={group.label || "__uncategorized__"}>
-                  {hasCats && group.label !== "" && (
-                    <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8, marginTop: 6 }}>
-                      {group.label}
-                    </Text>
-                  )}
-                  {group.items.map((item) => (
+          const allCategories = Array.from(catMap.keys()).sort();
+
+          // Service detail bottom sheet item
+          const detailService = serviceDetailId ? getServiceById(serviceDetailId) : null;
+
+          // ── Level 1: Category tiles ────────────────────────────────────────────────────────────────
+          if (hasCats && selectedCategoryFilter === null) {
+            return (
+              <View>
+                <Pressable onPress={() => setStep("info")} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, marginBottom: 12 }]}>
+                  <Text style={{ color: colors.primary, fontSize: 14 }}>← Back</Text>
+                </Pressable>
+                <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground, marginBottom: 4 }}>Choose a Category</Text>
+                <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 16 }}>Select a category to see available services</Text>
+                {allCategories.map((cat) => {
+                  const count = catMap.get(cat)?.length ?? 0;
+                  return (
                     <Pressable
-                      key={item.id}
-                      onPress={() => {
-                        setSelectedServiceId(item.id);
-                        setSelectedStaffId(null);
-                        setStep("staff");
-                      }}
-                      style={({ pressed }) => [
+                      key={cat}
+                      onPress={() => setSelectedCategoryFilter(cat)}
+                      style={({ pressed }) => ([
                         styles.serviceOption,
-                        {
-                          backgroundColor: selectedServiceId === item.id ? item.color + "15" : colors.surface,
-                          borderColor: selectedServiceId === item.id ? item.color : colors.border,
-                          opacity: pressed ? 0.7 : 1,
-                          padding: 0,
-                          overflow: "hidden",
-                        },
-                      ]}
+                        { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1, padding: 16 },
+                      ])}
                     >
-                      {item.photoUri ? (
-                        <View style={{ flexDirection: "row", alignItems: "center" }}>
-                          <Image
-                            source={{ uri: item.photoUri }}
-                            style={{ width: 72, height: 72, borderTopLeftRadius: 11, borderBottomLeftRadius: 11 }}
-                            resizeMode="cover"
-                          />
-                          <View style={{ flex: 1, paddingHorizontal: 12, paddingVertical: 10 }}>
-                            <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{getServiceDisplayName(item)}</Text>
-                            <Text style={{ fontSize: 13, color: colors.muted, marginTop: 2 }}>${item.price} · {item.duration} min</Text>
-                          </View>
-                          <IconSymbol name="chevron.right" size={16} color={colors.muted} style={{ marginRight: 12 }} />
+                      <View style={{ flexDirection: "row", alignItems: "center" }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground }}>{cat}</Text>
+                          <Text style={{ fontSize: 13, color: colors.muted, marginTop: 2 }}>{count} service{count !== 1 ? "s" : ""}</Text>
                         </View>
-                      ) : (
-                        <View style={{ flexDirection: "row", alignItems: "center", padding: 14 }}>
-                          <View style={[styles.colorDot, { backgroundColor: item.color }]} />
-                          <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{getServiceDisplayName(item)}</Text>
-                            <Text style={{ fontSize: 13, color: colors.muted, marginTop: 2 }}>${item.price} · {item.duration} min</Text>
-                          </View>
-                          <IconSymbol name="chevron.right" size={16} color={colors.muted} />
-                        </View>
-                      )}
+                        <IconSymbol name="chevron.right" size={18} color={colors.muted} />
+                      </View>
                     </Pressable>
-                  ))}
-                </View>
+                  );
+                })}
+                {uncategorized.length > 0 && (
+                  <Pressable
+                    onPress={() => setSelectedCategoryFilter("__uncategorized__")}
+                    style={({ pressed }) => ([
+                      styles.serviceOption,
+                      { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1, padding: 16 },
+                    ])}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground }}>Other Services</Text>
+                        <Text style={{ fontSize: 13, color: colors.muted, marginTop: 2 }}>{uncategorized.length} service{uncategorized.length !== 1 ? "s" : ""}</Text>
+                      </View>
+                      <IconSymbol name="chevron.right" size={18} color={colors.muted} />
+                    </View>
+                  </Pressable>
+                )}
+                {locationServices.length === 0 && (
+                  <View style={{ alignItems: "center", paddingVertical: 32 }}>
+                    <Text style={{ fontSize: 14, color: colors.muted }}>No services available at this location</Text>
+                  </View>
+                )}
+              </View>
+            );
+          }
+
+          // ── Level 2: Service list within selected category ─────────────────────────────────────────────
+          const filteredServices =
+            !hasCats || selectedCategoryFilter === null
+              ? locationServices
+              : selectedCategoryFilter === "__uncategorized__"
+              ? uncategorized
+              : (catMap.get(selectedCategoryFilter) ?? []);
+
+          return (
+            <View style={{ flex: 1 }}>
+              {/* Back button */}
+              <Pressable
+                onPress={() => {
+                  if (hasCats) {
+                    setSelectedCategoryFilter(null);
+                  } else {
+                    setStep("info");
+                  }
+                }}
+                style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, marginBottom: 12 }]}
+              >
+                <Text style={{ color: colors.primary, fontSize: 14 }}>← {hasCats ? selectedCategoryFilter === "__uncategorized__" ? "Other Services" : selectedCategoryFilter ?? "Categories" : "Back"}</Text>
+              </Pressable>
+
+              <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground, marginBottom: 4 }}>
+                {hasCats && selectedCategoryFilter && selectedCategoryFilter !== "__uncategorized__"
+                  ? selectedCategoryFilter
+                  : hasCats && selectedCategoryFilter === "__uncategorized__"
+                  ? "Other Services"
+                  : "Choose a Service"}
+              </Text>
+              <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 16 }}>Tap a service to see full details</Text>
+
+              {filteredServices.map((item) => (
+                <Pressable
+                  key={item.id}
+                  onPress={() => setServiceDetailId(item.id)}
+                  style={({ pressed }) => ([
+                    styles.serviceOption,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      opacity: pressed ? 0.7 : 1,
+                      padding: 0,
+                      overflow: "hidden",
+                    },
+                  ])}
+                >
+                  {item.photoUri ? (
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <Image
+                        source={{ uri: item.photoUri }}
+                        style={{ width: 80, height: 80, borderTopLeftRadius: 11, borderBottomLeftRadius: 11 }}
+                        resizeMode="cover"
+                      />
+                      <View style={{ flex: 1, paddingHorizontal: 12, paddingVertical: 12 }}>
+                        <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{getServiceDisplayName(item)}</Text>
+                        <Text style={{ fontSize: 13, color: colors.primary, fontWeight: "600", marginTop: 3 }}>${item.price}</Text>
+                        <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>{item.duration} min{item.category ? " · " + item.category : ""}</Text>
+                      </View>
+                      <IconSymbol name="chevron.right" size={16} color={colors.muted} style={{ marginRight: 12 }} />
+                    </View>
+                  ) : (
+                    <View style={{ flexDirection: "row", alignItems: "center", padding: 14 }}>
+                      <View style={[styles.colorDot, { backgroundColor: item.color }]} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{getServiceDisplayName(item)}</Text>
+                        <Text style={{ fontSize: 13, color: colors.primary, fontWeight: "600", marginTop: 3 }}>${item.price}</Text>
+                        <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>{item.duration} min{item.category ? " · " + item.category : ""}</Text>
+                      </View>
+                      <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+                    </View>
+                  )}
+                </Pressable>
               ))}
-              {locationServices.length === 0 && (
+
+              {filteredServices.length === 0 && (
                 <View style={{ alignItems: "center", paddingVertical: 32 }}>
-                  <Text style={{ fontSize: 14, color: colors.muted }}>No services available at this location</Text>
+                  <Text style={{ fontSize: 14, color: colors.muted }}>No services in this category</Text>
+                </View>
+              )}
+
+              {/* ── Service Detail Bottom Sheet ──────────────────────────────────────────────── */}
+              {detailService && (
+                <Pressable
+                  onPress={() => setServiceDetailId(null)}
+                  style={{
+                    position: "absolute",
+                    top: -9999,
+                    left: -9999,
+                    right: -9999,
+                    bottom: -9999,
+                    backgroundColor: "rgba(0,0,0,0.45)",
+                    zIndex: 10,
+                  }}
+                />
+              )}
+              {detailService && (
+                <View
+                  style={{
+                    position: "absolute",
+                    left: -16,
+                    right: -16,
+                    bottom: -32,
+                    backgroundColor: colors.background,
+                    borderTopLeftRadius: 20,
+                    borderTopRightRadius: 20,
+                    padding: 20,
+                    zIndex: 11,
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: -4 },
+                    shadowOpacity: 0.12,
+                    shadowRadius: 12,
+                    elevation: 12,
+                  }}
+                >
+                  {/* Drag handle */}
+                  <View style={{ width: 40, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
+
+                  {/* Photo */}
+                  {detailService.photoUri && (
+                    <Image
+                      source={{ uri: detailService.photoUri }}
+                      style={{ width: "100%", height: 180, borderRadius: 12, marginBottom: 16 }}
+                      resizeMode="cover"
+                    />
+                  )}
+
+                  {/* Color bar + name */}
+                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+                    <View style={{ width: 4, height: 24, borderRadius: 2, backgroundColor: detailService.color, marginRight: 10 }} />
+                    <Text style={{ fontSize: 20, fontWeight: "700", color: colors.foreground, flex: 1 }}>{getServiceDisplayName(detailService)}</Text>
+                  </View>
+
+                  {/* Category badge */}
+                  {detailService.category && (
+                    <View style={{ flexDirection: "row", marginBottom: 10 }}>
+                      <View style={{ backgroundColor: colors.primary + "18", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 }}>
+                        <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>{detailService.category}</Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Price + duration row */}
+                  <View style={{ flexDirection: "row", gap: 16, marginBottom: 12 }}>
+                    <View style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 12, padding: 12, alignItems: "center" }}>
+                      <Text style={{ fontSize: 22, fontWeight: "700", color: colors.primary }}>${detailService.price}</Text>
+                      <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Price</Text>
+                    </View>
+                    <View style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 12, padding: 12, alignItems: "center" }}>
+                      <Text style={{ fontSize: 22, fontWeight: "700", color: colors.foreground }}>{detailService.duration}</Text>
+                      <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Minutes</Text>
+                    </View>
+                  </View>
+
+                  {/* Description */}
+                  {detailService.description && (
+                    <Text style={{ fontSize: 14, color: colors.muted, lineHeight: 20, marginBottom: 16 }}>{detailService.description}</Text>
+                  )}
+
+                  {/* Select button */}
+                  <Pressable
+                    onPress={() => {
+                      setSelectedServiceId(detailService.id);
+                      setSelectedStaffId(null);
+                      setServiceDetailId(null);
+                      setStep("staff");
+                    }}
+                    style={({ pressed }) => ({
+                      backgroundColor: colors.primary,
+                      borderRadius: 14,
+                      paddingVertical: 16,
+                      alignItems: "center",
+                      opacity: pressed ? 0.8 : 1,
+                    })}
+                  >
+                    <Text style={{ fontSize: 16, fontWeight: "700", color: "#fff" }}>Book This Service</Text>
+                  </Pressable>
+
+                  {/* Dismiss */}
+                  <Pressable
+                    onPress={() => setServiceDetailId(null)}
+                    style={({ pressed }) => ({ marginTop: 12, alignItems: "center", opacity: pressed ? 0.6 : 1 })}
+                  >
+                    <Text style={{ fontSize: 14, color: colors.muted }}>Cancel</Text>
+                  </Pressable>
                 </View>
               )}
             </View>

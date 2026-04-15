@@ -4,6 +4,7 @@ export interface Service {
   duration: number; // in minutes
   price: number;
   color: string;
+  description?: string; // optional description shown on booking page detail sheet
   category?: string; // service category for grouping
   photoUri?: string; // optional photo shown on booking page
   locationIds?: string[] | null; // null = all locations

@@ -45,7 +45,7 @@ export default function ServicesScreen() {
   }, [state.services, selectedCategory]);
 
   return (
-    <ScreenContainer className="pt-2" style={{ paddingHorizontal: hp, alignSelf: "center", width: "100%", maxWidth: maxContentWidth }} tabletMaxWidth={0}>
+    <ScreenContainer className="pt-2 flex-1" containerClassName="flex-1" safeAreaClassName="flex-1" tabletMaxWidth={0} style={{ paddingHorizontal: hp }}>
       {/* Header */}
       <View style={styles.header}>
         <Text className="text-2xl font-bold text-foreground">
