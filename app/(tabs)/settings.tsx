@@ -58,6 +58,30 @@ export default function SettingsScreen() {
     setProfileForm((p) => ({ ...p, phone: formatPhoneNumber(text) }));
   }, []);
 
+  // Monthly Revenue Goal
+  const [goalInput, setGoalInput] = useState(settings.monthlyRevenueGoal > 0 ? String(settings.monthlyRevenueGoal) : "");
+  const [editingGoal, setEditingGoal] = useState(false);
+  const saveGoal = useCallback(() => {
+    const val = parseInt(goalInput.replace(/[^0-9]/g, ""), 10);
+    const goal = isNaN(val) ? 0 : val;
+    const action = { type: "UPDATE_SETTINGS" as const, payload: { monthlyRevenueGoal: goal } };
+    dispatch(action);
+    syncToDb(action);
+    setEditingGoal(false);
+  }, [goalInput, dispatch, syncToDb]);
+
+  // Staff Alert Threshold
+  const [alertThresholdInput, setAlertThresholdInput] = useState(String(settings.staffAlertThreshold ?? 80));
+  const [editingThreshold, setEditingThreshold] = useState(false);
+  const saveThreshold = useCallback(() => {
+    const val = parseInt(alertThresholdInput.replace(/[^0-9]/g, ""), 10);
+    const threshold = isNaN(val) ? 80 : Math.min(100, Math.max(0, val));
+    const action = { type: "UPDATE_SETTINGS" as const, payload: { staffAlertThreshold: threshold } };
+    dispatch(action);
+    syncToDb(action);
+    setEditingThreshold(false);
+  }, [alertThresholdInput, dispatch, syncToDb]);
+
   const saveProfile = useCallback(() => {
     const action = { type: "UPDATE_SETTINGS" as const, payload: { profile: profileForm } };
     dispatch(action);
@@ -472,6 +496,89 @@ export default function SettingsScreen() {
               <IconSymbol name="chevron.right" size={16} color={colors.muted} />
             </Pressable>
           ))}
+        </View>
+
+        {/* ─── Goals & Alerts ─── */}
+        <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 8, marginTop: 16, textTransform: "uppercase", letterSpacing: 0.5 }}>Goals & Alerts</Text>
+        {/* Monthly Revenue Goal */}
+        <View style={[styles.navCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={[styles.navIcon, { backgroundColor: "#FF980015" }]}>
+            <IconSymbol name="chart.bar.fill" size={22} color="#FF9800" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Monthly Revenue Goal</Text>
+            {editingGoal ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 }}>
+                <TextInput
+                  value={goalInput}
+                  onChangeText={setGoalInput}
+                  keyboardType="numeric"
+                  placeholder="e.g. 10000"
+                  placeholderTextColor={colors.muted}
+                  returnKeyType="done"
+                  onSubmitEditing={saveGoal}
+                  style={{ flex: 1, fontSize: 15, color: colors.foreground, borderBottomWidth: 1, borderBottomColor: colors.primary, paddingVertical: 4 }}
+                  autoFocus
+                />
+                <Pressable onPress={saveGoal} style={{ backgroundColor: colors.primary, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}>
+                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>Save</Text>
+                </Pressable>
+                <Pressable onPress={() => setEditingGoal(false)}>
+                  <Text style={{ color: colors.muted, fontSize: 13 }}>Cancel</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
+                {settings.monthlyRevenueGoal > 0 ? `$${settings.monthlyRevenueGoal.toLocaleString()} / month` : "Tap to set a monthly goal"}
+              </Text>
+            )}
+          </View>
+          {!editingGoal && (
+            <Pressable onPress={() => setEditingGoal(true)}>
+              <IconSymbol name="pencil" size={18} color={colors.muted} />
+            </Pressable>
+          )}
+        </View>
+
+        {/* Staff Alert Threshold */}
+        <View style={[styles.navCard, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 8 }]}>
+          <View style={[styles.navIcon, { backgroundColor: "#EF444415" }]}>
+            <IconSymbol name="person.2.fill" size={22} color="#EF4444" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Staff Alert Threshold</Text>
+            {editingThreshold ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 }}>
+                <TextInput
+                  value={alertThresholdInput}
+                  onChangeText={setAlertThresholdInput}
+                  keyboardType="numeric"
+                  placeholder="e.g. 80"
+                  placeholderTextColor={colors.muted}
+                  returnKeyType="done"
+                  onSubmitEditing={saveThreshold}
+                  style={{ flex: 1, fontSize: 15, color: colors.foreground, borderBottomWidth: 1, borderBottomColor: colors.primary, paddingVertical: 4 }}
+                  autoFocus
+                />
+                <Text style={{ fontSize: 13, color: colors.muted }}>%</Text>
+                <Pressable onPress={saveThreshold} style={{ backgroundColor: colors.primary, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}>
+                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>Save</Text>
+                </Pressable>
+                <Pressable onPress={() => setEditingThreshold(false)}>
+                  <Text style={{ color: colors.muted, fontSize: 13 }}>Cancel</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
+                Alert when staff completion rate is below {settings.staffAlertThreshold ?? 80}%
+              </Text>
+            )}
+          </View>
+          {!editingThreshold && (
+            <Pressable onPress={() => setEditingThreshold(true)}>
+              <IconSymbol name="pencil" size={18} color={colors.muted} />
+            </Pressable>
+          )}
         </View>
 
         {/* Log Out */}

@@ -608,6 +608,41 @@ export default function AnalyticsDetailScreen() {
               ))}
             </View>
 
+            {/* Monthly Revenue Goal Progress Bar */}
+            {state.settings.monthlyRevenueGoal > 0 && (() => {
+              const now = new Date();
+              const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().substring(0, 10);
+              const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().substring(0, 10);
+              const thisMonthRevenue = allLocationAppts
+                .filter((a) => a.status === "completed" && a.date >= thisMonthStart && a.date <= thisMonthEnd)
+                .reduce((sum, a) => {
+                  if (a.totalPrice != null) return sum + a.totalPrice;
+                  const svc = getServiceById(a.serviceId);
+                  return sum + (svc?.price ?? 0);
+                }, 0);
+              const goal = state.settings.monthlyRevenueGoal;
+              const pct = Math.min(100, Math.round((thisMonthRevenue / goal) * 100));
+              const goalColor = pct >= 100 ? "#4CAF50" : pct >= 70 ? "#FF9800" : "#EF4444";
+              return (
+                <View style={[styles.sectionCard, { backgroundColor: goalColor + "10", borderColor: goalColor + "30", marginTop: 10 }]}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: goalColor }}>This Month's Goal</Text>
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: goalColor }}>{pct}%</Text>
+                  </View>
+                  <View style={{ height: 10, backgroundColor: goalColor + "25", borderRadius: 5, overflow: "hidden" }}>
+                    <View style={{ height: 10, width: `${pct}%`, backgroundColor: goalColor, borderRadius: 5 }} />
+                  </View>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
+                    <Text style={{ fontSize: 12, color: goalColor + "CC" }}>${thisMonthRevenue.toLocaleString()} earned</Text>
+                    <Text style={{ fontSize: 12, color: goalColor + "CC" }}>Goal: ${goal.toLocaleString()}</Text>
+                  </View>
+                  {pct >= 100 && (
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: goalColor, textAlign: "center", marginTop: 6 }}>🎉 Goal reached! Great work!</Text>
+                  )}
+                </View>
+              );
+            })()}
+
             {/* Revenue Trend — last 6 months */}
             <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground, marginBottom: 12 }}>Revenue — Last 6 Months</Text>
@@ -1200,6 +1235,33 @@ export default function AnalyticsDetailScreen() {
                   </View>
                 </View>
               </View>
+
+              {/* Staff Performance Alerts */}
+              {(() => {
+                const threshold = state.settings.staffAlertThreshold ?? 80;
+                if (threshold === 0) return null;
+                const underperforming = staffData.filter(
+                  (sm) => sm.apptCount >= 5 && sm.completionRate < threshold
+                );
+                if (underperforming.length === 0) return null;
+                return (
+                  <View style={{ backgroundColor: "#FEF2F2", borderColor: "#EF444430", borderWidth: 1, borderRadius: 12, padding: 14, marginBottom: 12 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                      <IconSymbol name="exclamationmark.triangle.fill" size={18} color="#EF4444" />
+                      <Text style={{ fontSize: 14, fontWeight: "700", color: "#EF4444" }}>Performance Alert</Text>
+                    </View>
+                    <Text style={{ fontSize: 13, color: "#EF4444CC", marginBottom: 8 }}>
+                      {underperforming.length} staff member{underperforming.length > 1 ? "s are" : " is"} below the {threshold}% completion threshold:
+                    </Text>
+                    {underperforming.map((sm) => (
+                      <View key={sm.id} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 4 }}>
+                        <Text style={{ fontSize: 13, fontWeight: "600", color: "#EF4444" }}>{sm.name}</Text>
+                        <Text style={{ fontSize: 13, color: "#EF4444" }}>{sm.completionRate}% completion ({sm.completedCount}/{sm.apptCount} appts)</Text>
+                      </View>
+                    ))}
+                  </View>
+                );
+              })()}
 
               {staffData.length === 0 ? (
                 <View style={{ alignItems: "center", paddingVertical: 40 }}>

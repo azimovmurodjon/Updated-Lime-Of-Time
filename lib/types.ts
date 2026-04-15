@@ -266,6 +266,8 @@ export interface BusinessSettings {
   autoCompleteEnabled: boolean; // automatically mark appointments as completed after end time + delay
   autoCompleteDelayMinutes: number; // minutes after appointment end time to auto-complete (5, 10, 15, 30)
   smsTemplates: SmsTemplates; // custom SMS message templates per event type
+  monthlyRevenueGoal: number; // monthly revenue target in dollars (0 = no goal set)
+  staffAlertThreshold: number; // completion rate % below which staff alert fires (0 = disabled)
 }
 
 export const SERVICE_COLORS = [

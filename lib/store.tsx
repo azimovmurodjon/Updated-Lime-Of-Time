@@ -68,6 +68,8 @@ const initialSettings: BusinessSettings = {
   autoCompleteEnabled: false,
   autoCompleteDelayMinutes: 5,
   smsTemplates: DEFAULT_SMS_TEMPLATES,
+  monthlyRevenueGoal: 0,
+  staffAlertThreshold: 80,
 };
 
 const initialState: AppState = {
