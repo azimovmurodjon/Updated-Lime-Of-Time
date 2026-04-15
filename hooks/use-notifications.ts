@@ -514,7 +514,8 @@ export function useNotifications() {
       return month === today.getMonth() + 1 && day === today.getDate();
     });
 
-    const scheduleKey = `birthday-daily-${state.clients.length}`;
+    const reminderHour = state.settings.notificationPreferences?.birthdayReminderHour ?? 8;
+    const scheduleKey = `birthday-daily-${state.clients.length}-h${reminderHour}`;
     if (birthdayReminderScheduledRef.current && scheduleKey === (birthdayReminderScheduledRef as any)._lastKey) return;
     (birthdayReminderScheduledRef as any)._lastKey = scheduleKey;
     birthdayReminderScheduledRef.current = true;
@@ -548,6 +549,7 @@ export function useNotifications() {
             ? "No client birthdays today."
             : previewNames.join(", ") + (extraCount > 0 ? ` +${extraCount} more` : "");
 
+        const hourLabel = reminderHour > 12 ? `${reminderHour - 12}:00 PM` : reminderHour === 12 ? "12:00 PM" : `${reminderHour}:00 AM`;
         await Notifications.scheduleNotificationAsync({
           identifier: "birthday-daily-reminder",
           content: {
@@ -560,19 +562,19 @@ export function useNotifications() {
           },
           trigger: {
             type: Notifications.SchedulableTriggerInputTypes.DAILY,
-            hour: 8,
+            hour: reminderHour,
             minute: 0,
             ...(Platform.OS === "android" ? { channelId: "birthdays" } : {}),
           },
         });
-        logger.log("[Notifications] Birthday daily reminder scheduled for 8:00 AM");
+        logger.log(`[Notifications] Birthday daily reminder scheduled for ${hourLabel}`);
       } catch (err) {
         logger.warn("[Notifications] Failed to schedule birthday reminder:", err);
       }
     };
 
     doSchedule();
-  }, [state.clients, state.settings.notificationsEnabled, state.settings.notificationPreferences?.birthdayReminderEnabled, state.loaded, businessName]);
+  }, [state.clients, state.settings.notificationsEnabled, state.settings.notificationPreferences?.birthdayReminderEnabled, state.settings.notificationPreferences?.birthdayReminderHour, state.loaded, businessName]);
 
   const cancelAllReminders = useCallback(async () => {
     if (Platform.OS === "web") return;

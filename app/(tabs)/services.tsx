@@ -183,7 +183,7 @@ export default function ServicesScreen() {
         });
 
         return (
-          <>
+          <View style={{ flex: 1 }}>
           {categoryChips}
           <FlatList
             data={listData}
@@ -269,13 +269,13 @@ export default function ServicesScreen() {
             }
             contentContainerStyle={{ paddingBottom: 80 }}
           />
-          </>
+          </View>
         );
       })()}
 
       {/* Products List */}
       {activeTab === "products" && (
-        <>
+        <View style={{ flex: 1 }}>
         {/* Brand filter chips */}
         {allBrands.length > 0 && (
           <ScrollView
@@ -386,7 +386,7 @@ export default function ServicesScreen() {
           }
           contentContainerStyle={{ paddingBottom: 80 }}
         />
-        </>  
+        </View>
       )}
     </ScreenContainer>
   );

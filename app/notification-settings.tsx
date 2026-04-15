@@ -343,7 +343,7 @@ export default function NotificationSettingsScreen() {
         </Text>
 
         {pushEvents.map((event) => {
-          const enabled = prefs[event.key];
+          const enabled = !!prefs[event.key];
           const message = customMessages[event.key] ?? event.defaultMessage;
           return (
             <View
@@ -390,14 +390,14 @@ export default function NotificationSettingsScreen() {
         {/* Birthday Reminders */}
         <Text style={[styles.sectionHeader, { color: colors.muted, marginTop: 20 }]}>Birthday Reminders</Text>
         <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10, marginTop: -4 }}>
-          A daily push notification at 8:00 AM listing all clients with birthdays today.
+          A daily push notification listing all clients with birthdays today.
         </Text>
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: settings.notificationsEnabled ? 1 : 0.5 }]}>
           <View style={styles.switchRow}>
             <View style={{ flex: 1, marginRight: 12 }}>
               <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>Daily Birthday Alert</Text>
               <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 16 }}>
-                Fires every morning at 8 AM if any client has a birthday that day. Tapping it opens Birthday Campaigns.
+                Fires every morning if any client has a birthday that day. Tapping it opens Birthday Campaigns.
               </Text>
             </View>
             <Switch
@@ -408,13 +408,52 @@ export default function NotificationSettingsScreen() {
               disabled={!settings.notificationsEnabled}
             />
           </View>
-          {(prefs.birthdayReminderEnabled ?? true) && settings.notificationsEnabled && (
-            <View style={{ marginTop: 10, backgroundColor: "#EC489915", borderRadius: 10, padding: 10 }}>
-              <Text style={{ fontSize: 12, color: "#EC4899", lineHeight: 18 }}>
-                Preview: "🎂 Birthday today: Jane Smith. Open Birthday Campaigns to send a greeting!"
-              </Text>
-            </View>
-          )}
+          {/* Time picker row — only visible when birthday reminder is enabled */}
+          {(prefs.birthdayReminderEnabled ?? true) && settings.notificationsEnabled && (() => {
+            const currentHour = prefs.birthdayReminderHour ?? 8;
+            const HOURS = [6, 7, 8, 9, 10, 11, 12];
+            const fmt = (h: number) => {
+              const suffix = h >= 12 ? "PM" : "AM";
+              const display = h > 12 ? h - 12 : h === 0 ? 12 : h;
+              return `${display}:00 ${suffix}`;
+            };
+            const setHour = (h: number) => {
+              const updated = { ...prefs, birthdayReminderHour: h };
+              const action = { type: "UPDATE_SETTINGS" as const, payload: { notificationPreferences: updated } };
+              dispatch(action);
+              syncToDb(action);
+            };
+            return (
+              <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 }}>
+                <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 8 }}>REMINDER TIME</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, flexDirection: "row" }}>
+                  {HOURS.map((h) => (
+                    <Pressable
+                      key={h}
+                      onPress={() => setHour(h)}
+                      style={[{
+                        paddingHorizontal: 14,
+                        paddingVertical: 7,
+                        borderRadius: 20,
+                        borderWidth: 1.5,
+                        borderColor: currentHour === h ? "#EC4899" : colors.border,
+                        backgroundColor: currentHour === h ? "#EC489915" : colors.background,
+                      }]}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: "600", color: currentHour === h ? "#EC4899" : colors.muted }}>
+                        {fmt(h)}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+                <View style={{ marginTop: 10, backgroundColor: "#EC489915", borderRadius: 10, padding: 10 }}>
+                  <Text style={{ fontSize: 12, color: "#EC4899", lineHeight: 18 }}>
+                    Preview: "🎂 Birthday today: Jane Smith. Open Birthday Campaigns to send a greeting!"
+                  </Text>
+                </View>
+              </View>
+            );
+          })()}
         </View>
 
         {/* Email Notifications */}
@@ -424,7 +463,7 @@ export default function NotificationSettingsScreen() {
         </Text>
 
         {emailEvents.map((event) => {
-          const enabled = prefs[event.key];
+          const enabled = !!prefs[event.key];
           const message = customMessages[event.key] ?? event.defaultMessage;
           return (
             <View

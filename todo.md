@@ -974,3 +974,6 @@
 - [x] Service optional photos on public booking page
 - [x] Product optional photos in product form
 - [x] Workday close guard - popup when appointments exist on that day
+- [x] Birthday reminder time picker in Notification Settings
+- [x] Category Management screen (service categories, product categories, product brands)
+- [x] Services/Products layout gap fix when switching categories

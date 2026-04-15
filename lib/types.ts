@@ -229,8 +229,10 @@ export interface NotificationPreferences {
   emailOnNewBooking: boolean;
   /** Email confirmation to client when business owner accepts appointment */
   emailClientOnConfirmation: boolean;
-  /** Daily 8 AM push notification listing clients with birthdays today */
+  /** Daily push notification listing clients with birthdays today */
   birthdayReminderEnabled?: boolean;
+  /** Hour (0-23) at which the daily birthday reminder fires. Default 8 (8 AM) */
+  birthdayReminderHour?: number;
 }
 
 /** Per-event SMS message templates. Each key maps to a custom message body.
@@ -263,6 +265,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   emailOnNewBooking: true,
   emailClientOnConfirmation: true,
   birthdayReminderEnabled: true,
+  birthdayReminderHour: 8,
 };
 
 export interface BusinessSettings {

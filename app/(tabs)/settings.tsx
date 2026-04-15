@@ -402,6 +402,25 @@ export default function SettingsScreen() {
           </View>
         </Pressable>
 
+        {/* Category Management — navigate to category manager */}
+        <Pressable
+          onPress={() => router.push("/category-management")}
+          style={({ pressed }) => [styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.75 : 1 }]}
+        >
+          <View style={styles.switchRow}>
+            <View style={styles.switchLabel}>
+              <IconSymbol name="tag.fill" size={20} color="#10B981" />
+              <View style={{ marginLeft: 12 }}>
+                <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground }}>Category Management</Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
+                  Manage service and product categories
+                </Text>
+              </View>
+            </View>
+            <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+          </View>
+        </Pressable>
+
         {/* Face ID / Biometric Lock */}
         {Platform.OS !== "web" && biometricAvailable && (
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
