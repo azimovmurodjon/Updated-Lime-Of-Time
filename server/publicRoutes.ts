@@ -1508,7 +1508,7 @@ function baseStyles(): string {
         color: var(--text-hint);
       }
       .input-group textarea { resize: vertical; min-height: 80px; }
-      .service-list { display: flex; flex-direction: column; gap: 8px; }
+      .service-list { display: flex; flex-direction: column; gap: 12px; }
       .service-item {
         display: flex;
         align-items: center;
@@ -1522,11 +1522,18 @@ function baseStyles(): string {
       .service-item:hover { background: var(--bg-card-hover); border-color: var(--accent); }
       .service-item.selected { border-color: var(--accent); background: var(--accent-bg-light); box-shadow: 0 0 0 3px rgba(74,140,63,0.12); }
       .service-dot {
-        width: 12px; height: 12px;
-        border-radius: 50%;
+        width: 44px; height: 44px;
+        border-radius: 10px;
         margin-right: 12px;
         flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        font-weight: 800;
+        overflow: hidden;
       }
+      .service-dot img { width:44px; height:44px; object-fit:cover; border-radius:10px; }
       .service-info { flex: 1; }
       .service-name { font-size: 15px; font-weight: 600; color: var(--text); }
       .service-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
@@ -1991,7 +1998,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     </div>
     <!-- Service primary detail overlay -->
     <div id="svcDetailOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:flex-end;justify-content:center;">
-      <div id="svcDetailContent" style="background:var(--bg-card);border-radius:20px 20px 0 0;padding:24px 20px 36px;width:100%;max-width:520px;max-height:85vh;overflow-y:auto;"></div>
+      <div id="svcDetailContent" class="detail-sheet" style="background:var(--bg-card);border-radius:20px 20px 0 0;padding:24px 20px 36px;width:100%;max-width:520px;max-height:85vh;overflow-y:auto;"></div>
     </div>
 
     <!-- Step 2: Select Date & Time (Monthly Calendar) -->
@@ -2396,13 +2403,14 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       top.forEach(function(s) {
         var dur = s.duration >= 60 ? (s.duration / 60) + ' hr' + (s.duration > 60 ? 's' : '') : s.duration + ' min';
         var photoEl = s.photoUri
-          ? '<img src="' + esc(s.photoUri) + '" style="width:100%;height:70px;object-fit:cover;border-radius:8px;margin-bottom:8px;" />'
-          : '<div style="width:28px;height:28px;border-radius:50%;background:' + (s.color || '#4a8c3f') + ';margin-bottom:8px;"></div>';
+          ? '<img src="' + esc(s.photoUri) + '" style="width:100%;height:72px;object-fit:cover;" />'
+          : '<div style="width:100%;height:72px;background:' + (s.color || '#4a8c3f') + '20;display:flex;align-items:center;justify-content:center;">' +
+            '<span style="font-size:28px;font-weight:800;color:' + (s.color || '#4a8c3f') + ';opacity:0.8;">' + esc((s.name || '?')[0].toUpperCase()) + '</span></div>';
         html += '<div class="popular-card" data-svc-id="' + esc(s.localId) + '" style="' +
           'flex:0 0 auto;min-width:130px;max-width:150px;background:var(--bg-card);border:1.5px solid var(--border);' +
-          'border-radius:12px;padding:' + (s.photoUri ? '0' : '12px') + ' 0 10px;overflow:hidden;cursor:pointer;transition:box-shadow 0.15s;">' +
+          'border-radius:12px;padding:0;overflow:hidden;cursor:pointer;transition:box-shadow 0.15s;">' +
           photoEl +
-          '<div style="padding:' + (s.photoUri ? '8px 10px 0' : '0 10px') + ';">' +
+          '<div style="padding:8px 10px 10px;">' +
           '<div style="font-size:13px;font-weight:600;color:var(--text);line-height:1.3;margin-bottom:4px;">' + esc(s.name) + '</div>' +
           '<div style="font-size:11px;color:#888;">' + dur + '</div>' +
           '<div style="font-size:13px;font-weight:700;color:var(--accent);margin-top:6px;">$' + parseFloat(s.price).toFixed(2) + '</div>' +
@@ -2461,8 +2469,11 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       html += '<div class="service-list">';
       filtered.forEach(function(s) {
         var dur = s.duration >= 60 ? (s.duration / 60) + ' hr' + (s.duration > 60 ? 's' : '') : s.duration + ' min';
+        var svcThumb = s.photoUri
+          ? '<div class="service-dot"><img src="' + esc(s.photoUri) + '" /></div>'
+          : '<div class="service-dot" style="background:' + (s.color || '#4a8c3f') + '20;color:' + (s.color || '#4a8c3f') + ';">' + esc((s.name||'?')[0].toUpperCase()) + '</div>';
         html += '<div class="service-item" data-svc-id="' + esc(s.localId) + '">' +
-          '<div class="service-dot" style="background:' + (s.color || '#4a8c3f') + '"></div>' +
+          svcThumb +
           '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div>' +
           '<div class="service-meta">' + dur + '</div></div>' +
           '<div class="service-price">$' + parseFloat(s.price).toFixed(2) + '</div></div>';
@@ -2545,8 +2556,11 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         var html = '<div class="service-list">';
         matches.forEach(function(s) {
           var dur = s.duration >= 60 ? (s.duration / 60) + ' hr' + (s.duration > 60 ? 's' : '') : s.duration + ' min';
+          var svcThumbS = s.photoUri
+            ? '<div class="service-dot"><img src="' + esc(s.photoUri) + '" /></div>'
+            : '<div class="service-dot" style="background:' + (s.color || '#4a8c3f') + '20;color:' + (s.color || '#4a8c3f') + ';">' + esc((s.name||'?')[0].toUpperCase()) + '</div>';
           html += '<div class="service-item" data-svc-id="' + esc(s.localId) + '">' +
-            '<div class="service-dot" style="background:' + (s.color || '#4a8c3f') + '"></div>' +
+            svcThumbS +
             '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div>' +
             '<div class="service-meta">' + dur + (s.category ? ' · ' + esc(s.category) : '') + '</div></div>' +
             '<div class="service-price">$' + parseFloat(s.price).toFixed(2) + '</div></div>';
@@ -2601,12 +2615,12 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       section.style.display = "block";
       // "Any available" option + eligible staff
       let html = '<div class="service-item selected" id="staff-any" onclick="selectStaff(null)">' +
-        '<div class="service-dot" style="background:#888"></div>' +
+        '<div class="service-dot" style="background:#88888820;color:#888;border-radius:50%;">?</div>' +
         '<div class="service-info"><div class="service-name">Any Available</div>' +
         '<div class="service-meta">First available staff member</div></div></div>';
       eligible.forEach(s => {
         html += '<div class="service-item" id="staff-' + s.localId + '" onclick="selectStaff(&apos;' + s.localId + '&apos;)">' +
-          '<div class="service-dot" style="background:' + (s.color || '#6366f1') + '"></div>' +
+          '<div class="service-dot" style="background:' + (s.color || '#6366f1') + '20;color:' + (s.color || '#6366f1') + ';border-radius:50%;">' + esc((s.name||'?')[0].toUpperCase()) + '</div>' +
           '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div>' +
           '<div class="service-meta">' + esc(s.role || 'Staff') + '</div></div></div>';
       });
@@ -2981,9 +2995,11 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         html += '<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Services</div>';
         matchedSvcs.forEach(s => {
           const dur = s.duration >= 60 ? (s.duration/60) + " hr" : s.duration + " min";
+          var addThumbS = s.photoUri
+            ? '<div class="service-dot"><img src="' + esc(s.photoUri) + '" /></div>'
+            : '<div class="service-dot" style="background:' + (s.color||'#4a8c3f') + '20;color:' + (s.color||'#4a8c3f') + ';">' + esc((s.name||'?')[0].toUpperCase()) + '</div>';
           html += '<div class="service-item" onclick="openServiceDetail(' + JSON.stringify(s.localId) + ')">' +
-            (s.photoUri ? '<img src="' + esc(s.photoUri) + '" style="width:48px;height:48px;border-radius:8px;object-fit:cover;margin-right:12px;flex-shrink:0;" />' :
-              '<div class="service-dot" style="background:' + (s.color||'#4a8c3f') + '"></div>') +
+            addThumbS +
             '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div><div class="service-meta">' + dur + (s.category ? ' · ' + esc(s.category) : '') + '</div></div>' +
             '<div class="service-price">+ $' + parseFloat(s.price).toFixed(2) + '</div></div>';
         });
@@ -3114,9 +3130,11 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         } else {
           catServices.forEach(s => {
             const dur = s.duration >= 60 ? (s.duration/60) + " hr" : s.duration + " min";
+            var addThumbC = s.photoUri
+              ? '<div class="service-dot"><img src="' + esc(s.photoUri) + '" /></div>'
+              : '<div class="service-dot" style="background:' + (s.color||'#4a8c3f') + '20;color:' + (s.color||'#4a8c3f') + ';">' + esc((s.name||'?')[0].toUpperCase()) + '</div>';
             html += '<div class="service-item" data-svc-id="' + esc(s.localId) + '">' +
-              (s.photoUri ? '<img src="' + esc(s.photoUri) + '" style="width:56px;height:56px;border-radius:10px;object-fit:cover;margin-right:12px;flex-shrink:0;" />' :
-                '<div class="service-dot" style="background:' + (s.color||'#4a8c3f') + '"></div>') +
+              addThumbC +
               '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div><div class="service-meta">' + dur + '</div></div>' +
               '<div class="service-price">+ $' + parseFloat(s.price).toFixed(2) + '</div></div>';
           });
