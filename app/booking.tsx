@@ -8,6 +8,7 @@ import {
   Linking,
   Platform,
   Image,
+  Modal,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -34,11 +35,12 @@ import {
   Discount,
   GiftCard,
   Location,
+  Product,
   formatFullAddress,
 } from "@/lib/types";
 
 // "location" is the new first step when the business has multiple active locations
-type BookingStep = "location" | "info" | "service" | "staff" | "datetime" | "confirm" | "done";
+type BookingStep = "location" | "info" | "service" | "staff" | "datetime" | "products" | "confirm" | "done";
 
 export default function PublicBookingScreen() {
   const { state, dispatch, getServiceById, syncToDb, getStaffById } = useStore();
@@ -90,6 +92,38 @@ export default function PublicBookingScreen() {
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null);
   // Service detail bottom sheet
   const [serviceDetailId, setServiceDetailId] = useState<string | null>(null);
+
+  // ── Products step state ────────────────────────────────────────────────────
+  // Cart: map of productId → quantity
+  const [productCart, setProductCart] = useState<Record<string, number>>({});
+  // null = show brand tiles; string = show products in that brand; "__all__" = no brands exist
+  const [selectedBrandFilter, setSelectedBrandFilter] = useState<string | null>(null);
+  // Product detail bottom sheet
+  const [productDetailId, setProductDetailId] = useState<string | null>(null);
+  // Available products (only available=true)
+  const availableProducts = useMemo(
+    () => state.products.filter((p) => p.available !== false),
+    [state.products]
+  );
+  // Unique brands from available products
+  const productBrands = useMemo(() => {
+    const brands = new Set<string>();
+    availableProducts.forEach((p) => { if (p.brand) brands.add(p.brand); });
+    return Array.from(brands).sort();
+  }, [availableProducts]);
+  // Products filtered by selected brand
+  const filteredProducts = useMemo(() => {
+    if (!selectedBrandFilter || selectedBrandFilter === "__all__") return availableProducts;
+    return availableProducts.filter((p) => p.brand === selectedBrandFilter);
+  }, [availableProducts, selectedBrandFilter]);
+  // Total cart items count
+  const cartCount = useMemo(() => Object.values(productCart).reduce((a, b) => a + b, 0), [productCart]);
+  // Cart total price
+  const cartTotal = useMemo(() => {
+    return availableProducts.reduce((sum, p) => sum + (productCart[p.id] ?? 0) * p.price, 0);
+  }, [availableProducts, productCart]);
+  // Selected product detail
+  const productDetail: Product | null = productDetailId ? availableProducts.find((p) => p.id === productDetailId) ?? null : null;
 
   const selectedService = selectedServiceId ? getServiceById(selectedServiceId) : null;
   const businessName = state.settings.businessName || "Our Business";
@@ -255,6 +289,22 @@ export default function PublicBookingScreen() {
       syncToDb({ type: "ADD_CLIENT", payload: newClient });
     }
 
+    // Build extra items from cart
+    const cartExtraItems = Object.entries(productCart)
+      .filter(([, qty]) => qty > 0)
+      .flatMap(([productId, qty]) => {
+        const product = state.products.find((p) => p.id === productId);
+        if (!product) return [];
+        // Each unit is a separate line item (matching AppointmentExtraItem shape)
+        return Array.from({ length: qty }, () => ({
+          type: "product" as const,
+          id: product.id,
+          name: product.name,
+          price: product.price,
+          duration: 0,
+        }));
+      });
+
     const appointment: Appointment = {
       id: generateId(),
       serviceId: selectedServiceId,
@@ -265,7 +315,7 @@ export default function PublicBookingScreen() {
       status: "pending",
       notes: notes.trim(),
       createdAt: new Date().toISOString(),
-      totalPrice: priceInfo.final,
+      totalPrice: priceInfo.final + cartTotal,
       discountPercent: priceInfo.discountPct > 0 ? priceInfo.discountPct : undefined,
       discountAmount: priceInfo.discountPct > 0 ? Math.round((priceInfo.original - priceInfo.final) * 100) / 100 : undefined,
       discountName: applicableDiscount ? applicableDiscount.name : undefined,
@@ -274,6 +324,7 @@ export default function PublicBookingScreen() {
       // Attach the selected location so the appointment is properly scoped
       locationId: selectedLocationId ?? undefined,
       staffId: selectedStaffId ?? undefined,
+      extraItems: cartExtraItems.length > 0 ? cartExtraItems : undefined,
     };
     dispatch({ type: "ADD_APPOINTMENT", payload: appointment });
     syncToDb({ type: "ADD_APPOINTMENT", payload: appointment });
@@ -293,7 +344,7 @@ export default function PublicBookingScreen() {
     }
 
     setStep("done");
-  }, [selectedServiceId, selectedTime, clientName, clientPhone, clientEmail, notes, selectedDate, selectedService, state, dispatch, appliedGiftCard, syncToDb, priceInfo, selectedLocationId, selectedStaffId, applicableDiscount]);
+  }, [selectedServiceId, selectedTime, clientName, clientPhone, clientEmail, notes, selectedDate, selectedService, state, dispatch, appliedGiftCard, syncToDb, priceInfo, selectedLocationId, selectedStaffId, applicableDiscount, productCart, cartTotal]);
 
   // Resolve the address to show: use selected location's full address if available, else global profile
   const displayAddress = selectedLocation
@@ -394,8 +445,8 @@ export default function PublicBookingScreen() {
       {/* Step Progress Indicator */}
       {step !== "done" && (
         <View style={{ flexDirection: "row", justifyContent: "center", gap: 6, marginBottom: 14 }}>
-          {(hasMultipleLocations ? ["location", "info", "service", "staff", "datetime", "confirm"] : ["info", "service", "staff", "datetime", "confirm"]).map((s, i) => {
-            const steps = hasMultipleLocations ? ["location", "info", "service", "staff", "datetime", "confirm"] : ["info", "service", "staff", "datetime", "confirm"];
+          {(hasMultipleLocations ? ["location", "info", "service", "staff", "datetime", "products", "confirm"] : ["info", "service", "staff", "datetime", "products", "confirm"]).map((s, i) => {
+            const steps = hasMultipleLocations ? ["location", "info", "service", "staff", "datetime", "products", "confirm"] : ["info", "service", "staff", "datetime", "products", "confirm"];
             const currentIdx = steps.indexOf(step);
             const isActive = s === step;
             const isPast = steps.indexOf(s) < currentIdx;
@@ -1129,7 +1180,7 @@ export default function PublicBookingScreen() {
             />
 
             <Pressable
-              onPress={() => { if (selectedTime) setStep("confirm"); }}
+              onPress={() => { if (selectedTime) setStep(availableProducts.length > 0 ? "products" : "confirm"); }}
               style={({ pressed }) => [
                 styles.continueButton,
                 {
@@ -1138,18 +1189,285 @@ export default function PublicBookingScreen() {
                 },
               ]}
             >
-              <Text style={styles.continueText}>Review Booking</Text>
+              <Text style={styles.continueText}>{availableProducts.length > 0 ? "Add Products (Optional)" : "Review Booking"}</Text>
             </Pressable>
           </View>
         )}
 
-        {/* ── Step: Confirm ─────────────────────────────────────────────────── */}
+        {/* ── Step: Products ────────────────────────────────────────────────── */}
+        {step === "products" && (() => {
+          return (
+            <View>
+              <Pressable onPress={() => setStep("datetime")} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, marginBottom: 12 }]}>
+                <Text style={{ color: colors.primary, fontSize: 14 }}>← Back</Text>
+              </Pressable>
+
+              {/* Header */}
+              <View style={{ marginBottom: 16 }}>
+                <Text style={{ fontSize: 20, fontWeight: "700", color: colors.foreground }}>Shop Products</Text>
+                <Text style={{ fontSize: 13, color: colors.muted, marginTop: 4 }}>Optional — add retail products to your appointment</Text>
+              </View>
+
+              {/* Cart badge */}
+              {cartCount > 0 && (
+                <View style={{ backgroundColor: colors.primary + "15", borderRadius: 12, padding: 12, marginBottom: 14, flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: colors.primary + "30" }}>
+                  <IconSymbol name="cart.fill" size={18} color={colors.primary} />
+                  <Text style={{ fontSize: 14, fontWeight: "600", color: colors.primary, marginLeft: 8, flex: 1 }}>
+                    {cartCount} item{cartCount !== 1 ? "s" : ""} in cart · ${cartTotal.toFixed(2)}
+                  </Text>
+                  <Pressable onPress={() => setProductCart({})} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+                    <Text style={{ fontSize: 12, color: colors.error }}>Clear</Text>
+                  </Pressable>
+                </View>
+              )}
+
+              {/* Brand drill-down or product list */}
+              {!selectedBrandFilter ? (
+                <View>
+                  <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground, marginBottom: 10 }}>Browse by Brand</Text>
+                  {productBrands.length === 0 ? (
+                    <View>
+                      {availableProducts.map((product) => (
+                        <Pressable
+                          key={product.id}
+                          onPress={() => setProductDetailId(product.id)}
+                          style={({ pressed }) => [styles.serviceOption, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.8 : 1 }]}
+                        >
+                          {product.photoUri ? (
+                            <Image source={{ uri: product.photoUri }} style={{ width: 48, height: 48, borderRadius: 10, marginRight: 12 }} />
+                          ) : (
+                            <View style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: colors.primary + "15", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                              <IconSymbol name="cart.fill" size={20} color={colors.primary} />
+                            </View>
+                          )}
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{product.name}</Text>
+                            <Text style={{ fontSize: 13, color: colors.primary, fontWeight: "600", marginTop: 2 }}>${product.price.toFixed(2)}</Text>
+                            {product.description ? <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }} numberOfLines={1}>{product.description}</Text> : null}
+                          </View>
+                          {productCart[product.id] ? (
+                            <View style={{ backgroundColor: colors.primary, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4 }}>
+                              <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>{productCart[product.id]}</Text>
+                            </View>
+                          ) : (
+                            <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+                          )}
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : (
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                      {productBrands.map((brand) => {
+                        const brandProducts = availableProducts.filter((p) => p.brand === brand);
+                        const brandCartCount = brandProducts.reduce((sum, p) => sum + (productCart[p.id] ?? 0), 0);
+                        return (
+                          <Pressable
+                            key={brand}
+                            onPress={() => setSelectedBrandFilter(brand)}
+                            style={({ pressed }) => [{
+                              flex: 1, minWidth: 140, backgroundColor: colors.surface, borderRadius: 14,
+                              padding: 16, borderWidth: 1, borderColor: colors.border, opacity: pressed ? 0.8 : 1,
+                              alignItems: "center",
+                            }]}
+                          >
+                            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary + "15", alignItems: "center", justifyContent: "center", marginBottom: 8 }}>
+                              <IconSymbol name="cart.fill" size={20} color={colors.primary} />
+                            </View>
+                            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, textAlign: "center" }}>{brand}</Text>
+                            <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{brandProducts.length} product{brandProducts.length !== 1 ? "s" : ""}</Text>
+                            {brandCartCount > 0 && (
+                              <View style={{ position: "absolute", top: 8, right: 8, backgroundColor: colors.primary, borderRadius: 10, width: 20, height: 20, alignItems: "center", justifyContent: "center" }}>
+                                <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>{brandCartCount}</Text>
+                              </View>
+                            )}
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  )}
+                </View>
+              ) : (
+                <View>
+                  <Pressable onPress={() => setSelectedBrandFilter(null)} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, marginBottom: 12, flexDirection: "row", alignItems: "center" }]}>
+                    <IconSymbol name="chevron.left" size={16} color={colors.primary} />
+                    <Text style={{ color: colors.primary, fontSize: 14, marginLeft: 4 }}>All Brands</Text>
+                  </Pressable>
+                  <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground, marginBottom: 12 }}>{selectedBrandFilter}</Text>
+                  {filteredProducts.map((product) => (
+                    <Pressable
+                      key={product.id}
+                      onPress={() => setProductDetailId(product.id)}
+                      style={({ pressed }) => [styles.serviceOption, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.8 : 1 }]}
+                    >
+                      {product.photoUri ? (
+                        <Image source={{ uri: product.photoUri }} style={{ width: 48, height: 48, borderRadius: 10, marginRight: 12 }} />
+                      ) : (
+                        <View style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: colors.primary + "15", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                          <IconSymbol name="cart.fill" size={20} color={colors.primary} />
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{product.name}</Text>
+                        <Text style={{ fontSize: 13, color: colors.primary, fontWeight: "600", marginTop: 2 }}>${product.price.toFixed(2)}</Text>
+                        {product.description ? <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }} numberOfLines={1}>{product.description}</Text> : null}
+                      </View>
+                      {productCart[product.id] ? (
+                        <View style={{ backgroundColor: colors.primary, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4 }}>
+                          <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>{productCart[product.id]}</Text>
+                        </View>
+                      ) : (
+                        <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+                      )}
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+
+              {/* Continue button */}
+              <Pressable
+                onPress={() => setStep("confirm")}
+                style={({ pressed }) => [styles.continueButton, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1, marginTop: 16 }]}
+              >
+                <Text style={styles.continueText}>
+                  {cartCount > 0 ? `Review Booking (${cartCount} product${cartCount !== 1 ? "s" : ""})` : "Skip — Review Booking"}
+                </Text>
+              </Pressable>
+
+              {/* Product Detail Bottom Sheet Modal */}
+              <Modal
+                visible={productDetail !== null}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setProductDetailId(null)}
+              >
+                <Pressable
+                  style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}
+                  onPress={() => setProductDetailId(null)}
+                >
+                  <Pressable
+                    style={{ backgroundColor: colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}
+                    onPress={(e) => e.stopPropagation()}
+                  >
+                    {/* Drag handle */}
+                    <View style={{ width: 40, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: "center", marginBottom: 20 }} />
+
+                    {productDetail && (
+                      <>
+                        {/* Photo */}
+                        {productDetail.photoUri ? (
+                          <Image
+                            source={{ uri: productDetail.photoUri }}
+                            style={{ width: "100%", height: 200, borderRadius: 14, marginBottom: 16 }}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={{ width: "100%", height: 120, borderRadius: 14, backgroundColor: colors.primary + "12", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+                            <IconSymbol name="cart.fill" size={40} color={colors.primary + "60"} />
+                          </View>
+                        )}
+
+                        {/* Brand badge */}
+                        {productDetail.brand && (
+                          <View style={{ flexDirection: "row", marginBottom: 8 }}>
+                            <View style={{ backgroundColor: colors.primary + "18", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 }}>
+                              <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>{productDetail.brand}</Text>
+                            </View>
+                          </View>
+                        )}
+
+                        {/* Name */}
+                        <Text style={{ fontSize: 20, fontWeight: "700", color: colors.foreground, marginBottom: 8 }}>{productDetail.name}</Text>
+
+                        {/* Price */}
+                        <Text style={{ fontSize: 24, fontWeight: "700", color: colors.primary, marginBottom: 12 }}>${productDetail.price.toFixed(2)}</Text>
+
+                        {/* Description */}
+                        {productDetail.description ? (
+                          <Text style={{ fontSize: 14, color: colors.muted, lineHeight: 20, marginBottom: 20 }}>{productDetail.description}</Text>
+                        ) : null}
+
+                        {/* Quantity controls + Add/Remove */}
+                        {productCart[productDetail.id] ? (
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                            <Pressable
+                              onPress={() => {
+                                const qty = productCart[productDetail.id] ?? 0;
+                                if (qty <= 1) {
+                                  const next = { ...productCart };
+                                  delete next[productDetail.id];
+                                  setProductCart(next);
+                                } else {
+                                  setProductCart({ ...productCart, [productDetail.id]: qty - 1 });
+                                }
+                              }}
+                              style={({ pressed }) => ({
+                                width: 44, height: 44, borderRadius: 22,
+                                backgroundColor: colors.error + "18",
+                                alignItems: "center", justifyContent: "center",
+                                opacity: pressed ? 0.7 : 1,
+                              })}
+                            >
+                              <Text style={{ fontSize: 22, color: colors.error, fontWeight: "700", lineHeight: 26 }}>−</Text>
+                            </Pressable>
+                            <Text style={{ fontSize: 20, fontWeight: "700", color: colors.foreground, minWidth: 32, textAlign: "center" }}>{productCart[productDetail.id]}</Text>
+                            <Pressable
+                              onPress={() => setProductCart({ ...productCart, [productDetail.id]: (productCart[productDetail.id] ?? 0) + 1 })}
+                              style={({ pressed }) => ({
+                                width: 44, height: 44, borderRadius: 22,
+                                backgroundColor: colors.primary + "18",
+                                alignItems: "center", justifyContent: "center",
+                                opacity: pressed ? 0.7 : 1,
+                              })}
+                            >
+                              <Text style={{ fontSize: 22, color: colors.primary, fontWeight: "700", lineHeight: 26 }}>+</Text>
+                            </Pressable>
+                            <Pressable
+                              onPress={() => setProductDetailId(null)}
+                              style={({ pressed }) => [styles.continueButton, { flex: 1, backgroundColor: colors.primary, marginTop: 0, opacity: pressed ? 0.8 : 1 }]}
+                            >
+                              <Text style={styles.continueText}>Done</Text>
+                            </Pressable>
+                          </View>
+                        ) : (
+                          <Pressable
+                            onPress={() => {
+                              setProductCart({ ...productCart, [productDetail.id]: 1 });
+                            }}
+                            style={({ pressed }) => ({
+                              backgroundColor: colors.primary,
+                              borderRadius: 14,
+                              paddingVertical: 16,
+                              alignItems: "center",
+                              opacity: pressed ? 0.8 : 1,
+                              marginBottom: 12,
+                            })}
+                          >
+                            <Text style={{ fontSize: 16, fontWeight: "700", color: "#fff" }}>Add to Cart</Text>
+                          </Pressable>
+                        )}
+
+                        {/* Dismiss */}
+                        <Pressable
+                          onPress={() => setProductDetailId(null)}
+                          style={({ pressed }) => ({ alignItems: "center", paddingVertical: 8, opacity: pressed ? 0.6 : 1 })}
+                        >
+                          <Text style={{ fontSize: 14, color: colors.muted }}>Close</Text>
+                        </Pressable>
+                      </>
+                    )}
+                  </Pressable>
+                </Pressable>
+              </Modal>
+            </View>
+          );
+        })()}
+
+        {/* ── Step: Confirm ──────────────────────────────────────────────────── */}
         {step === "confirm" && (
           <View>
-            <Pressable onPress={() => setStep("datetime")} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, marginBottom: 12 }]}>
+            <Pressable onPress={() => setStep(availableProducts.length > 0 ? "products" : "datetime")} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, marginBottom: 12 }]}>
               <Text style={{ color: colors.primary, fontSize: 14 }}>← Back</Text>
             </Pressable>
-
             <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground, marginBottom: 16 }}>Booking Summary</Text>
 
@@ -1209,6 +1527,44 @@ export default function PublicBookingScreen() {
                   )}
                 </View>
               </View>
+
+              {/* Selected products section */}
+              {cartCount > 0 && (() => {
+                const cartProducts = availableProducts.filter((p) => (productCart[p.id] ?? 0) > 0);
+                return (
+                  <>
+                    <View style={{ borderTopWidth: 1, borderTopColor: colors.border + "40", marginTop: 8, paddingTop: 12, marginBottom: 4 }}>
+                      <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, marginBottom: 8 }}>Selected Products</Text>
+                      {cartProducts.map((p) => {
+                        const qty = productCart[p.id] ?? 0;
+                        return (
+                          <View key={p.id} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 6 }}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontSize: 13, color: colors.foreground, fontWeight: "500" }}>{p.name}</Text>
+                              {qty > 1 && <Text style={{ fontSize: 12, color: colors.muted }}>x{qty}</Text>}
+                            </View>
+                            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.primary }}>${(p.price * qty).toFixed(2)}</Text>
+                            <Pressable
+                              onPress={() => {
+                                const next = { ...productCart };
+                                delete next[p.id];
+                                setProductCart(next);
+                              }}
+                              style={({ pressed }) => ({ marginLeft: 12, opacity: pressed ? 0.5 : 1 })}
+                            >
+                              <Text style={{ fontSize: 12, color: colors.error }}>Remove</Text>
+                            </Pressable>
+                          </View>
+                        );
+                      })}
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border + "40" }}>
+                        <Text style={{ fontSize: 13, color: colors.muted }}>Products Subtotal</Text>
+                        <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground }}>${cartTotal.toFixed(2)}</Text>
+                      </View>
+                    </View>
+                  </>
+                );
+              })()}
 
               {/* Location address map link */}
               {displayAddress ? (

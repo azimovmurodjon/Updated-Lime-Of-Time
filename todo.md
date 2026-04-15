@@ -982,3 +982,8 @@
 - [x] Services/Products tab: layout gap fixed (flex:1 propagation corrected)
 - [x] Birthday reminder time picker in Notification Settings (6 AM–10 AM)
 - [x] Category Management screen in Settings (service categories + product categories/brands)
+- [x] Booking page products step: brand tiles → product list → detail bottom sheet with Add to Cart / quantity controls
+- [x] Booking page confirm step: shows selected products with subtotal and remove buttons
+- [x] Appointment saved with extraItems (product line items) and updated totalPrice including products
+- [x] Confirm step back button navigates to products step when products exist
+- [x] Datetime step continue button navigates to products step when products exist, otherwise directly to confirm
