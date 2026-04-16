@@ -211,6 +211,13 @@
       "when": 1776311894105,
       "tag": "0029_true_changeling",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "5",
+      "when": 1776357124644,
+      "tag": "0030_chunky_lifeguard",
+      "breakpoints": true
     }
   ]
 }

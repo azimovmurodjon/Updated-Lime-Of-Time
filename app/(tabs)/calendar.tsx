@@ -291,6 +291,27 @@ export default function CalendarScreen() {
   const draftEndRef = useRef("17:00");
   const editingDateRef = useRef<string | null>(null);
 
+  // Timeline scroll refs for auto-scroll to current hour
+  const dayTimelineRef = useRef<any>(null);
+  const weekTimelineRef = useRef<any>(null);
+
+  // Auto-scroll timeline to current hour on mount (and when view changes)
+  const scrollTimelineToNow = useCallback((ref: React.RefObject<any>) => {
+    if (!ref.current) return;
+    const now = new Date();
+    const currentHour = now.getHours();
+    // Scroll so current hour is ~2 rows from the top
+    const targetY = Math.max(0, (currentHour - TIMELINE_START - 1) * HOUR_HEIGHT);
+    setTimeout(() => {
+      ref.current?.scrollTo({ y: targetY, animated: true });
+    }, 300);
+  }, []);
+
+  useEffect(() => {
+    if (calendarView === "day") scrollTimelineToNow(dayTimelineRef);
+    else if (calendarView === "week") scrollTimelineToNow(weekTimelineRef);
+  }, [calendarView, scrollTimelineToNow]);
+
   // Week view: track the week start (Sunday)
   const [weekStart, setWeekStart] = useState<Date>(() => {
     const d = new Date();
@@ -1205,10 +1226,10 @@ export default function CalendarScreen() {
           <View style={{ paddingHorizontal: hp }}>
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Timeline</Text>
             <ScrollView
+              ref={dayTimelineRef}
               style={{ height: 480, borderRadius: 14 }}
               showsVerticalScrollIndicator={false}
               nestedScrollEnabled
-              contentOffset={{ x: 0, y: 6 * HOUR_HEIGHT }}
             >
               {renderTimeline(selectedDate, dayAppts)}
             </ScrollView>
@@ -1332,10 +1353,10 @@ export default function CalendarScreen() {
           {/* Timeline */}
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Timeline</Text>
           <ScrollView
+            ref={weekTimelineRef}
             style={{ height: 480, borderRadius: 14 }}
             showsVerticalScrollIndicator={false}
             nestedScrollEnabled
-            contentOffset={{ x: 0, y: 6 * HOUR_HEIGHT }}
           >
             {renderTimeline(
               selectedDate,

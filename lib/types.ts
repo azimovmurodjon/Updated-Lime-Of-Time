@@ -186,6 +186,8 @@ export interface StaffMember {
   createdAt: string;
   /** Commission rate as a percentage (0-100). e.g. 40 means staff earns 40% of service revenue */
   commissionRate?: number | null;
+  /** Profile photo URI (local file URI or remote URL) */
+  photoUri?: string | null;
 }
 
 export const STAFF_COLORS = [

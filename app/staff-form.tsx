@@ -12,7 +12,9 @@ import {
   Switch,
   Platform,
   Modal,
+  Image,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, generateId } from "@/lib/store";
@@ -120,6 +122,51 @@ export default function StaffFormScreen() {
   const [staffTimeError, setStaffTimeError] = useState<string | null>(null);
   const [staffSubPicker, setStaffSubPicker] = useState<"start" | "end" | null>(null);
 
+  // Profile photo
+  const [photoUri, setPhotoUri] = useState<string | null>(existing?.photoUri ?? null);
+
+  const pickPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission needed", "Please allow access to your photo library to upload a profile photo.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setPhotoUri(result.assets[0].uri);
+    }
+  };
+
+  const takePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission needed", "Please allow camera access to take a profile photo.");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setPhotoUri(result.assets[0].uri);
+    }
+  };
+
+  const handlePhotoPress = () => {
+    Alert.alert("Profile Photo", "Choose an option", [
+      { text: "Take Photo", onPress: takePhoto },
+      { text: "Choose from Library", onPress: pickPhoto },
+      ...(photoUri ? [{ text: "Remove Photo", style: "destructive" as const, onPress: () => setPhotoUri(null) }] : []),
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
   // Inline validation errors
   const [errors, setErrors] = useState<{ name?: string; location?: string; phone?: string }>({});
 
@@ -182,6 +229,7 @@ export default function StaffFormScreen() {
       active,
       createdAt: existing?.createdAt ?? new Date().toISOString(),
       commissionRate: commissionRate.trim() ? parseFloat(commissionRate) : null,
+      photoUri: photoUri ?? null,
     };
 
     const action = isEdit
@@ -221,6 +269,28 @@ export default function StaffFormScreen() {
         {/* Basic Info */}
         <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text className="text-base font-semibold text-foreground mb-3">Basic Information</Text>
+
+          {/* Profile Photo */}
+          <View style={{ alignItems: "center", marginBottom: 20 }}>
+            <Pressable onPress={handlePhotoPress} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+              {photoUri ? (
+                <Image
+                  source={{ uri: photoUri }}
+                  style={{ width: 88, height: 88, borderRadius: 44, borderWidth: 2, borderColor: colors.primary }}
+                />
+              ) : (
+                <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: color, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: colors.border }}>
+                  <Text style={{ color: "#fff", fontSize: 28, fontWeight: "700" }}>
+                    {name.trim() ? name.trim()[0].toUpperCase() : "?"}
+                  </Text>
+                </View>
+              )}
+              <View style={{ position: "absolute", bottom: 0, right: 0, backgroundColor: colors.primary, borderRadius: 12, width: 24, height: 24, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>+</Text>
+              </View>
+            </Pressable>
+            <Text style={{ color: colors.muted, fontSize: 12, marginTop: 6 }}>Tap to add photo</Text>
+          </View>
 
           <Text className="text-xs font-medium text-muted mb-1">Name *</Text>
           <TextInput

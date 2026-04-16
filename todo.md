@@ -1121,3 +1121,7 @@
 - [x] Add-optional products step in booking — add category/brand filter
 - [x] Birthday date picker — center the picker columns (currently left-aligned)
 - [x] Plan comparison table — full-screen modal with side-by-side feature matrix for all plans
+
+## Features (Apr 16 batch 4)
+- [x] Staff member profile photo — image picker in staff-form, avatar displayed in staff list and detail
+- [x] Timeline auto-scroll to current hour on open (calendar and staff-calendar)

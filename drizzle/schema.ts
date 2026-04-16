@@ -390,6 +390,10 @@ export const staffMembers = mysqlTable("staff_members", {
   workingHours: json("workingHours"),
   /** Whether the staff member is currently active */
   active: boolean("active").default(true).notNull(),
+  /** Profile photo URI (local file URI or remote URL) */
+  photoUri: varchar("photoUri", { length: 2048 }),
+  /** Commission rate as a percentage (0-100) */
+  commissionRate: int("commissionRate"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

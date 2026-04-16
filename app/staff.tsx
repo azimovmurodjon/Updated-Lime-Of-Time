@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Alert,
   Modal,
+  Image,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -114,12 +115,17 @@ export default function StaffScreen() {
     >
       <View style={styles.cardHeader}>
         <View style={styles.cardLeft}>
-          <View style={[styles.avatar, { backgroundColor: item.color || colors.primary }]}>
-            <Text style={styles.avatarText}>
-              {item.name.charAt(0).toUpperCase()}
-            </Text>
-          </View>
-          <View style={styles.cardInfo}>
+          {item.photoUri ? (
+            <Image source={{ uri: item.photoUri }} style={[styles.avatar, { borderWidth: 2, borderColor: item.color || colors.primary }]} />
+          ) : (
+            <View style={[styles.avatar, { backgroundColor: item.color || colors.primary }]}>
+              <Text style={styles.avatarText}>
+                {item.name.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.cardInfo}>
             <Text
               className="text-base font-semibold text-foreground"
               numberOfLines={1}
@@ -158,8 +164,7 @@ export default function StaffScreen() {
                 </Pressable>
               );
             })()}
-          </View>
-        </View>
+        </View>{/* cardInfo */}
         <View style={styles.cardActions}>
           <Pressable
             onPress={() => handleToggleActive(item)}

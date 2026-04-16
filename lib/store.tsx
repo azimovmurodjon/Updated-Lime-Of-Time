@@ -1704,6 +1704,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               locationIds: staff.locationIds,
               workingHours: staff.workingHours,
               active: staff.active,
+              photoUri: staff.photoUri ?? undefined,
+              commissionRate: staff.commissionRate ?? undefined,
             });
             break;
           }
@@ -1721,6 +1723,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               locationIds: staff.locationIds,
               workingHours: staff.workingHours,
               active: staff.active,
+              photoUri: staff.photoUri ?? undefined,
+              commissionRate: staff.commissionRate ?? undefined,
             });
             break;
           }

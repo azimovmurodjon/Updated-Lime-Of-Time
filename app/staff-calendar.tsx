@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
   Text,
   View,
@@ -52,6 +52,19 @@ export default function StaffCalendarScreen() {
   const [currentYear, setCurrentYear] = useState(now.getFullYear());
   const [selectedDate, setSelectedDate] = useState(formatDateStr(now));
   const [viewMode, setViewMode] = useState<"calendar" | "timeline">("calendar");
+
+  // Timeline scroll ref for auto-scroll to current hour
+  const staffTimelineRef = useRef<any>(null);
+
+  // Auto-scroll to current hour when timeline view opens
+  useEffect(() => {
+    if (viewMode !== "timeline" || !staffTimelineRef.current) return;
+    const currentHour = new Date().getHours();
+    const targetY = Math.max(0, (currentHour - 1) * 60);
+    setTimeout(() => {
+      staffTimelineRef.current?.scrollTo({ y: targetY, animated: true });
+    }, 300);
+  }, [viewMode]);
 
   const cellSize = Math.floor((width - hp * 2) / 7);
   const todayStr = formatDateStr(now);
@@ -519,7 +532,7 @@ export default function StaffCalendarScreen() {
                 <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
                   {formatDateDisplay(selectedDate)} — Timeline
                 </Text>
-                <ScrollView style={{ height: 480 }} showsVerticalScrollIndicator={false} nestedScrollEnabled>
+                <ScrollView ref={staffTimelineRef} style={{ height: 480 }} showsVerticalScrollIndicator={false} nestedScrollEnabled>
                 <View style={[styles.timelineContainer, { borderColor: colors.border, position: "relative" }]}>
                   {/* Hour grid rows */}
                   {timelineHours.map((hour) => {
