@@ -14,6 +14,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { PhotoLightbox } from "@/components/photo-lightbox";
 import { ScreenContainer } from "@/components/screen-container";
+import { BirthdayPicker } from "@/components/birthday-picker";
 import { useStore, formatTime, formatDateDisplay, generateId } from "@/lib/store";
 import { ClientPhoto } from "@/lib/types";
 import { useColors } from "@/hooks/use-colors";
@@ -442,7 +443,11 @@ export default function ClientDetailScreen() {
             />
             {editErrors.email ? <Text style={{ color: colors.error, fontSize: 12, marginBottom: 6, marginTop: -4 }}>{editErrors.email}</Text> : null}
             <TextInput style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground, minHeight: 60, textAlignVertical: "top" }]} placeholder="Notes" placeholderTextColor={colors.muted} value={editNotes} onChangeText={setEditNotes} multiline numberOfLines={3} returnKeyType="done" />
-            <TextInput style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]} placeholder="Birthday (MM/DD/YYYY)" placeholderTextColor={colors.muted} value={editBirthday} onChangeText={setEditBirthday} keyboardType="numbers-and-punctuation" returnKeyType="done" />
+            <BirthdayPicker
+              value={editBirthday}
+              onChange={setEditBirthday}
+              placeholder="Birthday (optional)"
+            />
             <View style={styles.editActions}>
               <Pressable onPress={() => setEditing(false)} style={({ pressed }) => [styles.cancelBtn, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}>
                 <Text style={{ fontSize: 14, color: colors.foreground }}>Cancel</Text>

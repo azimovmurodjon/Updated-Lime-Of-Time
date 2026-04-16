@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
+import { BirthdayPicker } from "@/components/birthday-picker";
 import { useStore, generateId, formatDateStr, formatTime, formatDateDisplay } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -626,14 +627,10 @@ export default function PublicBookingScreen() {
                 autoCapitalize="none"
                 returnKeyType="next"
               />
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-                placeholder="Birthday (MM/DD or MM/DD/YYYY) — optional"
-                placeholderTextColor={colors.muted}
+              <BirthdayPicker
                 value={clientBirthday}
-                onChangeText={(t) => setClientBirthday(t.replace(/[^0-9/]/g, ""))}
-                keyboardType="numbers-and-punctuation"
-                returnKeyType="next"
+                onChange={setClientBirthday}
+                placeholder="Birthday (optional)"
               />
               <TextInput
                 style={[

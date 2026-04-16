@@ -12,6 +12,7 @@ import { LocationSwitcher } from "@/components/location-switcher";
 import * as Contacts from "expo-contacts";
 import { usePlanLimitCheck } from "@/hooks/use-plan-limit-check";
 import { UpgradePlanSheet } from "@/components/upgrade-plan-sheet";
+import { BirthdayPicker } from "@/components/birthday-picker";
 
 export default function ClientsScreen() {
   const { state, dispatch, getReviewsForClient, getAppointmentsForClient, syncToDb, clientsForActiveLocation, filterAppointmentsByLocation } = useStore();
@@ -257,15 +258,11 @@ export default function ClientsScreen() {
               autoCapitalize="none"
               returnKeyType="next"
             />
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground, marginBottom: 14 }]}
-              placeholder="Birthday (MM/DD or MM/DD/YYYY) — optional"
-              placeholderTextColor={colors.muted}
+            <BirthdayPicker
               value={newBirthday}
-              onChangeText={(t) => setNewBirthday(t.replace(/[^0-9/]/g, ""))}
-              keyboardType="numbers-and-punctuation"
-              returnKeyType="done"
-              onSubmitEditing={handleAddClient}
+              onChange={setNewBirthday}
+              placeholder="Birthday (optional)"
+              style={{ marginBottom: 14 }}
             />
             <View style={styles.formActions}>
               <Pressable
