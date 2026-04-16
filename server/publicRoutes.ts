@@ -2179,6 +2179,35 @@ function homePage(): string {
     .store-badge-text small { font-size: 10px; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.5px; }
     .store-badge-text strong { font-size: 15px; font-weight: 700; }
 
+    /* ── FAQ ── */
+    .faq-section {
+      padding: 100px 5%; max-width: 860px; margin: 0 auto;
+    }
+    .faq-section .section-label { color: var(--lime); font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 12px; }
+    .faq-section h2 { font-size: clamp(28px, 3.5vw, 44px); font-weight: 900; letter-spacing: -0.5px; margin-bottom: 48px; }
+    .faq-list { display: flex; flex-direction: column; gap: 0; border-top: 1px solid var(--border); }
+    .faq-item { border-bottom: 1px solid var(--border); }
+    .faq-question {
+      width: 100%; background: none; border: none; color: var(--white);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 22px 0; cursor: pointer; text-align: left;
+      font-size: 17px; font-weight: 600; font-family: inherit; gap: 16px;
+      transition: color 0.2s;
+    }
+    .faq-question:hover { color: var(--lime); }
+    .faq-question.open { color: var(--lime); }
+    .faq-icon {
+      flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
+      border: 1.5px solid var(--border); display: flex; align-items: center; justify-content: center;
+      transition: all 0.25s; background: rgba(255,255,255,0.04);
+    }
+    .faq-question.open .faq-icon { background: var(--lime); border-color: var(--lime); transform: rotate(45deg); }
+    .faq-answer {
+      overflow: hidden; max-height: 0; transition: max-height 0.35s ease, padding 0.25s ease;
+      font-size: 15px; color: var(--gray2); line-height: 1.75; padding: 0;
+    }
+    .faq-answer.open { max-height: 400px; padding-bottom: 22px; }
+
     /* ── FOOTER ── */
     footer {
       background: var(--navy2); border-top: 1px solid var(--border);
@@ -2658,6 +2687,96 @@ function homePage(): string {
   </div>
   <p class="cta-note">No credit card required · 14-day free trial · Cancel anytime</p>
 </section>
+
+<!-- FAQ -->
+<section class="faq-section" id="faq">
+  <div class="section-label">FAQ</div>
+  <h2>Common questions,<br>honest answers.</h2>
+  <div class="faq-list">
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        Does Lime Of Time work without internet?
+        <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+      </button>
+      <div class="faq-answer">Yes — your appointments, clients, and services are stored locally on your device. You can view your calendar, add appointments, and manage clients even with no connection. Syncing and SMS automation require internet, but your core workflow never stops.</div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        Can I manage multiple locations?
+        <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+      </button>
+      <div class="faq-answer">Yes. The Studio plan supports 2 locations and the Enterprise plan supports unlimited locations. Each location has its own booking page, hours, staff, and analytics. You switch between locations with one tap from the Settings screen.</div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        How do clients book appointments?
+        <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+      </button>
+      <div class="faq-answer">Every business gets a unique booking link (e.g. lime-of-time.com/book/your-business). Share it on Instagram, Google, or print a QR code to display at the counter. Clients choose their service, staff member, and time slot in under 60 seconds — no app download needed.</div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        Can I add multiple staff members?
+        <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+      </button>
+      <div class="faq-answer">Yes. Each staff member gets their own schedule, services, and booking availability. Clients can choose a specific staff member when booking, or select “Any available”. The Growth plan includes 2 staff members, Studio includes 5, and Enterprise is unlimited.</div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        Does it send automatic appointment reminders?
+        <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+      </button>
+      <div class="faq-answer">Yes — SMS reminders are sent automatically before each appointment. You can set a custom reminder window per service (e.g. 2 hours for a haircut, 24 hours for a consultation). Birthday messages and rebooking nudges are also automated and fully customisable.</div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        Is there a free plan?
+        <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+      </button>
+      <div class="faq-answer">Yes. The Solo plan is completely free with no credit card required. It supports up to 10 clients, 5 services, and 1 staff member — perfect for solo practitioners just getting started. Upgrade to a paid plan whenever you’re ready to scale.</div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        Can I accept payments through the app?
+        <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+      </button>
+      <div class="faq-answer">Yes. The Growth plan includes Basic online payments, and Studio/Enterprise include Full payment processing. Clients can pay when booking online, and you can record cash or card payments directly in the app. Revenue is tracked automatically in your analytics.</div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        Can I cancel or change plans anytime?
+        <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+      </button>
+      <div class="faq-answer">Absolutely. You can upgrade, downgrade, or cancel your subscription at any time from the Settings → Subscription screen. There are no long-term contracts or cancellation fees. If you cancel, you keep access until the end of your billing period.</div>
+    </div>
+
+  </div>
+</section>
+
+<script>
+function toggleFaq(btn) {
+  const answer = btn.nextElementSibling;
+  const isOpen = btn.classList.contains('open');
+  // Close all others
+  document.querySelectorAll('.faq-question.open').forEach(q => {
+    q.classList.remove('open');
+    q.nextElementSibling.classList.remove('open');
+  });
+  // Toggle clicked
+  if (!isOpen) {
+    btn.classList.add('open');
+    answer.classList.add('open');
+  }
+}
+</script>
 
 <!-- FOOTER -->
 <footer>
