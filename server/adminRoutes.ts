@@ -16,6 +16,7 @@ import {
   locations,
   subscriptionPlans,
   platformConfig,
+  adminExpenses,
 } from "../drizzle/schema";
 import { sql, eq, count as drizzleCount } from "drizzle-orm";
 import { ADMIN_LOGO_BASE64 } from "./admin-logo-data";
@@ -719,17 +720,159 @@ export function registerAdminRoutes(app: Express): void {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
       const id = parseInt(req.params.id);
-      const { adminOverride, overridePlan } = req.body;
+      const { adminOverride, overridePlan, overrideStatus, overridePeriod } = req.body;
       const isOverride = adminOverride === "on" || adminOverride === "true" || adminOverride === "1";
-      await dbase.update(businessOwners).set({
+      const updateFields: Record<string, unknown> = {
         adminOverride: isOverride,
         subscriptionPlan: isOverride ? (overridePlan || "unlimited") : (overridePlan || "free"),
         updatedAt: new Date(),
-      } as any).where(eq(businessOwners.id, id));
+      };
+      if (overrideStatus) updateFields.subscriptionStatus = overrideStatus;
+      if (overridePeriod) updateFields.subscriptionPeriod = overridePeriod;
+      await dbase.update(businessOwners).set(updateFields as any).where(eq(businessOwners.id, id));
       res.redirect(`/admin/businesses/${id}?saved=1`);
     } catch (err) {
       console.error("[Admin] Override error:", err);
       res.status(500).send(errorPage("Failed to update override"));
+    }
+  });
+
+  // ── Expense CRUD ─────────────────────────────────────────────────────
+  app.post("/admin/financial/expenses", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
+      const { date, category, description, amount, notes } = req.body;
+      if (!date || !description || !amount) { res.redirect("/admin/financial?tab=expenses&error=missing"); return; }
+      await (dbase as any).insert(adminExpenses).values({ date, category: category || 'other', description, amount: parseFloat(amount), notes: notes || null });
+      res.redirect("/admin/financial?tab=expenses&saved=1");
+    } catch (err) {
+      console.error("[Admin] Add expense error:", err);
+      res.status(500).send(errorPage("Failed to add expense"));
+    }
+  });
+
+  app.post("/admin/financial/expenses/:id/delete", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
+      const id = parseInt(req.params.id);
+      await (dbase as any).delete(adminExpenses).where(eq(adminExpenses.id, id));
+      res.redirect("/admin/financial?tab=expenses");
+    } catch (err) {
+      console.error("[Admin] Delete expense error:", err);
+      res.status(500).send(errorPage("Failed to delete expense"));
+    }
+  });
+
+  // ── CSV Export ───────────────────────────────────────────────────────
+  app.get("/admin/financial/export/monthly", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send("DB unavailable"); return; }
+      const allAppts = await dbase.select().from(appointments);
+      const now = new Date();
+      const monthlyRevMap: Record<string, { rev: number; count: number }> = {};
+      for (let i = 23; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        monthlyRevMap[key] = { rev: 0, count: 0 };
+      }
+      allAppts.forEach((a) => {
+        if (!a.createdAt) return;
+        const d = new Date(a.createdAt);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        if (monthlyRevMap[key]) {
+          monthlyRevMap[key].rev += parseFloat(String((a as any).totalPrice ?? 0)) || 0;
+          monthlyRevMap[key].count++;
+        }
+      });
+      const allExpenses = await (dbase as any).select().from(adminExpenses).catch(() => [] as any[]);
+      const expByMonth: Record<string, number> = {};
+      allExpenses.forEach((e: any) => {
+        if (!e.date) return;
+        const mo = e.date.substring(0, 7);
+        expByMonth[mo] = (expByMonth[mo] || 0) + (parseFloat(String(e.amount)) || 0);
+      });
+      let csv = 'Month,Appointment Revenue,Appointments,Expenses,Net Income\n';
+      Object.entries(monthlyRevMap).sort((a, b) => a[0].localeCompare(b[0])).forEach(([month, d]) => {
+        const exp = expByMonth[month] || 0;
+        csv += `${month},${d.rev.toFixed(2)},${d.count},${exp.toFixed(2)},${(d.rev - exp).toFixed(2)}\n`;
+      });
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="monthly-revenue-${now.getFullYear()}.csv"`);
+      res.send(csv);
+    } catch (err) {
+      console.error("[Admin] CSV export error:", err);
+      res.status(500).send("Export failed");
+    }
+  });
+
+  app.get("/admin/financial/export/yearly", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send("DB unavailable"); return; }
+      const allAppts = await dbase.select().from(appointments);
+      const allBiz = await dbase.select().from(businessOwners);
+      const allPlans = await dbase.select().from(subscriptionPlans);
+      const planPriceMap: Record<string, number> = {};
+      allPlans.forEach((p) => { planPriceMap[p.planKey] = parseFloat(p.monthlyPrice as string) || 0; });
+      const now = new Date();
+      const yearlyRevMap: Record<string, { apptRev: number; subRev: number; apptCount: number }> = {};
+      for (let y = now.getFullYear() - 4; y <= now.getFullYear(); y++) yearlyRevMap[String(y)] = { apptRev: 0, subRev: 0, apptCount: 0 };
+      allAppts.forEach((a) => {
+        if (!a.createdAt) return;
+        const yr = String(new Date(a.createdAt).getFullYear());
+        if (yearlyRevMap[yr]) { yearlyRevMap[yr].apptRev += parseFloat(String((a as any).totalPrice ?? 0)) || 0; yearlyRevMap[yr].apptCount++; }
+      });
+      allBiz.forEach((b) => {
+        if (!b.createdAt) return;
+        const mp = planPriceMap[b.subscriptionPlan] || 0;
+        if (mp === 0) return;
+        const joinDate = new Date(b.createdAt);
+        const endDate = b.subscriptionStatus === 'expired' && b.updatedAt ? new Date(b.updatedAt) : now;
+        let cursor = new Date(joinDate.getFullYear(), joinDate.getMonth(), 1);
+        while (cursor <= endDate) { const yr = String(cursor.getFullYear()); if (yearlyRevMap[yr]) yearlyRevMap[yr].subRev += mp; cursor.setMonth(cursor.getMonth() + 1); }
+      });
+      const allExpenses = await (dbase as any).select().from(adminExpenses).catch(() => [] as any[]);
+      const expByYear: Record<string, number> = {};
+      allExpenses.forEach((e: any) => { if (!e.date) return; const yr = e.date.substring(0, 4); expByYear[yr] = (expByYear[yr] || 0) + (parseFloat(String(e.amount)) || 0); });
+      let csv = 'Year,Appointment Revenue,Subscription Revenue,Total Revenue,Appointments,Expenses,Net Income,Est. Tax (30%)\n';
+      Object.entries(yearlyRevMap).sort((a, b) => a[0].localeCompare(b[0])).forEach(([year, d]) => {
+        const total = d.apptRev + d.subRev;
+        const exp = expByYear[year] || 0;
+        const net = total - exp;
+        const tax = Math.max(0, net) * 0.30;
+        csv += `${year},${d.apptRev.toFixed(2)},${d.subRev.toFixed(2)},${total.toFixed(2)},${d.apptCount},${exp.toFixed(2)},${net.toFixed(2)},${tax.toFixed(2)}\n`;
+      });
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="yearly-revenue-summary.csv"`);
+      res.send(csv);
+    } catch (err) {
+      console.error("[Admin] CSV export error:", err);
+      res.status(500).send("Export failed");
+    }
+  });
+
+  app.get("/admin/financial/export/expenses", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send("DB unavailable"); return; }
+      const year = req.query.year as string;
+      const allExpenses = await (dbase as any).select().from(adminExpenses).catch(() => [] as any[]);
+      const filtered = year ? allExpenses.filter((e: any) => e.date && e.date.startsWith(year)) : allExpenses;
+      let csv = 'Date,Category,Description,Amount,Notes\n';
+      filtered.forEach((e: any) => {
+        const desc = (e.description || '').replace(/"/g, '""');
+        const notes = (e.notes || '').replace(/"/g, '""');
+        csv += `${e.date},${e.category},"${desc}",${parseFloat(String(e.amount)).toFixed(2)},"${notes}"\n`;
+      });
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="expenses${year ? '-' + year : ''}.csv"`);
+      res.send(csv);
+    } catch (err) {
+      console.error("[Admin] CSV export error:", err);
+      res.status(500).send("Export failed");
     }
   });
 
@@ -790,6 +933,8 @@ export function registerAdminRoutes(app: Express): void {
       const allAppts = await dbase.select().from(appointments);
       const allBiz = await dbase.select().from(businessOwners);
       const allPlans = await dbase.select().from(subscriptionPlans);
+      // Fetch expenses
+      const allExpenses = await (dbase as any).select().from(adminExpenses).catch(() => [] as any[]);
 
       // Plan price map
       const planPriceMap: Record<string, { monthly: number; yearly: number }> = {};
@@ -907,6 +1052,19 @@ export function registerAdminRoutes(app: Express): void {
       const estimatedTax = thisYearTotal * TAX_RATE;
       const quarterlyTaxEst = estimatedTax / 4;
 
+      // Expense totals
+      const thisYearExpenses = allExpenses
+        .filter((e: any) => e.date && e.date.startsWith(String(currentYear)))
+        .reduce((s: number, e: any) => s + (parseFloat(String(e.amount)) || 0), 0);
+      const expensesByMonth: Record<string, number> = {};
+      const expensesByCategory: Record<string, number> = {};
+      allExpenses.forEach((e: any) => {
+        if (!e.date) return;
+        const mo = e.date.substring(0, 7);
+        expensesByMonth[mo] = (expensesByMonth[mo] || 0) + (parseFloat(String(e.amount)) || 0);
+        expensesByCategory[e.category] = (expensesByCategory[e.category] || 0) + (parseFloat(String(e.amount)) || 0);
+      });
+
       res.send(financialPage({
         monthlyData,
         yearlyData,
@@ -917,6 +1075,10 @@ export function registerAdminRoutes(app: Express): void {
         estimatedTax,
         quarterlyTaxEst,
         currentYear,
+        expenses: allExpenses,
+        thisYearExpenses,
+        expensesByMonth,
+        expensesByCategory,
       }));
     } catch (err) {
       console.error("[Admin] Financial error:", err);
@@ -2913,6 +3075,10 @@ function financialPage(data: {
   estimatedTax: number;
   quarterlyTaxEst: number;
   currentYear: number;
+  expenses: any[];
+  thisYearExpenses: number;
+  expensesByMonth: Record<string, number>;
+  expensesByCategory: Record<string, number>;
 }): string {
   const fmt = (n: number) => "$" + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   const fmtN = (n: number) => n.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
@@ -2931,6 +3097,13 @@ function financialPage(data: {
   const qTaxVals = JSON.stringify(data.quarters.map((q) => parseFloat(((q.apptRev + q.subRev) * 0.30).toFixed(2))));
 
   const printDate = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const netIncome = data.thisYearTotal - data.thisYearExpenses;
+  const estimatedTaxOnNet = Math.max(0, netIncome) * 0.30;
+  const expMonthLabels = JSON.stringify(data.monthlyData.map((m) => m.month));
+  const expMonthVals = JSON.stringify(data.monthlyData.map((m) => parseFloat((data.expensesByMonth[m.month] || 0).toFixed(2))));
+  const expCatLabels = JSON.stringify(Object.keys(data.expensesByCategory));
+  const expCatVals = JSON.stringify(Object.values(data.expensesByCategory).map((v) => parseFloat(v.toFixed(2))));
+  const expensesJson = JSON.stringify(data.expenses.map((e) => ({ id: e.id, date: e.date, category: e.category, description: e.description, amount: parseFloat(String(e.amount)), notes: e.notes || '' })));
 
   return adminLayout("Financial", "financial", `
     <style>
@@ -3018,6 +3191,7 @@ function financialPage(data: {
       <button class="tab-btn active" onclick="switchTab('monthly', this)">📊 Monthly Income</button>
       <button class="tab-btn" onclick="switchTab('yearly', this)">📈 Yearly Summary</button>
       <button class="tab-btn" onclick="switchTab('quarterly', this)">🗓️ Quarterly Tax</button>
+      <button class="tab-btn" onclick="switchTab('expenses', this)">💸 Expenses</button>
       <button class="tab-btn" onclick="switchTab('taxprep', this)">📋 Tax Preparation</button>
     </div>
 
@@ -3026,7 +3200,10 @@ function financialPage(data: {
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
           <h3 style="margin:0;">Monthly Revenue (Last 24 Months)</h3>
-          <span style="font-size:12px;color:var(--text-muted);">Click bars to see details</span>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span style="font-size:12px;color:var(--text-muted);">Click bars to see details</span>
+            <a href="/admin/financial/export/monthly" class="btn btn-secondary btn-sm no-print">⬇️ CSV</a>
+          </div>
         </div>
         <div class="chart-container tall">
           <canvas id="monthlyChart"></canvas>
@@ -3046,7 +3223,10 @@ function financialPage(data: {
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
           <h3 style="margin:0;">Annual Revenue Breakdown (Last 5 Years)</h3>
-          <span style="font-size:12px;color:var(--text-muted);">Click bars to see year details</span>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span style="font-size:12px;color:var(--text-muted);">Click bars to see year details</span>
+            <a href="/admin/financial/export/yearly" class="btn btn-secondary btn-sm no-print">⬇️ CSV</a>
+          </div>
         </div>
         <div class="chart-container tall">
           <canvas id="yearlyChart"></canvas>
@@ -3142,6 +3322,103 @@ function financialPage(data: {
         <div class="tax-note">
           ⚠️ <strong>Disclaimer:</strong> Tax estimates use a flat 30% effective rate as a rough guide for US self-employment taxes. Consult a licensed CPA or tax professional for accurate tax advice.
         </div>
+      </div>
+    </div>
+
+    <!-- Expenses Tab -->
+    <div id="tab-expenses" class="tab-panel">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h3 style="margin:0;">💸 Expenses — ${data.currentYear}</h3>
+          <div style="display:flex;gap:8px;">
+            <a href="/admin/financial/export/expenses?year=${data.currentYear}" class="btn btn-secondary btn-sm no-print">⬇️ Download CSV</a>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px;">
+          <div style="background:var(--bg-hover);border-radius:8px;padding:14px;">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Total Expenses ${data.currentYear}</div>
+            <div style="font-size:24px;font-weight:700;color:#ef4444;">${fmt(data.thisYearExpenses)}</div>
+          </div>
+          <div style="background:var(--bg-hover);border-radius:8px;padding:14px;">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Net Income (after expenses)</div>
+            <div style="font-size:24px;font-weight:700;color:#22c55e;">${fmt(netIncome)}</div>
+          </div>
+          <div style="background:var(--bg-hover);border-radius:8px;padding:14px;">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Est. Tax on Net Income</div>
+            <div style="font-size:24px;font-weight:700;color:#f59e0b;">${fmt(estimatedTaxOnNet)}</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+          <div>
+            <h4 style="margin-bottom:8px;font-size:13px;color:var(--text-muted);">Monthly Expenses</h4>
+            <div class="chart-container"><canvas id="expMonthChart"></canvas></div>
+          </div>
+          <div>
+            <h4 style="margin-bottom:8px;font-size:13px;color:var(--text-muted);">By Category</h4>
+            <div class="chart-container"><canvas id="expCatChart"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add Expense Form -->
+      <div class="card no-print">
+        <h3 style="margin-bottom:16px;">Add Expense</h3>
+        <form method="POST" action="/admin/financial/expenses" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:12px;align-items:end;">
+          <div>
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Date</label>
+            <input type="date" name="date" required style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;" />
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Category</label>
+            <select name="category" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;">
+              <option value="hosting">Hosting</option>
+              <option value="marketing">Marketing</option>
+              <option value="software">Software</option>
+              <option value="payroll">Payroll</option>
+              <option value="legal">Legal</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Description</label>
+            <input type="text" name="description" required placeholder="e.g. AWS hosting" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;" />
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Amount ($)</label>
+            <input type="number" name="amount" step="0.01" min="0" required placeholder="0.00" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;" />
+          </div>
+          <button type="submit" class="btn btn-primary" style="height:38px;white-space:nowrap;">+ Add</button>
+        </form>
+      </div>
+
+      <!-- Expense List -->
+      <div class="card" style="overflow-x:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h3 style="margin:0;">All Expenses</h3>
+          <input type="text" id="expSearch" placeholder="Search expenses..." oninput="filterExpenses()" style="padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;width:200px;" />
+        </div>
+        <table id="expTable">
+          <thead><tr style="background:var(--bg-hover);"><th>Date</th><th>Category</th><th>Description</th><th style="text-align:right;">Amount</th><th>Notes</th><th class="no-print">Actions</th></tr></thead>
+          <tbody id="expTbody">
+            ${data.expenses.length === 0 ? '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">No expenses recorded yet. Add your first expense above.</td></tr>' : data.expenses.map((e) => {
+              const amt = parseFloat(String(e.amount)) || 0;
+              const catColors: Record<string, string> = { hosting: '#0a7ea4', marketing: '#7c3aed', software: '#059669', payroll: '#f59e0b', legal: '#ef4444', other: '#6b7280' };
+              const col = catColors[e.category] || '#6b7280';
+              return `<tr class="exp-row" data-desc="${escHtml((e.description || '').toLowerCase())}" data-cat="${e.category}">
+                <td style="font-size:13px;">${e.date}</td>
+                <td><span style="background:${col}20;color:${col};padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;">${e.category}</span></td>
+                <td>${escHtml(e.description || '')}</td>
+                <td style="text-align:right;font-weight:600;color:#ef4444;">${fmt(amt)}</td>
+                <td style="font-size:12px;color:var(--text-muted);">${escHtml(e.notes || '')}</td>
+                <td class="no-print">
+                  <form method="POST" action="/admin/financial/expenses/${e.id}/delete" style="display:inline;" onsubmit="return confirm('Delete this expense?')">
+                    <button type="submit" class="btn btn-secondary btn-sm" style="color:#ef4444;">Delete</button>
+                  </form>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -3277,13 +3554,44 @@ function financialPage(data: {
         }}
       });
 
+      // Expense Monthly Chart
+      let expMonthChart, expCatChart;
+      function initExpenseCharts() {
+        if (expMonthChart) return;
+        const expMonthCtx = document.getElementById('expMonthChart');
+        const expCatCtx = document.getElementById('expCatChart');
+        if (!expMonthCtx || !expCatCtx) return;
+        expMonthChart = new Chart(expMonthCtx.getContext('2d'), {
+          type: 'bar',
+          data: { labels: ${expMonthLabels}, datasets: [{ label: 'Expenses ($)', data: ${expMonthVals}, backgroundColor: '#ef444499', borderColor: '#ef4444', borderWidth: 1, borderRadius: 4 }] },
+          options: { ...CHART_DEFAULTS, responsive: true, maintainAspectRatio: false }
+        });
+        expCatChart = new Chart(expCatCtx.getContext('2d'), {
+          type: 'doughnut',
+          data: { labels: ${expCatLabels}, datasets: [{ data: ${expCatVals}, backgroundColor: ['#0a7ea4','#7c3aed','#059669','#f59e0b','#ef4444','#6b7280'], borderWidth: 2 }] },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#e4e6eb', font: { size: 12 } } } } }
+        });
+      }
+
+      function filterExpenses() {
+        const q = document.getElementById('expSearch').value.toLowerCase();
+        document.querySelectorAll('#expTbody .exp-row').forEach(row => {
+          const desc = row.getAttribute('data-desc') || '';
+          const cat = row.getAttribute('data-cat') || '';
+          row.style.display = (!q || desc.includes(q) || cat.includes(q)) ? '' : 'none';
+        });
+      }
+
       function switchTab(name, btn) {
         document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.getElementById('tab-' + name).classList.add('active');
         btn.classList.add('active');
         // Resize charts after tab switch
-        setTimeout(() => { monthlyChart.resize(); yearlyChart.resize(); quarterlyChart.resize(); }, 50);
+        setTimeout(() => {
+          monthlyChart.resize(); yearlyChart.resize(); quarterlyChart.resize();
+          if (name === 'expenses') { initExpenseCharts(); if (expMonthChart) expMonthChart.resize(); if (expCatChart) expCatChart.resize(); }
+        }, 50);
       }
     </script>
   `);

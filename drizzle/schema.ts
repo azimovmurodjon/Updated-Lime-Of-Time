@@ -487,3 +487,23 @@ export const platformConfig = mysqlTable("platform_config", {
 
 export type PlatformConfig = typeof platformConfig.$inferSelect;
 export type InsertPlatformConfig = typeof platformConfig.$inferInsert;
+
+// ─── Admin Expenses ────────────────────────────────────────────────
+// Platform-level expenses tracked by the admin for tax/reporting purposes
+export const adminExpenses = mysqlTable("admin_expenses", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Expense date in YYYY-MM-DD format */
+  date: varchar("date", { length: 10 }).notNull(),
+  /** Category: hosting | marketing | software | payroll | legal | other */
+  category: mysqlEnum("category", ["hosting", "marketing", "software", "payroll", "legal", "other"]).notNull().default("other"),
+  /** Short description */
+  description: varchar("description", { length: 255 }).notNull(),
+  /** Amount in USD */
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  /** Optional notes */
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type AdminExpense = typeof adminExpenses.$inferSelect;
+export type InsertAdminExpense = typeof adminExpenses.$inferInsert;
