@@ -318,13 +318,13 @@ export function PlanCarousel({
   const colors = useColors();
   const { width: screenWidth } = useWindowDimensions();
 
-  // Card is 82% of screen width — prev/next card peeks in on both sides
-  const CARD_WIDTH = Math.round(screenWidth * 0.82);
+  // Card is 76% of screen width — prev/next card peeks in clearly on both sides
+  const CARD_WIDTH = Math.round(screenWidth * 0.76);
   // Gap between cards (visual separation)
-  const CARD_GAP = 12;
+  const CARD_GAP = 14;
   // Each list item = card + gap
   const ITEM_STRIDE = CARD_WIDTH + CARD_GAP;
-  // Inset so the first card is centered on screen
+  // Inset so the active card is perfectly centered
   const SIDE_INSET = Math.round((screenWidth - CARD_WIDTH) / 2);
 
   const scrollX = useSharedValue(0);
@@ -352,6 +352,19 @@ export function PlanCarousel({
       scrollX.value = e.nativeEvent.contentOffset.x;
       const idx = Math.round(e.nativeEvent.contentOffset.x / ITEM_STRIDE);
       setActiveIndex(Math.max(0, Math.min(idx, plans.length - 1)));
+    },
+    [ITEM_STRIDE, plans.length, scrollX]
+  );
+
+  // Snap to nearest card when the user lifts their finger (even if they barely swiped)
+  const snapToNearest = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const offset = e.nativeEvent.contentOffset.x;
+      const idx = Math.round(offset / ITEM_STRIDE);
+      const clamped = Math.max(0, Math.min(idx, plans.length - 1));
+      flatListRef.current?.scrollToOffset({ offset: clamped * ITEM_STRIDE, animated: true });
+      setActiveIndex(clamped);
+      scrollX.value = clamped * ITEM_STRIDE;
     },
     [ITEM_STRIDE, plans.length, scrollX]
   );
@@ -428,12 +441,15 @@ export function PlanCarousel({
         snapToInterval={ITEM_STRIDE}
         snapToAlignment="start"
         decelerationRate="fast"
-        // Side insets center the active card
+        // Side insets center the active card (iOS uses contentInset, Android uses padding)
         contentInset={{ left: SIDE_INSET, right: SIDE_INSET }}
         contentOffset={{ x: -SIDE_INSET, y: 0 }}
         contentContainerStyle={{ paddingHorizontal: SIDE_INSET }}
         onScroll={handleScroll}
         scrollEventThrottle={16}
+        // Snap to nearest card on finger lift (handles slow/partial swipes)
+        onScrollEndDrag={snapToNearest}
+        onMomentumScrollEnd={snapToNearest}
         getItemLayout={(_, index) => ({
           length: ITEM_STRIDE,
           offset: ITEM_STRIDE * index,

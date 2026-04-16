@@ -1300,8 +1300,79 @@ export default function AnalyticsDetailScreen() {
           const maxRevenue = Math.max(...staffData.map((s) => s.revenue), 1);
           const totalStaffRevenue = staffData.reduce((s, m) => s + m.revenue, 0);
 
+          const top3 = staffData.slice(0, 3);
+
           return (
             <View>
+
+              {/* ── Top Staff Podium ── */}
+              {top3.length > 0 && (
+                <View style={{ marginBottom: 4 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 }}>
+                    <IconSymbol name="crown.fill" size={16} color="#f59e0b" />
+                    <Text style={{ fontSize: 15, fontWeight: "800", color: colors.foreground }}>Top Staff</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted, marginLeft: 2 }}>by revenue</Text>
+                  </View>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    {top3.map((sm, idx) => {
+                      const medals = ["🥇", "🥈", "🥉"];
+                      const podiumColors = ["#FFD700", "#C0C0C0", "#CD7F32"];
+                      const podiumBg = ["#FFF9E6", "#F8F8F8", "#FDF3E7"];
+                      const podiumBorder = ["#FFD70040", "#C0C0C040", "#CD7F3240"];
+                      return (
+                        <View
+                          key={sm.id}
+                          style={[{
+                            flex: 1,
+                            borderRadius: 16,
+                            padding: 12,
+                            alignItems: "center",
+                            gap: 4,
+                            borderWidth: 1.5,
+                          }, {
+                            backgroundColor: podiumBg[idx] ?? colors.surface,
+                            borderColor: podiumBorder[idx] ?? colors.border,
+                          }]}
+                        >
+                          <Text style={{ fontSize: 22 }}>{medals[idx]}</Text>
+                          {/* Avatar circle */}
+                          <View style={[{
+                            width: 44,
+                            height: 44,
+                            borderRadius: 22,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            borderWidth: 2,
+                          }, { backgroundColor: sm.color + "22", borderColor: podiumColors[idx] ?? sm.color }]}>
+                            <Text style={{ fontSize: 16, fontWeight: "800", color: sm.color }}>
+                              {sm.name.charAt(0).toUpperCase()}
+                            </Text>
+                          </View>
+                          {/* Name */}
+                          <Text style={{ fontSize: 11, fontWeight: "700", color: colors.foreground, textAlign: "center" }} numberOfLines={1}>
+                            {sm.name.split(" ")[0]}
+                          </Text>
+                          {/* Revenue */}
+                          <Text style={{ fontSize: 13, fontWeight: "800", color: podiumColors[idx] ?? sm.color }}>
+                            ${sm.revenue >= 1000 ? (sm.revenue / 1000).toFixed(1) + "k" : sm.revenue.toLocaleString()}
+                          </Text>
+                          {/* Appts */}
+                          <Text style={{ fontSize: 10, color: colors.muted }}>{sm.apptCount} appts</Text>
+                          {/* Star rating */}
+                          {sm.avgRating !== null && (
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
+                              <Text style={{ fontSize: 10, color: "#f59e0b" }}>★</Text>
+                              <Text style={{ fontSize: 10, fontWeight: "700", color: "#f59e0b" }}>{sm.avgRating.toFixed(1)}</Text>
+                              <Text style={{ fontSize: 9, color: colors.muted }}>({sm.reviewCount})</Text>
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+
               {/* Summary */}
               <View style={[styles.summaryCard, { backgroundColor: "#F3E8FF", borderColor: "#9C27B030" }]}>
                 <Text style={{ fontSize: 36, fontWeight: "800", color: "#9C27B0" }}>{staffData.length}</Text>

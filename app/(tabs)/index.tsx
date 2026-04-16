@@ -29,6 +29,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { KpiDetailSheet, MicroSparkLine, MicroBarSpark, type KpiTab } from "@/components/kpi-detail-sheet";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
+import QRCode from "react-native-qrcode-svg";
 
 // App logo URL (same as app.config.ts logoUrl)
 const APP_LOGO_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/jHoNjHdLsUGgpFhz.png";
@@ -222,6 +223,9 @@ export default function HomeScreen() {
   // ─── Location Share Picker ──────────────────────────────────
   const [showSharePicker, setShowSharePicker] = useState(false);
 
+  // ─── QR Booking Card ─────────────────────────────────────────
+  const [showQrModal, setShowQrModal] = useState(false);
+
   // ─── KPI Detail Sheet ─────────────────────────────────────────
   const [kpiDetailTab, setKpiDetailTab] = useState<KpiTab | null>(null);
 
@@ -378,10 +382,17 @@ export default function HomeScreen() {
     }
   }, [tutorialStep, tutorialFade]);
 
-  // ─── Location Filter (global) ──────────────────────────────
+  // ─── Location Filter (global) ──────────────────────────────────
   const { activeLocation, activeLocations, hasMultipleLocations, setActiveLocation } = useActiveLocation();
   const selectedLocationFilter = activeLocation?.id ?? null;
 
+  // ─── Primary booking URL (for QR card) ─────────────────────────────
+  const primaryBookingUrl = useMemo(() => {
+    const slug = state.settings.customSlug || state.settings.businessName.replace(/\s+/g, "-").toLowerCase();
+    const loc = activeLocation;
+    const locationParam = loc ? `?location=${encodeURIComponent(loc.id)}` : "";
+    return `${PUBLIC_BOOKING_URL}/book/${slug}${locationParam}`;
+  }, [state.settings, activeLocation]);
   // Use the store's location-aware filter (single source of truth)
   const filterByLocation = filterAppointmentsByLocation;
 
@@ -1272,7 +1283,76 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* ─── Quick Actions ────────────────────────────────────────────── */}
+        {/* ─── Share Booking Link QR Card ──────────────────────────────────── */}
+        <Pressable
+          onPress={() => setShowQrModal(true)}
+          style={({ pressed }) => ({
+            marginTop: 20,
+            borderRadius: 18,
+            overflow: "hidden",
+            opacity: pressed ? 0.88 : 1,
+            transform: [{ scale: pressed ? 0.99 : 1 }],
+          })}
+        >
+          <LinearGradient
+            colors={["#0a7ea4", "#0369a1"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              padding: 16,
+              gap: 14,
+            }}
+          >
+            {/* QR preview */}
+            <View style={{
+              width: 72,
+              height: 72,
+              borderRadius: 12,
+              backgroundColor: "#fff",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 4,
+              flexShrink: 0,
+            }}>
+              <QRCode
+                value={primaryBookingUrl}
+                size={60}
+                color="#000"
+                backgroundColor="#fff"
+              />
+            </View>
+            {/* Text */}
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 16, fontWeight: "800", color: "#fff", marginBottom: 2 }}>
+                Share Booking Link
+              </Text>
+              <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.75)", lineHeight: 17 }}>
+                Tap to view full QR code, copy link, or share with clients
+              </Text>
+              <View style={{
+                flexDirection: "row",
+                gap: 6,
+                marginTop: 8,
+              }}>
+                {["Copy Link", "Share", "Full QR"].map((label) => (
+                  <View key={label} style={{
+                    backgroundColor: "rgba(255,255,255,0.2)",
+                    borderRadius: 6,
+                    paddingHorizontal: 8,
+                    paddingVertical: 3,
+                  }}>
+                    <Text style={{ fontSize: 10, fontWeight: "700", color: "#fff" }}>{label}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+            <IconSymbol name="chevron.right" size={18} color="rgba(255,255,255,0.6)" />
+          </LinearGradient>
+        </Pressable>
+
+        {/* ─── Quick Actions ──────────────────────────────────────────────────────── */}
         <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 24 }]}>
           Quick Actions
         </Text>
@@ -1745,7 +1825,118 @@ export default function HomeScreen() {
         </Pressable>
       </Modal>
 
-      {/* ─── KPI Detail Sheet ──────────────────────────────────── */}
+      {/* ─── QR Booking Link Modal ───────────────────────────────────────── */}
+      <Modal visible={showQrModal} transparent animationType="fade" onRequestClose={() => setShowQrModal(false)}>
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center", padding: 24 }}
+          onPress={() => setShowQrModal(false)}
+        >
+          <Pressable
+            style={[{
+              borderRadius: 24,
+              padding: 24,
+              alignItems: "center",
+              width: "100%",
+              maxWidth: 340,
+              gap: 16,
+            }, { backgroundColor: colors.surface }]}
+            onPress={() => {}}
+          >
+            {/* Header */}
+            <View style={{ flexDirection: "row", alignItems: "center", width: "100%", marginBottom: 4 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 18, fontWeight: "800", color: colors.foreground }}>Booking QR Code</Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{state.settings.businessName}</Text>
+              </View>
+              <Pressable
+                onPress={() => setShowQrModal(false)}
+                style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.border, alignItems: "center", justifyContent: "center" }}
+              >
+                <IconSymbol name="xmark.circle.fill" size={18} color={colors.muted} />
+              </Pressable>
+            </View>
+
+            {/* Large QR Code */}
+            <View style={{
+              width: 220,
+              height: 220,
+              backgroundColor: "#fff",
+              borderRadius: 16,
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 12,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 8,
+              elevation: 4,
+            }}>
+              <QRCode
+                value={primaryBookingUrl}
+                size={196}
+                color="#000"
+                backgroundColor="#fff"
+              />
+            </View>
+
+            {/* URL pill */}
+            <View style={[{ borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, width: "100%" }, { backgroundColor: colors.background }]}>
+              <Text style={{ fontSize: 11, color: colors.muted, textAlign: "center" }} numberOfLines={2}>
+                {primaryBookingUrl}
+              </Text>
+            </View>
+
+            {/* Action buttons */}
+            <View style={{ flexDirection: "row", gap: 10, width: "100%" }}>
+              <Pressable
+                onPress={async () => {
+                  const { default: Clipboard } = await import("expo-clipboard");
+                  await Clipboard.setStringAsync(primaryBookingUrl);
+                  Alert.alert("Copied!", "Booking link copied to clipboard.");
+                }}
+                style={({ pressed }) => [{
+                  flex: 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  opacity: pressed ? 0.8 : 1,
+                }, { backgroundColor: colors.border }]}
+              >
+                <IconSymbol name="doc.on.doc.fill" size={16} color={colors.foreground} />
+                <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground }}>Copy Link</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  setShowQrModal(false);
+                  setTimeout(() => doShareForLocation(activeLocation), 300);
+                }}
+                style={({ pressed }) => [{
+                  flex: 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  opacity: pressed ? 0.8 : 1,
+                }, { backgroundColor: colors.primary }]}
+              >
+                <IconSymbol name="paperplane.fill" size={16} color="#fff" />
+                <Text style={{ fontSize: 13, fontWeight: "700", color: "#fff" }}>Share</Text>
+              </Pressable>
+            </View>
+
+            <Text style={{ fontSize: 11, color: colors.muted, textAlign: "center" }}>
+              Display at your counter or print for clients to scan
+            </Text>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ─── KPI Detail Sheet ──────────────────────────────────────────── */}
       <KpiDetailSheet
         visible={kpiDetailTab !== null}
         tab={kpiDetailTab}
