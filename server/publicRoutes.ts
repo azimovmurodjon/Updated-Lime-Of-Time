@@ -2165,6 +2165,20 @@ function homePage(): string {
     .cta-actions { display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap; }
     .cta-note { font-size: 13px; color: var(--gray); margin-top: 16px; }
 
+    /* ── STORE BADGES ── */
+    .store-badges { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; margin-top: 24px; }
+    .store-badge {
+      display: inline-flex; align-items: center; gap: 10px;
+      background: rgba(255,255,255,0.06); border: 1.5px solid rgba(255,255,255,0.14);
+      border-radius: 12px; padding: 10px 20px; text-decoration: none; color: var(--white);
+      transition: all 0.2s; backdrop-filter: blur(8px);
+    }
+    .store-badge:hover { background: rgba(255,255,255,0.12); border-color: rgba(126,200,32,0.5); transform: translateY(-2px); }
+    .store-badge svg { flex-shrink: 0; }
+    .store-badge-text { display: flex; flex-direction: column; line-height: 1.2; }
+    .store-badge-text small { font-size: 10px; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.5px; }
+    .store-badge-text strong { font-size: 15px; font-weight: 700; }
+
     /* ── FOOTER ── */
     footer {
       background: var(--navy2); border-top: 1px solid var(--border);
@@ -2252,7 +2266,6 @@ function homePage(): string {
     <a href="#reviews">Reviews</a>
   </div>
   <div class="nav-cta">
-    <a href="#" class="btn-outline">Log in</a>
     <a href="#" class="btn-primary">Start Free ↗</a>
   </div>
   <div class="hamburger" id="hamburger">
@@ -2275,6 +2288,22 @@ function homePage(): string {
   <div class="hero-actions">
     <a href="#" class="btn-hero">Get Started Free →</a>
     <a href="#features" class="btn-hero-ghost">See All Features</a>
+  </div>
+  <div class="store-badges">
+    <a href="https://apps.apple.com/" target="_blank" rel="noopener" class="store-badge">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+      <div class="store-badge-text">
+        <small>Download on the</small>
+        <strong>App Store</strong>
+      </div>
+    </a>
+    <a href="https://play.google.com/" target="_blank" rel="noopener" class="store-badge">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M3 20.5v-17c0-.83.94-1.3 1.6-.8l14 8.5c.6.36.6 1.24 0 1.6l-14 8.5c-.66.5-1.6.03-1.6-.8z" opacity=".6"/><path d="M3 20.5l9.5-9.5L3 3.5v17z" opacity=".4"/><path d="M3 3.5l9.5 8L17 8 4.6 3.2C3.94 2.7 3 3.17 3 3.5z"/><path d="M3 20.5l9.5-8L17 16 4.6 20.8c-.66.5-1.6.03-1.6-.3z"/></svg>
+      <div class="store-badge-text">
+        <small>Get it on</small>
+        <strong>Google Play</strong>
+      </div>
+    </a>
   </div>
   <div class="hero-trust">
     <div class="hero-trust-item">
@@ -2610,7 +2639,22 @@ function homePage(): string {
   <p>Join thousands of business owners who spend less time scheduling and more time doing what they love.</p>
   <div class="cta-actions">
     <a href="#" class="btn-hero">Start Your Free Trial →</a>
-    <a href="#" class="btn-hero-ghost">See a Demo</a>
+  </div>
+  <div class="store-badges">
+    <a href="https://apps.apple.com/" target="_blank" rel="noopener" class="store-badge">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+      <div class="store-badge-text">
+        <small>Download on the</small>
+        <strong>App Store</strong>
+      </div>
+    </a>
+    <a href="https://play.google.com/" target="_blank" rel="noopener" class="store-badge">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M3 20.5v-17c0-.83.94-1.3 1.6-.8l14 8.5c.6.36.6 1.24 0 1.6l-14 8.5c-.66.5-1.6.03-1.6-.8z" opacity=".6"/><path d="M3 20.5l9.5-9.5L3 3.5v17z" opacity=".4"/><path d="M3 3.5l9.5 8L17 8 4.6 3.2C3.94 2.7 3 3.17 3 3.5z"/><path d="M3 20.5l9.5-8L17 16 4.6 20.8c-.66.5-1.6.03-1.6-.3z"/></svg>
+      <div class="store-badge-text">
+        <small>Get it on</small>
+        <strong>Google Play</strong>
+      </div>
+    </a>
   </div>
   <p class="cta-note">No credit card required · 14-day free trial · Cancel anytime</p>
 </section>
