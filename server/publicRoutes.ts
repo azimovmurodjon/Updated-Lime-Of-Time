@@ -2102,6 +2102,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       <h2 style="font-size:20px;margin-bottom:8px;">Booking Submitted!</h2>
       <p style="color:#666;font-size:14px;margin-bottom:16px;">Your appointment request has been sent to ${escHtml(owner.businessName)}. They will confirm your booking shortly.</p>
       <div id="successReceipt" class="receipt-box" style="text-align:left;margin-bottom:16px;"></div>
+      <div id="paymentSection" style="display:none;margin-bottom:16px;"></div>
       <div id="manageLink" style="margin-bottom:12px;display:none;">
         <a id="manageLinkHref" href="#" style="color:var(--accent);font-size:14px;text-decoration:none;font-weight:600;">Manage or Cancel This Appointment →</a>
       </div>
@@ -2145,6 +2146,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     const WEEKLY_DAYS = ${JSON.stringify(whJson)};
     const DAYS_MAP = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
     const CANCEL_POLICY = ${JSON.stringify(owner.cancellationPolicy || { enabled: false, hoursBeforeAppointment: 2, feePercentage: 50 })};
+    const PAYMENT_METHODS = ${JSON.stringify({ zelle: (owner as any).zelleHandle || null, cashApp: (owner as any).cashAppHandle || null, venmo: (owner as any).venmoHandle || null })};
     let services = [];
     let products = [];
     let discounts = [];
@@ -3574,6 +3576,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         document.getElementById("step-indicator").style.display = "none";
         document.getElementById("step-5").style.display = "block";
         renderSuccessReceipt();
+        renderPaymentSection();
         // Show manage link
         if (data.manageUrl) {
           document.getElementById('manageLinkHref').href = data.manageUrl;
@@ -3674,6 +3677,71 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       html += '</div>';
 
       document.getElementById("successReceipt").innerHTML = html;
+    }
+
+    function renderPaymentSection() {
+      const methods = PAYMENT_METHODS;
+      const hasPayment = methods.zelle || methods.cashApp || methods.venmo;
+      if (!hasPayment) return;
+      const chargedPrice = getChargedPrice();
+      if (chargedPrice <= 0) return; // Free booking — no payment needed
+      const amountStr = '$' + chargedPrice.toFixed(2);
+      // Build QR URL using Google Charts API (no API key needed)
+      function qrUrl(text) {
+        return 'https://chart.googleapis.com/chart?cht=qr&chs=180x180&choe=UTF-8&chl=' + encodeURIComponent(text);
+      }
+      // Build deep-link URLs for each payment app
+      function zelleUrl(handle) {
+        // Zelle doesn't have a universal deep link, show handle as QR
+        return 'zelle:' + handle;
+      }
+      function cashAppUrl(handle) {
+        const tag = handle.startsWith('$') ? handle : '$' + handle;
+        return 'https://cash.app/' + encodeURIComponent(tag) + '/' + chargedPrice.toFixed(2);
+      }
+      function venmoUrl(handle) {
+        const tag = handle.startsWith('@') ? handle.slice(1) : handle;
+        return 'https://venmo.com/' + encodeURIComponent(tag) + '?txn=pay&amount=' + chargedPrice.toFixed(2) + '&note=' + encodeURIComponent('Appointment payment');
+      }
+      let html = '<div style="border:1.5px solid #bbf7d0;border-radius:14px;padding:16px;background:#f0fdf4;">';
+      html += '<div style="font-weight:700;font-size:15px;color:#166534;margin-bottom:4px;">💳 Payment Options</div>';
+      html += '<div style="font-size:13px;color:#166534;margin-bottom:14px;">Scan a QR code or tap to pay <strong>' + amountStr + '</strong></div>';
+      html += '<div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">';
+      if (methods.zelle) {
+        const url = zelleUrl(methods.zelle);
+        html += '<div style="flex:1;min-width:130px;max-width:160px;background:#fff;border-radius:12px;padding:12px;border:1px solid #e8ece8;text-align:center;">';
+        html += '<div style="font-weight:700;font-size:13px;color:#6d28d9;margin-bottom:8px;">💜 Zelle</div>';
+        html += '<img src="' + qrUrl(url) + '" alt="Zelle QR" style="width:120px;height:120px;border-radius:8px;" loading="lazy">';
+        html += '<div style="font-size:11px;color:#888;margin-top:6px;word-break:break-all;">' + esc(methods.zelle) + '</div>';
+        html += '</div>';
+      }
+      if (methods.cashApp) {
+        const tag = methods.cashApp.startsWith('$') ? methods.cashApp : '$' + methods.cashApp;
+        const url = cashAppUrl(methods.cashApp);
+        html += '<div style="flex:1;min-width:130px;max-width:160px;background:#fff;border-radius:12px;padding:12px;border:1px solid #e8ece8;text-align:center;">';
+        html += '<div style="font-weight:700;font-size:13px;color:#00d632;margin-bottom:8px;">💚 Cash App</div>';
+        html += '<a href="' + url + '" target="_blank" style="display:block;">';
+        html += '<img src="' + qrUrl(url) + '" alt="Cash App QR" style="width:120px;height:120px;border-radius:8px;" loading="lazy">';
+        html += '</a>';
+        html += '<div style="font-size:11px;color:#888;margin-top:6px;">' + esc(tag) + '</div>';
+        html += '</div>';
+      }
+      if (methods.venmo) {
+        const tag = methods.venmo.startsWith('@') ? methods.venmo : '@' + methods.venmo;
+        const url = venmoUrl(methods.venmo);
+        html += '<div style="flex:1;min-width:130px;max-width:160px;background:#fff;border-radius:12px;padding:12px;border:1px solid #e8ece8;text-align:center;">';
+        html += '<div style="font-weight:700;font-size:13px;color:#3d95ce;margin-bottom:8px;">💙 Venmo</div>';
+        html += '<a href="' + url + '" target="_blank" style="display:block;">';
+        html += '<img src="' + qrUrl(url) + '" alt="Venmo QR" style="width:120px;height:120px;border-radius:8px;" loading="lazy">';
+        html += '</a>';
+        html += '<div style="font-size:11px;color:#888;margin-top:6px;">' + esc(tag) + '</div>';
+        html += '</div>';
+      }
+      html += '</div>';
+      html += '<div style="font-size:11px;color:#888;margin-top:10px;">Tap a QR code to open the payment app directly on your phone.</div>';
+      html += '</div>';
+      const el = document.getElementById('paymentSection');
+      if (el) { el.innerHTML = html; el.style.display = 'block'; }
     }
 
     function saveReceipt() {

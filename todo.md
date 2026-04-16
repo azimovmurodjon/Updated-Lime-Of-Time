@@ -1048,3 +1048,13 @@
 - [x] Gate SMS automation by subscription plan
 - [x] Remove Twilio credentials from mobile app (server-only)
 - [ ] Rate limiting on SMS and OTP endpoints
+
+## Booking Page QR Codes + Admin Redesign
+- [x] Add QR code generation for Zelle/CashApp/Venmo on client booking confirmation page (server-rendered)
+- [x] Redesign admin panel: cleaner layout, sidebar nav, better visual hierarchy
+- [x] Admin: add search bar to Businesses tab
+- [x] Admin: add sort/filter controls per tab (by plan, status, date, name)
+- [x] Admin: add quick-action buttons per business row (view, edit plan, toggle override)
+- [x] Admin: improve Subscriptions tab with plan distribution chart and summary cards
+- [x] Admin: improve Plan Pricing tab with inline editing
+- [x] Admin: improve Settings tab layout with clear sections

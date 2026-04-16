@@ -695,6 +695,15 @@ function adminStyles(): string {
       .nav-item:hover { background: var(--bg-hover); color: var(--text); text-decoration: none; }
       .nav-item.active { background: var(--bg-hover); color: var(--primary); border-right: 3px solid var(--primary); }
       .nav-icon { width: 20px; text-align: center; }
+      .nav-section-label { padding: 14px 20px 4px; font-size: 10px; font-weight: 700; letter-spacing: 1px; color: var(--text-muted); text-transform: uppercase; opacity: 0.6; }
+      .search-bar { display:flex; gap:8px; margin-bottom:16px; }
+      .search-bar input { flex:1; padding:8px 14px; border:1px solid var(--border); border-radius:8px; background:var(--bg-card); color:var(--text); font-size:14px; outline:none; }
+      .search-bar input:focus { border-color:var(--primary); }
+      .search-bar select { padding:8px 12px; border:1px solid var(--border); border-radius:8px; background:var(--bg-card); color:var(--text); font-size:14px; outline:none; cursor:pointer; }
+      .search-bar select:focus { border-color:var(--primary); }
+      .biz-table-row:hover td { background:var(--bg-hover); }
+      .quick-actions { display:flex; gap:6px; }
+      .plan-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; vertical-align:middle; }
 
       .main { flex: 1; margin-left: 240px; padding: 24px 32px; }
       .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
@@ -785,25 +794,16 @@ function adminStyles(): string {
   `;
 }
 
+function navItem(href: string, icon: string, label: string, active: boolean): string {
+  return `<a href="${href}" class="nav-item ${active ? 'active' : ''}" title="${label}"><span class="nav-icon">${icon}</span> ${label}</a>`;
+}
+
+function navSection(label: string): string {
+  return `<div class="nav-section-label">${label}</div>`;
+}
+
 function sidebarHtml(activePage: string): string {
-  const items = [
-    { href: "/api/admin", icon: "📊", label: "Dashboard", key: "dashboard" },
-    { href: "/api/admin/businesses", icon: "🏢", label: "Businesses", key: "businesses" },
-    { href: "/api/admin/clients", icon: "👥", label: "Clients", key: "clients" },
-    { href: "/api/admin/appointments", icon: "📅", label: "Appointments", key: "appointments" },
-    { href: "/api/admin/staff", icon: "👤", label: "Staff", key: "staff" },
-    { href: "/api/admin/locations", icon: "📍", label: "Locations", key: "locations" },
-    { href: "/api/admin/discounts", icon: "🏷️", label: "Discounts", key: "discounts" },
-    { href: "/api/admin/giftcards", icon: "🎁", label: "Gift Cards", key: "giftcards" },
-    { href: "/api/admin/reviews", icon: "⭐", label: "Reviews", key: "reviews" },
-    { href: "/api/admin/products", icon: "📦", label: "Products", key: "products" },
-    { href: "/api/admin/analytics", icon: "📈", label: "Analytics", key: "analytics" },
-    { href: "/api/admin/db", icon: "🗄️", label: "DB Explorer", key: "db" },
-    { href: "/api/admin/subscriptions", icon: "💳", label: "Subscriptions", key: "subscriptions" },
-    { href: "/api/admin/plans", icon: "📋", label: "Plan Pricing", key: "plans" },
-    { href: "/api/admin/platform-config", icon: "🔧", label: "Platform Config", key: "platform-config" },
-    { href: "/api/admin/settings", icon: "⚙️", label: "Settings", key: "settings" },
-  ];
+  const a = activePage;
   return `
     <div class="sidebar">
       <div class="sidebar-logo">
@@ -815,16 +815,36 @@ function sidebarHtml(activePage: string): string {
           </div>
         </div>
       </div>
-      ${items
-        .map(
-          (i) =>
-            `<a href="${i.href}" class="nav-item ${activePage === i.key ? "active" : ""}">
-              <span class="nav-icon">${i.icon}</span> ${i.label}
-            </a>`
-        )
-        .join("")}
-      <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid var(--border); margin-top: 20px;">
-        <a href="/api/admin/logout" class="nav-item" style="color: var(--danger);">
+
+      ${navItem('/api/admin', '📊', 'Dashboard', a === 'dashboard')}
+
+      ${navSection('BUSINESS MANAGEMENT')}
+      ${navItem('/api/admin/businesses', '🏢', 'Businesses', a === 'businesses')}
+      ${navItem('/api/admin/clients', '👥', 'Clients', a === 'clients')}
+      ${navItem('/api/admin/appointments', '📅', 'Appointments', a === 'appointments')}
+      ${navItem('/api/admin/staff', '👤', 'Staff', a === 'staff')}
+      ${navItem('/api/admin/locations', '📍', 'Locations', a === 'locations')}
+
+      ${navSection('CATALOG')}
+      ${navItem('/api/admin/discounts', '🏷️', 'Discounts', a === 'discounts')}
+      ${navItem('/api/admin/giftcards', '🎁', 'Gift Cards', a === 'giftcards')}
+      ${navItem('/api/admin/reviews', '⭐', 'Reviews', a === 'reviews')}
+      ${navItem('/api/admin/products', '📦', 'Products', a === 'products')}
+
+      ${navSection('ANALYTICS')}
+      ${navItem('/api/admin/analytics', '📈', 'Analytics', a === 'analytics')}
+
+      ${navSection('SAAS')}
+      ${navItem('/api/admin/subscriptions', '💳', 'Subscriptions', a === 'subscriptions')}
+      ${navItem('/api/admin/plans', '📋', 'Plan Pricing', a === 'plans')}
+
+      ${navSection('SYSTEM')}
+      ${navItem('/api/admin/platform-config', '🔧', 'Platform Config', a === 'platform-config')}
+      ${navItem('/api/admin/settings', '⚙️', 'Settings', a === 'settings')}
+      ${navItem('/api/admin/db', '🗄️', 'DB Explorer', a === 'db')}
+
+      <div style="margin-top:auto;padding-top:20px;border-top:1px solid var(--border);margin-top:20px;">
+        <a href="/api/admin/logout" class="nav-item" style="color:var(--danger);">
           <span class="nav-icon">🚪</span> Logout
         </a>
       </div>
@@ -1031,54 +1051,149 @@ function dashboardPage(data: {
 }
 
 // ─── Businesses Page ────────────────────────────────────────────────
+function planColor(plan: string): string {
+  const colors: Record<string, string> = { solo: '#6b7280', growth: '#0a7ea4', studio: '#7c3aed', enterprise: '#059669' };
+  return colors[plan] || '#6b7280';
+}
+
 function businessesPage(businesses: any[]): string {
-  return adminLayout("Businesses", "businesses", `
+  const planCounts: Record<string, number> = { solo: 0, growth: 0, studio: 0, enterprise: 0 };
+  businesses.forEach((b) => { const p = b.subscriptionPlan || 'solo'; if (planCounts[p] !== undefined) planCounts[p]++; else planCounts[p] = 1; });
+  const openCount = businesses.filter((b) => !b.temporaryClosed).length;
+  const closedCount = businesses.filter((b) => b.temporaryClosed).length;
+  const overrideCount = businesses.filter((b) => b.adminOverride).length;
+  const trialCount = businesses.filter((b) => (b.subscriptionStatus || 'free') === 'trial').length;
+  const activeCount = businesses.filter((b) => (b.subscriptionStatus || 'free') === 'active').length;
+
+  const rows = businesses.map((b) => {
+    const plan = b.subscriptionPlan || 'solo';
+    const status = b.subscriptionStatus || 'free';
+    const statusColor = status === 'active' ? '#059669' : status === 'trial' ? '#f59e0b' : status === 'expired' ? '#ef4444' : '#6b7280';
+    const pc = planColor(plan);
+    return `<tr class="biz-row" data-name="${escHtml((b.businessName || '').toLowerCase())}" data-phone="${escHtml((b.phone || '').toLowerCase())}" data-plan="${plan}" data-status="${status}" data-open="${b.temporaryClosed ? 'closed' : 'open'}">
+      <td style="font-weight:600;"><a href="/api/admin/businesses/${b.id}" style="color:var(--text);text-decoration:none;">${escHtml(b.businessName)}</a></td>
+      <td style="font-size:13px;color:var(--text-muted);">${escHtml(b.phone || '—')}</td>
+      <td style="font-size:13px;">${escHtml(b.email || '—')}</td>
+      <td><span style="background:${pc}20;color:${pc};padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600;">${plan.charAt(0).toUpperCase() + plan.slice(1)}${b.adminOverride ? ' ⭐' : ''}</span></td>
+      <td><span style="background:${statusColor}20;color:${statusColor};padding:2px 8px;border-radius:10px;font-size:12px;">${status.charAt(0).toUpperCase() + status.slice(1)}</span></td>
+      <td>${b.temporaryClosed ? '<span class="badge badge-danger" style="font-size:11px;">Closed</span>' : '<span class="badge badge-success" style="font-size:11px;">Open</span>'}</td>
+      <td style="font-size:12px;color:var(--text-muted);">${fmtDate(b.createdAt)}</td>
+      <td><a href="/api/admin/businesses/${b.id}" class="btn btn-secondary btn-sm">Details →</a></td>
+    </tr>`;
+  }).join('');
+
+  return adminLayout('Businesses', 'businesses', `
     <div class="page-header">
-      <h2>All Businesses</h2>
-      <span class="badge badge-info">${businesses.length} total</span>
+      <div>
+        <h2>Businesses</h2>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">${businesses.length} total &nbsp;·&nbsp; ${openCount} open &nbsp;·&nbsp; ${closedCount} closed &nbsp;·&nbsp; ${trialCount} on trial &nbsp;·&nbsp; ${activeCount} active &nbsp;·&nbsp; ${overrideCount} complimentary</div>
+      </div>
     </div>
-    <style>
-      .biz-cards { display:grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap:16px; }
-      .biz-card { background:var(--card-bg); border:1px solid var(--border); border-radius:12px; padding:20px; transition:box-shadow .2s; }
-      .biz-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.15); }
-      .biz-card-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; }
-      .biz-card-name { font-size:18px; font-weight:700; color:var(--text); margin:0; }
-      .biz-card-name a { color:inherit; text-decoration:none; }
-      .biz-card-name a:hover { color:var(--primary); }
-      .biz-card-meta { display:grid; grid-template-columns:1fr 1fr; gap:8px 16px; font-size:13px; color:var(--text-muted); margin-bottom:14px; }
-      .biz-card-meta .meta-label { font-weight:600; color:var(--text); font-size:12px; text-transform:uppercase; letter-spacing:.5px; }
-      .biz-card-meta .meta-value { margin-top:2px; }
-      .biz-card-footer { display:flex; justify-content:space-between; align-items:center; padding-top:12px; border-top:1px solid var(--border); }
-      .biz-card-stats { display:flex; gap:12px; font-size:12px; color:var(--text-muted); }
-      .biz-card-stats span { display:flex; align-items:center; gap:3px; }
-    </style>
-    ${businesses.length === 0
-      ? '<div class="card"><div class="empty-state"><div class="empty-icon">🏢</div><p>No businesses registered yet</p></div></div>'
-      : `<div class="biz-cards">
-          ${businesses.map((b: any) => `
-            <div class="biz-card">
-              <div class="biz-card-header">
-                <h3 class="biz-card-name"><a href="/api/admin/businesses/${b.id}">${b.businessName}</a></h3>
-                ${b.temporaryClosed ? '<span class="badge badge-danger">Closed</span>' : '<span class="badge badge-success">Open</span>'}
-              </div>
-              <div class="biz-card-meta">
-                <div><div class="meta-label">📞 Phone</div><div class="meta-value">${b.phone || "N/A"}</div></div>
-                <div><div class="meta-label">✉️ Email</div><div class="meta-value">${b.email || "N/A"}</div></div>
-                <div><div class="meta-label">📍 Address</div><div class="meta-value" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;">${b.address || "N/A"}</div></div>
-                <div><div class="meta-label">🌐 Website</div><div class="meta-value">${b.website || "N/A"}</div></div>
-                <div><div class="meta-label">📅 Schedule</div><div class="meta-value">${b.scheduleMode || "weekly"}</div></div>
-                <div><div class="meta-label">🕐 Created</div><div class="meta-value">${fmtDate(b.createdAt)}</div></div>
-              </div>
-              <div class="biz-card-footer">
-                <div class="biz-card-stats">
-                  <span>ID: ${b.id}</span>
-                </div>
-                <a href="/api/admin/businesses/${b.id}" class="btn btn-secondary btn-sm">View Details →</a>
-              </div>
-            </div>
-          `).join("")}
-        </div>`
-    }
+
+    <!-- Search + Sort + Filter bar -->
+    <div class="search-bar">
+      <input type="text" id="bizSearch" placeholder="🔍 Search by name or phone..." oninput="filterBiz()" style="max-width:320px;">
+      <select id="bizPlanFilter" onchange="filterBiz()">
+        <option value="">All Plans</option>
+        <option value="solo">Solo</option>
+        <option value="growth">Growth</option>
+        <option value="studio">Studio</option>
+        <option value="enterprise">Enterprise</option>
+      </select>
+      <select id="bizStatusFilter" onchange="filterBiz()">
+        <option value="">All Statuses</option>
+        <option value="free">Free</option>
+        <option value="trial">Trial</option>
+        <option value="active">Active</option>
+        <option value="expired">Expired</option>
+      </select>
+      <select id="bizOpenFilter" onchange="filterBiz()">
+        <option value="">Open &amp; Closed</option>
+        <option value="open">Open Only</option>
+        <option value="closed">Closed Only</option>
+      </select>
+      <select id="bizSort" onchange="sortBiz()">
+        <option value="newest">Newest First</option>
+        <option value="oldest">Oldest First</option>
+        <option value="name">Name A→Z</option>
+        <option value="name-desc">Name Z→A</option>
+      </select>
+    </div>
+
+    <!-- Plan summary chips -->
+    <div class="filter-bar" style="margin-bottom:20px;">
+      <span class="filter-btn" onclick="document.getElementById('bizPlanFilter').value='';filterBiz()" style="cursor:pointer;">All (${businesses.length})</span>
+      <span class="filter-btn" onclick="document.getElementById('bizPlanFilter').value='solo';filterBiz()" style="cursor:pointer;"><span class="plan-dot" style="background:#6b7280;"></span>Solo (${planCounts.solo})</span>
+      <span class="filter-btn" onclick="document.getElementById('bizPlanFilter').value='growth';filterBiz()" style="cursor:pointer;"><span class="plan-dot" style="background:#0a7ea4;"></span>Growth (${planCounts.growth})</span>
+      <span class="filter-btn" onclick="document.getElementById('bizPlanFilter').value='studio';filterBiz()" style="cursor:pointer;"><span class="plan-dot" style="background:#7c3aed;"></span>Studio (${planCounts.studio})</span>
+      <span class="filter-btn" onclick="document.getElementById('bizPlanFilter').value='enterprise';filterBiz()" style="cursor:pointer;"><span class="plan-dot" style="background:#059669;"></span>Enterprise (${planCounts.enterprise})</span>
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden;">
+      <table id="bizTable">
+        <thead>
+          <tr style="background:var(--bg-hover);">
+            <th style="padding:12px 16px;">Business Name</th>
+            <th style="padding:12px 16px;">Phone</th>
+            <th style="padding:12px 16px;">Email</th>
+            <th style="padding:12px 16px;">Plan</th>
+            <th style="padding:12px 16px;">Status</th>
+            <th style="padding:12px 16px;">Booking</th>
+            <th style="padding:12px 16px;">Created</th>
+            <th style="padding:12px 16px;">Action</th>
+          </tr>
+        </thead>
+        <tbody id="bizTbody">
+          ${businesses.length === 0
+            ? '<tr><td colspan="8" style="padding:40px;text-align:center;color:var(--text-muted);">No businesses registered yet</td></tr>'
+            : rows
+          }
+        </tbody>
+      </table>
+    </div>
+    <div id="bizEmpty" style="display:none;padding:40px;text-align:center;color:var(--text-muted);">No businesses match your filters.</div>
+
+    <script>
+      function filterBiz() {
+        const q = document.getElementById('bizSearch').value.toLowerCase();
+        const plan = document.getElementById('bizPlanFilter').value;
+        const status = document.getElementById('bizStatusFilter').value;
+        const open = document.getElementById('bizOpenFilter').value;
+        let visible = 0;
+        document.querySelectorAll('#bizTbody .biz-row').forEach(function(row) {
+          const name = row.getAttribute('data-name') || '';
+          const phone = row.getAttribute('data-phone') || '';
+          const rowPlan = row.getAttribute('data-plan') || '';
+          const rowStatus = row.getAttribute('data-status') || '';
+          const rowOpen = row.getAttribute('data-open') || '';
+          const matchQ = !q || name.includes(q) || phone.includes(q);
+          const matchPlan = !plan || rowPlan === plan;
+          const matchStatus = !status || rowStatus === status;
+          const matchOpen = !open || rowOpen === open;
+          const show = matchQ && matchPlan && matchStatus && matchOpen;
+          row.style.display = show ? '' : 'none';
+          if (show) visible++;
+        });
+        document.getElementById('bizEmpty').style.display = visible === 0 ? 'block' : 'none';
+        document.getElementById('bizTable').style.display = visible === 0 ? 'none' : '';
+      }
+      function sortBiz() {
+        const sort = document.getElementById('bizSort').value;
+        const tbody = document.getElementById('bizTbody');
+        const rows = Array.from(tbody.querySelectorAll('.biz-row'));
+        rows.sort(function(a, b) {
+          if (sort === 'name') return (a.getAttribute('data-name') || '').localeCompare(b.getAttribute('data-name') || '');
+          if (sort === 'name-desc') return (b.getAttribute('data-name') || '').localeCompare(a.getAttribute('data-name') || '');
+          // For date sorts, use row index as proxy (server already sorted by date)
+          const ai = Array.from(tbody.children).indexOf(a);
+          const bi = Array.from(tbody.children).indexOf(b);
+          if (sort === 'oldest') return ai - bi; // already newest first from server, so oldest = reverse
+          return 0; // newest = keep server order
+        });
+        if (sort === 'oldest') rows.reverse();
+        rows.forEach(function(r) { tbody.appendChild(r); });
+      }
+    </script>
   `);
 }
 
@@ -1253,29 +1368,67 @@ function businessDetailPage(data: any): string {
 // ─── Clients Page ───────────────────────────────────────────────────
 function clientsPage(allClients: any[], allBiz: any[]): string {
   const bizMap = new Map(allBiz.map((b: any) => [b.id, b.businessName]));
-  return adminLayout("Clients", "clients", `
+  const bizOptions = allBiz.map((b: any) => `<option value="${b.id}">${escHtml(b.businessName)}</option>`).join('');
+
+  const rows = allClients.map((c: any) => `<tr class="cli-row" data-name="${escHtml((c.name || '').toLowerCase())}" data-phone="${escHtml((c.phone || '').toLowerCase())}" data-email="${escHtml((c.email || '').toLowerCase())}" data-biz="${c.businessOwnerId}">
+    <td style="font-weight:500;">${escHtml(c.name)}</td>
+    <td style="font-size:13px;color:var(--text-muted);">${c.phone || '—'}</td>
+    <td style="font-size:13px;">${c.email || '—'}</td>
+    <td><a href="/api/admin/businesses/${c.businessOwnerId}" style="color:var(--primary);">${escHtml(bizMap.get(c.businessOwnerId) || 'Unknown')}</a></td>
+    <td style="font-size:12px;color:var(--text-muted);">${fmtDate(c.createdAt)}</td>
+    <td><form class="delete-form" method="POST" action="/api/admin/delete/client/${c.id}" onsubmit="return confirm('Delete client ${escHtml(c.name)}? This will also delete their appointments and reviews.')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+  </tr>`).join('');
+
+  return adminLayout('Clients', 'clients', `
     <div class="page-header">
-      <h2>All Clients</h2>
-      <span class="badge badge-info">${allClients.length} total</span>
+      <div>
+        <h2>Clients</h2>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">${allClients.length} total across ${allBiz.length} businesses</div>
+      </div>
     </div>
-    <div class="card">
-      ${allClients.length === 0
-        ? '<div class="empty-state"><div class="empty-icon">👥</div><p>No clients yet</p></div>'
-        : `<table>
-            <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Business</th><th>Created</th><th>Actions</th></tr></thead>
-            <tbody>
-              ${allClients.map((c: any) => `<tr>
-                <td style="font-weight:500;">${c.name}</td>
-                <td>${c.phone || "N/A"}</td>
-                <td>${c.email || "N/A"}</td>
-                <td><a href="/api/admin/businesses/${c.businessOwnerId}">${bizMap.get(c.businessOwnerId) || "Unknown"}</a></td>
-                <td>${fmtDate(c.createdAt)}</td>
-                <td><form class="delete-form" method="POST" action="/api/admin/delete/client/${c.id}" onsubmit="return confirm('Delete client ${escHtml(c.name)}? This will also delete their appointments and reviews.')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
-              </tr>`).join("")}
-            </tbody>
-          </table>`
+    <div class="search-bar">
+      <input type="text" id="cliSearch" placeholder="🔍 Search by name, phone, or email..." oninput="filterCli()" style="max-width:340px;">
+      <select id="cliBizFilter" onchange="filterCli()">
+        <option value="">All Businesses</option>
+        ${bizOptions}
+      </select>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden;">
+      <table id="cliTable">
+        <thead>
+          <tr style="background:var(--bg-hover);">
+            <th style="padding:12px 16px;">Name</th>
+            <th style="padding:12px 16px;">Phone</th>
+            <th style="padding:12px 16px;">Email</th>
+            <th style="padding:12px 16px;">Business</th>
+            <th style="padding:12px 16px;">Created</th>
+            <th style="padding:12px 16px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="cliTbody">
+          ${allClients.length === 0 ? '<tr><td colspan="6" style="padding:40px;text-align:center;color:var(--text-muted);">No clients yet</td></tr>' : rows}
+        </tbody>
+      </table>
+    </div>
+    <div id="cliEmpty" style="display:none;padding:40px;text-align:center;color:var(--text-muted);">No clients match your filters.</div>
+    <script>
+      function filterCli() {
+        const q = document.getElementById('cliSearch').value.toLowerCase();
+        const biz = document.getElementById('cliBizFilter').value;
+        let visible = 0;
+        document.querySelectorAll('#cliTbody .cli-row').forEach(function(row) {
+          const name = row.getAttribute('data-name') || '';
+          const phone = row.getAttribute('data-phone') || '';
+          const email = row.getAttribute('data-email') || '';
+          const rowBiz = row.getAttribute('data-biz') || '';
+          const show = (!q || name.includes(q) || phone.includes(q) || email.includes(q)) && (!biz || rowBiz === biz);
+          row.style.display = show ? '' : 'none';
+          if (show) visible++;
+        });
+        document.getElementById('cliEmpty').style.display = visible === 0 ? 'block' : 'none';
+        document.getElementById('cliTable').style.display = visible === 0 ? 'none' : '';
       }
-    </div>
+    </script>
   `);
 }
 
@@ -1284,40 +1437,82 @@ function appointmentsPage(allAppts: any[], allBiz: any[], allCli: any[], allSvc:
   const bizMap = new Map(allBiz.map((b: any) => [b.id, b.businessName]));
   const cliMap = new Map(allCli.map((c: any) => [`${c.businessOwnerId}-${c.localId}`, c.name]));
   const svcMap = new Map(allSvc.map((s: any) => [`${s.businessOwnerId}-${s.localId}`, s.name]));
-  const statuses = ["", "pending", "confirmed", "completed", "cancelled"];
-  const statusLabels = ["All", "Pending", "Confirmed", "Completed", "Cancelled"];
+  const statuses = ['', 'pending', 'confirmed', 'completed', 'cancelled'];
+  const statusLabels = ['All', 'Pending', 'Confirmed', 'Completed', 'Cancelled'];
+  const bizOptions = allBiz.map((b: any) => `<option value="${b.id}">${escHtml(b.businessName)}</option>`).join('');
 
-  return adminLayout("Appointments", "appointments", `
+  const rows = allAppts.map((a: any) => {
+    const bc = a.status === 'confirmed' ? '#059669' : a.status === 'pending' ? '#f59e0b' : a.status === 'cancelled' ? '#ef4444' : '#3b82f6';
+    const clientName = cliMap.get(`${a.businessOwnerId}-${a.clientLocalId}`) || a.clientLocalId;
+    const svcName = svcMap.get(`${a.businessOwnerId}-${a.serviceLocalId}`) || a.serviceLocalId;
+    const bizName = bizMap.get(a.businessOwnerId) || 'Unknown';
+    return `<tr class="appt-row" data-status="${a.status}" data-biz="${a.businessOwnerId}" data-search="${escHtml((clientName + ' ' + svcName + ' ' + bizName).toLowerCase())}">
+      <td style="font-size:13px;font-weight:600;">${a.date}</td>
+      <td style="font-size:13px;color:var(--text-muted);">${a.time}</td>
+      <td>${escHtml(clientName)}</td>
+      <td style="font-size:13px;">${escHtml(svcName)}</td>
+      <td><a href="/api/admin/businesses/${a.businessOwnerId}" style="color:var(--primary);">${escHtml(bizName)}</a></td>
+      <td style="font-size:13px;color:var(--text-muted);">${a.duration} min</td>
+      <td><span style="background:${bc}20;color:${bc};padding:2px 8px;border-radius:10px;font-size:12px;">${a.status}</span></td>
+      <td><form class="delete-form" method="POST" action="/api/admin/delete/appointment/${a.id}" onsubmit="return confirm('Delete this appointment?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+    </tr>`;
+  }).join('');
+
+  return adminLayout('Appointments', 'appointments', `
     <div class="page-header">
-      <h2>All Appointments</h2>
-      <span class="badge badge-info">${allAppts.length} shown</span>
+      <div>
+        <h2>Appointments</h2>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">${allAppts.length} total</div>
+      </div>
     </div>
+    <!-- Status filter chips (server-side) -->
     <div class="filter-bar">
-      ${statuses.map((s, i) => `<a href="/api/admin/appointments${s ? "?status=" + s : ""}" class="filter-btn ${statusFilter === s ? "active" : ""}">${statusLabels[i]}</a>`).join("")}
+      ${statuses.map((s, i) => `<a href="/api/admin/appointments${s ? '?status=' + s : ''}" class="filter-btn ${statusFilter === s ? 'active' : ''}">${statusLabels[i]}</a>`).join('')}
     </div>
-    <div class="card">
-      ${allAppts.length === 0
-        ? '<div class="empty-state"><div class="empty-icon">📅</div><p>No appointments found</p></div>'
-        : `<table>
-            <thead><tr><th>Date</th><th>Time</th><th>Client</th><th>Service</th><th>Business</th><th>Duration</th><th>Status</th><th>Actions</th></tr></thead>
-            <tbody>
-              ${allAppts.map((a: any) => {
-                const bc = a.status === "confirmed" ? "badge-success" : a.status === "pending" ? "badge-warning" : a.status === "cancelled" ? "badge-danger" : "badge-info";
-                return `<tr>
-                  <td>${a.date}</td>
-                  <td>${a.time}</td>
-                  <td>${cliMap.get(`${a.businessOwnerId}-${a.clientLocalId}`) || a.clientLocalId}</td>
-                  <td>${svcMap.get(`${a.businessOwnerId}-${a.serviceLocalId}`) || a.serviceLocalId}</td>
-                  <td><a href="/api/admin/businesses/${a.businessOwnerId}">${bizMap.get(a.businessOwnerId) || "Unknown"}</a></td>
-                  <td>${a.duration} min</td>
-                  <td><span class="badge ${bc}">${a.status}</span></td>
-                  <td><form class="delete-form" method="POST" action="/api/admin/delete/appointment/${a.id}" onsubmit="return confirm('Delete this appointment?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
-                </tr>`;
-              }).join("")}
-            </tbody>
-          </table>`
+    <!-- Client-side search + business filter -->
+    <div class="search-bar" style="margin-top:12px;">
+      <input type="text" id="apptSearch" placeholder="🔍 Search client, service, or business..." oninput="filterAppts()" style="max-width:340px;">
+      <select id="apptBizFilter" onchange="filterAppts()">
+        <option value="">All Businesses</option>
+        ${bizOptions}
+      </select>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden;margin-top:12px;">
+      <table id="apptTable">
+        <thead>
+          <tr style="background:var(--bg-hover);">
+            <th style="padding:12px 16px;">Date</th>
+            <th style="padding:12px 16px;">Time</th>
+            <th style="padding:12px 16px;">Client</th>
+            <th style="padding:12px 16px;">Service</th>
+            <th style="padding:12px 16px;">Business</th>
+            <th style="padding:12px 16px;">Duration</th>
+            <th style="padding:12px 16px;">Status</th>
+            <th style="padding:12px 16px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="apptTbody">
+          ${allAppts.length === 0 ? '<tr><td colspan="8" style="padding:40px;text-align:center;color:var(--text-muted);">No appointments found</td></tr>' : rows}
+        </tbody>
+      </table>
+    </div>
+    <div id="apptEmpty" style="display:none;padding:40px;text-align:center;color:var(--text-muted);">No appointments match your filters.</div>
+    <script>
+      function filterAppts() {
+        const q = document.getElementById('apptSearch').value.toLowerCase();
+        const biz = document.getElementById('apptBizFilter').value;
+        let visible = 0;
+        document.querySelectorAll('#apptTbody .appt-row').forEach(function(row) {
+          const search = row.getAttribute('data-search') || '';
+          const rowBiz = row.getAttribute('data-biz') || '';
+          const show = (!q || search.includes(q)) && (!biz || rowBiz === biz);
+          row.style.display = show ? '' : 'none';
+          if (show) visible++;
+        });
+        document.getElementById('apptEmpty').style.display = visible === 0 ? 'block' : 'none';
+        document.getElementById('apptTable').style.display = visible === 0 ? 'none' : '';
       }
-    </div>
+    </script>
   `);
 }
 
@@ -1500,10 +1695,21 @@ function staffPage(allStaff: any[], allBiz: any[], allSvc: any[]): string {
     staffByBiz[bizName].push(s);
   });
 
+  const bizOptions = allBiz.map((b: any) => `<option value="${escHtml(bizMap.get(b.id) || '')}">&#x1F3E2; ${escHtml(bizMap.get(b.id) || 'Unknown')}</option>`).join('');
+
   let content = `
     <div class="page-header">
-      <h2>Staff Management</h2>
-      <span style="font-size:13px; color:var(--text-muted);">${allStaff.length} staff member${allStaff.length !== 1 ? "s" : ""} across ${Object.keys(staffByBiz).length} business${Object.keys(staffByBiz).length !== 1 ? "es" : ""}</span>
+      <div>
+        <h2>Staff Management</h2>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">${allStaff.length} staff member${allStaff.length !== 1 ? 's' : ''} across ${Object.keys(staffByBiz).length} business${Object.keys(staffByBiz).length !== 1 ? 'es' : ''}</div>
+      </div>
+    </div>
+    <div class="search-bar">
+      <input type="text" id="staffSearch" placeholder="🔍 Search by name, email, or phone..." oninput="filterStaff()" style="max-width:340px;">
+      <select id="staffBizFilter" onchange="filterStaff()">
+        <option value="">All Businesses</option>
+        ${bizOptions}
+      </select>
     </div>
 
     <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
@@ -1527,11 +1733,11 @@ function staffPage(allStaff: any[], allBiz: any[], allSvc: any[]): string {
     </div>
   `;
 
-  // Staff table grouped by business
+  //   // Staff table grouped by business
   Object.entries(staffByBiz).sort((a, b) => a[0].localeCompare(b[0])).forEach(([bizName, members]) => {
     content += `
-      <div class="card" style="margin-top:16px;">
-        <h3 style="margin-bottom:12px;">\ud83c\udfe2 ${escHtml(bizName)} <span style="font-size:12px;color:var(--text-muted);font-weight:400;">(${members.length} staff)</span></h3>
+      <div class="card staff-biz-group" data-biz="${escHtml(bizName)}" style="margin-top:16px;">
+        <h3 style="margin-bottom:12px;">🏢 ${escHtml(bizName)} <span style="font-size:12px;color:var(--text-muted);font-weight:400;">(${members.length} staff)</span></h3>
         <table>
           <thead>
             <tr>
@@ -1566,7 +1772,7 @@ function staffPage(allStaff: any[], allBiz: any[], allSvc: any[]): string {
 
               const created = s.createdAt ? new Date(s.createdAt).toLocaleDateString() : "N/A";
 
-              return `<tr>
+              return `<tr class="staff-row" data-name="${escHtml((s.name || '').toLowerCase())}" data-email="${escHtml((s.email || '').toLowerCase())}" data-phone="${escHtml((s.phone || '').toLowerCase())}">
                 <td style="font-weight:600;">${escHtml(s.name)}</td>
                 <td>${s.email ? escHtml(s.email) : '<span style="color:var(--text-muted);">—</span>'}</td>
                 <td>${s.phone ? escHtml(s.phone) : '<span style="color:var(--text-muted);">—</span>'}</td>
@@ -1594,7 +1800,31 @@ function staffPage(allStaff: any[], allBiz: any[], allSvc: any[]): string {
     `;
   }
 
-  return adminLayout("Staff Management", "staff", content);
+  content += `
+    <script>
+      function filterStaff() {
+        const q = document.getElementById('staffSearch').value.toLowerCase();
+        const biz = document.getElementById('staffBizFilter').value;
+        document.querySelectorAll('.staff-biz-group').forEach(function(group) {
+          const groupBiz = group.getAttribute('data-biz') || '';
+          const matchBiz = !biz || groupBiz === biz;
+          if (!matchBiz) { group.style.display = 'none'; return; }
+          let groupVisible = 0;
+          group.querySelectorAll('.staff-row').forEach(function(row) {
+            const name = row.getAttribute('data-name') || '';
+            const email = row.getAttribute('data-email') || '';
+            const phone = row.getAttribute('data-phone') || '';
+            const show = !q || name.includes(q) || email.includes(q) || phone.includes(q);
+            row.style.display = show ? '' : 'none';
+            if (show) groupVisible++;
+          });
+          group.style.display = groupVisible > 0 ? '' : 'none';
+        });
+      }
+    </script>
+  `;
+
+  return adminLayout('Staff Management', 'staff', content);
 }
 
 // ─── Discounts Page ────────────────────────────────────────────────
@@ -1762,70 +1992,148 @@ function subscriptionsPage(businesses: any[], plans: any[]): string {
   const planMap: Record<string, string> = {};
   plans.forEach((p) => { planMap[p.planKey] = p.displayName; });
 
+  const planColors: Record<string, string> = { solo: '#6b7280', growth: '#0a7ea4', studio: '#7c3aed', enterprise: '#059669' };
+
   const planBadge = (plan: string, override: boolean) => {
-    const colors: Record<string, string> = {
-      solo: "#6b7280", growth: "#0a7ea4", studio: "#7c3aed", enterprise: "#059669",
-    };
-    const color = colors[plan] || "#6b7280";
+    const color = planColors[plan] || '#6b7280';
     const label = planMap[plan] || plan;
-    return `<span style="background:${color}20;color:${color};padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;">${label}${override ? " ⭐" : ""}</span>`;
+    return `<span style="background:${color}20;color:${color};padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;">${label}${override ? ' ⭐' : ''}</span>`;
   };
 
   const statusBadge = (status: string) => {
     const map: Record<string, { color: string; label: string }> = {
-      free: { color: "#6b7280", label: "Free" },
-      trial: { color: "#f59e0b", label: "Trial" },
-      active: { color: "#059669", label: "Active" },
-      expired: { color: "#ef4444", label: "Expired" },
+      free: { color: '#6b7280', label: 'Free' }, trial: { color: '#f59e0b', label: 'Trial' },
+      active: { color: '#059669', label: 'Active' }, expired: { color: '#ef4444', label: 'Expired' },
     };
-    const s = map[status] || { color: "#6b7280", label: status };
+    const s = map[status] || { color: '#6b7280', label: status };
     return `<span style="background:${s.color}20;color:${s.color};padding:2px 8px;border-radius:12px;font-size:12px;">${s.label}</span>`;
   };
 
-  const rows = businesses.map((b) => `
-    <tr>
-      <td><a href="/api/admin/businesses/${b.id}" style="color:var(--primary);text-decoration:none;">${escHtml(b.businessName)}</a></td>
-      <td>${escHtml(b.phone || "")}</td>
-      <td>${planBadge(b.subscriptionPlan || "solo", !!b.adminOverride)}</td>
-      <td>${statusBadge(b.subscriptionStatus || "free")}</td>
-      <td>${b.trialEndsAt ? new Date(b.trialEndsAt).toLocaleDateString() : "—"}</td>
-      <td>${b.adminOverride ? '<span style="color:#059669;font-weight:600;">✓ Override</span>' : "—"}</td>
-      <td><a href="/api/admin/businesses/${b.id}" style="color:var(--primary);">Manage →</a></td>
-    </tr>
-  `).join("");
+  const trialCount = businesses.filter((b) => (b.subscriptionStatus || 'free') === 'trial').length;
+  const activeCount = businesses.filter((b) => (b.subscriptionStatus || 'free') === 'active').length;
+  const expiredCount = businesses.filter((b) => (b.subscriptionStatus || 'free') === 'expired').length;
+  const overrideCount = businesses.filter((b) => b.adminOverride).length;
+
+  const rows = businesses.map((b) => {
+    const plan = b.subscriptionPlan || 'solo';
+    const status = b.subscriptionStatus || 'free';
+    const trialDate = b.trialEndsAt ? new Date(b.trialEndsAt) : null;
+    const trialStr = trialDate ? trialDate.toLocaleDateString() : '—';
+    const daysLeft = trialDate ? Math.ceil((trialDate.getTime() - Date.now()) / 86400000) : null;
+    const trialDisplay = daysLeft !== null ? `${trialStr} <span style="font-size:11px;color:${daysLeft <= 3 ? '#ef4444' : '#f59e0b'}">(${daysLeft}d left)</span>` : '—';
+    return `<tr class="sub-row" data-name="${escHtml((b.businessName || '').toLowerCase())}" data-plan="${plan}" data-status="${status}" data-override="${b.adminOverride ? 'yes' : 'no'}" data-trial-ts="${trialDate ? trialDate.getTime() : 0}">
+      <td style="font-weight:600;"><a href="/api/admin/businesses/${b.id}" style="color:var(--text);text-decoration:none;">${escHtml(b.businessName)}</a></td>
+      <td style="font-size:13px;color:var(--text-muted);">${escHtml(b.phone || '—')}</td>
+      <td>${planBadge(plan, !!b.adminOverride)}</td>
+      <td>${statusBadge(status)}</td>
+      <td style="font-size:13px;">${status === 'trial' ? trialDisplay : '—'}</td>
+      <td>${b.adminOverride ? '<span style="color:#059669;font-weight:600;">✓ Complimentary</span>' : '<span style="color:var(--text-muted);">—</span>'}</td>
+      <td><a href="/api/admin/businesses/${b.id}" class="btn btn-secondary btn-sm">Manage →</a></td>
+    </tr>`;
+  }).join('');
 
   const planStats = plans.map((p) => {
-    const count = businesses.filter((b) => (b.subscriptionPlan || "solo") === p.planKey).length;
-    return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center;">
-      <div style="font-size:28px;font-weight:700;color:var(--primary);">${count}</div>
-      <div style="font-size:14px;color:var(--text-muted);margin-top:4px;">${escHtml(p.displayName)}</div>
+    const count = businesses.filter((b) => (b.subscriptionPlan || 'solo') === p.planKey).length;
+    const color = planColors[p.planKey] || '#6b7280';
+    return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center;cursor:pointer;" onclick="document.getElementById('subPlanFilter').value='${p.planKey}';filterSubs();">
+      <div style="font-size:28px;font-weight:700;color:${color};">${count}</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">${escHtml(p.displayName)}</div>
     </div>`;
-  }).join("");
+  }).join('');
 
-  return adminLayout("Subscriptions", "subscriptions", `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
-      <h1 style="font-size:24px;font-weight:700;">Subscriptions</h1>
-      <a href="/api/admin/plans" style="background:var(--primary);color:white;padding:8px 16px;border-radius:8px;text-decoration:none;font-size:14px;">Manage Plans →</a>
+  return adminLayout('Subscriptions', 'subscriptions', `
+    <div class="page-header">
+      <div>
+        <h2>Subscriptions</h2>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">${businesses.length} businesses &nbsp;·&nbsp; ${trialCount} on trial &nbsp;·&nbsp; ${activeCount} active &nbsp;·&nbsp; ${expiredCount} expired &nbsp;·&nbsp; ${overrideCount} complimentary</div>
+      </div>
+      <a href="/api/admin/plans" class="btn btn-primary">Manage Plans →</a>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px;margin-bottom:28px;">
+
+    <!-- Plan stat cards (clickable to filter) -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px;">
       ${planStats}
     </div>
-    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
-      <table style="width:100%;border-collapse:collapse;">
+
+    <!-- Search + Filter bar -->
+    <div class="search-bar">
+      <input type="text" id="subSearch" placeholder="🔍 Search by name or phone..." oninput="filterSubs()" style="max-width:300px;">
+      <select id="subPlanFilter" onchange="filterSubs()">
+        <option value="">All Plans</option>
+        ${plans.map((p) => `<option value="${p.planKey}">${escHtml(p.displayName)}</option>`).join('')}
+      </select>
+      <select id="subStatusFilter" onchange="filterSubs()">
+        <option value="">All Statuses</option>
+        <option value="free">Free</option>
+        <option value="trial">Trial</option>
+        <option value="active">Active</option>
+        <option value="expired">Expired</option>
+      </select>
+      <select id="subOverrideFilter" onchange="filterSubs()">
+        <option value="">All</option>
+        <option value="yes">Complimentary Only</option>
+        <option value="no">Paid Only</option>
+      </select>
+      <select id="subSort" onchange="sortSubs()">
+        <option value="newest">Newest First</option>
+        <option value="name">Name A→Z</option>
+        <option value="trial-asc">Trial Expiry (Soonest)</option>
+        <option value="trial-desc">Trial Expiry (Latest)</option>
+      </select>
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden;">
+      <table id="subTable">
         <thead>
           <tr style="background:var(--bg-hover);">
-            <th style="padding:12px 16px;text-align:left;font-size:13px;color:var(--text-muted);">Business</th>
-            <th style="padding:12px 16px;text-align:left;font-size:13px;color:var(--text-muted);">Phone</th>
-            <th style="padding:12px 16px;text-align:left;font-size:13px;color:var(--text-muted);">Plan</th>
-            <th style="padding:12px 16px;text-align:left;font-size:13px;color:var(--text-muted);">Status</th>
-            <th style="padding:12px 16px;text-align:left;font-size:13px;color:var(--text-muted);">Trial Ends</th>
-            <th style="padding:12px 16px;text-align:left;font-size:13px;color:var(--text-muted);">Override</th>
-            <th style="padding:12px 16px;text-align:left;font-size:13px;color:var(--text-muted);">Action</th>
+            <th style="padding:12px 16px;">Business</th>
+            <th style="padding:12px 16px;">Phone</th>
+            <th style="padding:12px 16px;">Plan</th>
+            <th style="padding:12px 16px;">Status</th>
+            <th style="padding:12px 16px;">Trial Ends</th>
+            <th style="padding:12px 16px;">Override</th>
+            <th style="padding:12px 16px;">Action</th>
           </tr>
         </thead>
-        <tbody>${rows || '<tr><td colspan="7" style="padding:32px;text-align:center;color:var(--text-muted);">No businesses yet</td></tr>'}</tbody>
+        <tbody id="subTbody">
+          ${businesses.length === 0 ? '<tr><td colspan="7" style="padding:32px;text-align:center;color:var(--text-muted);">No businesses yet</td></tr>' : rows}
+        </tbody>
       </table>
     </div>
+    <div id="subEmpty" style="display:none;padding:40px;text-align:center;color:var(--text-muted);">No subscriptions match your filters.</div>
+
+    <script>
+      function filterSubs() {
+        const q = document.getElementById('subSearch').value.toLowerCase();
+        const plan = document.getElementById('subPlanFilter').value;
+        const status = document.getElementById('subStatusFilter').value;
+        const override = document.getElementById('subOverrideFilter').value;
+        let visible = 0;
+        document.querySelectorAll('#subTbody .sub-row').forEach(function(row) {
+          const name = row.getAttribute('data-name') || '';
+          const rowPlan = row.getAttribute('data-plan') || '';
+          const rowStatus = row.getAttribute('data-status') || '';
+          const rowOverride = row.getAttribute('data-override') || '';
+          const show = (!q || name.includes(q)) && (!plan || rowPlan === plan) && (!status || rowStatus === status) && (!override || rowOverride === override);
+          row.style.display = show ? '' : 'none';
+          if (show) visible++;
+        });
+        document.getElementById('subEmpty').style.display = visible === 0 ? 'block' : 'none';
+        document.getElementById('subTable').style.display = visible === 0 ? 'none' : '';
+      }
+      function sortSubs() {
+        const sort = document.getElementById('subSort').value;
+        const tbody = document.getElementById('subTbody');
+        const rows = Array.from(tbody.querySelectorAll('.sub-row'));
+        rows.sort(function(a, b) {
+          if (sort === 'name') return (a.getAttribute('data-name') || '').localeCompare(b.getAttribute('data-name') || '');
+          if (sort === 'trial-asc') return parseInt(a.getAttribute('data-trial-ts') || '0') - parseInt(b.getAttribute('data-trial-ts') || '0');
+          if (sort === 'trial-desc') return parseInt(b.getAttribute('data-trial-ts') || '0') - parseInt(a.getAttribute('data-trial-ts') || '0');
+          return 0;
+        });
+        rows.forEach(function(r) { tbody.appendChild(r); });
+      }
+    </script>
   `);
 }
 
