@@ -94,7 +94,7 @@ export const businessOwners = mysqlTable("business_owners", {
   stripeCustomerId: varchar("stripeCustomerId", { length: 255 }),
   /** Stripe subscription ID */
   stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 255 }),
-  /** Admin override: grant full Unlimited access for free */
+  /** Admin override: grant full Unlimited access for free (SaaS feature) */
   adminOverride: boolean("adminOverride").default(false).notNull(),
   /** Admin override note (reason/description) */
   adminOverrideNote: text("adminOverrideNote"),

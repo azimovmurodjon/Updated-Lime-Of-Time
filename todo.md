@@ -1058,3 +1058,14 @@
 - [x] Admin: improve Subscriptions tab with plan distribution chart and summary cards
 - [x] Admin: improve Plan Pricing tab with inline editing
 - [x] Admin: improve Settings tab layout with clear sections
+
+## Admin Filtering + Analytics Dashboard
+- [x] Add search/filter to Discounts page (by business, name, type)
+- [x] Add search/filter to Gift Cards page (by business, status, code)
+- [x] Add search/filter to Reviews page (by business, rating)
+- [x] Add search/filter to Products page (by business, name)
+- [x] Build Admin Analytics Dashboard (total revenue, MRR, churn, signups/week)
+- [x] Per-business revenue breakdown table with sort/filter
+- [x] Weekly signups chart (last 12 weeks)
+- [x] MRR trend chart (last 12 months)
+- [x] Wire analytics to sidebar nav

@@ -344,7 +344,7 @@ export async function checkPlanLimit(
 /**
  * Returns the effective plan key for a business (respects adminOverride).
  */
-export function getEffectivePlan(business: Pick<BusinessOwner, "adminOverride" | "subscriptionPlan">): string {
+export function getEffectivePlan(business: { adminOverride: boolean; subscriptionPlan: string }): string {
   return business.adminOverride ? "enterprise" : business.subscriptionPlan;
 }
 

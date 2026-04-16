@@ -288,11 +288,80 @@ export function registerAdminRoutes(app: Express): void {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
 
-      // All queries use simple aggregation to avoid GROUP BY strict mode issues
-      // Fetch all appointments and compute analytics in JS
       const allAppts = await dbase.select().from(appointments);
       const allBiz = await dbase.select().from(businessOwners);
       const allReviews = await dbase.select().from(reviews);
+      const allPlans = await dbase.select().from(subscriptionPlans);
+
+      // Plan price map
+      const planPriceMap: Record<string, number> = {};
+      allPlans.forEach((p) => { planPriceMap[p.planKey] = parseFloat(p.monthlyPrice as string) || 0; });
+
+      // MRR: sum of monthly prices for all active/trial businesses
+      const mrrBiz = allBiz.filter((b) => b.subscriptionStatus === 'active' || b.subscriptionStatus === 'trial');
+      const mrr = mrrBiz.reduce((sum, b) => {
+        const price = planPriceMap[b.subscriptionPlan] || 0;
+        const multiplier = b.subscriptionPeriod === 'yearly' ? (1 / 12) : 1;
+        return sum + price * multiplier;
+      }, 0);
+      const arr = mrr * 12;
+
+      // Total revenue from completed appointments (use totalPrice field if available)
+      const completedAppts = allAppts.filter((a) => a.status === 'completed');
+      const totalApptRevenue = completedAppts.reduce((sum, a) => sum + (parseFloat((a as any).totalPrice) || 0), 0);
+
+      // Churn: businesses that expired in last 30 days (status = expired, updatedAt within 30 days)
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const recentlyChurned = allBiz.filter((b) => {
+        return b.subscriptionStatus === 'expired' && b.updatedAt && new Date(b.updatedAt) > thirtyDaysAgo;
+      }).length;
+      const activeLast30 = allBiz.filter((b) => b.subscriptionStatus === 'active' || b.subscriptionStatus === 'trial').length;
+      const churnRate = activeLast30 + recentlyChurned > 0
+        ? Math.round((recentlyChurned / (activeLast30 + recentlyChurned)) * 100)
+        : 0;
+
+      // New signups per week (last 8 weeks)
+      const weekMap: Record<string, number> = {};
+      for (let i = 7; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i * 7);
+        const key = `W${String(d.getMonth() + 1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+        weekMap[key] = 0;
+      }
+      allBiz.forEach((b) => {
+        if (!b.createdAt) return;
+        const created = new Date(b.createdAt);
+        const msAgo = Date.now() - created.getTime();
+        const weeksAgo = Math.floor(msAgo / (7 * 24 * 60 * 60 * 1000));
+        if (weeksAgo <= 7) {
+          const d = new Date();
+          d.setDate(d.getDate() - weeksAgo * 7);
+          const key = `W${String(d.getMonth() + 1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+          if (weekMap[key] !== undefined) weekMap[key]++;
+        }
+      });
+      const signupsByWeek = Object.entries(weekMap).map(([week, count]) => ({ week, count }));
+
+      // Plan distribution
+      const planDist: Record<string, number> = { solo: 0, growth: 0, studio: 0, enterprise: 0 };
+      allBiz.forEach((b) => { const p = b.subscriptionPlan || 'solo'; planDist[p] = (planDist[p] || 0) + 1; });
+
+      // Per-business revenue (appointment revenue + subscription MRR)
+      const bizApptRevMap: Record<number, number> = {};
+      const bizApptCountMap: Record<number, number> = {};
+      completedAppts.forEach((a) => {
+        bizApptRevMap[a.businessOwnerId] = (bizApptRevMap[a.businessOwnerId] || 0) + (parseFloat((a as any).totalPrice) || 0);
+        bizApptCountMap[a.businessOwnerId] = (bizApptCountMap[a.businessOwnerId] || 0) + 1;
+      });
+      const bizRevTable = allBiz.map((b) => ({
+        id: b.id,
+        name: b.businessName,
+        plan: b.subscriptionPlan,
+        status: b.subscriptionStatus,
+        revenue: bizApptRevMap[b.id] || 0,
+        apptCount: bizApptCountMap[b.id] || 0,
+        createdAt: b.createdAt,
+      })).sort((a, b) => b.revenue - a.revenue);
 
       // Appointments by status
       const statusMap: Record<string, number> = {};
@@ -313,40 +382,26 @@ export function registerAdminRoutes(app: Express): void {
         .sort((a, b) => a.month.localeCompare(b.month))
         .slice(-12);
 
-      // Business growth by month
-      const bizMonthMap: Record<string, number> = {};
-      allBiz.forEach((b) => {
-        if (b.createdAt) {
-          const d = new Date(b.createdAt);
-          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-          bizMonthMap[key] = (bizMonthMap[key] || 0) + 1;
-        }
-      });
-      const bizByMonth = Object.entries(bizMonthMap)
-        .map(([month, count]) => ({ month, count }))
-        .sort((a, b) => a.month.localeCompare(b.month))
-        .slice(-12);
-
       // Average rating
       const avgRating = allReviews.length > 0
         ? allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length
         : 0;
 
-      // Top services by appointment count
-      const svcMap: Record<string, number> = {};
-      allAppts.forEach((a) => { svcMap[a.serviceLocalId] = (svcMap[a.serviceLocalId] || 0) + 1; });
-      const topServices = Object.entries(svcMap)
-        .map(([serviceLocalId, count]) => ({ serviceLocalId, count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 10);
-
       res.send(
         analyticsPage({
+          mrr,
+          arr,
+          totalApptRevenue,
+          churnRate,
+          recentlyChurned,
+          planDist,
+          signupsByWeek,
+          bizRevTable,
           apptsByStatus,
           apptsByMonth,
-          bizByMonth,
           avgRating,
-          topServices,
+          totalBiz: allBiz.length,
+          activeBiz: activeLast30,
         })
       );
     } catch (err) {
@@ -1559,74 +1614,222 @@ function dbExplorerPage(table: string, rows: any[], page: number, totalPages: nu
 
 // ─── Analytics Page ─────────────────────────────────────────────────
 function analyticsPage(data: {
+  mrr: number;
+  arr: number;
+  totalApptRevenue: number;
+  churnRate: number;
+  recentlyChurned: number;
+  planDist: Record<string, number>;
+  signupsByWeek: { week: string; count: number }[];
+  bizRevTable: { id: number; name: string; plan: string; status: string; revenue: number; apptCount: number; createdAt: Date | null }[];
   apptsByStatus: { status: string; count: number }[];
   apptsByMonth: { month: string; count: number }[];
-  bizByMonth: { month: string; count: number }[];
   avgRating: number;
-  topServices: { serviceLocalId: string; count: number }[];
+  totalBiz: number;
+  activeBiz: number;
 }): string {
   const maxApptMonth = Math.max(...data.apptsByMonth.map((m) => m.count), 1);
-  const maxBizMonth = Math.max(...data.bizByMonth.map((m) => m.count), 1);
+  const maxWeek = Math.max(...data.signupsByWeek.map((w) => w.count), 1);
+  const planColors: Record<string, string> = { solo: '#6b7280', growth: '#0a7ea4', studio: '#7c3aed', enterprise: '#059669' };
+  const totalPlanBiz = Object.values(data.planDist).reduce((s, v) => s + v, 0) || 1;
 
   return adminLayout("Analytics", "analytics", `
     <div class="page-header">
-      <h2>Analytics</h2>
-    </div>
-
-    <div class="stats-grid">
-      ${data.apptsByStatus.map((s) => {
-        const bc = s.status === "confirmed" ? "badge-success" : s.status === "pending" ? "badge-warning" : s.status === "cancelled" ? "badge-danger" : "badge-info";
-        return `<div class="stat-card">
-          <div class="stat-label">${s.status.charAt(0).toUpperCase() + s.status.slice(1)} Appointments</div>
-          <div class="stat-value"><span class="badge ${bc}" style="font-size:20px;padding:6px 14px;">${s.count}</span></div>
-        </div>`;
-      }).join("")}
-      <div class="stat-card">
-        <div class="stat-icon">⭐</div>
-        <div class="stat-label">Average Rating</div>
-        <div class="stat-value">${Number(data.avgRating).toFixed(1)}</div>
+      <div>
+        <h2>Analytics Dashboard</h2>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">Platform-wide metrics &mdash; updated on page load</div>
       </div>
     </div>
 
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+    <!-- Revenue KPI Row -->
+    <div class="stats-grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr));">
+      <div class="stat-card" style="border-left:4px solid #059669;">
+        <div class="stat-icon" style="color:#059669;">$</div>
+        <div class="stat-label">MRR</div>
+        <div class="stat-value" style="color:#059669;">\$${data.mrr.toFixed(2)}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Monthly Recurring Revenue</div>
+      </div>
+      <div class="stat-card" style="border-left:4px solid #0a7ea4;">
+        <div class="stat-icon" style="color:#0a7ea4;">&#128200;</div>
+        <div class="stat-label">ARR</div>
+        <div class="stat-value" style="color:#0a7ea4;">\$${data.arr.toFixed(2)}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Annual Run Rate</div>
+      </div>
+      <div class="stat-card" style="border-left:4px solid #7c3aed;">
+        <div class="stat-icon" style="color:#7c3aed;">&#128179;</div>
+        <div class="stat-label">Appt Revenue</div>
+        <div class="stat-value" style="color:#7c3aed;">\$${data.totalApptRevenue.toFixed(2)}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">From completed bookings</div>
+      </div>
+      <div class="stat-card" style="border-left:4px solid ${data.churnRate > 10 ? '#ef4444' : '#f59e0b'};">
+        <div class="stat-icon" style="color:${data.churnRate > 10 ? '#ef4444' : '#f59e0b'};">&#128197;</div>
+        <div class="stat-label">Churn Rate</div>
+        <div class="stat-value" style="color:${data.churnRate > 10 ? '#ef4444' : '#f59e0b'};">${data.churnRate}%</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${data.recentlyChurned} expired last 30d</div>
+      </div>
+      <div class="stat-card" style="border-left:4px solid #6b7280;">
+        <div class="stat-icon">&#127970;</div>
+        <div class="stat-label">Total Businesses</div>
+        <div class="stat-value">${data.totalBiz}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${data.activeBiz} active / trial</div>
+      </div>
+      <div class="stat-card" style="border-left:4px solid #f59e0b;">
+        <div class="stat-icon" style="color:#f59e0b;">&#11088;</div>
+        <div class="stat-label">Avg Rating</div>
+        <div class="stat-value" style="color:#f59e0b;">${Number(data.avgRating).toFixed(1)}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Across all reviews</div>
+      </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+      <!-- New Signups Per Week -->
       <div class="card">
-        <h3>Appointments by Month</h3>
+        <h3 style="margin-bottom:16px;">New Signups Per Week</h3>
+        ${data.signupsByWeek.length === 0
+          ? '<div class="empty-state"><p>No data yet</p></div>'
+          : data.signupsByWeek.map((w) => `
+            <div class="chart-bar">
+              <div class="chart-bar-label" style="min-width:80px;font-size:11px;">${w.week}</div>
+              <div class="chart-bar-fill" style="width:${Math.max((w.count / maxWeek) * 100, w.count > 0 ? 8 : 2)}%;background:#0a7ea4;">
+                ${w.count > 0 ? `<span class="chart-bar-value">${w.count}</span>` : ''}
+              </div>
+            </div>
+          `).join('')}
+      </div>
+      <!-- Appointments Per Month -->
+      <div class="card">
+        <h3 style="margin-bottom:16px;">Appointments by Month</h3>
         ${data.apptsByMonth.length === 0
           ? '<div class="empty-state"><p>No data yet</p></div>'
           : data.apptsByMonth.map((m) => `
             <div class="chart-bar">
-              <div class="chart-bar-label">${m.month}</div>
-              <div class="chart-bar-fill" style="width: ${Math.max((m.count / maxApptMonth) * 100, 8)}%;">
+              <div class="chart-bar-label" style="min-width:80px;font-size:11px;">${m.month}</div>
+              <div class="chart-bar-fill" style="width:${Math.max((m.count / maxApptMonth) * 100, 8)}%;">
                 <span class="chart-bar-value">${m.count}</span>
               </div>
             </div>
-          `).join("")}
-      </div>
-      <div class="card">
-        <h3>Business Growth</h3>
-        ${data.bizByMonth.length === 0
-          ? '<div class="empty-state"><p>No data yet</p></div>'
-          : data.bizByMonth.map((m) => `
-            <div class="chart-bar">
-              <div class="chart-bar-label">${m.month}</div>
-              <div class="chart-bar-fill" style="width: ${Math.max((m.count / maxBizMonth) * 100, 8)}%;">
-                <span class="chart-bar-value">${m.count}</span>
-              </div>
-            </div>
-          `).join("")}
+          `).join('')}
       </div>
     </div>
 
-    ${data.topServices.length > 0 ? `
+    <!-- Plan Distribution + Appointment Status Row -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+      <div class="card">
+        <h3 style="margin-bottom:16px;">Plan Distribution</h3>
+        ${Object.entries(data.planDist).map(([plan, count]) => {
+          const pct = Math.round((count / totalPlanBiz) * 100);
+          const col = planColors[plan] || '#6b7280';
+          return `
+            <div style="margin-bottom:12px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <span style="font-size:13px;font-weight:600;color:${col};">${plan.charAt(0).toUpperCase() + plan.slice(1)}</span>
+                <span style="font-size:12px;color:var(--text-muted);">${count} (${pct}%)</span>
+              </div>
+              <div style="height:8px;background:var(--bg-hover);border-radius:4px;overflow:hidden;">
+                <div style="height:100%;width:${pct}%;background:${col};border-radius:4px;transition:width 0.3s;"></div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:16px;">Appointments by Status</h3>
+        ${data.apptsByStatus.map((s) => {
+          const col = s.status === 'confirmed' ? '#059669' : s.status === 'pending' ? '#f59e0b' : s.status === 'cancelled' ? '#ef4444' : '#3b82f6';
+          const total = data.apptsByStatus.reduce((sum, x) => sum + x.count, 0) || 1;
+          const pct = Math.round((s.count / total) * 100);
+          return `
+            <div style="margin-bottom:12px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <span style="font-size:13px;font-weight:600;color:${col};">${s.status.charAt(0).toUpperCase() + s.status.slice(1)}</span>
+                <span style="font-size:12px;color:var(--text-muted);">${s.count} (${pct}%)</span>
+              </div>
+              <div style="height:8px;background:var(--bg-hover);border-radius:4px;overflow:hidden;">
+                <div style="height:100%;width:${pct}%;background:${col};border-radius:4px;"></div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+
+    <!-- Per-Business Revenue Table -->
     <div class="card" style="margin-top:16px;">
-      <h3>Top Services by Booking Count</h3>
-      <table>
-        <thead><tr><th>Service ID</th><th>Bookings</th></tr></thead>
-        <tbody>
-          ${data.topServices.map((s) => `<tr><td>${s.serviceLocalId}</td><td><span class="badge badge-success">${s.count}</span></td></tr>`).join("")}
-        </tbody>
-      </table>
-    </div>` : ""}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h3 style="margin:0;">Revenue by Business</h3>
+        <div class="search-bar" style="margin:0;">
+          <input type="text" id="bizRevSearch" placeholder="&#128269; Search by name..." oninput="filterBizRev()" style="max-width:220px;">
+          <select id="bizRevPlanFilter" onchange="filterBizRev()">
+            <option value="">All Plans</option>
+            <option value="solo">Solo</option>
+            <option value="growth">Growth</option>
+            <option value="studio">Studio</option>
+            <option value="enterprise">Enterprise</option>
+          </select>
+          <select id="bizRevStatusFilter" onchange="filterBizRev()">
+            <option value="">All Statuses</option>
+            <option value="active">Active</option>
+            <option value="trial">Trial</option>
+            <option value="expired">Expired</option>
+            <option value="free">Free</option>
+          </select>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table id="bizRevTable">
+          <thead>
+            <tr style="background:var(--bg-hover);">
+              <th style="padding:10px 14px;">Business</th>
+              <th style="padding:10px 14px;">Plan</th>
+              <th style="padding:10px 14px;">Status</th>
+              <th style="padding:10px 14px;text-align:right;">Appt Revenue</th>
+              <th style="padding:10px 14px;text-align:right;">Completed Appts</th>
+              <th style="padding:10px 14px;">Joined</th>
+              <th style="padding:10px 14px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="bizRevTbody">
+            ${data.bizRevTable.length === 0
+              ? '<tr><td colspan="7" style="padding:40px;text-align:center;color:var(--text-muted);">No businesses yet</td></tr>'
+              : data.bizRevTable.map((b) => {
+                  const pc = planColors[b.plan] || '#6b7280';
+                  const sc = b.status === 'active' ? '#059669' : b.status === 'trial' ? '#f59e0b' : b.status === 'expired' ? '#ef4444' : '#6b7280';
+                  return `<tr class="biz-rev-row" data-name="${escHtml(b.name.toLowerCase())}" data-plan="${b.plan}" data-status="${b.status}">
+                    <td style="font-weight:600;"><a href="/api/admin/businesses/${b.id}" style="color:var(--text);text-decoration:none;">${escHtml(b.name)}</a></td>
+                    <td><span style="background:${pc}20;color:${pc};padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600;">${b.plan.charAt(0).toUpperCase() + b.plan.slice(1)}</span></td>
+                    <td><span style="background:${sc}20;color:${sc};padding:2px 8px;border-radius:10px;font-size:12px;">${b.status.charAt(0).toUpperCase() + b.status.slice(1)}</span></td>
+                    <td style="text-align:right;font-weight:600;color:${b.revenue > 0 ? '#059669' : 'var(--text-muted)'};">\$${b.revenue.toFixed(2)}</td>
+                    <td style="text-align:right;color:var(--text-muted);">${b.apptCount}</td>
+                    <td style="font-size:12px;color:var(--text-muted);">${fmtDate(b.createdAt)}</td>
+                    <td><a href="/api/admin/businesses/${b.id}" class="btn btn-secondary btn-sm">View &rarr;</a></td>
+                  </tr>`;
+                }).join('')
+            }
+          </tbody>
+        </table>
+      </div>
+      <div id="bizRevEmpty" style="display:none;padding:40px;text-align:center;color:var(--text-muted);">No businesses match your filters.</div>
+    </div>
+
+    <script>
+      function filterBizRev() {
+        const q = document.getElementById('bizRevSearch').value.toLowerCase();
+        const plan = document.getElementById('bizRevPlanFilter').value;
+        const status = document.getElementById('bizRevStatusFilter').value;
+        let visible = 0;
+        document.querySelectorAll('#bizRevTbody .biz-rev-row').forEach(function(row) {
+          const name = row.getAttribute('data-name') || '';
+          const rowPlan = row.getAttribute('data-plan') || '';
+          const rowStatus = row.getAttribute('data-status') || '';
+          const show = (!q || name.includes(q)) && (!plan || rowPlan === plan) && (!status || rowStatus === status);
+          row.style.display = show ? '' : 'none';
+          if (show) visible++;
+        });
+        document.getElementById('bizRevEmpty').style.display = visible === 0 ? 'block' : 'none';
+        document.getElementById('bizRevTable').style.display = visible === 0 ? 'none' : '';
+      }
+    </script>
   `);
 }
 
@@ -1835,25 +2038,59 @@ function discountsPage(allDisc: any[], allBiz: any[]): string {
       <h2>All Discounts</h2>
       <span class="badge badge-info">${allDisc.length} total</span>
     </div>
+    <div class="search-bar">
+      <input type="text" id="discSearch" placeholder="🔍 Search by name or code..." oninput="filterDisc()" style="max-width:300px;">
+      <select id="discBizFilter" onchange="filterDisc()">
+        <option value="">All Businesses</option>
+        ${allBiz.map((b: any) => `<option value="${b.id}">${escHtml(b.businessName)}</option>`).join("")}
+      </select>
+      <select id="discStatusFilter" onchange="filterDisc()">
+        <option value="">All Statuses</option>
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
+      </select>
+    </div>
     <div class="card">
       ${allDisc.length === 0
         ? '<div class="empty-state"><div class="empty-icon">🏷️</div><p>No discounts yet</p></div>'
-        : `<table>
+        : `<table id="discTable">
             <thead><tr><th>Name</th><th>Type</th><th>Value</th><th>Code</th><th>Business</th><th>Active</th><th>Actions</th></tr></thead>
-            <tbody>
-              ${allDisc.map((d: any) => `<tr>
-                <td style="font-weight:500;">${d.name || "Unnamed"}</td>
-                <td>${d.type || "percent"}</td>
-                <td>${d.type === "fixed" ? fmtCurrency(parseFloat(d.value || "0")) : (d.value || "0") + "%"}</td>
-                <td><code>${d.code || "N/A"}</code></td>
-                <td><a href="/api/admin/businesses/${d.businessOwnerId}">${bizMap.get(d.businessOwnerId) || "Unknown"}</a></td>
-                <td>${d.active !== false ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-danger">Inactive</span>'}</td>
-                <td><form class="delete-form" method="POST" action="/api/admin/delete/discount/${d.id}" onsubmit="return confirm('Delete this discount?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
-              </tr>`).join("")}
+            <tbody id="discTbody">
+              ${allDisc.map((d: any) => {
+                const isActive = d.active !== false;
+                return `<tr class="disc-row" data-search="${escHtml(((d.name || '') + ' ' + (d.code || '')).toLowerCase())}" data-biz="${d.businessOwnerId}" data-status="${isActive ? 'active' : 'inactive'}">
+                  <td style="font-weight:500;">${d.name || "Unnamed"}</td>
+                  <td>${d.type || "percent"}</td>
+                  <td>${d.type === "fixed" ? fmtCurrency(parseFloat(d.value || "0")) : (d.value || "0") + "%"}</td>
+                  <td><code>${d.code || "N/A"}</code></td>
+                  <td><a href="/api/admin/businesses/${d.businessOwnerId}">${bizMap.get(d.businessOwnerId) || "Unknown"}</a></td>
+                  <td>${isActive ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-danger">Inactive</span>'}</td>
+                  <td><form class="delete-form" method="POST" action="/api/admin/delete/discount/${d.id}" onsubmit="return confirm('Delete this discount?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+                </tr>`;
+              }).join("")}
             </tbody>
-          </table>`
+          </table>
+          <div id="discEmpty" style="display:none;padding:40px;text-align:center;color:var(--text-muted);">No discounts match your filters.</div>`
       }
     </div>
+    <script>
+      function filterDisc() {
+        const q = document.getElementById('discSearch').value.toLowerCase();
+        const biz = document.getElementById('discBizFilter').value;
+        const status = document.getElementById('discStatusFilter').value;
+        let visible = 0;
+        document.querySelectorAll('#discTbody .disc-row').forEach(function(row) {
+          const search = row.getAttribute('data-search') || '';
+          const rowBiz = row.getAttribute('data-biz') || '';
+          const rowStatus = row.getAttribute('data-status') || '';
+          const show = (!q || search.includes(q)) && (!biz || rowBiz === biz) && (!status || rowStatus === status);
+          row.style.display = show ? '' : 'none';
+          if (show) visible++;
+        });
+        document.getElementById('discEmpty').style.display = visible === 0 ? 'block' : 'none';
+        document.getElementById('discTable').style.display = visible === 0 ? 'none' : '';
+      }
+    </script>
   `);
 }
 
@@ -1865,15 +2102,27 @@ function giftCardsPage(allGC: any[], allBiz: any[]): string {
       <h2>All Gift Cards</h2>
       <span class="badge badge-info">${allGC.length} total</span>
     </div>
+    <div class="search-bar">
+      <input type="text" id="gcSearch" placeholder="🔍 Search by code..." oninput="filterGC()" style="max-width:280px;">
+      <select id="gcBizFilter" onchange="filterGC()">
+        <option value="">All Businesses</option>
+        ${allBiz.map((b: any) => `<option value="${b.id}">${escHtml(b.businessName)}</option>`).join("")}
+      </select>
+      <select id="gcStatusFilter" onchange="filterGC()">
+        <option value="">All Statuses</option>
+        <option value="active">Active</option>
+        <option value="used">Used</option>
+      </select>
+    </div>
     <div class="card">
       ${allGC.length === 0
         ? '<div class="empty-state"><div class="empty-icon">🎁</div><p>No gift cards yet</p></div>'
-        : `<table>
+        : `<table id="gcTable">
             <thead><tr><th>Code</th><th>Amount</th><th>Balance</th><th>Business</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
-            <tbody>
+            <tbody id="gcTbody">
               ${allGC.map((g: any) => {
                 const isUsed = parseFloat(g.balance || g.amount || "0") <= 0;
-                return `<tr>
+                return `<tr class="gc-row" data-search="${escHtml(g.code || '').toLowerCase()}" data-biz="${g.businessOwnerId}" data-status="${isUsed ? 'used' : 'active'}">
                   <td><code style="font-weight:600;">${g.code}</code></td>
                   <td>${fmtCurrency(parseFloat(g.amount || "0"))}</td>
                   <td>${fmtCurrency(parseFloat(g.balance || g.amount || "0"))}</td>
@@ -1884,9 +2133,28 @@ function giftCardsPage(allGC: any[], allBiz: any[]): string {
                 </tr>`;
               }).join("")}
             </tbody>
-          </table>`
+          </table>
+          <div id="gcEmpty" style="display:none;padding:40px;text-align:center;color:var(--text-muted);">No gift cards match your filters.</div>`
       }
     </div>
+    <script>
+      function filterGC() {
+        const q = document.getElementById('gcSearch').value.toLowerCase();
+        const biz = document.getElementById('gcBizFilter').value;
+        const status = document.getElementById('gcStatusFilter').value;
+        let visible = 0;
+        document.querySelectorAll('#gcTbody .gc-row').forEach(function(row) {
+          const search = row.getAttribute('data-search') || '';
+          const rowBiz = row.getAttribute('data-biz') || '';
+          const rowStatus = row.getAttribute('data-status') || '';
+          const show = (!q || search.includes(q)) && (!biz || rowBiz === biz) && (!status || rowStatus === status);
+          row.style.display = show ? '' : 'none';
+          if (show) visible++;
+        });
+        document.getElementById('gcEmpty').style.display = visible === 0 ? 'block' : 'none';
+        document.getElementById('gcTable').style.display = visible === 0 ? 'none' : '';
+      }
+    </script>
   `);
 }
 
@@ -1898,13 +2166,28 @@ function reviewsPage(allRev: any[], allBiz: any[]): string {
       <h2>All Reviews</h2>
       <span class="badge badge-info">${allRev.length} total</span>
     </div>
+    <div class="search-bar">
+      <input type="text" id="revSearch" placeholder="🔍 Search by client or comment..." oninput="filterRev()" style="max-width:300px;">
+      <select id="revBizFilter" onchange="filterRev()">
+        <option value="">All Businesses</option>
+        ${allBiz.map((b: any) => `<option value="${b.id}">${escHtml(b.businessName)}</option>`).join("")}
+      </select>
+      <select id="revRatingFilter" onchange="filterRev()">
+        <option value="">All Ratings</option>
+        <option value="5">⭐⭐⭐⭐⭐ 5 stars</option>
+        <option value="4">⭐⭐⭐⭐ 4 stars</option>
+        <option value="3">⭐⭐⭐ 3 stars</option>
+        <option value="2">⭐⭐ 2 stars</option>
+        <option value="1">⭐ 1 star</option>
+      </select>
+    </div>
     <div class="card">
       ${allRev.length === 0
         ? '<div class="empty-state"><div class="empty-icon">⭐</div><p>No reviews yet</p></div>'
-        : `<table>
+        : `<table id="revTable">
             <thead><tr><th>Rating</th><th>Comment</th><th>Client</th><th>Business</th><th>Created</th><th>Actions</th></tr></thead>
-            <tbody>
-              ${allRev.map((r: any) => `<tr>
+            <tbody id="revTbody">
+              ${allRev.map((r: any) => `<tr class="rev-row" data-search="${escHtml(((r.clientName || '') + ' ' + (r.comment || '')).toLowerCase())}" data-biz="${r.businessOwnerId}" data-rating="${r.rating}">
                 <td>${"⭐".repeat(Math.min(r.rating, 5))}</td>
                 <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.comment || '<span style="color:var(--text-muted);">No comment</span>'}</td>
                 <td>${r.clientName || r.clientLocalId || "Anonymous"}</td>
@@ -1913,9 +2196,28 @@ function reviewsPage(allRev: any[], allBiz: any[]): string {
                 <td><form class="delete-form" method="POST" action="/api/admin/delete/review/${r.id}" onsubmit="return confirm('Delete this review?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
               </tr>`).join("")}
             </tbody>
-          </table>`
+          </table>
+          <div id="revEmpty" style="display:none;padding:40px;text-align:center;color:var(--text-muted);">No reviews match your filters.</div>`
       }
     </div>
+    <script>
+      function filterRev() {
+        const q = document.getElementById('revSearch').value.toLowerCase();
+        const biz = document.getElementById('revBizFilter').value;
+        const rating = document.getElementById('revRatingFilter').value;
+        let visible = 0;
+        document.querySelectorAll('#revTbody .rev-row').forEach(function(row) {
+          const search = row.getAttribute('data-search') || '';
+          const rowBiz = row.getAttribute('data-biz') || '';
+          const rowRating = row.getAttribute('data-rating') || '';
+          const show = (!q || search.includes(q)) && (!biz || rowBiz === biz) && (!rating || rowRating === rating);
+          row.style.display = show ? '' : 'none';
+          if (show) visible++;
+        });
+        document.getElementById('revEmpty').style.display = visible === 0 ? 'block' : 'none';
+        document.getElementById('revTable').style.display = visible === 0 ? 'none' : '';
+      }
+    </script>
   `);
 }
 
@@ -1927,13 +2229,20 @@ function productsPage(allProd: any[], allBiz: any[]): string {
       <h2>All Products</h2>
       <span class="badge badge-info">${allProd.length} total</span>
     </div>
+    <div class="search-bar">
+      <input type="text" id="prodSearch" placeholder="🔍 Search by name..." oninput="filterProd()" style="max-width:280px;">
+      <select id="prodBizFilter" onchange="filterProd()">
+        <option value="">All Businesses</option>
+        ${allBiz.map((b: any) => `<option value="${b.id}">${escHtml(b.businessName)}</option>`).join("")}
+      </select>
+    </div>
     <div class="card">
       ${allProd.length === 0
         ? '<div class="empty-state"><div class="empty-icon">📦</div><p>No products yet</p></div>'
-        : `<table>
+        : `<table id="prodTable">
             <thead><tr><th>Name</th><th>Price</th><th>Stock</th><th>Business</th><th>Created</th><th>Actions</th></tr></thead>
-            <tbody>
-              ${allProd.map((p: any) => `<tr>
+            <tbody id="prodTbody">
+              ${allProd.map((p: any) => `<tr class="prod-row" data-search="${escHtml(p.name || '').toLowerCase()}" data-biz="${p.businessOwnerId}">
                 <td style="font-weight:500;">${p.name}</td>
                 <td>${fmtCurrency(parseFloat(p.price || "0"))}</td>
                 <td>${p.stock !== null && p.stock !== undefined ? p.stock : '<span style="color:var(--text-muted);">N/A</span>'}</td>
@@ -1942,9 +2251,26 @@ function productsPage(allProd: any[], allBiz: any[]): string {
                 <td><form class="delete-form" method="POST" action="/api/admin/delete/product/${p.id}" onsubmit="return confirm('Delete product ${escHtml(p.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
               </tr>`).join("")}
             </tbody>
-          </table>`
+          </table>
+          <div id="prodEmpty" style="display:none;padding:40px;text-align:center;color:var(--text-muted);">No products match your filters.</div>`
       }
     </div>
+    <script>
+      function filterProd() {
+        const q = document.getElementById('prodSearch').value.toLowerCase();
+        const biz = document.getElementById('prodBizFilter').value;
+        let visible = 0;
+        document.querySelectorAll('#prodTbody .prod-row').forEach(function(row) {
+          const search = row.getAttribute('data-search') || '';
+          const rowBiz = row.getAttribute('data-biz') || '';
+          const show = (!q || search.includes(q)) && (!biz || rowBiz === biz);
+          row.style.display = show ? '' : 'none';
+          if (show) visible++;
+        });
+        document.getElementById('prodEmpty').style.display = visible === 0 ? 'block' : 'none';
+        document.getElementById('prodTable').style.display = visible === 0 ? 'none' : '';
+      }
+    </script>
   `);
 }
 
@@ -1956,25 +2282,60 @@ function locationsPage(allLoc: any[], allBiz: any[]): string {
       <h2>All Locations</h2>
       <span class="badge badge-info">${allLoc.length} total</span>
     </div>
+    <div class="search-bar">
+      <input type="text" id="locSearch" placeholder="🔍 Search by name or address..." oninput="filterLoc()" style="max-width:300px;">
+      <select id="locBizFilter" onchange="filterLoc()">
+        <option value="">All Businesses</option>
+        ${allBiz.map((b: any) => `<option value="${b.id}">${escHtml(b.businessName)}</option>`).join("")}
+      </select>
+      <select id="locStatusFilter" onchange="filterLoc()">
+        <option value="">All Statuses</option>
+        <option value="active">Active</option>
+        <option value="closed">Temp. Closed</option>
+        <option value="inactive">Inactive</option>
+      </select>
+    </div>
     <div class="card">
       ${allLoc.length === 0
         ? '<div class="empty-state"><div class="empty-icon">📍</div><p>No locations yet</p></div>'
-        : `<table>
+        : `<table id="locTable">
             <thead><tr><th>Name</th><th>Address</th><th>Phone</th><th>Email</th><th>Business</th><th>Status</th><th>Actions</th></tr></thead>
-            <tbody>
-              ${allLoc.map((loc: any) => `<tr>
-                <td style="font-weight:500;">${escHtml(loc.name)}</td>
-                <td>${loc.address ? escHtml(loc.address) : "N/A"}</td>
-                <td>${loc.phone || "N/A"}</td>
-                <td>${loc.email || "N/A"}</td>
-                <td><a href="/api/admin/businesses/${loc.businessOwnerId}">${bizMap.get(loc.businessOwnerId) || "Unknown"}</a></td>
-                <td>${!loc.active ? '<span class="badge badge-danger">Inactive</span>' : loc.temporarilyClosed ? '<span class="badge badge-warning">Temp. Closed</span>' : '<span class="badge badge-success">Active</span>'}</td>
-                <td><form class="delete-form" method="POST" action="/api/admin/delete/location/${loc.id}" onsubmit="return confirm('Delete location ${escHtml(loc.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
-              </tr>`).join("")}
+            <tbody id="locTbody">
+              ${allLoc.map((loc: any) => {
+                const locStatus = !loc.active ? 'inactive' : loc.temporarilyClosed ? 'closed' : 'active';
+                return `<tr class="loc-row" data-search="${escHtml(((loc.name || '') + ' ' + (loc.address || '')).toLowerCase())}" data-biz="${loc.businessOwnerId}" data-status="${locStatus}">
+                  <td style="font-weight:500;">${escHtml(loc.name)}</td>
+                  <td>${loc.address ? escHtml(loc.address) : "N/A"}</td>
+                  <td>${loc.phone || "N/A"}</td>
+                  <td>${loc.email || "N/A"}</td>
+                  <td><a href="/api/admin/businesses/${loc.businessOwnerId}">${bizMap.get(loc.businessOwnerId) || "Unknown"}</a></td>
+                  <td>${!loc.active ? '<span class="badge badge-danger">Inactive</span>' : loc.temporarilyClosed ? '<span class="badge badge-warning">Temp. Closed</span>' : '<span class="badge badge-success">Active</span>'}</td>
+                  <td><form class="delete-form" method="POST" action="/api/admin/delete/location/${loc.id}" onsubmit="return confirm('Delete location ${escHtml(loc.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+                </tr>`;
+              }).join("")}
             </tbody>
-          </table>`
+          </table>
+          <div id="locEmpty" style="display:none;padding:40px;text-align:center;color:var(--text-muted);">No locations match your filters.</div>`
       }
     </div>
+    <script>
+      function filterLoc() {
+        const q = document.getElementById('locSearch').value.toLowerCase();
+        const biz = document.getElementById('locBizFilter').value;
+        const status = document.getElementById('locStatusFilter').value;
+        let visible = 0;
+        document.querySelectorAll('#locTbody .loc-row').forEach(function(row) {
+          const search = row.getAttribute('data-search') || '';
+          const rowBiz = row.getAttribute('data-biz') || '';
+          const rowStatus = row.getAttribute('data-status') || '';
+          const show = (!q || search.includes(q)) && (!biz || rowBiz === biz) && (!status || rowStatus === status);
+          row.style.display = show ? '' : 'none';
+          if (show) visible++;
+        });
+        document.getElementById('locEmpty').style.display = visible === 0 ? 'block' : 'none';
+        document.getElementById('locTable').style.display = visible === 0 ? 'none' : '';
+      }
+    </script>
   `);
 }
 
