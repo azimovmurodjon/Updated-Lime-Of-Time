@@ -156,6 +156,14 @@ export function registerAdminRoutes(app: Express): void {
       const [allUsers] = await dbase.select({ count: sql<number>`COUNT(*)` }).from(users);
       const [allLocations] = await dbase.select({ count: sql<number>`COUNT(*)` }).from(locations);
 
+      // Plan distribution
+      const planDistRows = await dbase
+        .select({ plan: businessOwners.subscriptionPlan, count: sql<number>`COUNT(*)` })
+        .from(businessOwners)
+        .groupBy(businessOwners.subscriptionPlan);
+      const planDist: Record<string, number> = { solo: 0, growth: 0, studio: 0, enterprise: 0 };
+      planDistRows.forEach((r) => { const p = r.plan || 'solo'; planDist[p] = Number(r.count); });
+
       // Recent businesses
       const recentBusinesses = await dbase
         .select()
@@ -185,6 +193,7 @@ export function registerAdminRoutes(app: Express): void {
           totalLocations: allLocations.count,
           recentBusinesses,
           recentAppts,
+          planDist,
         })
       );
     } catch (err) {
@@ -1479,6 +1488,7 @@ function dashboardPage(data: {
   totalLocations: number;
   recentBusinesses: any[];
   recentAppts: any[];
+  planDist: Record<string, number>;
 }): string {
   return adminLayout("Dashboard", "dashboard", `
     <div class="page-header">
@@ -1542,6 +1552,43 @@ function dashboardPage(data: {
         <div class="stat-label">Registered Users</div>
         <div class="stat-value">${data.totalUsers}</div>
       </div>
+    </div>
+
+    <!-- Plan Distribution Bar -->
+    <div class="card" style="margin-bottom:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <h3 style="margin:0;">Plan Distribution</h3>
+        <a href="/api/admin/businesses" style="font-size:12px;color:var(--primary);text-decoration:none;">View all businesses &rarr;</a>
+      </div>
+      ${(() => {
+        const plans = [
+          { key: 'solo',       label: 'Solo',       color: '#6b7280' },
+          { key: 'growth',     label: 'Growth',     color: '#0a7ea4' },
+          { key: 'studio',     label: 'Studio',     color: '#7c3aed' },
+          { key: 'enterprise', label: 'Enterprise', color: '#059669' },
+        ];
+        const total = Math.max(Object.values(data.planDist).reduce((s, v) => s + v, 0), 1);
+        const chips = plans.map(p => {
+          const count = data.planDist[p.key] || 0;
+          const pct = ((count / total) * 100).toFixed(1);
+          return `<div style="display:flex;align-items:center;gap:6px;">
+            <span style="width:10px;height:10px;border-radius:50%;background:${p.color};display:inline-block;flex-shrink:0;"></span>
+            <span style="font-size:13px;font-weight:600;color:${p.color};">${count}</span>
+            <span style="font-size:12px;color:var(--text-muted);">${p.label}</span>
+            <span style="font-size:11px;color:var(--text-muted);">(${pct}%)</span>
+          </div>`;
+        }).join('');
+        const segments = plans.map(p => {
+          const count = data.planDist[p.key] || 0;
+          const pct = (count / total) * 100;
+          return pct > 0 ? `<div style="flex:${pct};background:${p.color};height:100%;min-width:${pct > 0 ? '4px' : '0'};transition:flex 0.3s;"></div>` : '';
+        }).join('');
+        return `
+          <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:12px;">${chips}</div>
+          <div style="display:flex;height:10px;border-radius:6px;overflow:hidden;background:var(--border);">${segments}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">${total} business${total !== 1 ? 'es' : ''} total</div>
+        `;
+      })()}
     </div>
 
     <!-- Audit Log Panel -->

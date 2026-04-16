@@ -1201,3 +1201,6 @@
 
 ## Features (Apr 16 batch 19)
 - [x] Admin dashboard: quick-search input on recent businesses table (filter by name/phone inline)
+
+## Features (Apr 16 batch 20)
+- [x] Admin dashboard: plan-breakdown bar (Solo/Growth/Studio/Enterprise counts + proportional bar) in the stats row
