@@ -1,4 +1,6 @@
 import { useState, useCallback, useMemo, useRef } from "react";
+import { usePlanLimitCheck } from "@/hooks/use-plan-limit-check";
+import { UpgradePlanSheet } from "@/components/upgrade-plan-sheet";
 import {
   ScrollView,
   Text,
@@ -49,6 +51,9 @@ export default function StaffFormScreen() {
   const colors = useColors();
   const router = useRouter();
   const { isTablet, hp } = useResponsive();
+  const { checkLimit } = usePlanLimitCheck();
+  const [upgradeSheetVisible, setUpgradeSheetVisible] = useState(false);
+  const [upgradeSheetInfo, setUpgradeSheetInfo] = useState<{ planKey: string; planName: string; limit: number } | null>(null);
 
   const existing = useMemo(
     () => (id ? state.staff.find((s) => s.id === id) : undefined),
@@ -145,6 +150,15 @@ export default function StaffFormScreen() {
   }, [staffTimePicker, staffDraftStart, staffDraftEnd]);
 
   const handleSave = () => {
+    // Check plan limit for new staff only
+    if (!isEdit) {
+      const limitInfo = checkLimit("staff");
+      if (!limitInfo.allowed) {
+        setUpgradeSheetInfo({ planKey: limitInfo.planKey, planName: limitInfo.planName, limit: limitInfo.currentLimit });
+        setUpgradeSheetVisible(true);
+        return;
+      }
+    }
     const newErrors: { name?: string; location?: string; phone?: string } = {};
     if (!name.trim()) newErrors.name = "Name is required";
     if (state.locations.length > 0 && !selectedLocationId) newErrors.location = "Please assign this staff member to a location";
@@ -538,10 +552,20 @@ export default function StaffFormScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+      {upgradeSheetInfo && (
+        <UpgradePlanSheet
+          visible={upgradeSheetVisible}
+          onClose={() => setUpgradeSheetVisible(false)}
+          currentPlanKey={upgradeSheetInfo.planKey}
+          currentPlanName={upgradeSheetInfo.planName}
+          resource="staff"
+          currentLimit={upgradeSheetInfo.limit}
+          businessOwnerId={state.businessOwnerId!}
+        />
+      )}
     </ScreenContainer>
   );
 }
-
 const styles = StyleSheet.create({
   header: {
     flexDirection: "row",

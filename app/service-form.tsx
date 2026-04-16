@@ -6,6 +6,8 @@ import { useColors } from "@/hooks/use-colors";
 import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useMemo } from "react";
+import { usePlanLimitCheck } from "@/hooks/use-plan-limit-check";
+import { UpgradePlanSheet } from "@/components/upgrade-plan-sheet";
 import { SERVICE_COLORS, Service } from "@/lib/types";
 import { TapDurationPicker, formatDuration } from "@/components/tap-duration-picker";
 import * as ImagePicker from "expo-image-picker";
@@ -16,6 +18,9 @@ export default function ServiceFormScreen() {
   const colors = useColors();
   const router = useRouter();
   const { isTablet, hp } = useResponsive();
+  const { checkLimit } = usePlanLimitCheck();
+  const [upgradeSheetVisible, setUpgradeSheetVisible] = useState(false);
+  const [upgradeSheetInfo, setUpgradeSheetInfo] = useState<{ planKey: string; planName: string; limit: number } | null>(null);
 
   const existing = useMemo(
     () => (id ? state.services.find((s) => s.id === id) : undefined),
@@ -58,6 +63,15 @@ export default function ServiceFormScreen() {
 
   const handleSave = () => {
     if (!name.trim()) return;
+    // Only check limit for new services (not edits)
+    if (!isEdit) {
+      const limitInfo = checkLimit("services");
+      if (!limitInfo.allowed) {
+        setUpgradeSheetInfo({ planKey: limitInfo.planKey, planName: limitInfo.planName, limit: limitInfo.currentLimit });
+        setUpgradeSheetVisible(true);
+        return;
+      }
+    }
     const service: Service = {
       id: existing?.id ?? generateId(),
       name: name.trim(),
@@ -286,6 +300,17 @@ export default function ServiceFormScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+      {upgradeSheetInfo && (
+        <UpgradePlanSheet
+          visible={upgradeSheetVisible}
+          onClose={() => setUpgradeSheetVisible(false)}
+          currentPlanKey={upgradeSheetInfo.planKey}
+          currentPlanName={upgradeSheetInfo.planName}
+          resource="services"
+          currentLimit={upgradeSheetInfo.limit}
+          businessOwnerId={state.businessOwnerId!}
+        />
+      )}
     </ScreenContainer>
   );
 }

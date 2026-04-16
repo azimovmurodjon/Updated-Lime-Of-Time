@@ -1080,3 +1080,17 @@
 - [x] Send subscription confirmation email in webhook handler (checkout.session.completed)
 - [x] Send subscription confirmation email in success route (fallback when webhook hasn't fired yet, deduplication check)
 - [x] Fix free plan response: server returns activated:true + free:true, client handles both flags
+
+## Subscription UX Enhancements
+- [ ] Enrich Subscription screen with full plan benefits comparison table (all 4 plans)
+- [ ] Add plan upgrade prompt sheet when limits are hit (clients, services, staff, products, locations)
+- [ ] Add Stripe Customer Portal endpoint and Manage Billing button in Subscription screen
+- [ ] Add 3-day renewal push notification (server-side cron job)
+
+## Subscription Enhancements (Apr 16, 2026)
+- [x] Enrich Subscription screen with full plan benefits comparison table
+- [x] Add Manage Billing button (Stripe Customer Portal deep link)
+- [x] Add plan upgrade prompt sheet when limits are hit (clients, services, staff, products, locations)
+- [x] Add 3-day renewal push notification cron (hourly check, fires once per renewal)
+- [x] Add stripeCurrentPeriodEnd column to businessOwners schema
+- [x] Save stripeCurrentPeriodEnd from Stripe webhook

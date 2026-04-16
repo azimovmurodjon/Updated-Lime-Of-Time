@@ -1,4 +1,6 @@
 import { useState, useMemo, useCallback, useRef } from "react";
+import { usePlanLimitCheck } from "@/hooks/use-plan-limit-check";
+import { UpgradePlanSheet } from "@/components/upgrade-plan-sheet";
 import {
   ScrollView,
   Text,
@@ -51,6 +53,9 @@ export default function LocationFormScreen() {
   const colors = useColors();
   const router = useRouter();
   const { isTablet, hp } = useResponsive();
+  const { checkLimit } = usePlanLimitCheck();
+  const [upgradeSheetVisible, setUpgradeSheetVisible] = useState(false);
+  const [upgradeSheetInfo, setUpgradeSheetInfo] = useState<{ planKey: string; planName: string; limit: number } | null>(null);
 
   const existing = useMemo(
     () => (id ? state.locations.find((l) => l.id === id) : undefined),
@@ -73,6 +78,15 @@ export default function LocationFormScreen() {
   const [errors, setErrors] = useState<{ name?: string; address?: string }>({});
 
   const handleSave = () => {
+    // Check plan limit for new locations only
+    if (!isEdit) {
+      const limitInfo = checkLimit("locations");
+      if (!limitInfo.allowed) {
+        setUpgradeSheetInfo({ planKey: limitInfo.planKey, planName: limitInfo.planName, limit: limitInfo.currentLimit });
+        setUpgradeSheetVisible(true);
+        return;
+      }
+    }
     const newErrors: { name?: string; address?: string } = {};
     if (!name.trim()) newErrors.name = "Location name is required";
     if (!address.trim()) newErrors.address = "Street address is required";
@@ -805,10 +819,20 @@ export default function LocationFormScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+      {upgradeSheetInfo && (
+        <UpgradePlanSheet
+          visible={upgradeSheetVisible}
+          onClose={() => setUpgradeSheetVisible(false)}
+          currentPlanKey={upgradeSheetInfo.planKey}
+          currentPlanName={upgradeSheetInfo.planName}
+          resource="locations"
+          currentLimit={upgradeSheetInfo.limit}
+          businessOwnerId={state.businessOwnerId!}
+        />
+      )}
     </ScreenContainer>
   );
 }
-
 const styles = StyleSheet.create({
   header: {
     flexDirection: "row",

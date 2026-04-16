@@ -10,6 +10,7 @@ import { registerPublicRoutes } from "../publicRoutes";
 import { registerAdminRoutes } from "../adminRoutes";
 import { registerLegalRoutes } from "../legalRoutes";
 import { registerStripeRoutes } from "../stripeRoutes";
+import { startRenewalNotificationCron } from "../renewalNotificationCron";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -97,3 +98,6 @@ async function startServer() {
 }
 
 startServer().catch(console.error);
+
+// Start background crons
+startRenewalNotificationCron();

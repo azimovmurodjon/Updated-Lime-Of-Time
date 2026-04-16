@@ -183,12 +183,22 @@ export function registerStripeRoutes(app: Express): void {
           const subscriptionId = session.subscription as string;
 
           if (businessOwnerId && planKey) {
+            // Fetch subscription to get current period end
+            let periodEnd: number | null = null;
+            if (subscriptionId) {
+              try {
+                const sub = await stripe.subscriptions.retrieve(subscriptionId) as Stripe.Subscription;
+                // Use billing_cycle_anchor as the next renewal reference
+                periodEnd = (sub as Stripe.Subscription).billing_cycle_anchor ?? null;
+              } catch {}
+            }
             await db.update(businessOwners)
               .set({
                 subscriptionPlan: planKey,
                 subscriptionStatus: "active",
                 subscriptionPeriod: period ?? "monthly",
                 stripeSubscriptionId: subscriptionId ?? null,
+                stripeCurrentPeriodEnd: periodEnd,
               })
               .where(eq(businessOwners.id, businessOwnerId));
             console.log(`[Stripe] Activated ${planKey} plan for business ${businessOwnerId}`);
@@ -294,12 +304,22 @@ export function registerStripeRoutes(app: Express): void {
             const existing = existingRows[0];
             const alreadyActive = existing?.subscriptionPlan === planKey && existing?.subscriptionStatus === "active";
             if (!alreadyActive) {
+              // Fetch subscription to get current period end
+              let periodEndSuccess: number | null = null;
+              if (subscriptionId) {
+                try {
+                  const sub = await stripe.subscriptions.retrieve(subscriptionId) as Stripe.Subscription;
+                  // Use billing_cycle_anchor as the next renewal reference
+                  periodEndSuccess = (sub as Stripe.Subscription).billing_cycle_anchor ?? null;
+                } catch {}
+              }
               await db.update(businessOwners)
                 .set({
                   subscriptionPlan: planKey,
                   subscriptionStatus: "active",
                   subscriptionPeriod: period ?? "monthly",
                   stripeSubscriptionId: subscriptionId ?? null,
+                  stripeCurrentPeriodEnd: periodEndSuccess,
                 })
                 .where(eq(businessOwners.id, businessOwnerId));
               // Send confirmation email (webhook may not have fired yet)
@@ -375,6 +395,45 @@ export function registerStripeRoutes(app: Express): void {
   </script>
 </body>
 </html>`);
+  });
+
+  /**
+   * POST /api/stripe/create-portal
+   * Body: { businessOwnerId, returnUrl }
+   * Creates a Stripe Customer Portal session and returns the URL
+   */
+  app.post("/api/stripe/create-portal", async (req: Request, res: Response) => {
+    const stripe = getStripe();
+    if (!stripe) {
+      res.status(500).json({ error: "Stripe not configured" });
+      return;
+    }
+    const { businessOwnerId, returnUrl } = req.body as { businessOwnerId: number; returnUrl: string };
+    if (!businessOwnerId) {
+      res.status(400).json({ error: "Missing businessOwnerId" });
+      return;
+    }
+    try {
+      const db = await getDb();
+      if (!db) {
+        res.status(500).json({ error: "DB not available" });
+        return;
+      }
+      const rows = await db.select().from(businessOwners).where(eq(businessOwners.id, businessOwnerId)).limit(1);
+      const owner = rows[0];
+      if (!owner?.stripeCustomerId) {
+        res.status(400).json({ error: "No Stripe customer found. Please subscribe first." });
+        return;
+      }
+      const portalSession = await stripe.billingPortal.sessions.create({
+        customer: owner.stripeCustomerId,
+        return_url: returnUrl || "https://lime-of-time.com",
+      });
+      res.json({ url: portalSession.url });
+    } catch (err) {
+      console.error("[Stripe] create-portal error:", err);
+      res.status(500).json({ error: "Failed to create billing portal session" });
+    }
   });
 
   /**

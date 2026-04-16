@@ -10,6 +10,8 @@ import { useActiveLocation } from "@/hooks/use-active-location";
 import { useResponsive } from "@/hooks/use-responsive";
 import { LocationSwitcher } from "@/components/location-switcher";
 import * as Contacts from "expo-contacts";
+import { usePlanLimitCheck } from "@/hooks/use-plan-limit-check";
+import { UpgradePlanSheet } from "@/components/upgrade-plan-sheet";
 
 export default function ClientsScreen() {
   const { state, dispatch, getReviewsForClient, getAppointmentsForClient, syncToDb, clientsForActiveLocation, filterAppointmentsByLocation } = useStore();
@@ -17,11 +19,14 @@ export default function ClientsScreen() {
   const colors = useColors();
   const router = useRouter();
   const { isTablet, isLargeTablet, hp, maxContentWidth } = useResponsive();
+  const { checkLimit } = usePlanLimitCheck();
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [newEmail, setNewEmail] = useState("");
+  const [upgradeSheetVisible, setUpgradeSheetVisible] = useState(false);
+  const [upgradeSheetInfo, setUpgradeSheetInfo] = useState<{ planKey: string; planName: string; limit: number } | null>(null);
 
   // Use location-scoped client list from store
   const filteredClients = useMemo(() => {
@@ -60,6 +65,13 @@ export default function ClientsScreen() {
 
   const handleAddClient = useCallback(() => {
     if (!newName.trim()) return;
+    // Check plan limit before adding
+    const limitInfo = checkLimit("clients");
+    if (!limitInfo.allowed) {
+      setUpgradeSheetInfo({ planKey: limitInfo.planKey, planName: limitInfo.planName, limit: limitInfo.currentLimit });
+      setUpgradeSheetVisible(true);
+      return;
+    }
     const client: Client = {
       id: generateId(),
       name: newName.trim(),
@@ -78,6 +90,13 @@ export default function ClientsScreen() {
   }, [newName, newPhone, newEmail, dispatch, syncToDb]);
 
   const handleSelectFromContacts = useCallback(async () => {
+    // Check plan limit before importing
+    const limitInfo = checkLimit("clients");
+    if (!limitInfo.allowed) {
+      setUpgradeSheetInfo({ planKey: limitInfo.planKey, planName: limitInfo.planName, limit: limitInfo.currentLimit });
+      setUpgradeSheetVisible(true);
+      return;
+    }
     if (Platform.OS === "web") {
       Alert.alert("Not Available", "Contact import is only available on mobile devices.");
       return;
@@ -339,10 +358,21 @@ export default function ClientsScreen() {
         }
       />
       </View>
+      {/* Upgrade Plan Sheet */}
+      {upgradeSheetInfo && (
+        <UpgradePlanSheet
+          visible={upgradeSheetVisible}
+          onClose={() => setUpgradeSheetVisible(false)}
+          currentPlanKey={upgradeSheetInfo.planKey}
+          currentPlanName={upgradeSheetInfo.planName}
+          resource="clients"
+          currentLimit={upgradeSheetInfo.limit}
+          businessOwnerId={state.businessOwnerId!}
+        />
+      )}
     </ScreenContainer>
   );
 }
-
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16, paddingTop: 4 },
   iconButton: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", borderWidth: 1 },

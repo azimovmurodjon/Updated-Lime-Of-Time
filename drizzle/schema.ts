@@ -1,5 +1,6 @@
 import {
   int,
+  bigint,
   mysqlEnum,
   mysqlTable,
   text,
@@ -94,6 +95,8 @@ export const businessOwners = mysqlTable("business_owners", {
   stripeCustomerId: varchar("stripeCustomerId", { length: 255 }),
   /** Stripe subscription ID */
   stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 255 }),
+  /** Stripe current billing period end (Unix timestamp in seconds) */
+  stripeCurrentPeriodEnd: bigint("stripeCurrentPeriodEnd", { mode: "number" }),
   /** Admin override: grant full Unlimited access for free (SaaS feature) */
   adminOverride: boolean("adminOverride").default(false).notNull(),
   /** Admin override note (reason/description) */

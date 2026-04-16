@@ -146,6 +146,8 @@ export async function getBusinessSubscriptionInfo(businessOwnerId: number) {
       isAdminOverride: limits.isAdminOverride,
       monthlyPrice: limits.monthlyPrice,
       yearlyPrice: limits.yearlyPrice,
+      stripeCurrentPeriodEnd: business.stripeCurrentPeriodEnd ?? null,
+      stripeCustomerId: business.stripeCustomerId ?? null,
       limits: {
         maxClients: limits.maxClients,
         maxServices: limits.maxServices,

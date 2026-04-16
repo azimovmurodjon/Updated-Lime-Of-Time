@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { usePlanLimitCheck } from "@/hooks/use-plan-limit-check";
+import { UpgradePlanSheet } from "@/components/upgrade-plan-sheet";
 import {
   ScrollView,
   Text,
@@ -28,6 +30,9 @@ export default function ProductFormScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isTablet, hp } = useResponsive();
+  const { checkLimit } = usePlanLimitCheck();
+  const [upgradeSheetVisible, setUpgradeSheetVisible] = useState(false);
+  const [upgradeSheetInfo, setUpgradeSheetInfo] = useState<{ planKey: string; planName: string; limit: number } | null>(null);
   const params = useLocalSearchParams<{ id?: string }>();
   const isEditing = !!params.id;
 
@@ -91,6 +96,15 @@ export default function ProductFormScreen() {
   };
 
   const handleSave = () => {
+    // Check plan limit for new products only
+    if (!isEditing) {
+      const limitInfo = checkLimit("products");
+      if (!limitInfo.allowed) {
+        setUpgradeSheetInfo({ planKey: limitInfo.planKey, planName: limitInfo.planName, limit: limitInfo.currentLimit });
+        setUpgradeSheetVisible(true);
+        return;
+      }
+    }
     if (!name.trim()) {
       Alert.alert("Required", "Please enter a product name.");
       return;
@@ -428,6 +442,17 @@ export default function ProductFormScreen() {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+      {upgradeSheetInfo && (
+        <UpgradePlanSheet
+          visible={upgradeSheetVisible}
+          onClose={() => setUpgradeSheetVisible(false)}
+          currentPlanKey={upgradeSheetInfo.planKey}
+          currentPlanName={upgradeSheetInfo.planName}
+          resource="products"
+          currentLimit={upgradeSheetInfo.limit}
+          businessOwnerId={state.businessOwnerId!}
+        />
+      )}
     </ScreenContainer>
   );
 }
