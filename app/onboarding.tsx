@@ -758,12 +758,17 @@ export default function OnboardingScreen() {
   }, [appState?.businessOwnerId, biometricAvailable, navigateToStep, router]);
 
   const handleSkipSubscription = useCallback(() => {
+    // Mark onboarding complete so the home guard doesn't redirect back
+    dispatch({
+      type: "UPDATE_SETTINGS",
+      payload: { onboardingComplete: true },
+    });
     if (biometricAvailable && Platform.OS !== "web") {
       navigateToStep(3);
     } else {
       router.replace("/(tabs)");
     }
-  }, [biometricAvailable, navigateToStep, router]);
+  }, [biometricAvailable, navigateToStep, router, dispatch]);
 
   const handleEnableFaceId = useCallback(async () => {
     setLoading(true);
@@ -1344,6 +1349,7 @@ export default function OnboardingScreen() {
                     onToggleBilling={setSubIsYearly}
                     onSelectPlan={(planKey, period) => handleSelectPlan(planKey, period)}
                     loadingPlanKey={subLoading ? subSelectedPlan : null}
+                    containerWidth={width - hp * 2}
                   />
                 </Animated.View>
 

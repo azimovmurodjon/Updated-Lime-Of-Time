@@ -1153,3 +1153,7 @@
 
 ## Features (Apr 16 batch 9)
 - [x] Payment method breakdown on home dashboard — fix Zelle/Venmo/Cash/Card totals to use stored paymentMethod values
+
+## Bugs (Apr 16 batch 10)
+- [x] Subscription plan carousel cards cut off / overflowing on left and right sides
+- [x] Skip for now button on subscription step not working

@@ -317,19 +317,22 @@ export function PlanCarousel({
   onSelectPlan,
   loadingPlanKey,
   currentPlanKey,
-}: PlanCarouselProps) {
+  containerWidth,
+}: PlanCarouselProps & { containerWidth?: number }) {
   const colors = useColors();
   const { width: screenWidth } = useWindowDimensions();
   const [showCompare, setShowCompare] = useState(false);
 
-  // Card is 76% of screen width — prev/next card peeks in clearly on both sides
-  const CARD_WIDTH = Math.round(screenWidth * 0.76);
+  // Use provided containerWidth (accounts for parent padding) or fall back to screenWidth
+  const availableWidth = containerWidth ?? screenWidth;
+  // Card is 82% of available width — prev/next card peeks in clearly on both sides
+  const CARD_WIDTH = Math.round(availableWidth * 0.82);
   // Gap between cards (visual separation)
   const CARD_GAP = 14;
   // Each list item = card + gap
   const ITEM_STRIDE = CARD_WIDTH + CARD_GAP;
   // Inset so the active card is perfectly centered
-  const SIDE_INSET = Math.round((screenWidth - CARD_WIDTH) / 2);
+  const SIDE_INSET = Math.round((availableWidth - CARD_WIDTH) / 2);
 
   const scrollX = useSharedValue(0);
   const [activeIndex, setActiveIndex] = useState(0);
