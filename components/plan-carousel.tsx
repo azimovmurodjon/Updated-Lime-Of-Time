@@ -434,44 +434,81 @@ export function PlanCarousel({
         </Pressable>
       </View>
 
-      {/* ── Carousel ── */}
-      <FlatList
-        ref={flatListRef}
-        data={plans}
-        keyExtractor={(item) => item.planKey}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        // Snap behavior: interval = card + gap, start alignment, fast deceleration
-        snapToInterval={ITEM_STRIDE}
-        snapToAlignment="start"
-        decelerationRate="fast"
-        // disableIntervalMomentum ensures only one card advances per swipe gesture
-        disableIntervalMomentum
-        // Padding centers the active card without contentInset (avoids iOS/Android offset bugs)
-        contentContainerStyle={{ paddingHorizontal: SIDE_INSET }}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
-        // Snap to nearest card on finger lift (handles slow/partial swipes)
-        onScrollEndDrag={snapToNearest}
-        onMomentumScrollEnd={snapToNearest}
-        getItemLayout={(_, index) => ({
-          length: ITEM_STRIDE,
-          offset: ITEM_STRIDE * index,
-          index,
-        })}
-        renderItem={({ item, index }) => (
-          <View style={{ marginRight: index < plans.length - 1 ? CARD_GAP : 0 }}>
-            <PlanCard
-              plan={item}
-              isYearly={isYearly}
-              cardWidth={CARD_WIDTH}
-              onSelect={() => onSelectPlan(item.planKey, isYearly ? "yearly" : "monthly")}
-              isLoading={loadingPlanKey === item.planKey}
-              isCurrentPlan={currentPlanKey === item.planKey}
-            />
-          </View>
-        )}
-      />
+      {/* ── Carousel with arrow navigation ── */}
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
+        {/* Left arrow */}
+        <Pressable
+          onPress={() => activeIndex > 0 && goTo(activeIndex - 1)}
+          disabled={activeIndex === 0}
+          style={({ pressed }) => ({
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: activeIndex === 0 ? colors.border + "44" : activeColor + "22",
+            alignItems: "center",
+            justifyContent: "center",
+            marginRight: 4,
+            flexShrink: 0,
+            opacity: pressed ? 0.6 : activeIndex === 0 ? 0.3 : 1,
+          })}
+        >
+          <IconSymbol name="chevron.left" size={18} color={activeIndex === 0 ? colors.muted : activeColor} />
+        </Pressable>
+
+        <FlatList
+          ref={flatListRef}
+          data={plans}
+          keyExtractor={(item) => item.planKey}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ flex: 1 }}
+          snapToInterval={ITEM_STRIDE}
+          snapToAlignment="start"
+          decelerationRate="fast"
+          disableIntervalMomentum
+          contentContainerStyle={{ paddingHorizontal: SIDE_INSET }}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          onScrollEndDrag={snapToNearest}
+          onMomentumScrollEnd={snapToNearest}
+          getItemLayout={(_, index) => ({
+            length: ITEM_STRIDE,
+            offset: ITEM_STRIDE * index,
+            index,
+          })}
+          renderItem={({ item, index }) => (
+            <View style={{ marginRight: index < plans.length - 1 ? CARD_GAP : 0 }}>
+              <PlanCard
+                plan={item}
+                isYearly={isYearly}
+                cardWidth={CARD_WIDTH}
+                onSelect={() => onSelectPlan(item.planKey, isYearly ? "yearly" : "monthly")}
+                isLoading={loadingPlanKey === item.planKey}
+                isCurrentPlan={currentPlanKey === item.planKey}
+              />
+            </View>
+          )}
+        />
+
+        {/* Right arrow */}
+        <Pressable
+          onPress={() => activeIndex < plans.length - 1 && goTo(activeIndex + 1)}
+          disabled={activeIndex === plans.length - 1}
+          style={({ pressed }) => ({
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: activeIndex === plans.length - 1 ? colors.border + "44" : activeColor + "22",
+            alignItems: "center",
+            justifyContent: "center",
+            marginLeft: 4,
+            flexShrink: 0,
+            opacity: pressed ? 0.6 : activeIndex === plans.length - 1 ? 0.3 : 1,
+          })}
+        >
+          <IconSymbol name="chevron.right" size={18} color={activeIndex === plans.length - 1 ? colors.muted : activeColor} />
+        </Pressable>
+      </View>
 
       {/* ── Pagination Dots ── */}
       <View style={styles.pagination}>

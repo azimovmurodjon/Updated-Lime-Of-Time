@@ -1106,3 +1106,8 @@
 - [x] Fix SMS Automation — remove Twilio dependency, route through app backend subscription
 - [x] Fix plan carousel snap — only snaps once, should snap to center on each swipe
 - [x] Fix KPI cards on home (This Week Revenue Trend etc.) — tap should navigate to detail page
+
+## UX Improvements (Apr 16 batch 2)
+- [x] Per-location QR picker modal on home screen — location picker before QR when multiple locations exist
+- [x] Today's Schedule empty state — show "No appointments today" with quick-book CTA
+- [x] Plan carousel arrow buttons — left/right arrow buttons for iPad/web navigation

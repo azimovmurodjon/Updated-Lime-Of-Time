@@ -220,11 +220,13 @@ export default function HomeScreen() {
     }
   }, [state.loaded, state.settings.onboardingComplete]);
 
-  // ─── Location Share Picker ──────────────────────────────────
+  // ─── Location Share Picker ──────────────────────────────
   const [showSharePicker, setShowSharePicker] = useState(false);
 
-  // ─── QR Booking Card ─────────────────────────────────────────
+  // ─── QR Booking Card ──────────────────────────────────
   const [showQrModal, setShowQrModal] = useState(false);
+  // Which location is selected inside the QR modal (null = all/base URL)
+  const [qrSelectedLocationId, setQrSelectedLocationId] = useState<string | null>(null);
 
   // ─── KPI Detail Sheet ─────────────────────────────────────────
   const [kpiDetailTab, setKpiDetailTab] = useState<KpiTab | null>(null);
@@ -382,16 +384,33 @@ export default function HomeScreen() {
     }
   }, [tutorialStep, tutorialFade]);
 
-  // ─── Location Filter (global) ──────────────────────────────────
+  // ─── Location Filter (global) ──────────────────────────────
   const { activeLocation, activeLocations, hasMultipleLocations, setActiveLocation } = useActiveLocation();
   const selectedLocationFilter = activeLocation?.id ?? null;
+  // openQrModal: default to active location (or first if only one) — declared after activeLocation
+  const openQrModal = useCallback(() => {
+    const locs = state.locations.filter((l) => l.active);
+    if (locs.length === 1) {
+      setQrSelectedLocationId(locs[0].id);
+    } else {
+      setQrSelectedLocationId(activeLocation?.id ?? null);
+    }
+    setShowQrModal(true);
+  }, [state.locations, activeLocation]);
 
-  // ─── Primary booking URL (for QR card) ─────────────────────────────
-  // No location param — QR code opens booking page where client can select their location
+  // ─── Primary booking URL (for QR card) ──────────────────────────────────
+  // Base URL (no location param) used for the home card QR preview
   const primaryBookingUrl = useMemo(() => {
     const slug = state.settings.customSlug || state.settings.businessName.replace(/\s+/g, "-").toLowerCase();
     return `${PUBLIC_BOOKING_URL}/book/${slug}`;
   }, [state.settings]);
+  // URL used inside the QR modal — includes location param when a specific location is selected
+  const qrBookingUrl = useMemo(() => {
+    const slug = state.settings.customSlug || state.settings.businessName.replace(/\s+/g, "-").toLowerCase();
+    const base = `${PUBLIC_BOOKING_URL}/book/${slug}`;
+    if (qrSelectedLocationId) return `${base}?location=${encodeURIComponent(qrSelectedLocationId)}`;
+    return base;
+  }, [state.settings, qrSelectedLocationId]);
   // Use the store's location-aware filter (single source of truth)
   const filterByLocation = filterAppointmentsByLocation;
 
@@ -1295,7 +1314,7 @@ export default function HomeScreen() {
 
         {/* ─── Share Booking Link QR Card ──────────────────────────────────── */}
         <Pressable
-          onPress={() => setShowQrModal(true)}
+          onPress={openQrModal}
           style={({ pressed }) => ({
             marginTop: 20,
             borderRadius: 18,
@@ -1866,33 +1885,61 @@ export default function HomeScreen() {
               </Pressable>
             </View>
 
-            {/* Large QR Code */}
+            {/* Per-location picker — only shown when multiple locations exist */}
+            {state.locations.filter((l) => l.active).length > 1 && (
+              <View style={{ width: "100%" }}>
+                <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 6 }}>Select location for QR code</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={{ flexDirection: "row", gap: 6 }}>
+                    <Pressable
+                      onPress={() => setQrSelectedLocationId(null)}
+                      style={({ pressed }) => ({
+                        paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, borderWidth: 1.5,
+                        backgroundColor: qrSelectedLocationId === null ? colors.primary + "18" : colors.background,
+                        borderColor: qrSelectedLocationId === null ? colors.primary : colors.border,
+                        opacity: pressed ? 0.7 : 1,
+                      })}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: "700", color: qrSelectedLocationId === null ? colors.primary : colors.muted }}>All Locations</Text>
+                    </Pressable>
+                    {state.locations.filter((l) => l.active).map((loc) => (
+                      <Pressable
+                        key={loc.id}
+                        onPress={() => setQrSelectedLocationId(loc.id)}
+                        style={({ pressed }) => ({
+                          paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, borderWidth: 1.5,
+                          backgroundColor: qrSelectedLocationId === loc.id ? colors.primary + "18" : colors.background,
+                          borderColor: qrSelectedLocationId === loc.id ? colors.primary : colors.border,
+                          opacity: pressed ? 0.7 : 1,
+                        })}
+                      >
+                        <Text style={{ fontSize: 12, fontWeight: "700", color: qrSelectedLocationId === loc.id ? colors.primary : colors.muted }}>{loc.name}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </ScrollView>
+                {qrSelectedLocationId && (() => {
+                  const selLoc = state.locations.find((l) => l.id === qrSelectedLocationId);
+                  const addr = selLoc ? formatFullAddress(selLoc.address, selLoc.city, selLoc.state, selLoc.zipCode) : null;
+                  return addr ? <Text style={{ fontSize: 11, color: colors.muted, marginTop: 4 }} numberOfLines={1}>📍 {addr}</Text> : null;
+                })()}
+              </View>
+            )}
+
+            {/* Large QR Code — unique per selected location */}
             <View style={{
-              width: 220,
-              height: 220,
-              backgroundColor: "#fff",
-              borderRadius: 16,
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 12,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 8,
-              elevation: 4,
+              width: 220, height: 220, backgroundColor: "#fff", borderRadius: 16,
+              alignItems: "center", justifyContent: "center", padding: 12,
+              shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1, shadowRadius: 8, elevation: 4,
             }}>
-              <QRCode
-                value={primaryBookingUrl}
-                size={196}
-                color="#000"
-                backgroundColor="#fff"
-              />
+              <QRCode value={qrBookingUrl} size={196} color="#000" backgroundColor="#fff" />
             </View>
 
             {/* URL pill */}
             <View style={[{ borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, width: "100%" }, { backgroundColor: colors.background }]}>
               <Text style={{ fontSize: 11, color: colors.muted, textAlign: "center" }} numberOfLines={2}>
-                {primaryBookingUrl}
+                {qrBookingUrl}
               </Text>
             </View>
 
@@ -1901,18 +1948,12 @@ export default function HomeScreen() {
               <Pressable
                 onPress={async () => {
                   const { default: Clipboard } = await import("expo-clipboard");
-                  await Clipboard.setStringAsync(primaryBookingUrl);
+                  await Clipboard.setStringAsync(qrBookingUrl);
                   Alert.alert("Copied!", "Booking link copied to clipboard.");
                 }}
                 style={({ pressed }) => [{
-                  flex: 1,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 6,
-                  paddingVertical: 12,
-                  borderRadius: 12,
-                  opacity: pressed ? 0.8 : 1,
+                  flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+                  gap: 6, paddingVertical: 12, borderRadius: 12, opacity: pressed ? 0.8 : 1,
                 }, { backgroundColor: colors.border }]}
               >
                 <IconSymbol name="doc.on.doc.fill" size={16} color={colors.foreground} />
@@ -1920,18 +1961,15 @@ export default function HomeScreen() {
               </Pressable>
               <Pressable
                 onPress={() => {
+                  const selectedLoc = qrSelectedLocationId
+                    ? state.locations.find((l) => l.id === qrSelectedLocationId) ?? null
+                    : null;
                   setShowQrModal(false);
-                  setTimeout(() => doShareForLocation(activeLocation), 300);
+                  setTimeout(() => doShareForLocation(selectedLoc), 300);
                 }}
                 style={({ pressed }) => [{
-                  flex: 1,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 6,
-                  paddingVertical: 12,
-                  borderRadius: 12,
-                  opacity: pressed ? 0.8 : 1,
+                  flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+                  gap: 6, paddingVertical: 12, borderRadius: 12, opacity: pressed ? 0.8 : 1,
                 }, { backgroundColor: colors.primary }]}
               >
                 <IconSymbol name="paperplane.fill" size={16} color="#fff" />
