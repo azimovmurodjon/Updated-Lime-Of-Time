@@ -20,9 +20,10 @@ import {
   Alert,
   Linking,
 } from "react-native";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from "react-native-reanimated";
 import { useColors } from "@/hooks/use-colors";
 import { useStore } from "@/lib/store";
 import { trpc } from "@/lib/trpc";
@@ -135,28 +136,58 @@ function UsageMeter({
   color: string;
 }) {
   const colors = useColors();
-  const isUnlimited = max === -1;
+  const isUnlimited = max === -1 || max >= 9999;
   const pct = isUnlimited ? 0 : Math.min(1, current / Math.max(max, 1));
   const barColor = pct >= 0.9 ? "#EF4444" : pct >= 0.7 ? "#F59E0B" : color;
 
+  // Animated bar width
+  const animWidth = useSharedValue(0);
+  useEffect(() => {
+    animWidth.value = withTiming(pct, {
+      duration: 700,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [pct]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const barStyle = useAnimatedStyle(() => ({
+    width: `${Math.round(animWidth.value * 100)}%` as any,
+  }));
+
   return (
-    <View style={{ marginBottom: 14 }}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+    <View style={{ marginBottom: 16 }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
         <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>{label}</Text>
-        <Text style={{ fontSize: 12, color: isUnlimited ? colors.primary : colors.muted }}>
-          {isUnlimited ? "Unlimited" : `${current} / ${max}`}
+        <Text style={{
+          fontSize: 12,
+          fontWeight: "600",
+          color: isUnlimited
+            ? color
+            : pct >= 0.9
+            ? "#EF4444"
+            : pct >= 0.7
+            ? "#F59E0B"
+            : colors.muted,
+        }}>
+          {isUnlimited ? "Unlimited" : `${current} / ${max} used`}
         </Text>
       </View>
       {!isUnlimited && (
-        <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: "hidden" }}>
-          <View
-            style={{
-              height: 6,
-              borderRadius: 3,
-              backgroundColor: barColor,
-              width: `${Math.round(pct * 100)}%`,
-            }}
+        <View style={{ height: 7, borderRadius: 4, backgroundColor: colors.border, overflow: "hidden" }}>
+          <Animated.View
+            style={[
+              {
+                height: 7,
+                borderRadius: 4,
+                backgroundColor: barColor,
+              },
+              barStyle,
+            ]}
           />
+        </View>
+      )}
+      {isUnlimited && (
+        <View style={{ height: 7, borderRadius: 4, backgroundColor: color + "30", overflow: "hidden" }}>
+          <View style={{ height: 7, borderRadius: 4, backgroundColor: color, width: "100%", opacity: 0.35 }} />
         </View>
       )}
     </View>
