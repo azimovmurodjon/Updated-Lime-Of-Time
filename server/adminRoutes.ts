@@ -61,7 +61,7 @@ function requireAuth(req: Request, res: Response, next: NextFunction): void {
   if (isAuthenticated(req)) {
     next();
   } else {
-    res.redirect("/admin/login");
+    res.redirect("/api/admin/login");
   }
 }
 
@@ -79,12 +79,12 @@ function fmtDate(d: Date | string | null): string {
 // ─── Register Admin Routes ──────────────────────────────────────────
 export function registerAdminRoutes(app: Express): void {
   // Login page
-  app.get("/admin/login", (_req: Request, res: Response) => {
+  app.get("/api/admin/login", (_req: Request, res: Response) => {
     res.send(loginPage());
   });
 
   // Login POST
-  app.post("/admin/login", (req: Request, res: Response) => {
+  app.post("/api/admin/login", (req: Request, res: Response) => {
     const { username, password } = req.body;
     if (username === ADMIN_USER && password === ADMIN_PASS) {
       const sessionId = generateSessionId();
@@ -94,27 +94,27 @@ export function registerAdminRoutes(app: Express): void {
       });
       res.setHeader(
         "Set-Cookie",
-        `admin_session=${sessionId}; Path=/admin; HttpOnly; SameSite=Lax; Max-Age=86400`
+        `admin_session=${sessionId}; Path=/api/admin; HttpOnly; SameSite=Lax; Max-Age=86400`
       );
-      res.redirect("/admin");
+      res.redirect("/api/admin");
     } else {
       res.send(loginPage("Invalid username or password"));
     }
   });
 
   // Logout
-  app.get("/admin/logout", (_req: Request, res: Response) => {
+  app.get("/api/admin/logout", (_req: Request, res: Response) => {
     const sessionId = getSessionFromCookie(_req);
     if (sessionId) sessions.delete(sessionId);
     res.setHeader(
       "Set-Cookie",
-      `admin_session=; Path=/admin; HttpOnly; SameSite=Lax; Max-Age=0`
+      `admin_session=; Path=/api/admin; HttpOnly; SameSite=Lax; Max-Age=0`
     );
-    res.redirect("/admin/login");
+    res.redirect("/api/admin/login");
   });
 
   // ── Dashboard Overview ────────────────────────────────────────────
-  app.get("/admin", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/api/admin", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) {
@@ -172,7 +172,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Businesses List ───────────────────────────────────────────────
-  app.get("/admin/businesses", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/api/admin/businesses", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -185,7 +185,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Business Detail ───────────────────────────────────────────────
-  app.get("/admin/businesses/:id", requireAuth, async (req: Request, res: Response) => {
+  app.get("/api/admin/businesses/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       const fullData = await db.getFullBusinessData(id);
@@ -198,11 +198,11 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Delete Business ───────────────────────────────────────────────
-  app.post("/admin/businesses/:id/delete", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/admin/businesses/:id/delete", requireAuth, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       await db.deleteBusinessOwner(id);
-      res.redirect("/admin/businesses");
+      res.redirect("/api/admin/businesses");
     } catch (err) {
       console.error("[Admin] Delete business error:", err);
       res.status(500).send(errorPage("Failed to delete business"));
@@ -210,7 +210,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── All Clients ───────────────────────────────────────────────────
-  app.get("/admin/clients", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/api/admin/clients", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -225,11 +225,11 @@ export function registerAdminRoutes(app: Express): void {
 
   // ── All Appointments ──────────────────────────────────────────────
   // Alias: /admin/dashboard → /admin
-  app.get("/admin/dashboard", requireAuth, (_req: Request, res: Response) => {
-    res.redirect("/admin");
+  app.get("/api/admin/dashboard", requireAuth, (_req: Request, res: Response) => {
+    res.redirect("/api/admin");
   });
 
-  app.get("/admin/appointments", requireAuth, async (req: Request, res: Response) => {
+  app.get("/api/admin/appointments", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -277,7 +277,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── DB Explorer ───────────────────────────────────────────────────
-  app.get("/admin/db", requireAuth, async (req: Request, res: Response) => {
+  app.get("/api/admin/db", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -317,7 +317,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Analytics ─────────────────────────────────────────────────────
-  app.get("/admin/analytics", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/api/admin/analytics", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -450,7 +450,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Staff Management ──────────────────────────────────────────────
-  app.get("/admin/staff", requireAuth, async (req: Request, res: Response) => {
+  app.get("/api/admin/staff", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -469,95 +469,95 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Settings ──────────────────────────────────────────────────────
-  app.get("/admin/settings", requireAuth, (_req: Request, res: Response) => {
+  app.get("/api/admin/settings", requireAuth, (_req: Request, res: Response) => {
     res.send(settingsPage());
   });
 
   // ── Individual Delete Routes ─────────────────────────────────────
-  app.post("/admin/delete/client/:id", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/admin/delete/client/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       await db.deleteClientById(parseInt(req.params.id));
-      res.redirect(req.headers.referer || "/admin/clients");
+      res.redirect(req.headers.referer || "/api/admin/clients");
     } catch (err) {
       console.error("[Admin] Delete client error:", err);
       res.status(500).send(errorPage("Failed to delete client"));
     }
   });
 
-  app.post("/admin/delete/appointment/:id", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/admin/delete/appointment/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       await db.deleteAppointmentById(parseInt(req.params.id));
-      res.redirect(req.headers.referer || "/admin/appointments");
+      res.redirect(req.headers.referer || "/api/admin/appointments");
     } catch (err) {
       console.error("[Admin] Delete appointment error:", err);
       res.status(500).send(errorPage("Failed to delete appointment"));
     }
   });
 
-  app.post("/admin/delete/service/:id", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/admin/delete/service/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       await db.deleteServiceById(parseInt(req.params.id));
-      res.redirect(req.headers.referer || "/admin/businesses");
+      res.redirect(req.headers.referer || "/api/admin/businesses");
     } catch (err) {
       console.error("[Admin] Delete service error:", err);
       res.status(500).send(errorPage("Failed to delete service"));
     }
   });
 
-  app.post("/admin/delete/staff/:id", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/admin/delete/staff/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       await db.deleteStaffMemberById(parseInt(req.params.id));
-      res.redirect(req.headers.referer || "/admin/staff");
+      res.redirect(req.headers.referer || "/api/admin/staff");
     } catch (err) {
       console.error("[Admin] Delete staff error:", err);
       res.status(500).send(errorPage("Failed to delete staff member"));
     }
   });
 
-  app.post("/admin/delete/location/:id", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/admin/delete/location/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       await db.deleteLocationById(parseInt(req.params.id));
-      res.redirect(req.headers.referer || "/admin/businesses");
+      res.redirect(req.headers.referer || "/api/admin/businesses");
     } catch (err) {
       console.error("[Admin] Delete location error:", err);
       res.status(500).send(errorPage("Failed to delete location"));
     }
   });
 
-  app.post("/admin/delete/discount/:id", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/admin/delete/discount/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       await db.deleteDiscountById(parseInt(req.params.id));
-      res.redirect(req.headers.referer || "/admin/discounts");
+      res.redirect(req.headers.referer || "/api/admin/discounts");
     } catch (err) {
       console.error("[Admin] Delete discount error:", err);
       res.status(500).send(errorPage("Failed to delete discount"));
     }
   });
 
-  app.post("/admin/delete/giftcard/:id", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/admin/delete/giftcard/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       await db.deleteGiftCardById(parseInt(req.params.id));
-      res.redirect(req.headers.referer || "/admin/giftcards");
+      res.redirect(req.headers.referer || "/api/admin/giftcards");
     } catch (err) {
       console.error("[Admin] Delete gift card error:", err);
       res.status(500).send(errorPage("Failed to delete gift card"));
     }
   });
 
-  app.post("/admin/delete/review/:id", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/admin/delete/review/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       await db.deleteReviewById(parseInt(req.params.id));
-      res.redirect(req.headers.referer || "/admin/reviews");
+      res.redirect(req.headers.referer || "/api/admin/reviews");
     } catch (err) {
       console.error("[Admin] Delete review error:", err);
       res.status(500).send(errorPage("Failed to delete review"));
     }
   });
 
-  app.post("/admin/delete/product/:id", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/admin/delete/product/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       await db.deleteProductById(parseInt(req.params.id));
-      res.redirect(req.headers.referer || "/admin/products");
+      res.redirect(req.headers.referer || "/api/admin/products");
     } catch (err) {
       console.error("[Admin] Delete product error:", err);
       res.status(500).send(errorPage("Failed to delete product"));
@@ -565,7 +565,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Discounts Page ────────────────────────────────────────────────
-  app.get("/admin/discounts", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/api/admin/discounts", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -579,7 +579,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Gift Cards Page ───────────────────────────────────────────────
-  app.get("/admin/giftcards", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/api/admin/giftcards", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -593,7 +593,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Reviews Page ──────────────────────────────────────────────────
-  app.get("/admin/reviews", requireAuth, async (req: Request, res: Response) => {
+  app.get("/api/admin/reviews", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -630,7 +630,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Products Page ─────────────────────────────────────────────────
-  app.get("/admin/products", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/api/admin/products", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -644,7 +644,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Locations Page ────────────────────────────────────────────────
-  app.get("/admin/locations", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/api/admin/locations", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -658,7 +658,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Subscriptions Page ────────────────────────────────────────────
-  app.get("/admin/subscriptions", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/api/admin/subscriptions", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -672,7 +672,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Plan Pricing Page ─────────────────────────────────────────────
-  app.get("/admin/plans", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/api/admin/plans", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -685,7 +685,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Update Plan ───────────────────────────────────────────────────
-  app.post("/admin/plans/:id/update", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/admin/plans/:id/update", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -707,7 +707,7 @@ export function registerAdminRoutes(app: Express): void {
         updatedAt: new Date(),
       }).where(eq(subscriptionPlans.id, id));
       invalidatePlanCache();
-      res.redirect("/admin/plans?saved=1");
+      res.redirect("/api/admin/plans?saved=1");
     } catch (err) {
       console.error("[Admin] Update plan error:", err);
       res.status(500).send(errorPage("Failed to update plan"));
@@ -715,7 +715,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Business Override ─────────────────────────────────────────────
-  app.post("/admin/businesses/:id/override", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/admin/businesses/:id/override", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -730,7 +730,7 @@ export function registerAdminRoutes(app: Express): void {
       if (overrideStatus) updateFields.subscriptionStatus = overrideStatus;
       if (overridePeriod) updateFields.subscriptionPeriod = overridePeriod;
       await dbase.update(businessOwners).set(updateFields as any).where(eq(businessOwners.id, id));
-      res.redirect(`/admin/businesses/${id}?saved=1`);
+      res.redirect(`/api/admin/businesses/${id}?saved=1`);
     } catch (err) {
       console.error("[Admin] Override error:", err);
       res.status(500).send(errorPage("Failed to update override"));
@@ -738,27 +738,27 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Expense CRUD ─────────────────────────────────────────────────────
-  app.post("/admin/financial/expenses", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/admin/financial/expenses", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
       const { date, category, description, amount, notes } = req.body;
-      if (!date || !description || !amount) { res.redirect("/admin/financial?tab=expenses&error=missing"); return; }
+      if (!date || !description || !amount) { res.redirect("/api/admin/financial?tab=expenses&error=missing"); return; }
       await (dbase as any).insert(adminExpenses).values({ date, category: category || 'other', description, amount: parseFloat(amount), notes: notes || null });
-      res.redirect("/admin/financial?tab=expenses&saved=1");
+      res.redirect("/api/admin/financial?tab=expenses&saved=1");
     } catch (err) {
       console.error("[Admin] Add expense error:", err);
       res.status(500).send(errorPage("Failed to add expense"));
     }
   });
 
-  app.post("/admin/financial/expenses/:id/delete", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/admin/financial/expenses/:id/delete", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
       const id = parseInt(req.params.id);
       await (dbase as any).delete(adminExpenses).where(eq(adminExpenses.id, id));
-      res.redirect("/admin/financial?tab=expenses");
+      res.redirect("/api/admin/financial?tab=expenses");
     } catch (err) {
       console.error("[Admin] Delete expense error:", err);
       res.status(500).send(errorPage("Failed to delete expense"));
@@ -766,7 +766,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── CSV Export ───────────────────────────────────────────────────────
-  app.get("/admin/financial/export/monthly", requireAuth, async (req: Request, res: Response) => {
+  app.get("/api/admin/financial/export/monthly", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send("DB unavailable"); return; }
@@ -808,7 +808,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  app.get("/admin/financial/export/yearly", requireAuth, async (req: Request, res: Response) => {
+  app.get("/api/admin/financial/export/yearly", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send("DB unavailable"); return; }
@@ -854,7 +854,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  app.get("/admin/financial/export/expenses", requireAuth, async (req: Request, res: Response) => {
+  app.get("/api/admin/financial/export/expenses", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send("DB unavailable"); return; }
@@ -877,7 +877,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Platform Config (Twilio / Stripe) ─────────────────────────────
-  app.get("/admin/platform-config", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/api/admin/platform-config", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -891,7 +891,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  app.post("/admin/platform-config", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/admin/platform-config", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -917,7 +917,7 @@ export function registerAdminRoutes(app: Express): void {
         }
       }
       invalidatePlanCache();
-      res.redirect("/admin/platform-config?saved=1");
+      res.redirect("/api/admin/platform-config?saved=1");
     } catch (err) {
       console.error("[Admin] Platform config save error:", err);
       res.status(500).send(errorPage("Failed to save platform config"));
@@ -925,7 +925,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Financial / Revenue Analytics ────────────────────────────────────
-  app.get("/admin/financial", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/api/admin/financial", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -1242,36 +1242,36 @@ function sidebarHtml(activePage: string): string {
         </div>
       </div>
 
-      ${navItem('/admin', '📊', 'Dashboard', a === 'dashboard')}
+      ${navItem('/api/admin', '📊', 'Dashboard', a === 'dashboard')}
 
       ${navSection('BUSINESS MANAGEMENT')}
-      ${navItem('/admin/businesses', '🏢', 'Businesses', a === 'businesses')}
-      ${navItem('/admin/clients', '👥', 'Clients', a === 'clients')}
-      ${navItem('/admin/appointments', '📅', 'Appointments', a === 'appointments')}
-      ${navItem('/admin/staff', '👤', 'Staff', a === 'staff')}
-      ${navItem('/admin/locations', '📍', 'Locations', a === 'locations')}
+      ${navItem('/api/admin/businesses', '🏢', 'Businesses', a === 'businesses')}
+      ${navItem('/api/admin/clients', '👥', 'Clients', a === 'clients')}
+      ${navItem('/api/admin/appointments', '📅', 'Appointments', a === 'appointments')}
+      ${navItem('/api/admin/staff', '👤', 'Staff', a === 'staff')}
+      ${navItem('/api/admin/locations', '📍', 'Locations', a === 'locations')}
 
       ${navSection('CATALOG')}
-      ${navItem('/admin/discounts', '🏷️', 'Discounts', a === 'discounts')}
-      ${navItem('/admin/giftcards', '🎁', 'Gift Cards', a === 'giftcards')}
-      ${navItem('/admin/reviews', '⭐', 'Reviews', a === 'reviews')}
-      ${navItem('/admin/products', '📦', 'Products', a === 'products')}
+      ${navItem('/api/admin/discounts', '🏷️', 'Discounts', a === 'discounts')}
+      ${navItem('/api/admin/giftcards', '🎁', 'Gift Cards', a === 'giftcards')}
+      ${navItem('/api/admin/reviews', '⭐', 'Reviews', a === 'reviews')}
+      ${navItem('/api/admin/products', '📦', 'Products', a === 'products')}
 
       ${navSection('ANALYTICS')}
-      ${navItem('/admin/analytics', '📈', 'Analytics', a === 'analytics')}
-      ${navItem('/admin/financial', '💰', 'Financial', a === 'financial')}
+      ${navItem('/api/admin/analytics', '📈', 'Analytics', a === 'analytics')}
+      ${navItem('/api/admin/financial', '💰', 'Financial', a === 'financial')}
 
       ${navSection('SAAS')}
-      ${navItem('/admin/subscriptions', '💳', 'Subscriptions', a === 'subscriptions')}
-      ${navItem('/admin/plans', '📋', 'Plan Pricing', a === 'plans')}
+      ${navItem('/api/admin/subscriptions', '💳', 'Subscriptions', a === 'subscriptions')}
+      ${navItem('/api/admin/plans', '📋', 'Plan Pricing', a === 'plans')}
 
       ${navSection('SYSTEM')}
-      ${navItem('/admin/platform-config', '🔧', 'Platform Config', a === 'platform-config')}
-      ${navItem('/admin/settings', '⚙️', 'Settings', a === 'settings')}
-      ${navItem('/admin/db', '🗄️', 'DB Explorer', a === 'db')}
+      ${navItem('/api/admin/platform-config', '🔧', 'Platform Config', a === 'platform-config')}
+      ${navItem('/api/admin/settings', '⚙️', 'Settings', a === 'settings')}
+      ${navItem('/api/admin/db', '🗄️', 'DB Explorer', a === 'db')}
 
       <div style="margin-top:auto;padding-top:20px;border-top:1px solid var(--border);margin-top:20px;">
-        <a href="/admin/logout" class="nav-item" style="color:var(--danger);">
+        <a href="/api/admin/logout" class="nav-item" style="color:var(--danger);">
           <span class="nav-icon">🚪</span> Logout
         </a>
       </div>
@@ -1318,7 +1318,7 @@ function loginPage(error?: string): string {
       <h1>Lime Of Time</h1>
       <p>Admin Dashboard Login</p>
       ${error ? `<div class="error-msg">${error}</div>` : ""}
-      <form method="POST" action="/admin/login">
+      <form method="POST" action="/api/admin/login">
         <div class="form-group">
           <label>Username</label>
           <input type="text" name="username" required autocomplete="username" placeholder="Enter username">
@@ -1343,7 +1343,7 @@ function errorPage(message: string): string {
     <div class="empty-state">
       <div class="empty-icon">⚠️</div>
       <h3>${message}</h3>
-      <p style="margin-top:8px;"><a href="/admin">Back to Dashboard</a></p>
+      <p style="margin-top:8px;"><a href="/api/admin">Back to Dashboard</a></p>
     </div>
   `);
 }
@@ -1440,7 +1440,7 @@ function dashboardPage(data: {
                   .map(
                     (b: any) =>
                       `<tr>
-                        <td><a href="/admin/businesses/${b.id}">${b.businessName}</a></td>
+                        <td><a href="/api/admin/businesses/${b.id}">${b.businessName}</a></td>
                         <td>${b.phone || "N/A"}</td>
                         <td>${fmtDate(b.createdAt)}</td>
                       </tr>`
@@ -1498,14 +1498,14 @@ function businessesPage(businesses: any[]): string {
     const statusColor = status === 'active' ? '#059669' : status === 'trial' ? '#f59e0b' : status === 'expired' ? '#ef4444' : '#6b7280';
     const pc = planColor(plan);
     return `<tr class="biz-row" data-name="${escHtml((b.businessName || '').toLowerCase())}" data-phone="${escHtml((b.phone || '').toLowerCase())}" data-plan="${plan}" data-status="${status}" data-open="${b.temporaryClosed ? 'closed' : 'open'}">
-      <td style="font-weight:600;"><a href="/admin/businesses/${b.id}" style="color:var(--text);text-decoration:none;">${escHtml(b.businessName)}</a></td>
+      <td style="font-weight:600;"><a href="/api/admin/businesses/${b.id}" style="color:var(--text);text-decoration:none;">${escHtml(b.businessName)}</a></td>
       <td style="font-size:13px;color:var(--text-muted);">${escHtml(b.phone || '—')}</td>
       <td style="font-size:13px;">${escHtml(b.email || '—')}</td>
       <td><span style="background:${pc}20;color:${pc};padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600;">${plan.charAt(0).toUpperCase() + plan.slice(1)}${b.adminOverride ? ' ⭐' : ''}</span></td>
       <td><span style="background:${statusColor}20;color:${statusColor};padding:2px 8px;border-radius:10px;font-size:12px;">${status.charAt(0).toUpperCase() + status.slice(1)}</span></td>
       <td>${b.temporaryClosed ? '<span class="badge badge-danger" style="font-size:11px;">Closed</span>' : '<span class="badge badge-success" style="font-size:11px;">Open</span>'}</td>
       <td style="font-size:12px;color:var(--text-muted);">${fmtDate(b.createdAt)}</td>
-      <td><a href="/admin/businesses/${b.id}" class="btn btn-secondary btn-sm">Details →</a></td>
+      <td><a href="/api/admin/businesses/${b.id}" class="btn btn-secondary btn-sm">Details →</a></td>
     </tr>`;
   }).join('');
 
@@ -1629,7 +1629,7 @@ function businessDetailPage(data: any): string {
   const o = data.owner;
   const slug = o.businessName.toLowerCase().replace(/\s+/g, "-");
   return adminLayout(o.businessName, "businesses", `
-    <div class="breadcrumb"><a href="/admin/businesses">Businesses</a> / ${o.businessName}</div>
+    <div class="breadcrumb"><a href="/api/admin/businesses">Businesses</a> / ${o.businessName}</div>
     <div class="page-header">
       <h2>${o.businessName}</h2>
       <div style="display:flex; gap:8px;">
@@ -1671,7 +1671,7 @@ function businessDetailPage(data: any): string {
       <table>
         <thead><tr><th>Name</th><th>Duration</th><th>Price</th><th>Color</th><th>Actions</th></tr></thead>
         <tbody>
-          ${data.services.map((s: any) => `<tr><td>${s.name}</td><td>${s.duration} min</td><td>${fmtCurrency(parseFloat(s.price))}</td><td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${s.color};vertical-align:middle;"></span> ${s.color}</td><td><form class="delete-form" method="POST" action="/admin/delete/service/${s.id}" onsubmit="return confirm('Delete service ${escHtml(s.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`).join("")}
+          ${data.services.map((s: any) => `<tr><td>${s.name}</td><td>${s.duration} min</td><td>${fmtCurrency(parseFloat(s.price))}</td><td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${s.color};vertical-align:middle;"></span> ${s.color}</td><td><form class="delete-form" method="POST" action="/api/admin/delete/service/${s.id}" onsubmit="return confirm('Delete service ${escHtml(s.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`).join("")}
         </tbody>
       </table>
     </div>` : ""}
@@ -1682,7 +1682,7 @@ function businessDetailPage(data: any): string {
       <table>
         <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Created</th><th>Actions</th></tr></thead>
         <tbody>
-          ${data.clients.map((c: any) => `<tr><td>${c.name}</td><td>${c.phone || "N/A"}</td><td>${c.email || "N/A"}</td><td>${fmtDate(c.createdAt)}</td><td><form class="delete-form" method="POST" action="/admin/delete/client/${c.id}" onsubmit="return confirm('Delete client ${escHtml(c.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`).join("")}
+          ${data.clients.map((c: any) => `<tr><td>${c.name}</td><td>${c.phone || "N/A"}</td><td>${c.email || "N/A"}</td><td>${fmtDate(c.createdAt)}</td><td><form class="delete-form" method="POST" action="/api/admin/delete/client/${c.id}" onsubmit="return confirm('Delete client ${escHtml(c.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`).join("")}
         </tbody>
       </table>
     </div>` : ""}
@@ -1702,7 +1702,7 @@ function businessDetailPage(data: any): string {
                 return svc ? svc.name : id;
               }).join(", ");
             } catch {}
-            return `<tr><td style="font-weight:600;">${s.name}</td><td>${s.email || "N/A"}</td><td>${s.phone || "N/A"}</td><td><span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:${s.color || '#4a8c3f'};vertical-align:middle;"></span></td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${svcNames}</td><td><form class="delete-form" method="POST" action="/admin/delete/staff/${s.id}" onsubmit="return confirm('Delete staff ${escHtml(s.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`;
+            return `<tr><td style="font-weight:600;">${s.name}</td><td>${s.email || "N/A"}</td><td>${s.phone || "N/A"}</td><td><span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:${s.color || '#4a8c3f'};vertical-align:middle;"></span></td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${svcNames}</td><td><form class="delete-form" method="POST" action="/api/admin/delete/staff/${s.id}" onsubmit="return confirm('Delete staff ${escHtml(s.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`;
           }).join("")}
         </tbody>
       </table>
@@ -1714,7 +1714,7 @@ function businessDetailPage(data: any): string {
       <table>
         <thead><tr><th>Name</th><th>Address</th><th>Phone</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>
-          ${data.locations.map((loc: any) => { const statusBadge = !loc.active ? '<span class="badge badge-danger">Inactive</span>' : loc.temporarilyClosed ? '<span class="badge badge-warning">Temp. Closed</span>' : '<span class="badge badge-success">Active</span>'; return `<tr><td style="font-weight:600;">${loc.name}</td><td>${loc.address || "N/A"}</td><td>${loc.phone || "N/A"}</td><td>${loc.email || "N/A"}</td><td>${statusBadge}</td><td><form class="delete-form" method="POST" action="/admin/delete/location/${loc.id}" onsubmit="return confirm('Delete location ${escHtml(loc.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`; }).join("")}
+          ${data.locations.map((loc: any) => { const statusBadge = !loc.active ? '<span class="badge badge-danger">Inactive</span>' : loc.temporarilyClosed ? '<span class="badge badge-warning">Temp. Closed</span>' : '<span class="badge badge-success">Active</span>'; return `<tr><td style="font-weight:600;">${loc.name}</td><td>${loc.address || "N/A"}</td><td>${loc.phone || "N/A"}</td><td>${loc.email || "N/A"}</td><td>${statusBadge}</td><td><form class="delete-form" method="POST" action="/api/admin/delete/location/${loc.id}" onsubmit="return confirm('Delete location ${escHtml(loc.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`; }).join("")}
         </tbody>
       </table>
     </div>` : ""}
@@ -1727,7 +1727,7 @@ function businessDetailPage(data: any): string {
         <tbody>
           ${data.appointments.map((a: any) => {
             const bc = a.status === "confirmed" ? "badge-success" : a.status === "pending" ? "badge-warning" : a.status === "cancelled" ? "badge-danger" : "badge-info";
-            return `<tr><td>${a.date}</td><td>${a.time}</td><td>${a.duration} min</td><td><span class="badge ${bc}">${a.status}</span></td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.notes || ""}</td><td><form class="delete-form" method="POST" action="/admin/delete/appointment/${a.id}" onsubmit="return confirm('Delete this appointment?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`;
+            return `<tr><td>${a.date}</td><td>${a.time}</td><td>${a.duration} min</td><td><span class="badge ${bc}">${a.status}</span></td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.notes || ""}</td><td><form class="delete-form" method="POST" action="/api/admin/delete/appointment/${a.id}" onsubmit="return confirm('Delete this appointment?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`;
           }).join("")}
         </tbody>
       </table>
@@ -1739,7 +1739,7 @@ function businessDetailPage(data: any): string {
         <p>Are you sure you want to delete "${o.businessName}"? This will permanently remove all associated data (clients, appointments, services, reviews, etc.). This action cannot be undone.</p>
         <div class="confirm-actions">
           <button onclick="document.getElementById('deleteDialog').classList.remove('show')" class="btn btn-secondary">Cancel</button>
-          <form method="POST" action="/admin/businesses/${o.id}/delete" style="display:inline;">
+          <form method="POST" action="/api/admin/businesses/${o.id}/delete" style="display:inline;">
             <button type="submit" class="btn btn-danger">Delete Permanently</button>
           </form>
         </div>
@@ -1768,7 +1768,7 @@ function businessDetailPage(data: any): string {
         </div>
       </div>
       ${o.adminOverride ? '<div style="background:#05996915;border:1px solid #05996940;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#059669;"><strong>⭐ Admin Override is ACTIVE.</strong> This business has full Unlimited access at no charge.</div>' : ''}
-      <form method="POST" action="/admin/businesses/${o.id}/override">
+      <form method="POST" action="/api/admin/businesses/${o.id}/override">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
           <div>
             <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">Assign Plan</label>
@@ -1801,9 +1801,9 @@ function clientsPage(allClients: any[], allBiz: any[]): string {
     <td style="font-weight:500;">${escHtml(c.name)}</td>
     <td style="font-size:13px;color:var(--text-muted);">${c.phone || '—'}</td>
     <td style="font-size:13px;">${c.email || '—'}</td>
-    <td><a href="/admin/businesses/${c.businessOwnerId}" style="color:var(--primary);">${escHtml(bizMap.get(c.businessOwnerId) || 'Unknown')}</a></td>
+    <td><a href="/api/admin/businesses/${c.businessOwnerId}" style="color:var(--primary);">${escHtml(bizMap.get(c.businessOwnerId) || 'Unknown')}</a></td>
     <td style="font-size:12px;color:var(--text-muted);">${fmtDate(c.createdAt)}</td>
-    <td><form class="delete-form" method="POST" action="/admin/delete/client/${c.id}" onsubmit="return confirm('Delete client ${escHtml(c.name)}? This will also delete their appointments and reviews.')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+    <td><form class="delete-form" method="POST" action="/api/admin/delete/client/${c.id}" onsubmit="return confirm('Delete client ${escHtml(c.name)}? This will also delete their appointments and reviews.')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
   </tr>`).join('');
 
   return adminLayout('Clients', 'clients', `
@@ -1878,10 +1878,10 @@ function appointmentsPage(allAppts: any[], allBiz: any[], allCli: any[], allSvc:
       <td style="font-size:13px;color:var(--text-muted);">${a.time}</td>
       <td>${escHtml(clientName)}</td>
       <td style="font-size:13px;">${escHtml(svcName)}</td>
-      <td><a href="/admin/businesses/${a.businessOwnerId}" style="color:var(--primary);">${escHtml(bizName)}</a></td>
+      <td><a href="/api/admin/businesses/${a.businessOwnerId}" style="color:var(--primary);">${escHtml(bizName)}</a></td>
       <td style="font-size:13px;color:var(--text-muted);">${a.duration} min</td>
       <td><span style="background:${bc}20;color:${bc};padding:2px 8px;border-radius:10px;font-size:12px;">${a.status}</span></td>
-      <td><form class="delete-form" method="POST" action="/admin/delete/appointment/${a.id}" onsubmit="return confirm('Delete this appointment?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+      <td><form class="delete-form" method="POST" action="/api/admin/delete/appointment/${a.id}" onsubmit="return confirm('Delete this appointment?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
     </tr>`;
   }).join('');
 
@@ -1892,7 +1892,7 @@ function appointmentsPage(allAppts: any[], allBiz: any[], allCli: any[], allSvc:
     if (bizFilter) params.set('biz', bizFilter);
     if (searchQ) params.set('q', searchQ);
     params.set('page', String(p));
-    return `/admin/appointments?${params.toString()}`;
+    return `/api/admin/appointments?${params.toString()}`;
   };
   const paginationHtml = totalPages > 1 ? `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--border);">
@@ -1917,11 +1917,11 @@ function appointmentsPage(allAppts: any[], allBiz: any[], allCli: any[], allSvc:
         if (s) params.set('status', s);
         if (bizFilter) params.set('biz', bizFilter);
         params.set('page', '1');
-        return `<a href="/admin/appointments?${params.toString()}" class="filter-btn ${statusFilter === s ? 'active' : ''}">${statusLabels[i]}</a>`;
+        return `<a href="/api/admin/appointments?${params.toString()}" class="filter-btn ${statusFilter === s ? 'active' : ''}">${statusLabels[i]}</a>`;
       }).join('')}
     </div>
     <!-- Server-side search + business filter form -->
-    <form method="GET" action="/admin/appointments" class="search-bar" style="margin-top:12px;">
+    <form method="GET" action="/api/admin/appointments" class="search-bar" style="margin-top:12px;">
       <input type="hidden" name="status" value="${escHtml(statusFilter)}">
       <input type="hidden" name="page" value="1">
       <input type="text" name="q" value="${escHtml(searchQ)}" placeholder="🔍 Search client, service, or business..." style="max-width:340px;">
@@ -1930,7 +1930,7 @@ function appointmentsPage(allAppts: any[], allBiz: any[], allCli: any[], allSvc:
         ${allBiz.map((b: any) => `<option value="${b.id}" ${bizFilter === String(b.id) ? 'selected' : ''}>${escHtml(b.businessName)}</option>`).join('')}
       </select>
       <button type="submit" class="btn-sm">Search</button>
-      ${(searchQ || bizFilter) ? `<a href="/admin/appointments${statusFilter ? '?status=' + statusFilter : ''}" class="btn-sm" style="background:var(--danger);color:#fff;">Clear</a>` : ''}
+      ${(searchQ || bizFilter) ? `<a href="/api/admin/appointments${statusFilter ? '?status=' + statusFilter : ''}" class="btn-sm" style="background:var(--danger);color:#fff;">Clear</a>` : ''}
     </form>
     <div class="card" style="padding:0;overflow:hidden;margin-top:12px;">
       <table id="apptTable">
@@ -1964,7 +1964,7 @@ function dbExplorerPage(table: string, rows: any[], page: number, totalPages: nu
       <span class="badge badge-info">${totalRows} rows in ${table}</span>
     </div>
     <div class="filter-bar">
-      ${tables.map((t) => `<a href="/admin/db?table=${t}" class="filter-btn ${table === t ? "active" : ""}">${t}</a>`).join("")}
+      ${tables.map((t) => `<a href="/api/admin/db?table=${t}" class="filter-btn ${table === t ? "active" : ""}">${t}</a>`).join("")}
     </div>
     <div class="card" style="overflow-x:auto;">
       ${rows.length === 0
@@ -1984,12 +1984,12 @@ function dbExplorerPage(table: string, rows: any[], page: number, totalPages: nu
           </table>
           ${totalPages > 1 ? `
           <div class="pagination">
-            ${page > 1 ? `<a href="/admin/db?table=${table}&page=${page - 1}">Previous</a>` : ""}
+            ${page > 1 ? `<a href="/api/admin/db?table=${table}&page=${page - 1}">Previous</a>` : ""}
             ${Array.from({ length: Math.min(totalPages, 10) }, (_, i) => {
               const p = i + 1;
-              return `<a href="/admin/db?table=${table}&page=${p}" class="${p === page ? "active" : ""}">${p}</a>`;
+              return `<a href="/api/admin/db?table=${table}&page=${p}" class="${p === page ? "active" : ""}">${p}</a>`;
             }).join("")}
-            ${page < totalPages ? `<a href="/admin/db?table=${table}&page=${page + 1}">Next</a>` : ""}
+            ${page < totalPages ? `<a href="/api/admin/db?table=${table}&page=${page + 1}">Next</a>` : ""}
           </div>` : ""}`
       }
     </div>
@@ -2180,13 +2180,13 @@ function analyticsPage(data: {
                   const pc = planColors[b.plan] || '#6b7280';
                   const sc = b.status === 'active' ? '#059669' : b.status === 'trial' ? '#f59e0b' : b.status === 'expired' ? '#ef4444' : '#6b7280';
                   return `<tr class="biz-rev-row" data-name="${escHtml(b.name.toLowerCase())}" data-plan="${b.plan}" data-status="${b.status}">
-                    <td style="font-weight:600;"><a href="/admin/businesses/${b.id}" style="color:var(--text);text-decoration:none;">${escHtml(b.name)}</a></td>
+                    <td style="font-weight:600;"><a href="/api/admin/businesses/${b.id}" style="color:var(--text);text-decoration:none;">${escHtml(b.name)}</a></td>
                     <td><span style="background:${pc}20;color:${pc};padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600;">${b.plan.charAt(0).toUpperCase() + b.plan.slice(1)}</span></td>
                     <td><span style="background:${sc}20;color:${sc};padding:2px 8px;border-radius:10px;font-size:12px;">${b.status.charAt(0).toUpperCase() + b.status.slice(1)}</span></td>
                     <td style="text-align:right;font-weight:600;color:${b.revenue > 0 ? '#059669' : 'var(--text-muted)'};">\$${b.revenue.toFixed(2)}</td>
                     <td style="text-align:right;color:var(--text-muted);">${b.apptCount}</td>
                     <td style="font-size:12px;color:var(--text-muted);">${fmtDate(b.createdAt)}</td>
-                    <td><a href="/admin/businesses/${b.id}" class="btn btn-secondary btn-sm">View &rarr;</a></td>
+                    <td><a href="/api/admin/businesses/${b.id}" class="btn btn-secondary btn-sm">View &rarr;</a></td>
                   </tr>`;
                 }).join('')
             }
@@ -2263,8 +2263,8 @@ function settingsPage(): string {
       <h3>Quick Links</h3>
       <div style="display:flex; gap:12px; flex-wrap:wrap;">
         <a href="/api/health" target="_blank" class="btn btn-secondary btn-sm">Health Check</a>
-        <a href="/admin/db" class="btn btn-secondary btn-sm">DB Explorer</a>
-        <a href="/admin/analytics" class="btn btn-secondary btn-sm">Analytics</a>
+        <a href="/api/admin/db" class="btn btn-secondary btn-sm">DB Explorer</a>
+        <a href="/api/admin/analytics" class="btn btn-secondary btn-sm">Analytics</a>
         <a href="/api/home" target="_blank" class="btn btn-secondary btn-sm">Public Homepage</a>
       </div>
     </div>
@@ -2310,7 +2310,7 @@ function staffPage(allStaff: any[], allBiz: any[], allSvc: any[], bizFilter = ""
       data-email="${escHtml((s.email || '').toLowerCase())}"
       data-phone="${escHtml((s.phone || '').toLowerCase())}">
       <td style="font-weight:600;">${escHtml(s.name)}</td>
-      <td><a href="/admin/businesses/${s.businessOwnerId}" style="color:var(--primary);">${escHtml(bizName)}</a></td>
+      <td><a href="/api/admin/businesses/${s.businessOwnerId}" style="color:var(--primary);">${escHtml(bizName)}</a></td>
       <td>${s.email ? escHtml(s.email) : '<span style="color:var(--text-muted);">—</span>'}</td>
       <td>${s.phone ? escHtml(s.phone) : '<span style="color:var(--text-muted);">—</span>'}</td>
       <td>${s.role ? `<span style="font-size:12px;color:var(--text-muted);">${escHtml(s.role)}</span>` : '<span style="color:var(--text-muted);">—</span>'}</td>
@@ -2319,7 +2319,7 @@ function staffPage(allStaff: any[], allBiz: any[], allSvc: any[], bizFilter = ""
       <td style="font-size:12px;">${workingDays}</td>
       <td>${activeLabel}</td>
       <td style="font-size:12px;color:var(--text-muted);">${created}</td>
-      <td><form class="delete-form" method="POST" action="/admin/delete/staff/${s.id}" onsubmit="return confirm('Delete staff member ${escHtml(s.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+      <td><form class="delete-form" method="POST" action="/api/admin/delete/staff/${s.id}" onsubmit="return confirm('Delete staff member ${escHtml(s.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
     </tr>`;
   }).join("");
 
@@ -2457,9 +2457,9 @@ function discountsPage(allDisc: any[], allBiz: any[]): string {
                   <td>${d.type || "percent"}</td>
                   <td>${d.type === "fixed" ? fmtCurrency(parseFloat(d.value || "0")) : (d.value || "0") + "%"}</td>
                   <td><code>${d.code || "N/A"}</code></td>
-                  <td><a href="/admin/businesses/${d.businessOwnerId}">${bizMap.get(d.businessOwnerId) || "Unknown"}</a></td>
+                  <td><a href="/api/admin/businesses/${d.businessOwnerId}">${bizMap.get(d.businessOwnerId) || "Unknown"}</a></td>
                   <td>${isActive ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-danger">Inactive</span>'}</td>
-                  <td><form class="delete-form" method="POST" action="/admin/delete/discount/${d.id}" onsubmit="return confirm('Delete this discount?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+                  <td><form class="delete-form" method="POST" action="/api/admin/delete/discount/${d.id}" onsubmit="return confirm('Delete this discount?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
                 </tr>`;
               }).join("")}
             </tbody>
@@ -2520,10 +2520,10 @@ function giftCardsPage(allGC: any[], allBiz: any[]): string {
                   <td><code style="font-weight:600;">${g.code}</code></td>
                   <td>${fmtCurrency(parseFloat(g.amount || "0"))}</td>
                   <td>${fmtCurrency(parseFloat(g.balance || g.amount || "0"))}</td>
-                  <td><a href="/admin/businesses/${g.businessOwnerId}">${bizMap.get(g.businessOwnerId) || "Unknown"}</a></td>
+                  <td><a href="/api/admin/businesses/${g.businessOwnerId}">${bizMap.get(g.businessOwnerId) || "Unknown"}</a></td>
                   <td>${isUsed ? '<span class="badge badge-danger">Used</span>' : '<span class="badge badge-success">Active</span>'}</td>
                   <td>${fmtDate(g.createdAt)}</td>
-                  <td><form class="delete-form" method="POST" action="/admin/delete/giftcard/${g.id}" onsubmit="return confirm('Delete this gift card?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+                  <td><form class="delete-form" method="POST" action="/api/admin/delete/giftcard/${g.id}" onsubmit="return confirm('Delete this gift card?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
                 </tr>`;
               }).join("")}
             </tbody>
@@ -2560,7 +2560,7 @@ function reviewsPage(allRev: any[], allBiz: any[], bizFilter = "", ratingFilter 
     if (bizFilter) params.set('biz', bizFilter);
     if (ratingFilter) params.set('rating', ratingFilter);
     params.set('page', String(p));
-    return `/admin/reviews?${params.toString()}`;
+    return `/api/admin/reviews?${params.toString()}`;
   };
   const paginationHtml = totalPages > 1 ? `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--border);">
@@ -2576,7 +2576,7 @@ function reviewsPage(allRev: any[], allBiz: any[], bizFilter = "", ratingFilter 
       <h2>All Reviews</h2>
       <span class="badge badge-info">${totalCount} total &mdash; page ${page} of ${totalPages}</span>
     </div>
-    <form method="GET" action="/admin/reviews" class="search-bar">
+    <form method="GET" action="/api/admin/reviews" class="search-bar">
       <input type="hidden" name="page" value="1">
       <select name="biz" onchange="this.form.submit()">
         <option value="">All Businesses</option>
@@ -2590,7 +2590,7 @@ function reviewsPage(allRev: any[], allBiz: any[], bizFilter = "", ratingFilter 
         <option value="2" ${ratingFilter === '2' ? 'selected' : ''}>⭐⭐ 2 stars</option>
         <option value="1" ${ratingFilter === '1' ? 'selected' : ''}>⭐ 1 star</option>
       </select>
-      ${(bizFilter || ratingFilter) ? `<a href="/admin/reviews" class="btn-sm" style="background:var(--danger);color:#fff;">Clear</a>` : ''}
+      ${(bizFilter || ratingFilter) ? `<a href="/api/admin/reviews" class="btn-sm" style="background:var(--danger);color:#fff;">Clear</a>` : ''}
     </form>
     <div class="card" style="padding:0;overflow:hidden;">
       ${allRev.length === 0
@@ -2602,9 +2602,9 @@ function reviewsPage(allRev: any[], allBiz: any[], bizFilter = "", ratingFilter 
                 <td style="padding:10px 16px;">${"⭐".repeat(Math.min(r.rating, 5))}</td>
                 <td style="padding:10px 16px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(r.comment || '') || '<span style="color:var(--text-muted);">No comment</span>'}</td>
                 <td style="padding:10px 16px;">${escHtml(r.clientName || r.clientLocalId || "Anonymous")}</td>
-                <td style="padding:10px 16px;"><a href="/admin/businesses/${r.businessOwnerId}" style="color:var(--primary);">${escHtml(bizMap.get(r.businessOwnerId) as string || "Unknown")}</a></td>
+                <td style="padding:10px 16px;"><a href="/api/admin/businesses/${r.businessOwnerId}" style="color:var(--primary);">${escHtml(bizMap.get(r.businessOwnerId) as string || "Unknown")}</a></td>
                 <td style="padding:10px 16px;font-size:12px;color:var(--text-muted);">${fmtDate(r.createdAt)}</td>
-                <td style="padding:10px 16px;"><form class="delete-form" method="POST" action="/admin/delete/review/${r.id}" onsubmit="return confirm('Delete this review?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+                <td style="padding:10px 16px;"><form class="delete-form" method="POST" action="/api/admin/delete/review/${r.id}" onsubmit="return confirm('Delete this review?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
               </tr>`).join("")}
             </tbody>
           </table>
@@ -2639,9 +2639,9 @@ function productsPage(allProd: any[], allBiz: any[]): string {
                 <td style="font-weight:500;">${p.name}</td>
                 <td>${fmtCurrency(parseFloat(p.price || "0"))}</td>
                 <td>${p.stock !== null && p.stock !== undefined ? p.stock : '<span style="color:var(--text-muted);">N/A</span>'}</td>
-                <td><a href="/admin/businesses/${p.businessOwnerId}">${bizMap.get(p.businessOwnerId) || "Unknown"}</a></td>
+                <td><a href="/api/admin/businesses/${p.businessOwnerId}">${bizMap.get(p.businessOwnerId) || "Unknown"}</a></td>
                 <td>${fmtDate(p.createdAt)}</td>
-                <td><form class="delete-form" method="POST" action="/admin/delete/product/${p.id}" onsubmit="return confirm('Delete product ${escHtml(p.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+                <td><form class="delete-form" method="POST" action="/api/admin/delete/product/${p.id}" onsubmit="return confirm('Delete product ${escHtml(p.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
               </tr>`).join("")}
             </tbody>
           </table>
@@ -2701,9 +2701,9 @@ function locationsPage(allLoc: any[], allBiz: any[]): string {
                   <td>${loc.address ? escHtml(loc.address) : "N/A"}</td>
                   <td>${loc.phone || "N/A"}</td>
                   <td>${loc.email || "N/A"}</td>
-                  <td><a href="/admin/businesses/${loc.businessOwnerId}">${bizMap.get(loc.businessOwnerId) || "Unknown"}</a></td>
+                  <td><a href="/api/admin/businesses/${loc.businessOwnerId}">${bizMap.get(loc.businessOwnerId) || "Unknown"}</a></td>
                   <td>${!loc.active ? '<span class="badge badge-danger">Inactive</span>' : loc.temporarilyClosed ? '<span class="badge badge-warning">Temp. Closed</span>' : '<span class="badge badge-success">Active</span>'}</td>
-                  <td><form class="delete-form" method="POST" action="/admin/delete/location/${loc.id}" onsubmit="return confirm('Delete location ${escHtml(loc.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+                  <td><form class="delete-form" method="POST" action="/api/admin/delete/location/${loc.id}" onsubmit="return confirm('Delete location ${escHtml(loc.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
                 </tr>`;
               }).join("")}
             </tbody>
@@ -2776,13 +2776,13 @@ function subscriptionsPage(businesses: any[], plans: any[]): string {
     const daysLeft = trialDate ? Math.ceil((trialDate.getTime() - Date.now()) / 86400000) : null;
     const trialDisplay = daysLeft !== null ? `${trialStr} <span style="font-size:11px;color:${daysLeft <= 3 ? '#ef4444' : '#f59e0b'}">(${daysLeft}d left)</span>` : '—';
     return `<tr class="sub-row" data-name="${escHtml((b.businessName || '').toLowerCase())}" data-plan="${plan}" data-status="${status}" data-override="${b.adminOverride ? 'yes' : 'no'}" data-trial-ts="${trialDate ? trialDate.getTime() : 0}">
-      <td style="font-weight:600;"><a href="/admin/businesses/${b.id}" style="color:var(--text);text-decoration:none;">${escHtml(b.businessName)}</a></td>
+      <td style="font-weight:600;"><a href="/api/admin/businesses/${b.id}" style="color:var(--text);text-decoration:none;">${escHtml(b.businessName)}</a></td>
       <td style="font-size:13px;color:var(--text-muted);">${escHtml(b.phone || '—')}</td>
       <td>${planBadge(plan, !!b.adminOverride)}</td>
       <td>${statusBadge(status)}</td>
       <td style="font-size:13px;">${status === 'trial' ? trialDisplay : '—'}</td>
       <td>${b.adminOverride ? '<span style="color:#059669;font-weight:600;">✓ Complimentary</span>' : '<span style="color:var(--text-muted);">—</span>'}</td>
-      <td><a href="/admin/businesses/${b.id}" class="btn btn-secondary btn-sm">Manage →</a></td>
+      <td><a href="/api/admin/businesses/${b.id}" class="btn btn-secondary btn-sm">Manage →</a></td>
     </tr>`;
   }).join('');
 
@@ -2801,7 +2801,7 @@ function subscriptionsPage(businesses: any[], plans: any[]): string {
         <h2>Subscriptions</h2>
         <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">${businesses.length} businesses &nbsp;·&nbsp; ${trialCount} on trial &nbsp;·&nbsp; ${activeCount} active &nbsp;·&nbsp; ${expiredCount} expired &nbsp;·&nbsp; ${overrideCount} complimentary</div>
       </div>
-      <a href="/admin/plans" class="btn btn-primary">Manage Plans →</a>
+      <a href="/api/admin/plans" class="btn btn-primary">Manage Plans →</a>
     </div>
 
     <!-- Plan stat cards (clickable to filter) -->
@@ -2905,7 +2905,7 @@ function plansPage(plans: any[]): string {
           ${p.isPublic ? '<span style="background:#05996920;color:#059669;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;">Public</span>' : '<span style="background:#6b728020;color:#6b7280;padding:4px 10px;border-radius:20px;font-size:12px;">Hidden</span>'}
         </div>
       </div>
-      <form method="POST" action="/admin/plans/${p.id}/update">
+      <form method="POST" action="/api/admin/plans/${p.id}/update">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
           <div>
             <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Monthly Price ($)</label>
@@ -2973,7 +2973,7 @@ function plansPage(plans: any[]): string {
   return adminLayout("Plan Pricing", "plans", `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
       <h1 style="font-size:24px;font-weight:700;">Plan Pricing & Limits</h1>
-      <a href="/admin/subscriptions" style="color:var(--primary);text-decoration:none;font-size:14px;">← View Subscribers</a>
+      <a href="/api/admin/subscriptions" style="color:var(--primary);text-decoration:none;font-size:14px;">← View Subscribers</a>
     </div>
     <div style="background:#0a7ea420;border:1px solid #0a7ea440;border-radius:8px;padding:12px 16px;margin-bottom:24px;font-size:13px;color:var(--text);">
       💡 <strong>Tip:</strong> Toggle "Visible to Public" to control which plans users can sign up for. Solo and Growth are public by default. Studio and Enterprise are hidden until you are ready to launch them.
@@ -3004,7 +3004,7 @@ function platformConfigPage(cfgMap: Record<string, string>): string {
   return adminLayout("Platform Config", "platform-config", `
     <h1 style="font-size:24px;font-weight:700;margin-bottom:24px;">Platform Configuration</h1>
 
-    <form method="POST" action="/admin/platform-config">
+    <form method="POST" action="/api/admin/platform-config">
       <!-- Twilio Section -->
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:24px;">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
@@ -3142,7 +3142,7 @@ function financialPage(data: {
       </div>
       <div style="display:flex;gap:8px;">
         <button onclick="window.print()" class="btn btn-primary no-print" style="gap:6px;">🖨️ Print / Save PDF</button>
-        <a href="/admin/analytics" class="btn btn-secondary no-print">📈 Analytics</a>
+        <a href="/api/admin/analytics" class="btn btn-secondary no-print">📈 Analytics</a>
       </div>
     </div>
 
@@ -3202,7 +3202,7 @@ function financialPage(data: {
           <h3 style="margin:0;">Monthly Revenue (Last 24 Months)</h3>
           <div style="display:flex;gap:8px;align-items:center;">
             <span style="font-size:12px;color:var(--text-muted);">Click bars to see details</span>
-            <a href="/admin/financial/export/monthly" class="btn btn-secondary btn-sm no-print">⬇️ CSV</a>
+            <a href="/api/admin/financial/export/monthly" class="btn btn-secondary btn-sm no-print">⬇️ CSV</a>
           </div>
         </div>
         <div class="chart-container tall">
@@ -3225,7 +3225,7 @@ function financialPage(data: {
           <h3 style="margin:0;">Annual Revenue Breakdown (Last 5 Years)</h3>
           <div style="display:flex;gap:8px;align-items:center;">
             <span style="font-size:12px;color:var(--text-muted);">Click bars to see year details</span>
-            <a href="/admin/financial/export/yearly" class="btn btn-secondary btn-sm no-print">⬇️ CSV</a>
+            <a href="/api/admin/financial/export/yearly" class="btn btn-secondary btn-sm no-print">⬇️ CSV</a>
           </div>
         </div>
         <div class="chart-container tall">
@@ -3331,7 +3331,7 @@ function financialPage(data: {
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
           <h3 style="margin:0;">💸 Expenses — ${data.currentYear}</h3>
           <div style="display:flex;gap:8px;">
-            <a href="/admin/financial/export/expenses?year=${data.currentYear}" class="btn btn-secondary btn-sm no-print">⬇️ Download CSV</a>
+            <a href="/api/admin/financial/export/expenses?year=${data.currentYear}" class="btn btn-secondary btn-sm no-print">⬇️ Download CSV</a>
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px;">
@@ -3363,7 +3363,7 @@ function financialPage(data: {
       <!-- Add Expense Form -->
       <div class="card no-print">
         <h3 style="margin-bottom:16px;">Add Expense</h3>
-        <form method="POST" action="/admin/financial/expenses" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:12px;align-items:end;">
+        <form method="POST" action="/api/admin/financial/expenses" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:12px;align-items:end;">
           <div>
             <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Date</label>
             <input type="date" name="date" required style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;" />
@@ -3411,7 +3411,7 @@ function financialPage(data: {
                 <td style="text-align:right;font-weight:600;color:#ef4444;">${fmt(amt)}</td>
                 <td style="font-size:12px;color:var(--text-muted);">${escHtml(e.notes || '')}</td>
                 <td class="no-print">
-                  <form method="POST" action="/admin/financial/expenses/${e.id}/delete" style="display:inline;" onsubmit="return confirm('Delete this expense?')">
+                  <form method="POST" action="/api/admin/financial/expenses/${e.id}/delete" style="display:inline;" onsubmit="return confirm('Delete this expense?')">
                     <button type="submit" class="btn btn-secondary btn-sm" style="color:#ef4444;">Delete</button>
                   </form>
                 </td>
