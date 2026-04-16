@@ -1145,3 +1145,8 @@
 - [x] Mark as Paid button on each card in the Unpaid filter — single tap records payment
 - [x] Unpaid filter summary header — show total outstanding amount and count above the list
 - [x] Filter chip persistence — remember last-used filter across navigation
+
+## Features (Apr 16 batch 8)
+- [x] Payment method picker in Mark as Paid flow (Cash, Zelle, Venmo, Card)
+- [x] Bulk Mark All Paid button on the Unpaid summary banner
+- [x] Payment badge and Mark as Paid button on Appointment Detail screen

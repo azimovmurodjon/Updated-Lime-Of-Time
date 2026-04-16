@@ -301,6 +301,26 @@ export default function CalendarScreen() {
     }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // Payment method modal state
+  const PAYMENT_METHODS = [
+    { key: "cash", label: "Cash" },
+    { key: "zelle", label: "Zelle" },
+    { key: "venmo", label: "Venmo" },
+    { key: "cashapp", label: "Card" },
+  ] as const;
+  type PaymentMethodKey = (typeof PAYMENT_METHODS)[number]["key"];
+  const [payModalAppt, setPayModalAppt] = useState<Appointment | null>(null);
+  const [payModalMethod, setPayModalMethod] = useState<PaymentMethodKey>("cash");
+  const [payModalIsBulk, setPayModalIsBulk] = useState(false);
+
+  const doMarkPaid = useCallback((appts: Appointment[], method: PaymentMethodKey) => {
+    appts.forEach((appt) => {
+      const updated = { ...appt, paymentStatus: "paid" as const, paymentMethod: method };
+      dispatch({ type: "UPDATE_APPOINTMENT", payload: updated });
+      syncToDb({ type: "UPDATE_APPOINTMENT", payload: updated });
+    });
+  }, [dispatch, syncToDb]);
+
   // Workday override modal state
   const [showTimePickerModal, setShowTimePickerModal] = useState(false);
   const [editingDate, setEditingDate] = useState<string | null>(null);
@@ -1156,16 +1176,30 @@ export default function CalendarScreen() {
           const isUnpaid = activeFilter === "unpaid";
           const bannerColor = isUnpaid ? "#EF4444" : "#22C55E";
           return (
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: bannerColor + "12", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 10, borderWidth: 1, borderColor: bannerColor + "30" }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <IconSymbol name={isUnpaid ? "exclamationmark.circle.fill" : "checkmark.circle.fill"} size={18} color={bannerColor} />
-                <Text style={{ fontSize: 13, fontWeight: "700", color: bannerColor }}>
-                  {filteredAppointments.length} appointment{filteredAppointments.length !== 1 ? "s" : ""}
+            <View style={{ backgroundColor: bannerColor + "12", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 10, borderWidth: 1, borderColor: bannerColor + "30" }}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <IconSymbol name={isUnpaid ? "exclamationmark.circle.fill" : "checkmark.circle.fill"} size={18} color={bannerColor} />
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: bannerColor }}>
+                    {filteredAppointments.length} appointment{filteredAppointments.length !== 1 ? "s" : ""}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 16, fontWeight: "800", color: bannerColor }}>
+                  ${total.toFixed(2)} {isUnpaid ? "outstanding" : "collected"}
                 </Text>
               </View>
-              <Text style={{ fontSize: 16, fontWeight: "800", color: bannerColor }}>
-                ${total.toFixed(2)} {isUnpaid ? "outstanding" : "collected"}
-              </Text>
+              {isUnpaid && (
+                <Pressable
+                  onPress={() => {
+                    setPayModalIsBulk(true);
+                    setPayModalAppt(null);
+                    setPayModalMethod("cash");
+                  }}
+                  style={({ pressed }) => [{ marginTop: 10, backgroundColor: "#22C55E", borderRadius: 10, paddingVertical: 9, alignItems: "center", opacity: pressed ? 0.8 : 1 }]}
+                >
+                  <Text style={{ color: "#FFF", fontSize: 13, fontWeight: "700" }}>Mark All Paid</Text>
+                </Pressable>
+              )}
             </View>
           );
         })()}
@@ -1244,21 +1278,9 @@ export default function CalendarScreen() {
                   <View style={[styles.actionRow, { borderTopColor: colors.border }]}>
                     <Pressable
                       onPress={() => {
-                        Alert.alert(
-                          "Mark as Paid",
-                          `Mark ${getClientById(appt.clientId)?.name ?? "this appointment"} as paid${appt.totalPrice != null ? ` ($${appt.totalPrice.toFixed(2)})` : ""}?`,
-                          [
-                            { text: "Cancel", style: "cancel" },
-                            {
-                              text: "Mark Paid",
-                              onPress: () => {
-                                const updated = { ...appt, paymentStatus: "paid" as const };
-                                dispatch({ type: "UPDATE_APPOINTMENT", payload: updated });
-                                syncToDb({ type: "UPDATE_APPOINTMENT", payload: updated });
-                              },
-                            },
-                          ]
-                        );
+                        setPayModalAppt(appt);
+                        setPayModalIsBulk(false);
+                        setPayModalMethod("cash");
                       }}
                       style={({ pressed }) => [styles.acceptBtn, { flex: 1, backgroundColor: "#22C55E", opacity: pressed ? 0.8 : 1 }]}
                     >
@@ -1624,6 +1646,75 @@ export default function CalendarScreen() {
               style={({ pressed }) => [{ backgroundColor: timeError ? colors.border : colors.primary, paddingVertical: 16, borderRadius: 14, alignItems: "center", opacity: pressed ? 0.8 : 1, marginTop: 12 }]}
             >
               <Text style={{ color: timeError ? colors.muted : "#fff", fontWeight: "700", fontSize: 16 }}>Save Hours</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Payment Method Modal */}
+      <Modal visible={!!payModalAppt || payModalIsBulk} transparent animationType="slide">
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }} onPress={() => { setPayModalAppt(null); setPayModalIsBulk(false); }}>
+          <Pressable style={{ borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 20, paddingBottom: 40, paddingHorizontal: 20, backgroundColor: colors.background }} onPress={() => {}}>
+            {/* Header */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground }}>
+                {payModalIsBulk ? `Mark All ${filteredAppointments.length} as Paid` : "Mark as Paid"}
+              </Text>
+              <Pressable onPress={() => { setPayModalAppt(null); setPayModalIsBulk(false); }} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+                <IconSymbol name="xmark" size={22} color={colors.foreground} />
+              </Pressable>
+            </View>
+            {payModalAppt && (
+              <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 16 }}>
+                {getClientById(payModalAppt.clientId)?.name ?? "Client"}{payModalAppt.totalPrice != null ? ` · $${payModalAppt.totalPrice.toFixed(2)}` : ""}
+              </Text>
+            )}
+            {payModalIsBulk && (() => {
+              const total = filteredAppointments.reduce((s, a) => s + (a.totalPrice ?? 0), 0);
+              return (
+                <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 16 }}>
+                  {filteredAppointments.length} appointment{filteredAppointments.length !== 1 ? "s" : ""} · ${total.toFixed(2)} total
+                </Text>
+              );
+            })()}
+
+            {/* Method picker */}
+            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.muted, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Payment Method</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 24 }}>
+              {PAYMENT_METHODS.map((pm) => (
+                <Pressable
+                  key={pm.key}
+                  onPress={() => setPayModalMethod(pm.key)}
+                  style={({ pressed }) => [{
+                    paddingHorizontal: 18, paddingVertical: 10, borderRadius: 22,
+                    backgroundColor: payModalMethod === pm.key ? "#22C55E" : colors.surface,
+                    borderWidth: 1.5,
+                    borderColor: payModalMethod === pm.key ? "#22C55E" : colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                  }]}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: payModalMethod === pm.key ? "#FFF" : colors.foreground }}>{pm.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Confirm button */}
+            <Pressable
+              onPress={() => {
+                if (payModalIsBulk) {
+                  doMarkPaid(filteredAppointments.filter((a) => a.paymentStatus !== "paid"), payModalMethod);
+                } else if (payModalAppt) {
+                  doMarkPaid([payModalAppt], payModalMethod);
+                }
+                setPayModalAppt(null);
+                setPayModalIsBulk(false);
+                setPayModalMethod("cash");
+              }}
+              style={({ pressed }) => [{ backgroundColor: "#22C55E", paddingVertical: 16, borderRadius: 14, alignItems: "center", opacity: pressed ? 0.8 : 1 }]}
+            >
+              <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 16 }}>
+                {payModalIsBulk ? `Mark All Paid · ${payModalMethod.charAt(0).toUpperCase() + payModalMethod.slice(1)}` : `Confirm Payment · ${PAYMENT_METHODS.find((p) => p.key === payModalMethod)?.label ?? payModalMethod}`}
+              </Text>
             </Pressable>
           </Pressable>
         </Pressable>
