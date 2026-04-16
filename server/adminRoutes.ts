@@ -60,7 +60,7 @@ function requireAuth(req: Request, res: Response, next: NextFunction): void {
   if (isAuthenticated(req)) {
     next();
   } else {
-    res.redirect("/api/admin/login");
+    res.redirect("/admin/login");
   }
 }
 
@@ -78,12 +78,12 @@ function fmtDate(d: Date | string | null): string {
 // ─── Register Admin Routes ──────────────────────────────────────────
 export function registerAdminRoutes(app: Express): void {
   // Login page
-  app.get("/api/admin/login", (_req: Request, res: Response) => {
+  app.get("/admin/login", (_req: Request, res: Response) => {
     res.send(loginPage());
   });
 
   // Login POST
-  app.post("/api/admin/login", (req: Request, res: Response) => {
+  app.post("/admin/login", (req: Request, res: Response) => {
     const { username, password } = req.body;
     if (username === ADMIN_USER && password === ADMIN_PASS) {
       const sessionId = generateSessionId();
@@ -93,27 +93,27 @@ export function registerAdminRoutes(app: Express): void {
       });
       res.setHeader(
         "Set-Cookie",
-        `admin_session=${sessionId}; Path=/api/admin; HttpOnly; SameSite=Lax; Max-Age=86400`
+        `admin_session=${sessionId}; Path=/admin; HttpOnly; SameSite=Lax; Max-Age=86400`
       );
-      res.redirect("/api/admin");
+      res.redirect("/admin");
     } else {
       res.send(loginPage("Invalid username or password"));
     }
   });
 
   // Logout
-  app.get("/api/admin/logout", (_req: Request, res: Response) => {
+  app.get("/admin/logout", (_req: Request, res: Response) => {
     const sessionId = getSessionFromCookie(_req);
     if (sessionId) sessions.delete(sessionId);
     res.setHeader(
       "Set-Cookie",
-      `admin_session=; Path=/api/admin; HttpOnly; SameSite=Lax; Max-Age=0`
+      `admin_session=; Path=/admin; HttpOnly; SameSite=Lax; Max-Age=0`
     );
-    res.redirect("/api/admin/login");
+    res.redirect("/admin/login");
   });
 
   // ── Dashboard Overview ────────────────────────────────────────────
-  app.get("/api/admin", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/admin", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) {
@@ -171,7 +171,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Businesses List ───────────────────────────────────────────────
-  app.get("/api/admin/businesses", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/admin/businesses", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -184,7 +184,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Business Detail ───────────────────────────────────────────────
-  app.get("/api/admin/businesses/:id", requireAuth, async (req: Request, res: Response) => {
+  app.get("/admin/businesses/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       const fullData = await db.getFullBusinessData(id);
@@ -197,11 +197,11 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Delete Business ───────────────────────────────────────────────
-  app.post("/api/admin/businesses/:id/delete", requireAuth, async (req: Request, res: Response) => {
+  app.post("/admin/businesses/:id/delete", requireAuth, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       await db.deleteBusinessOwner(id);
-      res.redirect("/api/admin/businesses");
+      res.redirect("/admin/businesses");
     } catch (err) {
       console.error("[Admin] Delete business error:", err);
       res.status(500).send(errorPage("Failed to delete business"));
@@ -209,7 +209,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── All Clients ───────────────────────────────────────────────────
-  app.get("/api/admin/clients", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/admin/clients", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -223,12 +223,12 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── All Appointments ──────────────────────────────────────────────
-  // Alias: /api/admin/dashboard → /api/admin
-  app.get("/api/admin/dashboard", requireAuth, (_req: Request, res: Response) => {
-    res.redirect("/api/admin");
+  // Alias: /admin/dashboard → /admin
+  app.get("/admin/dashboard", requireAuth, (_req: Request, res: Response) => {
+    res.redirect("/admin");
   });
 
-  app.get("/api/admin/appointments", requireAuth, async (req: Request, res: Response) => {
+  app.get("/admin/appointments", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -276,7 +276,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── DB Explorer ───────────────────────────────────────────────────
-  app.get("/api/admin/db", requireAuth, async (req: Request, res: Response) => {
+  app.get("/admin/db", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -316,7 +316,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Analytics ─────────────────────────────────────────────────────
-  app.get("/api/admin/analytics", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/admin/analytics", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -326,22 +326,27 @@ export function registerAdminRoutes(app: Express): void {
       const allReviews = await dbase.select().from(reviews);
       const allPlans = await dbase.select().from(subscriptionPlans);
 
-      // Plan price map
-      const planPriceMap: Record<string, number> = {};
-      allPlans.forEach((p) => { planPriceMap[p.planKey] = parseFloat(p.monthlyPrice as string) || 0; });
-
-      // MRR: sum of monthly prices for all active/trial businesses
-      const mrrBiz = allBiz.filter((b) => b.subscriptionStatus === 'active' || b.subscriptionStatus === 'trial');
-      const mrr = mrrBiz.reduce((sum, b) => {
-        const price = planPriceMap[b.subscriptionPlan] || 0;
-        const multiplier = b.subscriptionPeriod === 'yearly' ? (1 / 12) : 1;
-        return sum + price * multiplier;
+       // Plan price map (monthly and yearly)
+      const planPriceMap: Record<string, { monthly: number; yearly: number }> = {};
+      allPlans.forEach((p) => {
+        planPriceMap[p.planKey] = {
+          monthly: parseFloat(p.monthlyPrice as string) || 0,
+          yearly: parseFloat((p as any).yearlyPrice as string) || 0,
+        };
+      });
+      // MRR: sum of effective monthly prices for all non-free businesses
+      const payingBiz = allBiz.filter((b) => b.subscriptionStatus !== 'free' && b.subscriptionStatus !== 'expired');
+      const mrr = payingBiz.reduce((sum, b) => {
+        const prices = planPriceMap[b.subscriptionPlan] || { monthly: 0, yearly: 0 };
+        const price = b.subscriptionPeriod === 'yearly'
+          ? (prices.yearly > 0 ? prices.yearly / 12 : prices.monthly)
+          : prices.monthly;
+        return sum + price;
       }, 0);
       const arr = mrr * 12;
-
       // Total revenue from completed appointments (use totalPrice field if available)
       const completedAppts = allAppts.filter((a) => a.status === 'completed');
-      const totalApptRevenue = completedAppts.reduce((sum, a) => sum + (parseFloat((a as any).totalPrice) || 0), 0);
+      const totalApptRevenue = completedAppts.reduce((sum, a) => sum + (parseFloat(String((a as any).totalPrice ?? 0)) || 0), 0);;
 
       // Churn: businesses that expired in last 30 days (status = expired, updatedAt within 30 days)
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -444,7 +449,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Staff Management ──────────────────────────────────────────────
-  app.get("/api/admin/staff", requireAuth, async (req: Request, res: Response) => {
+  app.get("/admin/staff", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -463,95 +468,95 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Settings ──────────────────────────────────────────────────────
-  app.get("/api/admin/settings", requireAuth, (_req: Request, res: Response) => {
+  app.get("/admin/settings", requireAuth, (_req: Request, res: Response) => {
     res.send(settingsPage());
   });
 
   // ── Individual Delete Routes ─────────────────────────────────────
-  app.post("/api/admin/delete/client/:id", requireAuth, async (req: Request, res: Response) => {
+  app.post("/admin/delete/client/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       await db.deleteClientById(parseInt(req.params.id));
-      res.redirect(req.headers.referer || "/api/admin/clients");
+      res.redirect(req.headers.referer || "/admin/clients");
     } catch (err) {
       console.error("[Admin] Delete client error:", err);
       res.status(500).send(errorPage("Failed to delete client"));
     }
   });
 
-  app.post("/api/admin/delete/appointment/:id", requireAuth, async (req: Request, res: Response) => {
+  app.post("/admin/delete/appointment/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       await db.deleteAppointmentById(parseInt(req.params.id));
-      res.redirect(req.headers.referer || "/api/admin/appointments");
+      res.redirect(req.headers.referer || "/admin/appointments");
     } catch (err) {
       console.error("[Admin] Delete appointment error:", err);
       res.status(500).send(errorPage("Failed to delete appointment"));
     }
   });
 
-  app.post("/api/admin/delete/service/:id", requireAuth, async (req: Request, res: Response) => {
+  app.post("/admin/delete/service/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       await db.deleteServiceById(parseInt(req.params.id));
-      res.redirect(req.headers.referer || "/api/admin/businesses");
+      res.redirect(req.headers.referer || "/admin/businesses");
     } catch (err) {
       console.error("[Admin] Delete service error:", err);
       res.status(500).send(errorPage("Failed to delete service"));
     }
   });
 
-  app.post("/api/admin/delete/staff/:id", requireAuth, async (req: Request, res: Response) => {
+  app.post("/admin/delete/staff/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       await db.deleteStaffMemberById(parseInt(req.params.id));
-      res.redirect(req.headers.referer || "/api/admin/staff");
+      res.redirect(req.headers.referer || "/admin/staff");
     } catch (err) {
       console.error("[Admin] Delete staff error:", err);
       res.status(500).send(errorPage("Failed to delete staff member"));
     }
   });
 
-  app.post("/api/admin/delete/location/:id", requireAuth, async (req: Request, res: Response) => {
+  app.post("/admin/delete/location/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       await db.deleteLocationById(parseInt(req.params.id));
-      res.redirect(req.headers.referer || "/api/admin/businesses");
+      res.redirect(req.headers.referer || "/admin/businesses");
     } catch (err) {
       console.error("[Admin] Delete location error:", err);
       res.status(500).send(errorPage("Failed to delete location"));
     }
   });
 
-  app.post("/api/admin/delete/discount/:id", requireAuth, async (req: Request, res: Response) => {
+  app.post("/admin/delete/discount/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       await db.deleteDiscountById(parseInt(req.params.id));
-      res.redirect(req.headers.referer || "/api/admin/discounts");
+      res.redirect(req.headers.referer || "/admin/discounts");
     } catch (err) {
       console.error("[Admin] Delete discount error:", err);
       res.status(500).send(errorPage("Failed to delete discount"));
     }
   });
 
-  app.post("/api/admin/delete/giftcard/:id", requireAuth, async (req: Request, res: Response) => {
+  app.post("/admin/delete/giftcard/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       await db.deleteGiftCardById(parseInt(req.params.id));
-      res.redirect(req.headers.referer || "/api/admin/giftcards");
+      res.redirect(req.headers.referer || "/admin/giftcards");
     } catch (err) {
       console.error("[Admin] Delete gift card error:", err);
       res.status(500).send(errorPage("Failed to delete gift card"));
     }
   });
 
-  app.post("/api/admin/delete/review/:id", requireAuth, async (req: Request, res: Response) => {
+  app.post("/admin/delete/review/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       await db.deleteReviewById(parseInt(req.params.id));
-      res.redirect(req.headers.referer || "/api/admin/reviews");
+      res.redirect(req.headers.referer || "/admin/reviews");
     } catch (err) {
       console.error("[Admin] Delete review error:", err);
       res.status(500).send(errorPage("Failed to delete review"));
     }
   });
 
-  app.post("/api/admin/delete/product/:id", requireAuth, async (req: Request, res: Response) => {
+  app.post("/admin/delete/product/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       await db.deleteProductById(parseInt(req.params.id));
-      res.redirect(req.headers.referer || "/api/admin/products");
+      res.redirect(req.headers.referer || "/admin/products");
     } catch (err) {
       console.error("[Admin] Delete product error:", err);
       res.status(500).send(errorPage("Failed to delete product"));
@@ -559,7 +564,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Discounts Page ────────────────────────────────────────────────
-  app.get("/api/admin/discounts", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/admin/discounts", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -573,7 +578,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Gift Cards Page ───────────────────────────────────────────────
-  app.get("/api/admin/giftcards", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/admin/giftcards", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -587,7 +592,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Reviews Page ──────────────────────────────────────────────────
-  app.get("/api/admin/reviews", requireAuth, async (req: Request, res: Response) => {
+  app.get("/admin/reviews", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -624,7 +629,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Products Page ─────────────────────────────────────────────────
-  app.get("/api/admin/products", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/admin/products", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -638,7 +643,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Locations Page ────────────────────────────────────────────────
-  app.get("/api/admin/locations", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/admin/locations", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -652,7 +657,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Subscriptions Page ────────────────────────────────────────────
-  app.get("/api/admin/subscriptions", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/admin/subscriptions", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -666,7 +671,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Plan Pricing Page ─────────────────────────────────────────────
-  app.get("/api/admin/plans", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/admin/plans", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -679,7 +684,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Update Plan ───────────────────────────────────────────────────
-  app.post("/api/admin/plans/:id/update", requireAuth, async (req: Request, res: Response) => {
+  app.post("/admin/plans/:id/update", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -701,7 +706,7 @@ export function registerAdminRoutes(app: Express): void {
         updatedAt: new Date(),
       }).where(eq(subscriptionPlans.id, id));
       invalidatePlanCache();
-      res.redirect("/api/admin/plans?saved=1");
+      res.redirect("/admin/plans?saved=1");
     } catch (err) {
       console.error("[Admin] Update plan error:", err);
       res.status(500).send(errorPage("Failed to update plan"));
@@ -709,7 +714,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Business Override ─────────────────────────────────────────────
-  app.post("/api/admin/businesses/:id/override", requireAuth, async (req: Request, res: Response) => {
+  app.post("/admin/businesses/:id/override", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -721,7 +726,7 @@ export function registerAdminRoutes(app: Express): void {
         subscriptionPlan: isOverride ? (overridePlan || "unlimited") : (overridePlan || "free"),
         updatedAt: new Date(),
       } as any).where(eq(businessOwners.id, id));
-      res.redirect(`/api/admin/businesses/${id}?saved=1`);
+      res.redirect(`/admin/businesses/${id}?saved=1`);
     } catch (err) {
       console.error("[Admin] Override error:", err);
       res.status(500).send(errorPage("Failed to update override"));
@@ -729,7 +734,7 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Platform Config (Twilio / Stripe) ─────────────────────────────
-  app.get("/api/admin/platform-config", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/admin/platform-config", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -743,7 +748,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  app.post("/api/admin/platform-config", requireAuth, async (req: Request, res: Response) => {
+  app.post("/admin/platform-config", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
@@ -769,10 +774,153 @@ export function registerAdminRoutes(app: Express): void {
         }
       }
       invalidatePlanCache();
-      res.redirect("/api/admin/platform-config?saved=1");
+      res.redirect("/admin/platform-config?saved=1");
     } catch (err) {
       console.error("[Admin] Platform config save error:", err);
       res.status(500).send(errorPage("Failed to save platform config"));
+    }
+  });
+
+  // ── Financial / Revenue Analytics ────────────────────────────────────
+  app.get("/admin/financial", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
+
+      const allAppts = await dbase.select().from(appointments);
+      const allBiz = await dbase.select().from(businessOwners);
+      const allPlans = await dbase.select().from(subscriptionPlans);
+
+      // Plan price map
+      const planPriceMap: Record<string, { monthly: number; yearly: number }> = {};
+      allPlans.forEach((p) => {
+        planPriceMap[p.planKey] = {
+          monthly: parseFloat(p.monthlyPrice as string) || 0,
+          yearly: parseFloat((p as any).yearlyPrice as string) || 0,
+        };
+      });
+
+      // Monthly appointment revenue (last 24 months)
+      const monthlyRevMap: Record<string, number> = {};
+      const monthlyApptCountMap: Record<string, number> = {};
+      const now = new Date();
+      for (let i = 23; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        monthlyRevMap[key] = 0;
+        monthlyApptCountMap[key] = 0;
+      }
+      allAppts.forEach((a) => {
+        if (!a.createdAt) return;
+        const d = new Date(a.createdAt);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        if (monthlyRevMap[key] !== undefined) {
+          monthlyRevMap[key] += parseFloat(String((a as any).totalPrice ?? 0)) || 0;
+          monthlyApptCountMap[key] = (monthlyApptCountMap[key] || 0) + 1;
+        }
+      });
+
+      // Yearly revenue summary (last 5 years)
+      const yearlyRevMap: Record<string, { apptRev: number; subRev: number; apptCount: number }> = {};
+      for (let y = now.getFullYear() - 4; y <= now.getFullYear(); y++) {
+        yearlyRevMap[String(y)] = { apptRev: 0, subRev: 0, apptCount: 0 };
+      }
+      allAppts.forEach((a) => {
+        if (!a.createdAt) return;
+        const yr = String(new Date(a.createdAt).getFullYear());
+        if (yearlyRevMap[yr]) {
+          yearlyRevMap[yr].apptRev += parseFloat(String((a as any).totalPrice ?? 0)) || 0;
+          yearlyRevMap[yr].apptCount++;
+        }
+      });
+      // Estimate subscription revenue per year from business join date
+      allBiz.forEach((b) => {
+        if (!b.createdAt) return;
+        const prices = planPriceMap[b.subscriptionPlan] || { monthly: 0, yearly: 0 };
+        const monthlyPrice = b.subscriptionPeriod === 'yearly'
+          ? (prices.yearly > 0 ? prices.yearly / 12 : prices.monthly)
+          : prices.monthly;
+        if (monthlyPrice === 0) return;
+        const joinDate = new Date(b.createdAt);
+        const endDate = b.subscriptionStatus === 'expired' && b.updatedAt ? new Date(b.updatedAt) : now;
+        // Distribute monthly revenue across years
+        let cursor = new Date(joinDate.getFullYear(), joinDate.getMonth(), 1);
+        while (cursor <= endDate) {
+          const yr = String(cursor.getFullYear());
+          if (yearlyRevMap[yr]) {
+            yearlyRevMap[yr].subRev += monthlyPrice;
+          }
+          cursor.setMonth(cursor.getMonth() + 1);
+        }
+      });
+
+      // Quarterly breakdown for current year
+      const currentYear = now.getFullYear();
+      const quarters: Array<{ label: string; apptRev: number; subRev: number; apptCount: number }> = [
+        { label: 'Q1 (Jan-Mar)', apptRev: 0, subRev: 0, apptCount: 0 },
+        { label: 'Q2 (Apr-Jun)', apptRev: 0, subRev: 0, apptCount: 0 },
+        { label: 'Q3 (Jul-Sep)', apptRev: 0, subRev: 0, apptCount: 0 },
+        { label: 'Q4 (Oct-Dec)', apptRev: 0, subRev: 0, apptCount: 0 },
+      ];
+      allAppts.forEach((a) => {
+        if (!a.createdAt) return;
+        const d = new Date(a.createdAt);
+        if (d.getFullYear() !== currentYear) return;
+        const q = Math.floor(d.getMonth() / 3);
+        quarters[q].apptRev += parseFloat(String((a as any).totalPrice ?? 0)) || 0;
+        quarters[q].apptCount++;
+      });
+      // Add subscription revenue to quarters
+      allBiz.forEach((b) => {
+        if (!b.createdAt) return;
+        const prices = planPriceMap[b.subscriptionPlan] || { monthly: 0, yearly: 0 };
+        const monthlyPrice = b.subscriptionPeriod === 'yearly'
+          ? (prices.yearly > 0 ? prices.yearly / 12 : prices.monthly)
+          : prices.monthly;
+        if (monthlyPrice === 0) return;
+        const joinDate = new Date(b.createdAt);
+        const endDate = b.subscriptionStatus === 'expired' && b.updatedAt ? new Date(b.updatedAt) : now;
+        for (let m = 0; m < 12; m++) {
+          const d = new Date(currentYear, m, 1);
+          if (d >= joinDate && d <= endDate) {
+            quarters[Math.floor(m / 3)].subRev += monthlyPrice;
+          }
+        }
+      });
+
+      // Monthly data array
+      const monthlyData = Object.entries(monthlyRevMap)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([month, rev]) => ({ month, rev, apptCount: monthlyApptCountMap[month] || 0 }));
+
+      // Yearly data array
+      const yearlyData = Object.entries(yearlyRevMap)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([year, d]) => ({ year, apptRev: d.apptRev, subRev: d.subRev, total: d.apptRev + d.subRev, apptCount: d.apptCount }));
+
+      // Total revenue this year
+      const thisYearData = yearlyRevMap[String(currentYear)] || { apptRev: 0, subRev: 0, apptCount: 0 };
+      const thisYearTotal = thisYearData.apptRev + thisYearData.subRev;
+
+      // Tax estimates (US self-employment estimate: ~30% effective rate)
+      const TAX_RATE = 0.30;
+      const estimatedTax = thisYearTotal * TAX_RATE;
+      const quarterlyTaxEst = estimatedTax / 4;
+
+      res.send(financialPage({
+        monthlyData,
+        yearlyData,
+        quarters,
+        thisYearTotal,
+        thisYearApptRev: thisYearData.apptRev,
+        thisYearSubRev: thisYearData.subRev,
+        estimatedTax,
+        quarterlyTaxEst,
+        currentYear,
+      }));
+    } catch (err) {
+      console.error("[Admin] Financial error:", err);
+      res.status(500).send(errorPage("Failed to load financial data"));
     }
   });
 }
@@ -932,35 +1080,36 @@ function sidebarHtml(activePage: string): string {
         </div>
       </div>
 
-      ${navItem('/api/admin', '📊', 'Dashboard', a === 'dashboard')}
+      ${navItem('/admin', '📊', 'Dashboard', a === 'dashboard')}
 
       ${navSection('BUSINESS MANAGEMENT')}
-      ${navItem('/api/admin/businesses', '🏢', 'Businesses', a === 'businesses')}
-      ${navItem('/api/admin/clients', '👥', 'Clients', a === 'clients')}
-      ${navItem('/api/admin/appointments', '📅', 'Appointments', a === 'appointments')}
-      ${navItem('/api/admin/staff', '👤', 'Staff', a === 'staff')}
-      ${navItem('/api/admin/locations', '📍', 'Locations', a === 'locations')}
+      ${navItem('/admin/businesses', '🏢', 'Businesses', a === 'businesses')}
+      ${navItem('/admin/clients', '👥', 'Clients', a === 'clients')}
+      ${navItem('/admin/appointments', '📅', 'Appointments', a === 'appointments')}
+      ${navItem('/admin/staff', '👤', 'Staff', a === 'staff')}
+      ${navItem('/admin/locations', '📍', 'Locations', a === 'locations')}
 
       ${navSection('CATALOG')}
-      ${navItem('/api/admin/discounts', '🏷️', 'Discounts', a === 'discounts')}
-      ${navItem('/api/admin/giftcards', '🎁', 'Gift Cards', a === 'giftcards')}
-      ${navItem('/api/admin/reviews', '⭐', 'Reviews', a === 'reviews')}
-      ${navItem('/api/admin/products', '📦', 'Products', a === 'products')}
+      ${navItem('/admin/discounts', '🏷️', 'Discounts', a === 'discounts')}
+      ${navItem('/admin/giftcards', '🎁', 'Gift Cards', a === 'giftcards')}
+      ${navItem('/admin/reviews', '⭐', 'Reviews', a === 'reviews')}
+      ${navItem('/admin/products', '📦', 'Products', a === 'products')}
 
       ${navSection('ANALYTICS')}
-      ${navItem('/api/admin/analytics', '📈', 'Analytics', a === 'analytics')}
+      ${navItem('/admin/analytics', '📈', 'Analytics', a === 'analytics')}
+      ${navItem('/admin/financial', '💰', 'Financial', a === 'financial')}
 
       ${navSection('SAAS')}
-      ${navItem('/api/admin/subscriptions', '💳', 'Subscriptions', a === 'subscriptions')}
-      ${navItem('/api/admin/plans', '📋', 'Plan Pricing', a === 'plans')}
+      ${navItem('/admin/subscriptions', '💳', 'Subscriptions', a === 'subscriptions')}
+      ${navItem('/admin/plans', '📋', 'Plan Pricing', a === 'plans')}
 
       ${navSection('SYSTEM')}
-      ${navItem('/api/admin/platform-config', '🔧', 'Platform Config', a === 'platform-config')}
-      ${navItem('/api/admin/settings', '⚙️', 'Settings', a === 'settings')}
-      ${navItem('/api/admin/db', '🗄️', 'DB Explorer', a === 'db')}
+      ${navItem('/admin/platform-config', '🔧', 'Platform Config', a === 'platform-config')}
+      ${navItem('/admin/settings', '⚙️', 'Settings', a === 'settings')}
+      ${navItem('/admin/db', '🗄️', 'DB Explorer', a === 'db')}
 
       <div style="margin-top:auto;padding-top:20px;border-top:1px solid var(--border);margin-top:20px;">
-        <a href="/api/admin/logout" class="nav-item" style="color:var(--danger);">
+        <a href="/admin/logout" class="nav-item" style="color:var(--danger);">
           <span class="nav-icon">🚪</span> Logout
         </a>
       </div>
@@ -1007,7 +1156,7 @@ function loginPage(error?: string): string {
       <h1>Lime Of Time</h1>
       <p>Admin Dashboard Login</p>
       ${error ? `<div class="error-msg">${error}</div>` : ""}
-      <form method="POST" action="/api/admin/login">
+      <form method="POST" action="/admin/login">
         <div class="form-group">
           <label>Username</label>
           <input type="text" name="username" required autocomplete="username" placeholder="Enter username">
@@ -1032,7 +1181,7 @@ function errorPage(message: string): string {
     <div class="empty-state">
       <div class="empty-icon">⚠️</div>
       <h3>${message}</h3>
-      <p style="margin-top:8px;"><a href="/api/admin">Back to Dashboard</a></p>
+      <p style="margin-top:8px;"><a href="/admin">Back to Dashboard</a></p>
     </div>
   `);
 }
@@ -1129,7 +1278,7 @@ function dashboardPage(data: {
                   .map(
                     (b: any) =>
                       `<tr>
-                        <td><a href="/api/admin/businesses/${b.id}">${b.businessName}</a></td>
+                        <td><a href="/admin/businesses/${b.id}">${b.businessName}</a></td>
                         <td>${b.phone || "N/A"}</td>
                         <td>${fmtDate(b.createdAt)}</td>
                       </tr>`
@@ -1187,14 +1336,14 @@ function businessesPage(businesses: any[]): string {
     const statusColor = status === 'active' ? '#059669' : status === 'trial' ? '#f59e0b' : status === 'expired' ? '#ef4444' : '#6b7280';
     const pc = planColor(plan);
     return `<tr class="biz-row" data-name="${escHtml((b.businessName || '').toLowerCase())}" data-phone="${escHtml((b.phone || '').toLowerCase())}" data-plan="${plan}" data-status="${status}" data-open="${b.temporaryClosed ? 'closed' : 'open'}">
-      <td style="font-weight:600;"><a href="/api/admin/businesses/${b.id}" style="color:var(--text);text-decoration:none;">${escHtml(b.businessName)}</a></td>
+      <td style="font-weight:600;"><a href="/admin/businesses/${b.id}" style="color:var(--text);text-decoration:none;">${escHtml(b.businessName)}</a></td>
       <td style="font-size:13px;color:var(--text-muted);">${escHtml(b.phone || '—')}</td>
       <td style="font-size:13px;">${escHtml(b.email || '—')}</td>
       <td><span style="background:${pc}20;color:${pc};padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600;">${plan.charAt(0).toUpperCase() + plan.slice(1)}${b.adminOverride ? ' ⭐' : ''}</span></td>
       <td><span style="background:${statusColor}20;color:${statusColor};padding:2px 8px;border-radius:10px;font-size:12px;">${status.charAt(0).toUpperCase() + status.slice(1)}</span></td>
       <td>${b.temporaryClosed ? '<span class="badge badge-danger" style="font-size:11px;">Closed</span>' : '<span class="badge badge-success" style="font-size:11px;">Open</span>'}</td>
       <td style="font-size:12px;color:var(--text-muted);">${fmtDate(b.createdAt)}</td>
-      <td><a href="/api/admin/businesses/${b.id}" class="btn btn-secondary btn-sm">Details →</a></td>
+      <td><a href="/admin/businesses/${b.id}" class="btn btn-secondary btn-sm">Details →</a></td>
     </tr>`;
   }).join('');
 
@@ -1318,7 +1467,7 @@ function businessDetailPage(data: any): string {
   const o = data.owner;
   const slug = o.businessName.toLowerCase().replace(/\s+/g, "-");
   return adminLayout(o.businessName, "businesses", `
-    <div class="breadcrumb"><a href="/api/admin/businesses">Businesses</a> / ${o.businessName}</div>
+    <div class="breadcrumb"><a href="/admin/businesses">Businesses</a> / ${o.businessName}</div>
     <div class="page-header">
       <h2>${o.businessName}</h2>
       <div style="display:flex; gap:8px;">
@@ -1360,7 +1509,7 @@ function businessDetailPage(data: any): string {
       <table>
         <thead><tr><th>Name</th><th>Duration</th><th>Price</th><th>Color</th><th>Actions</th></tr></thead>
         <tbody>
-          ${data.services.map((s: any) => `<tr><td>${s.name}</td><td>${s.duration} min</td><td>${fmtCurrency(parseFloat(s.price))}</td><td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${s.color};vertical-align:middle;"></span> ${s.color}</td><td><form class="delete-form" method="POST" action="/api/admin/delete/service/${s.id}" onsubmit="return confirm('Delete service ${escHtml(s.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`).join("")}
+          ${data.services.map((s: any) => `<tr><td>${s.name}</td><td>${s.duration} min</td><td>${fmtCurrency(parseFloat(s.price))}</td><td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${s.color};vertical-align:middle;"></span> ${s.color}</td><td><form class="delete-form" method="POST" action="/admin/delete/service/${s.id}" onsubmit="return confirm('Delete service ${escHtml(s.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`).join("")}
         </tbody>
       </table>
     </div>` : ""}
@@ -1371,7 +1520,7 @@ function businessDetailPage(data: any): string {
       <table>
         <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Created</th><th>Actions</th></tr></thead>
         <tbody>
-          ${data.clients.map((c: any) => `<tr><td>${c.name}</td><td>${c.phone || "N/A"}</td><td>${c.email || "N/A"}</td><td>${fmtDate(c.createdAt)}</td><td><form class="delete-form" method="POST" action="/api/admin/delete/client/${c.id}" onsubmit="return confirm('Delete client ${escHtml(c.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`).join("")}
+          ${data.clients.map((c: any) => `<tr><td>${c.name}</td><td>${c.phone || "N/A"}</td><td>${c.email || "N/A"}</td><td>${fmtDate(c.createdAt)}</td><td><form class="delete-form" method="POST" action="/admin/delete/client/${c.id}" onsubmit="return confirm('Delete client ${escHtml(c.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`).join("")}
         </tbody>
       </table>
     </div>` : ""}
@@ -1391,7 +1540,7 @@ function businessDetailPage(data: any): string {
                 return svc ? svc.name : id;
               }).join(", ");
             } catch {}
-            return `<tr><td style="font-weight:600;">${s.name}</td><td>${s.email || "N/A"}</td><td>${s.phone || "N/A"}</td><td><span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:${s.color || '#4a8c3f'};vertical-align:middle;"></span></td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${svcNames}</td><td><form class="delete-form" method="POST" action="/api/admin/delete/staff/${s.id}" onsubmit="return confirm('Delete staff ${escHtml(s.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`;
+            return `<tr><td style="font-weight:600;">${s.name}</td><td>${s.email || "N/A"}</td><td>${s.phone || "N/A"}</td><td><span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:${s.color || '#4a8c3f'};vertical-align:middle;"></span></td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${svcNames}</td><td><form class="delete-form" method="POST" action="/admin/delete/staff/${s.id}" onsubmit="return confirm('Delete staff ${escHtml(s.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`;
           }).join("")}
         </tbody>
       </table>
@@ -1403,7 +1552,7 @@ function businessDetailPage(data: any): string {
       <table>
         <thead><tr><th>Name</th><th>Address</th><th>Phone</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>
-          ${data.locations.map((loc: any) => { const statusBadge = !loc.active ? '<span class="badge badge-danger">Inactive</span>' : loc.temporarilyClosed ? '<span class="badge badge-warning">Temp. Closed</span>' : '<span class="badge badge-success">Active</span>'; return `<tr><td style="font-weight:600;">${loc.name}</td><td>${loc.address || "N/A"}</td><td>${loc.phone || "N/A"}</td><td>${loc.email || "N/A"}</td><td>${statusBadge}</td><td><form class="delete-form" method="POST" action="/api/admin/delete/location/${loc.id}" onsubmit="return confirm('Delete location ${escHtml(loc.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`; }).join("")}
+          ${data.locations.map((loc: any) => { const statusBadge = !loc.active ? '<span class="badge badge-danger">Inactive</span>' : loc.temporarilyClosed ? '<span class="badge badge-warning">Temp. Closed</span>' : '<span class="badge badge-success">Active</span>'; return `<tr><td style="font-weight:600;">${loc.name}</td><td>${loc.address || "N/A"}</td><td>${loc.phone || "N/A"}</td><td>${loc.email || "N/A"}</td><td>${statusBadge}</td><td><form class="delete-form" method="POST" action="/admin/delete/location/${loc.id}" onsubmit="return confirm('Delete location ${escHtml(loc.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`; }).join("")}
         </tbody>
       </table>
     </div>` : ""}
@@ -1416,7 +1565,7 @@ function businessDetailPage(data: any): string {
         <tbody>
           ${data.appointments.map((a: any) => {
             const bc = a.status === "confirmed" ? "badge-success" : a.status === "pending" ? "badge-warning" : a.status === "cancelled" ? "badge-danger" : "badge-info";
-            return `<tr><td>${a.date}</td><td>${a.time}</td><td>${a.duration} min</td><td><span class="badge ${bc}">${a.status}</span></td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.notes || ""}</td><td><form class="delete-form" method="POST" action="/api/admin/delete/appointment/${a.id}" onsubmit="return confirm('Delete this appointment?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`;
+            return `<tr><td>${a.date}</td><td>${a.time}</td><td>${a.duration} min</td><td><span class="badge ${bc}">${a.status}</span></td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.notes || ""}</td><td><form class="delete-form" method="POST" action="/admin/delete/appointment/${a.id}" onsubmit="return confirm('Delete this appointment?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td></tr>`;
           }).join("")}
         </tbody>
       </table>
@@ -1428,7 +1577,7 @@ function businessDetailPage(data: any): string {
         <p>Are you sure you want to delete "${o.businessName}"? This will permanently remove all associated data (clients, appointments, services, reviews, etc.). This action cannot be undone.</p>
         <div class="confirm-actions">
           <button onclick="document.getElementById('deleteDialog').classList.remove('show')" class="btn btn-secondary">Cancel</button>
-          <form method="POST" action="/api/admin/businesses/${o.id}/delete" style="display:inline;">
+          <form method="POST" action="/admin/businesses/${o.id}/delete" style="display:inline;">
             <button type="submit" class="btn btn-danger">Delete Permanently</button>
           </form>
         </div>
@@ -1457,7 +1606,7 @@ function businessDetailPage(data: any): string {
         </div>
       </div>
       ${o.adminOverride ? '<div style="background:#05996915;border:1px solid #05996940;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#059669;"><strong>⭐ Admin Override is ACTIVE.</strong> This business has full Unlimited access at no charge.</div>' : ''}
-      <form method="POST" action="/api/admin/businesses/${o.id}/override">
+      <form method="POST" action="/admin/businesses/${o.id}/override">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
           <div>
             <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">Assign Plan</label>
@@ -1490,9 +1639,9 @@ function clientsPage(allClients: any[], allBiz: any[]): string {
     <td style="font-weight:500;">${escHtml(c.name)}</td>
     <td style="font-size:13px;color:var(--text-muted);">${c.phone || '—'}</td>
     <td style="font-size:13px;">${c.email || '—'}</td>
-    <td><a href="/api/admin/businesses/${c.businessOwnerId}" style="color:var(--primary);">${escHtml(bizMap.get(c.businessOwnerId) || 'Unknown')}</a></td>
+    <td><a href="/admin/businesses/${c.businessOwnerId}" style="color:var(--primary);">${escHtml(bizMap.get(c.businessOwnerId) || 'Unknown')}</a></td>
     <td style="font-size:12px;color:var(--text-muted);">${fmtDate(c.createdAt)}</td>
-    <td><form class="delete-form" method="POST" action="/api/admin/delete/client/${c.id}" onsubmit="return confirm('Delete client ${escHtml(c.name)}? This will also delete their appointments and reviews.')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+    <td><form class="delete-form" method="POST" action="/admin/delete/client/${c.id}" onsubmit="return confirm('Delete client ${escHtml(c.name)}? This will also delete their appointments and reviews.')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
   </tr>`).join('');
 
   return adminLayout('Clients', 'clients', `
@@ -1567,10 +1716,10 @@ function appointmentsPage(allAppts: any[], allBiz: any[], allCli: any[], allSvc:
       <td style="font-size:13px;color:var(--text-muted);">${a.time}</td>
       <td>${escHtml(clientName)}</td>
       <td style="font-size:13px;">${escHtml(svcName)}</td>
-      <td><a href="/api/admin/businesses/${a.businessOwnerId}" style="color:var(--primary);">${escHtml(bizName)}</a></td>
+      <td><a href="/admin/businesses/${a.businessOwnerId}" style="color:var(--primary);">${escHtml(bizName)}</a></td>
       <td style="font-size:13px;color:var(--text-muted);">${a.duration} min</td>
       <td><span style="background:${bc}20;color:${bc};padding:2px 8px;border-radius:10px;font-size:12px;">${a.status}</span></td>
-      <td><form class="delete-form" method="POST" action="/api/admin/delete/appointment/${a.id}" onsubmit="return confirm('Delete this appointment?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+      <td><form class="delete-form" method="POST" action="/admin/delete/appointment/${a.id}" onsubmit="return confirm('Delete this appointment?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
     </tr>`;
   }).join('');
 
@@ -1581,7 +1730,7 @@ function appointmentsPage(allAppts: any[], allBiz: any[], allCli: any[], allSvc:
     if (bizFilter) params.set('biz', bizFilter);
     if (searchQ) params.set('q', searchQ);
     params.set('page', String(p));
-    return `/api/admin/appointments?${params.toString()}`;
+    return `/admin/appointments?${params.toString()}`;
   };
   const paginationHtml = totalPages > 1 ? `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--border);">
@@ -1606,11 +1755,11 @@ function appointmentsPage(allAppts: any[], allBiz: any[], allCli: any[], allSvc:
         if (s) params.set('status', s);
         if (bizFilter) params.set('biz', bizFilter);
         params.set('page', '1');
-        return `<a href="/api/admin/appointments?${params.toString()}" class="filter-btn ${statusFilter === s ? 'active' : ''}">${statusLabels[i]}</a>`;
+        return `<a href="/admin/appointments?${params.toString()}" class="filter-btn ${statusFilter === s ? 'active' : ''}">${statusLabels[i]}</a>`;
       }).join('')}
     </div>
     <!-- Server-side search + business filter form -->
-    <form method="GET" action="/api/admin/appointments" class="search-bar" style="margin-top:12px;">
+    <form method="GET" action="/admin/appointments" class="search-bar" style="margin-top:12px;">
       <input type="hidden" name="status" value="${escHtml(statusFilter)}">
       <input type="hidden" name="page" value="1">
       <input type="text" name="q" value="${escHtml(searchQ)}" placeholder="🔍 Search client, service, or business..." style="max-width:340px;">
@@ -1619,7 +1768,7 @@ function appointmentsPage(allAppts: any[], allBiz: any[], allCli: any[], allSvc:
         ${allBiz.map((b: any) => `<option value="${b.id}" ${bizFilter === String(b.id) ? 'selected' : ''}>${escHtml(b.businessName)}</option>`).join('')}
       </select>
       <button type="submit" class="btn-sm">Search</button>
-      ${(searchQ || bizFilter) ? `<a href="/api/admin/appointments${statusFilter ? '?status=' + statusFilter : ''}" class="btn-sm" style="background:var(--danger);color:#fff;">Clear</a>` : ''}
+      ${(searchQ || bizFilter) ? `<a href="/admin/appointments${statusFilter ? '?status=' + statusFilter : ''}" class="btn-sm" style="background:var(--danger);color:#fff;">Clear</a>` : ''}
     </form>
     <div class="card" style="padding:0;overflow:hidden;margin-top:12px;">
       <table id="apptTable">
@@ -1653,7 +1802,7 @@ function dbExplorerPage(table: string, rows: any[], page: number, totalPages: nu
       <span class="badge badge-info">${totalRows} rows in ${table}</span>
     </div>
     <div class="filter-bar">
-      ${tables.map((t) => `<a href="/api/admin/db?table=${t}" class="filter-btn ${table === t ? "active" : ""}">${t}</a>`).join("")}
+      ${tables.map((t) => `<a href="/admin/db?table=${t}" class="filter-btn ${table === t ? "active" : ""}">${t}</a>`).join("")}
     </div>
     <div class="card" style="overflow-x:auto;">
       ${rows.length === 0
@@ -1673,12 +1822,12 @@ function dbExplorerPage(table: string, rows: any[], page: number, totalPages: nu
           </table>
           ${totalPages > 1 ? `
           <div class="pagination">
-            ${page > 1 ? `<a href="/api/admin/db?table=${table}&page=${page - 1}">Previous</a>` : ""}
+            ${page > 1 ? `<a href="/admin/db?table=${table}&page=${page - 1}">Previous</a>` : ""}
             ${Array.from({ length: Math.min(totalPages, 10) }, (_, i) => {
               const p = i + 1;
-              return `<a href="/api/admin/db?table=${table}&page=${p}" class="${p === page ? "active" : ""}">${p}</a>`;
+              return `<a href="/admin/db?table=${table}&page=${p}" class="${p === page ? "active" : ""}">${p}</a>`;
             }).join("")}
-            ${page < totalPages ? `<a href="/api/admin/db?table=${table}&page=${page + 1}">Next</a>` : ""}
+            ${page < totalPages ? `<a href="/admin/db?table=${table}&page=${page + 1}">Next</a>` : ""}
           </div>` : ""}`
       }
     </div>
@@ -1869,13 +2018,13 @@ function analyticsPage(data: {
                   const pc = planColors[b.plan] || '#6b7280';
                   const sc = b.status === 'active' ? '#059669' : b.status === 'trial' ? '#f59e0b' : b.status === 'expired' ? '#ef4444' : '#6b7280';
                   return `<tr class="biz-rev-row" data-name="${escHtml(b.name.toLowerCase())}" data-plan="${b.plan}" data-status="${b.status}">
-                    <td style="font-weight:600;"><a href="/api/admin/businesses/${b.id}" style="color:var(--text);text-decoration:none;">${escHtml(b.name)}</a></td>
+                    <td style="font-weight:600;"><a href="/admin/businesses/${b.id}" style="color:var(--text);text-decoration:none;">${escHtml(b.name)}</a></td>
                     <td><span style="background:${pc}20;color:${pc};padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600;">${b.plan.charAt(0).toUpperCase() + b.plan.slice(1)}</span></td>
                     <td><span style="background:${sc}20;color:${sc};padding:2px 8px;border-radius:10px;font-size:12px;">${b.status.charAt(0).toUpperCase() + b.status.slice(1)}</span></td>
                     <td style="text-align:right;font-weight:600;color:${b.revenue > 0 ? '#059669' : 'var(--text-muted)'};">\$${b.revenue.toFixed(2)}</td>
                     <td style="text-align:right;color:var(--text-muted);">${b.apptCount}</td>
                     <td style="font-size:12px;color:var(--text-muted);">${fmtDate(b.createdAt)}</td>
-                    <td><a href="/api/admin/businesses/${b.id}" class="btn btn-secondary btn-sm">View &rarr;</a></td>
+                    <td><a href="/admin/businesses/${b.id}" class="btn btn-secondary btn-sm">View &rarr;</a></td>
                   </tr>`;
                 }).join('')
             }
@@ -1952,8 +2101,8 @@ function settingsPage(): string {
       <h3>Quick Links</h3>
       <div style="display:flex; gap:12px; flex-wrap:wrap;">
         <a href="/api/health" target="_blank" class="btn btn-secondary btn-sm">Health Check</a>
-        <a href="/api/admin/db" class="btn btn-secondary btn-sm">DB Explorer</a>
-        <a href="/api/admin/analytics" class="btn btn-secondary btn-sm">Analytics</a>
+        <a href="/admin/db" class="btn btn-secondary btn-sm">DB Explorer</a>
+        <a href="/admin/analytics" class="btn btn-secondary btn-sm">Analytics</a>
         <a href="/api/home" target="_blank" class="btn btn-secondary btn-sm">Public Homepage</a>
       </div>
     </div>
@@ -1999,7 +2148,7 @@ function staffPage(allStaff: any[], allBiz: any[], allSvc: any[], bizFilter = ""
       data-email="${escHtml((s.email || '').toLowerCase())}"
       data-phone="${escHtml((s.phone || '').toLowerCase())}">
       <td style="font-weight:600;">${escHtml(s.name)}</td>
-      <td><a href="/api/admin/businesses/${s.businessOwnerId}" style="color:var(--primary);">${escHtml(bizName)}</a></td>
+      <td><a href="/admin/businesses/${s.businessOwnerId}" style="color:var(--primary);">${escHtml(bizName)}</a></td>
       <td>${s.email ? escHtml(s.email) : '<span style="color:var(--text-muted);">—</span>'}</td>
       <td>${s.phone ? escHtml(s.phone) : '<span style="color:var(--text-muted);">—</span>'}</td>
       <td>${s.role ? `<span style="font-size:12px;color:var(--text-muted);">${escHtml(s.role)}</span>` : '<span style="color:var(--text-muted);">—</span>'}</td>
@@ -2008,7 +2157,7 @@ function staffPage(allStaff: any[], allBiz: any[], allSvc: any[], bizFilter = ""
       <td style="font-size:12px;">${workingDays}</td>
       <td>${activeLabel}</td>
       <td style="font-size:12px;color:var(--text-muted);">${created}</td>
-      <td><form class="delete-form" method="POST" action="/api/admin/delete/staff/${s.id}" onsubmit="return confirm('Delete staff member ${escHtml(s.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+      <td><form class="delete-form" method="POST" action="/admin/delete/staff/${s.id}" onsubmit="return confirm('Delete staff member ${escHtml(s.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
     </tr>`;
   }).join("");
 
@@ -2146,9 +2295,9 @@ function discountsPage(allDisc: any[], allBiz: any[]): string {
                   <td>${d.type || "percent"}</td>
                   <td>${d.type === "fixed" ? fmtCurrency(parseFloat(d.value || "0")) : (d.value || "0") + "%"}</td>
                   <td><code>${d.code || "N/A"}</code></td>
-                  <td><a href="/api/admin/businesses/${d.businessOwnerId}">${bizMap.get(d.businessOwnerId) || "Unknown"}</a></td>
+                  <td><a href="/admin/businesses/${d.businessOwnerId}">${bizMap.get(d.businessOwnerId) || "Unknown"}</a></td>
                   <td>${isActive ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-danger">Inactive</span>'}</td>
-                  <td><form class="delete-form" method="POST" action="/api/admin/delete/discount/${d.id}" onsubmit="return confirm('Delete this discount?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+                  <td><form class="delete-form" method="POST" action="/admin/delete/discount/${d.id}" onsubmit="return confirm('Delete this discount?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
                 </tr>`;
               }).join("")}
             </tbody>
@@ -2209,10 +2358,10 @@ function giftCardsPage(allGC: any[], allBiz: any[]): string {
                   <td><code style="font-weight:600;">${g.code}</code></td>
                   <td>${fmtCurrency(parseFloat(g.amount || "0"))}</td>
                   <td>${fmtCurrency(parseFloat(g.balance || g.amount || "0"))}</td>
-                  <td><a href="/api/admin/businesses/${g.businessOwnerId}">${bizMap.get(g.businessOwnerId) || "Unknown"}</a></td>
+                  <td><a href="/admin/businesses/${g.businessOwnerId}">${bizMap.get(g.businessOwnerId) || "Unknown"}</a></td>
                   <td>${isUsed ? '<span class="badge badge-danger">Used</span>' : '<span class="badge badge-success">Active</span>'}</td>
                   <td>${fmtDate(g.createdAt)}</td>
-                  <td><form class="delete-form" method="POST" action="/api/admin/delete/giftcard/${g.id}" onsubmit="return confirm('Delete this gift card?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+                  <td><form class="delete-form" method="POST" action="/admin/delete/giftcard/${g.id}" onsubmit="return confirm('Delete this gift card?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
                 </tr>`;
               }).join("")}
             </tbody>
@@ -2249,7 +2398,7 @@ function reviewsPage(allRev: any[], allBiz: any[], bizFilter = "", ratingFilter 
     if (bizFilter) params.set('biz', bizFilter);
     if (ratingFilter) params.set('rating', ratingFilter);
     params.set('page', String(p));
-    return `/api/admin/reviews?${params.toString()}`;
+    return `/admin/reviews?${params.toString()}`;
   };
   const paginationHtml = totalPages > 1 ? `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--border);">
@@ -2265,7 +2414,7 @@ function reviewsPage(allRev: any[], allBiz: any[], bizFilter = "", ratingFilter 
       <h2>All Reviews</h2>
       <span class="badge badge-info">${totalCount} total &mdash; page ${page} of ${totalPages}</span>
     </div>
-    <form method="GET" action="/api/admin/reviews" class="search-bar">
+    <form method="GET" action="/admin/reviews" class="search-bar">
       <input type="hidden" name="page" value="1">
       <select name="biz" onchange="this.form.submit()">
         <option value="">All Businesses</option>
@@ -2279,7 +2428,7 @@ function reviewsPage(allRev: any[], allBiz: any[], bizFilter = "", ratingFilter 
         <option value="2" ${ratingFilter === '2' ? 'selected' : ''}>⭐⭐ 2 stars</option>
         <option value="1" ${ratingFilter === '1' ? 'selected' : ''}>⭐ 1 star</option>
       </select>
-      ${(bizFilter || ratingFilter) ? `<a href="/api/admin/reviews" class="btn-sm" style="background:var(--danger);color:#fff;">Clear</a>` : ''}
+      ${(bizFilter || ratingFilter) ? `<a href="/admin/reviews" class="btn-sm" style="background:var(--danger);color:#fff;">Clear</a>` : ''}
     </form>
     <div class="card" style="padding:0;overflow:hidden;">
       ${allRev.length === 0
@@ -2291,9 +2440,9 @@ function reviewsPage(allRev: any[], allBiz: any[], bizFilter = "", ratingFilter 
                 <td style="padding:10px 16px;">${"⭐".repeat(Math.min(r.rating, 5))}</td>
                 <td style="padding:10px 16px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(r.comment || '') || '<span style="color:var(--text-muted);">No comment</span>'}</td>
                 <td style="padding:10px 16px;">${escHtml(r.clientName || r.clientLocalId || "Anonymous")}</td>
-                <td style="padding:10px 16px;"><a href="/api/admin/businesses/${r.businessOwnerId}" style="color:var(--primary);">${escHtml(bizMap.get(r.businessOwnerId) as string || "Unknown")}</a></td>
+                <td style="padding:10px 16px;"><a href="/admin/businesses/${r.businessOwnerId}" style="color:var(--primary);">${escHtml(bizMap.get(r.businessOwnerId) as string || "Unknown")}</a></td>
                 <td style="padding:10px 16px;font-size:12px;color:var(--text-muted);">${fmtDate(r.createdAt)}</td>
-                <td style="padding:10px 16px;"><form class="delete-form" method="POST" action="/api/admin/delete/review/${r.id}" onsubmit="return confirm('Delete this review?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+                <td style="padding:10px 16px;"><form class="delete-form" method="POST" action="/admin/delete/review/${r.id}" onsubmit="return confirm('Delete this review?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
               </tr>`).join("")}
             </tbody>
           </table>
@@ -2328,9 +2477,9 @@ function productsPage(allProd: any[], allBiz: any[]): string {
                 <td style="font-weight:500;">${p.name}</td>
                 <td>${fmtCurrency(parseFloat(p.price || "0"))}</td>
                 <td>${p.stock !== null && p.stock !== undefined ? p.stock : '<span style="color:var(--text-muted);">N/A</span>'}</td>
-                <td><a href="/api/admin/businesses/${p.businessOwnerId}">${bizMap.get(p.businessOwnerId) || "Unknown"}</a></td>
+                <td><a href="/admin/businesses/${p.businessOwnerId}">${bizMap.get(p.businessOwnerId) || "Unknown"}</a></td>
                 <td>${fmtDate(p.createdAt)}</td>
-                <td><form class="delete-form" method="POST" action="/api/admin/delete/product/${p.id}" onsubmit="return confirm('Delete product ${escHtml(p.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+                <td><form class="delete-form" method="POST" action="/admin/delete/product/${p.id}" onsubmit="return confirm('Delete product ${escHtml(p.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
               </tr>`).join("")}
             </tbody>
           </table>
@@ -2390,9 +2539,9 @@ function locationsPage(allLoc: any[], allBiz: any[]): string {
                   <td>${loc.address ? escHtml(loc.address) : "N/A"}</td>
                   <td>${loc.phone || "N/A"}</td>
                   <td>${loc.email || "N/A"}</td>
-                  <td><a href="/api/admin/businesses/${loc.businessOwnerId}">${bizMap.get(loc.businessOwnerId) || "Unknown"}</a></td>
+                  <td><a href="/admin/businesses/${loc.businessOwnerId}">${bizMap.get(loc.businessOwnerId) || "Unknown"}</a></td>
                   <td>${!loc.active ? '<span class="badge badge-danger">Inactive</span>' : loc.temporarilyClosed ? '<span class="badge badge-warning">Temp. Closed</span>' : '<span class="badge badge-success">Active</span>'}</td>
-                  <td><form class="delete-form" method="POST" action="/api/admin/delete/location/${loc.id}" onsubmit="return confirm('Delete location ${escHtml(loc.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+                  <td><form class="delete-form" method="POST" action="/admin/delete/location/${loc.id}" onsubmit="return confirm('Delete location ${escHtml(loc.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
                 </tr>`;
               }).join("")}
             </tbody>
@@ -2465,13 +2614,13 @@ function subscriptionsPage(businesses: any[], plans: any[]): string {
     const daysLeft = trialDate ? Math.ceil((trialDate.getTime() - Date.now()) / 86400000) : null;
     const trialDisplay = daysLeft !== null ? `${trialStr} <span style="font-size:11px;color:${daysLeft <= 3 ? '#ef4444' : '#f59e0b'}">(${daysLeft}d left)</span>` : '—';
     return `<tr class="sub-row" data-name="${escHtml((b.businessName || '').toLowerCase())}" data-plan="${plan}" data-status="${status}" data-override="${b.adminOverride ? 'yes' : 'no'}" data-trial-ts="${trialDate ? trialDate.getTime() : 0}">
-      <td style="font-weight:600;"><a href="/api/admin/businesses/${b.id}" style="color:var(--text);text-decoration:none;">${escHtml(b.businessName)}</a></td>
+      <td style="font-weight:600;"><a href="/admin/businesses/${b.id}" style="color:var(--text);text-decoration:none;">${escHtml(b.businessName)}</a></td>
       <td style="font-size:13px;color:var(--text-muted);">${escHtml(b.phone || '—')}</td>
       <td>${planBadge(plan, !!b.adminOverride)}</td>
       <td>${statusBadge(status)}</td>
       <td style="font-size:13px;">${status === 'trial' ? trialDisplay : '—'}</td>
       <td>${b.adminOverride ? '<span style="color:#059669;font-weight:600;">✓ Complimentary</span>' : '<span style="color:var(--text-muted);">—</span>'}</td>
-      <td><a href="/api/admin/businesses/${b.id}" class="btn btn-secondary btn-sm">Manage →</a></td>
+      <td><a href="/admin/businesses/${b.id}" class="btn btn-secondary btn-sm">Manage →</a></td>
     </tr>`;
   }).join('');
 
@@ -2490,7 +2639,7 @@ function subscriptionsPage(businesses: any[], plans: any[]): string {
         <h2>Subscriptions</h2>
         <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">${businesses.length} businesses &nbsp;·&nbsp; ${trialCount} on trial &nbsp;·&nbsp; ${activeCount} active &nbsp;·&nbsp; ${expiredCount} expired &nbsp;·&nbsp; ${overrideCount} complimentary</div>
       </div>
-      <a href="/api/admin/plans" class="btn btn-primary">Manage Plans →</a>
+      <a href="/admin/plans" class="btn btn-primary">Manage Plans →</a>
     </div>
 
     <!-- Plan stat cards (clickable to filter) -->
@@ -2594,7 +2743,7 @@ function plansPage(plans: any[]): string {
           ${p.isPublic ? '<span style="background:#05996920;color:#059669;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;">Public</span>' : '<span style="background:#6b728020;color:#6b7280;padding:4px 10px;border-radius:20px;font-size:12px;">Hidden</span>'}
         </div>
       </div>
-      <form method="POST" action="/api/admin/plans/${p.id}/update">
+      <form method="POST" action="/admin/plans/${p.id}/update">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
           <div>
             <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Monthly Price ($)</label>
@@ -2662,7 +2811,7 @@ function plansPage(plans: any[]): string {
   return adminLayout("Plan Pricing", "plans", `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
       <h1 style="font-size:24px;font-weight:700;">Plan Pricing & Limits</h1>
-      <a href="/api/admin/subscriptions" style="color:var(--primary);text-decoration:none;font-size:14px;">← View Subscribers</a>
+      <a href="/admin/subscriptions" style="color:var(--primary);text-decoration:none;font-size:14px;">← View Subscribers</a>
     </div>
     <div style="background:#0a7ea420;border:1px solid #0a7ea440;border-radius:8px;padding:12px 16px;margin-bottom:24px;font-size:13px;color:var(--text);">
       💡 <strong>Tip:</strong> Toggle "Visible to Public" to control which plans users can sign up for. Solo and Growth are public by default. Studio and Enterprise are hidden until you are ready to launch them.
@@ -2693,7 +2842,7 @@ function platformConfigPage(cfgMap: Record<string, string>): string {
   return adminLayout("Platform Config", "platform-config", `
     <h1 style="font-size:24px;font-weight:700;margin-bottom:24px;">Platform Configuration</h1>
 
-    <form method="POST" action="/api/admin/platform-config">
+    <form method="POST" action="/admin/platform-config">
       <!-- Twilio Section -->
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:24px;">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
@@ -2750,5 +2899,392 @@ function platformConfigPage(cfgMap: Record<string, string>): string {
         💾 Save Platform Configuration
       </button>
     </form>
+  `);
+}
+
+// ─── Financial Page ─────────────────────────────────────────────────
+function financialPage(data: {
+  monthlyData: { month: string; rev: number; apptCount: number }[];
+  yearlyData: { year: string; apptRev: number; subRev: number; total: number; apptCount: number }[];
+  quarters: { label: string; apptRev: number; subRev: number; apptCount: number }[];
+  thisYearTotal: number;
+  thisYearApptRev: number;
+  thisYearSubRev: number;
+  estimatedTax: number;
+  quarterlyTaxEst: number;
+  currentYear: number;
+}): string {
+  const fmt = (n: number) => "$" + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const fmtN = (n: number) => n.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+  const monthLabels = JSON.stringify(data.monthlyData.map((m) => m.month));
+  const monthRevVals = JSON.stringify(data.monthlyData.map((m) => parseFloat(m.rev.toFixed(2))));
+  const monthApptVals = JSON.stringify(data.monthlyData.map((m) => m.apptCount));
+
+  const yearLabels = JSON.stringify(data.yearlyData.map((y) => y.year));
+  const yearApptRevVals = JSON.stringify(data.yearlyData.map((y) => parseFloat(y.apptRev.toFixed(2))));
+  const yearSubRevVals = JSON.stringify(data.yearlyData.map((y) => parseFloat(y.subRev.toFixed(2))));
+
+  const qLabels = JSON.stringify(data.quarters.map((q) => q.label));
+  const qApptRevVals = JSON.stringify(data.quarters.map((q) => parseFloat(q.apptRev.toFixed(2))));
+  const qSubRevVals = JSON.stringify(data.quarters.map((q) => parseFloat(q.subRev.toFixed(2))));
+  const qTaxVals = JSON.stringify(data.quarters.map((q) => parseFloat(((q.apptRev + q.subRev) * 0.30).toFixed(2))));
+
+  const printDate = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+
+  return adminLayout("Financial", "financial", `
+    <style>
+      @media print {
+        .sidebar, .no-print { display: none !important; }
+        .main { margin-left: 0 !important; padding: 0 !important; }
+        .print-header { display: block !important; }
+        .card { break-inside: avoid; border: 1px solid #ccc !important; background: #fff !important; color: #000 !important; }
+        canvas { max-width: 100%; }
+        body { background: #fff !important; color: #000 !important; }
+        .stat-card { background: #f9f9f9 !important; border: 1px solid #ddd !important; color: #000 !important; }
+        .stat-value, .stat-label { color: #000 !important; }
+        th, td { color: #000 !important; border-color: #ccc !important; }
+      }
+      .print-header { display: none; text-align: center; margin-bottom: 24px; }
+      .tab-bar { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 2px solid var(--border); padding-bottom: 0; }
+      .tab-btn { padding: 10px 20px; border: none; background: none; color: var(--text-muted); font-size: 14px; font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.15s; }
+      .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+      .tab-btn:hover { color: var(--text); }
+      .tab-panel { display: none; }
+      .tab-panel.active { display: block; }
+      .chart-container { position: relative; height: 300px; }
+      .chart-container.tall { height: 380px; }
+      .tax-note { background: #f59e0b15; border: 1px solid #f59e0b40; border-radius: 8px; padding: 12px 16px; font-size: 13px; color: var(--text-muted); margin-top: 12px; }
+    </style>
+
+    <div class="print-header">
+      <h1 style="font-size:24px;font-weight:700;">Lime Of Time — Financial Report</h1>
+      <p style="color:#666;margin-top:4px;">Generated on ${printDate} &nbsp;|&nbsp; Fiscal Year ${data.currentYear}</p>
+    </div>
+
+    <div class="page-header no-print">
+      <div>
+        <h2>Financial Analytics</h2>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">Revenue, tax estimates &amp; year-end reporting — Fiscal Year ${data.currentYear}</div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="window.print()" class="btn btn-primary no-print" style="gap:6px;">🖨️ Print / Save PDF</button>
+        <a href="/admin/analytics" class="btn btn-secondary no-print">📈 Analytics</a>
+      </div>
+    </div>
+
+    <!-- KPI Row -->
+    <div class="stats-grid" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr));margin-bottom:20px;">
+      <div class="stat-card" style="border-left:4px solid #059669;">
+        <div class="stat-icon" style="color:#059669;">💰</div>
+        <div class="stat-label">Total Revenue ${data.currentYear}</div>
+        <div class="stat-value" style="color:#059669;">${fmt(data.thisYearTotal)}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Appt + Subscription</div>
+      </div>
+      <div class="stat-card" style="border-left:4px solid #0a7ea4;">
+        <div class="stat-icon" style="color:#0a7ea4;">📅</div>
+        <div class="stat-label">Appointment Revenue</div>
+        <div class="stat-value" style="color:#0a7ea4;">${fmt(data.thisYearApptRev)}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">From completed bookings</div>
+      </div>
+      <div class="stat-card" style="border-left:4px solid #7c3aed;">
+        <div class="stat-icon" style="color:#7c3aed;">💳</div>
+        <div class="stat-label">Subscription Revenue</div>
+        <div class="stat-value" style="color:#7c3aed;">${fmt(data.thisYearSubRev)}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">SaaS plan fees</div>
+      </div>
+      <div class="stat-card" style="border-left:4px solid #ef4444;">
+        <div class="stat-icon" style="color:#ef4444;">🏛️</div>
+        <div class="stat-label">Est. Tax Liability</div>
+        <div class="stat-value" style="color:#ef4444;">${fmt(data.estimatedTax)}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">~30% effective rate</div>
+      </div>
+      <div class="stat-card" style="border-left:4px solid #f59e0b;">
+        <div class="stat-icon" style="color:#f59e0b;">📆</div>
+        <div class="stat-label">Quarterly Tax Est.</div>
+        <div class="stat-value" style="color:#f59e0b;">${fmt(data.quarterlyTaxEst)}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Per quarter (IRS est. pay)</div>
+      </div>
+      <div class="stat-card" style="border-left:4px solid #22c55e;">
+        <div class="stat-icon" style="color:#22c55e;">✅</div>
+        <div class="stat-label">Net After Tax Est.</div>
+        <div class="stat-value" style="color:#22c55e;">${fmt(data.thisYearTotal - data.estimatedTax)}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Estimated net income</div>
+      </div>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="tab-bar no-print">
+      <button class="tab-btn active" onclick="switchTab('monthly', this)">📊 Monthly Income</button>
+      <button class="tab-btn" onclick="switchTab('yearly', this)">📈 Yearly Summary</button>
+      <button class="tab-btn" onclick="switchTab('quarterly', this)">🗓️ Quarterly Tax</button>
+      <button class="tab-btn" onclick="switchTab('taxprep', this)">📋 Tax Preparation</button>
+    </div>
+
+    <!-- Monthly Tab -->
+    <div id="tab-monthly" class="tab-panel active">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h3 style="margin:0;">Monthly Revenue (Last 24 Months)</h3>
+          <span style="font-size:12px;color:var(--text-muted);">Click bars to see details</span>
+        </div>
+        <div class="chart-container tall">
+          <canvas id="monthlyChart"></canvas>
+        </div>
+        <div id="monthlyDetail" style="display:none;margin-top:16px;padding:12px;background:var(--bg-hover);border-radius:8px;font-size:14px;"></div>
+      </div>
+      <div class="card">
+        <h3>Monthly Appointment Volume</h3>
+        <div class="chart-container">
+          <canvas id="monthlyApptChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Yearly Tab -->
+    <div id="tab-yearly" class="tab-panel">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h3 style="margin:0;">Annual Revenue Breakdown (Last 5 Years)</h3>
+          <span style="font-size:12px;color:var(--text-muted);">Click bars to see year details</span>
+        </div>
+        <div class="chart-container tall">
+          <canvas id="yearlyChart"></canvas>
+        </div>
+        <div id="yearlyDetail" style="display:none;margin-top:16px;padding:12px;background:var(--bg-hover);border-radius:8px;font-size:14px;"></div>
+      </div>
+      <div class="card" style="overflow-x:auto;">
+        <h3>Year-over-Year Summary</h3>
+        <table>
+          <thead>
+            <tr style="background:var(--bg-hover);">
+              <th>Year</th>
+              <th style="text-align:right;">Appt Revenue</th>
+              <th style="text-align:right;">Sub Revenue</th>
+              <th style="text-align:right;">Total Revenue</th>
+              <th style="text-align:right;">Appointments</th>
+              <th style="text-align:right;">Est. Tax (30%)</th>
+              <th style="text-align:right;">Est. Net</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.yearlyData.map((y) => {
+              const tax = y.total * 0.30;
+              const net = y.total - tax;
+              const isCurrentYear = y.year === String(data.currentYear);
+              return `<tr style="${isCurrentYear ? 'background:var(--bg-hover);font-weight:600;' : ''}">
+                <td>${y.year}${isCurrentYear ? ' <span style="font-size:11px;color:var(--primary);">(current)</span>' : ''}</td>
+                <td style="text-align:right;color:#0a7ea4;">${fmt(y.apptRev)}</td>
+                <td style="text-align:right;color:#7c3aed;">${fmt(y.subRev)}</td>
+                <td style="text-align:right;color:#059669;font-weight:700;">${fmt(y.total)}</td>
+                <td style="text-align:right;color:var(--text-muted);">${fmtN(y.apptCount)}</td>
+                <td style="text-align:right;color:#ef4444;">${fmt(tax)}</td>
+                <td style="text-align:right;color:#22c55e;">${fmt(net)}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Quarterly Tab -->
+    <div id="tab-quarterly" class="tab-panel">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h3 style="margin:0;">Quarterly Revenue &amp; Tax Estimates — ${data.currentYear}</h3>
+          <span style="font-size:12px;color:var(--text-muted);">Click bars to see quarter details</span>
+        </div>
+        <div class="chart-container">
+          <canvas id="quarterlyChart"></canvas>
+        </div>
+        <div id="quarterlyDetail" style="display:none;margin-top:16px;padding:12px;background:var(--bg-hover);border-radius:8px;font-size:14px;"></div>
+      </div>
+      <div class="card" style="overflow-x:auto;">
+        <h3>Quarterly Breakdown</h3>
+        <table>
+          <thead>
+            <tr style="background:var(--bg-hover);">
+              <th>Quarter</th>
+              <th style="text-align:right;">Appt Revenue</th>
+              <th style="text-align:right;">Sub Revenue</th>
+              <th style="text-align:right;">Total Revenue</th>
+              <th style="text-align:right;">Appointments</th>
+              <th style="text-align:right;">Est. Tax (30%)</th>
+              <th style="text-align:right;">IRS Due Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.quarters.map((q, i) => {
+              const total = q.apptRev + q.subRev;
+              const tax = total * 0.30;
+              const dueDates = ['Apr 15', 'Jun 16', 'Sep 15', 'Jan 15'];
+              return `<tr>
+                <td style="font-weight:600;">${q.label}</td>
+                <td style="text-align:right;color:#0a7ea4;">${fmt(q.apptRev)}</td>
+                <td style="text-align:right;color:#7c3aed;">${fmt(q.subRev)}</td>
+                <td style="text-align:right;font-weight:700;color:#059669;">${fmt(total)}</td>
+                <td style="text-align:right;color:var(--text-muted);">${fmtN(q.apptCount)}</td>
+                <td style="text-align:right;color:#ef4444;font-weight:600;">${fmt(tax)}</td>
+                <td style="text-align:right;color:var(--text-muted);font-size:12px;">${dueDates[i]}</td>
+              </tr>`;
+            }).join('')}
+            <tr style="background:var(--bg-hover);font-weight:700;border-top:2px solid var(--border);">
+              <td>TOTAL ${data.currentYear}</td>
+              <td style="text-align:right;color:#0a7ea4;">${fmt(data.thisYearApptRev)}</td>
+              <td style="text-align:right;color:#7c3aed;">${fmt(data.thisYearSubRev)}</td>
+              <td style="text-align:right;color:#059669;">${fmt(data.thisYearTotal)}</td>
+              <td style="text-align:right;color:var(--text-muted);">${fmtN(data.quarters.reduce((s, q) => s + q.apptCount, 0))}</td>
+              <td style="text-align:right;color:#ef4444;">${fmt(data.estimatedTax)}</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="tax-note">
+          ⚠️ <strong>Disclaimer:</strong> Tax estimates use a flat 30% effective rate as a rough guide for US self-employment taxes. Consult a licensed CPA or tax professional for accurate tax advice.
+        </div>
+      </div>
+    </div>
+
+    <!-- Tax Preparation Tab -->
+    <div id="tab-taxprep" class="tab-panel">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+          <h3 style="margin:0;">📋 Year-End Tax Preparation — ${data.currentYear}</h3>
+          <button onclick="window.print()" class="btn btn-primary no-print" style="font-size:13px;">🖨️ Print / Save PDF</button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+          <div style="background:var(--bg-hover);border-radius:8px;padding:16px;">
+            <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Gross Revenue</div>
+            <div style="font-size:28px;font-weight:700;color:#059669;">${fmt(data.thisYearTotal)}</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Appointment: ${fmt(data.thisYearApptRev)} &nbsp;|&nbsp; Subscription: ${fmt(data.thisYearSubRev)}</div>
+          </div>
+          <div style="background:var(--bg-hover);border-radius:8px;padding:16px;">
+            <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Estimated Tax Liability</div>
+            <div style="font-size:28px;font-weight:700;color:#ef4444;">${fmt(data.estimatedTax)}</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Based on 30% effective rate</div>
+          </div>
+        </div>
+
+        <h4 style="margin-bottom:12px;font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">Income Summary</h4>
+        <table style="margin-bottom:20px;">
+          <tbody>
+            <tr><td style="font-weight:600;">Total Gross Revenue</td><td style="text-align:right;font-weight:700;color:#059669;">${fmt(data.thisYearTotal)}</td></tr>
+            <tr><td style="padding-left:20px;color:var(--text-muted);">Appointment Revenue (service fees)</td><td style="text-align:right;">${fmt(data.thisYearApptRev)}</td></tr>
+            <tr><td style="padding-left:20px;color:var(--text-muted);">Subscription Revenue (SaaS fees)</td><td style="text-align:right;">${fmt(data.thisYearSubRev)}</td></tr>
+            <tr style="border-top:2px solid var(--border);"><td style="font-weight:600;">Estimated Tax Liability (30%)</td><td style="text-align:right;font-weight:700;color:#ef4444;">(${fmt(data.estimatedTax)})</td></tr>
+            <tr style="background:var(--bg-hover);"><td style="font-weight:700;">Estimated Net Income</td><td style="text-align:right;font-weight:700;color:#22c55e;">${fmt(data.thisYearTotal - data.estimatedTax)}</td></tr>
+          </tbody>
+        </table>
+
+        <h4 style="margin-bottom:12px;font-size:14px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">Quarterly Estimated Tax Payments (IRS Form 1040-ES)</h4>
+        <table style="margin-bottom:16px;">
+          <thead>
+            <tr style="background:var(--bg-hover);">
+              <th>Period</th><th>Quarter</th><th style="text-align:right;">Revenue</th><th style="text-align:right;">Est. Tax Due</th><th>IRS Due Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.quarters.map((q, i) => {
+              const total = q.apptRev + q.subRev;
+              const tax = total * 0.30;
+              const periods = ['Jan 1 – Mar 31', 'Apr 1 – May 31', 'Jun 1 – Aug 31', 'Sep 1 – Dec 31'];
+              const dueDates = [`Apr 15, ${data.currentYear}`, `Jun 16, ${data.currentYear}`, `Sep 15, ${data.currentYear}`, `Jan 15, ${data.currentYear + 1}`];
+              return `<tr>
+                <td style="font-size:12px;color:var(--text-muted);">${periods[i]}</td>
+                <td style="font-weight:600;">${q.label}</td>
+                <td style="text-align:right;">${fmt(total)}</td>
+                <td style="text-align:right;font-weight:700;color:#ef4444;">${fmt(tax)}</td>
+                <td style="font-size:12px;color:var(--text-muted);">${dueDates[i]}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+
+        <div class="tax-note">
+          ⚠️ <strong>Important Disclaimer:</strong> This report is generated automatically from platform data for reference purposes only. Revenue figures reflect appointment and subscription data recorded in the system. Tax estimates use a flat 30% effective rate as a rough approximation for US self-employment and income taxes. <strong>Always consult a licensed CPA or tax professional</strong> before filing. Actual deductible expenses, depreciation, and other factors will affect your real tax liability.
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+      const CHART_DEFAULTS = {
+        plugins: { legend: { labels: { color: '#e4e6eb', font: { size: 12 } } }, tooltip: { backgroundColor: '#1a1d27', titleColor: '#e4e6eb', bodyColor: '#8b8fa3', borderColor: '#2a2d3a', borderWidth: 1 } },
+        scales: { x: { ticks: { color: '#8b8fa3', maxRotation: 45 }, grid: { color: '#2a2d3a' } }, y: { ticks: { color: '#8b8fa3' }, grid: { color: '#2a2d3a' } } }
+      };
+
+      // Monthly Revenue Chart
+      const monthlyRevData = { labels: ${monthLabels}, values: ${monthRevVals}, appts: ${monthApptVals} };
+      const monthlyCtx = document.getElementById('monthlyChart').getContext('2d');
+      const monthlyChart = new Chart(monthlyCtx, {
+        type: 'bar',
+        data: { labels: monthlyRevData.labels, datasets: [{ label: 'Revenue ($)', data: monthlyRevData.values, backgroundColor: '#4a8c3f99', borderColor: '#4a8c3f', borderWidth: 1, borderRadius: 4 }] },
+        options: { ...CHART_DEFAULTS, responsive: true, maintainAspectRatio: false, onClick: (e, els) => {
+          if (!els.length) return;
+          const i = els[0].index;
+          const d = document.getElementById('monthlyDetail');
+          d.style.display = 'block';
+          d.innerHTML = '<strong>' + monthlyRevData.labels[i] + '</strong> — Revenue: <strong style="color:#4a8c3f">$' + monthlyRevData.values[i].toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + '</strong> &nbsp;|&nbsp; Appointments: <strong>' + monthlyRevData.appts[i] + '</strong>';
+        }}
+      });
+
+      // Monthly Appointments Chart
+      const monthlyApptCtx = document.getElementById('monthlyApptChart').getContext('2d');
+      new Chart(monthlyApptCtx, {
+        type: 'line',
+        data: { labels: monthlyRevData.labels, datasets: [{ label: 'Appointments', data: monthlyRevData.appts, borderColor: '#0a7ea4', backgroundColor: '#0a7ea420', fill: true, tension: 0.3, pointRadius: 4, pointHoverRadius: 6 }] },
+        options: { ...CHART_DEFAULTS, responsive: true, maintainAspectRatio: false }
+      });
+
+      // Yearly Chart
+      const yearlyRevData = { labels: ${yearLabels}, apptRev: ${yearApptRevVals}, subRev: ${yearSubRevVals} };
+      const yearlyCtx = document.getElementById('yearlyChart').getContext('2d');
+      const yearlyChart = new Chart(yearlyCtx, {
+        type: 'bar',
+        data: { labels: yearlyRevData.labels, datasets: [
+          { label: 'Appointment Revenue', data: yearlyRevData.apptRev, backgroundColor: '#0a7ea499', borderColor: '#0a7ea4', borderWidth: 1, borderRadius: 4 },
+          { label: 'Subscription Revenue', data: yearlyRevData.subRev, backgroundColor: '#7c3aed99', borderColor: '#7c3aed', borderWidth: 1, borderRadius: 4 }
+        ]},
+        options: { ...CHART_DEFAULTS, responsive: true, maintainAspectRatio: false, scales: { ...CHART_DEFAULTS.scales, x: { ...CHART_DEFAULTS.scales.x, stacked: false }, y: { ...CHART_DEFAULTS.scales.y, stacked: false } }, onClick: (e, els) => {
+          if (!els.length) return;
+          const i = els[0].index;
+          const total = yearlyRevData.apptRev[i] + yearlyRevData.subRev[i];
+          const d = document.getElementById('yearlyDetail');
+          d.style.display = 'block';
+          d.innerHTML = '<strong>' + yearlyRevData.labels[i] + '</strong> — Appt: <strong style="color:#0a7ea4">$' + yearlyRevData.apptRev[i].toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + '</strong> &nbsp;|&nbsp; Sub: <strong style="color:#7c3aed">$' + yearlyRevData.subRev[i].toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + '</strong> &nbsp;|&nbsp; Total: <strong style="color:#059669">$' + total.toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + '</strong>';
+        }}
+      });
+
+      // Quarterly Chart
+      const qData = { labels: ${qLabels}, apptRev: ${qApptRevVals}, subRev: ${qSubRevVals}, tax: ${qTaxVals} };
+      const qCtx = document.getElementById('quarterlyChart').getContext('2d');
+      const quarterlyChart = new Chart(qCtx, {
+        type: 'bar',
+        data: { labels: qData.labels, datasets: [
+          { label: 'Appt Revenue', data: qData.apptRev, backgroundColor: '#0a7ea499', borderColor: '#0a7ea4', borderWidth: 1, borderRadius: 4 },
+          { label: 'Sub Revenue', data: qData.subRev, backgroundColor: '#7c3aed99', borderColor: '#7c3aed', borderWidth: 1, borderRadius: 4 },
+          { label: 'Est. Tax', data: qData.tax, backgroundColor: '#ef444499', borderColor: '#ef4444', borderWidth: 1, borderRadius: 4 }
+        ]},
+        options: { ...CHART_DEFAULTS, responsive: true, maintainAspectRatio: false, onClick: (e, els) => {
+          if (!els.length) return;
+          const i = els[0].index;
+          const total = qData.apptRev[i] + qData.subRev[i];
+          const d = document.getElementById('quarterlyDetail');
+          d.style.display = 'block';
+          d.innerHTML = '<strong>' + qData.labels[i] + '</strong> — Revenue: <strong style="color:#059669">$' + total.toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + '</strong> &nbsp;|&nbsp; Est. Tax: <strong style="color:#ef4444">$' + qData.tax[i].toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + '</strong>';
+        }}
+      });
+
+      function switchTab(name, btn) {
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('tab-' + name).classList.add('active');
+        btn.classList.add('active');
+        // Resize charts after tab switch
+        setTimeout(() => { monthlyChart.resize(); yearlyChart.resize(); quarterlyChart.resize(); }, 50);
+      }
+    </script>
   `);
 }
