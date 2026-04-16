@@ -9,6 +9,7 @@ import { createContext } from "./context";
 import { registerPublicRoutes } from "../publicRoutes";
 import { registerAdminRoutes } from "../adminRoutes";
 import { registerLegalRoutes } from "../legalRoutes";
+import { registerStripeRoutes } from "../stripeRoutes";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -70,6 +71,9 @@ async function startServer() {
       createContext,
     }),
   );
+
+  // Register Stripe payment routes (must be before json middleware for webhook raw body)
+  registerStripeRoutes(app);
 
   // Register admin dashboard
   registerAdminRoutes(app);

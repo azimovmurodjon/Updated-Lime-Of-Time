@@ -1,0 +1,346 @@
+/**
+ * Stripe subscription routes
+ * - POST /api/stripe/create-checkout  → create a Stripe Checkout session
+ * - POST /api/stripe/webhook          → handle Stripe webhook events
+ * - GET  /api/stripe/success          → success redirect page
+ * - GET  /api/stripe/cancel           → cancel redirect page
+ */
+import express, { Express, Request, Response } from "express";
+import Stripe from "stripe";
+import { getDb } from "./db";
+import { businessOwners } from "../drizzle/schema";
+import { eq } from "drizzle-orm";
+
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY ?? "";
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET ?? "";
+
+// Plan key → price in cents (monthly / yearly)
+const PLAN_PRICES: Record<string, { monthly: number; yearly: number; name: string }> = {
+  solo:       { monthly: 0,    yearly: 0,     name: "Solo (Free)" },
+  growth:     { monthly: 1900, yearly: 19900, name: "Growth" },
+  studio:     { monthly: 3900, yearly: 39900, name: "Studio" },
+  enterprise: { monthly: 6900, yearly: 69900, name: "Enterprise" },
+};
+
+function getStripe(): Stripe | null {
+  if (!STRIPE_SECRET_KEY) return null;
+    return new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2026-03-25.dahlia" });
+}
+
+export function registerStripeRoutes(app: Express): void {
+  /**
+   * POST /api/stripe/create-checkout
+   * Body: { businessOwnerId, planKey, period: "monthly"|"yearly", successUrl, cancelUrl }
+   */
+  app.post("/api/stripe/create-checkout", async (req: Request, res: Response) => {
+    const stripe = getStripe();
+    if (!stripe) {
+      res.status(500).json({ error: "Stripe not configured" });
+      return;
+    }
+
+    const { businessOwnerId, planKey, period, successUrl, cancelUrl } = req.body as {
+      businessOwnerId: number;
+      planKey: string;
+      period: "monthly" | "yearly";
+      successUrl: string;
+      cancelUrl: string;
+    };
+
+    if (!businessOwnerId || !planKey || !period) {
+      res.status(400).json({ error: "Missing required fields" });
+      return;
+    }
+
+    const planInfo = PLAN_PRICES[planKey];
+    if (!planInfo) {
+      res.status(400).json({ error: "Invalid plan key" });
+      return;
+    }
+
+    // Solo plan is free — no checkout needed
+    if (planKey === "solo") {
+      // Just activate the free plan directly
+      const db = await getDb();
+      if (db) {
+        await db.update(businessOwners)
+          .set({
+            subscriptionPlan: "solo",
+            subscriptionStatus: "active",
+            subscriptionPeriod: period,
+          })
+          .where(eq(businessOwners.id, businessOwnerId));
+      }
+      res.json({ url: null, free: true, activated: true });
+      return;
+    }
+
+    const priceAmount = period === "monthly" ? planInfo.monthly : planInfo.yearly;
+    const interval = period === "monthly" ? "month" : "year";
+
+    try {
+      // Get or create Stripe customer
+      const db = await getDb();
+      let stripeCustomerId: string | undefined;
+
+      if (db) {
+        const rows = await db.select().from(businessOwners).where(eq(businessOwners.id, businessOwnerId)).limit(1);
+        const owner = rows[0];
+        if (owner?.stripeCustomerId) {
+          stripeCustomerId = owner.stripeCustomerId;
+        } else {
+          // Create new customer
+          const customer = await stripe.customers.create({
+            metadata: { businessOwnerId: String(businessOwnerId) },
+            email: owner?.email ?? undefined,
+          });
+          stripeCustomerId = customer.id;
+          await db.update(businessOwners)
+            .set({ stripeCustomerId: customer.id })
+            .where(eq(businessOwners.id, businessOwnerId));
+        }
+      }
+
+      // Create a price on the fly (test mode)
+      const price = await stripe.prices.create({
+        unit_amount: priceAmount,
+        currency: "usd",
+        recurring: { interval },
+        product_data: {
+          name: `${planInfo.name} Plan (${period})`,
+        },
+      });
+
+      // Create checkout session
+      const session = await stripe.checkout.sessions.create({
+        mode: "subscription",
+        customer: stripeCustomerId,
+        line_items: [{ price: price.id, quantity: 1 }],
+        success_url: successUrl || `${req.headers.origin}/api/stripe/success?session_id={CHECKOUT_SESSION_ID}&boid=${businessOwnerId}`,
+        cancel_url: cancelUrl || `${req.headers.origin}/api/stripe/cancel?boid=${businessOwnerId}`,
+        metadata: {
+          businessOwnerId: String(businessOwnerId),
+          planKey,
+          period,
+        },
+        subscription_data: {
+          metadata: {
+            businessOwnerId: String(businessOwnerId),
+            planKey,
+            period,
+          },
+        },
+      });
+
+      res.json({ url: session.url, sessionId: session.id });
+    } catch (err) {
+      console.error("[Stripe] create-checkout error:", err);
+      res.status(500).json({ error: "Failed to create checkout session" });
+    }
+  });
+
+  /**
+   * POST /api/stripe/webhook
+   * Handles Stripe webhook events to activate subscriptions
+   */
+  app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async (req: Request, res: Response) => {
+    const stripe = getStripe();
+    if (!stripe) {
+      res.status(500).send("Stripe not configured");
+      return;
+    }
+
+    const sig = req.headers["stripe-signature"] as string;
+    let event: Stripe.Event;
+
+    try {
+      if (STRIPE_WEBHOOK_SECRET && sig) {
+        event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
+      } else {
+        // In test mode without webhook secret, parse directly
+        event = JSON.parse(req.body.toString()) as Stripe.Event;
+      }
+    } catch (err) {
+      console.error("[Stripe] Webhook signature verification failed:", err);
+      res.status(400).send("Webhook signature verification failed");
+      return;
+    }
+
+    const db = await getDb();
+    if (!db) {
+      res.status(500).send("DB not available");
+      return;
+    }
+
+    try {
+      switch (event.type) {
+        case "checkout.session.completed": {
+          const session = event.data.object as Stripe.Checkout.Session;
+          const businessOwnerId = parseInt(session.metadata?.businessOwnerId ?? "0");
+          const planKey = session.metadata?.planKey as "solo" | "growth" | "studio" | "enterprise";
+          const period = session.metadata?.period as "monthly" | "yearly";
+          const subscriptionId = session.subscription as string;
+
+          if (businessOwnerId && planKey) {
+            await db.update(businessOwners)
+              .set({
+                subscriptionPlan: planKey,
+                subscriptionStatus: "active",
+                subscriptionPeriod: period ?? "monthly",
+                stripeSubscriptionId: subscriptionId ?? null,
+              })
+              .where(eq(businessOwners.id, businessOwnerId));
+            console.log(`[Stripe] Activated ${planKey} plan for business ${businessOwnerId}`);
+          }
+          break;
+        }
+
+        case "customer.subscription.deleted": {
+          const subscription = event.data.object as Stripe.Subscription;
+          const businessOwnerId = parseInt(subscription.metadata?.businessOwnerId ?? "0");
+          if (businessOwnerId) {
+            await db.update(businessOwners)
+              .set({
+                subscriptionPlan: "solo",
+                subscriptionStatus: "free",
+                stripeSubscriptionId: null,
+              })
+              .where(eq(businessOwners.id, businessOwnerId));
+            console.log(`[Stripe] Subscription cancelled for business ${businessOwnerId}`);
+          }
+          break;
+        }
+
+        case "invoice.payment_failed": {
+          const invoice = event.data.object as Stripe.Invoice & { subscription?: string | null };
+          const subId = typeof invoice.subscription === "string" ? invoice.subscription : null;
+          if (subId) {
+            const rows = await db.select().from(businessOwners)
+              .where(eq(businessOwners.stripeSubscriptionId, subId)).limit(1);
+            if (rows[0]) {
+              await db.update(businessOwners)
+                .set({ subscriptionStatus: "expired" })
+                .where(eq(businessOwners.id, rows[0].id));
+            }
+          }
+          break;
+        }
+      }
+    } catch (err) {
+      console.error("[Stripe] Webhook handler error:", err);
+    }
+
+    res.json({ received: true });
+  });
+
+  /**
+   * GET /api/stripe/success
+   * Called after successful Stripe Checkout — shows a success page
+   */
+  app.get("/api/stripe/success", async (req: Request, res: Response) => {
+    const { session_id, boid } = req.query as { session_id?: string; boid?: string };
+    const stripe = getStripe();
+
+    // Try to activate subscription from session if webhook hasn't fired yet
+    if (stripe && session_id && boid) {
+      try {
+        const session = await stripe.checkout.sessions.retrieve(session_id);
+        const businessOwnerId = parseInt(boid);
+        const planKey = session.metadata?.planKey as "solo" | "growth" | "studio" | "enterprise";
+        const period = session.metadata?.period as "monthly" | "yearly";
+        const subscriptionId = session.subscription as string;
+
+        if (planKey && businessOwnerId) {
+          const db = await getDb();
+          if (db) {
+            await db.update(businessOwners)
+              .set({
+                subscriptionPlan: planKey,
+                subscriptionStatus: "active",
+                subscriptionPeriod: period ?? "monthly",
+                stripeSubscriptionId: subscriptionId ?? null,
+              })
+              .where(eq(businessOwners.id, businessOwnerId));
+          }
+        }
+      } catch (err) {
+        console.error("[Stripe] Success page activation error:", err);
+      }
+    }
+
+    res.send(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Subscription Activated</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           background: #1A3A28; color: white; min-height: 100vh;
+           display: flex; align-items: center; justify-content: center; }
+    .card { background: rgba(255,255,255,0.1); border-radius: 24px; padding: 48px 32px;
+            text-align: center; max-width: 380px; width: 90%; backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.15); }
+    .icon { font-size: 64px; margin-bottom: 24px; }
+    h1 { font-size: 28px; font-weight: 700; margin-bottom: 12px; }
+    p { font-size: 16px; color: rgba(255,255,255,0.75); line-height: 1.5; margin-bottom: 32px; }
+    .btn { display: inline-block; background: #8FBF6A; color: #1A3A28; font-weight: 700;
+           font-size: 16px; padding: 14px 32px; border-radius: 50px; text-decoration: none;
+           cursor: pointer; border: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">🎉</div>
+    <h1>You're all set!</h1>
+    <p>Your subscription is now active. Return to the Lime Of Time app to start managing your business.</p>
+    <p style="font-size:13px;color:rgba(255,255,255,0.5);margin-bottom:24px;">You can close this window and return to the app.</p>
+    <button class="btn" onclick="window.close()">Close & Return to App</button>
+  </div>
+  <script>
+    // Auto-close after 3 seconds if possible
+    setTimeout(() => { try { window.close(); } catch(e) {} }, 3000);
+  </script>
+</body>
+</html>`);
+  });
+
+  /**
+   * GET /api/stripe/cancel
+   * Called when user cancels Stripe Checkout
+   */
+  app.get("/api/stripe/cancel", (_req: Request, res: Response) => {
+    res.send(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Checkout Cancelled</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           background: #1A3A28; color: white; min-height: 100vh;
+           display: flex; align-items: center; justify-content: center; }
+    .card { background: rgba(255,255,255,0.1); border-radius: 24px; padding: 48px 32px;
+            text-align: center; max-width: 380px; width: 90%; backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.15); }
+    .icon { font-size: 64px; margin-bottom: 24px; }
+    h1 { font-size: 24px; font-weight: 700; margin-bottom: 12px; }
+    p { font-size: 15px; color: rgba(255,255,255,0.75); line-height: 1.5; margin-bottom: 24px; }
+    .btn { display: inline-block; background: rgba(255,255,255,0.15); color: white; font-weight: 600;
+           font-size: 15px; padding: 12px 28px; border-radius: 50px; text-decoration: none;
+           cursor: pointer; border: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">↩️</div>
+    <h1>Checkout Cancelled</h1>
+    <p>No charge was made. You can return to the app and choose a plan whenever you're ready.</p>
+    <button class="btn" onclick="window.close()">Close Window</button>
+  </div>
+</body>
+</html>`);
+  });
+}

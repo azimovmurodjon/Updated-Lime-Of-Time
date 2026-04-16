@@ -59,8 +59,10 @@ import { CountryCodePicker, DEFAULT_COUNTRY, type Country } from "@/components/c
 import { startOAuthLogin } from "@/constants/oauth";
 import { GoogleLogo, MicrosoftLogo, AppleLogo } from "@/components/brand-icons";
 import * as Notifications from "expo-notifications";
+import * as WebBrowser from "expo-web-browser";
+import { getApiBaseUrl } from "@/constants/oauth";
 
-type Step = 1 | "otp" | 2 | 3 | "socialPhone";
+type Step = 1 | "otp" | 2 | "subscription" | 3 | "socialPhone";
 
 // ─── Floating Particle ─────────────────────────────────────────────
 function FloatingParticle({
@@ -169,7 +171,7 @@ function ClockIcon({ size, color }: { size: number; color: string }) {
 }
 
 export default function OnboardingScreen() {
-  const { dispatch, syncToDb } = useStore();
+  const { dispatch, syncToDb, state: appState } = useStore();
   const colors = useColors();
   const router = useRouter();
   const { isTablet, hp, width, height } = useResponsive();
@@ -183,7 +185,7 @@ export default function OnboardingScreen() {
   const slideOpacity = useSharedValue(1);
 
   // Step order for direction detection
-  const STEP_ORDER: Step[] = [1, "socialPhone", "otp", 2, 3];
+  const STEP_ORDER: Step[] = [1, "socialPhone", "otp", 2, "subscription", 3];
   const stepIndex = (s: Step) => {
     const idx = STEP_ORDER.indexOf(s);
     return idx === -1 ? 0 : idx;
@@ -376,6 +378,12 @@ export default function OnboardingScreen() {
 
   const trpcUtils = trpc.useUtils();
   const createBusinessMut = trpc.business.create.useMutation();
+
+  // ─── Subscription step state ─────────────────────────────────────
+  const [subIsYearly, setSubIsYearly] = useState(false);
+  const [subLoading, setSubLoading] = useState(false);
+  const [subSelectedPlan, setSubSelectedPlan] = useState<string | null>(null);
+  const { data: publicPlans, isLoading: plansLoading } = trpc.subscription.getPublicPlans.useQuery(undefined, { staleTime: 60_000 });
   const sendOtpMut = trpc.otp.send.useMutation();
   const verifyOtpMut = trpc.otp.verify.useMutation();
 
@@ -669,11 +677,8 @@ export default function OnboardingScreen() {
       });
       // Request push notification permission after successful onboarding
       await requestPushPermission();
-      if (biometricAvailable && Platform.OS !== "web") {
-        navigateToStep(3);
-      } else {
-        router.replace("/(tabs)");
-      }
+      // Always go to subscription step next
+      navigateToStep("subscription");
     } catch (err) {
       console.error("[Onboarding] Failed to create business in DB:", err);
       // Show a clear error — do NOT silently proceed to local-only mode
@@ -687,6 +692,72 @@ export default function OnboardingScreen() {
       setLoading(false);
     }
   };
+
+  // ─── Subscription step handlers ───────────────────────────────────
+  const handleSelectPlan = useCallback(async (planKey: string, period: "monthly" | "yearly") => {
+    const businessOwnerId = appState?.businessOwnerId;
+    if (!businessOwnerId) {
+      // Fallback: skip to next step
+      if (biometricAvailable && Platform.OS !== "web") {
+        navigateToStep(3);
+      } else {
+        router.replace("/(tabs)");
+      }
+      return;
+    }
+    setSubLoading(true);
+    setSubSelectedPlan(planKey);
+    try {
+      const apiBase = getApiBaseUrl();
+      const response = await fetch(`${apiBase}/api/stripe/create-checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessOwnerId,
+          planKey,
+          period,
+          successUrl: `${apiBase}/api/stripe/success?session_id={CHECKOUT_SESSION_ID}&boid=${businessOwnerId}`,
+          cancelUrl: `${apiBase}/api/stripe/cancel?boid=${businessOwnerId}`,
+        }),
+      });
+      const data = await response.json();
+      if (data.url) {
+        // Open Stripe Checkout in in-app browser
+        const result = await WebBrowser.openBrowserAsync(data.url, {
+          presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+        });
+        // After browser closes (success or cancel), proceed to next step
+        if (biometricAvailable && Platform.OS !== "web") {
+          navigateToStep(3);
+        } else {
+          router.replace("/(tabs)");
+        }
+      } else if (data.activated || data.free) {
+        // Free plan activated immediately
+        if (biometricAvailable && Platform.OS !== "web") {
+          navigateToStep(3);
+        } else {
+          router.replace("/(tabs)");
+        }
+      } else {
+        Alert.alert("Error", data.error || "Could not start checkout. Please try again.");
+      }
+    } catch (err) {
+      console.error("[Stripe] Checkout error:", err);
+      Alert.alert("Error", "Could not start checkout. Please check your connection.");
+    } finally {
+      setSubLoading(false);
+      setSubSelectedPlan(null);
+    }
+  }, [appState?.businessOwnerId, biometricAvailable, navigateToStep, router]);
+
+  const handleSkipSubscription = useCallback(() => {
+    if (biometricAvailable && Platform.OS !== "web") {
+      navigateToStep(3);
+    } else {
+      router.replace("/(tabs)");
+    }
+  }, [biometricAvailable, navigateToStep, router]);
 
   const handleEnableFaceId = useCallback(async () => {
     setLoading(true);
@@ -788,8 +859,15 @@ export default function OnboardingScreen() {
             </View>
           </Animated.View>          {/* ─── Progress Dots ──────────────────────────────────── */}
           <View style={styles.progressRow}>
-            {[1, 2, 3].map((s) => {
-              const numericStep = displayStep === "otp" ? 1 : (displayStep as number);              return (
+            {[1, 2, 3, 4].map((s) => {
+              const stepToNum = (st: Step): number => {
+                if (st === 1 || st === "otp" || st === "socialPhone") return 1;
+                if (st === 2) return 2;
+                if (st === "subscription") return 3;
+                return 4;
+              };
+              const numericStep = stepToNum(displayStep);
+              return (
                 <View
                   key={s}
                   style={[
@@ -1237,6 +1315,107 @@ export default function OnboardingScreen() {
                       )}
                     </Pressable>
                   </View>
+                </Animated.View>
+              </>
+            )}
+
+            {/* Step Subscription: Plan Selection */}
+            {displayStep === "subscription" && (
+              <>
+                <Animated.View style={[titleStyle, { alignItems: "center" }]}>
+                  <View style={{ width: 72, height: 72, borderRadius: 20, backgroundColor: "rgba(74,124,89,0.12)", alignItems: "center", justifyContent: "center", marginBottom: 14, borderWidth: 2, borderColor: "rgba(74,124,89,0.2)" }}>
+                    <Text style={{ fontSize: 32 }}>🚀</Text>
+                  </View>
+                  <Text style={[styles.stepTitle, { textAlign: "center" }]}>Choose Your Plan</Text>
+                  <Text style={[styles.stepSubtitle, { textAlign: "center" }]}>Start free, upgrade anytime</Text>
+                </Animated.View>
+
+                <Animated.View style={inputStyle}>
+                  {/* Billing Toggle */}
+                  <View style={{ flexDirection: "row", backgroundColor: "#F3F4F6", borderRadius: 10, padding: 3, marginBottom: 16, alignSelf: "center" }}>
+                    <Pressable
+                      onPress={() => setSubIsYearly(false)}
+                      style={[{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 7, borderRadius: 8 }, !subIsYearly && { backgroundColor: "#4A7C59" }]}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: "600", color: subIsYearly ? "#6B7280" : "#fff" }}>Monthly</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setSubIsYearly(true)}
+                      style={[{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 7, borderRadius: 8, gap: 4 }, subIsYearly && { backgroundColor: "#4A7C59" }]}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: "600", color: !subIsYearly ? "#6B7280" : "#fff" }}>Yearly</Text>
+                      <View style={{ backgroundColor: "#22C55E", borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 }}>
+                        <Text style={{ fontSize: 10, fontWeight: "700", color: "#fff" }}>SAVE</Text>
+                      </View>
+                    </Pressable>
+                  </View>
+
+                  {/* Plan Cards */}
+                  {plansLoading ? (
+                    <ActivityIndicator color="#4A7C59" size="large" style={{ marginVertical: 24 }} />
+                  ) : (
+                    (publicPlans ?? []).map((plan) => {
+                      const planColors: Record<string, string> = { solo: "#6B7280", growth: "#3B82F6", studio: "#8B5CF6", enterprise: "#F59E0B" };
+                      const planColor = planColors[plan.planKey] ?? "#6B7280";
+                      const isFree = plan.monthlyPrice === 0;
+                      const price = subIsYearly ? plan.yearlyPrice / 12 : plan.monthlyPrice;
+                      const savings = subIsYearly && !isFree ? Math.round(((plan.monthlyPrice * 12 - plan.yearlyPrice) / (plan.monthlyPrice * 12)) * 100) : 0;
+                      const isSelected = subSelectedPlan === plan.planKey;
+                      return (
+                        <View
+                          key={plan.planKey}
+                          style={{
+                            backgroundColor: "#F9FAFB",
+                            borderRadius: 14,
+                            padding: 14,
+                            marginBottom: 10,
+                            borderWidth: isSelected ? 2 : 1,
+                            borderColor: isSelected ? planColor : "#E5E7EB",
+                          }}
+                        >
+                          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+                            <View style={{ backgroundColor: planColor + "20", borderRadius: 8, padding: 6, marginRight: 10 }}>
+                              <Text style={{ fontSize: 18 }}>{plan.planKey === "solo" ? "👤" : plan.planKey === "growth" ? "👥" : plan.planKey === "studio" ? "🏪" : "🏢"}</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontSize: 15, fontWeight: "700", color: "#11181C" }}>{plan.displayName}</Text>
+                              <Text style={{ fontSize: 12, color: "#687076" }}>
+                                {isFree ? "Free forever" : `$${price.toFixed(0)}/mo${subIsYearly ? " (billed yearly)" : ""}${savings > 0 ? ` · Save ${savings}%` : ""}`}
+                              </Text>
+                            </View>
+                          </View>
+                          <Pressable
+                            onPress={() => handleSelectPlan(plan.planKey, subIsYearly ? "yearly" : "monthly")}
+                            disabled={subLoading}
+                            style={({ pressed }) => ({
+                              backgroundColor: isFree ? "#E5E7EB" : planColor,
+                              borderRadius: 8,
+                              paddingVertical: 10,
+                              alignItems: "center",
+                              opacity: pressed || subLoading ? 0.75 : 1,
+                            })}
+                          >
+                            {subLoading && isSelected ? (
+                              <ActivityIndicator color={isFree ? "#374151" : "#fff"} size="small" />
+                            ) : (
+                              <Text style={{ color: isFree ? "#374151" : "#fff", fontWeight: "700", fontSize: 14 }}>
+                                {isFree ? "Start Free" : "Select Plan"}
+                              </Text>
+                            )}
+                          </Pressable>
+                        </View>
+                      );
+                    })
+                  )}
+                </Animated.View>
+
+                <Animated.View style={btnStyle}>
+                  <Pressable
+                    onPress={handleSkipSubscription}
+                    style={({ pressed }) => [styles.skipBtn, { opacity: pressed ? 0.6 : 1 }]}
+                  >
+                    <Text style={styles.skipBtnText}>Skip for now</Text>
+                  </Pressable>
                 </Animated.View>
               </>
             )}
