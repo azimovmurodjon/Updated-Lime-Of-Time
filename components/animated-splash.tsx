@@ -216,7 +216,7 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
   const RING_SIZE = CIRCLE_SIZE * 1.2;
 
   return (
-    <Animated.View style={[styles.container, { opacity: screenOpacity }]}>
+    <Animated.View style={[styles.container, { opacity: screenOpacity }]} pointerEvents="none">
       {/* Background layers */}
       <Animated.View style={[styles.bg, { opacity: bgOpacity, transform: [{ scale: bgScale }] }]} />
 

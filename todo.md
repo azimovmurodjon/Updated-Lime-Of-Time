@@ -1157,3 +1157,8 @@
 ## Bugs (Apr 16 batch 10)
 - [x] Subscription plan carousel cards cut off / overflowing on left and right sides
 - [x] Skip for now button on subscription step not working
+
+## Bugs (Apr 16 batch 11)
+- [x] Save button not tappable on first open for New Service screen — fixed: added pointerEvents="none" to AnimatedSplash Animated.View
+- [x] Save button not tappable on first open for Add Staff Member screen — fixed: same AnimatedSplash fix
+- [x] Save button not tappable on first open for Add Location screen — fixed: same AnimatedSplash fix + usePlanLimitCheck now allows action when businessOwnerId/planInfo not yet loaded (prevents false upgrade-sheet block)

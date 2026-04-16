@@ -21,7 +21,7 @@ export function usePlanLimitCheck() {
   const { state } = useStore();
   const businessOwnerId = state.businessOwnerId;
 
-  const { data: planInfo } = trpc.subscription.getMyPlan.useQuery(
+  const { data: planInfo, isLoading: planLoading } = trpc.subscription.getMyPlan.useQuery(
     { businessOwnerId: businessOwnerId! },
     { enabled: !!businessOwnerId, staleTime: 60_000 }
   );
@@ -29,8 +29,23 @@ export function usePlanLimitCheck() {
   /**
    * Check if adding one more item of the given resource is allowed.
    * Returns { allowed, currentLimit, currentCount, planKey, planName }
+   *
+   * IMPORTANT: If planInfo hasn't loaded yet (businessOwnerId is null or query
+   * is still in flight), we optimistically allow the action to avoid false
+   * upgrade-sheet blocks on first open.
    */
   function checkLimit(resource: LimitResource): PlanLimitInfo {
+    // If plan data hasn't loaded yet, allow the action optimistically
+    if (!businessOwnerId || (planLoading && !planInfo)) {
+      return {
+        allowed: true,
+        currentLimit: -1,
+        currentCount: 0,
+        planKey: "solo",
+        planName: "Solo",
+      };
+    }
+
     const planKey = planInfo?.planKey ?? "solo";
     const planName = planInfo?.displayName ?? "Solo";
     const limits = planInfo?.limits;
