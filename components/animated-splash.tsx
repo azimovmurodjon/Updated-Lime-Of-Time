@@ -147,12 +147,12 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
       ringPulse(ring2Scale, ring2Opacity, 700).start();
     }, 500);
 
-    // Progress bar fills over 1.8s (scaleX 0→1 with native driver)
+    // Progress bar fills over 1.0s (scaleX 0→1 with native driver)
     Animated.sequence([
-      Animated.delay(400),
+      Animated.delay(300),
       Animated.timing(progressScaleX, {
         toValue: 1,
-        duration: 1800,
+        duration: 1000,
         easing: Easing.bezier(0.25, 0.46, 0.45, 0.94),
         useNativeDriver: true,
       }),
@@ -160,7 +160,7 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
 
     // Title slides up
     Animated.sequence([
-      Animated.delay(550),
+      Animated.delay(400),
       Animated.parallel([
         Animated.timing(titleOpacity, { toValue: 1, duration: 500, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
         Animated.timing(titleTranslateY, { toValue: 0, duration: 500, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
@@ -169,7 +169,7 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
 
     // Tagline
     Animated.sequence([
-      Animated.delay(800),
+      Animated.delay(600),
       Animated.parallel([
         Animated.timing(taglineOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
         Animated.timing(taglineTranslateY, { toValue: 0, duration: 500, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
@@ -208,7 +208,7 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
         }
         onFinish();
       });
-    }, 2600);
+    }, 1500);
 
     return () => clearTimeout(timer);
   }, []);

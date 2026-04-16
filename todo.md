@@ -1165,3 +1165,8 @@
 
 ## Bugs (Apr 16 batch 12)
 - [x] Android: header hidden/cut off at top on all inner form/push screens (service-form, staff-form, location-form, schedule-settings, booking-policies, notification-settings, etc.) — fixed: replaced SafeAreaView in ScreenContainer with useSafeAreaInsets() directly, applying paddingTop/bottom/left/right as explicit style props; this ensures correct status-bar inset on Android regardless of presentation mode (fullScreenModal or card)
+
+## Features (Apr 16 batch 13)
+- [x] Payment method step in in-app new-booking flow — Zelle/Venmo/CashApp/Cash selection before confirmation
+- [x] Payment method step on client web booking page — same payment options before confirmation
+- [x] Reduce splash screen duration from ~2.6s to ~1.5s
