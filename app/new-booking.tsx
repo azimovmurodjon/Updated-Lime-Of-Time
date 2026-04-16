@@ -22,7 +22,7 @@ import { trpc } from "@/lib/trpc";
 import { useActiveLocation } from "@/hooks/use-active-location";
 import { useResponsive } from "@/hooks/use-responsive";
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3 | 4 | 5;
 
 type CartItem = {
   type: "service" | "product";
@@ -50,6 +50,7 @@ export default function NewBookingScreen() {
   const sendSmsMutation = trpc.twilio.sendSms.useMutation();
 
   const [step, setStep] = useState<Step>(1);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(params.date ?? formatDateStr(new Date()));
@@ -536,6 +537,8 @@ export default function NewBookingScreen() {
         discountPercent: appliedDiscount?.percentage,
         discountAmount: discountAmount > 0 ? discountAmount : undefined,
         discountName: appliedDiscount?.name,
+        paymentMethod: (selectedPaymentMethod as 'zelle' | 'venmo' | 'cashapp' | 'cash' | undefined) ?? undefined,
+        paymentStatus: selectedPaymentMethod === 'cash' ? 'pending_cash' : (selectedPaymentMethod ? 'unpaid' : undefined),
       };
       dispatch({ type: "ADD_APPOINTMENT", payload: appointment });
       syncToDb({ type: "ADD_APPOINTMENT", payload: appointment });
@@ -601,7 +604,7 @@ export default function NewBookingScreen() {
     return formatTime(minutesToTime(timeToMinutes(time) + totalDuration));
   };
 
-  const TOTAL_STEPS = 4;
+  const TOTAL_STEPS = 5;
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} tabletMaxWidth={720}>
@@ -1469,9 +1472,12 @@ export default function NewBookingScreen() {
             )}
           </View>
 
-          {/* Book Button */}
+          {/* Continue to Payment Button */}
           <Pressable
-            onPress={handleBook}
+            onPress={() => {
+              if (!selectedTime || (activeLocations.length > 0 && !selectedLocationId)) return;
+              setStep(5);
+            }}
             style={({ pressed }) => [
               styles.bookButton,
               {
@@ -1481,8 +1487,81 @@ export default function NewBookingScreen() {
             ]}
             disabled={!selectedTime || (activeLocations.length > 0 && !selectedLocationId)}
           >
+            <Text className="text-base font-semibold text-white">Continue to Payment →</Text>
+          </Pressable>
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      )}
+
+      {/* ── Step 5: Payment Method ── */}
+      {step === 5 && (
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}>
+          <View className="flex-row items-center justify-between mb-3">
+            <Pressable onPress={() => setStep(4)} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+              <Text className="text-sm" style={{ color: colors.primary }}>← Back</Text>
+            </Pressable>
+            <Text className="text-base font-semibold text-foreground">Payment Method</Text>
+            <View style={{ width: 40 }} />
+          </View>
+
+          {/* Amount Due */}
+          <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
+            <Text className="text-xs font-medium text-muted mb-1">Amount Due</Text>
+            <Text className="text-2xl font-bold" style={{ color: colors.primary }}>${totalPrice.toFixed(2)}</Text>
+            {selectedService && <Text className="text-xs text-muted mt-1">{selectedService.name}{cart.length > 0 ? ` + ${cart.length} extra item${cart.length > 1 ? 's' : ''}` : ''}</Text>}
+          </View>
+
+          {/* Payment Options */}
+          <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
+            <Text className="text-xs font-medium text-muted mb-3">How will the client pay?</Text>
+            {(() => {
+              const pm = state.settings;
+              const opts: { id: string; label: string; sub: string; color: string }[] = [];
+              if (pm.zelleHandle) opts.push({ id: 'zelle', label: '💜 Zelle', sub: pm.zelleHandle, color: '#6d28d9' });
+              if (pm.cashAppHandle) opts.push({ id: 'cashapp', label: '💚 Cash App', sub: pm.cashAppHandle.startsWith('$') ? pm.cashAppHandle : '$' + pm.cashAppHandle, color: '#00d632' });
+              if (pm.venmoHandle) opts.push({ id: 'venmo', label: '💙 Venmo', sub: pm.venmoHandle.startsWith('@') ? pm.venmoHandle : '@' + pm.venmoHandle, color: '#3d95ce' });
+              opts.push({ id: 'cash', label: '💵 Cash', sub: 'Collect in person', color: '#888' });
+              return opts.map((opt) => (
+                <Pressable
+                  key={opt.id}
+                  onPress={() => setSelectedPaymentMethod(opt.id)}
+                  style={[{
+                    flexDirection: 'row', alignItems: 'center', gap: 12,
+                    padding: 14, borderRadius: 14, marginBottom: 8,
+                    borderWidth: 2,
+                    borderColor: selectedPaymentMethod === opt.id ? opt.color : colors.border,
+                    backgroundColor: selectedPaymentMethod === opt.id ? opt.color + '18' : colors.background,
+                  }]}
+                >
+                  <Text style={{ fontSize: 22 }}>{opt.label.split(' ')[0]}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontWeight: '600', fontSize: 14, color: colors.foreground }}>{opt.label.slice(opt.label.indexOf(' ') + 1)}</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{opt.sub}</Text>
+                  </View>
+                  {selectedPaymentMethod === opt.id && (
+                    <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: opt.color, alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>✓</Text>
+                    </View>
+                  )}
+                </Pressable>
+              ));
+            })()}
+          </View>
+
+          {/* Confirm Booking Button */}
+          <Pressable
+            onPress={() => {
+              if (!selectedPaymentMethod) {
+                Alert.alert('Payment Method', 'Please select a payment method to continue.');
+                return;
+              }
+              handleBook();
+            }}
+            style={({ pressed }) => [styles.bookButton, { backgroundColor: selectedPaymentMethod ? colors.primary : colors.muted, opacity: pressed ? 0.8 : 1 }]}
+          >
             <Text className="text-base font-semibold text-white">
-              {recurring !== "none" ? `Book ${recurring === "weekly" ? 8 : recurring === "biweekly" ? 6 : 4} Appointments` : "Confirm Booking"}
+              {recurring !== 'none' ? `Book ${recurring === 'weekly' ? 8 : recurring === 'biweekly' ? 6 : 4} Appointments` : 'Confirm Booking'}
             </Text>
           </Pressable>
 

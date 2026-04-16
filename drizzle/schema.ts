@@ -199,6 +199,14 @@ export const appointments = mysqlTable("appointments", {
   locationId: varchar("locationId", { length: 64 }),
   /** Reason provided when appointment was cancelled */
   cancellationReason: varchar("cancellationReason", { length: 255 }),
+  /** Payment method chosen by client: zelle | venmo | cashapp | cash | unpaid */
+  paymentMethod: mysqlEnum("paymentMethod", ["zelle", "venmo", "cashapp", "cash", "unpaid"]).default("unpaid"),
+  /** Payment status: unpaid | pending_cash | paid */
+  paymentStatus: mysqlEnum("paymentStatus", ["unpaid", "pending_cash", "paid"]).default("unpaid"),
+  /** Confirmation number provided by business owner after receiving digital payment */
+  paymentConfirmationNumber: varchar("paymentConfirmationNumber", { length: 64 }),
+  /** Timestamp when payment was confirmed */
+  paymentConfirmedAt: timestamp("paymentConfirmedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

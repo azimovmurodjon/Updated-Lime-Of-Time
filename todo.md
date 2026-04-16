@@ -1125,3 +1125,13 @@
 ## Features (Apr 16 batch 4)
 - [x] Staff member profile photo — image picker in staff-form, avatar displayed in staff list and detail
 - [x] Timeline auto-scroll to current hour on open (calendar and staff-calendar)
+
+## Features (Apr 16 batch 5)
+- [ ] Payment step on client web booking — Zelle/Venmo/CashApp/Cash options before confirmation
+- [ ] Payment step in in-app new-booking flow — same payment methods
+- [ ] Payment data model — method, status (paid/unpaid/pending), confirmation number on Appointment
+- [ ] Business owner marks payment received with confirmation number (digital) or confirms cash
+- [ ] Payment status shown on appointment detail, calendar cards, and SMS messages
+- [ ] Staff photo shown in appointment detail and SMS confirmation
+- [ ] Timeline jump-to-now floating "Now" pill button on calendar and staff-calendar
+- [ ] Staff availability dot — green (working today) / grey (off) on staff list

@@ -51,6 +51,16 @@ export default function StaffScreen() {
     return names.length > 0 ? names.join(", ") : null;
   };
 
+  // Returns true if the staff member is scheduled to work today
+  const isWorkingToday = (member: StaffMember): boolean => {
+    if (!member.active) return false;
+    if (!member.workingHours || Object.keys(member.workingHours).length === 0) return true; // uses business hours
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const todayKey = days[new Date().getDay()];
+    const todayHours = (member.workingHours as any)[todayKey];
+    return todayHours?.enabled === true;
+  };
+
   // Returns "[Business Name] · [Location Name]" subtitle for a staff member
   const getLocationSubtitle = (member: StaffMember): string => {
     const bizName = state.settings.businessName || "My Business";
@@ -115,15 +125,24 @@ export default function StaffScreen() {
     >
       <View style={styles.cardHeader}>
         <View style={styles.cardLeft}>
-          {item.photoUri ? (
-            <Image source={{ uri: item.photoUri }} style={[styles.avatar, { borderWidth: 2, borderColor: item.color || colors.primary }]} />
-          ) : (
-            <View style={[styles.avatar, { backgroundColor: item.color || colors.primary }]}>
-              <Text style={styles.avatarText}>
-                {item.name.charAt(0).toUpperCase()}
-              </Text>
-            </View>
-          )}
+          <View style={{ position: 'relative' }}>
+            {item.photoUri ? (
+              <Image source={{ uri: item.photoUri }} style={[styles.avatar, { borderWidth: 2, borderColor: item.color || colors.primary }]} />
+            ) : (
+              <View style={[styles.avatar, { backgroundColor: item.color || colors.primary }]}>
+                <Text style={styles.avatarText}>
+                  {item.name.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
+            {/* Availability dot: green = working today, grey = off */}
+            <View style={{
+              position: 'absolute', bottom: 1, right: 1,
+              width: 11, height: 11, borderRadius: 6,
+              backgroundColor: isWorkingToday(item) ? colors.success : colors.muted,
+              borderWidth: 2, borderColor: colors.surface,
+            }} />
+          </View>
         </View>
         <View style={styles.cardInfo}>
             <Text

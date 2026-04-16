@@ -608,7 +608,7 @@ export function registerPublicRoutes(app: Express) {
         return;
       }
 
-      const { clientName, clientPhone, clientEmail, serviceLocalId, date, time, duration, notes, giftCode, totalPrice, extraItems, giftApplied, giftUsedAmount, discountName, discountPercentage, discountAmount, subtotal, locationId } = req.body;
+      const { clientName, clientPhone, clientEmail, serviceLocalId, date, time, duration, notes, giftCode, totalPrice, extraItems, giftApplied, giftUsedAmount, discountName, discountPercentage, discountAmount, subtotal, locationId, paymentMethod } = req.body;
 
       if (!clientName || !serviceLocalId || !date || !time) {
         res.status(400).json({ error: "Missing required fields: clientName, serviceLocalId, date, time" });
@@ -780,6 +780,8 @@ export function registerPublicRoutes(app: Express) {
         giftApplied: !!giftApplied,
         giftUsedAmount: giftUsedAmount ? String(parseFloat(String(giftUsedAmount))) : null,
         locationId: locationId || null,
+        paymentMethod: paymentMethod || null,
+        paymentStatus: paymentMethod === 'cash' ? 'pending_cash' : (paymentMethod ? 'unpaid' : null),
       });
 
       // Atomically deduct from gift card balance (prevents double-spend race conditions)
@@ -2986,6 +2988,10 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       </div>
       <div class="step-item" id="step-item-4">
         <div class="step-dot" id="dot-4">5</div>
+        <span class="step-label">Payment</span>
+      </div>
+      <div class="step-item" id="step-item-5">
+        <div class="step-dot" id="dot-5">6</div>
         <span class="step-label">Confirm</span>
       </div>
     </div>
@@ -3128,7 +3134,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       <div id="cartTotal" class="cart-total" style="display:none"></div>
       <div style="display:flex;gap:8px;margin-top:16px;">
         <button class="btn btn-secondary" onclick="goToStep(2)" style="flex:1">Back</button>
-        <button class="btn btn-primary" onclick="goToStep(4)" style="flex:1">Continue to Confirm</button>
+        <button class="btn btn-primary" onclick="goToStep(4)" style="flex:1">Continue to Payment</button>
       </div>
     </div>
     <!-- Item detail bottom sheet (shared for services + products) -->
@@ -3139,10 +3145,23 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       </div>
     </div>
 
-    <!-- Step 4: Confirm -->
+    <!-- Step 4: Payment -->
     <div id="step-4" class="card" style="display:none">
+      <h2>Payment Method</h2>
+      <p style="font-size:13px;color:#888;margin-bottom:16px;">Choose how you'd like to pay. You can also pay in person with cash.</p>
+      <div id="paymentMethodList"></div>
+      <div id="paymentMethodError" style="display:none;color:#ef4444;font-size:13px;margin-top:8px;">Please select a payment method to continue.</div>
+      <div style="display:flex;gap:8px;margin-top:20px;">
+        <button class="btn btn-secondary" onclick="goToStep(3)" style="flex:1">Back</button>
+        <button class="btn btn-primary" onclick="goToPaymentConfirm()" style="flex:1">Continue to Confirm</button>
+      </div>
+    </div>
+
+    <!-- Step 5: Confirm -->
+    <div id="step-5" class="card" style="display:none">
       <h2>Confirm Booking</h2>
       <div id="confirmDetails"></div>
+      <div id="selectedPaymentSummary" style="margin:12px 0;"></div>
       <div class="input-group" style="margin-top:12px;">
         <label>Notes (optional)</label>
         <textarea id="bookingNotes" placeholder="Any special requests..."></textarea>
@@ -3156,13 +3175,13 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       </div>
       <div id="bookError" class="error-msg" style="display:none"></div>
       <div style="display:flex;gap:8px;margin-top:12px;">
-        <button class="btn btn-secondary" onclick="goToStep(2)" style="flex:1">Back</button>
+        <button class="btn btn-secondary" onclick="goToStep(4)" style="flex:1">Back</button>
         <button class="btn btn-primary" onclick="submitBooking()" id="btnSubmit" style="flex:1">Confirm Booking</button>
       </div>
     </div>
 
-    <!-- Step 5: Success -->
-    <div id="step-5" class="card" style="display:none;text-align:center;">
+    <!-- Step 6: Success -->
+    <div id="step-6" class="card" style="display:none;text-align:center;">
       <div class="success-icon">✓</div>
       <h2 style="font-size:20px;margin-bottom:8px;">Booking Submitted!</h2>
       <p style="color:#666;font-size:14px;margin-bottom:16px;">Your appointment request has been sent to ${escHtml(owner.businessName)}. They will confirm your booking shortly.</p>
@@ -3724,6 +3743,8 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       if (el) el.classList.add("selected");
     }
 
+    var selectedPaymentMethod = null; // 'zelle' | 'venmo' | 'cashapp' | 'cash'
+
     function goToStep(step) {
       if (step === 1 && currentStep === 0) {
         const name = document.getElementById("clientName").value.trim();
@@ -3732,14 +3753,14 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       if (step === 2 && !selectedService) { alert("Please select a service"); return; }
       if (step === 3 && (!selectedDate || !selectedTime)) { alert("Please select a date and time"); return; }
 
-      for (let i = 0; i <= 5; i++) {
+      for (let i = 0; i <= 6; i++) {
         const el = document.getElementById("step-" + i);
         if (el) el.style.display = "none";
       }
       document.getElementById("step-" + step).style.display = "block";
       currentStep = step;
 
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 6; i++) {
         const dot = document.getElementById("dot-" + i);
         if (dot) dot.className = "step-dot" + (i < step ? " done" : i === step ? " active" : "");
         const item = document.getElementById("step-item-" + i);
@@ -3748,9 +3769,47 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
 
       if (step === 2) renderCalendar();
       if (step === 3) initAddMoreStep();
-      if (step === 4) renderConfirmation();
+      if (step === 4) renderPaymentStep();
+      if (step === 5) renderConfirmation();
 
       window.scrollTo(0, 0);
+    }
+
+    function renderPaymentStep() {
+      const methods = PAYMENT_METHODS;
+      const chargedPrice = getChargedPrice();
+      const amountStr = chargedPrice > 0 ? '$' + chargedPrice.toFixed(2) : 'Free';
+      let html = '<div style="margin-bottom:8px;font-size:13px;color:#888;">Amount due: <strong style="color:var(--text);">' + amountStr + '</strong></div>';
+      html += '<div style="display:flex;flex-direction:column;gap:10px;">';
+      const opts = [];
+      if (methods.zelle) opts.push({ id: 'zelle', label: '💜 Zelle', sub: methods.zelle, color: '#6d28d9' });
+      if (methods.cashApp) opts.push({ id: 'cashapp', label: '💚 Cash App', sub: methods.cashApp.startsWith('$') ? methods.cashApp : '$' + methods.cashApp, color: '#00d632' });
+      if (methods.venmo) opts.push({ id: 'venmo', label: '💙 Venmo', sub: methods.venmo.startsWith('@') ? methods.venmo : '@' + methods.venmo, color: '#3d95ce' });
+      opts.push({ id: 'cash', label: '💵 Cash', sub: 'Pay in person at the time of your appointment', color: '#888' });
+      opts.forEach(function(opt) {
+        const isSelected = selectedPaymentMethod === opt.id;
+        html += '<div onclick="selectPaymentMethod(\'' + opt.id + '\')" style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;border:2px solid ' + (isSelected ? opt.color : 'var(--border-input)') + ';background:' + (isSelected ? opt.color + '12' : 'var(--bg-card)') + ';cursor:pointer;transition:all .15s;">';
+        html += '<div style="font-size:22px;">' + opt.label.split(' ')[0] + '</div>';
+        html += '<div style="flex:1;"><div style="font-weight:600;font-size:14px;color:var(--text);">' + opt.label.slice(opt.label.indexOf(' ')+1) + '</div><div style="font-size:12px;color:#888;margin-top:2px;">' + opt.sub + '</div></div>';
+        if (isSelected) html += '<div style="width:20px;height:20px;border-radius:50%;background:' + opt.color + ';display:flex;align-items:center;justify-content:center;"><span style="color:#fff;font-size:12px;">✓</span></div>';
+        html += '</div>';
+      });
+      html += '</div>';
+      document.getElementById('paymentMethodList').innerHTML = html;
+      document.getElementById('paymentMethodError').style.display = 'none';
+    }
+
+    function selectPaymentMethod(id) {
+      selectedPaymentMethod = id;
+      renderPaymentStep();
+    }
+
+    function goToPaymentConfirm() {
+      if (!selectedPaymentMethod) {
+        document.getElementById('paymentMethodError').style.display = 'block';
+        return;
+      }
+      goToStep(5);
     }
 
     // ── Monthly Calendar ──
@@ -4575,6 +4634,13 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         breakdownHtml +
         '<div class="confirm-row"><span class="confirm-label">Name</span><span class="confirm-value">' + esc(document.getElementById("clientName").value) + '</span></div>' +
         cancelHtml;
+
+      // Show selected payment method summary
+      const pmLabels = { zelle: '\ud83d\udc9c Zelle', cashapp: '\ud83d\udc9a Cash App', venmo: '\ud83d\udc99 Venmo', cash: '\ud83d\udcb5 Cash (pay in person)' };
+      const pmEl = document.getElementById('selectedPaymentSummary');
+      if (pmEl && selectedPaymentMethod) {
+        pmEl.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;font-size:13px;"><span>\ud83d\udcb3</span><span>Payment: <strong>' + (pmLabels[selectedPaymentMethod] || selectedPaymentMethod) + '</strong></span></div>';
+      }
     }
 
     async function submitBooking() {
@@ -4626,6 +4692,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
             discountAmount: getDiscountAmount(),
             subtotal: getTotalPrice(),
             locationId: selectedLocation || null,
+            paymentMethod: selectedPaymentMethod || 'cash',
           }),
         });
         const data = await res.json();
@@ -4637,9 +4704,9 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
           return;
         }
         // Show success with detailed receipt
-        for (let i = 0; i <= 4; i++) document.getElementById("step-" + i).style.display = "none";
+        for (let i = 0; i <= 6; i++) { const el = document.getElementById("step-" + i); if (el) el.style.display = "none"; }
         document.getElementById("step-indicator").style.display = "none";
-        document.getElementById("step-5").style.display = "block";
+        document.getElementById("step-6").style.display = "block";
         renderSuccessReceipt();
         renderPaymentSection();
         // Show manage link

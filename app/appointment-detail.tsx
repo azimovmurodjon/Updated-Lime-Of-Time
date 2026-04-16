@@ -1,4 +1,4 @@
-import { Text, View, Pressable, StyleSheet, ScrollView, Alert, Platform, Linking, Modal, TextInput, TouchableOpacity } from "react-native";
+import { Text, View, Pressable, StyleSheet, ScrollView, Alert, Platform, Linking, Modal, TextInput, TouchableOpacity, Image } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatTime, formatDateDisplay } from "@/lib/store";
@@ -145,6 +145,26 @@ export default function AppointmentDetailScreen() {
   const [cancelReasonModal, setCancelReasonModal] = useState(false);
   const [selectedReason, setSelectedReason] = useState("");
   const [customReason, setCustomReason] = useState("");
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentConfirmInput, setPaymentConfirmInput] = useState("");
+
+  const handleMarkPaid = (confirmationNumber?: string) => {
+    const updated = {
+      ...appointment,
+      paymentStatus: 'paid' as const,
+      paymentConfirmationNumber: confirmationNumber || undefined,
+    };
+    dispatch({ type: "UPDATE_APPOINTMENT", payload: updated });
+    syncToDb({ type: "UPDATE_APPOINTMENT", payload: updated });
+    setShowPaymentModal(false);
+    setPaymentConfirmInput("");
+    // Send confirmation SMS to client if phone available
+    if (client?.phone && confirmationNumber) {
+      const methodLabel = appointment.paymentMethod === 'zelle' ? 'Zelle' : appointment.paymentMethod === 'cashapp' ? 'Cash App' : appointment.paymentMethod === 'venmo' ? 'Venmo' : 'Cash';
+      const msg = `Hi ${client.name}, your payment of $${appointment.totalPrice?.toFixed(2) ?? '0.00'} via ${methodLabel} has been received. Confirmation #: ${confirmationNumber}. Thank you! - ${biz.businessName}`;
+      openSms(client.phone, msg);
+    }
+  };
 
   const CANCEL_REASONS = [
     "Client requested",
@@ -443,6 +463,41 @@ export default function AppointmentDetailScreen() {
           );
         })()}
 
+        {/* Payment Status */}
+        {appointment.paymentMethod && (
+          <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Text className="text-xs text-muted">Payment</Text>
+              <View style={{
+                paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
+                backgroundColor: appointment.paymentStatus === 'paid' ? colors.success + '20' : appointment.paymentStatus === 'pending_cash' ? '#FF980020' : colors.warning + '20',
+              }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: appointment.paymentStatus === 'paid' ? colors.success : appointment.paymentStatus === 'pending_cash' ? '#FF9800' : colors.warning }}>
+                  {appointment.paymentStatus === 'paid' ? '✓ Paid' : appointment.paymentStatus === 'pending_cash' ? 'Cash — Pending' : 'Unpaid'}
+                </Text>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: appointment.paymentStatus !== 'paid' ? 10 : 0 }}>
+              <Text style={{ fontSize: 14, color: colors.foreground }}>
+                {appointment.paymentMethod === 'zelle' ? '💜 Zelle' : appointment.paymentMethod === 'cashapp' ? '💚 Cash App' : appointment.paymentMethod === 'venmo' ? '💙 Venmo' : '💵 Cash'}
+              </Text>
+              {appointment.paymentConfirmationNumber && (
+                <Text style={{ fontSize: 12, color: colors.muted }}>Conf# {appointment.paymentConfirmationNumber}</Text>
+              )}
+            </View>
+            {appointment.paymentStatus !== 'paid' && (
+              <Pressable
+                onPress={() => setShowPaymentModal(true)}
+                style={({ pressed }) => [{ backgroundColor: colors.success, borderRadius: 12, paddingVertical: 10, alignItems: 'center', opacity: pressed ? 0.8 : 1 }]}
+              >
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>
+                  {appointment.paymentMethod === 'cash' ? 'Confirm Cash Received' : 'Mark as Paid'}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+
         {/* Status */}
         <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
           <Text className="text-xs text-muted mb-1">Status</Text>
@@ -515,12 +570,19 @@ export default function AppointmentDetailScreen() {
             <DetailRow icon="phone.fill" label="Phone" value={formatPhoneNumber(client.phone)} colors={colors} />
           ) : null}
           {assignedStaff ? (
-            <DetailRow
-              icon="person.fill"
-              label="Staff"
-              value={assignedStaff.name + (assignedStaff.role ? ` · ${assignedStaff.role}` : "")}
-              colors={colors}
-            />
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border + '40' }}>
+              {assignedStaff.photoUri ? (
+                <Image source={{ uri: assignedStaff.photoUri }} style={{ width: 36, height: 36, borderRadius: 18, marginRight: 10 }} />
+              ) : (
+                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: assignedStaff.color || colors.primary, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{assignedStaff.name.charAt(0).toUpperCase()}</Text>
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 1 }}>Staff</Text>
+                <Text style={{ fontSize: 15, color: colors.foreground, fontWeight: '600' }}>{assignedStaff.name}{assignedStaff.role ? ` · ${assignedStaff.role}` : ''}</Text>
+              </View>
+            </View>
           ) : null}
           {assignedLocation ? (
             <DetailRow
@@ -647,6 +709,48 @@ export default function AppointmentDetailScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Payment Confirmation Modal */}
+      <Modal visible={showPaymentModal} transparent animationType="slide">
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' }}>
+          <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: colors.foreground, marginBottom: 4 }}>
+              {appointment.paymentMethod === 'cash' ? 'Confirm Cash Received' : 'Mark as Paid'}
+            </Text>
+            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 16 }}>
+              {appointment.paymentMethod === 'cash'
+                ? `Confirm you received $${appointment.totalPrice?.toFixed(2) ?? '0.00'} in cash from ${client?.name ?? 'client'}.`
+                : `Enter the confirmation number from ${appointment.paymentMethod === 'zelle' ? 'Zelle' : appointment.paymentMethod === 'cashapp' ? 'Cash App' : 'Venmo'} to complete payment.`}
+            </Text>
+            {appointment.paymentMethod !== 'cash' && (
+              <TextInput
+                value={paymentConfirmInput}
+                onChangeText={setPaymentConfirmInput}
+                placeholder="Confirmation number (optional)"
+                placeholderTextColor={colors.muted}
+                style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, fontSize: 14, color: colors.foreground, backgroundColor: colors.background, marginBottom: 16 }}
+                returnKeyType="done"
+              />
+            )}
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity
+                onPress={() => { setShowPaymentModal(false); setPaymentConfirmInput(''); }}
+                style={{ flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, alignItems: 'center' }}
+              >
+                <Text style={{ fontSize: 15, fontWeight: '600', color: colors.muted }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleMarkPaid(paymentConfirmInput.trim() || undefined)}
+                style={{ flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: colors.success, alignItems: 'center' }}
+              >
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFF' }}>
+                  {appointment.paymentMethod === 'cash' ? 'Confirm Received' : 'Mark Paid'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Cancellation Reason Modal */}
       <Modal visible={cancelReasonModal} transparent animationType="slide">

@@ -1224,7 +1224,15 @@ export default function CalendarScreen() {
 
           {/* Timeline */}
           <View style={{ paddingHorizontal: hp }}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Timeline</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>Timeline</Text>
+              <Pressable
+                onPress={() => scrollTimelineToNow(dayTimelineRef)}
+                style={({ pressed }) => [{ backgroundColor: colors.primary, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5, opacity: pressed ? 0.7 : 1 }]}
+              >
+                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Now</Text>
+              </Pressable>
+            </View>
             <ScrollView
               ref={dayTimelineRef}
               style={{ height: 480, borderRadius: 14 }}
@@ -1351,7 +1359,15 @@ export default function CalendarScreen() {
           )}
 
           {/* Timeline */}
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Timeline</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>Timeline</Text>
+            <Pressable
+              onPress={() => scrollTimelineToNow(weekTimelineRef)}
+              style={({ pressed }) => [{ backgroundColor: colors.primary, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5, opacity: pressed ? 0.7 : 1 }]}
+            >
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Now</Text>
+            </Pressable>
+          </View>
           <ScrollView
             ref={weekTimelineRef}
             style={{ height: 480, borderRadius: 14 }}

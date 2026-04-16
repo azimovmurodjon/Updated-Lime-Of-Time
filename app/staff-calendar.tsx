@@ -529,9 +529,22 @@ export default function StaffCalendarScreen() {
             const nowPillLabel = liveNow.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }).replace(" ", "\u202f");
             return (
               <View style={{ paddingHorizontal: hp, marginTop: 8 }}>
-                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-                  {formatDateDisplay(selectedDate)} — Timeline
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>
+                    {formatDateDisplay(selectedDate)} — Timeline
+                  </Text>
+                  <Pressable
+                    onPress={() => {
+                      if (!staffTimelineRef.current) return;
+                      const now = new Date();
+                      const targetY = Math.max(0, (now.getHours() - 1) * STAFF_HOUR_HEIGHT);
+                      staffTimelineRef.current.scrollTo({ y: targetY, animated: true });
+                    }}
+                    style={({ pressed }) => [{ backgroundColor: colors.primary, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5, opacity: pressed ? 0.7 : 1 }]}
+                  >
+                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Now</Text>
+                  </Pressable>
+                </View>
                 <ScrollView ref={staffTimelineRef} style={{ height: 480 }} showsVerticalScrollIndicator={false} nestedScrollEnabled>
                 <View style={[styles.timelineContainer, { borderColor: colors.border, position: "relative" }]}>
                   {/* Hour grid rows */}
