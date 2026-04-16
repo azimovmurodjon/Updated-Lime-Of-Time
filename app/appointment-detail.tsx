@@ -158,11 +158,32 @@ export default function AppointmentDetailScreen() {
     syncToDb({ type: "UPDATE_APPOINTMENT", payload: updated });
     setShowPaymentModal(false);
     setPaymentConfirmInput("");
-    // Send confirmation SMS to client if phone available
-    if (client?.phone && confirmationNumber) {
-      const methodLabel = appointment.paymentMethod === 'zelle' ? 'Zelle' : appointment.paymentMethod === 'cashapp' ? 'Cash App' : appointment.paymentMethod === 'venmo' ? 'Venmo' : 'Cash';
-      const msg = `Hi ${client.name}, your payment of $${appointment.totalPrice?.toFixed(2) ?? '0.00'} via ${methodLabel} has been received. Confirmation #: ${confirmationNumber}. Thank you! - ${biz.businessName}`;
-      openSms(client.phone, msg);
+    // Send payment receipt SMS to client
+    if (client?.phone) {
+      const methodLabel =
+        appointment.paymentMethod === 'zelle' ? 'Zelle' :
+        appointment.paymentMethod === 'cashapp' ? 'Cash App' :
+        appointment.paymentMethod === 'venmo' ? 'Venmo' : 'Cash';
+      const confLine = confirmationNumber ? `\nConfirmation #: ${confirmationNumber}` : '';
+      const serviceName = service ? getServiceDisplayName(service) : 'your appointment';
+      const locLine = assignedLocation?.name ? `\n\uD83D\uDCCD ${assignedLocation.name}` : '';
+      const msg = `Hi ${client.name}, your payment of $${(appointment.totalPrice ?? 0).toFixed(2)} via ${methodLabel} for ${serviceName} on ${formatDateDisplay(appointment.date)} at ${appointment.time} has been received.${confLine}${locLine}\n\nThank you! — ${biz.businessName}${LIME_OF_TIME_FOOTER}`;
+      // Try server-side SMS first (subscription-gated), fall back to native SMS
+      const rawPhone = stripPhoneFormat(client.phone);
+      const smsEnabled = state.settings.twilioEnabled;
+      if (smsEnabled && state.businessOwnerId) {
+        const toNumber = rawPhone.startsWith('+') ? rawPhone : `+1${rawPhone.replace(/\D/g, '')}`;
+        sendSmsMutation
+          .mutateAsync({
+            businessOwnerId: state.businessOwnerId,
+            toNumber,
+            body: msg,
+            smsAction: 'confirmation',
+          })
+          .catch(() => openSms(client.phone!, msg));
+      } else {
+        openSms(client.phone, msg);
+      }
     }
   };
 
