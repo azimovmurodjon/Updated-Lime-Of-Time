@@ -2025,123 +2025,187 @@ function analyticsPage(data: {
       </div>
     </div>
 
-    <!-- Revenue KPI Row -->
-    <div class="stats-grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr));">
-      <div class="stat-card" style="border-left:4px solid #059669;">
-        <div class="stat-icon" style="color:#059669;">$</div>
-        <div class="stat-label">MRR</div>
-        <div class="stat-value" style="color:#059669;">\$${data.mrr.toFixed(2)}</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Monthly Recurring Revenue</div>
+    <!-- ═══════════════════════════════════════════════════════════════════
+         SECTION 1 — DEVELOPER / PLATFORM REVENUE
+         This is YOUR income as the developer selling this SaaS to businesses.
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <div style="margin-bottom:8px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:14px 18px;background:linear-gradient(135deg,#05966915,#0a7ea415);border-radius:12px;border:1px solid #05966930;">
+        <div style="width:4px;height-36px;min-height:36px;background:linear-gradient(180deg,#059669,#0a7ea4);border-radius:2px;"></div>
+        <div>
+          <div style="font-size:15px;font-weight:700;color:var(--text);">&#128200; Platform Revenue &mdash; Your SaaS Income</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Money you earn from businesses subscribing to Lime Of Time</div>
+        </div>
+        <div style="margin-left:auto;background:#05966920;color:#059669;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;letter-spacing:0.05em;">DEVELOPER VIEW</div>
       </div>
-      <div class="stat-card" style="border-left:4px solid #0a7ea4;">
-        <div class="stat-icon" style="color:#0a7ea4;">&#128200;</div>
-        <div class="stat-label">ARR</div>
-        <div class="stat-value" style="color:#0a7ea4;">\$${data.arr.toFixed(2)}</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Annual Run Rate</div>
-      </div>
-      <div class="stat-card" style="border-left:4px solid #7c3aed;">
-        <div class="stat-icon" style="color:#7c3aed;">&#128179;</div>
-        <div class="stat-label">Appt Revenue</div>
-        <div class="stat-value" style="color:#7c3aed;">\$${data.totalApptRevenue.toFixed(2)}</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">From completed bookings</div>
-      </div>
-      <div class="stat-card" style="border-left:4px solid ${data.churnRate > 10 ? '#ef4444' : '#f59e0b'};">
-        <div class="stat-icon" style="color:${data.churnRate > 10 ? '#ef4444' : '#f59e0b'};">&#128197;</div>
-        <div class="stat-label">Churn Rate</div>
-        <div class="stat-value" style="color:${data.churnRate > 10 ? '#ef4444' : '#f59e0b'};">${data.churnRate}%</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${data.recentlyChurned} expired last 30d</div>
-      </div>
-      <div class="stat-card" style="border-left:4px solid #6b7280;">
-        <div class="stat-icon">&#127970;</div>
-        <div class="stat-label">Total Businesses</div>
-        <div class="stat-value">${data.totalBiz}</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${data.activeBiz} active / trial</div>
-      </div>
-      <div class="stat-card" style="border-left:4px solid #f59e0b;">
-        <div class="stat-icon" style="color:#f59e0b;">&#11088;</div>
-        <div class="stat-label">Avg Rating</div>
-        <div class="stat-value" style="color:#f59e0b;">${Number(data.avgRating).toFixed(1)}</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Across all reviews</div>
-      </div>
-    </div>
 
-    <!-- Charts Row -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+      <div class="stats-grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr));">
+        <div class="stat-card" style="border-left:4px solid #059669;">
+          <div class="stat-icon" style="color:#059669;">$</div>
+          <div class="stat-label">MRR</div>
+          <div class="stat-value" style="color:#059669;">\$${data.mrr.toFixed(2)}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Monthly Recurring Revenue</div>
+        </div>
+        <div class="stat-card" style="border-left:4px solid #0a7ea4;">
+          <div class="stat-icon" style="color:#0a7ea4;">&#128200;</div>
+          <div class="stat-label">ARR</div>
+          <div class="stat-value" style="color:#0a7ea4;">\$${data.arr.toFixed(2)}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Annual Run Rate</div>
+        </div>
+        <div class="stat-card" style="border-left:4px solid ${data.churnRate > 10 ? '#ef4444' : '#f59e0b'};">
+          <div class="stat-icon" style="color:${data.churnRate > 10 ? '#ef4444' : '#f59e0b'};">&#128197;</div>
+          <div class="stat-label">Churn Rate</div>
+          <div class="stat-value" style="color:${data.churnRate > 10 ? '#ef4444' : '#f59e0b'};">${data.churnRate}%</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${data.recentlyChurned} expired last 30d</div>
+        </div>
+        <div class="stat-card" style="border-left:4px solid #6b7280;">
+          <div class="stat-icon">&#127970;</div>
+          <div class="stat-label">Total Businesses</div>
+          <div class="stat-value">${data.totalBiz}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${data.activeBiz} active / trial</div>
+        </div>
+      </div>
+
+      <!-- Plan Distribution (SaaS) -->
+      <div class="card" style="margin-top:16px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+          <span style="font-size:18px;">&#127381;</span>
+          <h3 style="margin:0;">Subscription Plan Distribution</h3>
+          <span style="font-size:12px;color:var(--text-muted);margin-left:4px;">How many businesses are on each plan</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;">
+          ${Object.entries(data.planDist).map(([plan, count]) => {
+            const pct = Math.round((count / totalPlanBiz) * 100);
+            const col = planColors[plan] || '#6b7280';
+            return `
+              <div style="background:var(--bg-hover);border-radius:10px;padding:14px 16px;border:1px solid ${col}30;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                  <span style="font-size:14px;font-weight:700;color:${col};">${plan.charAt(0).toUpperCase() + plan.slice(1)}</span>
+                  <span style="font-size:22px;font-weight:800;color:${col};">${count}</span>
+                </div>
+                <div style="height:6px;background:var(--bg);border-radius:3px;overflow:hidden;margin-bottom:6px;">
+                  <div style="height:100%;width:${pct}%;background:${col};border-radius:3px;transition:width 0.4s;"></div>
+                </div>
+                <div style="font-size:11px;color:var(--text-muted);">${pct}% of all businesses</div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+
       <!-- New Signups Per Week -->
-      <div class="card">
-        <h3 style="margin-bottom:16px;">New Signups Per Week</h3>
+      <div class="card" style="margin-top:16px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+          <span style="font-size:18px;">&#128101;</span>
+          <h3 style="margin:0;">New Business Signups Per Week</h3>
+        </div>
         ${data.signupsByWeek.length === 0
-          ? '<div class="empty-state"><p>No data yet</p></div>'
+          ? '<div class="empty-state"><p>No signups yet</p></div>'
           : data.signupsByWeek.map((w) => `
             <div class="chart-bar">
               <div class="chart-bar-label" style="min-width:80px;font-size:11px;">${w.week}</div>
-              <div class="chart-bar-fill" style="width:${Math.max((w.count / maxWeek) * 100, w.count > 0 ? 8 : 2)}%;background:#0a7ea4;">
+              <div class="chart-bar-fill" style="width:${Math.max((w.count / maxWeek) * 100, w.count > 0 ? 8 : 2)}%;background:#059669;">
                 ${w.count > 0 ? `<span class="chart-bar-value">${w.count}</span>` : ''}
               </div>
             </div>
           `).join('')}
       </div>
-      <!-- Appointments Per Month -->
-      <div class="card">
-        <h3 style="margin-bottom:16px;">Appointments by Month</h3>
-        ${data.apptsByMonth.length === 0
-          ? '<div class="empty-state"><p>No data yet</p></div>'
-          : data.apptsByMonth.map((m) => `
-            <div class="chart-bar">
-              <div class="chart-bar-label" style="min-width:80px;font-size:11px;">${m.month}</div>
-              <div class="chart-bar-fill" style="width:${Math.max((m.count / maxApptMonth) * 100, 8)}%;">
-                <span class="chart-bar-value">${m.count}</span>
-              </div>
-            </div>
-          `).join('')}
-      </div>
     </div>
 
-    <!-- Plan Distribution + Appointment Status Row -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
-      <div class="card">
-        <h3 style="margin-bottom:16px;">Plan Distribution</h3>
-        ${Object.entries(data.planDist).map(([plan, count]) => {
-          const pct = Math.round((count / totalPlanBiz) * 100);
-          const col = planColors[plan] || '#6b7280';
-          return `
-            <div style="margin-bottom:12px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                <span style="font-size:13px;font-weight:600;color:${col};">${plan.charAt(0).toUpperCase() + plan.slice(1)}</span>
-                <span style="font-size:12px;color:var(--text-muted);">${count} (${pct}%)</span>
-              </div>
-              <div style="height:8px;background:var(--bg-hover);border-radius:4px;overflow:hidden;">
-                <div style="height:100%;width:${pct}%;background:${col};border-radius:4px;transition:width 0.3s;"></div>
-              </div>
-            </div>
-          `;
-        }).join('')}
+    <!-- Divider -->
+    <div style="display:flex;align-items:center;gap:12px;margin:28px 0 20px;">
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;white-space:nowrap;padding:0 8px;">&#8595; Business Owner Activity</div>
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         SECTION 2 — BUSINESS OWNER ACTIVITY
+         Aggregated operational data from all businesses using the app.
+         This is what business owners see in their own dashboards.
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <div style="margin-bottom:8px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:14px 18px;background:linear-gradient(135deg,#7c3aed15,#f59e0b15);border-radius:12px;border:1px solid #7c3aed30;">
+        <div style="width:4px;min-height:36px;background:linear-gradient(180deg,#7c3aed,#f59e0b);border-radius:2px;"></div>
+        <div>
+          <div style="font-size:15px;font-weight:700;color:var(--text);">&#128188; Business Owner Activity &mdash; Aggregated Across All Businesses</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Revenue and appointments generated by businesses using your app</div>
+        </div>
+        <div style="margin-left:auto;background:#7c3aed20;color:#7c3aed;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;letter-spacing:0.05em;">BUSINESS VIEW</div>
       </div>
-      <div class="card">
-        <h3 style="margin-bottom:16px;">Appointments by Status</h3>
-        ${data.apptsByStatus.map((s) => {
-          const col = s.status === 'confirmed' ? '#059669' : s.status === 'pending' ? '#f59e0b' : s.status === 'cancelled' ? '#ef4444' : '#3b82f6';
-          const total = data.apptsByStatus.reduce((sum, x) => sum + x.count, 0) || 1;
-          const pct = Math.round((s.count / total) * 100);
-          return `
-            <div style="margin-bottom:12px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                <span style="font-size:13px;font-weight:600;color:${col};">${s.status.charAt(0).toUpperCase() + s.status.slice(1)}</span>
-                <span style="font-size:12px;color:var(--text-muted);">${s.count} (${pct}%)</span>
+
+      <div class="stats-grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr));">
+        <div class="stat-card" style="border-left:4px solid #7c3aed;">
+          <div class="stat-icon" style="color:#7c3aed;">&#128179;</div>
+          <div class="stat-label">Total Appt Revenue</div>
+          <div class="stat-value" style="color:#7c3aed;">\$${data.totalApptRevenue.toFixed(2)}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">From completed bookings (all businesses)</div>
+        </div>
+        <div class="stat-card" style="border-left:4px solid #f59e0b;">
+          <div class="stat-icon" style="color:#f59e0b;">&#11088;</div>
+          <div class="stat-label">Avg Rating</div>
+          <div class="stat-value" style="color:#f59e0b;">${Number(data.avgRating).toFixed(1)}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Across all business reviews</div>
+        </div>
+        <div class="stat-card" style="border-left:4px solid #3b82f6;">
+          <div class="stat-icon" style="color:#3b82f6;">&#128197;</div>
+          <div class="stat-label">Total Appointments</div>
+          <div class="stat-value" style="color:#3b82f6;">${data.apptsByStatus.reduce((s,x) => s + x.count, 0).toLocaleString()}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">All statuses combined</div>
+        </div>
+      </div>
+
+      <!-- Charts: Appointments by Month + by Status -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+        <div class="card">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+            <span style="font-size:18px;">&#128200;</span>
+            <h3 style="margin:0;">Appointments by Month</h3>
+          </div>
+          ${data.apptsByMonth.length === 0
+            ? '<div class="empty-state"><p>No data yet</p></div>'
+            : data.apptsByMonth.map((m) => `
+              <div class="chart-bar">
+                <div class="chart-bar-label" style="min-width:80px;font-size:11px;">${m.month}</div>
+                <div class="chart-bar-fill" style="width:${Math.max((m.count / maxApptMonth) * 100, 8)}%;background:#7c3aed;">
+                  <span class="chart-bar-value">${m.count}</span>
+                </div>
               </div>
-              <div style="height:8px;background:var(--bg-hover);border-radius:4px;overflow:hidden;">
-                <div style="height:100%;width:${pct}%;background:${col};border-radius:4px;"></div>
+            `).join('')}
+        </div>
+        <div class="card">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+            <span style="font-size:18px;">&#9989;</span>
+            <h3 style="margin:0;">Appointments by Status</h3>
+          </div>
+          ${data.apptsByStatus.map((s) => {
+            const col = s.status === 'confirmed' ? '#059669' : s.status === 'pending' ? '#f59e0b' : s.status === 'cancelled' ? '#ef4444' : '#3b82f6';
+            const total = data.apptsByStatus.reduce((sum, x) => sum + x.count, 0) || 1;
+            const pct = Math.round((s.count / total) * 100);
+            return `
+              <div style="margin-bottom:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                  <span style="font-size:13px;font-weight:600;color:${col};">${s.status.charAt(0).toUpperCase() + s.status.slice(1)}</span>
+                  <span style="font-size:12px;color:var(--text-muted);">${s.count.toLocaleString()} (${pct}%)</span>
+                </div>
+                <div style="height:8px;background:var(--bg-hover);border-radius:4px;overflow:hidden;">
+                  <div style="height:100%;width:${pct}%;background:${col};border-radius:4px;"></div>
+                </div>
               </div>
-            </div>
-          `;
-        }).join('')}
+            `;
+          }).join('')}
+        </div>
       </div>
     </div>
 
     <!-- Per-Business Revenue Table -->
     <div class="card" style="margin-top:16px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-        <h3 style="margin:0;">Revenue by Business</h3>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:18px;">&#128203;</span>
+          <h3 style="margin:0;">Revenue by Business</h3>
+          <span style="font-size:12px;color:var(--text-muted);">Appointment revenue + subscription plan per business</span>
+        </div>
         <div class="search-bar" style="margin:0;">
           <input type="text" id="bizRevSearch" placeholder="&#128269; Search by name..." oninput="filterBizRev()" style="max-width:220px;">
           <select id="bizRevPlanFilter" onchange="filterBizRev()">
