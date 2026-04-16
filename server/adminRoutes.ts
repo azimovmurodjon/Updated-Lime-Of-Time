@@ -448,10 +448,14 @@ export function registerAdminRoutes(app: Express): void {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
-      const allStaff = await dbase.select().from(staffMembers);
+      const bizFilter = (req.query.biz as string) || "";
+      const bizId = bizFilter ? parseInt(bizFilter) : null;
+      let staffQuery = dbase.select().from(staffMembers).$dynamic();
+      if (bizId) staffQuery = staffQuery.where(eq(staffMembers.businessOwnerId, bizId));
+      const allStaff = await staffQuery.orderBy(sql`${staffMembers.name} ASC`);
       const allBiz = await dbase.select().from(businessOwners);
       const allSvc = await dbase.select().from(services);
-      res.send(staffPage(allStaff, allBiz, allSvc));
+      res.send(staffPage(allStaff, allBiz, allSvc, bizFilter));
     } catch (err) {
       console.error("[Admin] Staff error:", err);
       res.status(500).send(errorPage("Failed to load staff"));
@@ -1956,24 +1960,63 @@ function settingsPage(): string {
   `);
 }
 
-function staffPage(allStaff: any[], allBiz: any[], allSvc: any[]): string {
+function staffPage(allStaff: any[], allBiz: any[], allSvc: any[], bizFilter = ""): string {
   const bizMap = new Map(allBiz.map((b) => [b.id, b.businessName || b.name || "Unknown"]));
-  const svcMap = new Map(allSvc.map((s) => [s.localId, s.name]));
+  const svcMap = new Map(allSvc.map((s) => [`${s.businessOwnerId}-${s.localId}`, s.name]));
 
-  const staffByBiz: Record<string, any[]> = {};
-  allStaff.forEach((s) => {
-    const bizName = bizMap.get(s.ownerId) || "Unknown Business";
-    if (!staffByBiz[bizName]) staffByBiz[bizName] = [];
-    staffByBiz[bizName].push(s);
-  });
+  // Count unique businesses that have staff
+  const bizWithStaff = new Set(allStaff.map((s) => s.businessOwnerId)).size;
 
-  const bizOptions = allBiz.map((b: any) => `<option value="${escHtml(bizMap.get(b.id) || '')}">&#x1F3E2; ${escHtml(bizMap.get(b.id) || 'Unknown')}</option>`).join('');
+  const bizOptions = allBiz.map((b: any) => `<option value="${b.id}" ${bizFilter === String(b.id) ? 'selected' : ''}>${escHtml(bizMap.get(b.id) || 'Unknown')}</option>`).join('');
+
+  const rows = allStaff.map((s) => {
+    const bizName = bizMap.get(s.businessOwnerId) || "Unknown";
+    let serviceNames = "All";
+    try {
+      const ids = JSON.parse(s.serviceIds || "[]") as string[];
+      if (ids.length > 0) {
+        serviceNames = ids.map((id) => svcMap.get(`${s.businessOwnerId}-${id}`) || id).join(", ");
+      }
+    } catch {}
+
+    let workingDays = "N/A";
+    try {
+      const wh = JSON.parse(s.workingHours || "{}");
+      const days = Object.entries(wh)
+        .filter(([_, v]: [string, any]) => v && v.enabled)
+        .map(([d]) => d.charAt(0).toUpperCase() + d.slice(0, 3));
+      workingDays = days.length > 0 ? days.join(", ") : "None";
+    } catch {}
+
+    const created = s.createdAt ? new Date(s.createdAt).toLocaleDateString() : "N/A";
+    const activeLabel = s.active !== false
+      ? '<span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:10px;font-size:11px;">Active</span>'
+      : '<span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:10px;font-size:11px;">Inactive</span>';
+
+    return `<tr class="staff-row"
+      data-biz="${s.businessOwnerId}"
+      data-name="${escHtml((s.name || '').toLowerCase())}"
+      data-email="${escHtml((s.email || '').toLowerCase())}"
+      data-phone="${escHtml((s.phone || '').toLowerCase())}">
+      <td style="font-weight:600;">${escHtml(s.name)}</td>
+      <td><a href="/api/admin/businesses/${s.businessOwnerId}" style="color:var(--primary);">${escHtml(bizName)}</a></td>
+      <td>${s.email ? escHtml(s.email) : '<span style="color:var(--text-muted);">—</span>'}</td>
+      <td>${s.phone ? escHtml(s.phone) : '<span style="color:var(--text-muted);">—</span>'}</td>
+      <td>${s.role ? `<span style="font-size:12px;color:var(--text-muted);">${escHtml(s.role)}</span>` : '<span style="color:var(--text-muted);">—</span>'}</td>
+      <td><span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:${s.color || '#4a8c3f'};vertical-align:middle;margin-right:4px;"></span>${s.color || '#4a8c3f'}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;" title="${escHtml(serviceNames)}">${escHtml(serviceNames)}</td>
+      <td style="font-size:12px;">${workingDays}</td>
+      <td>${activeLabel}</td>
+      <td style="font-size:12px;color:var(--text-muted);">${created}</td>
+      <td><form class="delete-form" method="POST" action="/api/admin/delete/staff/${s.id}" onsubmit="return confirm('Delete staff member ${escHtml(s.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+    </tr>`;
+  }).join("");
 
   let content = `
     <div class="page-header">
       <div>
         <h2>Staff Management</h2>
-        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">${allStaff.length} staff member${allStaff.length !== 1 ? 's' : ''} across ${Object.keys(staffByBiz).length} business${Object.keys(staffByBiz).length !== 1 ? 'es' : ''}</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">${allStaff.length} staff member${allStaff.length !== 1 ? 's' : ''} across ${bizWithStaff} business${bizWithStaff !== 1 ? 'es' : ''}</div>
       </div>
     </div>
     <div class="search-bar">
@@ -1986,80 +2029,50 @@ function staffPage(allStaff: any[], allBiz: any[], allSvc: any[]): string {
 
     <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
       <div class="stat-card">
-        <div class="stat-icon">\ud83d\udc64</div>
+        <div class="stat-icon">👤</div>
         <div class="stat-label">Total Staff</div>
         <div class="stat-value">${allStaff.length}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon">\ud83c\udfe2</div>
+        <div class="stat-icon">🏢</div>
         <div class="stat-label">Businesses with Staff</div>
-        <div class="stat-value">${Object.keys(staffByBiz).length}</div>
+        <div class="stat-value">${bizWithStaff}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon">\ud83d\udee0\ufe0f</div>
+        <div class="stat-icon">🛠️</div>
         <div class="stat-label">Avg Services/Staff</div>
         <div class="stat-value">${allStaff.length > 0 ? (allStaff.reduce((sum, s) => {
-          try { const ids = JSON.parse(s.serviceIds || "[]"); return sum + ids.length; } catch { return sum; }
+          try { const ids = JSON.parse(s.serviceIds || "[]") as string[]; return sum + ids.length; } catch { return sum; }
         }, 0) / allStaff.length).toFixed(1) : "0"}</div>
       </div>
     </div>
+
+    <div class="card" style="padding:0;overflow:hidden;margin-top:16px;">
+      <table id="staffTable">
+        <thead>
+          <tr style="background:var(--bg-hover);">
+            <th style="padding:12px 16px;">Name</th>
+            <th style="padding:12px 16px;">Business</th>
+            <th style="padding:12px 16px;">Email</th>
+            <th style="padding:12px 16px;">Phone</th>
+            <th style="padding:12px 16px;">Role</th>
+            <th style="padding:12px 16px;">Color</th>
+            <th style="padding:12px 16px;">Services</th>
+            <th style="padding:12px 16px;">Working Days</th>
+            <th style="padding:12px 16px;">Status</th>
+            <th style="padding:12px 16px;">Created</th>
+            <th style="padding:12px 16px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="staffTbody">
+          ${allStaff.length === 0
+            ? '<tr><td colspan="11" style="padding:40px;text-align:center;color:var(--text-muted);">No staff members yet</td></tr>'
+            : rows}
+        </tbody>
+      </table>
+    </div>
+    <div id="staffEmpty" style="display:none;padding:40px;text-align:center;color:var(--text-muted);">No staff match your filters.</div>
   `;
-
-  //   // Staff table grouped by business
-  Object.entries(staffByBiz).sort((a, b) => a[0].localeCompare(b[0])).forEach(([bizName, members]) => {
-    content += `
-      <div class="card staff-biz-group" data-biz="${escHtml(bizName)}" style="margin-top:16px;">
-        <h3 style="margin-bottom:12px;">🏢 ${escHtml(bizName)} <span style="font-size:12px;color:var(--text-muted);font-weight:400;">(${members.length} staff)</span></h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Phone</th>
-              <th>Color</th>
-              <th>Services</th>
-              <th>Working Days</th>
-              <th>Created</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${members.map((s) => {
-              let serviceNames = "All";
-              try {
-                const ids = JSON.parse(s.serviceIds || "[]");
-                if (ids.length > 0) {
-                  serviceNames = ids.map((id: string) => svcMap.get(id) || id).join(", ");
-                }
-              } catch {}
-
-              let workingDays = "N/A";
-              try {
-                const wh = JSON.parse(s.workingHours || "{}");
-                const days = Object.entries(wh)
-                  .filter(([_, v]: [string, any]) => v && v.enabled)
-                  .map(([d]) => d.charAt(0).toUpperCase() + d.slice(0, 3));
-                workingDays = days.length > 0 ? days.join(", ") : "None";
-              } catch {}
-
-              const created = s.createdAt ? new Date(s.createdAt).toLocaleDateString() : "N/A";
-
-              return `<tr class="staff-row" data-name="${escHtml((s.name || '').toLowerCase())}" data-email="${escHtml((s.email || '').toLowerCase())}" data-phone="${escHtml((s.phone || '').toLowerCase())}">
-                <td style="font-weight:600;">${escHtml(s.name)}</td>
-                <td>${s.email ? escHtml(s.email) : '<span style="color:var(--text-muted);">—</span>'}</td>
-                <td>${s.phone ? escHtml(s.phone) : '<span style="color:var(--text-muted);">—</span>'}</td>
-                <td><span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:${s.color || '#4a8c3f'};vertical-align:middle;"></span> ${s.color || '#4a8c3f'}</td>
-                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(serviceNames)}">${escHtml(serviceNames)}</td>
-                <td>${workingDays}</td>
-                <td>${created}</td>
-                <td><form class="delete-form" method="POST" action="/api/admin/delete/staff/${s.id}" onsubmit="return confirm('Delete staff member ${escHtml(s.name)}?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
-              </tr>`;
-            }).join("")}
-          </tbody>
-        </table>
-      </div>
-    `;
-  });
 
   if (allStaff.length === 0) {
     content += `
@@ -2077,21 +2090,22 @@ function staffPage(allStaff: any[], allBiz: any[], allSvc: any[]): string {
       function filterStaff() {
         const q = document.getElementById('staffSearch').value.toLowerCase();
         const biz = document.getElementById('staffBizFilter').value;
-        document.querySelectorAll('.staff-biz-group').forEach(function(group) {
-          const groupBiz = group.getAttribute('data-biz') || '';
-          const matchBiz = !biz || groupBiz === biz;
-          if (!matchBiz) { group.style.display = 'none'; return; }
-          let groupVisible = 0;
-          group.querySelectorAll('.staff-row').forEach(function(row) {
-            const name = row.getAttribute('data-name') || '';
-            const email = row.getAttribute('data-email') || '';
-            const phone = row.getAttribute('data-phone') || '';
-            const show = !q || name.includes(q) || email.includes(q) || phone.includes(q);
-            row.style.display = show ? '' : 'none';
-            if (show) groupVisible++;
-          });
-          group.style.display = groupVisible > 0 ? '' : 'none';
+        let visible = 0;
+        document.querySelectorAll('#staffTbody .staff-row').forEach(function(row) {
+          const rowBiz = row.getAttribute('data-biz') || '';
+          const name = row.getAttribute('data-name') || '';
+          const email = row.getAttribute('data-email') || '';
+          const phone = row.getAttribute('data-phone') || '';
+          const matchBiz = !biz || rowBiz === biz;
+          const matchQ = !q || name.includes(q) || email.includes(q) || phone.includes(q);
+          const show = matchBiz && matchQ;
+          row.style.display = show ? '' : 'none';
+          if (show) visible++;
         });
+        const emptyEl = document.getElementById('staffEmpty');
+        const tableEl = document.getElementById('staffTable');
+        if (emptyEl) emptyEl.style.display = visible === 0 ? 'block' : 'none';
+        if (tableEl) tableEl.style.display = visible === 0 ? 'none' : '';
       }
     </script>
   `;
