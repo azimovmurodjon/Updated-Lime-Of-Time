@@ -79,6 +79,7 @@ export default function PublicBookingScreen() {
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [clientEmail, setClientEmail] = useState("");
+  const [clientBirthday, setClientBirthday] = useState("");
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(formatDateStr(new Date()));
@@ -282,7 +283,7 @@ export default function PublicBookingScreen() {
         phone: clientPhone.trim(),
         email: clientEmail.trim(),
         notes: "Added via booking link",
-        birthday: "",
+        birthday: clientBirthday.trim(),
         createdAt: new Date().toISOString(),
       };
       dispatch({ type: "ADD_CLIENT", payload: newClient });
@@ -344,7 +345,7 @@ export default function PublicBookingScreen() {
     }
 
     setStep("done");
-  }, [selectedServiceId, selectedTime, clientName, clientPhone, clientEmail, notes, selectedDate, selectedService, state, dispatch, appliedGiftCard, syncToDb, priceInfo, selectedLocationId, selectedStaffId, applicableDiscount, productCart, cartTotal]);
+  }, [selectedServiceId, selectedTime, clientName, clientPhone, clientEmail, clientBirthday, notes, selectedDate, selectedService, state, dispatch, appliedGiftCard, syncToDb, priceInfo, selectedLocationId, selectedStaffId, applicableDiscount, productCart, cartTotal]);
 
   // Resolve the address to show: use selected location's full address if available, else global profile
   const displayAddress = selectedLocation
@@ -623,6 +624,15 @@ export default function PublicBookingScreen() {
                 onChangeText={setClientEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                returnKeyType="next"
+              />
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+                placeholder="Birthday (MM/DD or MM/DD/YYYY) — optional"
+                placeholderTextColor={colors.muted}
+                value={clientBirthday}
+                onChangeText={(t) => setClientBirthday(t.replace(/[^0-9/]/g, ""))}
+                keyboardType="numbers-and-punctuation"
                 returnKeyType="next"
               />
               <TextInput

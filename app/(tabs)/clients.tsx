@@ -25,6 +25,7 @@ export default function ClientsScreen() {
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [newEmail, setNewEmail] = useState("");
+  const [newBirthday, setNewBirthday] = useState("");
   const [upgradeSheetVisible, setUpgradeSheetVisible] = useState(false);
   const [upgradeSheetInfo, setUpgradeSheetInfo] = useState<{ planKey: string; planName: string; limit: number } | null>(null);
 
@@ -78,7 +79,7 @@ export default function ClientsScreen() {
       phone: newPhone.trim(),
       email: newEmail.trim(),
       notes: "",
-      birthday: "",
+      birthday: newBirthday.trim(),
       createdAt: new Date().toISOString(),
     };
     dispatch({ type: "ADD_CLIENT", payload: client });
@@ -86,8 +87,9 @@ export default function ClientsScreen() {
     setNewName("");
     setNewPhone("");
     setNewEmail("");
+    setNewBirthday("");
     setShowAdd(false);
-  }, [newName, newPhone, newEmail, dispatch, syncToDb]);
+  }, [newName, newPhone, newEmail, newBirthday, dispatch, syncToDb]);
 
   const handleSelectFromContacts = useCallback(async () => {
     // Check plan limit before importing
@@ -246,13 +248,22 @@ export default function ClientsScreen() {
               maxLength={19}
             />
             <TextInput
-              style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground, marginBottom: 14 }]}
+              style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
               placeholder="Email"
               placeholderTextColor={colors.muted}
               value={newEmail}
               onChangeText={setNewEmail}
               keyboardType="email-address"
               autoCapitalize="none"
+              returnKeyType="next"
+            />
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground, marginBottom: 14 }]}
+              placeholder="Birthday (MM/DD or MM/DD/YYYY) — optional"
+              placeholderTextColor={colors.muted}
+              value={newBirthday}
+              onChangeText={(t) => setNewBirthday(t.replace(/[^0-9/]/g, ""))}
+              keyboardType="numbers-and-punctuation"
               returnKeyType="done"
               onSubmitEditing={handleAddClient}
             />
