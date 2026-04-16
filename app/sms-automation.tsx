@@ -146,46 +146,6 @@ export default function SmsAutomationScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
-        {/* Not configured warning */}
-        {!isConfigured && (
-          <Pressable
-            onPress={() => router.push("/twilio-setup" as any)}
-            style={({ pressed }) => ({
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 10,
-              backgroundColor: "#F59E0B20",
-              borderRadius: 14,
-              padding: 14,
-              marginBottom: 20,
-              borderWidth: 1,
-              borderColor: "#F59E0B60",
-              opacity: pressed ? 0.8 : 1,
-            })}
-          >
-            <IconSymbol
-              name="exclamationmark.triangle.fill"
-              size={20}
-              color="#F59E0B"
-            />
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontWeight: "700",
-                  color: colors.foreground,
-                }}
-              >
-                Twilio not connected
-              </Text>
-              <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
-                Tap here to set up Twilio credentials first.
-              </Text>
-            </View>
-            <IconSymbol name="chevron.right" size={16} color={colors.muted} />
-          </Pressable>
-        )}
-
         {/* Master toggle */}
         <View
           style={{
