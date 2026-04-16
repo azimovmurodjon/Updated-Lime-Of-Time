@@ -529,22 +529,10 @@ export default function StaffCalendarScreen() {
             const nowPillLabel = liveNow.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }).replace(" ", "\u202f");
             return (
               <View style={{ paddingHorizontal: hp, marginTop: 8 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>
-                    {formatDateDisplay(selectedDate)} — Timeline
-                  </Text>
-                  <Pressable
-                    onPress={() => {
-                      if (!staffTimelineRef.current) return;
-                      const now = new Date();
-                      const targetY = Math.max(0, (now.getHours() - 1) * STAFF_HOUR_HEIGHT);
-                      staffTimelineRef.current.scrollTo({ y: targetY, animated: true });
-                    }}
-                    style={({ pressed }) => [{ backgroundColor: colors.primary, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5, opacity: pressed ? 0.7 : 1 }]}
-                  >
-                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Now</Text>
-                  </Pressable>
-                </View>
+                <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 4 }]}>
+                  {formatDateDisplay(selectedDate)} — Timeline
+                </Text>
+                <View style={{ position: 'relative' }}>
                 <ScrollView ref={staffTimelineRef} style={{ height: 480 }} showsVerticalScrollIndicator={false} nestedScrollEnabled>
                 <View style={[styles.timelineContainer, { borderColor: colors.border, position: "relative" }]}>
                   {/* Hour grid rows */}
@@ -638,6 +626,39 @@ export default function StaffCalendarScreen() {
                   )}
                 </View>
                 </ScrollView>
+                {/* Floating Jump to Now pill */}
+                <Pressable
+                  onPress={() => {
+                    if (!staffTimelineRef.current) return;
+                    const now = new Date();
+                    const targetY = Math.max(0, (now.getHours() - 1) * STAFF_HOUR_HEIGHT);
+                    staffTimelineRef.current.scrollTo({ y: targetY, animated: true });
+                  }}
+                  style={({ pressed }) => [{
+                    position: 'absolute',
+                    bottom: 12,
+                    alignSelf: 'center',
+                    left: '50%',
+                    transform: [{ translateX: -44 }],
+                    backgroundColor: colors.primary,
+                    borderRadius: 20,
+                    paddingHorizontal: 16,
+                    paddingVertical: 7,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 5,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.18,
+                    shadowRadius: 4,
+                    elevation: 4,
+                    opacity: pressed ? 0.75 : 1,
+                  }]}
+                >
+                  <IconSymbol name="clock.fill" size={13} color="#fff" />
+                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Jump to Now</Text>
+                </Pressable>
+                </View>
               </View>
             );
           })()

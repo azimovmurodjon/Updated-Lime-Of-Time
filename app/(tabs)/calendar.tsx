@@ -1343,23 +1343,44 @@ export default function CalendarScreen() {
 
           {/* Timeline */}
           <View style={{ paddingHorizontal: hp }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-              <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>Timeline</Text>
+            <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 4 }]}>Timeline</Text>
+            <View style={{ position: 'relative' }}>
+              <ScrollView
+                ref={dayTimelineRef}
+                style={{ height: 480, borderRadius: 14 }}
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled
+              >
+                {renderTimeline(selectedDate, dayAppts)}
+              </ScrollView>
+              {/* Floating Jump to Now pill */}
               <Pressable
                 onPress={() => scrollTimelineToNow(dayTimelineRef)}
-                style={({ pressed }) => [{ backgroundColor: colors.primary, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5, opacity: pressed ? 0.7 : 1 }]}
+                style={({ pressed }) => [{
+                  position: 'absolute',
+                  bottom: 12,
+                  alignSelf: 'center',
+                  left: '50%',
+                  transform: [{ translateX: -44 }],
+                  backgroundColor: colors.primary,
+                  borderRadius: 20,
+                  paddingHorizontal: 16,
+                  paddingVertical: 7,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 5,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.18,
+                  shadowRadius: 4,
+                  elevation: 4,
+                  opacity: pressed ? 0.75 : 1,
+                }]}
               >
-                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Now</Text>
+                <IconSymbol name="clock.fill" size={13} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Jump to Now</Text>
               </Pressable>
             </View>
-            <ScrollView
-              ref={dayTimelineRef}
-              style={{ height: 480, borderRadius: 14 }}
-              showsVerticalScrollIndicator={false}
-              nestedScrollEnabled
-            >
-              {renderTimeline(selectedDate, dayAppts)}
-            </ScrollView>
           </View>
       </>
     );
@@ -1478,28 +1499,49 @@ export default function CalendarScreen() {
           )}
 
           {/* Timeline */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>Timeline</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 4 }]}>Timeline</Text>
+          <View style={{ position: 'relative' }}>
+            <ScrollView
+              ref={weekTimelineRef}
+              style={{ height: 480, borderRadius: 14 }}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled
+            >
+              {renderTimeline(
+                selectedDate,
+                locationAppointments
+                  .filter((a) => a.date === selectedDate)
+                  .sort((a, b) => a.time.localeCompare(b.time))
+              )}
+            </ScrollView>
+            {/* Floating Jump to Now pill */}
             <Pressable
               onPress={() => scrollTimelineToNow(weekTimelineRef)}
-              style={({ pressed }) => [{ backgroundColor: colors.primary, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5, opacity: pressed ? 0.7 : 1 }]}
+              style={({ pressed }) => [{
+                position: 'absolute',
+                bottom: 12,
+                alignSelf: 'center',
+                left: '50%',
+                transform: [{ translateX: -44 }],
+                backgroundColor: colors.primary,
+                borderRadius: 20,
+                paddingHorizontal: 16,
+                paddingVertical: 7,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 5,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.18,
+                shadowRadius: 4,
+                elevation: 4,
+                opacity: pressed ? 0.75 : 1,
+              }]}
             >
-              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Now</Text>
+              <IconSymbol name="clock.fill" size={13} color="#fff" />
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Jump to Now</Text>
             </Pressable>
           </View>
-          <ScrollView
-            ref={weekTimelineRef}
-            style={{ height: 480, borderRadius: 14 }}
-            showsVerticalScrollIndicator={false}
-            nestedScrollEnabled
-          >
-            {renderTimeline(
-              selectedDate,
-              locationAppointments
-                .filter((a) => a.date === selectedDate)
-                .sort((a, b) => a.time.localeCompare(b.time))
-            )}
-          </ScrollView>
         </View>
       </>
     );

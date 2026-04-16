@@ -1,4 +1,4 @@
-import { Platform, View, type ViewProps } from "react-native";
+import { Platform, StyleSheet, View, type ViewProps, type ViewStyle } from "react-native";
 import { useSafeAreaInsets, type Edge } from "react-native-safe-area-context";
 import { useResponsive } from "@/hooks/use-responsive";
 import { cn } from "@/lib/utils";
@@ -41,12 +41,16 @@ export interface ScreenContainerProps extends ViewProps {
  * including inside fullScreenModal and card presentations where SafeAreaView
  * context inheritance can be unreliable on Android.
  *
- * - On phones: full-width content with safe area insets
- * - On tablets: content is centered with a max-width for readability
+ * Padding merging strategy:
+ * - Caller's `style` is flattened first to extract any explicit padding values.
+ * - Inset-based padding is only applied for edges where the caller has NOT
+ *   provided explicit padding. This avoids the React Native quirk where
+ *   explicit longhand padding (paddingLeft: 0) overrides shorthand
+ *   (paddingHorizontal: 18) regardless of array order.
  *
  * Usage:
  * ```tsx
- * <ScreenContainer className="p-4">
+ * <ScreenContainer style={{ paddingHorizontal: 16 }}>
  *   <Text>Content</Text>
  * </ScreenContainer>
  * ```
@@ -65,15 +69,49 @@ export function ScreenContainer({
   const { isTablet, formMaxWidth } = useResponsive();
   const insets = useSafeAreaInsets();
 
-  // Build explicit padding from requested edges.
-  // On Android we add a small extra buffer for the status bar when "top" is included.
+  // Flatten caller's style to a plain object so we can inspect individual padding keys.
+  const flatStyle = StyleSheet.flatten(style) as ViewStyle | undefined;
+
+  // Check if caller provided any horizontal padding (shorthand or longhand).
+  const callerHasPaddingLeft =
+    flatStyle?.paddingLeft != null ||
+    flatStyle?.paddingHorizontal != null ||
+    flatStyle?.padding != null;
+  const callerHasPaddingRight =
+    flatStyle?.paddingRight != null ||
+    flatStyle?.paddingHorizontal != null ||
+    flatStyle?.padding != null;
+  const callerHasPaddingTop =
+    flatStyle?.paddingTop != null ||
+    flatStyle?.paddingVertical != null ||
+    flatStyle?.padding != null;
+  const callerHasPaddingBottom =
+    flatStyle?.paddingBottom != null ||
+    flatStyle?.paddingVertical != null ||
+    flatStyle?.padding != null;
+
+  // Build inset padding only for edges where the caller hasn't provided their own.
   const edgeSet = new Set(edges);
-  const paddingTop = edgeSet.has("top")
+  const paddingTop = callerHasPaddingTop
+    ? undefined
+    : edgeSet.has("top")
     ? Math.max(insets.top, Platform.OS === "android" ? 24 : 0)
     : 0;
-  const paddingBottom = edgeSet.has("bottom") ? insets.bottom : 0;
-  const paddingLeft = edgeSet.has("left") ? insets.left : 0;
-  const paddingRight = edgeSet.has("right") ? insets.right : 0;
+  const paddingBottom = callerHasPaddingBottom
+    ? undefined
+    : edgeSet.has("bottom")
+    ? insets.bottom
+    : 0;
+  const paddingLeft = callerHasPaddingLeft
+    ? undefined
+    : edgeSet.has("left")
+    ? insets.left
+    : 0;
+  const paddingRight = callerHasPaddingRight
+    ? undefined
+    : edgeSet.has("right")
+    ? insets.right
+    : 0;
 
   // Determine effective max width:
   // - fullWidth=true → no constraint
@@ -87,8 +125,15 @@ export function ScreenContainer({
 
   const shouldConstrain = isTablet && effectiveMax > 0;
 
+  // Merge: inset padding first (as base), then caller's style on top.
+  // Since we skip inset padding when caller provides their own, there's no conflict.
   const innerStyle = [
-    { paddingTop, paddingBottom, paddingLeft, paddingRight },
+    {
+      ...(paddingTop !== undefined && { paddingTop }),
+      ...(paddingBottom !== undefined && { paddingBottom }),
+      ...(paddingLeft !== undefined && { paddingLeft }),
+      ...(paddingRight !== undefined && { paddingRight }),
+    },
     style,
   ];
 

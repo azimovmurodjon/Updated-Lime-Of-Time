@@ -3148,9 +3148,8 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     <!-- Step 4: Payment -->
     <div id="step-4" class="card" style="display:none">
       <h2>Payment Method</h2>
-      <p style="font-size:13px;color:#888;margin-bottom:16px;">Choose how you'd like to pay. You can also pay in person with cash.</p>
+      <p style="font-size:13px;color:#888;margin-bottom:16px;">Choose how you'd like to pay, or skip and decide later.</p>
       <div id="paymentMethodList"></div>
-      <div id="paymentMethodError" style="display:none;color:#ef4444;font-size:13px;margin-top:8px;">Please select a payment method to continue.</div>
       <div style="display:flex;gap:8px;margin-top:20px;">
         <button class="btn btn-secondary" onclick="goToStep(3)" style="flex:1">Back</button>
         <button class="btn btn-primary" onclick="goToPaymentConfirm()" style="flex:1">Continue to Confirm</button>
@@ -3786,6 +3785,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       if (methods.cashApp) opts.push({ id: 'cashapp', label: '💚 Cash App', sub: methods.cashApp.startsWith('$') ? methods.cashApp : '$' + methods.cashApp, color: '#00d632' });
       if (methods.venmo) opts.push({ id: 'venmo', label: '💙 Venmo', sub: methods.venmo.startsWith('@') ? methods.venmo : '@' + methods.venmo, color: '#3d95ce' });
       opts.push({ id: 'cash', label: '💵 Cash', sub: 'Pay in person at the time of your appointment', color: '#888' });
+      opts.push({ id: 'later', label: '⏭️ Skip for now', sub: "I'll decide later — you can discuss payment when you arrive", color: '#94a3b8' });
       opts.forEach(function(opt) {
         const isSelected = selectedPaymentMethod === opt.id;
         html += '<div onclick="selectPaymentMethod(\'' + opt.id + '\')" style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;border:2px solid ' + (isSelected ? opt.color : 'var(--border-input)') + ';background:' + (isSelected ? opt.color + '12' : 'var(--bg-card)') + ';cursor:pointer;transition:all .15s;">';
@@ -3805,9 +3805,9 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     }
 
     function goToPaymentConfirm() {
+      // Allow proceeding without a selection — treat as "pay later"
       if (!selectedPaymentMethod) {
-        document.getElementById('paymentMethodError').style.display = 'block';
-        return;
+        selectedPaymentMethod = 'later';
       }
       goToStep(5);
     }
@@ -4638,8 +4638,14 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       // Show selected payment method summary
       const pmLabels = { zelle: '\ud83d\udc9c Zelle', cashapp: '\ud83d\udc9a Cash App', venmo: '\ud83d\udc99 Venmo', cash: '\ud83d\udcb5 Cash (pay in person)' };
       const pmEl = document.getElementById('selectedPaymentSummary');
-      if (pmEl && selectedPaymentMethod) {
-        pmEl.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;font-size:13px;"><span>\ud83d\udcb3</span><span>Payment: <strong>' + (pmLabels[selectedPaymentMethod] || selectedPaymentMethod) + '</strong></span></div>';
+      if (pmEl) {
+        const pmDisplay = selectedPaymentMethod && selectedPaymentMethod !== 'later'
+          ? (pmLabels[selectedPaymentMethod] || selectedPaymentMethod)
+          : 'Pay later / in person';
+        const pmBg = selectedPaymentMethod && selectedPaymentMethod !== 'later' ? '#f0fdf4' : '#f8fafc';
+        const pmBorder = selectedPaymentMethod && selectedPaymentMethod !== 'later' ? '#bbf7d0' : '#e2e8f0';
+        const pmIcon = selectedPaymentMethod && selectedPaymentMethod !== 'later' ? '\ud83d\udcb3' : '\u23ed\ufe0f';
+        pmEl.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:' + pmBg + ';border:1.5px solid ' + pmBorder + ';border-radius:12px;font-size:13px;"><span>' + pmIcon + '</span><span>Payment: <strong>' + pmDisplay + '</strong></span></div>';
       }
     }
 
@@ -4692,7 +4698,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
             discountAmount: getDiscountAmount(),
             subtotal: getTotalPrice(),
             locationId: selectedLocation || null,
-            paymentMethod: selectedPaymentMethod || 'cash',
+            paymentMethod: (selectedPaymentMethod && selectedPaymentMethod !== 'later') ? selectedPaymentMethod : 'later',
           }),
         });
         const data = await res.json();
