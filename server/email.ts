@@ -327,3 +327,89 @@ export async function sendBookingNotificationEmail(
     return false;
   }
 }
+
+// ─── Subscription Confirmation Email ────────────────────────────────────────
+
+export interface SubscriptionConfirmationData {
+  planName: string;
+  planKey: string;
+  billingPeriod: "monthly" | "yearly";
+  amount: number;
+  nextRenewalDate: string;
+  ownerName: string;
+}
+
+/**
+ * Send a branded subscription activation confirmation email to the business owner.
+ * Includes plan name, billing cycle, amount, and next renewal date.
+ * Returns true if sent successfully, false otherwise.
+ */
+export async function sendSubscriptionConfirmationEmail(
+  toEmail: string,
+  businessName: string,
+  data: SubscriptionConfirmationData
+): Promise<boolean> {
+  const resend = getResend();
+  if (!resend) return false;
+
+  const isFree = data.amount === 0;
+  const planEmoji: Record<string, string> = {
+    solo: "👤",
+    growth: "👥",
+    studio: "🏪",
+    enterprise: "🏢",
+  };
+  const emoji = planEmoji[data.planKey] ?? "✅";
+
+  let detailsHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">`;
+  detailsHtml += detailRow(emoji, "Plan", data.planName);
+  detailsHtml += detailRow("📅", "Billing Cycle", data.billingPeriod === "yearly" ? "Annual (billed once per year)" : "Monthly");
+  if (isFree) {
+    detailsHtml += detailRow("💚", "Amount", "Free forever — no credit card required");
+  } else {
+    detailsHtml += detailRow("💳", "Amount", `$${data.amount.toFixed(2)} / ${data.billingPeriod === "yearly" ? "year" : "month"}`);
+    detailsHtml += detailRow("🔄", "Next Renewal", data.nextRenewalDate);
+  }
+  detailsHtml += `</table>`;
+
+  const bodyHtml = `
+    <div style="color:#333;font-size:15px;line-height:1.6;margin-bottom:16px;">
+      Hi ${escHtml(data.ownerName)},<br/><br/>
+      Your <strong>${escHtml(businessName)}</strong> account is now active on the
+      <strong>${escHtml(data.planName)}</strong> plan. Here's a summary of your subscription:
+    </div>
+    ${detailsHtml}
+    <div style="margin:24px 0;padding:16px;background-color:#f0fff4;border-radius:12px;border-left:4px solid #4a8c3f;">
+      <div style="color:#2d5a27;font-size:14px;font-weight:600;margin-bottom:4px;">You're all set!</div>
+      <div style="color:#555;font-size:13px;line-height:1.6;">
+        Open the Lime Of Time app to manage your appointments, clients, and services.
+        Your subscription is active and ready to use.
+      </div>
+    </div>
+    <div style="margin-top:24px;text-align:center;">
+      <div style="display:inline-block;background-color:#2d5a27;color:#ffffff;padding:12px 32px;border-radius:24px;font-size:15px;font-weight:600;">
+        Open Lime Of Time
+      </div>
+    </div>
+    <div style="margin-top:20px;text-align:center;color:#888;font-size:12px;line-height:1.6;">
+      Questions? Contact us anytime.<br/>
+      You can manage your subscription from the Settings screen in the app.
+    </div>
+  `;
+
+  const html = brandedTemplate("Subscription Activated 🎉", bodyHtml);
+
+  try {
+    const result = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: [toEmail],
+      subject: `Your ${data.planName} subscription is now active — Lime Of Time`,
+      html,
+    });
+    console.log("[Email] Subscription confirmation sent:", result);
+    return true;
+  } catch (err) {
+    console.error("[Email] Failed to send subscription confirmation:", err);
+    return false;
+  }
+}

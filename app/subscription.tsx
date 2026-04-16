@@ -5,6 +5,7 @@
  * trial countdown (if applicable), and a button to view/change plans.
  */
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   ScrollView,
   StyleSheet,
@@ -13,6 +14,7 @@ import {
   Pressable,
   ActivityIndicator,
 } from "react-native";
+import { useCallback } from "react";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
@@ -95,6 +97,15 @@ export default function SubscriptionScreen() {
   const { data: planInfo, isLoading, refetch } = trpc.subscription.getMyPlan.useQuery(
     { businessOwnerId: businessOwnerId! },
     { enabled: !!businessOwnerId, staleTime: 30_000 }
+  );
+
+  // Refetch when screen comes into focus (e.g. after returning from Stripe checkout)
+  useFocusEffect(
+    useCallback(() => {
+      if (businessOwnerId) {
+        refetch();
+      }
+    }, [businessOwnerId, refetch])
   );
 
   if (!businessOwnerId || isLoading) {

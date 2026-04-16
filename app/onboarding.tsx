@@ -723,10 +723,15 @@ export default function OnboardingScreen() {
       const data = await response.json();
       if (data.url) {
         // Open Stripe Checkout in in-app browser
-        const result = await WebBrowser.openBrowserAsync(data.url, {
+        await WebBrowser.openBrowserAsync(data.url, {
           presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
         });
-        // After browser closes (success or cancel), proceed to next step
+        // After browser closes, sync subscription status from server
+        try {
+          await trpcUtils.subscription.getMyPlan.invalidate({ businessOwnerId });
+          await trpcUtils.business.getFullData.invalidate({ id: businessOwnerId });
+        } catch { /* non-fatal */ }
+        // Proceed to next step
         if (biometricAvailable && Platform.OS !== "web") {
           navigateToStep(3);
         } else {

@@ -1072,3 +1072,11 @@
 
 ## Admin Panel Crash Fixes
 - [ ] Test all admin pages in headless mode and fix all crashes
+
+## Post-Payment Subscription Sync & Email Confirmation
+- [x] Add post-payment subscription sync: invalidate getMyPlan and getFullData queries after Stripe browser closes in onboarding
+- [x] Add useFocusEffect to Subscription screen to auto-refetch plan data when screen gains focus
+- [x] Add sendSubscriptionConfirmationEmail function to email.ts with branded template
+- [x] Send subscription confirmation email in webhook handler (checkout.session.completed)
+- [x] Send subscription confirmation email in success route (fallback when webhook hasn't fired yet, deduplication check)
+- [x] Fix free plan response: server returns activated:true + free:true, client handles both flags

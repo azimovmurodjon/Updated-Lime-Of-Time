@@ -10,6 +10,7 @@ import Stripe from "stripe";
 import { getDb } from "./db";
 import { businessOwners } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
+import { sendSubscriptionConfirmationEmail } from "./email";
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY ?? "";
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET ?? "";
@@ -191,6 +192,40 @@ export function registerStripeRoutes(app: Express): void {
               })
               .where(eq(businessOwners.id, businessOwnerId));
             console.log(`[Stripe] Activated ${planKey} plan for business ${businessOwnerId}`);
+
+            // Send subscription confirmation email to business owner
+            const ownerRows = await db.select().from(businessOwners)
+              .where(eq(businessOwners.id, businessOwnerId)).limit(1);
+            const owner = ownerRows[0];
+            if (owner?.email) {
+              const planName = PLAN_PRICES[planKey]?.name ?? planKey;
+              const billingPeriod = (period ?? "monthly") === "yearly" ? "yearly" : "monthly";
+              const priceInfo = PLAN_PRICES[planKey];
+              const amount = billingPeriod === "yearly"
+                ? (priceInfo?.yearly ?? 0) / 100
+                : (priceInfo?.monthly ?? 0) / 100;
+              // Calculate next renewal date
+              const nextRenewal = new Date();
+              if (billingPeriod === "yearly") {
+                nextRenewal.setFullYear(nextRenewal.getFullYear() + 1);
+              } else {
+                nextRenewal.setMonth(nextRenewal.getMonth() + 1);
+              }
+              sendSubscriptionConfirmationEmail(
+                owner.email,
+                owner.businessName,
+                {
+                  planName,
+                  planKey,
+                  billingPeriod,
+                  amount,
+                  nextRenewalDate: nextRenewal.toLocaleDateString("en-US", {
+                    year: "numeric", month: "long", day: "numeric"
+                  }),
+                  ownerName: owner.ownerName ?? owner.businessName,
+                }
+              ).catch((e) => console.error("[Email] Subscription confirmation failed:", e));
+            }
           }
           break;
         }
@@ -253,14 +288,50 @@ export function registerStripeRoutes(app: Express): void {
         if (planKey && businessOwnerId) {
           const db = await getDb();
           if (db) {
-            await db.update(businessOwners)
-              .set({
-                subscriptionPlan: planKey,
-                subscriptionStatus: "active",
-                subscriptionPeriod: period ?? "monthly",
-                stripeSubscriptionId: subscriptionId ?? null,
-              })
-              .where(eq(businessOwners.id, businessOwnerId));
+            // Only update if not already active (avoid duplicate email from webhook)
+            const existingRows = await db.select().from(businessOwners)
+              .where(eq(businessOwners.id, businessOwnerId)).limit(1);
+            const existing = existingRows[0];
+            const alreadyActive = existing?.subscriptionPlan === planKey && existing?.subscriptionStatus === "active";
+            if (!alreadyActive) {
+              await db.update(businessOwners)
+                .set({
+                  subscriptionPlan: planKey,
+                  subscriptionStatus: "active",
+                  subscriptionPeriod: period ?? "monthly",
+                  stripeSubscriptionId: subscriptionId ?? null,
+                })
+                .where(eq(businessOwners.id, businessOwnerId));
+              // Send confirmation email (webhook may not have fired yet)
+              if (existing?.email) {
+                const planName = PLAN_PRICES[planKey]?.name ?? planKey;
+                const billingPeriod = (period ?? "monthly") === "yearly" ? "yearly" : "monthly";
+                const priceInfo = PLAN_PRICES[planKey];
+                const amount = billingPeriod === "yearly"
+                  ? (priceInfo?.yearly ?? 0) / 100
+                  : (priceInfo?.monthly ?? 0) / 100;
+                const nextRenewal = new Date();
+                if (billingPeriod === "yearly") {
+                  nextRenewal.setFullYear(nextRenewal.getFullYear() + 1);
+                } else {
+                  nextRenewal.setMonth(nextRenewal.getMonth() + 1);
+                }
+                sendSubscriptionConfirmationEmail(
+                  existing.email,
+                  existing.businessName,
+                  {
+                    planName,
+                    planKey,
+                    billingPeriod,
+                    amount,
+                    nextRenewalDate: nextRenewal.toLocaleDateString("en-US", {
+                      year: "numeric", month: "long", day: "numeric"
+                    }),
+                    ownerName: existing.ownerName ?? existing.businessName,
+                  }
+                ).catch((e) => console.error("[Email] Success page email failed:", e));
+              }
+            }
           }
         }
       } catch (err) {
