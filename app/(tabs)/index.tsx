@@ -387,12 +387,11 @@ export default function HomeScreen() {
   const selectedLocationFilter = activeLocation?.id ?? null;
 
   // ─── Primary booking URL (for QR card) ─────────────────────────────
+  // No location param — QR code opens booking page where client can select their location
   const primaryBookingUrl = useMemo(() => {
     const slug = state.settings.customSlug || state.settings.businessName.replace(/\s+/g, "-").toLowerCase();
-    const loc = activeLocation;
-    const locationParam = loc ? `?location=${encodeURIComponent(loc.id)}` : "";
-    return `${PUBLIC_BOOKING_URL}/book/${slug}${locationParam}`;
-  }, [state.settings, activeLocation]);
+    return `${PUBLIC_BOOKING_URL}/book/${slug}`;
+  }, [state.settings]);
   // Use the store's location-aware filter (single source of truth)
   const filterByLocation = filterAppointmentsByLocation;
 
@@ -683,6 +682,7 @@ export default function HomeScreen() {
     try {
       await Share.share({
         message: `Book an appointment with ${state.settings.businessName}!${addressLine}${phoneLine}${websiteLine}\n\nSchedule online: ${url}\n\nPowered by Lime Of Time`,
+        url,
         title: "Book an Appointment",
       });
     } catch {}
@@ -994,7 +994,11 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* ─── Weekly Overview Chart ─────────────────────────────── */}
+        {/* ─── Weekly Overview Chart ───────────────────────────────────── */}
+        <Pressable
+          onPress={() => router.push({ pathname: "/analytics-detail", params: { tab: "revenue" } } as any)}
+          style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+        >
         <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 16 }]}>
           <View style={styles.chartHeader}>
             <View>
@@ -1041,8 +1045,13 @@ export default function HomeScreen() {
             ))}
           </View>
         </View>
+        </Pressable>
 
-        {/* ─── Revenue Trend (6-month) ──────────────────────────────── */}
+        {/* ─── Revenue Trend (6-month) ────────────────────────────── */}
+        <Pressable
+          onPress={() => router.push({ pathname: "/analytics-detail", params: { tab: "revenue" } } as any)}
+          style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+        >
         <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 12 }]}>
           <View style={styles.chartHeader}>
             <View>
@@ -1072,8 +1081,9 @@ export default function HomeScreen() {
           </View>
           <MiniBarChart data={analytics.monthlyData} height={isTablet ? 220 : 190} width={contentWidth - 32} />
         </View>
+        </Pressable>
 
-        {/* ─── Service Breakdown + Status (side by side) ──────── */}
+        {/* ─── Service Breakdown + Status (side by side) ────────── */}
         <View style={[styles.sideBySideRow, { gap: cardGap, marginTop: 16 }]}>
           {/* Service Breakdown */}
           <View
@@ -1227,7 +1237,7 @@ export default function HomeScreen() {
               <Text style={[styles.chartSubtitle, { color: colors.muted }]}>Day {revenueForecast.dayOfMonth} of {revenueForecast.daysInMonth}</Text>
             </View>
             <Pressable
-              onPress={() => router.push("/schedule-settings" as any)}
+              onPress={() => router.push("/(tabs)/settings" as any)}
               style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
             >
               {revenueForecast.goal > 0 ? (

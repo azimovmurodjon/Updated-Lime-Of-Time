@@ -1095,3 +1095,14 @@
 - [x] Add stripeCurrentPeriodEnd column to businessOwners schema
 - [x] Save stripeCurrentPeriodEnd from Stripe webhook
 - [x] Redesign choose-plan screen as horizontal swipeable carousel with all 4 plans, animated transitions, pagination dots, and full feature details per slide
+
+## Bug Fixes (Apr 16 batch)
+- [x] Fix Share Booking Link on home screen (not opening share sheet on TestFlight)
+- [x] Fix QR code — show all locations or per-location unique QR, not just first location
+- [x] Multi-location booking link: shared QR/link should open location selector first
+- [x] Fix monthly goal tap — navigating to incorrect page
+- [x] Fix Today's Schedule on home screen
+- [x] Fix Analytics Generate Report not working for Analytics Overview
+- [x] Fix SMS Automation — remove Twilio dependency, route through app backend subscription
+- [x] Fix plan carousel snap — only snaps once, should snap to center on each swipe
+- [x] Fix KPI cards on home (This Week Revenue Trend etc.) — tap should navigate to detail page

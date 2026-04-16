@@ -85,12 +85,8 @@ export default function SmsAutomationScreen() {
   const { state, dispatch } = useStore();
   const colors = useColors();
   const settings = state.settings;
-
-  const isConfigured = !!(
-    settings.twilioAccountSid &&
-    settings.twilioAuthToken &&
-    settings.twilioFromNumber
-  );
+  // SMS is handled by the Lime Of Time platform backend — no Twilio credentials required
+  // The master toggle simply enables/disables the automation rules
 
   const [timingValues, setTimingValues] = useState<Record<string, string>>({
     twilioReminderHoursBeforeAppt: String(
@@ -173,18 +169,14 @@ export default function SmsAutomationScreen() {
             <Text
               style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}
             >
-              {isConfigured
-                ? `Sending from ${settings.twilioFromNumber}`
-                : "Connect Twilio first to enable sending"}
+              {settings.twilioEnabled
+                ? "SMS reminders are active"
+                : "Enable to send automated SMS to clients"}
             </Text>
           </View>
           <Switch
-            value={isConfigured && (settings.twilioEnabled ?? false)}
+            value={settings.twilioEnabled ?? false}
             onValueChange={(v) => {
-              if (!isConfigured) {
-                router.push("/twilio-setup" as any);
-                return;
-              }
               dispatch({
                 type: "UPDATE_SETTINGS",
                 payload: { twilioEnabled: v },

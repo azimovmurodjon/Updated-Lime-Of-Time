@@ -475,6 +475,56 @@ export default function AnalyticsDetailScreen() {
             const avgMonthly = Math.round((sAppts.length / 12) * 10) / 10;
             csvContent += `"${s.name}","$${s.price}","${s.duration}","${sAppts.length}","${sCompleted}","$${sRevenue}","${avgMonthly}"\n`;
           });
+        } else if (reportType === "overview") {
+          fileName = `${businessName.replace(/\s+/g, "_")}_Overview_Report_${currentYear}.csv`;
+          csvContent += `"${businessName} - Analytics Overview Report ${currentYear}"\n`;
+          csvContent += `"Generated: ${dateGenerated}"\n`;
+          if (profile.ownerName) csvContent += `"Owner: ${profile.ownerName}"\n`;
+          csvContent += `\n`;
+
+          // Summary
+          const completionRate = yearAppts.length > 0 ? Math.round((completedAppts.length / yearAppts.length) * 100) : 0;
+          const cancellationRate = yearAppts.length > 0 ? Math.round((cancelledAppts.length / yearAppts.length) * 100) : 0;
+          const avgRevenuePerAppt = completedAppts.length > 0 ? Math.round(yearRevenue / completedAppts.length) : 0;
+          const totalMinutes = completedAppts.reduce((s, a) => s + a.duration, 0);
+          const totalHrs = Math.round((totalMinutes / 60) * 10) / 10;
+          csvContent += `"OVERVIEW SUMMARY"\n`;
+          csvContent += `"Metric","Value"\n`;
+          csvContent += `"Total Gross Revenue","$${yearRevenue.toLocaleString()}"\n`;
+          csvContent += `"Total Appointments","${yearAppts.length}"\n`;
+          csvContent += `"Completed","${completedAppts.length}"\n`;
+          csvContent += `"Cancelled","${cancelledAppts.length}"\n`;
+          csvContent += `"Pending","${pendingAppts.length}"\n`;
+          csvContent += `"Confirmed","${confirmedAppts.length}"\n`;
+          csvContent += `"Completion Rate","${completionRate}%"\n`;
+          csvContent += `"Cancellation Rate","${cancellationRate}%"\n`;
+          csvContent += `"Avg Revenue / Appointment","$${avgRevenuePerAppt}"\n`;
+          csvContent += `"Total Hours Worked","${totalHrs}"\n`;
+          csvContent += `"Total Clients Served","${Object.keys(clientRevenue).length}"\n`;
+          csvContent += `"Total Services Offered","${state.services.length}"\n`;
+          csvContent += `\n`;
+
+          // Monthly revenue
+          csvContent += `"MONTHLY REVENUE BREAKDOWN"\n`;
+          csvContent += `"Month","Revenue","Appointments"\n`;
+          const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+          for (let m = 0; m < 12; m++) {
+            const monthKey = `${currentYear}-${String(m + 1).padStart(2, "0")}`;
+            const rev = monthlyRevenue[monthKey] || 0;
+            const count = completedAppts.filter((a) => a.date.startsWith(monthKey)).length;
+            csvContent += `"${monthNames[m]} ${currentYear}","$${rev.toLocaleString()}","${count}"\n`;
+          }
+          csvContent += `\n`;
+
+          // Top services
+          csvContent += `"TOP SERVICES"\n`;
+          csvContent += `"Service","Revenue","Appointments"\n`;
+          Object.values(serviceRevenue)
+            .sort((a, b) => b.revenue - a.revenue)
+            .slice(0, 10)
+            .forEach((s) => {
+              csvContent += `"${s.name}","$${s.revenue.toLocaleString()}","${s.count}"\n`;
+            });
         }
 
         // Write file and share

@@ -343,38 +343,42 @@ export function PlanCarousel({
       });
       setActiveIndex(targetIdx);
       scrollX.value = targetIdx * ITEM_STRIDE;
-    }, 120);
+    }, 150);
     return () => clearTimeout(timer);
   }, [plans.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      scrollX.value = e.nativeEvent.contentOffset.x;
-      const idx = Math.round(e.nativeEvent.contentOffset.x / ITEM_STRIDE);
+      const rawX = e.nativeEvent.contentOffset.x;
+      scrollX.value = rawX;
+      const idx = Math.round(rawX / ITEM_STRIDE);
       setActiveIndex(Math.max(0, Math.min(idx, plans.length - 1)));
     },
     [ITEM_STRIDE, plans.length, scrollX]
   );
 
-  // Snap to nearest card when the user lifts their finger (even if they barely swiped)
+  // Snap to nearest card after any scroll gesture ends
   const snapToNearest = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const offset = e.nativeEvent.contentOffset.x;
-      const idx = Math.round(offset / ITEM_STRIDE);
+      const rawX = e.nativeEvent.contentOffset.x;
+      const idx = Math.round(rawX / ITEM_STRIDE);
       const clamped = Math.max(0, Math.min(idx, plans.length - 1));
-      flatListRef.current?.scrollToOffset({ offset: clamped * ITEM_STRIDE, animated: true });
+      const targetOffset = clamped * ITEM_STRIDE;
+      flatListRef.current?.scrollToOffset({ offset: targetOffset, animated: true });
       setActiveIndex(clamped);
-      scrollX.value = clamped * ITEM_STRIDE;
+      scrollX.value = targetOffset;
     },
     [ITEM_STRIDE, plans.length, scrollX]
   );
 
   const goTo = useCallback(
     (idx: number) => {
-      flatListRef.current?.scrollToOffset({ offset: idx * ITEM_STRIDE, animated: true });
+      const targetOffset = idx * ITEM_STRIDE;
+      flatListRef.current?.scrollToOffset({ offset: targetOffset, animated: true });
       setActiveIndex(idx);
+      scrollX.value = targetOffset;
     },
-    [ITEM_STRIDE]
+    [ITEM_STRIDE, scrollX]
   );
 
   const activePlan = plans[activeIndex];
@@ -437,13 +441,13 @@ export function PlanCarousel({
         keyExtractor={(item) => item.planKey}
         horizontal
         showsHorizontalScrollIndicator={false}
-        // Snap every ITEM_STRIDE pixels so each swipe lands on the next card
+        // Snap behavior: interval = card + gap, start alignment, fast deceleration
         snapToInterval={ITEM_STRIDE}
         snapToAlignment="start"
         decelerationRate="fast"
-        // Side insets center the active card (iOS uses contentInset, Android uses padding)
-        contentInset={{ left: SIDE_INSET, right: SIDE_INSET }}
-        contentOffset={{ x: -SIDE_INSET, y: 0 }}
+        // disableIntervalMomentum ensures only one card advances per swipe gesture
+        disableIntervalMomentum
+        // Padding centers the active card without contentInset (avoids iOS/Android offset bugs)
         contentContainerStyle={{ paddingHorizontal: SIDE_INSET }}
         onScroll={handleScroll}
         scrollEventThrottle={16}
