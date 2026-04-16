@@ -8,6 +8,7 @@ export interface Service {
   category?: string; // service category for grouping
   photoUri?: string; // optional photo shown on booking page
   locationIds?: string[] | null; // null = all locations
+  reminderHours?: number | null; // override global SMS reminder timing for this service (null = use global)
   createdAt: string;
 }
 
@@ -359,6 +360,13 @@ export interface BusinessSettings {
   twilioRebookingNudge?: boolean; // send rebooking nudge after appointment
   twilioRebookingNudgeDays?: number; // days after appointment to send rebooking nudge
   twilioBirthdaySms?: boolean; // send birthday SMS to clients
+  // Email notification preferences (all optional so existing settings remain valid)
+  emailNotifNewBooking?: boolean;    // receive email when a new booking is made
+  emailNotifCancellation?: boolean;  // receive email when a booking is cancelled
+  emailNotifReschedule?: boolean;    // receive email when a booking is rescheduled
+  emailNotifReminder?: boolean;      // receive daily summary email of upcoming appointments
+  emailNotifReview?: boolean;        // receive email when a client leaves a review
+  emailNotifPayment?: boolean;       // receive email when a payment is received
   // Payment methods for booking page
   zelleHandle?: string; // Zelle phone/email handle
   cashAppHandle?: string; // CashApp $handle (include the $)

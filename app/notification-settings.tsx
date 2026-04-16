@@ -507,6 +507,91 @@ export default function NotificationSettingsScreen() {
           );
         })}
 
+        {/* ── Email Notifications Controller ── */}
+        <Text style={[styles.sectionHeader, { color: colors.muted, marginTop: 20 }]}>Email Notifications to You</Text>
+        <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10, marginTop: -4 }}>
+          Control which business events trigger an email to your registered address.
+        </Text>
+
+        {([
+          {
+            key: "emailNotifNewBooking" as const,
+            label: "New Booking",
+            description: "Email when a client submits a new booking request.",
+            icon: "calendar.badge.plus" as const,
+            color: "#2196F3",
+          },
+          {
+            key: "emailNotifCancellation" as const,
+            label: "Cancellation",
+            description: "Email when a client cancels their appointment.",
+            icon: "xmark.circle.fill" as const,
+            color: "#EF4444",
+          },
+          {
+            key: "emailNotifReschedule" as const,
+            label: "Reschedule",
+            description: "Email when a client requests to reschedule.",
+            icon: "arrow.clockwise" as const,
+            color: "#F59E0B",
+          },
+          {
+            key: "emailNotifReminder" as const,
+            label: "Daily Appointment Summary",
+            description: "Morning email listing all appointments scheduled for today.",
+            icon: "envelope.fill" as const,
+            color: "#9C27B0",
+          },
+          {
+            key: "emailNotifReview" as const,
+            label: "New Client Review",
+            description: "Email when a client leaves a review or rating.",
+            icon: "star.fill" as const,
+            color: "#f59e0b",
+          },
+          {
+            key: "emailNotifPayment" as const,
+            label: "Payment Received",
+            description: "Email when a payment is recorded for an appointment.",
+            icon: "dollarsign.circle.fill" as const,
+            color: "#4CAF50",
+          },
+        ] as const).map((item) => {
+          const isOn = settings[item.key] !== false; // default ON
+          return (
+            <View
+              key={item.key}
+              style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            >
+              <View style={styles.switchRow}>
+                <View style={{ flexDirection: "row", alignItems: "center", flex: 1, marginRight: 12 }}>
+                  <View style={[{
+                    width: 36, height: 36, borderRadius: 10,
+                    alignItems: "center", justifyContent: "center",
+                    marginRight: 12,
+                  }, { backgroundColor: item.color + "18" }]}>
+                    <IconSymbol name={item.icon} size={18} color={item.color} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{item.label}</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 16 }}>{item.description}</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={isOn}
+                  onValueChange={() => {
+                    const action = { type: "UPDATE_SETTINGS" as const, payload: { [item.key]: !isOn } };
+                    dispatch(action);
+                    syncToDb(action);
+                  }}
+                  trackColor={{ false: colors.border, true: item.color + "60" }}
+                  thumbColor={isOn ? item.color : colors.muted}
+                />
+              </View>
+            </View>
+          );
+        })}
+
         {/* Auto-Complete Notification */}
         <Text style={[styles.sectionHeader, { color: colors.muted, marginTop: 20 }]}>Auto-Complete Notification</Text>
         <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10, marginTop: -4 }}>

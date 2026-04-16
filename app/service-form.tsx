@@ -34,6 +34,9 @@ export default function ServiceFormScreen() {
   const [category, setCategory] = useState(existing?.category ?? "");
   const [description, setDescription] = useState(existing?.description ?? "");
   const [photoUri, setPhotoUri] = useState<string | undefined>(existing?.photoUri);
+  const [reminderHours, setReminderHours] = useState<string>(
+    existing?.reminderHours != null ? String(existing.reminderHours) : ""
+  );
 
   const isEdit = !!existing;
 
@@ -81,6 +84,7 @@ export default function ServiceFormScreen() {
       category: category.trim() || undefined,
       description: description.trim() || undefined,
       photoUri: photoUri || undefined,
+      reminderHours: reminderHours.trim() !== "" ? (parseFloat(reminderHours) || null) : null,
       createdAt: existing?.createdAt ?? new Date().toISOString(),
     };
     if (isEdit) {
@@ -217,6 +221,34 @@ export default function ServiceFormScreen() {
           numberOfLines={3}
           returnKeyType="done"
         />
+
+        {/* SMS Reminder Timing */}
+        <Text className="text-xs font-medium text-muted mb-1 ml-1">SMS Reminder Timing (optional)</Text>
+        <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 6, marginLeft: 4, lineHeight: 15 }}>
+          Override the global reminder window for this service. Leave blank to use the default.
+        </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 20 }}>
+          <TextInput
+            style={{
+              flex: 1,
+              backgroundColor: colors.surface,
+              borderRadius: 12,
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+              fontSize: 16,
+              color: colors.foreground,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+            placeholder={`Default (${state.settings.twilioReminderHoursBeforeAppt ?? 24} hrs)`}
+            placeholderTextColor={colors.muted}
+            value={reminderHours}
+            onChangeText={(v) => setReminderHours(v.replace(/[^0-9.]/g, ""))}
+            keyboardType="decimal-pad"
+            returnKeyType="done"
+          />
+          <Text style={{ fontSize: 14, color: colors.muted, minWidth: 30 }}>hrs</Text>
+        </View>
 
         {/* Color */}
         <Text className="text-xs font-medium text-muted mb-2 ml-1">Color</Text>
