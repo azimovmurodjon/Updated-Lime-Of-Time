@@ -604,6 +604,26 @@ export default function HomeScreen() {
       methodBreakdown[method].revenue += getApptPrice(a);
     });
 
+    // ─── Upcoming this week (today through end of week) ──────────────────
+    const todayStr = formatDateStr(now);
+    const upcomingThisWeekAppts = filteredAppts.filter(
+      (a) => a.date >= todayStr && a.date <= endWeekStr && a.status !== 'cancelled' && a.status !== 'completed'
+    );
+    const weekConfirmed = upcomingThisWeekAppts.filter((a) => a.status === 'confirmed').length;
+    const weekPending = upcomingThisWeekAppts.filter((a) => a.status === 'pending').length;
+    const upcomingThisWeek = upcomingThisWeekAppts.length;
+
+    // ─── Next-7-days daily upcoming counts (for spark) ────────────────────
+    const upcomingDailyData: number[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(now);
+      d.setDate(now.getDate() + i);
+      const dStr = formatDateStr(d);
+      upcomingDailyData.push(
+        filteredAppts.filter((a) => a.date === dStr && a.status !== 'cancelled' && a.status !== 'completed').length
+      );
+    }
+
     return {
       totalClients,
       totalAppointments,
@@ -621,6 +641,10 @@ export default function HomeScreen() {
       paidCount,
       unpaidCount,
       methodBreakdown,
+      upcomingThisWeek,
+      weekConfirmed,
+      weekPending,
+      upcomingDailyData,
     };
   }, [state.clients, state.appointments, state.services, filterByLocation, clientsForActiveLocation]);
 
@@ -1035,18 +1059,30 @@ export default function HomeScreen() {
             sparkType="bar"
             onPress={() => setKpiDetailTab("clients")}
           />
-          {/* Top Service Card */}
+          {/* Upcoming This Week Card */}
           <GradientKpiCard
             width={cardW}
-            gradientColors={["#4A148C", "#AB47BC"]}
+            gradientColors={["#7B1FA2", "#CE93D8"]}
             iconBg="rgba(255,255,255,0.22)"
-            icon={<IconSymbol name="crown.fill" size={22} color="#FFF" />}
-            value={analytics.topService?.name ?? "N/A"}
-            label="Top Service"
-            sublabel={analytics.topCount > 0 ? `${analytics.topCount} bookings` : "No bookings yet"}
-            sparkData={kpiServiceRanking.slice(0, 6).map((s) => s.bookings)}
+            icon={<IconSymbol name="calendar.badge.clock" size={22} color="#FFF" />}
+            value={String(analytics.upcomingThisWeek)}
+            numericValue={analytics.upcomingThisWeek}
+            label="Upcoming This Week"
+            sublabel={
+              analytics.upcomingThisWeek === 0
+                ? "No upcoming appointments"
+                : `${analytics.weekConfirmed} confirmed·${analytics.weekPending} pending`
+            }
+            badge={
+              analytics.weekPending > 0 ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 10, backgroundColor: "rgba(255,152,0,0.55)" }}>
+                  <Text style={{ fontSize: 11, fontWeight: "800", color: "#FFF" }}>{analytics.weekPending} pending</Text>
+                </View>
+              ) : undefined
+            }
+            sparkData={analytics.upcomingDailyData}
             sparkType="bar"
-            onPress={() => setKpiDetailTab("topservice")}
+            onPress={() => setKpiDetailTab("appointments")}
           />
         </View>
 

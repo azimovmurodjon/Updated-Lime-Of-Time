@@ -1171,13 +1171,17 @@
 - [x] Payment method step on client web booking page — same payment options before confirmation
 - [x] Reduce splash screen duration from ~2.6s to ~1.5s
 
-## Bugs (Apr 16 batch 14)
-- [ ] Fix content flush against screen edges on all inner screens — add horizontal padding back after ScreenContainer refactor
-- [ ] Add Pay later / skip option to client web booking payment step
-- [ ] Add floating Jump to Now pill button on calendar and staff-calendar timeline views
+## Bugs/Features (Apr 16 batch 14) [duplicate removed]
 
 ## Bugs/Features (Apr 16 batch 14)
 - [x] Fix content flush against screen edges on inner screens — ScreenContainer now uses StyleSheet.flatten to detect caller padding and avoids overriding it with inset-based paddingLeft/Right:0
 - [x] Add "Pay Later / Skip" option to client web booking payment step — new "Skip for now" tile + goToPaymentConfirm allows proceeding without selection
 - [x] Floating "Jump to Now" pill button on calendar day/week timeline views — overlays bottom-center of timeline ScrollView with drop shadow
 - [x] Floating "Jump to Now" pill button on staff-calendar timeline view — same pattern
+
+## Features (Apr 16 batch 15)
+- [x] Replace "Top Services" KPI on home screen with "Upcoming This Week" appointments KPI (confirmed + pending counts, daily spark, pending badge)
+- [x] Admin panel: Twilio config already stored/loaded from DB — added dirty-state Save button (disabled until change)
+- [x] Admin panel: Stripe config already stored/loaded from DB — same dirty-state Save button
+- [x] Admin panel: Subscription plan pricing/limits already stored/loaded from DB — added dirty-state Save button per plan card
+- [x] Admin panel: Business subscription override Save button also made dirty-state
