@@ -522,3 +522,20 @@ export const adminExpenses = mysqlTable("admin_expenses", {
 });
 export type AdminExpense = typeof adminExpenses.$inferSelect;
 export type InsertAdminExpense = typeof adminExpenses.$inferInsert;
+
+// ─── Admin Audit Log ───────────────────────────────────────────────
+// Tracks all configuration changes made by platform admins
+export const adminAuditLog = mysqlTable("admin_audit_log", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Who performed the action (admin username or 'system') */
+  actor: varchar("actor", { length: 100 }).notNull().default("admin"),
+  /** Category: platform_config | plan_pricing | subscription_override | expense */
+  category: varchar("category", { length: 50 }).notNull(),
+  /** Short description of what changed */
+  action: varchar("action", { length: 255 }).notNull(),
+  /** Optional JSON snapshot of changed fields */
+  details: text("details"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type AdminAuditLog = typeof adminAuditLog.$inferSelect;
+export type InsertAdminAuditLog = typeof adminAuditLog.$inferInsert;

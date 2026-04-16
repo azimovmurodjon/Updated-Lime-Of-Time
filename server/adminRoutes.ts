@@ -17,6 +17,7 @@ import {
   subscriptionPlans,
   platformConfig,
   adminExpenses,
+  adminAuditLog,
 } from "../drizzle/schema";
 import { sql, eq, count as drizzleCount } from "drizzle-orm";
 import { ADMIN_LOGO_BASE64 } from "./admin-logo-data";
@@ -74,6 +75,27 @@ function fmtDate(d: Date | string | null): string {
   if (!d) return "N/A";
   const date = typeof d === "string" ? new Date(d) : d;
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+// ─── Audit Log Helper ──────────────────────────────────────────────
+async function writeAuditLog(
+  actor: string,
+  category: string,
+  action: string,
+  details?: Record<string, unknown>
+): Promise<void> {
+  try {
+    const dbase = await getDb();
+    if (!dbase) return;
+    await dbase.insert(adminAuditLog).values({
+      actor,
+      category,
+      action,
+      details: details ? JSON.stringify(details) : null,
+    });
+  } catch (err) {
+    console.error("[Admin] Audit log write error:", err);
+  }
 }
 
 // ─── Register Admin Routes ──────────────────────────────────────────
@@ -707,6 +729,10 @@ export function registerAdminRoutes(app: Express): void {
         updatedAt: new Date(),
       }).where(eq(subscriptionPlans.id, id));
       invalidatePlanCache();
+      const _planSessionId = getSessionFromCookie(req);
+      const _planSession = _planSessionId ? sessions.get(_planSessionId) : null;
+      const _planActor = _planSession?.user || "admin";
+      await writeAuditLog(_planActor, "plan_pricing", `Updated subscription plan #${req.params.id} pricing/limits`, { planId: req.params.id, monthlyPrice, yearlyPrice, maxLocations, maxStaff, maxServices });
       res.redirect("/api/admin/plans?saved=1");
     } catch (err) {
       console.error("[Admin] Update plan error:", err);
@@ -730,6 +756,10 @@ export function registerAdminRoutes(app: Express): void {
       if (overrideStatus) updateFields.subscriptionStatus = overrideStatus;
       if (overridePeriod) updateFields.subscriptionPeriod = overridePeriod;
       await dbase.update(businessOwners).set(updateFields as any).where(eq(businessOwners.id, id));
+      const _ovSessionId = getSessionFromCookie(req);
+      const _ovSession = _ovSessionId ? sessions.get(_ovSessionId) : null;
+      const _ovActor = _ovSession?.user || "admin";
+      await writeAuditLog(_ovActor, "subscription_override", `Updated subscription override for business #${id}`, { businessId: id, adminOverride: isOverride, overridePlan, overrideStatus, overridePeriod });
       res.redirect(`/api/admin/businesses/${id}?saved=1`);
     } catch (err) {
       console.error("[Admin] Override error:", err);
@@ -917,6 +947,11 @@ export function registerAdminRoutes(app: Express): void {
         }
       }
       invalidatePlanCache();
+      // Get actor from session
+      const _sessionId = getSessionFromCookie(req);
+      const _session = _sessionId ? sessions.get(_sessionId) : null;
+      const _actor = _session?.user || "admin";
+      await writeAuditLog(_actor, "platform_config", "Updated platform configuration (Twilio/Stripe settings)");
       res.redirect("/api/admin/platform-config?saved=1");
     } catch (err) {
       console.error("[Admin] Platform config save error:", err);
@@ -985,6 +1020,23 @@ export function registerAdminRoutes(app: Express): void {
       }
     } catch (err: any) {
       res.json({ ok: false, message: `Error: ${err?.message || "Unknown error"}` });
+    }
+  });
+
+  // ── Audit Log ─────────────────────────────────────────────────────────
+  app.get("/api/admin/audit-log", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).json({ error: "DB unavailable" }); return; }
+      const logs = await dbase
+        .select()
+        .from(adminAuditLog)
+        .orderBy(sql`createdAt DESC`)
+        .limit(50);
+      res.json(logs);
+    } catch (err) {
+      console.error("[Admin] Audit log fetch error:", err);
+      res.status(500).json({ error: "Failed to fetch audit log" });
     }
   });
 
@@ -1492,6 +1544,17 @@ function dashboardPage(data: {
       </div>
     </div>
 
+    <!-- Audit Log Panel -->
+    <div class="card" style="margin-bottom:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <h3 style="margin:0;">🔍 Recent Config Changes</h3>
+        <button onclick="loadAuditLog()" id="auditRefreshBtn" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;color:var(--text-muted);">↻ Refresh</button>
+      </div>
+      <div id="auditLogContainer">
+        <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;">Loading...</div>
+      </div>
+    </div>
+
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
       <div class="card">
         <h3>Recent Businesses</h3>
@@ -1536,12 +1599,53 @@ function dashboardPage(data: {
               </tbody>
             </table>`
         }
-      </div>
+       </div>
     </div>
+
+    <script>
+    const CATEGORY_ICONS = { platform_config: '⚙️', plan_pricing: '💰', subscription_override: '🔑', expense: '💸' };
+    const CATEGORY_LABELS = { platform_config: 'Platform Config', plan_pricing: 'Plan Pricing', subscription_override: 'Subscription Override', expense: 'Expense' };
+    function timeAgo(dateStr) {
+      const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+      if (diff < 60) return diff + 's ago';
+      if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+      if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+      return Math.floor(diff / 86400) + 'd ago';
+    }
+    async function loadAuditLog() {
+      const container = document.getElementById('auditLogContainer');
+      const btn = document.getElementById('auditRefreshBtn');
+      if (btn) btn.textContent = '⏳ Loading...';
+      try {
+        const res = await fetch('/api/admin/audit-log');
+        const logs = await res.json();
+        if (!Array.isArray(logs) || logs.length === 0) {
+          container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;">No config changes recorded yet. Changes will appear here after you save Platform Config, Plan Pricing, or Subscription Overrides.</div>';
+        } else {
+          container.innerHTML = '<table style="font-size:13px;"><thead><tr><th>When</th><th>Category</th><th>Action</th><th>By</th></tr></thead><tbody>' +
+            logs.slice(0, 20).map(log => {
+              const icon = CATEGORY_ICONS[log.category] || '📝';
+              const label = CATEGORY_LABELS[log.category] || log.category;
+              return '<tr>' +
+                '<td style="white-space:nowrap;color:var(--text-muted);">' + timeAgo(log.createdAt) + '</td>' +
+                '<td><span style="white-space:nowrap;">' + icon + ' ' + label + '</span></td>' +
+                '<td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (log.action || '') + '</td>' +
+                '<td style="white-space:nowrap;color:var(--text-muted);">' + (log.actor || 'admin') + '</td>' +
+                '</tr>';
+            }).join('') +
+            '</tbody></table>';
+        }
+      } catch (e) {
+        container.innerHTML = '<div style="color:var(--danger);padding:12px;">Failed to load audit log.</div>';
+      }
+      if (btn) btn.textContent = '\u21bb Refresh';
+    }
+    loadAuditLog();
+    </script>
   `);
 }
 
-// ─── Businesses Page ────────────────────────────────────────────────
+// ─── Businesses Page ───────────────────────────────────────────────
 function planColor(plan: string): string {
   const colors: Record<string, string> = { solo: '#6b7280', growth: '#0a7ea4', studio: '#7c3aed', enterprise: '#059669' };
   return colors[plan] || '#6b7280';
@@ -1561,15 +1665,25 @@ function businessesPage(businesses: any[]): string {
     const status = b.subscriptionStatus || 'free';
     const statusColor = status === 'active' ? '#059669' : status === 'trial' ? '#f59e0b' : status === 'expired' ? '#ef4444' : '#6b7280';
     const pc = planColor(plan);
-    return `<tr class="biz-row" data-name="${escHtml((b.businessName || '').toLowerCase())}" data-phone="${escHtml((b.phone || '').toLowerCase())}" data-plan="${plan}" data-status="${status}" data-open="${b.temporaryClosed ? 'closed' : 'open'}">
-      <td style="font-weight:600;"><a href="/api/admin/businesses/${b.id}" style="color:var(--text);text-decoration:none;">${escHtml(b.businessName)}</a></td>
-      <td style="font-size:13px;color:var(--text-muted);">${escHtml(b.phone || '—')}</td>
-      <td style="font-size:13px;">${escHtml(b.email || '—')}</td>
-      <td><span style="background:${pc}20;color:${pc};padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600;">${plan.charAt(0).toUpperCase() + plan.slice(1)}${b.adminOverride ? ' ⭐' : ''}</span></td>
-      <td><span style="background:${statusColor}20;color:${statusColor};padding:2px 8px;border-radius:10px;font-size:12px;">${status.charAt(0).toUpperCase() + status.slice(1)}</span></td>
-      <td>${b.temporaryClosed ? '<span class="badge badge-danger" style="font-size:11px;">Closed</span>' : '<span class="badge badge-success" style="font-size:11px;">Open</span>'}</td>
-      <td style="font-size:12px;color:var(--text-muted);">${fmtDate(b.createdAt)}</td>
-      <td><a href="/api/admin/businesses/${b.id}" class="btn btn-secondary btn-sm">Details →</a></td>
+    // Initials avatar from business name
+    const initials = (b.businessName || '?').split(/\s+/).slice(0, 2).map((w: string) => w[0]?.toUpperCase() || '').join('');
+    return `<tr class="biz-row" data-name="${escHtml((b.businessName || '').toLowerCase())}" data-phone="${escHtml((b.phone || '').toLowerCase())}" data-plan="${plan}" data-status="${status}" data-open="${b.temporaryClosed ? 'closed' : 'open'}" style="border-bottom:1px solid var(--border);">
+      <td style="padding:0;width:4px;"><div style="width:4px;height:100%;min-height:64px;background:${pc};border-radius:2px 0 0 2px;"></div></td>
+      <td style="padding:12px 16px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:38px;height:38px;border-radius:50%;background:${pc}22;color:${pc};font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1.5px solid ${pc}44;">${initials}</div>
+          <div>
+            <div style="font-weight:600;font-size:14px;"><a href="/api/admin/businesses/${b.id}" style="color:var(--text);text-decoration:none;">${escHtml(b.businessName)}</a></div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${escHtml(b.email || b.phone || '—')}</div>
+          </div>
+        </div>
+      </td>
+      <td style="padding:12px 16px;font-size:13px;color:var(--text-muted);">${escHtml(b.phone || '—')}</td>
+      <td style="padding:12px 16px;"><span style="background:${pc}18;color:${pc};padding:3px 10px;border-radius:10px;font-size:12px;font-weight:600;border:1px solid ${pc}33;">${plan.charAt(0).toUpperCase() + plan.slice(1)}${b.adminOverride ? ' ⭐' : ''}</span></td>
+      <td style="padding:12px 16px;"><span style="background:${statusColor}18;color:${statusColor};padding:3px 10px;border-radius:10px;font-size:12px;font-weight:500;border:1px solid ${statusColor}33;">${status.charAt(0).toUpperCase() + status.slice(1)}</span></td>
+      <td style="padding:12px 16px;">${b.temporaryClosed ? '<span class="badge badge-danger" style="font-size:11px;">Closed</span>' : '<span class="badge badge-success" style="font-size:11px;">Open</span>'}</td>
+      <td style="padding:12px 16px;font-size:12px;color:var(--text-muted);">${fmtDate(b.createdAt)}</td>
+      <td style="padding:12px 16px;"><a href="/api/admin/businesses/${b.id}" class="btn btn-secondary btn-sm">Details →</a></td>
     </tr>`;
   }).join('');
 
@@ -1624,9 +1738,9 @@ function businessesPage(businesses: any[]): string {
       <table id="bizTable">
         <thead>
           <tr style="background:var(--bg-hover);">
-            <th style="padding:12px 16px;">Business Name</th>
+            <th style="padding:0;width:4px;"></th>
+            <th style="padding:12px 16px;">Business</th>
             <th style="padding:12px 16px;">Phone</th>
-            <th style="padding:12px 16px;">Email</th>
             <th style="padding:12px 16px;">Plan</th>
             <th style="padding:12px 16px;">Status</th>
             <th style="padding:12px 16px;">Booking</th>

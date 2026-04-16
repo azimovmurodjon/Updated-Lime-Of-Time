@@ -1192,3 +1192,9 @@
 ## Features (Apr 16 batch 17)
 - [x] Admin platform config: "Test Connection" button for Twilio — POST /api/admin/test-twilio, fetches account info via Twilio REST API, shows ✅ account name or ❌ error inline
 - [x] Admin platform config: "Test Connection" button for Stripe — POST /api/admin/test-stripe, fetches balance via Stripe SDK, shows ✅ live/test mode + currency or ❌ error inline
+
+## Features (Apr 16 batch 18)
+- [x] Admin audit log: DB table + server-side logging on all config saves (platform config, plan pricing, subscription overrides)
+- [x] Admin audit log: GET endpoint returning last 20 log entries
+- [x] Admin audit log: panel on admin dashboard showing last 20 changes (who, what, when)
+- [x] Admin businesses list: richer cards with better visual separation (plan badge, appointment count, client count, join date, status indicator)
