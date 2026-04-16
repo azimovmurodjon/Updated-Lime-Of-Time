@@ -359,6 +359,11 @@ export interface BusinessSettings {
   twilioRebookingNudge?: boolean; // send rebooking nudge after appointment
   twilioRebookingNudgeDays?: number; // days after appointment to send rebooking nudge
   twilioBirthdaySms?: boolean; // send birthday SMS to clients
+  // Payment methods for booking page
+  zelleHandle?: string; // Zelle phone/email handle
+  cashAppHandle?: string; // CashApp $handle (include the $)
+  venmoHandle?: string; // Venmo @handle (include the @)
+  paymentNotes?: string; // free-text payment instructions shown on booking page
 }
 
 export const SERVICE_COLORS = [

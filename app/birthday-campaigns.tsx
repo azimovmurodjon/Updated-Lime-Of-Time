@@ -105,21 +105,15 @@ export default function BirthdayCampaignsScreen() {
       const message = generateBirthdayMessage(client);
       const biz2 = state.settings;
       const rawPhone = stripPhoneFormat(client.phone);
-      const twilioReady =
-        biz2.twilioEnabled &&
-        biz2.twilioBirthdaySms &&
-        biz2.twilioAccountSid &&
-        biz2.twilioAuthToken &&
-        biz2.twilioFromNumber;
-      if (twilioReady) {
+      const smsEnabled = biz2.twilioEnabled && biz2.twilioBirthdaySms;
+      if (smsEnabled && state.businessOwnerId) {
         const toNumber = rawPhone.startsWith("+") ? rawPhone : `+1${rawPhone.replace(/\D/g, "")}`;
         sendSmsMutation
           .mutateAsync({
-            accountSid: biz2.twilioAccountSid!,
-            authToken: biz2.twilioAuthToken!,
-            fromNumber: biz2.twilioFromNumber!,
+            businessOwnerId: state.businessOwnerId,
             toNumber,
             body: message,
+            smsAction: "birthday",
           })
           .then(() => Alert.alert("Sent!", `Birthday SMS sent to ${client.name}.`))
           .catch(() => {

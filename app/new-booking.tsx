@@ -560,22 +560,16 @@ export default function NewBookingScreen() {
         apptLoc?.zipCode
       );
       const rawPhone = stripPhoneFormat(selectedClient.phone);
-      // Try Twilio first; fall back to native SMS app
-      const twilioReady =
-        biz.twilioEnabled &&
-        biz.twilioBookingReminder &&
-        biz.twilioAccountSid &&
-        biz.twilioAuthToken &&
-        biz.twilioFromNumber;
-      if (twilioReady) {
+      // Try server-side SMS (subscription gated); fall back to native SMS app
+      const smsEnabled = biz.twilioEnabled && biz.twilioBookingReminder;
+      if (smsEnabled && state.businessOwnerId) {
         const toNumber = rawPhone.startsWith("+") ? rawPhone : `+1${rawPhone.replace(/\D/g, "")}`;
         sendSmsMutation
           .mutateAsync({
-            accountSid: biz.twilioAccountSid!,
-            authToken: biz.twilioAuthToken!,
-            fromNumber: biz.twilioFromNumber!,
+            businessOwnerId: state.businessOwnerId,
             toNumber,
             body: msg,
+            smsAction: "confirmation",
           })
           .catch(() => {
             // Silently fall back — don't block booking flow

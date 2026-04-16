@@ -94,6 +94,10 @@ const initialSettings: BusinessSettings = {
   twilioRebookingNudge: false,
   twilioRebookingNudgeDays: 14,
   twilioBirthdaySms: false,
+  zelleHandle: "",
+  cashAppHandle: "",
+  venmoHandle: "",
+  paymentNotes: "",
 };
 
 const initialState: AppState = {
@@ -762,6 +766,11 @@ export function dbOwnerToSettings(owner: any): Partial<BusinessSettings> {
       description: owner.description ?? "",
       website: owner.website ?? "",
     },
+    // Payment methods
+    zelleHandle: (owner as any).zelleHandle ?? "",
+    cashAppHandle: (owner as any).cashAppHandle ?? "",
+    venmoHandle: (owner as any).venmoHandle ?? "",
+    paymentNotes: (owner as any).paymentNotes ?? "",
   };
 }
 
@@ -1510,6 +1519,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             if ((settings as any).autoCompleteDelayMinutes !== undefined) updateData.autoCompleteDelayMinutes = (settings as any).autoCompleteDelayMinutes;
             if ((settings as any).notificationPreferences !== undefined) updateData.notificationPreferences = (settings as any).notificationPreferences;
             if ((settings as any).smsTemplates !== undefined) updateData.smsTemplates = (settings as any).smsTemplates;
+            // Payment methods
+            if (settings.zelleHandle !== undefined) updateData.zelleHandle = settings.zelleHandle;
+            if (settings.cashAppHandle !== undefined) updateData.cashAppHandle = settings.cashAppHandle;
+            if (settings.venmoHandle !== undefined) updateData.venmoHandle = settings.venmoHandle;
+            if (settings.paymentNotes !== undefined) updateData.paymentNotes = settings.paymentNotes;
             // Only update if there's something besides id
             if (Object.keys(updateData).length > 1) {
               await updateBusinessMut.mutateAsync(updateData);

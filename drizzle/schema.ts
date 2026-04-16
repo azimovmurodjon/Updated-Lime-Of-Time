@@ -81,6 +81,32 @@ export const businessOwners = mysqlTable("business_owners", {
   smsTemplates: json("smsTemplates"),
   /** Onboarding completed */
   onboardingComplete: boolean("onboardingComplete").default(false).notNull(),
+  // ─── Subscription Fields ─────────────────────────────────────────────
+  /** Subscription plan: solo | growth | studio | enterprise */
+  subscriptionPlan: mysqlEnum("subscriptionPlan", ["solo", "growth", "studio", "enterprise"]).default("solo").notNull(),
+  /** Subscription status: trial | active | expired | free */
+  subscriptionStatus: mysqlEnum("subscriptionStatus", ["trial", "active", "expired", "free"]).default("free").notNull(),
+  /** Billing period: monthly | yearly */
+  subscriptionPeriod: mysqlEnum("subscriptionPeriod", ["monthly", "yearly"]).default("monthly").notNull(),
+  /** Trial end date (ISO string) */
+  trialEndsAt: timestamp("trialEndsAt"),
+  /** Stripe customer ID */
+  stripeCustomerId: varchar("stripeCustomerId", { length: 255 }),
+  /** Stripe subscription ID */
+  stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 255 }),
+  /** Admin override: grant full Unlimited access for free */
+  adminOverride: boolean("adminOverride").default(false).notNull(),
+  /** Admin override note (reason/description) */
+  adminOverrideNote: text("adminOverrideNote"),
+  // ─── Payment Methods ─────────────────────────────────────────────────
+  /** Zelle phone/email handle shown on booking confirmation */
+  zelleHandle: varchar("zelleHandle", { length: 255 }),
+  /** CashApp $handle shown on booking confirmation */
+  cashAppHandle: varchar("cashAppHandle", { length: 255 }),
+  /** Venmo @handle shown on booking confirmation */
+  venmoHandle: varchar("venmoHandle", { length: 255 }),
+  /** Free-text payment instructions shown on booking page */
+  paymentNotes: text("paymentNotes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -405,3 +431,59 @@ export const locations = mysqlTable("locations", {
 
 export type DbLocation = typeof locations.$inferSelect;
 export type InsertLocation = typeof locations.$inferInsert;
+
+// ─── Subscription Plans ────────────────────────────────────────────
+export const subscriptionPlans = mysqlTable("subscription_plans", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Plan key: solo | growth | studio | enterprise */
+  planKey: mysqlEnum("planKey", ["solo", "growth", "studio", "enterprise"]).notNull().unique(),
+  /** Display name shown to users */
+  displayName: varchar("displayName", { length: 100 }).notNull(),
+  /** Monthly price in USD (0 for free) */
+  monthlyPrice: decimal("monthlyPrice", { precision: 10, scale: 2 }).notNull().default("0"),
+  /** Yearly price in USD (0 for free) */
+  yearlyPrice: decimal("yearlyPrice", { precision: 10, scale: 2 }).notNull().default("0"),
+  /** Max clients (-1 = unlimited) */
+  maxClients: int("maxClients").notNull().default(-1),
+  /** Max appointments per month (-1 = unlimited) */
+  maxAppointments: int("maxAppointments").notNull().default(-1),
+  /** Max locations (-1 = unlimited) */
+  maxLocations: int("maxLocations").notNull().default(-1),
+  /** Max staff members (-1 = unlimited) */
+  maxStaff: int("maxStaff").notNull().default(-1),
+  /** Max services (-1 = unlimited) */
+  maxServices: int("maxServices").notNull().default(-1),
+  /** Max products (-1 = unlimited) */
+  maxProducts: int("maxProducts").notNull().default(-1),
+  /** SMS automation allowed: none | confirmations | full */
+  smsLevel: mysqlEnum("smsLevel", ["none", "confirmations", "full"]).notNull().default("none"),
+  /** Payment methods: basic (cash+p2p) | full (includes card) */
+  paymentLevel: mysqlEnum("paymentLevel", ["basic", "full"]).notNull().default("basic"),
+  /** Whether this plan is visible to the public (admin toggle) */
+  isPublic: boolean("isPublic").notNull().default(false),
+  /** Sort order for display */
+  sortOrder: int("sortOrder").notNull().default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SubscriptionPlan = typeof subscriptionPlans.$inferSelect;
+export type InsertSubscriptionPlan = typeof subscriptionPlans.$inferInsert;
+
+// ─── Platform Config ───────────────────────────────────────────────
+// Stores admin-controlled platform configuration (Twilio, Stripe, etc.)
+export const platformConfig = mysqlTable("platform_config", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Config key */
+  configKey: varchar("configKey", { length: 100 }).notNull().unique(),
+  /** Config value (encrypted for sensitive keys) */
+  configValue: text("configValue"),
+  /** Whether this is a sensitive value (masked in UI) */
+  isSensitive: boolean("isSensitive").notNull().default(false),
+  /** Description shown in admin UI */
+  description: text("description"),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type PlatformConfig = typeof platformConfig.$inferSelect;
+export type InsertPlatformConfig = typeof platformConfig.$inferInsert;

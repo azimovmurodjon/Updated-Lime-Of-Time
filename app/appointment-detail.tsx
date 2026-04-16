@@ -224,25 +224,20 @@ export default function AppointmentDetailScreen() {
             );
           }
         }
-        // Try Twilio first for completed (rebooking nudge) and cancelled; fall back to native SMS
+        // Try server-side SMS (subscription gated); fall back to native SMS
         const biz2 = state.settings;
         const isCompleted = status === "completed";
-        const twilioReady =
-          biz2.twilioEnabled &&
-          biz2.twilioAccountSid &&
-          biz2.twilioAuthToken &&
-          biz2.twilioFromNumber &&
-          ((isCompleted && biz2.twilioRebookingNudge) || !isCompleted);
+        const smsAction = isCompleted ? "rebooking" : "confirmation";
+        const smsEnabled = biz2.twilioEnabled;
         const rawPhone2 = stripPhoneFormat(client.phone);
-        if (twilioReady) {
+        if (smsEnabled && state.businessOwnerId) {
           const toNumber2 = rawPhone2.startsWith("+") ? rawPhone2 : `+1${rawPhone2.replace(/\D/g, "")}`;
           sendSmsMutation
             .mutateAsync({
-              accountSid: biz2.twilioAccountSid!,
-              authToken: biz2.twilioAuthToken!,
-              fromNumber: biz2.twilioFromNumber!,
+              businessOwnerId: state.businessOwnerId,
               toNumber: toNumber2,
               body: msg,
+              smsAction,
             })
             .catch(() => openSms(client.phone, msg));
         } else {

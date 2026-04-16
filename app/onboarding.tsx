@@ -301,18 +301,30 @@ export default function OnboardingScreen() {
   };
 
   const handleOtpVerifyWithCode = async (code: string) => {
-    if (code.trim() !== STATIC_OTP) {
-      setOtpError("Incorrect code. Please try again.");
-      // Shake all boxes
-      otpBoxScales.forEach((s, i) => {
-        s.value = withDelay(i * 30, withSequence(
-          withTiming(0.92, { duration: 60 }),
-          withTiming(1.04, { duration: 60 }),
-          withTiming(1, { duration: 60 }),
-        ));
-      });
-      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    if (code.length < 6) return;
+    setLoading(true);
+    try {
+      const stripped = stripPhoneFormat(phone);
+      const rawPhone = selectedCountry.dial === "+1" ? stripped : `${selectedCountry.dial.replace("+", "")}${stripped}`;
+      const result = await verifyOtpMut.mutateAsync({ phone: rawPhone, code: code.trim() });
+      if (!result.success) {
+        setOtpError(result.error ?? "Incorrect code. Please try again.");
+        // Shake all boxes
+        otpBoxScales.forEach((s, i) => {
+          s.value = withDelay(i * 30, withSequence(
+            withTiming(0.92, { duration: 60 }),
+            withTiming(1.04, { duration: 60 }),
+            withTiming(1, { duration: 60 }),
+          ));
+        });
+        if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        return;
+      }
+    } catch {
+      setOtpError("Verification failed. Please try again.");
       return;
+    } finally {
+      setLoading(false);
     }
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     if (pendingOtpAction === "existing" && pendingExistingId !== null) {
@@ -364,6 +376,8 @@ export default function OnboardingScreen() {
 
   const trpcUtils = trpc.useUtils();
   const createBusinessMut = trpc.business.create.useMutation();
+  const sendOtpMut = trpc.otp.send.useMutation();
+  const verifyOtpMut = trpc.otp.verify.useMutation();
 
   // ─── Entrance animations ─────────────────────────────────────────
   const logoScale = useSharedValue(0.6);
@@ -505,6 +519,8 @@ export default function OnboardingScreen() {
         setPendingOtpAction("existing");
         setOtpValue("");
         setOtpError("");
+        // Send OTP via server (Twilio or test mode 123456)
+        sendOtpMut.mutate({ phone: rawPhone });
         navigateToStep("otp");
         return;
       }
@@ -530,10 +546,14 @@ export default function OnboardingScreen() {
     } finally {
       setLoading(false);
     }
-    // New user — show OTP before registration
+      // New user — show OTP before registration
     setPendingOtpAction("new");
     setOtpValue("");
     setOtpError("");
+    // Send OTP via server (Twilio or test mode 123456)
+    const stripped2 = stripPhoneFormat(phone);
+    const rawPhone2 = selectedCountry.dial === "+1" ? stripped2 : `${selectedCountry.dial.replace("+", "")}${stripped2}`;
+    sendOtpMut.mutate({ phone: rawPhone2 });
     navigateToStep("otp");
   };
 
@@ -546,34 +566,15 @@ export default function OnboardingScreen() {
       // Check if a business owner already exists with this phone
       const existing = await trpcUtils.business.checkByPhone.fetch({ phone: rawPhone });
       if (existing) {
-        // Link social account to existing business owner and log in
+        // Existing user — require OTP before logging in
         const fullData = await trpcUtils.business.getFullData.fetch({ id: existing.id });
-        dispatch({ type: "SET_BUSINESS_OWNER_ID", payload: existing.id });
-        await AsyncStorage.setItem("@bookease_business_owner_id", String(existing.id));
-        if (fullData && fullData.owner) {
-          dispatch({
-            type: "LOAD_DATA",
-            payload: {
-              services: (fullData.services || []).map(dbServiceToLocal),
-              clients: (fullData.clients || []).map(dbClientToLocal),
-              appointments: (fullData.appointments || []).map(dbAppointmentToLocal),
-              reviews: (fullData.reviews || []).map(dbReviewToLocal),
-              discounts: (fullData.discounts || []).map(dbDiscountToLocal),
-              giftCards: (fullData.giftCards || []).map(dbGiftCardToLocal),
-              locations: (fullData.locations || []).map(dbLocationToLocal),
-              products: (fullData.products || []).map(dbProductToLocal),
-              staff: (fullData.staff || []).map(dbStaffToLocal),
-              customSchedule: (fullData.customSchedule || []).map(dbCustomScheduleToLocal),
-              settings: dbOwnerToSettings(fullData.owner) as any,
-              businessOwnerId: existing.id,
-            },
-          });
-        }
-        if (biometricAvailable && Platform.OS !== "web") {
-          navigateToStep(3);
-        } else {
-          router.replace("/(tabs)");
-        }
+        setPendingExistingId(existing.id);
+        setPendingFullData(fullData);
+        setPendingOtpAction("existing");
+        setOtpValue("");
+        setOtpError("");
+        sendOtpMut.mutate({ phone: rawPhone });
+        navigateToStep("otp");
         return;
       }
       // New user — pre-fill from social data and go to business registration
@@ -593,9 +594,11 @@ export default function OnboardingScreen() {
     setOtpResendLoading(true);
     setOtpValue("");
     setOtpError("");
+    setOtpDigits(["","","","","",""]);
     try {
-      // In production this would trigger a real SMS; for now just reset the countdown
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      const stripped = stripPhoneFormat(phone);
+      const rawPhone = selectedCountry.dial === "+1" ? stripped : `${selectedCountry.dial.replace("+", "")}${stripped}`;
+      await sendOtpMut.mutateAsync({ phone: rawPhone });
       setOtpCountdown(60);
       const id = setInterval(() => {
         setOtpCountdown((prev) => {
@@ -603,6 +606,8 @@ export default function OnboardingScreen() {
           return prev - 1;
         });
       }, 1000);
+    } catch {
+      // Silently fail — user can try again
     } finally {
       setOtpResendLoading(false);
     }

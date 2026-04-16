@@ -1012,3 +1012,39 @@
 - [ ] Waitlist feature for fully-booked slots (booking page)
 - [x] Service bundle/package deals (packages.tsx with purchase + redemption tracking)
 - [x] Twilio SMS: booking reminders, rebooking nudge, birthday SMS (twilio-setup.tsx + sms-automation.tsx)
+
+## SaaS Platform — Phase 1: DB + Server Foundation
+- [x] Add subscription columns to business_owners table (subscriptionPlan, subscriptionStatus, subscriptionPeriod, trialEndsAt, adminOverride, adminOverrideNote, stripeCustomerId, stripeSubscriptionId)
+- [x] Create subscription_plans table with all 4 tiers (Solo/Growth/Studio/Enterprise)
+- [x] Seed subscription_plans with pricing and limits
+- [x] Add server-side plan limit middleware (enforce client/staff/location/service/product limits)
+
+## SaaS Platform — Phase 2: Admin Panel Expansion
+- [x] Add Subscriptions tab to admin panel (list all businesses with plan/status/trial)
+- [x] Add Plan Pricing tab to admin panel (edit plan names, prices, limits, isPublic toggle)
+- [x] Add Twilio Configuration section in admin Settings (Account SID, Auth Token, From Number, Test Mode toggle with 123456 bypass)
+- [x] Add Stripe Configuration section in admin Settings (Publishable Key, Secret Key, Webhook Secret)
+- [x] Add Admin Override toggle on each Business Detail page (grant Unlimited for free)
+- [x] Update admin URL references to lime-of-time.com/admin
+
+## SaaS Platform — Phase 3: OTP Login
+- [x] Add phone number entry screen (replaces current onboarding first screen)
+- [x] Add OTP entry screen (6-digit code)
+- [x] Add Face ID enable prompt after first successful OTP
+- [x] Server: /api/auth/send-otp endpoint (Twilio SMS, respects test mode)
+- [x] Server: /api/auth/verify-otp endpoint
+
+## SaaS Platform — Phase 4: Subscription UI in App
+- [x] Add Subscription screen in Settings (current plan, usage meters, trial countdown)
+- [x] Add Choose a Plan screen (shows only isPublic plans)
+- [x] Add feature gates (upgrade prompts when limits hit)
+- [x] Admin Override businesses show Complimentary badge
+
+## SaaS Platform — Phase 6: Client Booking Page Payments
+- [x] Add Payment Tab in business Settings (Zelle/CashApp/Venmo handles)
+- [x] Show payment options on booking confirmation page
+
+## SaaS Platform — Phase 7: SMS Gating + Production Hardening
+- [x] Gate SMS automation by subscription plan
+- [x] Remove Twilio credentials from mobile app (server-only)
+- [ ] Rate limiting on SMS and OTP endpoints

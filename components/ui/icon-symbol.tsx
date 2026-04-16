@@ -96,6 +96,10 @@ const MAPPING = {
   "arrow.down.to.line": "save-alt",
   "photo.badge.plus": "add-photo-alternate",
   "photo.fill": "image",
+  "creditcard.fill": "credit-card",
+  "creditcard": "credit-card",
+  "banknote.fill": "payments",
+  "arrow.up.arrow.down": "swap-vert",
 } as unknown as IconMapping;
 
 export function IconSymbol({

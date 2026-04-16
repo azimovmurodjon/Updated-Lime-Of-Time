@@ -1617,6 +1617,49 @@ export default function PublicBookingScreen() {
               ) : null}
             </View>
 
+            {/* Payment Methods */}
+            {(state.settings.zelleHandle || state.settings.cashAppHandle || state.settings.venmoHandle) ? (
+              <View style={[styles.doneSummary, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 12 }]}>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, marginBottom: 10 }}>How to Pay</Text>
+                {state.settings.zelleHandle ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                    <View style={{ width: 30, height: 30, borderRadius: 7, backgroundColor: "#6C1D45", alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ color: "#fff", fontWeight: "800", fontSize: 14 }}>Z</Text>
+                    </View>
+                    <View>
+                      <Text style={{ fontSize: 11, color: colors.muted }}>Zelle</Text>
+                      <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{state.settings.zelleHandle}</Text>
+                    </View>
+                  </View>
+                ) : null}
+                {state.settings.cashAppHandle ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                    <View style={{ width: 30, height: 30, borderRadius: 7, backgroundColor: "#00C244", alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ color: "#fff", fontWeight: "800", fontSize: 14 }}>$</Text>
+                    </View>
+                    <View>
+                      <Text style={{ fontSize: 11, color: colors.muted }}>Cash App</Text>
+                      <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{state.settings.cashAppHandle}</Text>
+                    </View>
+                  </View>
+                ) : null}
+                {state.settings.venmoHandle ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                    <View style={{ width: 30, height: 30, borderRadius: 7, backgroundColor: "#3D95CE", alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ color: "#fff", fontWeight: "800", fontSize: 14 }}>V</Text>
+                    </View>
+                    <View>
+                      <Text style={{ fontSize: 11, color: colors.muted }}>Venmo</Text>
+                      <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{state.settings.venmoHandle}</Text>
+                    </View>
+                  </View>
+                ) : null}
+                {state.settings.paymentNotes ? (
+                  <Text style={{ fontSize: 13, color: colors.muted, marginTop: 4, lineHeight: 18 }}>{state.settings.paymentNotes}</Text>
+                ) : null}
+              </View>
+            ) : null}
+
             <Pressable
               onPress={() => router.back()}
               style={({ pressed }) => [

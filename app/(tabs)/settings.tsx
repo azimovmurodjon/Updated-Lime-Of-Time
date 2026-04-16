@@ -253,6 +253,26 @@ export default function SettingsScreen() {
   // Navigation items — business-wide (global, not per-location)
   const businessNavItems = [
     {
+      title: "Subscription",
+      subtitle: "Plan, usage & billing",
+      icon: "crown.fill" as const,
+      route: "/subscription" as const,
+      color: "#F59E0B",
+    },
+    {
+      title: "Payment Methods",
+      subtitle: (() => {
+        const methods = [];
+        if (settings.zelleHandle) methods.push("Zelle");
+        if (settings.cashAppHandle) methods.push("Cash App");
+        if (settings.venmoHandle) methods.push("Venmo");
+        return methods.length > 0 ? methods.join(" · ") : "Not configured";
+      })(),
+      icon: "creditcard.fill" as const,
+      route: "/payment-methods" as const,
+      color: "#10B981",
+    },
+    {
       title: "Analytics",
       subtitle: "Revenue, clients, appointments insights",
       icon: "chart.bar.fill" as const,
@@ -279,13 +299,6 @@ export default function SettingsScreen() {
       icon: "gift.fill" as const,
       route: "/packages" as const,
       color: "#E91E63",
-    },
-    {
-      title: "Twilio Setup",
-      subtitle: state.settings.twilioAccountSid ? "Connected" : "Not connected — tap to configure",
-      icon: "phone.fill" as const,
-      route: "/twilio-setup" as const,
-      color: "#E53935",
     },
     {
       title: "SMS Automation",

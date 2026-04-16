@@ -108,24 +108,27 @@ export default function TwilioSetupScreen() {
   };
 
   const handleTest = async () => {
+    if (!state.businessOwnerId) {
+      Alert.alert("Not logged in", "Please log in first.");
+      return;
+    }
     const businessPhone = settings.profile?.phone ?? "";
     if (!businessPhone) {
-      Alert.alert("No business phone", "Please add your business phone number in Settings → Business Profile first, so we can send the test SMS to it.");
+      Alert.alert("No business phone", "Please add your business phone number in Settings → Business Profile first.");
       return;
     }
     const toNumber = businessPhone.startsWith("+") ? businessPhone : `+1${businessPhone.replace(/\D/g, "")}`;
     setTesting(true);
     try {
       await sendSmsMutation.mutateAsync({
-        accountSid: accountSid.trim(),
-        authToken: authToken.trim(),
-        fromNumber: fromNumber.trim(),
+        businessOwnerId: state.businessOwnerId,
         toNumber,
-        body: "✅ Twilio is connected to your Lime Of Time app! SMS automation is ready.",
+        body: "✅ SMS automation is active on your Lime Of Time account!",
+        smsAction: "confirmation",
       });
       Alert.alert("Test SMS Sent!", `A test message was sent to ${toNumber}. Check your phone.`);
     } catch (err: any) {
-      Alert.alert("Test Failed", err.message ?? "Could not send test SMS. Double-check your credentials.");
+      Alert.alert("Test Failed", err.message ?? "Could not send test SMS. Contact support if this persists.");
     } finally {
       setTesting(false);
     }

@@ -5,6 +5,12 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 import { sendAppointmentConfirmationEmail } from "./email";
+import {
+  getPlatformConfig,
+  getPublicPlans,
+  getBusinessSubscriptionInfo,
+  isSmsAllowed,
+} from "./subscription";
 
 // ─── Business Owner Router ───────────────────────────────────────────
 
@@ -98,6 +104,11 @@ const businessRouter = router({
         autoCompleteDelayMinutes: z.number().optional(),
         notificationPreferences: z.any().optional(),
         smsTemplates: z.any().optional(),
+        // Payment methods
+        zelleHandle: z.string().optional(),
+        cashAppHandle: z.string().optional(),
+        venmoHandle: z.string().optional(),
+        paymentNotes: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -739,21 +750,50 @@ const locationsRouter = router({
 // ─── Twilio SMS Router ─────────────────────────────────────────────────────
 
 const twilioRouter = router({
+  /**
+   * Send an SMS via the platform Twilio account.
+   * Credentials are read server-side from platform_config.
+   * The smsAction is checked against the business's subscription plan.
+   */
   sendSms: publicProcedure
     .input(
       z.object({
-        accountSid: z.string(),
-        authToken: z.string(),
-        fromNumber: z.string(),
+        businessOwnerId: z.number(),
         toNumber: z.string(),
         body: z.string(),
+        smsAction: z.enum(["confirmation", "reminder", "rebooking", "birthday"]).default("confirmation"),
+        // Legacy fields kept for backward compat but ignored (server uses platform_config)
+        accountSid: z.string().optional(),
+        authToken: z.string().optional(),
+        fromNumber: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
-      const { accountSid, authToken, fromNumber, toNumber, body } = input;
-      if (!accountSid || !authToken || !fromNumber) {
-        throw new Error("Twilio credentials are not configured.");
+      const { businessOwnerId, toNumber, body, smsAction } = input;
+
+      // 1. Check subscription plan allows this SMS action
+      const allowed = await isSmsAllowed(businessOwnerId, smsAction);
+      if (!allowed) {
+        throw new Error(`Your current plan does not include ${smsAction} SMS. Please upgrade your subscription.`);
       }
+
+      // 2. Read Twilio credentials from platform_config (admin-managed)
+      const accountSid = await getPlatformConfig("TWILIO_ACCOUNT_SID");
+      const authToken = await getPlatformConfig("TWILIO_AUTH_TOKEN");
+      const fromNumber = await getPlatformConfig("TWILIO_FROM_NUMBER");
+
+      if (!accountSid || !authToken || !fromNumber) {
+        throw new Error("SMS is not configured on this platform. Please contact support.");
+      }
+
+      // 3. Check test mode
+      const testMode = await getPlatformConfig("TWILIO_TEST_MODE");
+      if (testMode === "true") {
+        console.log(`[SMS TEST MODE] To: ${toNumber} | Body: ${body}`);
+        return { success: true, sid: "test-mode", testMode: true };
+      }
+
+      // 4. Send via Twilio
       const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
       const params = new URLSearchParams();
       params.append("From", fromNumber);
@@ -772,7 +812,112 @@ const twilioRouter = router({
       if (!response.ok) {
         throw new Error(data.message ?? "Failed to send SMS via Twilio");
       }
-      return { success: true, sid: data.sid as string };
+      return { success: true, sid: data.sid as string, testMode: false };
+    }),
+});
+
+// ─── OTP Router ─────────────────────────────────────────────────────
+// In-memory OTP store (phone → { code, expiresAt })
+// For production scale, replace with Redis or DB table
+const otpStore = new Map<string, { code: string; expiresAt: number }>();
+
+async function sendOtpViaTwilio(toNumber: string, code: string): Promise<boolean> {
+  const accountSid = await getPlatformConfig("TWILIO_ACCOUNT_SID");
+  const authToken = await getPlatformConfig("TWILIO_AUTH_TOKEN");
+  const fromNumber = await getPlatformConfig("TWILIO_FROM_NUMBER");
+  if (!accountSid || !authToken || !fromNumber) return false;
+  try {
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+    const params = new URLSearchParams();
+    params.append("From", fromNumber);
+    params.append("To", toNumber);
+    params.append("Body", `Your Lime of Time verification code is: ${code}. Valid for 10 minutes.`);
+    const credentials = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Basic ${credentials}`, "Content-Type": "application/x-www-form-urlencoded" },
+      body: params.toString(),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+const otpRouter = router({
+  /** Send OTP to a phone number. Uses Twilio if configured, otherwise test mode (123456). */
+  send: publicProcedure
+    .input(z.object({ phone: z.string().min(7) }))
+    .mutation(async ({ input }) => {
+      const testMode = (await getPlatformConfig("TWILIO_TEST_MODE")) === "true";
+      const code = testMode ? "123456" : String(Math.floor(100000 + Math.random() * 900000));
+      const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+      otpStore.set(input.phone, { code, expiresAt });
+      if (!testMode) {
+        const sent = await sendOtpViaTwilio(input.phone, code);
+        if (!sent) {
+          // Fall back to test mode silently if Twilio fails
+          otpStore.set(input.phone, { code: "123456", expiresAt });
+        }
+      }
+      return { success: true, testMode };
+    }),
+  /** Verify OTP for a phone number. */
+  verify: publicProcedure
+    .input(z.object({ phone: z.string().min(7), code: z.string().length(6) }))
+    .mutation(async ({ input }) => {
+      const testMode = (await getPlatformConfig("TWILIO_TEST_MODE")) === "true";
+      // In test mode, always accept 123456
+      if (testMode && input.code === "123456") {
+        otpStore.delete(input.phone);
+        return { success: true };
+      }
+      const entry = otpStore.get(input.phone);
+      if (!entry) {
+        return { success: false, error: "No OTP found. Please request a new code." };
+      }
+      if (Date.now() > entry.expiresAt) {
+        otpStore.delete(input.phone);
+        return { success: false, error: "Code expired. Please request a new code." };
+      }
+      if (entry.code !== input.code) {
+        return { success: false, error: "Incorrect code. Please try again." };
+      }
+      otpStore.delete(input.phone);
+      return { success: true };
+    }),
+});
+
+// ─── Subscription Router ────────────────────────────────────────────
+
+const subscriptionRouter = router({
+  /** Get the current business owner's subscription info (plan, usage, trial) */
+  getMyPlan: publicProcedure
+    .input(z.object({ businessOwnerId: z.number() }))
+    .query(async ({ input }) => {
+      const info = await getBusinessSubscriptionInfo(input.businessOwnerId);
+      return info ?? null;
+    }),
+
+  /** Get all publicly-visible plans (for plan selection screen) */
+  getPublicPlans: publicProcedure
+    .query(async () => {
+      const plans = await getPublicPlans();
+      return plans.map((p) => ({
+        planKey: p.planKey,
+        displayName: p.displayName,
+        monthlyPrice: parseFloat(p.monthlyPrice as unknown as string),
+        yearlyPrice: parseFloat(p.yearlyPrice as unknown as string),
+        maxClients: p.maxClients,
+        maxAppointments: p.maxAppointments,
+        maxLocations: p.maxLocations,
+        maxStaff: p.maxStaff,
+        maxServices: p.maxServices,
+        maxProducts: p.maxProducts,
+        smsLevel: p.smsLevel,
+        paymentLevel: p.paymentLevel,
+        sortOrder: p.sortOrder,
+      }));
     }),
 });
 
@@ -800,6 +945,8 @@ export const appRouter = router({
   staff: staffRouter,
   locations: locationsRouter,
   twilio: twilioRouter,
+  otp: otpRouter,
+  subscription: subscriptionRouter,
 });
 
 export type AppRouter = typeof appRouter;

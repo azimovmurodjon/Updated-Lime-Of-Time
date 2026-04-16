@@ -14,9 +14,12 @@ import {
   users,
   staffMembers,
   locations,
+  subscriptionPlans,
+  platformConfig,
 } from "../drizzle/schema";
-import { sql } from "drizzle-orm";
+import { sql, eq } from "drizzle-orm";
 import { ADMIN_LOGO_BASE64 } from "./admin-logo-data";
+import { invalidatePlanCache } from "./subscription";
 
 // ─── Admin Auth ─────────────────────────────────────────────────────
 const ADMIN_USER = process.env.ADMIN_USERNAME || "Admin";
@@ -532,6 +535,131 @@ export function registerAdminRoutes(app: Express): void {
       res.status(500).send(errorPage("Failed to load locations"));
     }
   });
+
+  // ── Subscriptions Page ────────────────────────────────────────────
+  app.get("/api/admin/subscriptions", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
+      const allBiz = await dbase.select().from(businessOwners).orderBy(sql`${businessOwners.createdAt} DESC`);
+      const plans = await dbase.select().from(subscriptionPlans).orderBy(sql`${subscriptionPlans.sortOrder} ASC`);
+      res.send(subscriptionsPage(allBiz, plans));
+    } catch (err) {
+      console.error("[Admin] Subscriptions error:", err);
+      res.status(500).send(errorPage("Failed to load subscriptions"));
+    }
+  });
+
+  // ── Plan Pricing Page ─────────────────────────────────────────────
+  app.get("/api/admin/plans", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
+      const plans = await dbase.select().from(subscriptionPlans).orderBy(sql`${subscriptionPlans.sortOrder} ASC`);
+      res.send(plansPage(plans));
+    } catch (err) {
+      console.error("[Admin] Plans error:", err);
+      res.status(500).send(errorPage("Failed to load plans"));
+    }
+  });
+
+  // ── Update Plan ───────────────────────────────────────────────────
+  app.post("/api/admin/plans/:id/update", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
+      const id = parseInt(req.params.id);
+      const { monthlyPrice, yearlyPrice, isPublic, maxClients, maxAppointments,
+              maxLocations, maxStaff, maxServices, maxProducts, smsLevel, paymentLevel } = req.body;
+      await dbase.update(subscriptionPlans).set({
+        monthlyPrice: (parseFloat(monthlyPrice) || 0).toString(),
+        yearlyPrice: (parseFloat(yearlyPrice) || 0).toString(),
+        isPublic: isPublic === "on" || isPublic === "true" || isPublic === "1",
+        maxClients: parseInt(maxClients) || -1,
+        maxAppointments: parseInt(maxAppointments) || -1,
+        maxLocations: parseInt(maxLocations) || 1,
+        maxStaff: parseInt(maxStaff) || 1,
+        maxServices: parseInt(maxServices) || -1,
+        maxProducts: parseInt(maxProducts) || -1,
+        smsLevel: (smsLevel || "none") as "none" | "confirmations" | "full",
+        paymentLevel: (paymentLevel || "basic") as "basic" | "full",
+        updatedAt: new Date(),
+      }).where(eq(subscriptionPlans.id, id));
+      invalidatePlanCache();
+      res.redirect("/api/admin/plans?saved=1");
+    } catch (err) {
+      console.error("[Admin] Update plan error:", err);
+      res.status(500).send(errorPage("Failed to update plan"));
+    }
+  });
+
+  // ── Business Override ─────────────────────────────────────────────
+  app.post("/api/admin/businesses/:id/override", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
+      const id = parseInt(req.params.id);
+      const { adminOverride, overridePlan } = req.body;
+      const isOverride = adminOverride === "on" || adminOverride === "true" || adminOverride === "1";
+      await dbase.update(businessOwners).set({
+        adminOverride: isOverride,
+        subscriptionPlan: isOverride ? (overridePlan || "unlimited") : (overridePlan || "free"),
+        updatedAt: new Date(),
+      } as any).where(eq(businessOwners.id, id));
+      res.redirect(`/api/admin/businesses/${id}?saved=1`);
+    } catch (err) {
+      console.error("[Admin] Override error:", err);
+      res.status(500).send(errorPage("Failed to update override"));
+    }
+  });
+
+  // ── Platform Config (Twilio / Stripe) ─────────────────────────────
+  app.get("/api/admin/platform-config", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
+      const configs = await dbase.select().from(platformConfig);
+      const cfgMap: Record<string, string> = {};
+      configs.forEach((c: any) => { cfgMap[c.key] = c.value || ""; });
+      res.send(platformConfigPage(cfgMap));
+    } catch (err) {
+      console.error("[Admin] Platform config error:", err);
+      res.status(500).send(errorPage("Failed to load platform config"));
+    }
+  });
+
+  app.post("/api/admin/platform-config", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
+      const keyDefs: Array<{ key: string; sensitive: boolean; desc: string }> = [
+        { key: "twilio_account_sid", sensitive: true, desc: "Twilio Account SID" },
+        { key: "twilio_auth_token", sensitive: true, desc: "Twilio Auth Token" },
+        { key: "twilio_from_number", sensitive: false, desc: "Twilio From Phone Number" },
+        { key: "twilio_test_mode", sensitive: false, desc: "Twilio Test Mode (true/false)" },
+        { key: "twilio_test_otp", sensitive: false, desc: "Test OTP code (default: 123456)" },
+        { key: "stripe_secret_key", sensitive: true, desc: "Stripe Secret Key" },
+        { key: "stripe_publishable_key", sensitive: false, desc: "Stripe Publishable Key" },
+        { key: "stripe_webhook_secret", sensitive: true, desc: "Stripe Webhook Secret" },
+        { key: "stripe_test_mode", sensitive: false, desc: "Stripe Test Mode (true/false)" },
+      ];
+      for (const def of keyDefs) {
+        const value = (req.body[def.key] || "").toString().trim();
+        // Check if exists
+        const existing = await dbase.select().from(platformConfig).where(eq(platformConfig.configKey, def.key)).limit(1);
+        if (existing.length > 0) {
+          await dbase.update(platformConfig).set({ configValue: value, updatedAt: new Date() }).where(eq(platformConfig.configKey, def.key));
+        } else {
+          await dbase.insert(platformConfig).values({ configKey: def.key, configValue: value, isSensitive: def.sensitive, description: def.desc });
+        }
+      }
+      invalidatePlanCache();
+      res.redirect("/api/admin/platform-config?saved=1");
+    } catch (err) {
+      console.error("[Admin] Platform config save error:", err);
+      res.status(500).send(errorPage("Failed to save platform config"));
+    }
+  });
 }
 
 // ─── HTML Templates ─────────────────────────────────────────────────
@@ -671,6 +799,9 @@ function sidebarHtml(activePage: string): string {
     { href: "/api/admin/products", icon: "📦", label: "Products", key: "products" },
     { href: "/api/admin/analytics", icon: "📈", label: "Analytics", key: "analytics" },
     { href: "/api/admin/db", icon: "🗄️", label: "DB Explorer", key: "db" },
+    { href: "/api/admin/subscriptions", icon: "💳", label: "Subscriptions", key: "subscriptions" },
+    { href: "/api/admin/plans", icon: "📋", label: "Plan Pricing", key: "plans" },
+    { href: "/api/admin/platform-config", icon: "🔧", label: "Platform Config", key: "platform-config" },
     { href: "/api/admin/settings", icon: "⚙️", label: "Settings", key: "settings" },
   ];
   return `
@@ -1071,6 +1202,50 @@ function businessDetailPage(data: any): string {
           </form>
         </div>
       </div>
+    </div>
+
+    <!-- Subscription & Admin Override -->
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;margin-top:24px;">
+      <h3 style="font-size:16px;font-weight:700;margin:0 0 16px;">💳 Subscription & Admin Override</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:20px;">
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Current Plan</div>
+          <div style="font-size:16px;font-weight:700;color:var(--primary);">${(o.subscriptionPlan || 'solo').toUpperCase()}</div>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Status</div>
+          <div style="font-size:16px;font-weight:700;">${o.subscriptionStatus || 'free'}</div>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Admin Override</div>
+          <div style="font-size:16px;font-weight:700;color:${o.adminOverride ? '#059669' : '#6b7280'};">${o.adminOverride ? '✓ ACTIVE' : 'Inactive'}</div>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Trial Ends</div>
+          <div style="font-size:14px;font-weight:600;">${o.trialEndsAt ? new Date(o.trialEndsAt).toLocaleDateString() : '—'}</div>
+        </div>
+      </div>
+      ${o.adminOverride ? '<div style="background:#05996915;border:1px solid #05996940;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#059669;"><strong>⭐ Admin Override is ACTIVE.</strong> This business has full Unlimited access at no charge.</div>' : ''}
+      <form method="POST" action="/api/admin/businesses/${o.id}/override">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+          <div>
+            <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">Assign Plan</label>
+            <select name="overridePlan" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;">
+              <option value="solo" ${(o.subscriptionPlan || 'solo') === 'solo' ? 'selected' : ''}>Solo (Free)</option>
+              <option value="growth" ${o.subscriptionPlan === 'growth' ? 'selected' : ''}>Growth ($19/mo)</option>
+              <option value="studio" ${o.subscriptionPlan === 'studio' ? 'selected' : ''}>Studio ($39/mo)</option>
+              <option value="enterprise" ${o.subscriptionPlan === 'enterprise' ? 'selected' : ''}>Enterprise ($69/mo)</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:flex-end;">
+            <label style="display:flex;align-items:center;gap:10px;font-size:14px;cursor:pointer;margin-bottom:10px;">
+              <input type="checkbox" name="adminOverride" value="on" ${o.adminOverride ? 'checked' : ''} style="width:18px;height:18px;" />
+              <span><strong>Admin Override</strong><br/><span style="font-size:12px;color:var(--text-muted);">Grant full Unlimited access for free</span></span>
+            </label>
+          </div>
+        </div>
+        <button type="submit" style="background:var(--primary);color:white;padding:10px 20px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">💾 Save Subscription Settings</button>
+      </form>
     </div>
   `);
 }
@@ -1580,4 +1755,249 @@ function escHtml(str: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+// ─── Subscriptions Page ──────────────────────────────────────────────────────
+function subscriptionsPage(businesses: any[], plans: any[]): string {
+  const planMap: Record<string, string> = {};
+  plans.forEach((p) => { planMap[p.planKey] = p.displayName; });
+
+  const planBadge = (plan: string, override: boolean) => {
+    const colors: Record<string, string> = {
+      solo: "#6b7280", growth: "#0a7ea4", studio: "#7c3aed", enterprise: "#059669",
+    };
+    const color = colors[plan] || "#6b7280";
+    const label = planMap[plan] || plan;
+    return `<span style="background:${color}20;color:${color};padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;">${label}${override ? " ⭐" : ""}</span>`;
+  };
+
+  const statusBadge = (status: string) => {
+    const map: Record<string, { color: string; label: string }> = {
+      free: { color: "#6b7280", label: "Free" },
+      trial: { color: "#f59e0b", label: "Trial" },
+      active: { color: "#059669", label: "Active" },
+      expired: { color: "#ef4444", label: "Expired" },
+    };
+    const s = map[status] || { color: "#6b7280", label: status };
+    return `<span style="background:${s.color}20;color:${s.color};padding:2px 8px;border-radius:12px;font-size:12px;">${s.label}</span>`;
+  };
+
+  const rows = businesses.map((b) => `
+    <tr>
+      <td><a href="/api/admin/businesses/${b.id}" style="color:var(--primary);text-decoration:none;">${escHtml(b.businessName)}</a></td>
+      <td>${escHtml(b.phone || "")}</td>
+      <td>${planBadge(b.subscriptionPlan || "solo", !!b.adminOverride)}</td>
+      <td>${statusBadge(b.subscriptionStatus || "free")}</td>
+      <td>${b.trialEndsAt ? new Date(b.trialEndsAt).toLocaleDateString() : "—"}</td>
+      <td>${b.adminOverride ? '<span style="color:#059669;font-weight:600;">✓ Override</span>' : "—"}</td>
+      <td><a href="/api/admin/businesses/${b.id}" style="color:var(--primary);">Manage →</a></td>
+    </tr>
+  `).join("");
+
+  const planStats = plans.map((p) => {
+    const count = businesses.filter((b) => (b.subscriptionPlan || "solo") === p.planKey).length;
+    return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center;">
+      <div style="font-size:28px;font-weight:700;color:var(--primary);">${count}</div>
+      <div style="font-size:14px;color:var(--text-muted);margin-top:4px;">${escHtml(p.displayName)}</div>
+    </div>`;
+  }).join("");
+
+  return adminLayout("Subscriptions", "subscriptions", `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+      <h1 style="font-size:24px;font-weight:700;">Subscriptions</h1>
+      <a href="/api/admin/plans" style="background:var(--primary);color:white;padding:8px 16px;border-radius:8px;text-decoration:none;font-size:14px;">Manage Plans →</a>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px;margin-bottom:28px;">
+      ${planStats}
+    </div>
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr style="background:var(--bg-hover);">
+            <th style="padding:12px 16px;text-align:left;font-size:13px;color:var(--text-muted);">Business</th>
+            <th style="padding:12px 16px;text-align:left;font-size:13px;color:var(--text-muted);">Phone</th>
+            <th style="padding:12px 16px;text-align:left;font-size:13px;color:var(--text-muted);">Plan</th>
+            <th style="padding:12px 16px;text-align:left;font-size:13px;color:var(--text-muted);">Status</th>
+            <th style="padding:12px 16px;text-align:left;font-size:13px;color:var(--text-muted);">Trial Ends</th>
+            <th style="padding:12px 16px;text-align:left;font-size:13px;color:var(--text-muted);">Override</th>
+            <th style="padding:12px 16px;text-align:left;font-size:13px;color:var(--text-muted);">Action</th>
+          </tr>
+        </thead>
+        <tbody>${rows || '<tr><td colspan="7" style="padding:32px;text-align:center;color:var(--text-muted);">No businesses yet</td></tr>'}</tbody>
+      </table>
+    </div>
+  `);
+}
+
+// ─── Plans Page ──────────────────────────────────────────────────────────────
+function plansPage(plans: any[]): string {
+  const saved = "";
+  const planCards = plans.map((p) => `
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div>
+          <h3 style="font-size:18px;font-weight:700;margin:0;">${escHtml(p.displayName)}</h3>
+          <span style="font-size:12px;color:var(--text-muted);font-family:monospace;">${p.planKey}</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          ${p.isPublic ? '<span style="background:#05996920;color:#059669;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;">Public</span>' : '<span style="background:#6b728020;color:#6b7280;padding:4px 10px;border-radius:20px;font-size:12px;">Hidden</span>'}
+        </div>
+      </div>
+      <form method="POST" action="/api/admin/plans/${p.id}/update">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+          <div>
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Monthly Price ($)</label>
+            <input name="monthlyPrice" type="number" step="0.01" min="0" value="${p.monthlyPrice || 0}" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;" />
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Yearly Price ($)</label>
+            <input name="yearlyPrice" type="number" step="0.01" min="0" value="${p.yearlyPrice || 0}" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;" />
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">
+          <div>
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Max Clients (-1=∞)</label>
+            <input name="maxClients" type="number" value="${p.maxClients}" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;" />
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Max Appts/mo (-1=∞)</label>
+            <input name="maxAppointments" type="number" value="${p.maxAppointments}" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;" />
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Max Locations (-1=∞)</label>
+            <input name="maxLocations" type="number" value="${p.maxLocations}" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;" />
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Max Staff (-1=∞)</label>
+            <input name="maxStaff" type="number" value="${p.maxStaff}" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;" />
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Max Services (-1=∞)</label>
+            <input name="maxServices" type="number" value="${p.maxServices}" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;" />
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Max Products (-1=∞)</label>
+            <input name="maxProducts" type="number" value="${p.maxProducts}" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;" />
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px;">
+          <div>
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">SMS Level</label>
+            <select name="smsLevel" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;">
+              <option value="none" ${p.smsLevel === "none" ? "selected" : ""}>None</option>
+              <option value="confirmations" ${p.smsLevel === "confirmations" ? "selected" : ""}>Confirmations Only</option>
+              <option value="full" ${p.smsLevel === "full" ? "selected" : ""}>Full Automation</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Payment Level</label>
+            <select name="paymentLevel" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;">
+              <option value="basic" ${p.paymentLevel === "basic" ? "selected" : ""}>Basic (Cash + P2P)</option>
+              <option value="full" ${p.paymentLevel === "full" ? "selected" : ""}>Full (includes Card)</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:flex-end;gap:16px;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;margin-bottom:8px;">
+              <input type="checkbox" name="isPublic" value="on" ${p.isPublic ? "checked" : ""} style="width:16px;height:16px;" />
+              Visible to Public
+            </label>
+          </div>
+        </div>
+        <button type="submit" style="background:var(--primary);color:white;padding:10px 20px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Save Changes</button>
+      </form>
+    </div>
+  `).join("");
+
+  return adminLayout("Plan Pricing", "plans", `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+      <h1 style="font-size:24px;font-weight:700;">Plan Pricing & Limits</h1>
+      <a href="/api/admin/subscriptions" style="color:var(--primary);text-decoration:none;font-size:14px;">← View Subscribers</a>
+    </div>
+    <div style="background:#0a7ea420;border:1px solid #0a7ea440;border-radius:8px;padding:12px 16px;margin-bottom:24px;font-size:13px;color:var(--text);">
+      💡 <strong>Tip:</strong> Toggle "Visible to Public" to control which plans users can sign up for. Solo and Growth are public by default. Studio and Enterprise are hidden until you are ready to launch them.
+    </div>
+    ${planCards}
+  `);
+}
+
+// ─── Platform Config Page ────────────────────────────────────────────────────
+function platformConfigPage(cfgMap: Record<string, string>): string {
+  const isTwilioTestMode = cfgMap["twilio_test_mode"] === "true" || cfgMap["twilio_test_mode"] === "1";
+  const isStripeTestMode = cfgMap["stripe_test_mode"] === "true" || cfgMap["stripe_test_mode"] === "1";
+
+  const field = (key: string, label: string, desc: string, sensitive = false, placeholder = "") => {
+    const val = cfgMap[key] || "";
+    const displayVal = sensitive && val && val.length > 8 ? val.substring(0, 4) + "••••••••" + val.slice(-4) : val;
+    return `
+      <div style="margin-bottom:16px;">
+        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">${label}</label>
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 6px;">${desc}</p>
+        <input name="${key}" type="${sensitive ? "password" : "text"}" value="${escHtml(val)}"
+          placeholder="${placeholder || label}"
+          style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;box-sizing:border-box;" />
+      </div>
+    `;
+  };
+
+  return adminLayout("Platform Config", "platform-config", `
+    <h1 style="font-size:24px;font-weight:700;margin-bottom:24px;">Platform Configuration</h1>
+
+    <form method="POST" action="/api/admin/platform-config">
+      <!-- Twilio Section -->
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:24px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+          <span style="font-size:24px;">📱</span>
+          <div>
+            <h2 style="font-size:18px;font-weight:700;margin:0;">Twilio SMS Configuration</h2>
+            <p style="font-size:13px;color:var(--text-muted);margin:4px 0 0;">Used for OTP login and SMS automation</p>
+          </div>
+          ${isTwilioTestMode ? '<span style="background:#f59e0b20;color:#f59e0b;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;margin-left:auto;">⚠️ TEST MODE ACTIVE</span>' : '<span style="background:#05996920;color:#059669;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;margin-left:auto;">✓ LIVE MODE</span>'}
+        </div>
+        ${field("twilio_account_sid", "Account SID", "Found in your Twilio Console dashboard", true, "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")}
+        ${field("twilio_auth_token", "Auth Token", "Found in your Twilio Console dashboard", true, "Your Twilio Auth Token")}
+        ${field("twilio_from_number", "From Phone Number", "Your Twilio phone number in E.164 format", false, "+14155551234")}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div>
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;">
+              <input type="checkbox" name="twilio_test_mode" value="true" ${isTwilioTestMode ? "checked" : ""} style="width:16px;height:16px;" />
+              <span><strong>Test Mode</strong> — OTP bypassed with code below</span>
+            </label>
+          </div>
+          <div>
+            <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">Test OTP Code</label>
+            <input name="twilio_test_otp" type="text" value="${escHtml(cfgMap["twilio_test_otp"] || "123456")}"
+              placeholder="123456"
+              style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;box-sizing:border-box;" />
+          </div>
+        </div>
+        ${isTwilioTestMode ? '<div style="background:#f59e0b15;border:1px solid #f59e0b40;border-radius:8px;padding:10px 14px;margin-top:12px;font-size:13px;color:#f59e0b;"><strong>⚠️ Test Mode is ON.</strong> All OTP codes will be bypassed with the test code above. Disable before going live.</div>' : ""}
+      </div>
+
+      <!-- Stripe Section -->
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:24px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+          <span style="font-size:24px;">💳</span>
+          <div>
+            <h2 style="font-size:18px;font-weight:700;margin:0;">Stripe Payment Configuration</h2>
+            <p style="font-size:13px;color:var(--text-muted);margin:4px 0 0;">Used for subscription billing (Phase 5 — not yet active)</p>
+          </div>
+          ${isStripeTestMode ? '<span style="background:#f59e0b20;color:#f59e0b;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;margin-left:auto;">⚠️ TEST MODE</span>' : '<span style="background:#6b728020;color:#6b7280;padding:4px 12px;border-radius:20px;font-size:12px;margin-left:auto;">Not Configured</span>'}
+        </div>
+        <div style="background:#6b728015;border:1px solid #6b728030;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:var(--text-muted);">
+          ℹ️ Stripe billing is planned for Phase 5. You can enter your keys now to prepare, but they will not be used until billing is activated.
+        </div>
+        ${field("stripe_secret_key", "Secret Key", "From Stripe Dashboard → Developers → API Keys", true, "sk_test_...")}
+        ${field("stripe_publishable_key", "Publishable Key", "From Stripe Dashboard → Developers → API Keys", false, "pk_test_...")}
+        ${field("stripe_webhook_secret", "Webhook Secret", "From Stripe Dashboard → Webhooks → Signing Secret", true, "whsec_...")}
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;margin-top:8px;">
+          <input type="checkbox" name="stripe_test_mode" value="true" ${isStripeTestMode ? "checked" : ""} style="width:16px;height:16px;" />
+          <span><strong>Test Mode</strong> — Use Stripe test keys (recommended until launch)</span>
+        </label>
+      </div>
+
+      <button type="submit" style="background:var(--primary);color:white;padding:12px 28px;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;width:100%;">
+        💾 Save Platform Configuration
+      </button>
+    </form>
+  `);
 }

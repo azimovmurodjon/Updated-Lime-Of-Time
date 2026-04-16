@@ -190,6 +190,13 @@
       "when": 1776284309278,
       "tag": "0026_brave_ozymandias",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1776297260495,
+      "tag": "0027_lame_stardust",
+      "breakpoints": true
     }
   ]
 }
