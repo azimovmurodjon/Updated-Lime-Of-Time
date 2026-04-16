@@ -924,6 +924,70 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
+  // ── Test Twilio Connection ──────────────────────────────────────────
+  app.post("/api/admin/test-twilio", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const sid = (req.body.sid || "").toString().trim();
+      const token = (req.body.token || "").toString().trim();
+      if (!sid || !token) {
+        res.json({ ok: false, message: "Account SID and Auth Token are required." }); return;
+      }
+      if (!/^AC[a-f0-9]{32}$/i.test(sid)) {
+        res.json({ ok: false, message: "Invalid Account SID format (must start with AC, 34 chars)." }); return;
+      }
+      // Call Twilio REST API — fetch account details
+      const credentials = Buffer.from(`${sid}:${token}`).toString("base64");
+      const twilioRes = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}.json`, {
+        headers: { Authorization: `Basic ${credentials}` },
+      });
+      if (twilioRes.ok) {
+        const data = await twilioRes.json() as any;
+        const friendlyName = data.friendly_name || sid;
+        const status = data.status || "active";
+        res.json({ ok: true, message: `✓ Connected — Account: "${friendlyName}" (${status})` });
+      } else {
+        const errData = await twilioRes.json().catch(() => ({})) as any;
+        const msg = errData?.message || `HTTP ${twilioRes.status}`;
+        res.json({ ok: false, message: `Connection failed: ${msg}` });
+      }
+    } catch (err: any) {
+      res.json({ ok: false, message: `Error: ${err?.message || "Unknown error"}` });
+    }
+  });
+
+  // ── Test Stripe Connection ────────────────────────────────────────────
+  app.post("/api/admin/test-stripe", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const secretKey = (req.body.secretKey || "").toString().trim();
+      if (!secretKey) {
+        res.json({ ok: false, message: "Stripe Secret Key is required." }); return;
+      }
+      if (!/^sk_(live|test)_[a-zA-Z0-9]{10,}$/.test(secretKey)) {
+        res.json({ ok: false, message: "Invalid Stripe key format (must start with sk_live_ or sk_test_)." }); return;
+      }
+      // Call Stripe balance endpoint — lightweight and doesn't modify anything
+      const stripeRes = await fetch("https://api.stripe.com/v1/balance", {
+        headers: { Authorization: `Bearer ${secretKey}` },
+      });
+      if (stripeRes.ok) {
+        const data = await stripeRes.json() as any;
+        const isLive = secretKey.startsWith("sk_live_");
+        const mode = isLive ? "Live" : "Test";
+        const available = data.available?.[0];
+        const balanceStr = available
+          ? `Balance: ${(available.amount / 100).toFixed(2)} ${available.currency.toUpperCase()}`
+          : "Balance retrieved";
+        res.json({ ok: true, message: `✓ Connected (${mode} Mode) — ${balanceStr}` });
+      } else {
+        const errData = await stripeRes.json().catch(() => ({})) as any;
+        const msg = errData?.error?.message || `HTTP ${stripeRes.status}`;
+        res.json({ ok: false, message: `Connection failed: ${msg}` });
+      }
+    } catch (err: any) {
+      res.json({ ok: false, message: `Error: ${err?.message || "Unknown error"}` });
+    }
+  });
+
   // ── Financial / Revenue Analytics ────────────────────────────────────
   app.get("/api/admin/financial", requireAuth, async (_req: Request, res: Response) => {
     try {
@@ -3159,6 +3223,13 @@ function platformConfigPage(cfgMap: Record<string, string>): string {
           </div>
         </div>
         ${isTwilioTestMode ? '<div style="background:#f59e0b15;border:1px solid #f59e0b40;border-radius:8px;padding:10px 14px;margin-top:12px;font-size:13px;color:#f59e0b;"><strong>⚠️ Test Mode is ON.</strong> All OTP codes will be bypassed with the test code above. Disable before going live.</div>' : ""}
+        <div style="margin-top:16px;display:flex;align-items:center;gap:12px;">
+          <button type="button" id="testTwilioBtn" onclick="testTwilio()"
+            style="background:#0a7ea4;color:white;padding:8px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">
+            🔌 Test Connection
+          </button>
+          <span id="twilioTestResult" style="font-size:13px;"></span>
+        </div>
       </div>
 
       <!-- Stripe Section -->
@@ -3181,6 +3252,13 @@ function platformConfigPage(cfgMap: Record<string, string>): string {
           <input type="checkbox" name="stripe_test_mode" value="true" ${isStripeTestMode ? "checked" : ""} style="width:16px;height:16px;" />
           <span><strong>Test Mode</strong> — Use Stripe test keys (recommended until launch)</span>
         </label>
+        <div style="margin-top:16px;display:flex;align-items:center;gap:12px;">
+          <button type="button" id="testStripeBtn" onclick="testStripe()"
+            style="background:#635bff;color:white;padding:8px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">
+            🔌 Test Connection
+          </button>
+          <span id="stripeTestResult" style="font-size:13px;"></span>
+        </div>
       </div>
 
       <button id="savePlatformBtn" type="submit" disabled style="background:var(--border);color:var(--text-muted);padding:12px 28px;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:not-allowed;width:100%;transition:background 0.2s,color 0.2s;">
@@ -3288,6 +3366,78 @@ function platformConfigPage(cfgMap: Record<string, string>): string {
       form.addEventListener('input', checkForm);
       form.addEventListener('change', checkForm);
     })();
+
+    // ── Test Connection helpers ──────────────────────────────────────────
+    async function testTwilio() {
+      var btn = document.getElementById('testTwilioBtn');
+      var result = document.getElementById('twilioTestResult');
+      var sid = form.querySelector('[name="twilio_account_sid"]').value.trim();
+      var token = form.querySelector('[name="twilio_auth_token"]').value.trim();
+      if (!sid || !token) {
+        result.textContent = '⚠️ Enter Account SID and Auth Token first';
+        result.style.color = '#f59e0b';
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = '⏳ Testing...';
+      result.textContent = '';
+      try {
+        var res = await fetch('/api/admin/test-twilio', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sid: sid, token: token })
+        });
+        var data = await res.json();
+        if (data.ok) {
+          result.textContent = '✅ ' + data.message;
+          result.style.color = '#22c55e';
+        } else {
+          result.textContent = '❌ ' + data.message;
+          result.style.color = '#ef4444';
+        }
+      } catch (e) {
+        result.textContent = '❌ Network error';
+        result.style.color = '#ef4444';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🔌 Test Connection';
+      }
+    }
+
+    async function testStripe() {
+      var btn = document.getElementById('testStripeBtn');
+      var result = document.getElementById('stripeTestResult');
+      var key = form.querySelector('[name="stripe_secret_key"]').value.trim();
+      if (!key) {
+        result.textContent = '⚠️ Enter Stripe Secret Key first';
+        result.style.color = '#f59e0b';
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = '⏳ Testing...';
+      result.textContent = '';
+      try {
+        var res = await fetch('/api/admin/test-stripe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ secretKey: key })
+        });
+        var data = await res.json();
+        if (data.ok) {
+          result.textContent = '✅ ' + data.message;
+          result.style.color = '#22c55e';
+        } else {
+          result.textContent = '❌ ' + data.message;
+          result.style.color = '#ef4444';
+        }
+      } catch (e) {
+        result.textContent = '❌ Network error';
+        result.style.color = '#ef4444';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🔌 Test Connection';
+      }
+    }
     </script>
   `);
 }

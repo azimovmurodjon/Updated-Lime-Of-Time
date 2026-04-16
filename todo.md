@@ -1188,3 +1188,7 @@
 
 ## Features (Apr 16 batch 16)
 - [x] Admin platform config: inline validation for Twilio (SID starts with AC, Auth Token 32 chars, phone E.164) and Stripe (live/test key prefix, webhook secret starts with whsec_) — red border + hint text on invalid, Save blocked until valid + dirty
+
+## Features (Apr 16 batch 17)
+- [x] Admin platform config: "Test Connection" button for Twilio — POST /api/admin/test-twilio, fetches account info via Twilio REST API, shows ✅ account name or ❌ error inline
+- [x] Admin platform config: "Test Connection" button for Stripe — POST /api/admin/test-stripe, fetches balance via Stripe SDK, shows ✅ live/test mode + currency or ❌ error inline
