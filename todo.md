@@ -1150,3 +1150,6 @@
 - [x] Payment method picker in Mark as Paid flow (Cash, Zelle, Venmo, Card)
 - [x] Bulk Mark All Paid button on the Unpaid summary banner
 - [x] Payment badge and Mark as Paid button on Appointment Detail screen
+
+## Features (Apr 16 batch 9)
+- [x] Payment method breakdown on home dashboard — fix Zelle/Venmo/Cash/Card totals to use stored paymentMethod values

@@ -585,11 +585,23 @@ export default function HomeScreen() {
     const unpaidRevenue = unpaidAppts.reduce((sum, a) => sum + getApptPrice(a), 0);
     const paidCount = paidAppts.length;
     const unpaidCount = unpaidAppts.length;
-    // Payment method breakdown
-    const methodBreakdown: Record<string, number> = {};
+    // Payment method breakdown — keyed by canonical method, value is { count, revenue }
+    const METHOD_LABELS: Record<string, string> = {
+      cash: 'Cash',
+      zelle: 'Zelle',
+      venmo: 'Venmo',
+      cashapp: 'Card',
+      unpaid: 'Unpaid',
+    };
+    const methodBreakdown: Record<string, { count: number; revenue: number; label: string }> = {};
     paidAppts.forEach((a) => {
-      const method = (a as any).paymentMethod || 'unknown';
-      methodBreakdown[method] = (methodBreakdown[method] || 0) + 1;
+      const rawMethod = (a as any).paymentMethod;
+      // Treat missing / 'unpaid' as 'cash' (legacy appointments without a stored method)
+      const method = (rawMethod && rawMethod !== 'unpaid') ? rawMethod : 'cash';
+      const label = METHOD_LABELS[method] ?? method.charAt(0).toUpperCase() + method.slice(1);
+      if (!methodBreakdown[method]) methodBreakdown[method] = { count: 0, revenue: 0, label };
+      methodBreakdown[method].count += 1;
+      methodBreakdown[method].revenue += getApptPrice(a);
     });
 
     return {
@@ -1081,10 +1093,11 @@ export default function HomeScreen() {
             {/* Payment method breakdown */}
             {Object.keys(analytics.methodBreakdown).length > 0 && (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
-                {Object.entries(analytics.methodBreakdown).map(([method, count]) => (
+                {Object.entries(analytics.methodBreakdown).map(([method, entry]) => (
                   <View key={method} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.border + '80', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
-                    <Text style={{ fontSize: 12, color: colors.foreground, fontWeight: '600', textTransform: 'capitalize' }}>{method}</Text>
-                    <Text style={{ fontSize: 11, color: colors.muted }}>×{count}</Text>
+                    <Text style={{ fontSize: 12, color: colors.foreground, fontWeight: '600' }}>{entry.label}</Text>
+                    <Text style={{ fontSize: 11, color: colors.muted }}>×{entry.count}</Text>
+                    <Text style={{ fontSize: 11, color: colors.success, fontWeight: '600' }}>${entry.revenue.toFixed(0)}</Text>
                   </View>
                 ))}
               </View>
