@@ -34,7 +34,7 @@ import { useResponsive } from "@/hooks/use-responsive";
 import { TapTimePicker, timeToMinutes as tapTimeToMinutes } from "@/components/tap-time-picker";
 import QRCode from "react-native-qrcode-svg";
 import ViewShot, { captureRef } from "react-native-view-shot";
-import * as MediaLibrary from "expo-media-library";
+import * as Sharing from "expo-sharing";
 
 const DAY_LABELS: Record<string, string> = { sunday: "Sun", monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu", friday: "Fri", saturday: "Sat" };
 const DAY_FULL: Record<string, string> = { sunday: "Sunday", monday: "Monday", tuesday: "Tuesday", wednesday: "Wednesday", thursday: "Thursday", friday: "Friday", saturday: "Saturday" };
@@ -270,15 +270,13 @@ export default function LocationFormScreen() {
     if (!qrRef.current) return;
     setSavingQr(true);
     try {
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Permission Required", "Please allow access to your photo library to save the QR code.");
-        setSavingQr(false);
-        return;
-      }
       const uri = await captureRef(qrRef, { format: "png", quality: 1 });
-      await MediaLibrary.saveToLibraryAsync(uri);
-      Alert.alert("Saved!", "QR code saved to your Photos.");
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(uri, { mimeType: "image/png", dialogTitle: "Save or Share QR Code" });
+      } else {
+        Alert.alert("Saved!", "QR code is ready to share.");
+      }
     } catch {
       Alert.alert("Error", "Could not save QR code. Please try again.");
     } finally {
