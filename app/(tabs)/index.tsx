@@ -1039,11 +1039,7 @@ export default function HomeScreen() {
         </View>
 
         {/* ─── Payment Summary Card ──────────────────────────────────────── */}
-        <Pressable
-          onPress={() => router.push({ pathname: '/analytics-detail', params: { tab: 'revenue' } } as any)}
-          style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1, marginTop: 12 })}
-        >
-          <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border, padding: 16 }]}>
+        <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border, padding: 16, marginTop: 12 }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: colors.success + '22', alignItems: 'center', justifyContent: 'center' }}>
@@ -1051,23 +1047,35 @@ export default function HomeScreen() {
                 </View>
                 <Text style={{ fontSize: 15, fontWeight: '700', color: colors.foreground }}>Payment Summary</Text>
               </View>
-              <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+              <Pressable
+                onPress={() => router.push({ pathname: '/(tabs)/calendar', params: { filter: 'unpaid' } } as any)}
+                style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.error + '15', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 })}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.error }}>View Unpaid</Text>
+                <IconSymbol name="chevron.right" size={12} color={colors.error} />
+              </Pressable>
             </View>
 
             {/* Paid / Unpaid row */}
             <View style={{ flexDirection: 'row', gap: 12 }}>
-              {/* Paid */}
-              <View style={{ flex: 1, backgroundColor: colors.success + '15', borderRadius: 12, padding: 12 }}>
+              {/* Paid — taps into paid filter */}
+              <Pressable
+                onPress={() => router.push({ pathname: '/(tabs)/calendar', params: { filter: 'paid' } } as any)}
+                style={({ pressed }) => ({ flex: 1, backgroundColor: colors.success + '15', borderRadius: 12, padding: 12, opacity: pressed ? 0.75 : 1 })}
+              >
                 <Text style={{ fontSize: 11, fontWeight: '600', color: colors.success, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Paid</Text>
                 <Text style={{ fontSize: 20, fontWeight: '800', color: colors.success }}>${analytics.paidRevenue.toLocaleString()}</Text>
                 <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{analytics.paidCount} appointment{analytics.paidCount !== 1 ? 's' : ''}</Text>
-              </View>
-              {/* Unpaid */}
-              <View style={{ flex: 1, backgroundColor: colors.error + '15', borderRadius: 12, padding: 12 }}>
+              </Pressable>
+              {/* Unpaid — taps into unpaid filter */}
+              <Pressable
+                onPress={() => router.push({ pathname: '/(tabs)/calendar', params: { filter: 'unpaid' } } as any)}
+                style={({ pressed }) => ({ flex: 1, backgroundColor: colors.error + '15', borderRadius: 12, padding: 12, opacity: pressed ? 0.75 : 1 })}
+              >
                 <Text style={{ fontSize: 11, fontWeight: '600', color: colors.error, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Outstanding</Text>
                 <Text style={{ fontSize: 20, fontWeight: '800', color: colors.error }}>${analytics.unpaidRevenue.toLocaleString()}</Text>
                 <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{analytics.unpaidCount} appointment{analytics.unpaidCount !== 1 ? 's' : ''}</Text>
-              </View>
+              </Pressable>
             </View>
 
             {/* Payment method breakdown */}
@@ -1098,8 +1106,7 @@ export default function HomeScreen() {
                 </Text>
               </View>
             )}
-          </View>
-        </Pressable>
+        </View>
 
         {/* ─── Weekly Overview Chart ───────────────────────────────────── */}
         <Pressable

@@ -37,9 +37,11 @@ type CalendarView = "month" | "day" | "week";
 
 const FILTERS = [
   { key: "upcoming", label: "Upcoming" },
+  { key: "unpaid", label: "Unpaid" },
   { key: "requests", label: "Requests" },
-  { key: "cancelled", label: "Cancelled" },
   { key: "completed", label: "Completed" },
+  { key: "paid", label: "Paid" },
+  { key: "cancelled", label: "Cancelled" },
 ] as const;
 
 type FilterKey = (typeof FILTERS)[number]["key"];
@@ -536,6 +538,15 @@ export default function CalendarScreen() {
       case "upcoming":
         return base.filter((a) => a.status === "confirmed" && a.date > todayStr)
           .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+      case "unpaid":
+        // Show all non-cancelled appointments that haven't been marked paid
+        return base
+          .filter((a) => a.status !== "cancelled" && a.paymentStatus !== "paid")
+          .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+      case "paid":
+        return base
+          .filter((a) => a.paymentStatus === "paid")
+          .sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
       case "requests":
         return base.filter((a) => a.status === "pending")
           .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
@@ -743,9 +754,11 @@ export default function CalendarScreen() {
 
   const filterColors: Record<FilterKey, string> = {
     upcoming: colors.success,
+    unpaid: "#EF4444",
     requests: "#FF9800",
-    cancelled: colors.error,
     completed: colors.primary,
+    paid: "#22C55E",
+    cancelled: "#9CA3AF",
   };
 
   // ─── Appointment Card ─────────────────────────────────────────────────
@@ -1092,8 +1105,10 @@ export default function CalendarScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
           {FILTERS.map((f) => {
             const isActive = activeFilter === f.key;
-            const count = f.key === "upcoming"
-              ? locationAppointments.filter((a) => a.status === "confirmed" && a.date > todayStr).length
+            const count =
+              f.key === "upcoming" ? locationAppointments.filter((a) => a.status === "confirmed" && a.date > todayStr).length
+              : f.key === "unpaid" ? locationAppointments.filter((a) => a.status !== "cancelled" && a.paymentStatus !== "paid").length
+              : f.key === "paid" ? locationAppointments.filter((a) => a.paymentStatus === "paid").length
               : f.key === "requests" ? locationAppointments.filter((a) => a.status === "pending").length
               : f.key === "cancelled" ? locationAppointments.filter((a) => a.status === "cancelled").length
               : locationAppointments.filter((a) => a.status === "completed").length;
@@ -1117,7 +1132,9 @@ export default function CalendarScreen() {
 
         {filteredAppointments.length === 0 ? (
           <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={{ color: colors.muted, fontSize: 13 }}>No {activeFilter} appointments</Text>
+            <Text style={{ color: colors.muted, fontSize: 13 }}>
+              {activeFilter === "unpaid" ? "All appointments are paid " : activeFilter === "paid" ? "No paid appointments yet" : `No ${activeFilter} appointments`}
+            </Text>
           </View>
         ) : (
           filteredAppointments.map((appt) => {
@@ -1154,8 +1171,19 @@ export default function CalendarScreen() {
                         })()}
                       </View>
                     </View>
-                    <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
-                      <Text style={{ fontSize: 11, fontWeight: "600", color: statusColor, textTransform: "capitalize" }}>{appt.status}</Text>
+                    <View style={{ alignItems: "flex-end", gap: 4 }}>
+                      <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
+                        <Text style={{ fontSize: 11, fontWeight: "600", color: statusColor, textTransform: "capitalize" }}>{appt.status}</Text>
+                      </View>
+                      {(activeFilter === "unpaid" || activeFilter === "paid") && appt.totalPrice != null && (
+                        <View style={[styles.statusBadge, {
+                          backgroundColor: appt.paymentStatus === "paid" ? "#22C55E18" : "#EF444418",
+                        }]}>
+                          <Text style={{ fontSize: 11, fontWeight: "700", color: appt.paymentStatus === "paid" ? "#22C55E" : "#EF4444" }}>
+                            ${appt.totalPrice.toFixed(2)}
+                          </Text>
+                        </View>
+                      )}
                     </View>
                   </View>
                 </Pressable>

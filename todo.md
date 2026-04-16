@@ -1135,3 +1135,8 @@
 - [ ] Staff photo shown in appointment detail and SMS confirmation
 - [ ] Timeline jump-to-now floating "Now" pill button on calendar and staff-calendar
 - [ ] Staff availability dot — green (working today) / grey (off) on staff list
+
+## Features (Apr 16 batch 6)
+- [x] Unpaid filter on Appointments (Calendar) screen — Unpaid/Paid chips added to filter row
+- [x] Deep-link from Payment Summary card on home screen to Unpaid filter (Outstanding tap → Unpaid list, Paid tap → Paid list)
+- [x] Payment amount badge shown on each card when viewing Unpaid or Paid filter
