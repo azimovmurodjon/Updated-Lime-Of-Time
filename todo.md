@@ -1185,3 +1185,6 @@
 - [x] Admin panel: Stripe config already stored/loaded from DB — same dirty-state Save button
 - [x] Admin panel: Subscription plan pricing/limits already stored/loaded from DB — added dirty-state Save button per plan card
 - [x] Admin panel: Business subscription override Save button also made dirty-state
+
+## Features (Apr 16 batch 16)
+- [x] Admin platform config: inline validation for Twilio (SID starts with AC, Auth Token 32 chars, phone E.164) and Stripe (live/test key prefix, webhook secret starts with whsec_) — red border + hint text on invalid, Save blocked until valid + dirty

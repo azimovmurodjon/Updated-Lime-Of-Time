@@ -3194,7 +3194,46 @@ function platformConfigPage(cfgMap: Record<string, string>): string {
       var btn = document.getElementById('savePlatformBtn');
       if (!form || !btn) return;
 
-      // Snapshot initial values
+      // ── Validation rules (only applied when field is non-empty) ──────────────
+      var RULES = {
+        twilio_account_sid: {
+          test: function(v) { return /^AC[a-f0-9]{32}$/i.test(v); },
+          hint: 'Must start with AC and be 34 characters (e.g. ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)'
+        },
+        twilio_auth_token: {
+          test: function(v) { return /^[a-f0-9]{32}$/i.test(v); },
+          hint: 'Must be exactly 32 hex characters'
+        },
+        twilio_from_number: {
+          test: function(v) { return /^\+[1-9]\d{6,14}$/.test(v); },
+          hint: 'Must be in E.164 format: +14155551234'
+        },
+        stripe_secret_key: {
+          test: function(v) { return /^sk_(live|test)_[a-zA-Z0-9]{10,}$/.test(v); },
+          hint: 'Must start with sk_live_ or sk_test_'
+        },
+        stripe_publishable_key: {
+          test: function(v) { return /^pk_(live|test)_[a-zA-Z0-9]{10,}$/.test(v); },
+          hint: 'Must start with pk_live_ or pk_test_'
+        },
+        stripe_webhook_secret: {
+          test: function(v) { return /^whsec_[a-zA-Z0-9]{10,}$/.test(v); },
+          hint: 'Must start with whsec_'
+        }
+      };
+
+      // ── Inject error hint elements next to each validated input ──────────────
+      Object.keys(RULES).forEach(function(name) {
+        var input = form.querySelector('[name="' + name + '"]');
+        if (!input) return;
+        var hint = document.createElement('p');
+        hint.id = 'hint_' + name;
+        hint.style.cssText = 'font-size:12px;color:#ef4444;margin:4px 0 0;display:none;';
+        hint.textContent = '⚠ ' + RULES[name].hint;
+        input.parentNode.insertBefore(hint, input.nextSibling);
+      });
+
+      // ── Snapshot initial values ──────────────────────────────────────────────
       var initial = {};
       form.querySelectorAll('input, textarea, select').forEach(function(el) {
         var key = el.name || el.id;
@@ -3202,29 +3241,52 @@ function platformConfigPage(cfgMap: Record<string, string>): string {
         initial[key] = el.type === 'checkbox' ? el.checked : el.value;
       });
 
-      function checkDirty() {
+      // ── Validate a single field, show/hide hint, return isValid ─────────────
+      function validateField(name, value) {
+        var rule = RULES[name];
+        var hint = document.getElementById('hint_' + name);
+        if (!rule || !hint) return true;
+        var input = form.querySelector('[name="' + name + '"]');
+        if (!value || value.trim() === '') {
+          // Empty is allowed — clear error state
+          hint.style.display = 'none';
+          if (input) input.style.borderColor = 'var(--border)';
+          return true;
+        }
+        var valid = rule.test(value.trim());
+        hint.style.display = valid ? 'none' : 'block';
+        if (input) input.style.borderColor = valid ? 'var(--border)' : '#ef4444';
+        return valid;
+      }
+
+      // ── Check dirty + all validations, then update Save button ──────────────
+      function checkForm() {
         var dirty = false;
+        var allValid = true;
+
         form.querySelectorAll('input, textarea, select').forEach(function(el) {
           var key = el.name || el.id;
           if (!key) return;
           var cur = el.type === 'checkbox' ? el.checked : el.value;
           if (cur !== initial[key]) dirty = true;
         });
-        if (dirty) {
-          btn.disabled = false;
-          btn.style.background = 'var(--primary)';
-          btn.style.color = 'white';
-          btn.style.cursor = 'pointer';
-        } else {
-          btn.disabled = true;
-          btn.style.background = 'var(--border)';
-          btn.style.color = 'var(--text-muted)';
-          btn.style.cursor = 'not-allowed';
-        }
+
+        Object.keys(RULES).forEach(function(name) {
+          var input = form.querySelector('[name="' + name + '"]');
+          if (!input) return;
+          var valid = validateField(name, input.value);
+          if (!valid) allValid = false;
+        });
+
+        var canSave = dirty && allValid;
+        btn.disabled = !canSave;
+        btn.style.background = canSave ? 'var(--primary)' : 'var(--border)';
+        btn.style.color = canSave ? 'white' : 'var(--text-muted)';
+        btn.style.cursor = canSave ? 'pointer' : 'not-allowed';
       }
 
-      form.addEventListener('input', checkDirty);
-      form.addEventListener('change', checkDirty);
+      form.addEventListener('input', checkForm);
+      form.addEventListener('change', checkForm);
     })();
     </script>
   `);
