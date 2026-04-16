@@ -1069,3 +1069,6 @@
 - [x] Weekly signups chart (last 12 weeks)
 - [x] MRR trend chart (last 12 months)
 - [x] Wire analytics to sidebar nav
+
+## Admin Panel Crash Fixes
+- [ ] Test all admin pages in headless mode and fix all crashes

@@ -17,7 +17,7 @@ import {
   subscriptionPlans,
   platformConfig,
 } from "../drizzle/schema";
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, count as drizzleCount } from "drizzle-orm";
 import { ADMIN_LOGO_BASE64 } from "./admin-logo-data";
 import { invalidatePlanCache } from "./subscription";
 
@@ -223,19 +223,52 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── All Appointments ──────────────────────────────────────────────
+  // Alias: /api/admin/dashboard → /api/admin
+  app.get("/api/admin/dashboard", requireAuth, (_req: Request, res: Response) => {
+    res.redirect("/api/admin");
+  });
+
   app.get("/api/admin/appointments", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
       const statusFilter = (req.query.status as string) || "";
-      let allAppts = await dbase.select().from(appointments).orderBy(sql`${appointments.date} DESC, ${appointments.time} DESC`);
-      if (statusFilter) {
-        allAppts = allAppts.filter((a) => a.status === statusFilter);
+      const bizFilter = (req.query.biz as string) || "";
+      const searchQ = ((req.query.q as string) || "").toLowerCase();
+      const PAGE_SIZE = 100;
+      const page = Math.max(1, parseInt((req.query.page as string) || "1"));
+      const offset = (page - 1) * PAGE_SIZE;
+
+      // Build filtered query with DB-level filtering where possible
+      const validStatuses = ['pending', 'confirmed', 'completed', 'cancelled'] as const;
+      type ApptStatus = typeof validStatuses[number];
+      const safeStatus = validStatuses.includes(statusFilter as ApptStatus) ? statusFilter as ApptStatus : null;
+      const bizId = bizFilter ? parseInt(bizFilter) : null;
+
+      let baseQuery = dbase.select().from(appointments).$dynamic();
+      if (safeStatus) {
+        baseQuery = baseQuery.where(eq(appointments.status, safeStatus));
       }
+      if (bizId) {
+        baseQuery = baseQuery.where(eq(appointments.businessOwnerId, bizId));
+      }
+
+      // Count total for pagination
+      let countQuery = dbase.select({ cnt: sql<number>`COUNT(*)` }).from(appointments).$dynamic();
+      if (safeStatus) countQuery = countQuery.where(eq(appointments.status, safeStatus));
+      if (bizId) countQuery = countQuery.where(eq(appointments.businessOwnerId, bizId));
+      const [{ cnt: totalCount }] = await countQuery;
+      const totalPages = Math.ceil((totalCount || 0) / PAGE_SIZE);
+
+      const allAppts = await baseQuery
+        .orderBy(sql`${appointments.date} DESC, ${appointments.time} DESC`)
+        .limit(PAGE_SIZE)
+        .offset(offset);
+
       const allBiz = await dbase.select().from(businessOwners);
-      const allCli = await dbase.select().from(clients);
-      const allSvc = await dbase.select().from(services);
-      res.send(appointmentsPage(allAppts, allBiz, allCli, allSvc, statusFilter));
+      const allCli = await dbase.select({ id: clients.id, name: clients.name, localId: clients.localId, businessOwnerId: clients.businessOwnerId }).from(clients);
+      const allSvc = await dbase.select({ id: services.id, name: services.name, localId: services.localId, businessOwnerId: services.businessOwnerId }).from(services);
+      res.send(appointmentsPage(allAppts, allBiz, allCli, allSvc, statusFilter, bizFilter, searchQ, page, totalPages, totalCount || 0));
     } catch (err) {
       console.error("[Admin] Appointments error:", err);
       res.status(500).send(errorPage("Failed to load appointments"));
@@ -550,13 +583,36 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ── Reviews Page ──────────────────────────────────────────────────
-  app.get("/api/admin/reviews", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/api/admin/reviews", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
-      const allRev = await dbase.select().from(reviews);
+      const PAGE_SIZE = 100;
+      const page = Math.max(1, parseInt((req.query.page as string) || "1"));
+      const offset = (page - 1) * PAGE_SIZE;
+      const bizFilter = (req.query.biz as string) || "";
+      const ratingFilter = (req.query.rating as string) || "";
+      const bizId = bizFilter ? parseInt(bizFilter) : null;
+      const ratingNum = ratingFilter ? parseInt(ratingFilter) : null;
+
+      let countQuery = dbase.select({ cnt: sql<number>`COUNT(*)` }).from(reviews).$dynamic();
+      let listQuery = dbase.select().from(reviews).$dynamic();
+      if (bizId) {
+        countQuery = countQuery.where(eq(reviews.businessOwnerId, bizId));
+        listQuery = listQuery.where(eq(reviews.businessOwnerId, bizId));
+      }
+      if (ratingNum) {
+        countQuery = countQuery.where(eq(reviews.rating, ratingNum));
+        listQuery = listQuery.where(eq(reviews.rating, ratingNum));
+      }
+      const [{ cnt: totalCount }] = await countQuery;
+      const totalPages = Math.ceil((totalCount || 0) / PAGE_SIZE);
+      const allRev = await listQuery
+        .orderBy(sql`${reviews.createdAt} DESC`)
+        .limit(PAGE_SIZE)
+        .offset(offset);
       const allBiz = await dbase.select().from(businessOwners);
-      res.send(reviewsPage(allRev, allBiz));
+      res.send(reviewsPage(allRev, allBiz, bizFilter, ratingFilter, page, totalPages, totalCount || 0));
     } catch (err) {
       console.error("[Admin] Reviews error:", err);
       res.status(500).send(errorPage("Failed to load reviews"));
@@ -793,7 +849,8 @@ function adminStyles(): string {
       .btn-primary { background: var(--primary); color: #fff; }
       .btn-danger { background: var(--danger); color: #fff; }
       .btn-secondary { background: var(--bg-hover); color: var(--text); border: 1px solid var(--border); }
-      .btn-sm { padding: 5px 10px; font-size: 12px; }
+      .btn-sm { display: inline-flex; align-items: center; padding: 5px 10px; font-size: 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-hover); color: var(--text); cursor: pointer; text-decoration: none; transition: all 0.15s; }
+      .btn-sm:hover { border-color: var(--primary); color: var(--primary); text-decoration: none; }
 
       .filter-bar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
       .filter-btn { padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-muted); transition: all 0.15s; text-decoration: none; }
@@ -1488,7 +1545,7 @@ function clientsPage(allClients: any[], allBiz: any[]): string {
 }
 
 // ─── Appointments Page ──────────────────────────────────────────────
-function appointmentsPage(allAppts: any[], allBiz: any[], allCli: any[], allSvc: any[], statusFilter: string): string {
+function appointmentsPage(allAppts: any[], allBiz: any[], allCli: any[], allSvc: any[], statusFilter: string, bizFilter = "", searchQ = "", page = 1, totalPages = 1, totalCount = 0): string {
   const bizMap = new Map(allBiz.map((b: any) => [b.id, b.businessName]));
   const cliMap = new Map(allCli.map((c: any) => [`${c.businessOwnerId}-${c.localId}`, c.name]));
   const svcMap = new Map(allSvc.map((s: any) => [`${s.businessOwnerId}-${s.localId}`, s.name]));
@@ -1513,25 +1570,53 @@ function appointmentsPage(allAppts: any[], allBiz: any[], allCli: any[], allSvc:
     </tr>`;
   }).join('');
 
+  // Build pagination URL helper
+  const buildUrl = (p: number) => {
+    const params = new URLSearchParams();
+    if (statusFilter) params.set('status', statusFilter);
+    if (bizFilter) params.set('biz', bizFilter);
+    if (searchQ) params.set('q', searchQ);
+    params.set('page', String(p));
+    return `/api/admin/appointments?${params.toString()}`;
+  };
+  const paginationHtml = totalPages > 1 ? `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--border);">
+      <div style="font-size:13px;color:var(--text-muted);">Page ${page} of ${totalPages} &mdash; ${totalCount} total</div>
+      <div style="display:flex;gap:6px;">
+        ${page > 1 ? `<a href="${buildUrl(1)}" class="btn-sm">&#8676; First</a><a href="${buildUrl(page - 1)}" class="btn-sm">&lsaquo; Prev</a>` : ''}
+        ${page < totalPages ? `<a href="${buildUrl(page + 1)}" class="btn-sm">Next &rsaquo;</a><a href="${buildUrl(totalPages)}" class="btn-sm">Last &#8677;</a>` : ''}
+      </div>
+    </div>` : '';
+
   return adminLayout('Appointments', 'appointments', `
     <div class="page-header">
       <div>
         <h2>Appointments</h2>
-        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">${allAppts.length} total</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">${totalCount} total &mdash; showing page ${page} of ${totalPages}</div>
       </div>
     </div>
     <!-- Status filter chips (server-side) -->
     <div class="filter-bar">
-      ${statuses.map((s, i) => `<a href="/api/admin/appointments${s ? '?status=' + s : ''}" class="filter-btn ${statusFilter === s ? 'active' : ''}">${statusLabels[i]}</a>`).join('')}
+      ${statuses.map((s, i) => {
+        const params = new URLSearchParams();
+        if (s) params.set('status', s);
+        if (bizFilter) params.set('biz', bizFilter);
+        params.set('page', '1');
+        return `<a href="/api/admin/appointments?${params.toString()}" class="filter-btn ${statusFilter === s ? 'active' : ''}">${statusLabels[i]}</a>`;
+      }).join('')}
     </div>
-    <!-- Client-side search + business filter -->
-    <div class="search-bar" style="margin-top:12px;">
-      <input type="text" id="apptSearch" placeholder="🔍 Search client, service, or business..." oninput="filterAppts()" style="max-width:340px;">
-      <select id="apptBizFilter" onchange="filterAppts()">
+    <!-- Server-side search + business filter form -->
+    <form method="GET" action="/api/admin/appointments" class="search-bar" style="margin-top:12px;">
+      <input type="hidden" name="status" value="${escHtml(statusFilter)}">
+      <input type="hidden" name="page" value="1">
+      <input type="text" name="q" value="${escHtml(searchQ)}" placeholder="🔍 Search client, service, or business..." style="max-width:340px;">
+      <select name="biz" onchange="this.form.submit()">
         <option value="">All Businesses</option>
-        ${bizOptions}
+        ${allBiz.map((b: any) => `<option value="${b.id}" ${bizFilter === String(b.id) ? 'selected' : ''}>${escHtml(b.businessName)}</option>`).join('')}
       </select>
-    </div>
+      <button type="submit" class="btn-sm">Search</button>
+      ${(searchQ || bizFilter) ? `<a href="/api/admin/appointments${statusFilter ? '?status=' + statusFilter : ''}" class="btn-sm" style="background:var(--danger);color:#fff;">Clear</a>` : ''}
+    </form>
     <div class="card" style="padding:0;overflow:hidden;margin-top:12px;">
       <table id="apptTable">
         <thead>
@@ -1550,24 +1635,8 @@ function appointmentsPage(allAppts: any[], allBiz: any[], allCli: any[], allSvc:
           ${allAppts.length === 0 ? '<tr><td colspan="8" style="padding:40px;text-align:center;color:var(--text-muted);">No appointments found</td></tr>' : rows}
         </tbody>
       </table>
+      ${paginationHtml}
     </div>
-    <div id="apptEmpty" style="display:none;padding:40px;text-align:center;color:var(--text-muted);">No appointments match your filters.</div>
-    <script>
-      function filterAppts() {
-        const q = document.getElementById('apptSearch').value.toLowerCase();
-        const biz = document.getElementById('apptBizFilter').value;
-        let visible = 0;
-        document.querySelectorAll('#apptTbody .appt-row').forEach(function(row) {
-          const search = row.getAttribute('data-search') || '';
-          const rowBiz = row.getAttribute('data-biz') || '';
-          const show = (!q || search.includes(q)) && (!biz || rowBiz === biz);
-          row.style.display = show ? '' : 'none';
-          if (show) visible++;
-        });
-        document.getElementById('apptEmpty').style.display = visible === 0 ? 'block' : 'none';
-        document.getElementById('apptTable').style.display = visible === 0 ? 'none' : '';
-      }
-    </script>
   `);
 }
 
@@ -2159,65 +2228,64 @@ function giftCardsPage(allGC: any[], allBiz: any[]): string {
 }
 
 // ─── Reviews Page ──────────────────────────────────────────────────
-function reviewsPage(allRev: any[], allBiz: any[]): string {
+function reviewsPage(allRev: any[], allBiz: any[], bizFilter = "", ratingFilter = "", page = 1, totalPages = 1, totalCount = 0): string {
   const bizMap = new Map(allBiz.map((b: any) => [b.id, b.businessName]));
+  const buildUrl = (p: number) => {
+    const params = new URLSearchParams();
+    if (bizFilter) params.set('biz', bizFilter);
+    if (ratingFilter) params.set('rating', ratingFilter);
+    params.set('page', String(p));
+    return `/api/admin/reviews?${params.toString()}`;
+  };
+  const paginationHtml = totalPages > 1 ? `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--border);">
+      <div style="font-size:13px;color:var(--text-muted);">Page ${page} of ${totalPages} &mdash; ${totalCount} total</div>
+      <div style="display:flex;gap:6px;">
+        ${page > 1 ? `<a href="${buildUrl(1)}" class="btn-sm">&#8676; First</a><a href="${buildUrl(page - 1)}" class="btn-sm">&lsaquo; Prev</a>` : ''}
+        ${page < totalPages ? `<a href="${buildUrl(page + 1)}" class="btn-sm">Next &rsaquo;</a><a href="${buildUrl(totalPages)}" class="btn-sm">Last &#8677;</a>` : ''}
+      </div>
+    </div>` : '';
+
   return adminLayout("Reviews", "reviews", `
     <div class="page-header">
       <h2>All Reviews</h2>
-      <span class="badge badge-info">${allRev.length} total</span>
+      <span class="badge badge-info">${totalCount} total &mdash; page ${page} of ${totalPages}</span>
     </div>
-    <div class="search-bar">
-      <input type="text" id="revSearch" placeholder="🔍 Search by client or comment..." oninput="filterRev()" style="max-width:300px;">
-      <select id="revBizFilter" onchange="filterRev()">
+    <form method="GET" action="/api/admin/reviews" class="search-bar">
+      <input type="hidden" name="page" value="1">
+      <select name="biz" onchange="this.form.submit()">
         <option value="">All Businesses</option>
-        ${allBiz.map((b: any) => `<option value="${b.id}">${escHtml(b.businessName)}</option>`).join("")}
+        ${allBiz.map((b: any) => `<option value="${b.id}" ${bizFilter === String(b.id) ? 'selected' : ''}>${escHtml(b.businessName)}</option>`).join("")}
       </select>
-      <select id="revRatingFilter" onchange="filterRev()">
+      <select name="rating" onchange="this.form.submit()">
         <option value="">All Ratings</option>
-        <option value="5">⭐⭐⭐⭐⭐ 5 stars</option>
-        <option value="4">⭐⭐⭐⭐ 4 stars</option>
-        <option value="3">⭐⭐⭐ 3 stars</option>
-        <option value="2">⭐⭐ 2 stars</option>
-        <option value="1">⭐ 1 star</option>
+        <option value="5" ${ratingFilter === '5' ? 'selected' : ''}>⭐⭐⭐⭐⭐ 5 stars</option>
+        <option value="4" ${ratingFilter === '4' ? 'selected' : ''}>⭐⭐⭐⭐ 4 stars</option>
+        <option value="3" ${ratingFilter === '3' ? 'selected' : ''}>⭐⭐⭐ 3 stars</option>
+        <option value="2" ${ratingFilter === '2' ? 'selected' : ''}>⭐⭐ 2 stars</option>
+        <option value="1" ${ratingFilter === '1' ? 'selected' : ''}>⭐ 1 star</option>
       </select>
-    </div>
-    <div class="card">
+      ${(bizFilter || ratingFilter) ? `<a href="/api/admin/reviews" class="btn-sm" style="background:var(--danger);color:#fff;">Clear</a>` : ''}
+    </form>
+    <div class="card" style="padding:0;overflow:hidden;">
       ${allRev.length === 0
-        ? '<div class="empty-state"><div class="empty-icon">⭐</div><p>No reviews yet</p></div>'
-        : `<table id="revTable">
-            <thead><tr><th>Rating</th><th>Comment</th><th>Client</th><th>Business</th><th>Created</th><th>Actions</th></tr></thead>
-            <tbody id="revTbody">
-              ${allRev.map((r: any) => `<tr class="rev-row" data-search="${escHtml(((r.clientName || '') + ' ' + (r.comment || '')).toLowerCase())}" data-biz="${r.businessOwnerId}" data-rating="${r.rating}">
-                <td>${"⭐".repeat(Math.min(r.rating, 5))}</td>
-                <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.comment || '<span style="color:var(--text-muted);">No comment</span>'}</td>
-                <td>${r.clientName || r.clientLocalId || "Anonymous"}</td>
-                <td><a href="/api/admin/businesses/${r.businessOwnerId}">${bizMap.get(r.businessOwnerId) || "Unknown"}</a></td>
-                <td>${fmtDate(r.createdAt)}</td>
-                <td><form class="delete-form" method="POST" action="/api/admin/delete/review/${r.id}" onsubmit="return confirm('Delete this review?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
+        ? '<div class="empty-state" style="padding:40px;"><div class="empty-icon">⭐</div><p>No reviews yet</p></div>'
+        : `<table>
+            <thead><tr style="background:var(--bg-hover);"><th style="padding:12px 16px;">Rating</th><th style="padding:12px 16px;">Comment</th><th style="padding:12px 16px;">Client</th><th style="padding:12px 16px;">Business</th><th style="padding:12px 16px;">Created</th><th style="padding:12px 16px;">Actions</th></tr></thead>
+            <tbody>
+              ${allRev.map((r: any) => `<tr>
+                <td style="padding:10px 16px;">${"⭐".repeat(Math.min(r.rating, 5))}</td>
+                <td style="padding:10px 16px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(r.comment || '') || '<span style="color:var(--text-muted);">No comment</span>'}</td>
+                <td style="padding:10px 16px;">${escHtml(r.clientName || r.clientLocalId || "Anonymous")}</td>
+                <td style="padding:10px 16px;"><a href="/api/admin/businesses/${r.businessOwnerId}" style="color:var(--primary);">${escHtml(bizMap.get(r.businessOwnerId) as string || "Unknown")}</a></td>
+                <td style="padding:10px 16px;font-size:12px;color:var(--text-muted);">${fmtDate(r.createdAt)}</td>
+                <td style="padding:10px 16px;"><form class="delete-form" method="POST" action="/api/admin/delete/review/${r.id}" onsubmit="return confirm('Delete this review?')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
               </tr>`).join("")}
             </tbody>
           </table>
-          <div id="revEmpty" style="display:none;padding:40px;text-align:center;color:var(--text-muted);">No reviews match your filters.</div>`
+          ${paginationHtml}`
       }
     </div>
-    <script>
-      function filterRev() {
-        const q = document.getElementById('revSearch').value.toLowerCase();
-        const biz = document.getElementById('revBizFilter').value;
-        const rating = document.getElementById('revRatingFilter').value;
-        let visible = 0;
-        document.querySelectorAll('#revTbody .rev-row').forEach(function(row) {
-          const search = row.getAttribute('data-search') || '';
-          const rowBiz = row.getAttribute('data-biz') || '';
-          const rowRating = row.getAttribute('data-rating') || '';
-          const show = (!q || search.includes(q)) && (!biz || rowBiz === biz) && (!rating || rowRating === rating);
-          row.style.display = show ? '' : 'none';
-          if (show) visible++;
-        });
-        document.getElementById('revEmpty').style.display = visible === 0 ? 'block' : 'none';
-        document.getElementById('revTable').style.display = visible === 0 ? 'none' : '';
-      }
-    </script>
   `);
 }
 
