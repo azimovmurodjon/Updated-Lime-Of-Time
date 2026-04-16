@@ -1162,3 +1162,6 @@
 - [x] Save button not tappable on first open for New Service screen — fixed: added pointerEvents="none" to AnimatedSplash Animated.View
 - [x] Save button not tappable on first open for Add Staff Member screen — fixed: same AnimatedSplash fix
 - [x] Save button not tappable on first open for Add Location screen — fixed: same AnimatedSplash fix + usePlanLimitCheck now allows action when businessOwnerId/planInfo not yet loaded (prevents false upgrade-sheet block)
+
+## Bugs (Apr 16 batch 12)
+- [x] Android: header hidden/cut off at top on all inner form/push screens (service-form, staff-form, location-form, schedule-settings, booking-policies, notification-settings, etc.) — fixed: replaced SafeAreaView in ScreenContainer with useSafeAreaInsets() directly, applying paddingTop/bottom/left/right as explicit style props; this ensures correct status-bar inset on Android regardless of presentation mode (fullScreenModal or card)

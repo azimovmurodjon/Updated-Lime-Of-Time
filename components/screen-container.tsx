@@ -1,5 +1,5 @@
-import { View, type ViewProps } from "react-native";
-import { SafeAreaView, type Edge } from "react-native-safe-area-context";
+import { Platform, View, type ViewProps } from "react-native";
+import { useSafeAreaInsets, type Edge } from "react-native-safe-area-context";
 import { useResponsive } from "@/hooks/use-responsive";
 import { cn } from "@/lib/utils";
 
@@ -36,9 +36,13 @@ export interface ScreenContainerProps extends ViewProps {
 /**
  * A container component that properly handles SafeArea and background colors.
  *
+ * Uses useSafeAreaInsets() directly (instead of SafeAreaView) so that the
+ * correct status-bar / notch padding is applied on BOTH iOS and Android,
+ * including inside fullScreenModal and card presentations where SafeAreaView
+ * context inheritance can be unreliable on Android.
+ *
  * - On phones: full-width content with safe area insets
  * - On tablets: content is centered with a max-width for readability
- * - On tablets in landscape: wider max-width is applied automatically
  *
  * Usage:
  * ```tsx
@@ -59,6 +63,17 @@ export function ScreenContainer({
   ...props
 }: ScreenContainerProps) {
   const { isTablet, formMaxWidth } = useResponsive();
+  const insets = useSafeAreaInsets();
+
+  // Build explicit padding from requested edges.
+  // On Android we add a small extra buffer for the status bar when "top" is included.
+  const edgeSet = new Set(edges);
+  const paddingTop = edgeSet.has("top")
+    ? Math.max(insets.top, Platform.OS === "android" ? 24 : 0)
+    : 0;
+  const paddingBottom = edgeSet.has("bottom") ? insets.bottom : 0;
+  const paddingLeft = edgeSet.has("left") ? insets.left : 0;
+  const paddingRight = edgeSet.has("right") ? insets.right : 0;
 
   // Determine effective max width:
   // - fullWidth=true → no constraint
@@ -72,17 +87,18 @@ export function ScreenContainer({
 
   const shouldConstrain = isTablet && effectiveMax > 0;
 
+  const innerStyle = [
+    { paddingTop, paddingBottom, paddingLeft, paddingRight },
+    style,
+  ];
+
   return (
     <View
       className={cn("flex-1", "bg-background", containerClassName)}
       {...props}
     >
-      <SafeAreaView
-        edges={edges}
-        className={cn("flex-1", safeAreaClassName)}
-        style={style}
-      >
-        {shouldConstrain ? (
+      {shouldConstrain ? (
+        <View className={cn("flex-1", safeAreaClassName)} style={innerStyle}>
           <View className="flex-1 items-center">
             <View
               className={cn("flex-1 w-full", className)}
@@ -91,10 +107,12 @@ export function ScreenContainer({
               {children}
             </View>
           </View>
-        ) : (
+        </View>
+      ) : (
+        <View className={cn("flex-1", safeAreaClassName)} style={innerStyle}>
           <View className={cn("flex-1", className)}>{children}</View>
-        )}
-      </SafeAreaView>
+        </View>
+      )}
     </View>
   );
 }
