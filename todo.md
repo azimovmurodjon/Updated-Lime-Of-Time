@@ -1140,3 +1140,8 @@
 - [x] Unpaid filter on Appointments (Calendar) screen — Unpaid/Paid chips added to filter row
 - [x] Deep-link from Payment Summary card on home screen to Unpaid filter (Outstanding tap → Unpaid list, Paid tap → Paid list)
 - [x] Payment amount badge shown on each card when viewing Unpaid or Paid filter
+
+## Features (Apr 16 batch 7)
+- [x] Mark as Paid button on each card in the Unpaid filter — single tap records payment
+- [x] Unpaid filter summary header — show total outstanding amount and count above the list
+- [x] Filter chip persistence — remember last-used filter across navigation

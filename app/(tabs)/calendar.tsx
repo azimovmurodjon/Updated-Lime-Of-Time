@@ -32,6 +32,7 @@ import {
 } from "@/lib/types";
 import { TapTimePicker, timeToMinutes as tapTimeToMinutes } from "@/components/tap-time-picker";
 import { formatPhone } from "@/lib/utils";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 type CalendarView = "month" | "day" | "week";
 
@@ -279,8 +280,27 @@ export default function CalendarScreen() {
   const [currentMonth, setCurrentMonth] = useState(() => new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
   const [selectedDate, setSelectedDate] = useState(() => formatDateStr(new Date()));
+  const FILTER_STORAGE_KEY = "@lime_calendar_filter";
+  // Initialise from params first; will be overridden by stored value on mount if no param
   const initialFilter = (params.filter as FilterKey) || "upcoming";
   const [activeFilter, setActiveFilter] = useState<FilterKey>(initialFilter);
+
+  // Persist filter selection to AsyncStorage
+  const setActiveFilterPersisted = useCallback((key: FilterKey) => {
+    setActiveFilter(key);
+    AsyncStorage.setItem(FILTER_STORAGE_KEY, key).catch(() => {});
+  }, []);
+
+  // On mount: restore last-used filter (only if no explicit param was passed)
+  useEffect(() => {
+    if (params.filter) return; // deep-link param takes priority
+    AsyncStorage.getItem(FILTER_STORAGE_KEY).then((stored) => {
+      if (stored && FILTERS.some((f) => f.key === stored)) {
+        setActiveFilter(stored as FilterKey);
+      }
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // Workday override modal state
   const [showTimePickerModal, setShowTimePickerModal] = useState(false);
   const [editingDate, setEditingDate] = useState<string | null>(null);
@@ -323,9 +343,9 @@ export default function CalendarScreen() {
 
   useEffect(() => {
     if (params.filter && FILTERS.some((f) => f.key === params.filter)) {
-      setActiveFilter(params.filter as FilterKey);
+      setActiveFilterPersisted(params.filter as FilterKey);
     }
-  }, [params.filter]);
+  }, [params.filter, setActiveFilterPersisted]);
 
   const { activeLocation, activeLocations, hasMultipleLocations: hasMultiLoc, setActiveLocation } = useActiveLocation();
   const calLocationFilter = activeLocation?.id ?? null;
@@ -1115,7 +1135,7 @@ export default function CalendarScreen() {
             return (
               <Pressable
                 key={f.key}
-                onPress={() => setActiveFilter(f.key)}
+                onPress={() => setActiveFilterPersisted(f.key)}
                 style={({ pressed }) => [styles.filterChip, {
                   backgroundColor: isActive ? filterColors[f.key] : colors.surface,
                   borderColor: isActive ? filterColors[f.key] : colors.border,
@@ -1130,10 +1150,30 @@ export default function CalendarScreen() {
           })}
         </ScrollView>
 
+        {/* Unpaid / Paid summary banner */}
+        {(activeFilter === "unpaid" || activeFilter === "paid") && filteredAppointments.length > 0 && (() => {
+          const total = filteredAppointments.reduce((s, a) => s + (a.totalPrice ?? 0), 0);
+          const isUnpaid = activeFilter === "unpaid";
+          const bannerColor = isUnpaid ? "#EF4444" : "#22C55E";
+          return (
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: bannerColor + "12", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 10, borderWidth: 1, borderColor: bannerColor + "30" }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <IconSymbol name={isUnpaid ? "exclamationmark.circle.fill" : "checkmark.circle.fill"} size={18} color={bannerColor} />
+                <Text style={{ fontSize: 13, fontWeight: "700", color: bannerColor }}>
+                  {filteredAppointments.length} appointment{filteredAppointments.length !== 1 ? "s" : ""}
+                </Text>
+              </View>
+              <Text style={{ fontSize: 16, fontWeight: "800", color: bannerColor }}>
+                ${total.toFixed(2)} {isUnpaid ? "outstanding" : "collected"}
+              </Text>
+            </View>
+          );
+        })()}
+
         {filteredAppointments.length === 0 ? (
           <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={{ color: colors.muted, fontSize: 13 }}>
-              {activeFilter === "unpaid" ? "All appointments are paid " : activeFilter === "paid" ? "No paid appointments yet" : `No ${activeFilter} appointments`}
+              {activeFilter === "unpaid" ? "All appointments are paid" : activeFilter === "paid" ? "No paid appointments yet" : `No ${activeFilter} appointments`}
             </Text>
           </View>
         ) : (
@@ -1199,6 +1239,35 @@ export default function CalendarScreen() {
                     </Pressable>
                   </View>
                 )}
+                {/* Mark as Paid — shown only in the Unpaid filter for non-paid appointments */}
+                {activeFilter === "unpaid" && appt.paymentStatus !== "paid" && (
+                  <View style={[styles.actionRow, { borderTopColor: colors.border }]}>
+                    <Pressable
+                      onPress={() => {
+                        Alert.alert(
+                          "Mark as Paid",
+                          `Mark ${getClientById(appt.clientId)?.name ?? "this appointment"} as paid${appt.totalPrice != null ? ` ($${appt.totalPrice.toFixed(2)})` : ""}?`,
+                          [
+                            { text: "Cancel", style: "cancel" },
+                            {
+                              text: "Mark Paid",
+                              onPress: () => {
+                                const updated = { ...appt, paymentStatus: "paid" as const };
+                                dispatch({ type: "UPDATE_APPOINTMENT", payload: updated });
+                                syncToDb({ type: "UPDATE_APPOINTMENT", payload: updated });
+                              },
+                            },
+                          ]
+                        );
+                      }}
+                      style={({ pressed }) => [styles.acceptBtn, { flex: 1, backgroundColor: "#22C55E", opacity: pressed ? 0.8 : 1 }]}
+                    >
+                      <IconSymbol name="dollarsign.circle.fill" size={16} color="#FFF" />
+                      <Text style={{ color: "#FFF", fontSize: 13, fontWeight: "700", marginLeft: 5 }}>Mark as Paid</Text>
+                    </Pressable>
+                  </View>
+                )}
+
               </View>
             );
           })
