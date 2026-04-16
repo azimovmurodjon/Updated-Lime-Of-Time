@@ -1361,6 +1361,10 @@ export function registerPublicRoutes(app: Express) {
   });
 
   /** Homepage */
+  app.get("/home", (_req: Request, res: Response) => {
+    res.send(homePage());
+  });
+
   app.get("/api/home", (_req: Request, res: Response) => {
     res.send(homePage());
   });
@@ -1800,20 +1804,918 @@ function homePage(): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lime Of Time - Smart Scheduling</title>
-  ${baseStyles()}
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lime Of Time — Smart Scheduling for Modern Businesses</title>
+  <meta name="description" content="Lime Of Time is the all-in-one scheduling app for salons, barbershops, spas, and wellness businesses. Manage appointments, clients, staff, and payments from your phone." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --lime: #7EC820;
+      --lime-dark: #5fa318;
+      --lime-light: #a8e04a;
+      --lime-glow: rgba(126,200,32,0.18);
+      --navy: #0d1117;
+      --navy2: #161b22;
+      --navy3: #1e2530;
+      --navy4: #252d3a;
+      --white: #ffffff;
+      --gray: #8b949e;
+      --gray2: #c9d1d9;
+      --border: rgba(255,255,255,0.08);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--navy);
+      color: var(--white);
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 5%; height: 68px;
+      background: rgba(13,17,23,0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      transition: background 0.3s;
+    }
+    .nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .nav-logo-icon {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--lime), var(--lime-dark));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+    .nav-logo-text { font-size: 18px; font-weight: 700; color: var(--white); }
+    .nav-links { display: flex; align-items: center; gap: 32px; }
+    .nav-links a { color: var(--gray2); text-decoration: none; font-size: 14px; font-weight: 500; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--white); }
+    .nav-cta {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .btn-outline {
+      padding: 9px 20px; border-radius: 8px; font-size: 14px; font-weight: 600;
+      border: 1.5px solid var(--border); color: var(--white); background: transparent;
+      cursor: pointer; text-decoration: none; transition: border-color 0.2s, background 0.2s;
+    }
+    .btn-outline:hover { border-color: var(--lime); background: var(--lime-glow); }
+    .btn-primary {
+      padding: 9px 20px; border-radius: 8px; font-size: 14px; font-weight: 700;
+      background: var(--lime); color: #0d1117; border: none; cursor: pointer;
+      text-decoration: none; transition: background 0.2s, transform 0.15s;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn-primary:hover { background: var(--lime-light); transform: translateY(-1px); }
+    .hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; padding: 4px; }
+    .hamburger span { width: 22px; height: 2px; background: var(--white); border-radius: 2px; transition: 0.3s; }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 120px 5% 80px;
+      position: relative; overflow: hidden;
+      text-align: center;
+    }
+    .hero-bg {
+      position: absolute; inset: 0; z-index: 0;
+      background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(126,200,32,0.12) 0%, transparent 70%),
+                  radial-gradient(ellipse 50% 40% at 80% 80%, rgba(126,200,32,0.06) 0%, transparent 60%);
+    }
+    .hero-grid {
+      position: absolute; inset: 0; z-index: 0; opacity: 0.04;
+      background-image: linear-gradient(var(--white) 1px, transparent 1px),
+                        linear-gradient(90deg, var(--white) 1px, transparent 1px);
+      background-size: 60px 60px;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 16px; border-radius: 100px;
+      background: rgba(126,200,32,0.12); border: 1px solid rgba(126,200,32,0.3);
+      font-size: 13px; font-weight: 600; color: var(--lime);
+      margin-bottom: 28px; position: relative; z-index: 1;
+      animation: fadeInDown 0.6s ease both;
+    }
+    .hero-badge-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--lime); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(1.4)} }
+    .hero h1 {
+      font-size: clamp(42px, 7vw, 88px); font-weight: 900; line-height: 1.05;
+      letter-spacing: -2px; position: relative; z-index: 1;
+      animation: fadeInUp 0.7s 0.1s ease both;
+    }
+    .hero h1 .highlight {
+      background: linear-gradient(135deg, var(--lime), var(--lime-light));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .hero-sub {
+      font-size: clamp(17px, 2.2vw, 22px); color: var(--gray2); max-width: 640px;
+      margin: 24px auto 0; font-weight: 400; line-height: 1.6;
+      position: relative; z-index: 1;
+      animation: fadeInUp 0.7s 0.2s ease both;
+    }
+    .hero-actions {
+      display: flex; align-items: center; justify-content: center; gap: 16px;
+      margin-top: 40px; flex-wrap: wrap;
+      position: relative; z-index: 1;
+      animation: fadeInUp 0.7s 0.3s ease both;
+    }
+    .btn-hero {
+      padding: 16px 36px; border-radius: 12px; font-size: 16px; font-weight: 700;
+      background: var(--lime); color: #0d1117; border: none; cursor: pointer;
+      text-decoration: none; transition: all 0.2s;
+      display: inline-flex; align-items: center; gap: 8px;
+      box-shadow: 0 0 40px rgba(126,200,32,0.35);
+    }
+    .btn-hero:hover { background: var(--lime-light); transform: translateY(-2px); box-shadow: 0 0 60px rgba(126,200,32,0.5); }
+    .btn-hero-ghost {
+      padding: 16px 36px; border-radius: 12px; font-size: 16px; font-weight: 600;
+      background: transparent; color: var(--white); border: 1.5px solid var(--border);
+      cursor: pointer; text-decoration: none; transition: all 0.2s;
+    }
+    .btn-hero-ghost:hover { border-color: var(--lime); background: var(--lime-glow); }
+    .hero-trust {
+      display: flex; align-items: center; justify-content: center; gap: 24px;
+      margin-top: 32px; flex-wrap: wrap;
+      position: relative; z-index: 1;
+      animation: fadeInUp 0.7s 0.4s ease both;
+    }
+    .hero-trust-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--gray); }
+    .hero-trust-item svg { color: var(--lime); }
+    .hero-phones {
+      position: relative; z-index: 1; margin-top: 64px;
+      display: flex; align-items: flex-end; justify-content: center; gap: -20px;
+      animation: fadeInUp 0.8s 0.5s ease both;
+    }
+    .hero-phone-wrap {
+      position: relative; flex-shrink: 0;
+    }
+    .hero-phone-wrap.center { z-index: 3; transform: translateY(0); }
+    .hero-phone-wrap.left  { z-index: 2; transform: translateX(40px) translateY(30px) rotate(-6deg); }
+    .hero-phone-wrap.right { z-index: 2; transform: translateX(-40px) translateY(30px) rotate(6deg); }
+    .hero-phone-wrap img {
+      width: 260px; border-radius: 36px;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06);
+      display: block;
+    }
+    .hero-phone-wrap.center img { width: 300px; }
+    .phone-glow {
+      position: absolute; bottom: -30px; left: 50%; transform: translateX(-50%);
+      width: 200px; height: 60px;
+      background: radial-gradient(ellipse, rgba(126,200,32,0.4), transparent 70%);
+      filter: blur(20px); z-index: -1;
+    }
+
+    /* ── STATS ── */
+    .stats {
+      padding: 80px 5%;
+      background: var(--navy2);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .stats-grid {
+      max-width: 1100px; margin: 0 auto;
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px;
+    }
+    .stat-item {
+      padding: 40px 32px; text-align: center;
+      border-right: 1px solid var(--border);
+      opacity: 0; transform: translateY(20px);
+      transition: opacity 0.6s, transform 0.6s;
+    }
+    .stat-item:last-child { border-right: none; }
+    .stat-item.visible { opacity: 1; transform: translateY(0); }
+    .stat-number {
+      font-size: 52px; font-weight: 900; line-height: 1;
+      background: linear-gradient(135deg, var(--lime), var(--lime-light));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .stat-label { font-size: 14px; color: var(--gray); margin-top: 8px; font-weight: 500; }
+
+    /* ── SECTION SHARED ── */
+    .section { padding: 100px 5%; }
+    .section-inner { max-width: 1200px; margin: 0 auto; }
+    .section-tag {
+      display: inline-block; padding: 4px 14px; border-radius: 100px;
+      background: rgba(126,200,32,0.1); border: 1px solid rgba(126,200,32,0.25);
+      font-size: 12px; font-weight: 700; color: var(--lime); letter-spacing: 1px;
+      text-transform: uppercase; margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: clamp(32px, 4vw, 52px); font-weight: 800; line-height: 1.1;
+      letter-spacing: -1px; margin-bottom: 20px;
+    }
+    .section-sub { font-size: 18px; color: var(--gray2); max-width: 560px; line-height: 1.7; }
+
+    /* ── FEATURES BENTO ── */
+    .features-bento {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: auto auto;
+      gap: 16px;
+      margin-top: 64px;
+    }
+    .bento-card {
+      background: var(--navy2); border: 1px solid var(--border); border-radius: 20px;
+      padding: 36px; overflow: hidden; position: relative;
+      transition: border-color 0.3s, transform 0.3s;
+      opacity: 0; transform: translateY(30px);
+    }
+    .bento-card.visible { opacity: 1; transform: translateY(0); }
+    .bento-card:hover { border-color: rgba(126,200,32,0.35); transform: translateY(-4px); }
+    .bento-card.wide { grid-column: span 2; }
+    .bento-card.tall { grid-row: span 2; }
+    .bento-icon {
+      width: 52px; height: 52px; border-radius: 14px;
+      background: rgba(126,200,32,0.12); border: 1px solid rgba(126,200,32,0.2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; margin-bottom: 20px;
+    }
+    .bento-title { font-size: 20px; font-weight: 700; margin-bottom: 10px; }
+    .bento-desc { font-size: 14px; color: var(--gray); line-height: 1.7; }
+    .bento-card .mockup-img {
+      width: 100%; border-radius: 12px; margin-top: 24px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    }
+    .bento-card .bento-stat {
+      font-size: 42px; font-weight: 900; color: var(--lime); margin-top: 16px; line-height: 1;
+    }
+    .bento-card .bento-stat-label { font-size: 13px; color: var(--gray); margin-top: 4px; }
+
+    /* ── FEATURE SHOWCASE ── */
+    .feature-showcase { padding: 100px 5%; }
+    .showcase-item {
+      max-width: 1200px; margin: 0 auto 120px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center;
+    }
+    .showcase-item:last-child { margin-bottom: 0; }
+    .showcase-item.reverse { direction: rtl; }
+    .showcase-item.reverse > * { direction: ltr; }
+    .showcase-content {}
+    .showcase-list { list-style: none; margin-top: 28px; display: flex; flex-direction: column; gap: 16px; }
+    .showcase-list li {
+      display: flex; align-items: flex-start; gap: 14px;
+      font-size: 15px; color: var(--gray2); line-height: 1.6;
+    }
+    .showcase-list li .check {
+      width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+      background: rgba(126,200,32,0.15); border: 1px solid rgba(126,200,32,0.3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; color: var(--lime); margin-top: 2px;
+    }
+    .showcase-phone {
+      position: relative; display: flex; justify-content: center;
+      opacity: 0; transform: translateX(40px);
+      transition: opacity 0.7s, transform 0.7s;
+    }
+    .showcase-phone.from-left { transform: translateX(-40px); }
+    .showcase-phone.visible { opacity: 1; transform: translateX(0); }
+    .showcase-phone img {
+      width: 280px; border-radius: 36px;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06);
+    }
+    .showcase-phone-glow {
+      position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%);
+      width: 180px; height: 50px;
+      background: radial-gradient(ellipse, rgba(126,200,32,0.35), transparent 70%);
+      filter: blur(16px); z-index: -1;
+    }
+    .showcase-content { opacity: 0; transform: translateY(20px); transition: opacity 0.7s, transform 0.7s; }
+    .showcase-content.visible { opacity: 1; transform: translateY(0); }
+
+    /* ── SOCIAL PROOF ── */
+    .social-proof { padding: 100px 5%; background: var(--navy2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .reviews-grid {
+      max-width: 1200px; margin: 64px auto 0;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+    }
+    .review-card {
+      background: var(--navy3); border: 1px solid var(--border); border-radius: 16px;
+      padding: 28px; transition: border-color 0.3s, transform 0.3s;
+      opacity: 0; transform: translateY(20px);
+    }
+    .review-card.visible { opacity: 1; transform: translateY(0); }
+    .review-card:hover { border-color: rgba(126,200,32,0.3); transform: translateY(-4px); }
+    .review-stars { color: #fbbf24; font-size: 14px; margin-bottom: 14px; }
+    .review-text { font-size: 15px; color: var(--gray2); line-height: 1.7; font-style: italic; margin-bottom: 20px; }
+    .review-author { display: flex; align-items: center; gap: 12px; }
+    .review-avatar {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--lime-dark), var(--lime));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700; color: #0d1117; flex-shrink: 0;
+    }
+    .review-name { font-size: 14px; font-weight: 600; }
+    .review-biz { font-size: 12px; color: var(--gray); }
+
+    /* ── PRICING ── */
+    .pricing { padding: 100px 5%; }
+    .pricing-grid {
+      max-width: 1100px; margin: 64px auto 0;
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+    }
+    .pricing-card {
+      background: var(--navy2); border: 1px solid var(--border); border-radius: 20px;
+      padding: 32px 24px; position: relative; transition: border-color 0.3s, transform 0.3s;
+      opacity: 0; transform: translateY(20px);
+    }
+    .pricing-card.visible { opacity: 1; transform: translateY(0); }
+    .pricing-card.popular {
+      border-color: var(--lime); background: linear-gradient(180deg, rgba(126,200,32,0.08) 0%, var(--navy2) 100%);
+    }
+    .pricing-card:hover { transform: translateY(-4px); }
+    .popular-badge {
+      position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+      padding: 4px 16px; border-radius: 100px;
+      background: var(--lime); color: #0d1117;
+      font-size: 11px; font-weight: 800; letter-spacing: 0.5px; white-space: nowrap;
+    }
+    .pricing-plan { font-size: 13px; font-weight: 700; color: var(--lime); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+    .pricing-price { font-size: 40px; font-weight: 900; line-height: 1; margin-bottom: 4px; }
+    .pricing-price span { font-size: 16px; font-weight: 400; color: var(--gray); }
+    .pricing-desc { font-size: 13px; color: var(--gray); margin-bottom: 24px; }
+    .pricing-features { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
+    .pricing-features li { font-size: 13px; color: var(--gray2); display: flex; align-items: center; gap: 8px; }
+    .pricing-features li::before { content: '✓'; color: var(--lime); font-weight: 700; flex-shrink: 0; }
+    .btn-plan {
+      width: 100%; padding: 12px; border-radius: 10px; font-size: 14px; font-weight: 700;
+      cursor: pointer; text-align: center; text-decoration: none; display: block;
+      transition: all 0.2s;
+    }
+    .btn-plan-outline { background: transparent; border: 1.5px solid var(--border); color: var(--white); }
+    .btn-plan-outline:hover { border-color: var(--lime); background: var(--lime-glow); }
+    .btn-plan-filled { background: var(--lime); border: none; color: #0d1117; }
+    .btn-plan-filled:hover { background: var(--lime-light); }
+
+    /* ── CTA BANNER ── */
+    .cta-banner {
+      padding: 100px 5%;
+      background: linear-gradient(135deg, rgba(126,200,32,0.1) 0%, rgba(126,200,32,0.04) 100%);
+      border-top: 1px solid rgba(126,200,32,0.15);
+      text-align: center;
+    }
+    .cta-banner h2 { font-size: clamp(32px, 4vw, 56px); font-weight: 900; letter-spacing: -1px; margin-bottom: 20px; }
+    .cta-banner p { font-size: 18px; color: var(--gray2); max-width: 500px; margin: 0 auto 40px; }
+    .cta-actions { display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap; }
+    .cta-note { font-size: 13px; color: var(--gray); margin-top: 16px; }
+
+    /* ── FOOTER ── */
+    footer {
+      background: var(--navy2); border-top: 1px solid var(--border);
+      padding: 60px 5% 32px;
+    }
+    .footer-inner { max-width: 1200px; margin: 0 auto; }
+    .footer-top {
+      display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 48px; margin-bottom: 48px;
+    }
+    .footer-brand p { font-size: 14px; color: var(--gray); margin-top: 12px; max-width: 280px; line-height: 1.7; }
+    .footer-col h4 { font-size: 13px; font-weight: 700; color: var(--white); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+    .footer-col ul li a { font-size: 14px; color: var(--gray); text-decoration: none; transition: color 0.2s; }
+    .footer-col ul li a:hover { color: var(--lime); }
+    .footer-bottom {
+      border-top: 1px solid var(--border); padding-top: 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 13px; color: var(--gray);
+    }
+    .footer-bottom a { color: var(--gray); text-decoration: none; }
+    .footer-bottom a:hover { color: var(--lime); }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeInDown { from{opacity:0;transform:translateY(-20px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes fadeInUp { from{opacity:0;transform:translateY(30px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
+    .hero-phone-wrap.center { animation: float 5s ease-in-out infinite; }
+    .hero-phone-wrap.left { animation: float 5s 0.8s ease-in-out infinite; }
+    .hero-phone-wrap.right { animation: float 5s 1.6s ease-in-out infinite; }
+
+    /* ── MARQUEE LOGOS ── */
+    .marquee-section { padding: 48px 0; overflow: hidden; border-top: 1px solid var(--border); }
+    .marquee-label { text-align: center; font-size: 13px; color: var(--gray); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; margin-bottom: 32px; }
+    .marquee-track { display: flex; gap: 48px; animation: marquee 22s linear infinite; width: max-content; }
+    .marquee-track:hover { animation-play-state: paused; }
+    .marquee-item {
+      display: flex; align-items: center; gap: 10px; white-space: nowrap;
+      padding: 12px 24px; border-radius: 100px;
+      background: var(--navy2); border: 1px solid var(--border);
+      font-size: 14px; font-weight: 600; color: var(--gray2);
+    }
+    .marquee-item span { font-size: 18px; }
+    @keyframes marquee { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 1024px) {
+      .features-bento { grid-template-columns: repeat(2, 1fr); }
+      .bento-card.wide { grid-column: span 2; }
+      .pricing-grid { grid-template-columns: repeat(2, 1fr); }
+      .footer-top { grid-template-columns: 1fr 1fr; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .stat-item { border-right: none; border-bottom: 1px solid var(--border); }
+      .stat-item:nth-child(odd) { border-right: 1px solid var(--border); }
+    }
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .hamburger { display: flex; }
+      .hero-phones { gap: 0; }
+      .hero-phone-wrap.left, .hero-phone-wrap.right { display: none; }
+      .hero-phone-wrap.center img { width: 240px; }
+      .features-bento { grid-template-columns: 1fr; }
+      .bento-card.wide { grid-column: span 1; }
+      .showcase-item { grid-template-columns: 1fr; gap: 48px; }
+      .showcase-item.reverse { direction: ltr; }
+      .reviews-grid { grid-template-columns: 1fr; }
+      .pricing-grid { grid-template-columns: 1fr; }
+      .footer-top { grid-template-columns: 1fr; gap: 32px; }
+      .footer-bottom { flex-direction: column; gap: 12px; text-align: center; }
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
 </head>
 <body>
-  <div class="container" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">
-    <div style="font-size:64px;margin-bottom:16px;">🍋</div>
-    <h1 style="font-size:28px;color:#2d5a27;margin-bottom:8px;">Lime Of Time</h1>
-    <p style="color:#666;font-size:16px;margin-bottom:32px;">Smart scheduling for your business</p>
-    <p style="color:#999;font-size:14px;">Download the app on Google Play to get started.</p>
+
+<!-- NAV -->
+<nav id="navbar">
+  <a href="#" class="nav-logo">
+    <div class="nav-logo-icon">🍋</div>
+    <span class="nav-logo-text">Lime Of Time</span>
+  </a>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#how-it-works">How It Works</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#reviews">Reviews</a>
   </div>
+  <div class="nav-cta">
+    <a href="#" class="btn-outline">Log in</a>
+    <a href="#" class="btn-primary">Start Free ↗</a>
+  </div>
+  <div class="hamburger" id="hamburger">
+    <span></span><span></span><span></span>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-grid"></div>
+  <div class="hero-badge">
+    <div class="hero-badge-dot"></div>
+    The #1 Scheduling App for Beauty &amp; Wellness
+  </div>
+  <h1>Run Your Business.<br><span class="highlight">Not Your Calendar.</span></h1>
+  <p class="hero-sub">
+    Lime Of Time handles your appointments, clients, staff, and payments — so you can focus on what you do best.
+  </p>
+  <div class="hero-actions">
+    <a href="#" class="btn-hero">Get Started Free →</a>
+    <a href="#features" class="btn-hero-ghost">See All Features</a>
+  </div>
+  <div class="hero-trust">
+    <div class="hero-trust-item">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M7 0l1.8 3.6L13 4.3l-3 2.9.7 4.1L7 9.4l-3.7 1.9.7-4.1L1 4.3l4.2-.7z"/></svg>
+      4.9 / 5 average rating
+    </div>
+    <div class="hero-trust-item">✓ No credit card required</div>
+    <div class="hero-trust-item">✓ Free 14-day trial</div>
+    <div class="hero-trust-item">✓ Cancel anytime</div>
+  </div>
+  <div class="hero-phones">
+    <div class="hero-phone-wrap left">
+      <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663347678319/Dw4mhfnuurFcniLsqjLpWN/mockup_calendar-nyK2FCftAJe4W8sgbRibMN.webp" alt="Calendar view" loading="lazy" />
+      <div class="phone-glow"></div>
+    </div>
+    <div class="hero-phone-wrap center">
+      <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663347678319/Dw4mhfnuurFcniLsqjLpWN/mockup_dashboard-D8qEb5hMkM9wnHr7E9VF5p.webp" alt="Dashboard" loading="lazy" />
+      <div class="phone-glow"></div>
+    </div>
+    <div class="hero-phone-wrap right">
+      <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663347678319/Dw4mhfnuurFcniLsqjLpWN/mockup_clients-AfMsLmBJRX8LC6N6CKTnAu.webp" alt="Clients view" loading="lazy" />
+      <div class="phone-glow"></div>
+    </div>
+  </div>
+</section>
+
+<!-- MARQUEE -->
+<div class="marquee-section">
+  <p class="marquee-label">Trusted by businesses across every category</p>
+  <div class="marquee-track">
+    <div class="marquee-item"><span>💇</span> Hair Salons</div>
+    <div class="marquee-item"><span>🪒</span> Barbershops</div>
+    <div class="marquee-item"><span>💆</span> Spas &amp; Wellness</div>
+    <div class="marquee-item"><span>💅</span> Nail Studios</div>
+    <div class="marquee-item"><span>🧖</span> Skincare Clinics</div>
+    <div class="marquee-item"><span>🏋️</span> Fitness Studios</div>
+    <div class="marquee-item"><span>🦷</span> Dental Practices</div>
+    <div class="marquee-item"><span>🐾</span> Pet Groomers</div>
+    <div class="marquee-item"><span>🎨</span> Tattoo Studios</div>
+    <div class="marquee-item"><span>💇</span> Hair Salons</div>
+    <div class="marquee-item"><span>🪒</span> Barbershops</div>
+    <div class="marquee-item"><span>💆</span> Spas &amp; Wellness</div>
+    <div class="marquee-item"><span>💅</span> Nail Studios</div>
+    <div class="marquee-item"><span>🧖</span> Skincare Clinics</div>
+    <div class="marquee-item"><span>🏋️</span> Fitness Studios</div>
+    <div class="marquee-item"><span>🦷</span> Dental Practices</div>
+    <div class="marquee-item"><span>🐾</span> Pet Groomers</div>
+    <div class="marquee-item"><span>🎨</span> Tattoo Studios</div>
+  </div>
+</div>
+
+<!-- STATS -->
+<section class="stats">
+  <div class="stats-grid">
+    <div class="stat-item">
+      <div class="stat-number" data-target="48">0</div>
+      <div class="stat-label">Hours saved per month on average</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-number" data-target="32" data-suffix="%">0%</div>
+      <div class="stat-label">Increase in bookings after switching</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-number" data-target="4.9" data-decimal="true">0</div>
+      <div class="stat-label">Average app store rating</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-number" data-target="14" data-suffix=" days">0</div>
+      <div class="stat-label">Free trial — no credit card needed</div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES BENTO -->
+<section class="section" id="features">
+  <div class="section-inner">
+    <div class="section-tag">Everything You Need</div>
+    <h2 class="section-title">Built for businesses<br>that take their time seriously.</h2>
+    <p class="section-sub">Every feature is designed to reduce friction, save time, and help you earn more — without the complexity.</p>
+    <div class="features-bento">
+      <!-- Smart Calendar -->
+      <div class="bento-card wide">
+        <div class="bento-icon">📅</div>
+        <div class="bento-title">Smart Calendar &amp; Scheduling</div>
+        <div class="bento-desc">A full weekly view with color-coded appointments per staff member. Drag, drop, and reschedule in seconds. Never double-book again.</div>
+        <img class="mockup-img" src="https://d2xsxph8kpxj0f.cloudfront.net/310519663347678319/Dw4mhfnuurFcniLsqjLpWN/mockup_calendar-nyK2FCftAJe4W8sgbRibMN.webp" alt="Calendar" loading="lazy" style="max-height:280px;object-fit:cover;object-position:top;" />
+      </div>
+      <!-- Revenue -->
+      <div class="bento-card">
+        <div class="bento-icon">💰</div>
+        <div class="bento-title">Revenue Insights</div>
+        <div class="bento-desc">See today's earnings, monthly trends, and top services at a glance.</div>
+        <div class="bento-stat">$28K</div>
+        <div class="bento-stat-label">Average monthly revenue tracked per business</div>
+      </div>
+      <!-- Online Booking -->
+      <div class="bento-card">
+        <div class="bento-icon">🌐</div>
+        <div class="bento-title">Online Booking Page</div>
+        <div class="bento-desc">A beautiful, shareable booking link your clients can use 24/7 — no app download required.</div>
+        <img class="mockup-img" src="https://d2xsxph8kpxj0f.cloudfront.net/310519663347678319/Dw4mhfnuurFcniLsqjLpWN/mockup_booking-EUavDzdhvSBEeRMtnasu3T.webp" alt="Booking" loading="lazy" style="max-height:200px;object-fit:cover;object-position:top;" />
+      </div>
+      <!-- Client Management -->
+      <div class="bento-card">
+        <div class="bento-icon">👥</div>
+        <div class="bento-title">Client Management</div>
+        <div class="bento-desc">Full client profiles with visit history, lifetime value, notes, and birthday tracking.</div>
+        <div class="bento-stat">248</div>
+        <div class="bento-stat-label">Clients managed per business on average</div>
+      </div>
+      <!-- SMS Automation -->
+      <div class="bento-card">
+        <div class="bento-icon">💬</div>
+        <div class="bento-title">SMS Automation</div>
+        <div class="bento-desc">Automatic appointment reminders, rebooking nudges, and birthday messages — all customisable per service.</div>
+      </div>
+      <!-- Analytics -->
+      <div class="bento-card wide">
+        <div class="bento-icon">📊</div>
+        <div class="bento-title">Analytics &amp; Performance</div>
+        <div class="bento-desc">Daily revenue charts, top services, staff performance rankings, and client growth trends — all in one screen.</div>
+        <img class="mockup-img" src="https://d2xsxph8kpxj0f.cloudfront.net/310519663347678319/Dw4mhfnuurFcniLsqjLpWN/mockup_analytics-iBb9J3qXDQeMpXG9zTJXYu.webp" alt="Analytics" loading="lazy" style="max-height:260px;object-fit:cover;object-position:top;" />
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURE SHOWCASE -->
+<section class="feature-showcase" id="how-it-works">
+  <!-- Showcase 1: Online Booking -->
+  <div class="showcase-item">
+    <div class="showcase-content">
+      <div class="section-tag">Online Booking</div>
+      <h2 class="section-title">Your clients book themselves. You just show up.</h2>
+      <p class="section-sub">Share your unique booking link anywhere — Instagram bio, Google Business, printed QR code at the counter. Clients pick their service, staff, and time in under 60 seconds.</p>
+      <ul class="showcase-list">
+        <li><div class="check">✓</div> Real-time availability — no double bookings</li>
+        <li><div class="check">✓</div> Custom cancellation &amp; deposit policies</li>
+        <li><div class="check">✓</div> Instant SMS confirmation to client &amp; owner</li>
+        <li><div class="check">✓</div> Works on any device, no app download needed</li>
+      </ul>
+    </div>
+    <div class="showcase-phone">
+      <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663347678319/Dw4mhfnuurFcniLsqjLpWN/mockup_booking-EUavDzdhvSBEeRMtnasu3T.webp" alt="Online Booking" loading="lazy" />
+      <div class="showcase-phone-glow"></div>
+    </div>
+  </div>
+  <!-- Showcase 2: Client Management -->
+  <div class="showcase-item reverse">
+    <div class="showcase-content">
+      <div class="section-tag">Client Management</div>
+      <h2 class="section-title">Know every client like a regular.</h2>
+      <p class="section-sub">Every client gets a full profile — visit history, spending, notes, birthday, and preferences. Build loyalty by remembering the details that matter.</p>
+      <ul class="showcase-list">
+        <li><div class="check">✓</div> Lifetime value &amp; visit count per client</li>
+        <li><div class="check">✓</div> Birthday tracking with auto SMS campaigns</li>
+        <li><div class="check">✓</div> Private notes only you can see</li>
+        <li><div class="check">✓</div> Searchable across all locations</li>
+      </ul>
+    </div>
+    <div class="showcase-phone from-left">
+      <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663347678319/Dw4mhfnuurFcniLsqjLpWN/mockup_clients-AfMsLmBJRX8LC6N6CKTnAu.webp" alt="Clients" loading="lazy" />
+      <div class="showcase-phone-glow"></div>
+    </div>
+  </div>
+  <!-- Showcase 3: Analytics -->
+  <div class="showcase-item">
+    <div class="showcase-content">
+      <div class="section-tag">Analytics</div>
+      <h2 class="section-title">Data that actually helps you grow.</h2>
+      <p class="section-sub">Stop guessing. See exactly which services make the most money, which staff bring in the most revenue, and when your busiest days are — so you can plan smarter.</p>
+      <ul class="showcase-list">
+        <li><div class="check">✓</div> Daily &amp; monthly revenue charts</li>
+        <li><div class="check">✓</div> Top services &amp; staff performance rankings</li>
+        <li><div class="check">✓</div> New client growth tracking</li>
+        <li><div class="check">✓</div> Average ticket value &amp; appointment count</li>
+      </ul>
+    </div>
+    <div class="showcase-phone">
+      <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663347678319/Dw4mhfnuurFcniLsqjLpWN/mockup_analytics-iBb9J3qXDQeMpXG9zTJXYu.webp" alt="Analytics" loading="lazy" />
+      <div class="showcase-phone-glow"></div>
+    </div>
+  </div>
+</section>
+
+<!-- SOCIAL PROOF -->
+<section class="social-proof" id="reviews">
+  <div class="section-inner" style="text-align:center;">
+    <div class="section-tag">Customer Reviews</div>
+    <h2 class="section-title">Businesses love Lime Of Time.</h2>
+    <p class="section-sub" style="margin:0 auto;">Real reviews from real business owners who switched from pen &amp; paper or clunky software.</p>
+  </div>
+  <div class="reviews-grid">
+    <div class="review-card">
+      <div class="review-stars">★★★★★</div>
+      <p class="review-text">"I used to spend 2 hours every Sunday setting up the week. Now it takes 10 minutes. My clients love being able to book themselves at midnight."</p>
+      <div class="review-author">
+        <div class="review-avatar">SM</div>
+        <div>
+          <div class="review-name">Sarah M.</div>
+          <div class="review-biz">Glow Hair Studio, Miami</div>
+        </div>
+      </div>
+    </div>
+    <div class="review-card">
+      <div class="review-stars">★★★★★</div>
+      <p class="review-text">"The SMS reminders alone cut my no-shows by 70%. I was losing $800/month to no-shows. That's gone now. Worth every penny."</p>
+      <div class="review-author">
+        <div class="review-avatar">JR</div>
+        <div>
+          <div class="review-name">James R.</div>
+          <div class="review-biz">The Barber Lounge, Austin</div>
+        </div>
+      </div>
+    </div>
+    <div class="review-card">
+      <div class="review-stars">★★★★★</div>
+      <p class="review-text">"I have 3 locations and 8 staff members. Lime Of Time handles all of it from one app. The analytics show me exactly which location is underperforming."</p>
+      <div class="review-author">
+        <div class="review-avatar">EC</div>
+        <div>
+          <div class="review-name">Emma C.</div>
+          <div class="review-biz">Zen Wellness Centers</div>
+        </div>
+      </div>
+    </div>
+    <div class="review-card">
+      <div class="review-stars">★★★★★</div>
+      <p class="review-text">"Setup took 15 minutes. I had my booking link live and shared on Instagram the same day. Booked 6 new clients that week."</p>
+      <div class="review-author">
+        <div class="review-avatar">AL</div>
+        <div>
+          <div class="review-name">Alex L.</div>
+          <div class="review-biz">Luxe Nail Bar, NYC</div>
+        </div>
+      </div>
+    </div>
+    <div class="review-card">
+      <div class="review-stars">★★★★★</div>
+      <p class="review-text">"The client profiles are incredible. I can see every visit, what they had done, and their birthday. My clients feel like VIPs every time."</p>
+      <div class="review-author">
+        <div class="review-avatar">MK</div>
+        <div>
+          <div class="review-name">Michelle K.</div>
+          <div class="review-biz">Serenity Spa, Chicago</div>
+        </div>
+      </div>
+    </div>
+    <div class="review-card">
+      <div class="review-stars">★★★★★</div>
+      <p class="review-text">"Switched from a $200/month competitor. Lime Of Time does everything they did at a fraction of the cost. The app is faster and easier to use."</p>
+      <div class="review-author">
+        <div class="review-avatar">DV</div>
+        <div>
+          <div class="review-name">David V.</div>
+          <div class="review-biz">Sharp Cuts Barbershop</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="pricing" id="pricing">
+  <div class="section-inner" style="text-align:center;">
+    <div class="section-tag">Pricing</div>
+    <h2 class="section-title">Simple pricing. No surprises.</h2>
+    <p class="section-sub" style="margin:0 auto;">Start free. Upgrade when you're ready. Cancel anytime.</p>
+  </div>
+  <div class="pricing-grid">
+    <div class="pricing-card">
+      <div class="pricing-plan">Solo</div>
+      <div class="pricing-price">Free<span></span></div>
+      <div class="pricing-desc">Perfect for solo practitioners just getting started.</div>
+      <ul class="pricing-features">
+        <li>10 clients</li>
+        <li>5 services</li>
+        <li>1 staff member</li>
+        <li>Online booking page</li>
+        <li>Basic analytics</li>
+      </ul>
+      <a href="#" class="btn-plan btn-plan-outline">Start Free</a>
+    </div>
+    <div class="pricing-card popular">
+      <div class="popular-badge">⭐ MOST POPULAR</div>
+      <div class="pricing-plan">Growth</div>
+      <div class="pricing-price">$19.99<span>/mo</span></div>
+      <div class="pricing-desc">For growing businesses ready to scale.</div>
+      <ul class="pricing-features">
+        <li>100 clients</li>
+        <li>20 services</li>
+        <li>2 staff members</li>
+        <li>SMS automation</li>
+        <li>Unlimited appointments</li>
+        <li>Full analytics</li>
+      </ul>
+      <a href="#" class="btn-plan btn-plan-filled">Start Free Trial</a>
+    </div>
+    <div class="pricing-card">
+      <div class="pricing-plan">Studio</div>
+      <div class="pricing-price">$49.99<span>/mo</span></div>
+      <div class="pricing-desc">For established studios with a full team.</div>
+      <ul class="pricing-features">
+        <li>500 clients</li>
+        <li>Unlimited services</li>
+        <li>5 staff members</li>
+        <li>2 locations</li>
+        <li>Advanced SMS</li>
+        <li>Gift cards &amp; discounts</li>
+      </ul>
+      <a href="#" class="btn-plan btn-plan-outline">Start Free Trial</a>
+    </div>
+    <div class="pricing-card">
+      <div class="pricing-plan">Enterprise</div>
+      <div class="pricing-price">$99.99<span>/mo</span></div>
+      <div class="pricing-desc">For multi-location businesses that need it all.</div>
+      <ul class="pricing-features">
+        <li>Unlimited clients</li>
+        <li>Unlimited services</li>
+        <li>Unlimited staff</li>
+        <li>Unlimited locations</li>
+        <li>Priority support</li>
+        <li>Custom onboarding</li>
+      </ul>
+      <a href="#" class="btn-plan btn-plan-outline">Contact Us</a>
+    </div>
+  </div>
+</section>
+
+<!-- CTA BANNER -->
+<section class="cta-banner">
+  <h2>Ready to take back your time?</h2>
+  <p>Join thousands of business owners who spend less time scheduling and more time doing what they love.</p>
+  <div class="cta-actions">
+    <a href="#" class="btn-hero">Start Your Free Trial →</a>
+    <a href="#" class="btn-hero-ghost">See a Demo</a>
+  </div>
+  <p class="cta-note">No credit card required · 14-day free trial · Cancel anytime</p>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a href="#" class="nav-logo" style="text-decoration:none;">
+          <div class="nav-logo-icon">🍋</div>
+          <span class="nav-logo-text">Lime Of Time</span>
+        </a>
+        <p>The all-in-one scheduling app for salons, barbershops, spas, and wellness businesses. Manage your business from your phone.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <ul>
+          <li><a href="#">Features</a></li>
+          <li><a href="#">Pricing</a></li>
+          <li><a href="#">Online Booking</a></li>
+          <li><a href="#">Analytics</a></li>
+          <li><a href="#">SMS Automation</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Business Types</h4>
+        <ul>
+          <li><a href="#">Hair Salons</a></li>
+          <li><a href="#">Barbershops</a></li>
+          <li><a href="#">Spas</a></li>
+          <li><a href="#">Nail Studios</a></li>
+          <li><a href="#">Wellness Centers</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Company</h4>
+        <ul>
+          <li><a href="#">About</a></li>
+          <li><a href="#">Contact</a></li>
+          <li><a href="#">Privacy Policy</a></li>
+          <li><a href="#">Terms of Service</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 Lime Of Time. All rights reserved.</span>
+      <div style="display:flex;gap:20px;">
+        <a href="#">Privacy</a>
+        <a href="#">Terms</a>
+        <a href="#">Contact</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Scroll animations
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry, i) => {
+      if (entry.isIntersecting) {
+        setTimeout(() => entry.target.classList.add('visible'), i * 80);
+      }
+    });
+  }, { threshold: 0.12 });
+
+  document.querySelectorAll('.bento-card, .stat-item, .review-card, .pricing-card, .showcase-phone, .showcase-content').forEach(el => observer.observe(el));
+
+  // Counter animation
+  function animateCounter(el) {
+    const target = parseFloat(el.dataset.target);
+    const suffix = el.dataset.suffix || '';
+    const isDecimal = el.dataset.decimal === 'true';
+    const duration = 1800;
+    const start = performance.now();
+    function update(now) {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const value = target * eased;
+      el.textContent = (isDecimal ? value.toFixed(1) : Math.floor(value)) + suffix;
+      if (progress < 1) requestAnimationFrame(update);
+    }
+    requestAnimationFrame(update);
+  }
+
+  const statObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        animateCounter(entry.target);
+        statObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.5 });
+
+  document.querySelectorAll('.stat-number[data-target]').forEach(el => statObserver.observe(el));
+
+  // Navbar scroll effect
+  window.addEventListener('scroll', () => {
+    document.getElementById('navbar').style.background =
+      window.scrollY > 40 ? 'rgba(13,17,23,0.97)' : 'rgba(13,17,23,0.85)';
+  });
+</script>
 </body>
-</html>`;
+</html>
+`;
 }
 
 function notFoundPage(message: string): string {
