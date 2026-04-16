@@ -370,23 +370,12 @@ export default function SmsAutomationScreen() {
           </Text>
         </View>
 
-        {/* Link to Twilio setup */}
-        <Pressable
-          onPress={() => router.push("/twilio-setup" as any)}
-          style={({ pressed }) => ({
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 6,
-            marginTop: 16,
-            opacity: pressed ? 0.7 : 1,
-          })}
-        >
-          <IconSymbol name="gearshape.fill" size={14} color={colors.muted} />
-          <Text style={{ fontSize: 13, color: colors.muted }}>
-            Edit Twilio credentials
+        {/* Powered-by note */}
+        <View style={{ alignItems: "center", marginTop: 20, marginBottom: 4 }}>
+          <Text style={{ fontSize: 12, color: colors.muted }}>
+            SMS powered by Lime Of Time
           </Text>
-        </Pressable>
+        </View>
       </ScrollView>
     </ScreenContainer>
   );
