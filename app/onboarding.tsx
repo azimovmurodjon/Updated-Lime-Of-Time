@@ -56,6 +56,7 @@ import Animated, {
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { CountryCodePicker, DEFAULT_COUNTRY, type Country } from "@/components/country-code-picker";
+import { PlanCarousel } from "@/components/plan-carousel";
 import { startOAuthLogin } from "@/constants/oauth";
 import { GoogleLogo, MicrosoftLogo, AppleLogo } from "@/components/brand-icons";
 import * as Notifications from "expo-notifications";
@@ -1336,82 +1337,14 @@ export default function OnboardingScreen() {
                 </Animated.View>
 
                 <Animated.View style={inputStyle}>
-                  {/* Billing Toggle */}
-                  <View style={{ flexDirection: "row", backgroundColor: "#F3F4F6", borderRadius: 10, padding: 3, marginBottom: 16, alignSelf: "center" }}>
-                    <Pressable
-                      onPress={() => setSubIsYearly(false)}
-                      style={[{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 7, borderRadius: 8 }, !subIsYearly && { backgroundColor: "#4A7C59" }]}
-                    >
-                      <Text style={{ fontSize: 13, fontWeight: "600", color: subIsYearly ? "#6B7280" : "#fff" }}>Monthly</Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => setSubIsYearly(true)}
-                      style={[{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 7, borderRadius: 8, gap: 4 }, subIsYearly && { backgroundColor: "#4A7C59" }]}
-                    >
-                      <Text style={{ fontSize: 13, fontWeight: "600", color: !subIsYearly ? "#6B7280" : "#fff" }}>Yearly</Text>
-                      <View style={{ backgroundColor: "#22C55E", borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 }}>
-                        <Text style={{ fontSize: 10, fontWeight: "700", color: "#fff" }}>SAVE</Text>
-                      </View>
-                    </Pressable>
-                  </View>
-
-                  {/* Plan Cards */}
-                  {plansLoading ? (
-                    <ActivityIndicator color="#4A7C59" size="large" style={{ marginVertical: 24 }} />
-                  ) : (
-                    (publicPlans ?? []).map((plan) => {
-                      const planColors: Record<string, string> = { solo: "#6B7280", growth: "#3B82F6", studio: "#8B5CF6", enterprise: "#F59E0B" };
-                      const planColor = planColors[plan.planKey] ?? "#6B7280";
-                      const isFree = plan.monthlyPrice === 0;
-                      const price = subIsYearly ? plan.yearlyPrice / 12 : plan.monthlyPrice;
-                      const savings = subIsYearly && !isFree ? Math.round(((plan.monthlyPrice * 12 - plan.yearlyPrice) / (plan.monthlyPrice * 12)) * 100) : 0;
-                      const isSelected = subSelectedPlan === plan.planKey;
-                      return (
-                        <View
-                          key={plan.planKey}
-                          style={{
-                            backgroundColor: "#F9FAFB",
-                            borderRadius: 14,
-                            padding: 14,
-                            marginBottom: 10,
-                            borderWidth: isSelected ? 2 : 1,
-                            borderColor: isSelected ? planColor : "#E5E7EB",
-                          }}
-                        >
-                          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
-                            <View style={{ backgroundColor: planColor + "20", borderRadius: 8, padding: 6, marginRight: 10 }}>
-                              <Text style={{ fontSize: 18 }}>{plan.planKey === "solo" ? "👤" : plan.planKey === "growth" ? "👥" : plan.planKey === "studio" ? "🏪" : "🏢"}</Text>
-                            </View>
-                            <View style={{ flex: 1 }}>
-                              <Text style={{ fontSize: 15, fontWeight: "700", color: "#11181C" }}>{plan.displayName}</Text>
-                              <Text style={{ fontSize: 12, color: "#687076" }}>
-                                {isFree ? "Free forever" : `$${price.toFixed(0)}/mo${subIsYearly ? " (billed yearly)" : ""}${savings > 0 ? ` · Save ${savings}%` : ""}`}
-                              </Text>
-                            </View>
-                          </View>
-                          <Pressable
-                            onPress={() => handleSelectPlan(plan.planKey, subIsYearly ? "yearly" : "monthly")}
-                            disabled={subLoading}
-                            style={({ pressed }) => ({
-                              backgroundColor: isFree ? "#E5E7EB" : planColor,
-                              borderRadius: 8,
-                              paddingVertical: 10,
-                              alignItems: "center",
-                              opacity: pressed || subLoading ? 0.75 : 1,
-                            })}
-                          >
-                            {subLoading && isSelected ? (
-                              <ActivityIndicator color={isFree ? "#374151" : "#fff"} size="small" />
-                            ) : (
-                              <Text style={{ color: isFree ? "#374151" : "#fff", fontWeight: "700", fontSize: 14 }}>
-                                {isFree ? "Start Free" : "Select Plan"}
-                              </Text>
-                            )}
-                          </Pressable>
-                        </View>
-                      );
-                    })
-                  )}
+                  <PlanCarousel
+                    plans={(publicPlans ?? []) as any}
+                    isLoading={plansLoading}
+                    isYearly={subIsYearly}
+                    onToggleBilling={setSubIsYearly}
+                    onSelectPlan={(planKey, period) => handleSelectPlan(planKey, period)}
+                    loadingPlanKey={subLoading ? subSelectedPlan : null}
+                  />
                 </Animated.View>
 
                 <Animated.View style={btnStyle}>

@@ -1094,3 +1094,4 @@
 - [x] Add 3-day renewal push notification cron (hourly check, fires once per renewal)
 - [x] Add stripeCurrentPeriodEnd column to businessOwners schema
 - [x] Save stripeCurrentPeriodEnd from Stripe webhook
+- [x] Redesign choose-plan screen as horizontal swipeable carousel with all 4 plans, animated transitions, pagination dots, and full feature details per slide
