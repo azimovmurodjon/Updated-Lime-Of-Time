@@ -21,6 +21,9 @@ import {
   useWindowDimensions,
   NativeSyntheticEvent,
   NativeScrollEvent,
+  Modal,
+  ScrollView,
+  SafeAreaView,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -317,6 +320,7 @@ export function PlanCarousel({
 }: PlanCarouselProps) {
   const colors = useColors();
   const { width: screenWidth } = useWindowDimensions();
+  const [showCompare, setShowCompare] = useState(false);
 
   // Card is 76% of screen width — prev/next card peeks in clearly on both sides
   const CARD_WIDTH = Math.round(screenWidth * 0.76);
@@ -527,9 +531,155 @@ export function PlanCarousel({
       <Text style={[styles.hint, { color: colors.muted }]}>
         {activeIndex + 1} of {plans.length} · swipe to compare
       </Text>
+
+      {/* Compare all plans link */}
+      <Pressable
+        onPress={() => setShowCompare(true)}
+        style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, alignSelf: "center", marginTop: 4, marginBottom: 8, padding: 6 })}
+      >
+        <Text style={{ fontSize: 13, color: activeColor, fontWeight: "600", textDecorationLine: "underline" }}>
+          Compare all plans
+        </Text>
+      </Pressable>
+
+      {/* ── Plan Comparison Modal ── */}
+      <Modal
+        visible={showCompare}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowCompare(false)}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+          {/* Modal header */}
+          <View style={[styles.compareHeader, { borderBottomColor: colors.border }]}>
+            <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground }}>Compare Plans</Text>
+            <Pressable
+              onPress={() => setShowCompare(false)}
+              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, padding: 6 })}
+            >
+              <Text style={{ fontSize: 15, fontWeight: "600", color: colors.primary }}>Done</Text>
+            </Pressable>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+          >
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Plan header row */}
+              <View style={{ flexDirection: "row" }}>
+                {/* Feature label column header */}
+                <View style={[styles.compareCell, styles.compareLabelCol, { backgroundColor: colors.background }]}>
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted }}>FEATURE</Text>
+                </View>
+                {COMPARE_PLANS.map((p) => (
+                  <View key={p.planKey} style={[styles.compareCell, styles.comparePlanCol, { backgroundColor: p.color + "18" }]}>
+                    <View style={[styles.comparePlanDot, { backgroundColor: p.color }]} />
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: p.color }} numberOfLines={1}>{p.displayName}</Text>
+                    <Text style={{ fontSize: 11, color: colors.muted, marginTop: 1 }}>
+                      {p.monthlyPrice === 0 ? "Free" : `$${p.monthlyPrice}/mo`}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Feature rows */}
+              {COMPARE_FEATURE_ROWS.map((row, ri) => (
+                <View key={row} style={{ flexDirection: "row", backgroundColor: ri % 2 === 0 ? colors.surface : colors.background }}>
+                  <View style={[styles.compareCell, styles.compareLabelCol]}>
+                    <Text style={{ fontSize: 12, color: colors.foreground, fontWeight: "500" }}>{row}</Text>
+                  </View>
+                  {COMPARE_PLANS.map((p) => {
+                    const feat = p.features.find((f) => f.label === row);
+                    const isDim = (feat as any)?.dim;
+                    return (
+                      <View key={p.planKey} style={[styles.compareCell, styles.comparePlanCol, { backgroundColor: ri % 2 === 0 ? p.color + "08" : "transparent" }]}>
+                        <Text style={{ fontSize: 12, color: isDim ? colors.muted : colors.foreground, textAlign: "center" }} numberOfLines={2}>
+                          {feat?.value ?? "—"}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              ))}
+            </ScrollView>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </View>
   );
 }
+
+// ─── Comparison Data ──────────────────────────────────────────────────────────
+
+const COMPARE_PLANS = [
+  {
+    planKey: "solo", displayName: "Solo", monthlyPrice: 0, color: "#6B7280",
+    features: [
+      { label: "Clients", value: "Up to 20" },
+      { label: "Services", value: "Up to 5" },
+      { label: "Staff Members", value: "1 (you)" },
+      { label: "Products", value: "Up to 5" },
+      { label: "Locations", value: "1" },
+      { label: "Monthly Appointments", value: "Up to 50" },
+      { label: "SMS Automation", value: "Not included", dim: true },
+      { label: "Payment Methods", value: "Cash & P2P" },
+      { label: "Online Booking", value: "Included" },
+      { label: "Analytics", value: "Basic" },
+    ],
+  },
+  {
+    planKey: "growth", displayName: "Growth", monthlyPrice: 19, color: "#3B82F6",
+    features: [
+      { label: "Clients", value: "Up to 100" },
+      { label: "Services", value: "Up to 20" },
+      { label: "Staff Members", value: "Up to 2" },
+      { label: "Products", value: "Up to 20" },
+      { label: "Locations", value: "1" },
+      { label: "Monthly Appointments", value: "Unlimited" },
+      { label: "SMS Automation", value: "Confirmations only" },
+      { label: "Payment Methods", value: "Cash & P2P" },
+      { label: "Online Booking", value: "Included" },
+      { label: "Analytics", value: "Full" },
+    ],
+  },
+  {
+    planKey: "studio", displayName: "Studio", monthlyPrice: 39, color: "#8B5CF6",
+    features: [
+      { label: "Clients", value: "Unlimited" },
+      { label: "Services", value: "Unlimited" },
+      { label: "Staff Members", value: "Up to 10" },
+      { label: "Products", value: "Unlimited" },
+      { label: "Locations", value: "Up to 3" },
+      { label: "Monthly Appointments", value: "Unlimited" },
+      { label: "SMS Automation", value: "Full" },
+      { label: "Payment Methods", value: "All + Stripe" },
+      { label: "Online Booking", value: "Included" },
+      { label: "Analytics", value: "Full + Staff" },
+    ],
+  },
+  {
+    planKey: "enterprise", displayName: "Enterprise", monthlyPrice: 69, color: "#F59E0B",
+    features: [
+      { label: "Clients", value: "Unlimited" },
+      { label: "Services", value: "Unlimited" },
+      { label: "Staff Members", value: "Up to 100" },
+      { label: "Products", value: "Unlimited" },
+      { label: "Locations", value: "Up to 10" },
+      { label: "Monthly Appointments", value: "Unlimited" },
+      { label: "SMS Automation", value: "Full" },
+      { label: "Payment Methods", value: "All + Stripe" },
+      { label: "Online Booking", value: "Included" },
+      { label: "Analytics", value: "Full + Multi-loc" },
+    ],
+  },
+];
+
+const COMPARE_FEATURE_ROWS = [
+  "Clients", "Services", "Staff Members", "Products", "Locations",
+  "Monthly Appointments", "SMS Automation", "Payment Methods", "Online Booking", "Analytics",
+];
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -752,5 +902,37 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 5,
     marginBottom: 2,
+  },
+
+  // Comparison modal
+  compareHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  compareCell: {
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(0,0,0,0.06)",
+    minHeight: 44,
+  },
+  compareLabelCol: {
+    width: 130,
+    alignItems: "flex-start",
+  },
+  comparePlanCol: {
+    width: 100,
+  },
+  comparePlanDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginBottom: 3,
   },
 });

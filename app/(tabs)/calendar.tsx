@@ -50,9 +50,9 @@ const DAY_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frida
 const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAY_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
-// Timeline hours: 6am to 10pm
-const TIMELINE_START = 6;
-const TIMELINE_END = 22;
+// Timeline hours: 12 AM (midnight) to 11 PM — full 24h so both 12 AM and 12 PM appear
+const TIMELINE_START = 0;
+const TIMELINE_END = 23;
 const HOUR_HEIGHT = 60;
 
 // ─── TimelineView ───────────────────────────────────────────────────────────────────
@@ -1204,7 +1204,14 @@ export default function CalendarScreen() {
           {/* Timeline */}
           <View style={{ paddingHorizontal: hp }}>
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Timeline</Text>
-            {renderTimeline(selectedDate, dayAppts)}
+            <ScrollView
+              style={{ height: 480, borderRadius: 14 }}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled
+              contentOffset={{ x: 0, y: 6 * HOUR_HEIGHT }}
+            >
+              {renderTimeline(selectedDate, dayAppts)}
+            </ScrollView>
           </View>
       </>
     );
@@ -1324,12 +1331,19 @@ export default function CalendarScreen() {
 
           {/* Timeline */}
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Timeline</Text>
-          {renderTimeline(
-            selectedDate,
-            locationAppointments
-              .filter((a) => a.date === selectedDate)
-              .sort((a, b) => a.time.localeCompare(b.time))
-          )}
+          <ScrollView
+            style={{ height: 480, borderRadius: 14 }}
+            showsVerticalScrollIndicator={false}
+            nestedScrollEnabled
+            contentOffset={{ x: 0, y: 6 * HOUR_HEIGHT }}
+          >
+            {renderTimeline(
+              selectedDate,
+              locationAppointments
+                .filter((a) => a.date === selectedDate)
+                .sort((a, b) => a.time.localeCompare(b.time))
+            )}
+          </ScrollView>
         </View>
       </>
     );

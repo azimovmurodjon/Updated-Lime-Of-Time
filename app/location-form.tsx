@@ -319,7 +319,7 @@ export default function LocationFormScreen() {
   }, [locationBookingUrl, existing, state.settings.businessName]);
 
   return (
-    <ScreenContainer edges={["top", "left", "right"]} tabletMaxWidth={720} className="pt-2" style={{ paddingHorizontal: hp }}>
+    <ScreenContainer edges={["top", "left", "right"]} tabletMaxWidth={720} className="pt-3" style={{ paddingHorizontal: hp }}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable
@@ -836,6 +836,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 16,
+    paddingTop: 8,
     gap: 12,
   },
   backBtn: {

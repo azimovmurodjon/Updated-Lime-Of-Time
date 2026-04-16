@@ -189,6 +189,7 @@ export default function ServicesScreen() {
             data={listData}
             keyExtractor={(item) => item.key}
             showsVerticalScrollIndicator={false}
+            style={{ flex: 1 }}
             renderItem={({ item: row }) => {
               if (row.type === "header") {
                 return (
@@ -284,7 +285,7 @@ export default function ServicesScreen() {
 
       {/* Products List */}
       {activeTab === "products" && (
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, justifyContent: "flex-start" }}>
         {/* Brand filter chips */}
         {allBrands.length > 0 && (
           <ScrollView
@@ -314,6 +315,7 @@ export default function ServicesScreen() {
           data={filteredProducts}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
+          style={{ flex: 1 }}
           renderItem={({ item }) => (
             <Pressable
               onPress={() =>

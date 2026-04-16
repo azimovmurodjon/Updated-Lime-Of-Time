@@ -1111,3 +1111,13 @@
 - [x] Per-location QR picker modal on home screen — location picker before QR when multiple locations exist
 - [x] Today's Schedule empty state — show "No appointments today" with quick-book CTA
 - [x] Plan carousel arrow buttons — left/right arrow buttons for iPad/web navigation
+
+## Bug Fixes & UX (Apr 16 batch 3)
+- [x] Fix header overlap on iPhone push screens (Add Staff, Add Location, New Booking) — status bar overlaps title
+- [x] Timeline: merge 12 AM and 12 PM labels, make timeline scrollable on all screens that use it
+- [x] Services list layout — service card looks sparse/empty, improve visual density
+- [x] Products list layout — product card looks sparse/empty, improve visual density
+- [x] In-app booking service selection — add category filter chips (like client booking flow)
+- [x] Add-optional products step in booking — add category/brand filter
+- [x] Birthday date picker — center the picker columns (currently left-aligned)
+- [x] Plan comparison table — full-screen modal with side-by-side feature matrix for all plans

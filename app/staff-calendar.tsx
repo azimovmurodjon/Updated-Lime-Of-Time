@@ -153,10 +153,10 @@ export default function StaffCalendarScreen() {
     return { upcoming, pending, completed, totalRevenue };
   }, [staffAppointments, todayStr, getServiceById]);
 
-  // Timeline hours (8am - 8pm)
+  // Timeline hours (12 AM – 11 PM, full 24h)
   const timelineHours = useMemo(() => {
     const hours: string[] = [];
-    for (let h = 8; h <= 20; h++) {
+    for (let h = 0; h <= 23; h++) {
       hours.push(`${String(h).padStart(2, "0")}:00`);
     }
     return hours;
@@ -503,8 +503,8 @@ export default function StaffCalendarScreen() {
         ) : (
           /* Timeline View — absolute-positioned blocks, no duplication */
           (() => {
-            const STAFF_TIMELINE_START = 8;
-            const STAFF_TIMELINE_END = 20;
+            const STAFF_TIMELINE_START = 0;
+            const STAFF_TIMELINE_END = 23;
             const STAFF_HOUR_HEIGHT = 60;
             const LABEL_WIDTH = 60;
             const totalHours = STAFF_TIMELINE_END - STAFF_TIMELINE_START + 1;
@@ -519,6 +519,7 @@ export default function StaffCalendarScreen() {
                 <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
                   {formatDateDisplay(selectedDate)} — Timeline
                 </Text>
+                <ScrollView style={{ height: 480 }} showsVerticalScrollIndicator={false} nestedScrollEnabled>
                 <View style={[styles.timelineContainer, { borderColor: colors.border, position: "relative" }]}>
                   {/* Hour grid rows */}
                   {timelineHours.map((hour) => {
@@ -610,6 +611,7 @@ export default function StaffCalendarScreen() {
                     </View>
                   )}
                 </View>
+                </ScrollView>
               </View>
             );
           })()

@@ -197,16 +197,18 @@ export function BirthdayPicker({
             </Pressable>
           </View>
 
-          {/* Date wheel */}
-          <DateTimePicker
-            value={tempDate}
-            mode="date"
-            display="spinner"
-            maximumDate={maxDate}
-            onChange={handleChange}
-            style={{ width: "100%" }}
-            textColor={colors.foreground}
-          />
+          {/* Date wheel — centered */}
+          <View style={{ alignItems: "center", width: "100%" }}>
+            <DateTimePicker
+              value={tempDate}
+              mode="date"
+              display="spinner"
+              maximumDate={maxDate}
+              onChange={handleChange}
+              style={{ width: "100%", alignSelf: "center" }}
+              textColor={colors.foreground}
+            />
+          </View>
         </View>
       </Modal>
     </>

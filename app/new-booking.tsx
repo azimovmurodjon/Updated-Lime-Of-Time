@@ -62,6 +62,11 @@ export default function NewBookingScreen() {
   const [quickPhone, setQuickPhone] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [addMoreTab, setAddMoreTab] = useState<"services" | "products">("services");
+  // Category drill-down for Step 1: null = show category tiles, string = show services in that category
+  const [step1CategoryFilter, setStep1CategoryFilter] = useState<string | null>(null);
+  // Filter chips for the "Add More" section
+  const [addMoreCategoryFilter, setAddMoreCategoryFilter] = useState<string | null>(null);
+  const [addMoreBrandFilter, setAddMoreBrandFilter] = useState<string | null>(null);
   const [recurring, setRecurring] = useState<"none" | "weekly" | "biweekly" | "monthly">("none");
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   // Pre-select the currently active location (single source of truth).
@@ -622,67 +627,102 @@ export default function NewBookingScreen() {
         ))}
       </View>
 
-      {/* Step 1: Select Service (grouped by category) */}
+      {/* Step 1: Select Service — category drill-down */}
       {step === 1 && (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: hp }}>
-          <Text className="text-base font-semibold text-foreground mb-3">Select a Service</Text>
           {state.services.length === 0 ? (
             <View className="items-center py-12">
               <Text className="text-base text-muted">No services available</Text>
               <Text className="text-sm text-muted mt-1">Create a service first</Text>
             </View>
-          ) : (
-            (() => {
-              const groups = new Map<string, typeof state.services>();
-              state.services.forEach((s) => {
-                const cat = s.category?.trim() || "General";
-                if (!groups.has(cat)) groups.set(cat, []);
-                groups.get(cat)!.push(s);
-              });
-              const entries = Array.from(groups.entries()).sort((a, b) => {
-                if (a[0] === "General") return 1;
-                if (b[0] === "General") return -1;
-                return a[0].localeCompare(b[0]);
-              });
-              const hasMultiCat = entries.length > 1;
-              return entries.map(([cat, svcs]) => (
-                <View key={cat} style={{ marginBottom: hasMultiCat ? 12 : 0 }}>
-                  {hasMultiCat && (
-                    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6, gap: 6 }}>
-                      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary }} />
-                      <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground }}>{cat}</Text>
-                      <Text style={{ fontSize: 12, color: colors.muted }}>({svcs.length})</Text>
-                    </View>
-                  )}
-                  {svcs.map((item) => (
+          ) : (() => {
+            // Build category map
+            const groups = new Map<string, typeof state.services>();
+            state.services.forEach((s) => {
+              const cat = s.category?.trim() || "General";
+              if (!groups.has(cat)) groups.set(cat, []);
+              groups.get(cat)!.push(s);
+            });
+            const entries = Array.from(groups.entries()).sort((a, b) => {
+              if (a[0] === "General") return 1;
+              if (b[0] === "General") return -1;
+              return a[0].localeCompare(b[0]);
+            });
+            const hasMultiCat = entries.length > 1;
+
+            if (hasMultiCat && step1CategoryFilter === null) {
+              // Level 1: show category tiles
+              return (
+                <View>
+                  <Text className="text-base font-semibold text-foreground mb-3">Select a Category</Text>
+                  {entries.map(([cat, svcs]) => (
                     <Pressable
-                      key={item.id}
-                      onPress={() => {
-                        setSelectedServiceId(item.id);
-                        setStep(2);
-                      }}
-                      style={({ pressed }) => [
+                      key={cat}
+                      onPress={() => setStep1CategoryFilter(cat)}
+                      style={({ pressed }) => ([
                         styles.optionCard,
-                        {
-                          backgroundColor: selectedServiceId === item.id ? item.color + "15" : colors.surface,
-                          borderColor: selectedServiceId === item.id ? item.color : colors.border,
-                          opacity: pressed ? 0.7 : 1,
-                          marginLeft: hasMultiCat ? 4 : 0,
-                        },
-                      ]}
+                        { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+                      ])}
                     >
-                      <View style={[styles.colorDot, { backgroundColor: item.color }]} />
+                      <View style={[styles.colorDot, { backgroundColor: colors.primary }]} />
                       <View style={styles.optionContent}>
-                        <Text className="text-base font-semibold text-foreground">{item.name}</Text>
-                        <Text className="text-xs text-muted mt-0.5">{item.duration} min · ${item.price}</Text>
+                        <Text className="text-base font-semibold text-foreground">{cat}</Text>
+                        <Text className="text-xs text-muted mt-0.5">{svcs.length} service{svcs.length !== 1 ? "s" : ""}</Text>
                       </View>
                       <IconSymbol name="chevron.right" size={16} color={colors.muted} />
                     </Pressable>
                   ))}
                 </View>
-              ));
-            })()
-          )}
+              );
+            }
+
+            // Level 2 (or single category): show services
+            const displaySvcs = hasMultiCat && step1CategoryFilter
+              ? (groups.get(step1CategoryFilter) ?? [])
+              : state.services;
+            return (
+              <View>
+                {hasMultiCat && step1CategoryFilter && (
+                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12, gap: 8 }}>
+                    <Pressable
+                      onPress={() => setStep1CategoryFilter(null)}
+                      style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+                    >
+                      <Text style={{ fontSize: 14, color: colors.primary }}>← Categories</Text>
+                    </Pressable>
+                    <Text className="text-base font-semibold text-foreground">{step1CategoryFilter}</Text>
+                  </View>
+                )}
+                {!hasMultiCat && (
+                  <Text className="text-base font-semibold text-foreground mb-3">Select a Service</Text>
+                )}
+                {displaySvcs.map((item) => (
+                  <Pressable
+                    key={item.id}
+                    onPress={() => {
+                      setSelectedServiceId(item.id);
+                      setStep(2);
+                    }}
+                    style={({ pressed }) => [
+                      styles.optionCard,
+                      {
+                        backgroundColor: selectedServiceId === item.id ? item.color + "15" : colors.surface,
+                        borderColor: selectedServiceId === item.id ? item.color : colors.border,
+                        opacity: pressed ? 0.7 : 1,
+                      },
+                    ]}
+                  >
+                    <View style={[styles.colorDot, { backgroundColor: item.color }]} />
+                    <View style={styles.optionContent}>
+                      <Text className="text-base font-semibold text-foreground">{item.name}</Text>
+                      <Text className="text-xs text-muted mt-0.5">{item.duration} min · ${item.price}</Text>
+                    </View>
+                    <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+                  </Pressable>
+                ))}
+              </View>
+            );
+          })()}
         </ScrollView>
       )}
 
@@ -1228,113 +1268,127 @@ export default function NewBookingScreen() {
             </Pressable>
           </View>
 
-          {/* Extra Services (grouped by category) */}
+          {/* Extra Services — category filter chips */}
           {addMoreTab === "services" && (
             <View className="mb-4">
               {availableExtraServices.length === 0 ? (
                 <View className="items-center py-6 bg-surface rounded-xl border border-border">
                   <Text className="text-xs text-muted">No additional services available</Text>
                 </View>
-              ) : (
-                (() => {
-                  const svcGroups = new Map<string, typeof availableExtraServices>();
-                  availableExtraServices.forEach((s) => {
-                    const cat = s.category?.trim() || "General";
-                    if (!svcGroups.has(cat)) svcGroups.set(cat, []);
-                    svcGroups.get(cat)!.push(s);
-                  });
-                  const svcEntries = Array.from(svcGroups.entries()).sort((a, b) => {
-                    if (a[0] === "General") return 1;
-                    if (b[0] === "General") return -1;
-                    return a[0].localeCompare(b[0]);
-                  });
-                  const hasMultiCat = svcEntries.length > 1;
-                  return svcEntries.map(([cat, svcs]) => (
-                    <View key={cat} style={{ marginBottom: hasMultiCat ? 8 : 0 }}>
-                      {hasMultiCat && (
-                        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4, gap: 6 }}>
-                          <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: colors.primary }} />
-                          <Text style={{ fontSize: 12, fontWeight: "700", color: colors.foreground }}>{cat}</Text>
-                        </View>
-                      )}
-                      {svcs.map((s) => (
+              ) : (() => {
+                const svcCats = Array.from(new Set(availableExtraServices.map((s) => s.category?.trim() || "General"))).sort();
+                const hasMultiCat = svcCats.length > 1;
+                const filteredSvcs = addMoreCategoryFilter
+                  ? availableExtraServices.filter((s) => (s.category?.trim() || "General") === addMoreCategoryFilter)
+                  : availableExtraServices;
+                return (
+                  <View>
+                    {hasMultiCat && (
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{ gap: 8, paddingBottom: 8, flexDirection: "row" }}
+                        style={{ marginBottom: 8 }}
+                      >
                         <Pressable
-                          key={s.id}
-                          onPress={() =>
-                            addToCart({ type: "service", id: s.id, name: s.name, price: parseFloat(String(s.price)), duration: s.duration })
-                          }
-                          style={({ pressed }) => [
-                            styles.optionCard,
-                            { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1, marginLeft: hasMultiCat ? 4 : 0 },
-                          ]}
+                          onPress={() => setAddMoreCategoryFilter(null)}
+                          style={[styles.filterChip, { backgroundColor: !addMoreCategoryFilter ? colors.primary : colors.surface, borderColor: !addMoreCategoryFilter ? colors.primary : colors.border }]}
                         >
-                          <View style={[styles.colorDot, { backgroundColor: s.color }]} />
-                          <View style={styles.optionContent}>
-                            <Text className="text-sm font-semibold text-foreground">{s.name}</Text>
-                            <Text className="text-xs text-muted">{s.duration} min</Text>
-                          </View>
-                          <Text className="text-sm font-bold" style={{ color: colors.primary }}>+ ${parseFloat(String(s.price)).toFixed(2)}</Text>
+                          <Text style={{ fontSize: 12, fontWeight: "600", color: !addMoreCategoryFilter ? "#fff" : colors.muted }}>All</Text>
                         </Pressable>
-                      ))}
-                    </View>
-                  ));
-                })()
-              )}
+                        {svcCats.map((cat) => (
+                          <Pressable
+                            key={cat}
+                            onPress={() => setAddMoreCategoryFilter(addMoreCategoryFilter === cat ? null : cat)}
+                            style={[styles.filterChip, { backgroundColor: addMoreCategoryFilter === cat ? colors.primary : colors.surface, borderColor: addMoreCategoryFilter === cat ? colors.primary : colors.border }]}
+                          >
+                            <Text style={{ fontSize: 12, fontWeight: "600", color: addMoreCategoryFilter === cat ? "#fff" : colors.muted }} numberOfLines={1}>{cat}</Text>
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    )}
+                    {filteredSvcs.map((s) => (
+                      <Pressable
+                        key={s.id}
+                        onPress={() =>
+                          addToCart({ type: "service", id: s.id, name: s.name, price: parseFloat(String(s.price)), duration: s.duration })
+                        }
+                        style={({ pressed }) => [
+                          styles.optionCard,
+                          { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+                        ]}
+                      >
+                        <View style={[styles.colorDot, { backgroundColor: s.color }]} />
+                        <View style={styles.optionContent}>
+                          <Text className="text-sm font-semibold text-foreground">{s.name}</Text>
+                          <Text className="text-xs text-muted">{s.duration} min{s.category ? " · " + s.category : ""}</Text>
+                        </View>
+                        <Text className="text-sm font-bold" style={{ color: colors.primary }}>+ ${parseFloat(String(s.price)).toFixed(2)}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                );
+              })()}
             </View>
           )}
 
-          {/* Products (grouped by brand) */}
+          {/* Products — brand filter chips */}
           {addMoreTab === "products" && (
             <View className="mb-4">
               {availableProducts.length === 0 ? (
                 <View className="items-center py-6 bg-surface rounded-xl border border-border">
                   <Text className="text-xs text-muted">No products available</Text>
                 </View>
-              ) : (
-                (() => {
-                  const prodGroups = new Map<string, typeof availableProducts>();
-                  availableProducts.forEach((p) => {
-                    const br = p.brand?.trim() || "Other";
-                    if (!prodGroups.has(br)) prodGroups.set(br, []);
-                    prodGroups.get(br)!.push(p);
-                  });
-                  const prodEntries = Array.from(prodGroups.entries()).sort((a, b) => {
-                    if (a[0] === "Other") return 1;
-                    if (b[0] === "Other") return -1;
-                    return a[0].localeCompare(b[0]);
-                  });
-                  const hasMultiBrand = prodEntries.length > 1;
-                  return prodEntries.map(([brand, prods]) => (
-                    <View key={brand} style={{ marginBottom: hasMultiBrand ? 8 : 0 }}>
-                      {hasMultiBrand && (
-                        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4, gap: 6 }}>
-                          <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: colors.warning }} />
-                          <Text style={{ fontSize: 12, fontWeight: "700", color: colors.foreground }}>{brand}</Text>
-                        </View>
-                      )}
-                      {prods.map((p) => (
+              ) : (() => {
+                const allBrands = Array.from(new Set(availableProducts.map((p) => p.brand?.trim() || "Other"))).sort();
+                const hasMultiBrand = allBrands.length > 1;
+                const filteredProds = addMoreBrandFilter
+                  ? availableProducts.filter((p) => (p.brand?.trim() || "Other") === addMoreBrandFilter)
+                  : availableProducts;
+                return (
+                  <View>
+                    {hasMultiBrand && (
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{ gap: 8, paddingBottom: 8, flexDirection: "row" }}
+                        style={{ marginBottom: 8 }}
+                      >
                         <Pressable
-                          key={p.id}
-                          onPress={() =>
-                            addToCart({ type: "product", id: p.id, name: p.name, price: parseFloat(String(p.price)), duration: 0 })
-                          }
-                          style={({ pressed }) => [
-                            styles.optionCard,
-                            { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1, marginLeft: hasMultiBrand ? 4 : 0 },
-                          ]}
+                          onPress={() => setAddMoreBrandFilter(null)}
+                          style={[styles.filterChip, { backgroundColor: !addMoreBrandFilter ? colors.primary : colors.surface, borderColor: !addMoreBrandFilter ? colors.primary : colors.border }]}
                         >
-                          <IconSymbol name="bag.fill" size={18} color={colors.primary} style={{ marginRight: 12 }} />
-                          <View style={styles.optionContent}>
-                            <Text className="text-sm font-semibold text-foreground">{p.name}</Text>
-                            {p.brand && !hasMultiBrand ? <Text className="text-xs text-muted">{p.brand}</Text> : p.description ? <Text className="text-xs text-muted">{p.description}</Text> : null}
-                          </View>
-                          <Text className="text-sm font-bold" style={{ color: colors.primary }}>+ ${parseFloat(String(p.price)).toFixed(2)}</Text>
+                          <Text style={{ fontSize: 12, fontWeight: "600", color: !addMoreBrandFilter ? "#fff" : colors.muted }}>All</Text>
                         </Pressable>
-                      ))}
-                    </View>
-                  ));
-                })()
-              )}
+                        {allBrands.map((brand) => (
+                          <Pressable
+                            key={brand}
+                            onPress={() => setAddMoreBrandFilter(addMoreBrandFilter === brand ? null : brand)}
+                            style={[styles.filterChip, { backgroundColor: addMoreBrandFilter === brand ? colors.primary : colors.surface, borderColor: addMoreBrandFilter === brand ? colors.primary : colors.border }]}
+                          >
+                            <Text style={{ fontSize: 12, fontWeight: "600", color: addMoreBrandFilter === brand ? "#fff" : colors.muted }} numberOfLines={1}>{brand}</Text>
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    )}
+                    {filteredProds.map((p) => (
+                      <Pressable
+                        key={p.id}
+                        onPress={() =>
+                          addToCart({ type: "product", id: p.id, name: p.name, price: parseFloat(String(p.price)), duration: 0 })
+                        }
+                        style={({ pressed }) => [
+                          styles.optionCard,
+                          { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+                        ]}
+                      >
+                        <IconSymbol name="bag.fill" size={18} color={colors.primary} style={{ marginRight: 12 }} />
+                        <View style={styles.optionContent}>
+                          <Text className="text-sm font-semibold text-foreground">{p.name}</Text>
+                          {p.brand ? <Text className="text-xs text-muted">{p.brand}{p.description ? " · " + p.description : ""}</Text> : p.description ? <Text className="text-xs text-muted">{p.description}</Text> : null}
+                        </View>
+                        <Text className="text-sm font-bold" style={{ color: colors.primary }}>+ ${parseFloat(String(p.price)).toFixed(2)}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                );
+              })()}
             </View>
           )}
 
@@ -1567,6 +1621,16 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 8,
     borderRadius: 8,
+    alignItems: "center",
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignSelf: "flex-start",
+    height: 34,
+    justifyContent: "center",
     alignItems: "center",
   },
 });

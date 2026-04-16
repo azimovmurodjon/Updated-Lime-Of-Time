@@ -293,7 +293,7 @@ export default function NotificationSettingsScreen() {
   const emailEvents = NOTIF_EVENTS.filter((e) => e.channel === "email");
 
   return (
-    <ScreenContainer>
+    <ScreenContainer edges={["top", "left", "right"]}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable
@@ -644,7 +644,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingTop: 16,
+    paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   backBtn: {
