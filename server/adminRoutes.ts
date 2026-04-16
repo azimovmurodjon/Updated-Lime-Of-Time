@@ -1557,24 +1557,37 @@ function dashboardPage(data: {
 
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
       <div class="card">
-        <h3>Recent Businesses</h3>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
+          <h3 style="margin:0;">Recent Businesses</h3>
+          <a href="/api/admin/businesses" style="font-size:12px;color:var(--primary);text-decoration:none;white-space:nowrap;">View all &rarr;</a>
+        </div>
         ${data.recentBusinesses.length === 0
           ? '<div class="empty-state"><p>No businesses yet</p></div>'
-          : `<table>
+          : `<div style="margin-bottom:10px;">
+              <input
+                id="dashBizSearch"
+                type="text"
+                placeholder="&#128269; Search by name or phone..."
+                oninput="filterDashBiz()"
+                style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg-hover);color:var(--text);outline:none;"
+              />
+            </div>
+            <table id="dashBizTable">
               <thead><tr><th>Name</th><th>Phone</th><th>Created</th></tr></thead>
-              <tbody>
+              <tbody id="dashBizTbody">
                 ${data.recentBusinesses
                   .map(
                     (b: any) =>
-                      `<tr>
-                        <td><a href="/api/admin/businesses/${b.id}">${b.businessName}</a></td>
-                        <td>${b.phone || "N/A"}</td>
+                      `<tr class="dash-biz-row" data-name="${escHtml((b.businessName || '').toLowerCase())}" data-phone="${escHtml((b.phone || '').toLowerCase())}">
+                        <td><a href="/api/admin/businesses/${b.id}">${escHtml(b.businessName)}</a></td>
+                        <td>${escHtml(b.phone || 'N/A')}</td>
                         <td>${fmtDate(b.createdAt)}</td>
                       </tr>`
                   )
                   .join("")}
               </tbody>
-            </table>`
+            </table>
+            <div id="dashBizEmpty" style="display:none;padding:16px 0;text-align:center;font-size:13px;color:var(--text-muted);">No businesses match your search.</div>`
         }
       </div>
       <div class="card">
@@ -1641,6 +1654,23 @@ function dashboardPage(data: {
       if (btn) btn.textContent = '\u21bb Refresh';
     }
     loadAuditLog();
+
+    function filterDashBiz() {
+      var q = (document.getElementById('dashBizSearch').value || '').toLowerCase();
+      var rows = document.querySelectorAll('#dashBizTbody .dash-biz-row');
+      var visible = 0;
+      rows.forEach(function(row) {
+        var name = row.getAttribute('data-name') || '';
+        var phone = row.getAttribute('data-phone') || '';
+        var show = !q || name.includes(q) || phone.includes(q);
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
+      });
+      var empty = document.getElementById('dashBizEmpty');
+      var table = document.getElementById('dashBizTable');
+      if (empty) empty.style.display = visible === 0 ? 'block' : 'none';
+      if (table) table.style.display = visible === 0 ? 'none' : '';
+    }
     </script>
   `);
 }

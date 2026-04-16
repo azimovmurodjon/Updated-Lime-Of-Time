@@ -1198,3 +1198,6 @@
 - [x] Admin audit log: GET endpoint returning last 20 log entries
 - [x] Admin audit log: panel on admin dashboard showing last 20 changes (who, what, when)
 - [x] Admin businesses list: richer cards with better visual separation (plan badge, appointment count, client count, join date, status indicator)
+
+## Features (Apr 16 batch 19)
+- [x] Admin dashboard: quick-search input on recent businesses table (filter by name/phone inline)
