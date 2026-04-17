@@ -178,6 +178,7 @@ export default function SettingsScreen() {
     { title: "Promo Codes",        subtitle: `${(state.promoCodes ?? []).filter((p) => p.active).length} active code${(state.promoCodes ?? []).filter((p) => p.active).length !== 1 ? "s" : ""}`, icon: "ticket.fill" as const, route: "/promo-codes" as const, color: "#0EA5E9" },
     { title: "Category Management",subtitle: "Manage service and product categories", icon: "tag.fill" as const, route: "/category-management" as const, color: "#10B981" },
     { title: "Export Data",       subtitle: "PDF reports for clients, appointments, revenue", icon: "square.and.arrow.up.fill" as const, route: "/data-export" as const, color: colors.primary },
+    { title: "Usage Guide",        subtitle: "How to use every feature in the app", icon: "book.fill" as const, route: "/usage-guide" as const, color: "#0EA5E9" },
   ];
 
   // ── Tab content renderers ───────────────────────────────────────────────────

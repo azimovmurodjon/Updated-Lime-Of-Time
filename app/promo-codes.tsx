@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -42,6 +42,9 @@ function isExpired(pc: PromoCode): boolean {
   if (!pc.expiresAt) return false;
   return pc.expiresAt < new Date().toISOString().slice(0, 10);
 }
+function isLimitReached(pc: PromoCode): boolean {
+  return !!(pc.maxUses && pc.maxUses > 0 && pc.usedCount >= pc.maxUses);
+}
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
@@ -49,6 +52,18 @@ export default function PromoCodesScreen() {
   const { state, dispatch, syncToDb } = useStore();
   const colors = useColors();
   const promoCodes = state.promoCodes ?? [];
+
+  // Auto-deactivate promo codes that have reached their limit or expired
+  useEffect(() => {
+    promoCodes.forEach((pc) => {
+      if (pc.active && (isExpired(pc) || isLimitReached(pc))) {
+        const updated = { ...pc, active: false };
+        dispatch({ type: "UPDATE_PROMO_CODE", payload: updated });
+        syncToDb({ type: "UPDATE_PROMO_CODE", payload: updated });
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -398,12 +413,17 @@ export default function PromoCodesScreen() {
                           <Text style={s.badgeText}>Expired</Text>
                         </View>
                       )}
-                      {!pc.active && !expired && (
+                      {!expired && isLimitReached(pc) && (
+                        <View style={[s.badge, { backgroundColor: colors.error + "22", borderColor: colors.error + "44" }]}>
+                          <Text style={[s.badgeText, { color: colors.error }]}>Limit Reached</Text>
+                        </View>
+                      )}
+                      {!pc.active && !expired && !isLimitReached(pc) && (
                         <View style={[s.badge, s.badgeInactive]}>
                           <Text style={s.badgeText}>Inactive</Text>
                         </View>
                       )}
-                      {pc.active && !expired && (
+                      {pc.active && !expired && !isLimitReached(pc) && (
                         <View style={[s.badge, s.badgeActive]}>
                           <Text style={s.badgeText}>Active</Text>
                         </View>

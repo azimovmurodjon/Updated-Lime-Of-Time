@@ -1309,3 +1309,11 @@
 - [x] Wire "Skip for now" button on onboarding subscription step (already existed, confirmed wired)
 - [x] Add Reschedule request option on public booking confirmation page (client-side) — already fully implemented in publicRoutes.ts
 - [x] Add promo code usage display on promo code cards — already implemented with usedCount/maxUses + progress bar
+
+## Features (Apr 17 batch 40)
+- [x] Highlight Growth plan in onboarding: "Most Popular" badge + elevated border + auto-highlight + auto-scroll when isOnboarding prop is passed
+- [x] Reschedule confirmation SMS: when business owner confirms reschedule, send client SMS with new date/time + calendar/manage link
+- [x] Promo code auto-deactivate: show "Limit Reached" badge + auto-set inactive when maxUses reached or expired
+- [x] Interactive onboarding tour: TourOverlay component with spotlight cutout + arrow + message bubbles pointing to each tab (Home, Calendar, Clients, Services, Settings)
+- [x] Onboarding tour: mandatory location setup step (last step points to Settings, CTA navigates to /location-form)
+- [x] Application Usage Guide in Settings Tools tab (subscription-aware, covers all app actions)

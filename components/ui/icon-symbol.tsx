@@ -113,6 +113,8 @@ const MAPPING = {
   "person.badge.clock.fill": "pending-actions",
   "wrench.fill": "build",
   "wrench.and.screwdriver.fill": "build",
+  "book.fill": "menu-book",
+  "book": "menu-book",
 } as unknown as IconMapping;
 
 export function IconSymbol({

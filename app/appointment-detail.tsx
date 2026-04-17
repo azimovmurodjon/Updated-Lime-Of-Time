@@ -190,10 +190,28 @@ export default function AppointmentDetailScreen() {
     if (client?.phone) {
       const svcName = service ? getServiceDisplayName(service) : "your appointment";
       const locLine = assignedLocation?.name ? `\n📍 ${assignedLocation.name}` : "";
-      const msg = `Hi ${client.name}, your appointment for ${svcName} has been rescheduled to ${reschedDate} at ${formatTime(reschedTime)}.${locLine}\n\n— ${biz.businessName}${LIME_OF_TIME_FOOTER}`;
-      openSms(client.phone, msg);
+      const slug = biz.customSlug || biz.businessName.replace(/\s+/g, "-").toLowerCase();
+      const bookingLink = `${PUBLIC_BOOKING_URL}/book/${slug}${assignedLocation?.id ? "?location=" + assignedLocation.id : ""}`;
+      const manageLink = appointment.id ? `${PUBLIC_BOOKING_URL}/manage/${slug}/${appointment.id}` : "";
+      const calendarLine = manageLink ? `\n\n🗓️ Add to calendar / manage: ${manageLink}` : "";
+      const msg = `Hi ${client.name}, your appointment for ${svcName} has been rescheduled to ${reschedDate} at ${formatTime(reschedTime)}.${locLine}${calendarLine}\n\n📅 Book again: ${bookingLink}\n\n— ${biz.businessName}${LIME_OF_TIME_FOOTER}`;
+      const rawPhone = stripPhoneFormat(client.phone);
+      const smsEnabled = state.settings.twilioEnabled;
+      if (smsEnabled && state.businessOwnerId) {
+        const toNumber = rawPhone.startsWith('+') ? rawPhone : `+1${rawPhone.replace(/\D/g, '')}`;
+        sendSmsMutation
+          .mutateAsync({
+            businessOwnerId: state.businessOwnerId,
+            toNumber,
+            body: msg,
+            smsAction: 'confirmation',
+          })
+          .catch(() => openSms(client.phone!, msg));
+      } else {
+        openSms(client.phone, msg);
+      }
     }
-  }, [appointment, reschedDate, reschedTime, client, service, assignedLocation, biz, dispatch, syncToDb]);
+  }, [appointment, reschedDate, reschedTime, client, service, assignedLocation, biz, dispatch, syncToDb, sendSmsMutation, state.settings.twilioEnabled, state.businessOwnerId]);
 
   // Calendar helpers for reschedule
   const reschedCalDays = useMemo(() => {

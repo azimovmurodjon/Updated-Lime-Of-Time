@@ -10,7 +10,7 @@
  *  - Billing toggle at top
  *  - Compare all plans modal preserved
  */
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -52,6 +52,8 @@ type PlanCarouselProps = {
   loadingPlanKey?: string | null;
   currentPlanKey?: string | null;
   containerWidth?: number;
+  /** When true (onboarding), auto-scroll to and visually highlight the Growth plan */
+  isOnboarding?: boolean;
 };
 
 // ─── Plan Config ──────────────────────────────────────────────────────────────
@@ -90,12 +92,14 @@ function PlanCard({
   onSelect,
   isLoading,
   isCurrentPlan,
+  isHighlighted = false,
 }: {
   plan: PlanData;
   isYearly: boolean;
   onSelect: () => void;
   isLoading: boolean;
   isCurrentPlan: boolean;
+  isHighlighted?: boolean;
 }) {
   const colors = useColors();
   const gradients = (PLAN_GRADIENTS[plan.planKey] ?? PLAN_GRADIENTS.solo) as [string, string, string];
@@ -130,7 +134,20 @@ function PlanCard({
   ];
 
   return (
-    <View style={[styles.card, { borderColor: accent + "44" }]}>
+    <View style={[
+      styles.card,
+      { borderColor: isPopular ? accent : accent + "44" },
+      isPopular && styles.cardPopular,
+      isHighlighted && {
+        borderColor: accent,
+        borderWidth: 2.5,
+        shadowColor: accent,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.45,
+        shadowRadius: 18,
+        elevation: 10,
+      },
+    ]}>
       {/* ── Gradient accent strip on left ── */}
       <LinearGradient
         colors={gradients}
@@ -149,8 +166,8 @@ function PlanCard({
               <Text style={styles.planEmoji}>{emoji}</Text>
               <Text style={[styles.planName, { color: accent }]}>{plan.displayName}</Text>
               {isPopular && (
-                <View style={[styles.badge, { backgroundColor: accent + "22", borderColor: accent + "44" }]}>
-                  <Text style={[styles.badgeText, { color: accent }]}>TOP</Text>
+                <View style={[styles.badge, { backgroundColor: accent, borderColor: accent }]}>
+                  <Text style={[styles.badgeText, { color: "#fff" }]}>⭐ MOST POPULAR</Text>
                 </View>
               )}
               {isCurrentPlan && (
@@ -233,9 +250,23 @@ export function PlanCarousel({
   onSelectPlan,
   loadingPlanKey,
   currentPlanKey,
+  isOnboarding = false,
 }: PlanCarouselProps) {
   const colors = useColors();
   const [showCompare, setShowCompare] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const growthCardY = useRef<number>(0);
+
+  // Auto-scroll to Growth plan when onboarding step first appears
+  useEffect(() => {
+    if (!isOnboarding || isLoading || !plans || plans.length === 0) return;
+    const timer = setTimeout(() => {
+      if (scrollRef.current && growthCardY.current > 0) {
+        scrollRef.current.scrollTo({ y: growthCardY.current - 20, animated: true });
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [isOnboarding, isLoading, plans.length]);
 
   if (isLoading) {
     return (
@@ -255,7 +286,12 @@ export function PlanCarousel({
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      ref={scrollRef}
+      style={styles.container}
+      showsVerticalScrollIndicator={false}
+      nestedScrollEnabled
+    >
       {/* ── Billing Toggle ── */}
       <View
         style={[
@@ -286,14 +322,19 @@ export function PlanCarousel({
 
       {/* ── Vertical plan list ── */}
       {plans.map((plan) => (
-        <PlanCard
+        <View
           key={plan.planKey}
-          plan={plan}
-          isYearly={isYearly}
-          onSelect={() => onSelectPlan(plan.planKey, isYearly ? "yearly" : "monthly")}
-          isLoading={loadingPlanKey === plan.planKey}
-          isCurrentPlan={currentPlanKey === plan.planKey}
-        />
+          onLayout={plan.planKey === "growth" ? (e) => { growthCardY.current = e.nativeEvent.layout.y; } : undefined}
+        >
+          <PlanCard
+            plan={plan}
+            isYearly={isYearly}
+            onSelect={() => onSelectPlan(plan.planKey, isYearly ? "yearly" : "monthly")}
+            isLoading={loadingPlanKey === plan.planKey}
+            isCurrentPlan={currentPlanKey === plan.planKey}
+            isHighlighted={isOnboarding && plan.planKey === "growth"}
+          />
+        </View>
       ))}
 
       {/* Compare all plans link */}
@@ -367,7 +408,7 @@ export function PlanCarousel({
           </ScrollView>
         </SafeAreaView>
       </Modal>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -492,6 +533,14 @@ const styles = StyleSheet.create({
   },
 
   // Card — no background, just border + accent strip
+  cardPopular: {
+    borderWidth: 2,
+    shadowColor: "#2563EB",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
+  },
   card: {
     flexDirection: "row",
     borderRadius: 14,

@@ -1352,6 +1352,7 @@ export default function OnboardingScreen() {
                     onToggleBilling={setSubIsYearly}
                     onSelectPlan={(planKey, period) => handleSelectPlan(planKey, period)}
                     loadingPlanKey={subLoading ? subSelectedPlan : null}
+                    isOnboarding
                   />
                 </Animated.View>
 
