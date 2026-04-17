@@ -1324,3 +1324,7 @@
 - [x] Replay App Tour button in Settings Account tab (clears @lime_tutorial_seen, navigates to Home) and in Usage Guide screen with live analytics stats
 - [x] Usage Guide deep-links: each of 13 sections has a "Go There" action button navigating directly to the relevant screen
 - [x] Onboarding tour analytics: recordTourAnalytics() tracks completed/skipped + stepReached per session in @lime_tour_analytics; Usage Guide displays completion/skip counts and last step reached
+
+## Features (Apr 17 batch 42)
+- [x] Fix Replay App Tour not working: replaced one-time useEffect with useFocusEffect so tour re-checks on every Home tab focus; Settings button now uses router.push to guarantee focus event fires; tour state reset (step 0, fade 0) on replay
+- [x] Guided first-action prompt: one-time modal after saving the very first location with Add a Service / Add a Client / Set Working Hours action buttons; @lime_first_action_shown key cleared on logout/delete

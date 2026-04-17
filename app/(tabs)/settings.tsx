@@ -124,6 +124,7 @@ export default function SettingsScreen() {
               "@bookease_biometric_enabled",
               "@lime_tutorial_seen",
               "@lime_tour_analytics",
+              "@lime_first_action_shown",
             ]);
           } catch {}
           try { await removeSessionToken(); } catch {}
@@ -167,6 +168,7 @@ export default function SettingsScreen() {
                 // Tour / onboarding state
                 "@lime_tutorial_seen",
                 "@lime_tour_analytics",
+                "@lime_first_action_shown",
               ]);
             } catch {}
             // 4. Wipe SecureStore (session token + user info)
@@ -539,7 +541,8 @@ export default function SettingsScreen() {
       <Pressable
         onPress={async () => {
           try { await AsyncStorage.removeItem("@lime_tutorial_seen"); } catch {}
-          router.replace("/(tabs)");
+          // Navigate to Home tab — use push so focus event always fires even if already on Home
+          router.push("/(tabs)/" as any);
         }}
         style={({ pressed }) => [styles.navCard, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.75 : 1 }]}
       >

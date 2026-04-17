@@ -300,9 +300,9 @@ export default function UsageGuideScreen() {
 
   useEffect(() => { loadAnalytics(); }, [loadAnalytics]);
 
-  // Replay tour: clear the seen flag so tour fires on next Home visit
+  // Replay tour: clear the seen flag then navigate to Home tab (push always triggers focus)
   const replayTour = useCallback(async () => {
-    await AsyncStorage.removeItem("@lime_tutorial_seen");
+    try { await AsyncStorage.removeItem("@lime_tutorial_seen"); } catch {}
     router.push("/(tabs)/" as any);
   }, [router]);
 

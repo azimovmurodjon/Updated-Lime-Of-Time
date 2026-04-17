@@ -20,6 +20,7 @@ import { useStore, formatTime, formatDateStr } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { minutesToTime, timeToMinutes, PUBLIC_BOOKING_URL, formatFullAddress, formatPhoneNumber } from "@/lib/types";
 import { formatPhone } from "@/lib/utils";
 import { useActiveLocation } from "@/hooks/use-active-location";
@@ -304,13 +305,20 @@ export default function HomeScreen() {
       isLastStep: true,
     },
   ];
-  useEffect(() => {
-    if (state.loaded) {
-      AsyncStorage.getItem("@lime_tutorial_seen").then((val) => {
-        if (!val) setShowTutorial(true);
-      });
-    }
-  }, [state.loaded]);
+  // Re-check tour flag every time the Home tab comes into focus (supports Replay Tour)
+  useFocusEffect(
+    useCallback(() => {
+      if (state.loaded) {
+        AsyncStorage.getItem("@lime_tutorial_seen").then((val) => {
+          if (!val) {
+            setTutorialStep(0);
+            tutorialFade.setValue(0);
+            setShowTutorial(true);
+          }
+        });
+      }
+    }, [state.loaded, tutorialFade])
+  );
   useEffect(() => {
     if (showTutorial) {
       Animated.timing(tutorialFade, { toValue: 1, duration: 300, useNativeDriver: true }).start();

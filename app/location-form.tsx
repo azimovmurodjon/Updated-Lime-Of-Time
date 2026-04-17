@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { usePlanLimitCheck } from "@/hooks/use-plan-limit-check";
 import { UpgradePlanSheet } from "@/components/upgrade-plan-sheet";
 import {
@@ -78,6 +79,8 @@ export default function LocationFormScreen() {
   const [email, setEmail] = useState(existing?.email ?? "");
   // Validation errors
   const [errors, setErrors] = useState<{ name?: string; address?: string }>({});
+  // First-action prompt (shown once after saving the very first location)
+  const [showFirstActionPrompt, setShowFirstActionPrompt] = useState(false);
 
   const handleSave = () => {
     // Check plan limit for new locations only
@@ -125,7 +128,19 @@ export default function LocationFormScreen() {
     syncToDb(action);
     // Auto-set as active location when adding a new location
     if (!isEdit) setActiveLocation(loc.id);
-    router.back();
+
+    // Show first-action prompt once after the very first location is saved
+    if (isFirstLocation) {
+      AsyncStorage.getItem("@lime_first_action_shown").then((val) => {
+        if (!val) {
+          setShowFirstActionPrompt(true);
+        } else {
+          router.back();
+        }
+      });
+    } else {
+      router.back();
+    }
   };
 
   const handleDelete = () => {
@@ -830,6 +845,59 @@ export default function LocationFormScreen() {
           businessOwnerId={state.businessOwnerId!}
         />
       )}
+
+      {/* ── First-Action Prompt ─────────────────────────────────────────── */}
+      <Modal
+        visible={showFirstActionPrompt}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => {
+          AsyncStorage.setItem("@lime_first_action_shown", "1");
+          setShowFirstActionPrompt(false);
+          router.back();
+        }}
+      >
+        <View style={styles.firstActionOverlay}>
+          <View style={styles.firstActionCard}>
+            <Text style={styles.firstActionEmoji}>🎉</Text>
+            <Text style={styles.firstActionTitle}>You're all set!</Text>
+            <Text style={styles.firstActionSubtitle}>
+              Your location has been saved. What would you like to do first?
+            </Text>
+            <View style={styles.firstActionButtons}>
+              {[
+                { label: "Add a Service", emoji: "✂️", route: "/(tabs)/services" },
+                { label: "Add a Client", emoji: "👤", route: "/(tabs)/clients" },
+                { label: "Set Working Hours", emoji: "🕐", route: "/(tabs)/settings" },
+              ].map((item) => (
+                <Pressable
+                  key={item.label}
+                  style={({ pressed }) => [styles.firstActionBtn, { opacity: pressed ? 0.75 : 1 }]}
+                  onPress={async () => {
+                    await AsyncStorage.setItem("@lime_first_action_shown", "1");
+                    setShowFirstActionPrompt(false);
+                    router.replace(item.route as any);
+                  }}
+                >
+                  <Text style={styles.firstActionBtnEmoji}>{item.emoji}</Text>
+                  <Text style={styles.firstActionBtnLabel}>{item.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Pressable
+              style={({ pressed }) => [styles.firstActionSkip, { opacity: pressed ? 0.6 : 1 }]}
+              onPress={async () => {
+                await AsyncStorage.setItem("@lime_first_action_shown", "1");
+                setShowFirstActionPrompt(false);
+                router.back();
+              }}
+            >
+              <Text style={styles.firstActionSkipText}>Maybe later</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -899,4 +967,16 @@ const styles = StyleSheet.create({
   modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingBottom: 40, paddingHorizontal: 20 },
   modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
   qrModalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingBottom: 40, paddingHorizontal: 20, alignItems: "center" },
+  // First-action prompt
+  firstActionOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", alignItems: "center", paddingHorizontal: 24 },
+  firstActionCard: { width: "100%", maxWidth: 360, backgroundColor: "#fff", borderRadius: 24, padding: 28, alignItems: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 24, elevation: 12 },
+  firstActionEmoji: { fontSize: 48, marginBottom: 12 },
+  firstActionTitle: { fontSize: 22, fontWeight: "700", color: "#11181C", textAlign: "center", marginBottom: 8 },
+  firstActionSubtitle: { fontSize: 14, color: "#687076", textAlign: "center", lineHeight: 20, marginBottom: 24 },
+  firstActionButtons: { width: "100%", gap: 10, marginBottom: 16 },
+  firstActionBtn: { flexDirection: "row", alignItems: "center", backgroundColor: "#F5F5F5", borderRadius: 14, paddingVertical: 14, paddingHorizontal: 18, gap: 12 },
+  firstActionBtnEmoji: { fontSize: 22 },
+  firstActionBtnLabel: { fontSize: 15, fontWeight: "600", color: "#11181C" },
+  firstActionSkip: { paddingVertical: 8, paddingHorizontal: 16 },
+  firstActionSkipText: { fontSize: 13, color: "#687076", textDecorationLine: "underline" },
 });
