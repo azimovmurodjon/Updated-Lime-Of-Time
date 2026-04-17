@@ -1283,3 +1283,6 @@
 - [x] Swipe hint animation on first visit to Requests tab (showHint prop on SwipeableRequestCard, AsyncStorage tracks first visit)
 - [x] Home KPI: 7-bar revenue sparkline chip showing daily revenue for current week (MicroBarSpark using weeklyDailyData)
 - [x] Analytics Custom date range: added Last 7 days, Last 30 days, Last 90 days quick-select presets in modal
+
+## Features (Apr 17 batch 36)
+- [x] Fix onboarding subscription plan cards too wide / overflowing on mobile devices (negative marginHorizontal: -hp to escape ScrollView padding, pass full screen width to PlanCarousel)
