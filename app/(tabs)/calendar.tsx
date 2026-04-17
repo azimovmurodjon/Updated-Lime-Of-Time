@@ -34,6 +34,7 @@ import {
 import { TapTimePicker, timeToMinutes as tapTimeToMinutes } from "@/components/tap-time-picker";
 import { formatPhone } from "@/lib/utils";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { SwipeableRequestCard } from "@/components/swipeable-request-card";
 
 type CalendarView = "month" | "day" | "week";
 
@@ -1219,7 +1220,13 @@ export default function CalendarScreen() {
             const isRequest = appt.status === "pending";
             const statusColor = appt.status === "confirmed" ? "#1B5E20" : appt.status === "pending" ? "#FF9800" : appt.status === "completed" ? colors.primary : "#F44336";
             return (
-              <View key={appt.id} style={[styles.filterCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: svc?.color ?? colors.primary }]}>
+              <SwipeableRequestCard
+                key={appt.id}
+                enabled={isRequest}
+                onAccept={() => handleAccept(appt)}
+                onReject={() => handleReject(appt)}
+              >
+              <View style={[styles.filterCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: svc?.color ?? colors.primary }]}>
                 <Pressable onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })} style={{ flex: 1 }}>
                   <View style={styles.filterCardRow}>
                     <View style={{ flex: 1 }}>
@@ -1292,6 +1299,7 @@ export default function CalendarScreen() {
                 )}
 
               </View>
+              </SwipeableRequestCard>
             );
           })
         )}

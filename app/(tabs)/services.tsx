@@ -6,6 +6,7 @@ import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useResponsive } from "@/hooks/use-responsive";
+import { FuturisticBackground } from "@/components/futuristic-background";
 
 type Tab = "services" | "products";
 
@@ -18,6 +19,7 @@ export default function ServicesScreen() {
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [serviceSearch, setServiceSearch] = useState("");
+  const [productSearch, setProductSearch] = useState("");
 
   // Derive sorted unique brands from products
   const allBrands = useMemo(() => {
@@ -33,11 +35,16 @@ export default function ServicesScreen() {
     return Array.from(cats).sort();
   }, [state.services]);
 
-  // Filtered products by selected brand
+  // Filtered products by selected brand and search query
   const filteredProducts = useMemo(() => {
-    if (!selectedBrand) return state.products;
-    return state.products.filter((p) => p.brand === selectedBrand);
-  }, [state.products, selectedBrand]);
+    let prods = state.products;
+    if (selectedBrand) prods = prods.filter((p) => p.brand === selectedBrand);
+    if (productSearch.trim()) {
+      const q = productSearch.trim().toLowerCase();
+      prods = prods.filter((p) => p.name.toLowerCase().includes(q));
+    }
+    return prods;
+  }, [state.products, selectedBrand, productSearch]);
 
   // Filtered services by selected category and search query
   const filteredServices = useMemo(() => {
@@ -52,6 +59,7 @@ export default function ServicesScreen() {
 
   return (
     <ScreenContainer className="pt-2 flex-1" containerClassName="flex-1" safeAreaClassName="flex-1" tabletMaxWidth={0} style={{ paddingHorizontal: hp }}>
+      <FuturisticBackground />
       {/* Header */}
       <View style={styles.header}>
         <Text className="text-2xl font-bold text-foreground">
@@ -218,7 +226,6 @@ export default function ServicesScreen() {
             data={listData}
             keyExtractor={(item) => item.key}
             showsVerticalScrollIndicator={false}
-            style={{ flex: 1 }}
             renderItem={({ item: row }) => {
               if (row.type === "header") {
                 return (
@@ -314,7 +321,30 @@ export default function ServicesScreen() {
 
       {/* Products List */}
       {activeTab === "products" && (
-        <View style={{ flex: 1, justifyContent: "flex-start" }}>
+        <View style={{ flex: 1 }}>
+        {/* Product search bar */}
+        <View style={{
+          flexDirection: "row",
+          alignItems: "center",
+          backgroundColor: colors.surface,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: colors.border,
+          paddingHorizontal: 10,
+          marginBottom: 10,
+          height: 40,
+        }}>
+          <IconSymbol name="magnifyingglass" size={15} color={colors.muted} />
+          <TextInput
+            value={productSearch}
+            onChangeText={setProductSearch}
+            placeholder="Search products…"
+            placeholderTextColor={colors.muted}
+            style={{ flex: 1, marginLeft: 8, fontSize: 14, color: colors.foreground, height: 40 }}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+          />
+        </View>
         {/* Brand filter chips */}
         {allBrands.length > 0 && (
           <ScrollView
@@ -344,7 +374,6 @@ export default function ServicesScreen() {
           data={filteredProducts}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
-          style={{ flex: 1 }}
           renderItem={({ item }) => (
             <Pressable
               onPress={() =>

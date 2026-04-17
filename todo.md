@@ -1269,3 +1269,10 @@
 - [x] Today's Revenue chip: tappable → navigates to Analytics Overview tab
 - [x] Calendar tab icon: red badge count for pending appointment requests
 - [x] Services tab: search bar above category chips to filter by service name
+
+## Features (Apr 17 batch 34)
+- [x] Fix iOS FlatList gap in Services and Products tabs (removed style={{flex:1}} from both FlatLists)
+- [x] Add FuturisticBackground to Services tab screen
+- [x] Products tab: add search bar above brand chips
+- [x] Calendar Requests: swipe-to-approve/decline gestures on pending cards (SwipeableRequestCard component)
+- [x] Analytics Overview: date range picker expanded with Today, This Week, Custom (modal with YYYY-MM-DD input)

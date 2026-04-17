@@ -9,6 +9,8 @@ import {
   Platform,
   ActivityIndicator,
   PanResponder,
+  Modal,
+  TextInput,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatDateDisplay, formatTime } from "@/lib/store";
@@ -31,22 +33,45 @@ export default function AnalyticsDetailScreen() {
   const router = useRouter();
   const { isTablet, hp } = useResponsive();
   const [generating, setGenerating] = useState(false);
-  const [dateRange, setDateRange] = useState<"this_month" | "last_month" | "last_3m" | "last_6m" | "this_year" | "all">("last_6m");
+  const [dateRange, setDateRange] = useState<"today" | "this_week" | "this_month" | "last_month" | "last_3m" | "last_6m" | "this_year" | "all" | "custom">("last_6m");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+  const [showCustomModal, setShowCustomModal] = useState(false);
+  const [customStartInput, setCustomStartInput] = useState("");
+  const [customEndInput, setCustomEndInput] = useState("");
 
   const DATE_RANGES: { key: typeof dateRange; label: string }[] = [
+    { key: "today", label: "Today" },
+    { key: "this_week", label: "This Week" },
     { key: "this_month", label: "This Month" },
     { key: "last_month", label: "Last Month" },
     { key: "last_3m", label: "3 Months" },
     { key: "last_6m", label: "6 Months" },
     { key: "this_year", label: "This Year" },
     { key: "all", label: "All Time" },
+    { key: "custom", label: "Custom" },
   ];
 
   const dateRangeFilter = useMemo(() => {
     const now = new Date();
     const y = now.getFullYear();
     const m = now.getMonth();
-    if (dateRange === "this_month") {
+    if (dateRange === "today") {
+      const today = now.toISOString().substring(0, 10);
+      return { start: today, end: today };
+    } else if (dateRange === "this_week") {
+      const day = now.getDay(); // 0=Sun
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - day);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      return { start: weekStart.toISOString().substring(0, 10), end: weekEnd.toISOString().substring(0, 10) };
+    } else if (dateRange === "custom") {
+      if (customStart && customEnd && customStart <= customEnd) {
+        return { start: customStart, end: customEnd };
+      }
+      return null;
+    } else if (dateRange === "this_month") {
       const start = new Date(y, m, 1).toISOString().substring(0, 10);
       const end = new Date(y, m + 1, 0).toISOString().substring(0, 10);
       return { start, end };
@@ -68,7 +93,7 @@ export default function AnalyticsDetailScreen() {
       return { start, end };
     }
     return null; // all time
-  }, [dateRange]);
+  }, [dateRange, customStart, customEnd]);
 
   // Use global activeLocationId — no separate local filter needed
   const allLocationAppts = useMemo(
@@ -648,7 +673,15 @@ export default function AnalyticsDetailScreen() {
           {DATE_RANGES.map((r) => (
             <Pressable
               key={r.key}
-              onPress={() => setDateRange(r.key)}
+              onPress={() => {
+                if (r.key === "custom") {
+                  setCustomStartInput(customStart);
+                  setCustomEndInput(customEnd);
+                  setShowCustomModal(true);
+                } else {
+                  setDateRange(r.key);
+                }
+              }}
               style={[
                 styles.dateChip,
                 {
@@ -658,11 +691,76 @@ export default function AnalyticsDetailScreen() {
               ]}
             >
               <Text style={{ fontSize: 13, fontWeight: "600", color: dateRange === r.key ? "#fff" : colors.muted }}>
-                {r.label}
+                {r.key === "custom" && customStart && customEnd
+                  ? `${customStart.substring(5)} – ${customEnd.substring(5)}`
+                  : r.label}
               </Text>
             </Pressable>
           ))}
         </ScrollView>
+        {/* ─── Custom Date Range Modal ─── */}
+        <Modal
+          visible={showCustomModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowCustomModal(false)}
+        >
+          <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", alignItems: "center", padding: 24 }}>
+            <View style={{ backgroundColor: colors.surface, borderRadius: 20, padding: 24, width: "100%", maxWidth: 360, borderWidth: 1, borderColor: colors.border }}>
+              <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground, marginBottom: 16 }}>Custom Date Range</Text>
+              <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Start Date (YYYY-MM-DD)</Text>
+              <TextInput
+                value={customStartInput}
+                onChangeText={setCustomStartInput}
+                placeholder="e.g. 2026-01-01"
+                placeholderTextColor={colors.muted}
+                style={{ backgroundColor: colors.background, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: colors.foreground, marginBottom: 14 }}
+                keyboardType="numbers-and-punctuation"
+                returnKeyType="next"
+              />
+              <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>End Date (YYYY-MM-DD)</Text>
+              <TextInput
+                value={customEndInput}
+                onChangeText={setCustomEndInput}
+                placeholder="e.g. 2026-03-31"
+                placeholderTextColor={colors.muted}
+                style={{ backgroundColor: colors.background, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: colors.foreground, marginBottom: 20 }}
+                keyboardType="numbers-and-punctuation"
+                returnKeyType="done"
+              />
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <Pressable
+                  onPress={() => setShowCustomModal(false)}
+                  style={({ pressed }) => ({ flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, alignItems: "center", opacity: pressed ? 0.7 : 1 })}
+                >
+                  <Text style={{ fontSize: 15, fontWeight: "600", color: colors.muted }}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    const s = customStartInput.trim();
+                    const e = customEndInput.trim();
+                    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+                    if (!dateRe.test(s) || !dateRe.test(e)) {
+                      Alert.alert("Invalid Date", "Please enter dates in YYYY-MM-DD format.");
+                      return;
+                    }
+                    if (s > e) {
+                      Alert.alert("Invalid Range", "Start date must be before or equal to end date.");
+                      return;
+                    }
+                    setCustomStart(s);
+                    setCustomEnd(e);
+                    setDateRange("custom");
+                    setShowCustomModal(false);
+                  }}
+                  style={({ pressed }) => ({ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: colors.primary, alignItems: "center", opacity: pressed ? 0.7 : 1 })}
+                >
+                  <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>Apply</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         {/* ─── Report Generation Button ─── */}
         <Pressable
