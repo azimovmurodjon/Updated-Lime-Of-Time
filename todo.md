@@ -1338,9 +1338,3 @@
 - [x] First-action prompt: "Add a Service" opens /service-form directly (not just Services tab)
 - [x] Tour: added "Add Services & Clients" step (tabIndex 3) pointing to Services/Clients + button
 - [x] Onboarding confetti: react-native-confetti-cannon fires after first location saved
-
-## Batch 44
-- [x] Client Birthday field renamed to Expire Date, cake emoji removed
-- [x] BirthdayPicker generalized: allowFuture prop, icon prop, neutral default placeholder
-- [x] Service Duration replaced with scroll-wheel Hours+Minutes modal picker (ScrollDurationPicker)
-- [x] Promo code expiry picker updated with allowFuture so future dates are selectable

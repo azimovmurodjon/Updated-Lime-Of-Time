@@ -1,14 +1,12 @@
 /**
- * BirthdayPicker (now used as a generic date picker)
+ * BirthdayPicker
  *
- * A cross-platform date input:
+ * A cross-platform birthday input:
  * - iOS / Android: tapping the field opens a modal with a native DateTimePicker wheel.
  * - Web: falls back to a plain text input (MM/DD/YYYY) since the native picker
  *   isn't available in the browser.
  *
  * The value is stored as "MM/DD/YYYY" string (or "" when empty).
- *
- * When used for client "Expire Date", pass placeholder="Expire Date (optional)".
  */
 
 import { useState } from "react";
@@ -67,19 +65,13 @@ interface BirthdayPickerProps {
   onChange: (v: string) => void;
   placeholder?: string;
   style?: object;
-  /** When true, allows future dates (e.g. expiry dates). Default false. */
-  allowFuture?: boolean;
-  /** Icon to show. Pass undefined to hide icon. Default: calendar. */
-  icon?: string | null;
 }
 
 export function BirthdayPicker({
   value,
   onChange,
-  placeholder = "Expire Date (optional)",
+  placeholder = "Birthday (optional)",
   style,
-  allowFuture = false,
-  icon = "calendar",
 }: BirthdayPickerProps) {
   const colors = useColors();
   const [modalVisible, setModalVisible] = useState(false);
@@ -130,7 +122,7 @@ export function BirthdayPicker({
     setModalVisible(false);
   };
 
-  const maxDate = allowFuture ? undefined : new Date();
+  const maxDate = new Date(); // can't be born in the future
 
   return (
     <>
@@ -151,9 +143,7 @@ export function BirthdayPicker({
         ]}
       >
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          {icon != null && (
-            <IconSymbol name={icon as any} size={16} color={value ? colors.primary : colors.muted} />
-          )}
+          <IconSymbol name="birthday.cake" size={16} color={value ? "#FF9800" : colors.muted} />
           <Text
             style={{
               fontSize: 15,
@@ -197,7 +187,7 @@ export function BirthdayPicker({
               <Text style={{ fontSize: 16, color: colors.error }}>Clear</Text>
             </Pressable>
             <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground }}>
-              Expire Date
+              Birthday
             </Text>
             <Pressable
               onPress={handleConfirm}
@@ -213,7 +203,7 @@ export function BirthdayPicker({
               value={tempDate}
               mode="date"
               display="spinner"
-              {...(maxDate ? { maximumDate: maxDate } : {})}
+              maximumDate={maxDate}
               onChange={handleChange}
               style={{ width: "100%", alignSelf: "center" }}
               textColor={colors.foreground}

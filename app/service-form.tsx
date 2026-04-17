@@ -9,7 +9,7 @@ import { useState, useMemo } from "react";
 import { usePlanLimitCheck } from "@/hooks/use-plan-limit-check";
 import { UpgradePlanSheet } from "@/components/upgrade-plan-sheet";
 import { SERVICE_COLORS, Service } from "@/lib/types";
-import { ScrollDurationPicker, formatDuration } from "@/components/scroll-duration-picker";
+import { TapDurationPicker, formatDuration } from "@/components/tap-duration-picker";
 import * as ImagePicker from "expo-image-picker";
 import { FuturisticBackground } from "@/components/futuristic-background";
 
@@ -159,7 +159,7 @@ export default function ServiceFormScreen() {
           <Text style={{ fontSize: 14, fontWeight: "700", color: colors.primary }}>{formatDuration(duration)}</Text>
         </View>
         <View style={{ marginBottom: 16 }}>
-          <ScrollDurationPicker value={duration} onChange={setDuration} />
+          <TapDurationPicker value={duration} onChange={setDuration} />
         </View>
 
         {/* Price */}

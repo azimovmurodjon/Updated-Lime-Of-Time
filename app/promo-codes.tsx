@@ -354,7 +354,6 @@ export default function PromoCodesScreen() {
                 if (y && m && d) setExpiresAt(`${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`);
               }}
               placeholder="No expiry date"
-              allowFuture
             />
 
             <View style={s.activeRow}>

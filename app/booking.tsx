@@ -633,8 +633,7 @@ export default function PublicBookingScreen() {
               <BirthdayPicker
                 value={clientBirthday}
                 onChange={setClientBirthday}
-                placeholder="Expire Date (optional)"
-                allowFuture
+                placeholder="Birthday (optional)"
               />
               <TextInput
                 style={[
