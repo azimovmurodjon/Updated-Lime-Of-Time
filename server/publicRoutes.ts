@@ -825,8 +825,8 @@ export function registerPublicRoutes(app: Express) {
         giftApplied: !!giftApplied,
         giftUsedAmount: giftUsedAmount ? String(parseFloat(String(giftUsedAmount))) : null,
         locationId: locationId || null,
-        paymentMethod: paymentMethod || null,
-        paymentStatus: paymentMethod === 'cash' ? 'pending_cash' : (paymentMethod ? 'unpaid' : null),
+        paymentMethod: (paymentMethod && paymentMethod !== 'later') ? paymentMethod : null,
+        paymentStatus: paymentMethod === 'cash' ? 'pending_cash' : ((paymentMethod && paymentMethod !== 'later') ? 'unpaid' : null),
       });
 
       // Atomically deduct from gift card balance (prevents double-spend race conditions)

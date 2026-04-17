@@ -174,9 +174,7 @@ export default function SettingsScreen() {
   const toolsNavItems = [
     { title: "Subscription",      subtitle: "Plan, usage & billing", icon: "crown.fill" as const, route: "/subscription" as const, color: "#F59E0B" },
     { title: "Analytics",         subtitle: "Revenue, clients, appointments insights", icon: "chart.bar.fill" as const, route: "/analytics-detail?tab=overview" as const, color: "#8b5cf6" },
-    { title: "Client Reviews",    subtitle: reviewAvg ? `${reviewAvg} ★ — ${state.reviews.length} review${state.reviews.length !== 1 ? "s" : ""}` : "No reviews yet", icon: "star.fill" as const, route: "/reviews" as const, color: "#f59e0b" },
     { title: "Note Templates",    subtitle: `${(state.noteTemplates ?? []).length} template${(state.noteTemplates ?? []).length !== 1 ? "s" : ""} saved`, icon: "note.text" as const, route: "/note-templates" as const, color: "#6366F1" },
-    { title: "Packages & Bundles",subtitle: `${(state.packages ?? []).filter((p) => p.active).length} active package${(state.packages ?? []).filter((p) => p.active).length !== 1 ? "s" : ""}`, icon: "gift.fill" as const, route: "/packages" as const, color: "#E91E63" },
     { title: "Promo Codes",        subtitle: `${(state.promoCodes ?? []).filter((p) => p.active).length} active code${(state.promoCodes ?? []).filter((p) => p.active).length !== 1 ? "s" : ""}`, icon: "ticket.fill" as const, route: "/promo-codes" as const, color: "#0EA5E9" },
     { title: "Category Management",subtitle: "Manage service and product categories", icon: "tag.fill" as const, route: "/category-management" as const, color: "#10B981" },
     { title: "Export Data",       subtitle: "PDF reports for clients, appointments, revenue", icon: "square.and.arrow.up.fill" as const, route: "/data-export" as const, color: colors.primary },
@@ -281,6 +279,13 @@ export default function SettingsScreen() {
       {/* Section: Location */}
       <Text style={styles.sectionLabel}>Location Settings</Text>
       {renderNavList(locationNavItems)}
+
+      {/* Engagement */}
+      <Text style={[styles.sectionLabel, { marginTop: 8 }]}>Engagement</Text>
+      {renderNavList([
+        { title: "Client Reviews",    subtitle: reviewAvg ? `${reviewAvg} ★ — ${state.reviews.length} review${state.reviews.length !== 1 ? "s" : ""}` : "No reviews yet", icon: "star.fill" as const, route: "/reviews" as const, color: "#f59e0b" },
+        { title: "Packages & Bundles",subtitle: `${(state.packages ?? []).filter((p) => p.active).length} active package${(state.packages ?? []).filter((p) => p.active).length !== 1 ? "s" : ""}`, icon: "gift.fill" as const, route: "/packages" as const, color: "#E91E63" },
+      ])}
 
       {/* Goals & Alerts */}
       <Text style={[styles.sectionLabel, { marginTop: 8 }]}>Goals & Alerts</Text>

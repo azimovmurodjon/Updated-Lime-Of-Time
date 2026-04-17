@@ -264,7 +264,7 @@ export default function PackagesScreen() {
           onPress={() => router.back()}
           style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]}
         >
-          <IconSymbol name="chevron.left.forwardslash.chevron.right" size={20} color={colors.primary} />
+          <IconSymbol name="chevron.left" size={20} color={colors.primary} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Packages & Bundles</Text>
         <Pressable

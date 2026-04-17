@@ -1292,3 +1292,14 @@
 - [x] Fix Services/Products FlatList filter layout — items appearing at bottom when category selected (removed flexGrow:1 from contentContainerStyle)
 - [x] Fix QR modal Share button not working on home screen (added touch stop-propagation on inner View to prevent outer backdrop Pressable from consuming button taps)
 - [x] Fix public booking page completely broken — JavaScript syntax errors in publicRoutes.ts prevented entire script from executing (fixed icsEsc regex escaping and \r\n literal in template literals)
+
+## Features (Apr 17 batch 38)
+- [x] Settings Account: replace version text with app logo image (already implemented - logo shown in Account tab)
+- [x] Booking confirmation page: implement proper .ics file generation for Add to Calendar button (was already implemented, now works after JS syntax fix from batch 37)
+- [x] Appointment management page: add Reschedule option (new time slot selection) — added Reschedule button + bottom sheet modal with calendar + time slots for pending/confirmed appointments
+- [x] Fix onboarding subscription page freeze/crash — disabled outer ScrollView when on subscription step to prevent FlatList nesting freeze
+- [x] Fix Pay Later Internal Server Error on public booking confirmation — mapped 'later' paymentMethod to null before DB insert to avoid ENUM constraint violation
+- [x] Move Client Reviews from Settings Tools tab to Business tab
+- [x] Fix Packages & Bundles back button — changed chevron.left.forwardslash.chevron.right to chevron.left
+- [x] Move Packages & Bundles to Business tab
+- [x] Promo Codes: replace Expires text input with scroll date picker (BirthdayPicker with YYYY-MM-DD ↔ MM/DD/YYYY conversion)

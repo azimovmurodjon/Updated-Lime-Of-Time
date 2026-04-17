@@ -1,11 +1,11 @@
-import { Text, View, Pressable, StyleSheet, ScrollView, Alert, Platform, Linking, Modal, TextInput, TouchableOpacity, Image } from "react-native";
+import { Text, View, Pressable, StyleSheet, ScrollView, Alert, Platform, Linking, Modal, TextInput, TouchableOpacity, Image, FlatList } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatTime, formatDateDisplay } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { FuturisticBackground } from "@/components/futuristic-background";
 
@@ -24,6 +24,8 @@ import {
   formatFullAddress,
   PUBLIC_BOOKING_URL,
   LIME_OF_TIME_FOOTER,
+  generateAvailableSlots,
+  DAYS_OF_WEEK,
 } from "@/lib/types";
 
 /** Replace {variable} placeholders in a custom template and append the Lime Of Time footer */
@@ -148,6 +150,61 @@ export default function AppointmentDetailScreen() {
   const [cancelReasonModal, setCancelReasonModal] = useState(false);
   const [selectedReason, setSelectedReason] = useState("");
   const [customReason, setCustomReason] = useState("");
+
+  // Reschedule modal state
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const today = new Date();
+  const [reschedDate, setReschedDate] = useState<string>(appointment.date);
+  const [reschedTime, setReschedTime] = useState<string | null>(null);
+  const [reschedCalMonth, setReschedCalMonth] = useState<{ year: number; month: number }>(() => {
+    const d = new Date(appointment.date + "T12:00:00");
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
+
+  const reschedSlots = useMemo(() => {
+    const loc = assignedLocation;
+    const wh = (loc?.workingHours && Object.keys(loc.workingHours).length > 0)
+      ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
+      : state.settings.workingHours;
+    // Exclude the current appointment from conflict check
+    const otherAppts = state.appointments.filter(a => a.id !== appointment.id);
+    return generateAvailableSlots(
+      reschedDate,
+      appointment.duration,
+      wh,
+      otherAppts,
+      30, // default step minutes
+      undefined,
+      state.settings.scheduleMode,
+      state.settings.bufferTime ?? 0
+    );
+  }, [reschedDate, appointment.duration, appointment.id, assignedLocation, state.settings, state.appointments]);
+
+  const handleReschedule = useCallback(() => {
+    if (!reschedTime) return;
+    const updated = { ...appointment, date: reschedDate, time: reschedTime };
+    dispatch({ type: "UPDATE_APPOINTMENT", payload: updated });
+    syncToDb({ type: "UPDATE_APPOINTMENT", payload: updated });
+    setShowRescheduleModal(false);
+    // Send reschedule SMS if client has phone
+    if (client?.phone) {
+      const svcName = service ? getServiceDisplayName(service) : "your appointment";
+      const locLine = assignedLocation?.name ? `\n📍 ${assignedLocation.name}` : "";
+      const msg = `Hi ${client.name}, your appointment for ${svcName} has been rescheduled to ${reschedDate} at ${formatTime(reschedTime)}.${locLine}\n\n— ${biz.businessName}${LIME_OF_TIME_FOOTER}`;
+      openSms(client.phone, msg);
+    }
+  }, [appointment, reschedDate, reschedTime, client, service, assignedLocation, biz, dispatch, syncToDb]);
+
+  // Calendar helpers for reschedule
+  const reschedCalDays = useMemo(() => {
+    const { year, month } = reschedCalMonth;
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells: (number | null)[] = [];
+    for (let i = 0; i < firstDay; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+    return cells;
+  }, [reschedCalMonth]);
   const DETAIL_PAYMENT_METHODS = [
     { key: 'cash' as const, label: 'Cash' },
     { key: 'zelle' as const, label: 'Zelle' },
@@ -712,6 +769,13 @@ export default function AppointmentDetailScreen() {
               <Text className="text-white font-semibold ml-2">Accept Appointment</Text>
             </Pressable>
             <Pressable
+              onPress={() => { setReschedDate(appointment.date); setReschedTime(null); setReschedCalMonth(() => { const d = new Date(appointment.date + "T12:00:00"); return { year: d.getFullYear(), month: d.getMonth() }; }); setShowRescheduleModal(true); }}
+              style={({ pressed }) => [styles.actionButton, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
+            >
+              <IconSymbol name="calendar" size={20} color="#FFFFFF" />
+              <Text className="text-white font-semibold ml-2">Reschedule</Text>
+            </Pressable>
+            <Pressable
               onPress={() => handleStatusChange("cancelled")}
               style={({ pressed }) => [styles.actionButton, { backgroundColor: colors.error, opacity: pressed ? 0.8 : 1 }]}
             >
@@ -729,6 +793,13 @@ export default function AppointmentDetailScreen() {
             >
               <IconSymbol name="checkmark" size={20} color="#FFFFFF" />
               <Text className="text-white font-semibold ml-2">Mark Complete</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => { setReschedDate(appointment.date); setReschedTime(null); setReschedCalMonth(() => { const d = new Date(appointment.date + "T12:00:00"); return { year: d.getFullYear(), month: d.getMonth() }; }); setShowRescheduleModal(true); }}
+              style={({ pressed }) => [styles.actionButton, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
+            >
+              <IconSymbol name="calendar" size={20} color="#FFFFFF" />
+              <Text className="text-white font-semibold ml-2">Reschedule</Text>
             </Pressable>
             <Pressable
               onPress={() => handleStatusChange("cancelled")}
@@ -810,6 +881,121 @@ export default function AppointmentDetailScreen() {
                 <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFF' }}>Confirm Paid</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Reschedule Modal */}
+      <Modal visible={showRescheduleModal} transparent animationType="slide">
+        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" }}>
+          <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, maxHeight: "85%" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground }}>Reschedule Appointment</Text>
+              <Pressable onPress={() => setShowRescheduleModal(false)} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
+                <IconSymbol name="xmark" size={22} color={colors.muted} />
+              </Pressable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Month navigation */}
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <Pressable
+                  onPress={() => setReschedCalMonth(m => {
+                    const d = new Date(m.year, m.month - 1, 1);
+                    return { year: d.getFullYear(), month: d.getMonth() };
+                  })}
+                  style={({ pressed }) => [{ padding: 8, opacity: pressed ? 0.6 : 1 }]}
+                >
+                  <IconSymbol name="chevron.left" size={20} color={colors.primary} />
+                </Pressable>
+                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>
+                  {new Date(reschedCalMonth.year, reschedCalMonth.month, 1).toLocaleString("default", { month: "long", year: "numeric" })}
+                </Text>
+                <Pressable
+                  onPress={() => setReschedCalMonth(m => {
+                    const d = new Date(m.year, m.month + 1, 1);
+                    return { year: d.getFullYear(), month: d.getMonth() };
+                  })}
+                  style={({ pressed }) => [{ padding: 8, opacity: pressed ? 0.6 : 1 }]}
+                >
+                  <IconSymbol name="chevron.right" size={20} color={colors.primary} />
+                </Pressable>
+              </View>
+
+              {/* Day headers */}
+              <View style={{ flexDirection: "row", marginBottom: 4 }}>
+                {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d => (
+                  <Text key={d} style={{ flex: 1, textAlign: "center", fontSize: 11, fontWeight: "600", color: colors.muted }}>{d}</Text>
+                ))}
+              </View>
+
+              {/* Calendar grid */}
+              <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                {reschedCalDays.map((day, idx) => {
+                  if (!day) return <View key={`e${idx}`} style={{ width: "14.28%", aspectRatio: 1 }} />;
+                  const dateStr = `${reschedCalMonth.year}-${String(reschedCalMonth.month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                  const isPast = new Date(dateStr + "T23:59:59") < today;
+                  const isSelected = dateStr === reschedDate;
+                  return (
+                    <Pressable
+                      key={dateStr}
+                      onPress={() => { if (!isPast) { setReschedDate(dateStr); setReschedTime(null); } }}
+                      style={({ pressed }) => [{
+                        width: "14.28%", aspectRatio: 1, alignItems: "center", justifyContent: "center",
+                        borderRadius: 100,
+                        backgroundColor: isSelected ? colors.primary : "transparent",
+                        opacity: isPast ? 0.3 : pressed ? 0.7 : 1,
+                      }]}
+                    >
+                      <Text style={{ fontSize: 14, fontWeight: isSelected ? "700" : "400", color: isSelected ? "#FFF" : colors.foreground }}>{day}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {/* Time slots */}
+              <Text style={{ fontSize: 13, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 20, marginBottom: 10 }}>Available Times</Text>
+              {reschedSlots.length === 0 ? (
+                <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center", paddingVertical: 16 }}>No available slots on this date</Text>
+              ) : (
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+                  {reschedSlots.map(slot => (
+                    <Pressable
+                      key={slot}
+                      onPress={() => setReschedTime(slot)}
+                      style={({ pressed }) => [{
+                        paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20,
+                        backgroundColor: reschedTime === slot ? colors.primary : colors.background,
+                        borderWidth: 1.5,
+                        borderColor: reschedTime === slot ? colors.primary : colors.border,
+                        opacity: pressed ? 0.7 : 1,
+                      }]}
+                    >
+                      <Text style={{ fontSize: 14, fontWeight: "600", color: reschedTime === slot ? "#FFF" : colors.foreground }}>
+                        {formatTime(slot)}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+
+              {/* Confirm button */}
+              <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
+                <TouchableOpacity
+                  onPress={() => setShowRescheduleModal(false)}
+                  style={{ flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, alignItems: "center" }}
+                >
+                  <Text style={{ fontSize: 15, fontWeight: "600", color: colors.muted }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleReschedule}
+                  disabled={!reschedTime}
+                  style={{ flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: reschedTime ? colors.primary : colors.border, alignItems: "center" }}
+                >
+                  <Text style={{ fontSize: 15, fontWeight: "700", color: reschedTime ? "#FFF" : colors.muted }}>Confirm Reschedule</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>

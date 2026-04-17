@@ -852,6 +852,7 @@ export default function OnboardingScreen() {
           }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          scrollEnabled={displayStep !== "subscription"}
         >
           {/* ─── Logo + App Name ─────────────────────────────── */}
           <Animated.View style={[styles.logoContainer, logoStyle]}>

@@ -18,6 +18,7 @@ import { useColors } from "@/hooks/use-colors";
 import { PromoCode } from "@/lib/types";
 import { generateId } from "@/lib/utils";
 import { FuturisticBackground } from "@/components/futuristic-background";
+import { BirthdayPicker } from "@/components/birthday-picker";
 
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -327,14 +328,17 @@ export default function PromoCodesScreen() {
               returnKeyType="done"
             />
 
-            <Text style={s.fieldLabel}>Expires (YYYY-MM-DD, leave blank for no expiry)</Text>
-            <TextInput
-              style={s.input}
-              value={expiresAt}
-              onChangeText={setExpiresAt}
-              placeholder="2026-12-31"
-              placeholderTextColor={colors.muted}
-              returnKeyType="done"
+            <Text style={s.fieldLabel}>Expires (leave blank for no expiry)</Text>
+            <BirthdayPicker
+              value={expiresAt
+                ? (() => { const [y, m, d] = expiresAt.split("-"); return `${m}/${d}/${y}`; })()
+                : ""}
+              onChange={(v) => {
+                if (!v) { setExpiresAt(""); return; }
+                const [m, d, y] = v.split("/");
+                if (y && m && d) setExpiresAt(`${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`);
+              }}
+              placeholder="No expiry date"
             />
 
             <View style={s.activeRow}>
