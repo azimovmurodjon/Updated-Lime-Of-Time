@@ -1,5 +1,6 @@
 import { useMemo, useEffect, useCallback, useState, useRef } from "react";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   Text,
   View,
@@ -14,7 +15,6 @@ import {
   Modal,
   Animated,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatTime, formatDateStr } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
@@ -24,6 +24,7 @@ import { minutesToTime, timeToMinutes, PUBLIC_BOOKING_URL, formatFullAddress, fo
 import { formatPhone } from "@/lib/utils";
 import { useActiveLocation } from "@/hooks/use-active-location";
 import { useResponsive } from "@/hooks/use-responsive";
+import { FuturisticBackground } from "@/components/futuristic-background";
 import * as ImagePicker from "expo-image-picker";
 import { MiniBarChart, MiniDonutChart } from "@/components/mini-chart";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -204,155 +205,7 @@ function ProgressBar({
   );
 }
 
-// ─── Futuristic Animated Background ──────────────────────────────────────────
-// Floating glow particles + aurora blobs + scan-line sweep
-const PARTICLES = Array.from({ length: 18 }, (_, i) => ({
-  id: i,
-  x: (i * 37 + 11) % 100,
-  y: (i * 53 + 7)  % 100,
-  size: 2 + (i % 3),
-  dur: 6000 + (i * 800) % 8000,
-  range: 18 + (i * 7) % 22,
-}));
-
-function AnimatedBackground({ isDark, width: screenWidth, height: screenHeight }: {
-  isDark: boolean; width: number; height: number;
-}) {
-  const blob1X = useRef(new Animated.Value(0)).current;
-  const blob1Y = useRef(new Animated.Value(0)).current;
-  const blob2X = useRef(new Animated.Value(0)).current;
-  const blob2Y = useRef(new Animated.Value(0)).current;
-  const blob3X = useRef(new Animated.Value(0)).current;
-  const blob3Y = useRef(new Animated.Value(0)).current;
-  const scanY  = useRef(new Animated.Value(-80)).current;
-  const particleAnims  = useRef(PARTICLES.map(() => new Animated.Value(0.3))).current;
-  const particleMoveX  = useRef(PARTICLES.map(() => new Animated.Value(0))).current;
-  const particleMoveY  = useRef(PARTICLES.map(() => new Animated.Value(0))).current;
-
-  useEffect(() => {
-    const drift = (val: Animated.Value, range: number, dur: number) =>
-      Animated.loop(Animated.sequence([
-        Animated.timing(val, { toValue: range,  duration: dur,       useNativeDriver: true }),
-        Animated.timing(val, { toValue: -range, duration: dur * 1.1, useNativeDriver: true }),
-      ]));
-
-    const anims = [
-      drift(blob1X, screenWidth * 0.13, 9000),
-      drift(blob1Y, screenHeight * 0.09, 11000),
-      drift(blob2X, screenWidth * 0.16, 13000),
-      drift(blob2Y, screenHeight * 0.11, 10000),
-      drift(blob3X, screenWidth * 0.1,  15000),
-      drift(blob3Y, screenHeight * 0.13, 12000),
-    ];
-
-    const scan = Animated.loop(
-      Animated.sequence([
-        Animated.timing(scanY, { toValue: screenHeight + 80, duration: 4500, useNativeDriver: true }),
-        Animated.timing(scanY, { toValue: -80,               duration: 0,    useNativeDriver: true }),
-      ])
-    );
-
-    const particleAnimList = PARTICLES.map((p, i) => {
-      const pulse = Animated.loop(Animated.sequence([
-        Animated.timing(particleAnims[i], { toValue: 0.9, duration: p.dur * 0.4, useNativeDriver: true }),
-        Animated.timing(particleAnims[i], { toValue: 0.2, duration: p.dur * 0.6, useNativeDriver: true }),
-      ]));
-      const mx = drift(particleMoveX[i], p.range, p.dur);
-      const my = drift(particleMoveY[i], p.range * 0.7, p.dur * 1.2);
-      return [pulse, mx, my];
-    }).flat();
-
-    anims.forEach(a => a.start());
-    scan.start();
-    particleAnimList.forEach(a => a.start());
-    return () => {
-      anims.forEach(a => a.stop());
-      scan.stop();
-      particleAnimList.forEach(a => a.stop());
-    };
-  }, [screenWidth, screenHeight]);
-
-  const blobSize = screenWidth * 0.85;
-  const baseBg1   = isDark ? '#0D1B2A' : '#F8FAF7';
-  const baseBg2   = isDark ? '#0a1520' : '#EEF5E8';
-  const baseBg3   = isDark ? '#0f1e2e' : '#f4f8f2';
-  const aurora1   = isDark ? 'rgba(106,175,128,0.13)' : 'rgba(74,124,89,0.12)';
-  const aurora2   = isDark ? 'rgba(36,53,71,0.7)'     : 'rgba(143,191,106,0.14)';
-  const aurora3   = isDark ? 'rgba(22,32,48,0.8)'     : 'rgba(238,245,232,0.6)';
-  const scanColor = isDark ? 'rgba(106,175,128,0.04)' : 'rgba(74,124,89,0.04)';
-  const dotColor  = isDark ? 'rgba(106,175,128,0.65)' : 'rgba(74,124,89,0.45)';
-
-  return (
-    <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
-      <LinearGradient
-        colors={[baseBg1, baseBg2, baseBg3, baseBg1]}
-        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-      />
-      <Animated.View style={[styles.orb, {
-        width: blobSize, height: blobSize, borderRadius: blobSize / 2,
-        backgroundColor: aurora1,
-        top: -blobSize * 0.35, left: -blobSize * 0.3,
-        transform: [{ translateX: blob1X }, { translateY: blob1Y }],
-        shadowColor: isDark ? '#6AAF80' : '#4A7C59',
-        shadowOpacity: isDark ? 0.25 : 0.1,
-        shadowRadius: 60,
-        shadowOffset: { width: 0, height: 0 },
-      }]} />
-      <Animated.View style={[styles.orb, {
-        width: blobSize * 0.9, height: blobSize * 0.9, borderRadius: (blobSize * 0.9) / 2,
-        backgroundColor: aurora2,
-        bottom: -blobSize * 0.25, right: -blobSize * 0.25,
-        transform: [{ translateX: blob2X }, { translateY: blob2Y }],
-        shadowColor: isDark ? '#4A7C59' : '#8FBF6A',
-        shadowOpacity: isDark ? 0.2 : 0.08,
-        shadowRadius: 50,
-        shadowOffset: { width: 0, height: 0 },
-      }]} />
-      <Animated.View style={[styles.orb, {
-        width: blobSize * 0.55, height: blobSize * 0.55, borderRadius: (blobSize * 0.55) / 2,
-        backgroundColor: aurora3,
-        top: screenHeight * 0.38, left: screenWidth * 0.2,
-        transform: [{ translateX: blob3X }, { translateY: blob3Y }],
-      }]} />
-      {PARTICLES.map((p, i) => (
-        <Animated.View
-          key={p.id}
-          style={[
-            styles.particle,
-            {
-              width: p.size,
-              height: p.size,
-              borderRadius: p.size / 2,
-              backgroundColor: dotColor,
-              left: (p.x / 100) * screenWidth,
-              top:  (p.y / 100) * screenHeight,
-              opacity: particleAnims[i],
-              transform: [{ translateX: particleMoveX[i] }, { translateY: particleMoveY[i] }],
-              shadowColor: dotColor,
-              shadowOpacity: 0.8,
-              shadowRadius: p.size * 2,
-              shadowOffset: { width: 0, height: 0 },
-            },
-          ]}
-        />
-      ))}
-      <Animated.View
-        style={[
-          styles.scanLine,
-          {
-            width: screenWidth,
-            backgroundColor: scanColor,
-            transform: [{ translateY: scanY }],
-          },
-        ]}
-      />
-    </View>
-  );
-}
-
 // ─── Main Screen ─────────────────────────────────────────────────────
-
 export default function HomeScreen() {
   const { state, dispatch, getServiceById, getClientById, getAppointmentsForDate, syncToDb, filterAppointmentsByLocation, clientsForActiveLocation } =
     useStore();
@@ -603,6 +456,12 @@ export default function HomeScreen() {
     const activeAppts = filteredAppts.filter((a) => a.status !== "cancelled");
     const totalAppointments = activeAppts.length;
     const completedAppts = filteredAppts.filter((a) => a.status === "completed");
+    const todayCompletedAppts = completedAppts.filter((a) => a.date === todayStr);
+    const todayRevenue = todayCompletedAppts.reduce((sum, a) => {
+      if (a.totalPrice != null) return sum + a.totalPrice;
+      const svc = state.services.find((s) => s.id === a.serviceId);
+      return sum + (svc?.price ?? 0);
+    }, 0);
     const totalRevenue = completedAppts.reduce((sum, a) => {
       if (a.totalPrice != null) return sum + a.totalPrice;
       const svc = state.services.find((s) => s.id === a.serviceId);
@@ -805,8 +664,9 @@ export default function HomeScreen() {
       weekPending,
       upcomingDailyData,
       yearlyRevenue,
+      todayRevenue,
     };
-  }, [state.clients, state.appointments, state.services, filterByLocation, clientsForActiveLocation]);
+  }, [state.clients, state.appointments, state.services, filterByLocation, clientsForActiveLocation, todayStr]);
 
   // ─── Upcoming Appointments (next 10, future dates + today future times) ──────
   const tomorrowStr = useMemo(() => {
@@ -1030,7 +890,7 @@ export default function HomeScreen() {
   return (
     <ScreenContainer tabletMaxWidth={0}>
       {/* ─── Animated gradient orbs background ──────────────────────── */}
-      <AnimatedBackground isDark={isDark} width={width} height={height} />
+      <FuturisticBackground />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
@@ -1076,7 +936,25 @@ export default function HomeScreen() {
               </View>
             )}
           </View>
-          <Text style={[styles.dateLabel, { color: colors.muted }]}>{dateLabel}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 2 }}>
+            <Text style={[styles.dateLabel, { color: colors.muted }]}>{dateLabel}</Text>
+            {analytics.todayRevenue > 0 && (
+              <View style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: colors.success + "20",
+                borderRadius: 12,
+                paddingHorizontal: 8,
+                paddingVertical: 3,
+                borderWidth: 1,
+                borderColor: colors.success + "40",
+              }}>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.success }}>
+                  ${analytics.todayRevenue.toFixed(0)} today
+                </Text>
+              </View>
+            )}
+          </View>
         </LinearGradient>
 
         {/* Location Filter */}
@@ -2834,16 +2712,5 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     marginTop: 4,
-  },
-  orb: {
-    position: "absolute",
-  },
-  particle: {
-    position: "absolute",
-  },
-  scanLine: {
-    position: "absolute",
-    height: 2,
-    left: 0,
   },
 });

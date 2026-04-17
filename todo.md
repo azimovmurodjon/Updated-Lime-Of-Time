@@ -1250,3 +1250,9 @@
 - [x] Booking page: "No available times" friendly message with next available day suggestion
 - [x] Settings → Business: social links (Instagram, Facebook, TikTok handle fields)
 - [x] Public booking page footer: social link icons (tap-to-open)
+
+## Features (Apr 17 batch 30)
+- [x] Apply futuristic animated background to Calendar, Clients, Settings screens
+- [x] Home screen: Today's Revenue chip in header (shows completed revenue for today)
+- [x] Settings: move Theme Mode from Alerts tab to Account tab
+- [x] Settings: add icon to Tools tab (wrench.fill → build)

@@ -111,6 +111,8 @@ const MAPPING = {
   "sparkles": "auto-awesome",
   "chart.line.uptrend.xyaxis": "show-chart",
   "person.badge.clock.fill": "pending-actions",
+  "wrench.fill": "build",
+  "wrench.and.screwdriver.fill": "build",
 } as unknown as IconMapping;
 
 export function IconSymbol({

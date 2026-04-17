@@ -1,6 +1,7 @@
 import { FlatList, Text, View, Pressable, StyleSheet, TextInput, Alert, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
+import { FuturisticBackground } from "@/components/futuristic-background";
 import { useStore, generateId } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -175,6 +176,7 @@ export default function ClientsScreen() {
 
   return (
     <ScreenContainer tabletMaxWidth={0}>
+      <FuturisticBackground />
       <View style={{ flex: 1, alignSelf: "center", width: "100%", maxWidth: maxContentWidth }}>
       <View style={{ paddingHorizontal: hp }}>
         <View style={styles.header}>

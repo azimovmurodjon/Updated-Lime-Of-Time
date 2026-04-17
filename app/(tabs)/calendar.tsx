@@ -12,6 +12,7 @@ import {
   Modal,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
+import { FuturisticBackground } from "@/components/futuristic-background";
 import { useStore, formatTime, formatDateStr, formatDateDisplay } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -1555,6 +1556,7 @@ export default function CalendarScreen() {
 
   return (
     <ScreenContainer tabletMaxWidth={0}>
+      <FuturisticBackground />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100, alignSelf: "center", width: "100%", maxWidth: maxContentWidth }}>
         {/* Header */}
         <View style={{ paddingHorizontal: hp, paddingTop: 4 }}>

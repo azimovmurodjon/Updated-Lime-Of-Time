@@ -13,6 +13,7 @@ import {
   Platform,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
+import { FuturisticBackground } from "@/components/futuristic-background";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -441,36 +442,6 @@ export default function SettingsScreen() {
         </View>
       )}
 
-      {/* Appearance */}
-      <Text style={[styles.sectionLabel, { marginTop: 8 }]}>Appearance</Text>
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Text style={[styles.cardLabel, { color: colors.muted }]}>Theme Mode</Text>
-        <View style={styles.themeRow}>
-          {themeOptions.map((opt) => {
-            const isActive = settings.themeMode === opt.key;
-            return (
-              <Pressable
-                key={opt.key}
-                onPress={() => setThemeMode(opt.key)}
-                style={({ pressed }) => [
-                  styles.themeOption,
-                  {
-                    flex: 1,
-                    backgroundColor: isActive ? colors.primary + "15" : colors.background,
-                    borderColor: isActive ? colors.primary : colors.border,
-                    opacity: pressed ? 0.8 : 1,
-                  },
-                ]}
-              >
-                <IconSymbol name={opt.icon as any} size={22} color={isActive ? colors.primary : colors.muted} />
-                <Text style={{ fontSize: 12, fontWeight: "600", color: isActive ? colors.primary : colors.muted, marginTop: 6 }}>
-                  {opt.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
     </>
   );
 
@@ -504,6 +475,37 @@ export default function SettingsScreen() {
         </View>
         <IconSymbol name="chevron.right" size={16} color={colors.muted} />
       </Pressable>
+      {/* Appearance */}
+      <Text style={[styles.sectionLabel, { marginTop: 8 }]}>Appearance</Text>
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[styles.cardLabel, { color: colors.muted }]}>Theme Mode</Text>
+        <View style={styles.themeRow}>
+          {themeOptions.map((opt) => {
+            const isActive = settings.themeMode === opt.key;
+            return (
+              <Pressable
+                key={opt.key}
+                onPress={() => setThemeMode(opt.key)}
+                style={({ pressed }) => [
+                  styles.themeOption,
+                  {
+                    flex: 1,
+                    backgroundColor: isActive ? colors.primary + "15" : colors.background,
+                    borderColor: isActive ? colors.primary : colors.border,
+                    opacity: pressed ? 0.8 : 1,
+                  },
+                ]}
+              >
+                <IconSymbol name={opt.icon as any} size={22} color={isActive ? colors.primary : colors.muted} />
+                <Text style={{ fontSize: 12, fontWeight: "600", color: isActive ? colors.primary : colors.muted, marginTop: 6 }}>
+                  {opt.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
       {/* Log Out */}
       <Pressable
         onPress={handleLogout}
@@ -539,6 +541,7 @@ export default function SettingsScreen() {
 
   return (
     <ScreenContainer tabletMaxWidth={0}>
+      <FuturisticBackground />
       {/* ── Header ── */}
       <View style={[styles.headerRow, { paddingHorizontal: hp, paddingTop: 8 }]}>
         <Text style={{ fontSize: 24, fontWeight: "700", color: colors.foreground }}>Settings</Text>
