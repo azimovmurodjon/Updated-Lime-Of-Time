@@ -852,7 +852,7 @@ export default function OnboardingScreen() {
           }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          scrollEnabled={displayStep !== "subscription"}
+          scrollEnabled={true}
         >
           {/* ─── Logo + App Name ─────────────────────────────── */}
           <Animated.View style={[styles.logoContainer, logoStyle]}>
@@ -1344,7 +1344,7 @@ export default function OnboardingScreen() {
                   <Text style={[styles.stepSubtitle, { textAlign: "center" }]}>Start free, upgrade anytime</Text>
                 </Animated.View>
 
-                <Animated.View style={[inputStyle, { marginHorizontal: -hp }]}>
+                <Animated.View style={[inputStyle]}>
                   <PlanCarousel
                     plans={(publicPlans ?? []) as any}
                     isLoading={plansLoading}
@@ -1352,7 +1352,6 @@ export default function OnboardingScreen() {
                     onToggleBilling={setSubIsYearly}
                     onSelectPlan={(planKey, period) => handleSelectPlan(planKey, period)}
                     loadingPlanKey={subLoading ? subSelectedPlan : null}
-                    containerWidth={width}
                   />
                 </Animated.View>
 

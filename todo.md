@@ -1303,3 +1303,9 @@
 - [x] Fix Packages & Bundles back button — changed chevron.left.forwardslash.chevron.right to chevron.left
 - [x] Move Packages & Bundles to Business tab
 - [x] Promo Codes: replace Expires text input with scroll date picker (BirthdayPicker with YYYY-MM-DD ↔ MM/DD/YYYY conversion)
+
+## Features (Apr 17 batch 39)
+- [x] Redesign onboarding subscription step: vertical scroll, compact cards without white background, modern icons, fix header alignment — full PlanCarousel rewrite with accent strip, emoji icons, 4-col feature grid, transparent cards
+- [x] Wire "Skip for now" button on onboarding subscription step (already existed, confirmed wired)
+- [x] Add Reschedule request option on public booking confirmation page (client-side) — already fully implemented in publicRoutes.ts
+- [x] Add promo code usage display on promo code cards — already implemented with usedCount/maxUses + progress bar

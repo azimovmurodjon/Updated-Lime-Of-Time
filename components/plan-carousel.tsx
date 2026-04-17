@@ -1,37 +1,26 @@
 /**
  * PlanCarousel
  * ─────────────────────────────────────────────────────────────────────────────
- * Horizontal swipeable carousel — one plan per card.
+ * Vertical scrollable list of plan cards — modern, compact, no white box.
  *
- * Layout:
- *  - Cards are 82% of screen width so prev/next card peeks in
- *  - Gap between cards so they are visually separated
- *  - Snap-to-center: each swipe stops exactly on the next card
- *  - Pre-selects Growth plan (index 1) on mount
- *  - Billing toggle sits above the carousel
+ * Design:
+ *  - Full-width cards with gradient accent strip on left + header
+ *  - No white background box — transparent card with subtle border
+ *  - Compact feature grid (2 columns)
+ *  - Billing toggle at top
+ *  - Compare all plans modal preserved
  */
-import React, { useRef, useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
-  FlatList,
   Pressable,
   ActivityIndicator,
   StyleSheet,
-  useWindowDimensions,
-  NativeSyntheticEvent,
-  NativeScrollEvent,
-  Modal,
   ScrollView,
   SafeAreaView,
+  Modal,
 } from "react-native";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  interpolate,
-  Extrapolation,
-} from "react-native-reanimated";
-import type { SharedValue } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
@@ -62,22 +51,23 @@ type PlanCarouselProps = {
   onSelectPlan: (planKey: string, period: "monthly" | "yearly") => void;
   loadingPlanKey?: string | null;
   currentPlanKey?: string | null;
+  containerWidth?: number;
 };
 
 // ─── Plan Config ──────────────────────────────────────────────────────────────
 
 const PLAN_GRADIENTS: Record<string, [string, string, string]> = {
-  solo:       ["#4B5563", "#374151", "#1F2937"],
+  solo:       ["#6B7280", "#4B5563", "#374151"],
   growth:     ["#2563EB", "#1D4ED8", "#1E40AF"],
   studio:     ["#7C3AED", "#6D28D9", "#5B21B6"],
   enterprise: ["#D97706", "#B45309", "#92400E"],
 };
 
-const PLAN_ICONS: Record<string, "person.fill" | "person.2.fill" | "person.3.fill" | "building.2.fill"> = {
-  solo:       "person.fill",
-  growth:     "person.2.fill",
-  studio:     "person.3.fill",
-  enterprise: "building.2.fill",
+const PLAN_EMOJIS: Record<string, string> = {
+  solo:       "🌱",
+  growth:     "🚀",
+  studio:     "💎",
+  enterprise: "🏢",
 };
 
 const PLAN_TAGLINES: Record<string, string> = {
@@ -89,51 +79,27 @@ const PLAN_TAGLINES: Record<string, string> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const fmt = (n: number) => (n === -1 || n >= 9999 ? "Unlimited" : String(n));
+const fmt = (n: number) => (n === -1 || n >= 9999 ? "∞" : String(n));
 const isIncluded = (n: number) => n !== 0;
-
-// ─── Pagination Dot ───────────────────────────────────────────────────────────
-
-function PaginationDot({
-  index,
-  scrollX,
-  itemWidth,
-  color,
-}: {
-  index: number;
-  scrollX: SharedValue<number>;
-  itemWidth: number;
-  color: string;
-}) {
-  const animStyle = useAnimatedStyle(() => {
-    const inputRange = [(index - 1) * itemWidth, index * itemWidth, (index + 1) * itemWidth];
-    const width = interpolate(scrollX.value, inputRange, [6, 20, 6], Extrapolation.CLAMP);
-    const opacity = interpolate(scrollX.value, inputRange, [0.3, 1, 0.3], Extrapolation.CLAMP);
-    return { width, opacity };
-  });
-  return <Animated.View style={[styles.dot, { backgroundColor: color }, animStyle]} />;
-}
 
 // ─── Plan Card ────────────────────────────────────────────────────────────────
 
 function PlanCard({
   plan,
   isYearly,
-  cardWidth,
   onSelect,
   isLoading,
   isCurrentPlan,
 }: {
   plan: PlanData;
   isYearly: boolean;
-  cardWidth: number;
   onSelect: () => void;
   isLoading: boolean;
   isCurrentPlan: boolean;
 }) {
   const colors = useColors();
   const gradients = (PLAN_GRADIENTS[plan.planKey] ?? PLAN_GRADIENTS.solo) as [string, string, string];
-  const icon = PLAN_ICONS[plan.planKey] ?? "person.fill";
+  const emoji = PLAN_EMOJIS[plan.planKey] ?? "✨";
   const tagline = PLAN_TAGLINES[plan.planKey] ?? "";
   const isPopular = plan.planKey === "growth";
   const isFree = plan.monthlyPrice === 0;
@@ -144,160 +110,110 @@ function PlanCard({
       : 0;
   const accent = gradients[0];
 
-  const features: { label: string; value: string; included: boolean }[] = [
-    { label: "Clients",         value: fmt(plan.maxClients),      included: isIncluded(plan.maxClients) },
-    { label: "Services",        value: fmt(plan.maxServices),     included: isIncluded(plan.maxServices) },
-    { label: "Staff members",   value: fmt(plan.maxStaff),        included: isIncluded(plan.maxStaff) },
-    { label: "Locations",       value: fmt(plan.maxLocations),    included: isIncluded(plan.maxLocations) },
-    { label: "Products",        value: fmt(plan.maxProducts),     included: isIncluded(plan.maxProducts) },
+  const featureGrid: { label: string; value: string; included: boolean }[] = [
+    { label: "Clients",      value: fmt(plan.maxClients),      included: isIncluded(plan.maxClients) },
+    { label: "Services",     value: fmt(plan.maxServices),     included: isIncluded(plan.maxServices) },
+    { label: "Staff",        value: fmt(plan.maxStaff),        included: isIncluded(plan.maxStaff) },
+    { label: "Locations",    value: fmt(plan.maxLocations),    included: isIncluded(plan.maxLocations) },
+    { label: "Products",     value: fmt(plan.maxProducts),     included: isIncluded(plan.maxProducts) },
     {
-      label: "SMS automation",
-      value:
-        plan.smsLevel === "full"
-          ? "Full"
-          : plan.smsLevel === "confirmations"
-          ? "Confirmations"
-          : "None",
+      label: "SMS",
+      value: plan.smsLevel === "full" ? "Full" : plan.smsLevel === "confirmations" ? "Confirm" : "None",
       included: plan.smsLevel !== "none" && plan.smsLevel !== "",
     },
-    { label: "Appointments",    value: fmt(plan.maxAppointments), included: isIncluded(plan.maxAppointments) },
+    { label: "Appts",        value: fmt(plan.maxAppointments), included: isIncluded(plan.maxAppointments) },
     {
-      label: "Online payments",
-      value:
-        plan.paymentLevel === "full"
-          ? "Full"
-          : plan.paymentLevel === "basic"
-          ? "Basic"
-          : "None",
+      label: "Payments",
+      value: plan.paymentLevel === "full" ? "Full" : plan.paymentLevel === "basic" ? "Basic" : "None",
       included: plan.paymentLevel !== "none" && plan.paymentLevel !== "",
     },
   ];
 
   return (
-    // cardWidth is the visual card width; the outer View matches it exactly
-    <View style={{ width: cardWidth }}>
-      <View style={[styles.card, { backgroundColor: colors.surface }]}>
+    <View style={[styles.card, { borderColor: accent + "44" }]}>
+      {/* ── Gradient accent strip on left ── */}
+      <LinearGradient
+        colors={gradients}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={styles.accentStrip}
+      />
 
-        {/* ── Gradient Header ── */}
-        <LinearGradient
-          colors={gradients}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.header}
-        >
-          {/* Badge row */}
-          <View style={styles.badgeRow}>
-            {isPopular && (
-              <View style={styles.badge}>
-                <IconSymbol name="star.fill" size={9} color="#FCD34D" />
-                <Text style={styles.badgeText}>MOST POPULAR</Text>
-              </View>
-            )}
-            {isCurrentPlan && (
-              <View style={[styles.badge, { backgroundColor: "rgba(255,255,255,0.22)" }]}>
-                <IconSymbol name="checkmark.circle.fill" size={9} color="#fff" />
-                <Text style={[styles.badgeText, { color: "#fff" }]}>CURRENT</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Icon */}
-          <View style={styles.iconWrap}>
-            <IconSymbol name={icon} size={26} color="#fff" />
-          </View>
-
-          {/* Name + tagline */}
-          <Text style={styles.planName}>{plan.displayName}</Text>
-          <Text style={styles.planTagline}>{tagline}</Text>
-
-          {/* Price */}
-          <View style={styles.priceRow}>
-            {isFree ? (
-              <Text style={styles.priceMain}>Free</Text>
-            ) : (
-              <>
-                <Text style={styles.priceCurrency}>$</Text>
-                <Text style={styles.priceMain}>{price}</Text>
-                <Text style={styles.pricePer}>/mo</Text>
-              </>
-            )}
-          </View>
-
-          {/* Sub-label */}
-          {isFree ? (
-            <Text style={styles.priceNote}>Free forever · No card needed</Text>
-          ) : isYearly && savings > 0 ? (
-            <View style={styles.savingsBadge}>
-              <Text style={styles.savingsText}>
-                Save {savings}% · ${plan.yearlyPrice}/yr
-              </Text>
+      {/* ── Card content ── */}
+      <View style={styles.cardContent}>
+        {/* Header row: emoji + name/tagline + price */}
+        <View style={styles.headerRow}>
+          {/* Left: emoji + name */}
+          <View style={styles.headerLeft}>
+            <View style={styles.headerTopRow}>
+              <Text style={styles.planEmoji}>{emoji}</Text>
+              <Text style={[styles.planName, { color: accent }]}>{plan.displayName}</Text>
+              {isPopular && (
+                <View style={[styles.badge, { backgroundColor: accent + "22", borderColor: accent + "44" }]}>
+                  <Text style={[styles.badgeText, { color: accent }]}>TOP</Text>
+                </View>
+              )}
+              {isCurrentPlan && (
+                <View style={[styles.badge, { backgroundColor: "#22C55E22", borderColor: "#22C55E44" }]}>
+                  <Text style={[styles.badgeText, { color: "#22C55E" }]}>✓ ACTIVE</Text>
+                </View>
+              )}
             </View>
-          ) : (
-            <Text style={styles.priceNote}>billed monthly</Text>
-          )}
-        </LinearGradient>
+            <Text style={[styles.planTagline, { color: colors.muted }]}>{tagline}</Text>
+          </View>
 
-        {/* ── Feature Rows ── */}
-        <View style={styles.featureList}>
-          {features.map((f) => (
-            <View key={f.label} style={styles.featureRow}>
-              {/* Check/X icon */}
-              <View
-                style={[
-                  styles.featureIconWrap,
-                  { backgroundColor: f.included ? accent + "1A" : colors.border + "44" },
-                ]}
-              >
-                <IconSymbol
-                  name={f.included ? "checkmark.circle.fill" : "xmark.circle.fill"}
-                  size={14}
-                  color={f.included ? accent : colors.muted}
-                />
+          {/* Right: price */}
+          <View style={styles.priceBlock}>
+            {isFree ? (
+              <Text style={[styles.priceMain, { color: accent }]}>Free</Text>
+            ) : (
+              <View style={styles.priceRow}>
+                <Text style={[styles.priceCurrency, { color: accent }]}>$</Text>
+                <Text style={[styles.priceMain, { color: accent }]}>{price}</Text>
               </View>
-              {/* Label — left side, takes remaining space */}
-              <Text
-                style={[styles.featureLabel, { color: colors.foreground }]}
-                numberOfLines={1}
-              >
-                {f.label}
-              </Text>
-              {/* Value — right side, fixed width */}
-              <Text
-                style={[styles.featureValue, { color: f.included ? accent : colors.muted }]}
-                numberOfLines={1}
-              >
+            )}
+            {isFree ? (
+              <Text style={[styles.priceNote, { color: colors.muted }]}>forever</Text>
+            ) : isYearly && savings > 0 ? (
+              <Text style={[styles.priceNote, { color: "#22C55E" }]}>−{savings}%/yr</Text>
+            ) : (
+              <Text style={[styles.priceNote, { color: colors.muted }]}>/mo</Text>
+            )}
+          </View>
+        </View>
+
+        {/* Divider */}
+        <View style={[styles.divider, { backgroundColor: accent + "22" }]} />
+
+        {/* Feature grid (2 columns) */}
+        <View style={styles.featureGrid}>
+          {featureGrid.map((f) => (
+            <View key={f.label} style={styles.featureCell}>
+              <Text style={[styles.featureCellValue, { color: f.included ? accent : colors.muted }]}>
                 {f.value}
               </Text>
+              <Text style={[styles.featureCellLabel, { color: colors.muted }]}>{f.label}</Text>
             </View>
           ))}
         </View>
 
-        {/* ── CTA ── */}
+        {/* CTA */}
         <Pressable
           onPress={onSelect}
           disabled={isLoading || isCurrentPlan}
           style={({ pressed }) => [
             styles.cta,
             {
-              backgroundColor: isCurrentPlan
-                ? colors.border
-                : isFree
-                ? "#E5E7EB"
-                : accent,
+              backgroundColor: isCurrentPlan ? colors.border : accent,
               opacity: pressed || isLoading ? 0.8 : 1,
               transform: [{ scale: pressed ? 0.98 : 1 }],
             },
           ]}
         >
           {isLoading ? (
-            <ActivityIndicator color={isFree ? "#374151" : "#fff"} size="small" />
+            <ActivityIndicator color="#fff" size="small" />
           ) : (
-            <Text
-              style={[
-                styles.ctaText,
-                { color: isCurrentPlan ? colors.muted : isFree ? "#374151" : "#fff" },
-              ]}
-            >
+            <Text style={[styles.ctaText, { color: isCurrentPlan ? colors.muted : "#fff" }]}>
               {isCurrentPlan ? "Current Plan" : isFree ? "Start Free" : "Select Plan"}
             </Text>
           )}
@@ -317,81 +233,9 @@ export function PlanCarousel({
   onSelectPlan,
   loadingPlanKey,
   currentPlanKey,
-  containerWidth,
-}: PlanCarouselProps & { containerWidth?: number }) {
+}: PlanCarouselProps) {
   const colors = useColors();
-  const { width: screenWidth } = useWindowDimensions();
   const [showCompare, setShowCompare] = useState(false);
-
-  // Use provided containerWidth (accounts for parent padding) or fall back to screenWidth
-  const availableWidth = containerWidth ?? screenWidth;
-  // Card is 82% of available width — prev/next card peeks in clearly on both sides
-  const CARD_WIDTH = Math.round(availableWidth * 0.82);
-  // Gap between cards (visual separation)
-  const CARD_GAP = 14;
-  // Each list item = card + gap
-  const ITEM_STRIDE = CARD_WIDTH + CARD_GAP;
-  // Inset so the active card is perfectly centered
-  const SIDE_INSET = Math.round((availableWidth - CARD_WIDTH) / 2);
-
-  const scrollX = useSharedValue(0);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const flatListRef = useRef<FlatList>(null);
-
-  // Pre-select Growth plan (index 1) after layout settles
-  useEffect(() => {
-    if (!plans || plans.length < 2) return;
-    const growthIdx = plans.findIndex((p) => p.planKey === "growth");
-    const targetIdx = growthIdx >= 0 ? growthIdx : 1;
-    const timer = setTimeout(() => {
-      flatListRef.current?.scrollToOffset({
-        offset: targetIdx * ITEM_STRIDE,
-        animated: false,
-      });
-      setActiveIndex(targetIdx);
-      scrollX.value = targetIdx * ITEM_STRIDE;
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [plans.length]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleScroll = useCallback(
-    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const rawX = e.nativeEvent.contentOffset.x;
-      scrollX.value = rawX;
-      const idx = Math.round(rawX / ITEM_STRIDE);
-      setActiveIndex(Math.max(0, Math.min(idx, plans.length - 1)));
-    },
-    [ITEM_STRIDE, plans.length, scrollX]
-  );
-
-  // Snap to nearest card after any scroll gesture ends
-  const snapToNearest = useCallback(
-    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const rawX = e.nativeEvent.contentOffset.x;
-      const idx = Math.round(rawX / ITEM_STRIDE);
-      const clamped = Math.max(0, Math.min(idx, plans.length - 1));
-      const targetOffset = clamped * ITEM_STRIDE;
-      flatListRef.current?.scrollToOffset({ offset: targetOffset, animated: true });
-      setActiveIndex(clamped);
-      scrollX.value = targetOffset;
-    },
-    [ITEM_STRIDE, plans.length, scrollX]
-  );
-
-  const goTo = useCallback(
-    (idx: number) => {
-      const targetOffset = idx * ITEM_STRIDE;
-      flatListRef.current?.scrollToOffset({ offset: targetOffset, animated: true });
-      setActiveIndex(idx);
-      scrollX.value = targetOffset;
-    },
-    [ITEM_STRIDE, scrollX]
-  );
-
-  const activePlan = plans[activeIndex];
-  const activeColor = activePlan
-    ? (PLAN_GRADIENTS[activePlan.planKey]?.[0] ?? "#2563EB")
-    : "#2563EB";
 
   if (isLoading) {
     return (
@@ -412,7 +256,6 @@ export function PlanCarousel({
 
   return (
     <View style={styles.container}>
-
       {/* ── Billing Toggle ── */}
       <View
         style={[
@@ -422,7 +265,7 @@ export function PlanCarousel({
       >
         <Pressable
           onPress={() => onToggleBilling(false)}
-          style={[styles.toggleBtn, !isYearly && { backgroundColor: activeColor }]}
+          style={[styles.toggleBtn, !isYearly && { backgroundColor: "#2563EB" }]}
         >
           <Text style={[styles.toggleText, { color: isYearly ? colors.muted : "#fff" }]}>
             Monthly
@@ -430,7 +273,7 @@ export function PlanCarousel({
         </Pressable>
         <Pressable
           onPress={() => onToggleBilling(true)}
-          style={[styles.toggleBtn, isYearly && { backgroundColor: activeColor }]}
+          style={[styles.toggleBtn, isYearly && { backgroundColor: "#2563EB" }]}
         >
           <Text style={[styles.toggleText, { color: !isYearly ? colors.muted : "#fff" }]}>
             Yearly
@@ -441,106 +284,24 @@ export function PlanCarousel({
         </Pressable>
       </View>
 
-      {/* ── Carousel with arrow navigation ── */}
-      <View style={{ flexDirection: "row", alignItems: "center" }}>
-        {/* Left arrow */}
-        <Pressable
-          onPress={() => activeIndex > 0 && goTo(activeIndex - 1)}
-          disabled={activeIndex === 0}
-          style={({ pressed }) => ({
-            width: 36,
-            height: 36,
-            borderRadius: 18,
-            backgroundColor: activeIndex === 0 ? colors.border + "44" : activeColor + "22",
-            alignItems: "center",
-            justifyContent: "center",
-            marginRight: 4,
-            flexShrink: 0,
-            opacity: pressed ? 0.6 : activeIndex === 0 ? 0.3 : 1,
-          })}
-        >
-          <IconSymbol name="chevron.left" size={18} color={activeIndex === 0 ? colors.muted : activeColor} />
-        </Pressable>
-
-        <FlatList
-          ref={flatListRef}
-          data={plans}
-          keyExtractor={(item) => item.planKey}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={{ flex: 1 }}
-          snapToInterval={ITEM_STRIDE}
-          snapToAlignment="start"
-          decelerationRate="fast"
-          disableIntervalMomentum
-          contentContainerStyle={{ paddingHorizontal: SIDE_INSET }}
-          onScroll={handleScroll}
-          scrollEventThrottle={16}
-          onScrollEndDrag={snapToNearest}
-          onMomentumScrollEnd={snapToNearest}
-          getItemLayout={(_, index) => ({
-            length: ITEM_STRIDE,
-            offset: ITEM_STRIDE * index,
-            index,
-          })}
-          renderItem={({ item, index }) => (
-            <View style={{ marginRight: index < plans.length - 1 ? CARD_GAP : 0 }}>
-              <PlanCard
-                plan={item}
-                isYearly={isYearly}
-                cardWidth={CARD_WIDTH}
-                onSelect={() => onSelectPlan(item.planKey, isYearly ? "yearly" : "monthly")}
-                isLoading={loadingPlanKey === item.planKey}
-                isCurrentPlan={currentPlanKey === item.planKey}
-              />
-            </View>
-          )}
+      {/* ── Vertical plan list ── */}
+      {plans.map((plan) => (
+        <PlanCard
+          key={plan.planKey}
+          plan={plan}
+          isYearly={isYearly}
+          onSelect={() => onSelectPlan(plan.planKey, isYearly ? "yearly" : "monthly")}
+          isLoading={loadingPlanKey === plan.planKey}
+          isCurrentPlan={currentPlanKey === plan.planKey}
         />
-
-        {/* Right arrow */}
-        <Pressable
-          onPress={() => activeIndex < plans.length - 1 && goTo(activeIndex + 1)}
-          disabled={activeIndex === plans.length - 1}
-          style={({ pressed }) => ({
-            width: 36,
-            height: 36,
-            borderRadius: 18,
-            backgroundColor: activeIndex === plans.length - 1 ? colors.border + "44" : activeColor + "22",
-            alignItems: "center",
-            justifyContent: "center",
-            marginLeft: 4,
-            flexShrink: 0,
-            opacity: pressed ? 0.6 : activeIndex === plans.length - 1 ? 0.3 : 1,
-          })}
-        >
-          <IconSymbol name="chevron.right" size={18} color={activeIndex === plans.length - 1 ? colors.muted : activeColor} />
-        </Pressable>
-      </View>
-
-      {/* ── Pagination Dots ── */}
-      <View style={styles.pagination}>
-        {plans.map((_, i) => (
-          <Pressable key={i} onPress={() => goTo(i)} hitSlop={10}>
-            <PaginationDot
-              index={i}
-              scrollX={scrollX}
-              itemWidth={ITEM_STRIDE}
-              color={activeColor}
-            />
-          </Pressable>
-        ))}
-      </View>
-
-      <Text style={[styles.hint, { color: colors.muted }]}>
-        {activeIndex + 1} of {plans.length} · swipe to compare
-      </Text>
+      ))}
 
       {/* Compare all plans link */}
       <Pressable
         onPress={() => setShowCompare(true)}
         style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, alignSelf: "center", marginTop: 4, marginBottom: 8, padding: 6 })}
       >
-        <Text style={{ fontSize: 13, color: activeColor, fontWeight: "600", textDecorationLine: "underline" }}>
+        <Text style={{ fontSize: 13, color: "#2563EB", fontWeight: "600", textDecorationLine: "underline" }}>
           Compare all plans
         </Text>
       </Pressable>
@@ -553,14 +314,13 @@ export function PlanCarousel({
         onRequestClose={() => setShowCompare(false)}
       >
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-          {/* Modal header */}
           <View style={[styles.compareHeader, { borderBottomColor: colors.border }]}>
             <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground }}>Compare Plans</Text>
             <Pressable
               onPress={() => setShowCompare(false)}
               style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, padding: 6 })}
             >
-              <Text style={{ fontSize: 15, fontWeight: "600", color: colors.primary }}>Done</Text>
+              <Text style={{ fontSize: 15, fontWeight: "600", color: "#2563EB" }}>Done</Text>
             </Pressable>
           </View>
 
@@ -570,9 +330,7 @@ export function PlanCarousel({
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
           >
             <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Plan header row */}
               <View style={{ flexDirection: "row" }}>
-                {/* Feature label column header */}
                 <View style={[styles.compareCell, styles.compareLabelCol, { backgroundColor: colors.background }]}>
                   <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted }}>FEATURE</Text>
                 </View>
@@ -587,7 +345,6 @@ export function PlanCarousel({
                 ))}
               </View>
 
-              {/* Feature rows */}
               {COMPARE_FEATURE_ROWS.map((row, ri) => (
                 <View key={row} style={{ flexDirection: "row", backgroundColor: ri % 2 === 0 ? colors.surface : colors.background }}>
                   <View style={[styles.compareCell, styles.compareLabelCol]}>
@@ -688,8 +445,8 @@ const COMPARE_FEATURE_ROWS = [
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     width: "100%",
+    gap: 10,
   },
   center: {
     alignItems: "center",
@@ -706,14 +463,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
     padding: 3,
-    marginBottom: 16,
+    marginBottom: 4,
     alignSelf: "center",
   },
   toggleBtn: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 7,
     borderRadius: 10,
     gap: 5,
   },
@@ -734,68 +491,69 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  // Card
+  // Card — no background, just border + accent strip
   card: {
-    borderRadius: 18,
+    flexDirection: "row",
+    borderRadius: 14,
+    borderWidth: 1,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 6,
+  },
+  accentStrip: {
+    width: 4,
+    flexShrink: 0,
+  },
+  cardContent: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
 
-  // Header
-  header: {
-    paddingTop: 12,
-    paddingBottom: 16,
-    paddingHorizontal: 14,
-    alignItems: "center",
-  },
-  badgeRow: {
+  // Header row
+  headerRow: {
     flexDirection: "row",
-    justifyContent: "flex-end",
-    width: "100%",
-    minHeight: 20,
-    marginBottom: 4,
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 8,
   },
-  badge: {
+  headerLeft: {
+    flex: 1,
+    gap: 2,
+  },
+  headerTopRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.25)",
-    borderRadius: 20,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    gap: 3,
+    gap: 6,
+    flexWrap: "wrap",
   },
-  badgeText: {
-    fontSize: 8,
-    fontWeight: "800",
-    color: "#FCD34D",
-    letterSpacing: 0.8,
-  },
-  iconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.18)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 7,
-    borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.25)",
+  planEmoji: {
+    fontSize: 18,
   },
   planName: {
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: "800",
-    color: "#fff",
     letterSpacing: -0.3,
   },
   planTagline: {
     fontSize: 11,
-    color: "rgba(255,255,255,0.7)",
-    marginTop: 1,
-    marginBottom: 8,
+    marginLeft: 24,
+  },
+  badge: {
+    borderRadius: 20,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+  },
+  badgeText: {
+    fontSize: 8,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+
+  // Price block
+  priceBlock: {
+    alignItems: "flex-end",
+    flexShrink: 0,
+    marginLeft: 8,
   },
   priceRow: {
     flexDirection: "row",
@@ -803,108 +561,60 @@ const styles = StyleSheet.create({
     gap: 1,
   },
   priceCurrency: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "700",
-    color: "rgba(255,255,255,0.88)",
-    marginBottom: 4,
+    marginBottom: 3,
   },
   priceMain: {
-    fontSize: 38,
+    fontSize: 28,
     fontWeight: "800",
-    color: "#fff",
-    lineHeight: 44,
-  },
-  pricePer: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.7)",
-    marginBottom: 5,
+    lineHeight: 32,
   },
   priceNote: {
-    fontSize: 11,
-    color: "rgba(255,255,255,0.58)",
-    marginTop: 3,
-  },
-  savingsBadge: {
-    backgroundColor: "rgba(34,197,94,0.25)",
-    borderRadius: 20,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    marginTop: 5,
-    borderWidth: 1,
-    borderColor: "rgba(34,197,94,0.4)",
-  },
-  savingsText: {
     fontSize: 10,
-    fontWeight: "700",
-    color: "#86EFAC",
+    fontWeight: "600",
+    marginTop: 1,
   },
 
-  // Feature list
-  featureList: {
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 4,
+  // Divider
+  divider: {
+    height: 1,
+    marginBottom: 8,
   },
-  featureRow: {
+
+  // Feature grid (4 columns × 2 rows)
+  featureGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    marginBottom: 10,
+    gap: 0,
+  },
+  featureCell: {
+    width: "25%",
     alignItems: "center",
     paddingVertical: 5,
-    gap: 7,
   },
-  featureIconWrap: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  featureLabel: {
-    fontSize: 12,
-    flex: 1,
-    flexShrink: 1,
-  },
-  featureValue: {
-    fontSize: 11,
+  featureCellValue: {
+    fontSize: 13,
     fontWeight: "700",
-    flexShrink: 0,
-    minWidth: 64,
-    textAlign: "right",
+  },
+  featureCellLabel: {
+    fontSize: 9,
+    fontWeight: "500",
+    marginTop: 1,
+    textAlign: "center",
   },
 
   // CTA
   cta: {
-    marginHorizontal: 12,
-    marginTop: 6,
-    marginBottom: 12,
-    borderRadius: 11,
-    paddingVertical: 12,
+    borderRadius: 10,
+    paddingVertical: 10,
     alignItems: "center",
   },
   ctaText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "700",
     letterSpacing: 0.2,
-  },
-
-  // Pagination
-  pagination: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 5,
-    marginTop: 12,
-    marginBottom: 4,
-  },
-  dot: {
-    height: 6,
-    borderRadius: 3,
-  },
-  hint: {
-    fontSize: 11,
-    textAlign: "center",
-    marginTop: 5,
-    marginBottom: 2,
   },
 
   // Comparison modal
