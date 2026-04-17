@@ -1209,3 +1209,6 @@
 - [x] Fix share button on homepage: web fallback uses navigator.share() or clipboard copy
 - [x] Fix public booking page JS syntax error (broken single-quote in selectPaymentMethod onclick) that blocked the entire booking script from executing
 - [x] Fix booking page step-0 visibility bug (owner.temporaryClosed flag incorrectly hiding the form even when location is open)
+
+## Features (Apr 16 batch 22)
+- [x] Booking confirmation page: "Add to Calendar" button that generates an .ics file (Apple Calendar + Google Calendar compatible) with all appointment details pre-filled

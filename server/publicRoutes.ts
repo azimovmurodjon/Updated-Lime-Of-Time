@@ -3189,8 +3189,11 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       <div id="manageLink" style="margin-bottom:12px;display:none;">
         <a id="manageLinkHref" href="#" style="color:var(--accent);font-size:14px;text-decoration:none;font-weight:600;">Manage or Cancel This Appointment →</a>
       </div>
-      <div style="display:flex;gap:8px;">
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
         <button class="btn btn-secondary" onclick="saveReceipt()" style="flex:1">📥 Save Receipt</button>
+        <button class="btn btn-secondary" onclick="addToCalendar()" style="flex:1;background:#f0fdf4;color:#166534;border:1.5px solid #bbf7d0;">📅 Add to Calendar</button>
+      </div>
+      <div style="display:flex;gap:8px;">
         <button class="btn btn-primary" onclick="location.reload()" style="flex:1">Book Another</button>
       </div>
     </div>
@@ -4880,6 +4883,74 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       html += '</div>';
       const el = document.getElementById('paymentSection');
       if (el) { el.innerHTML = html; el.style.display = 'block'; }
+    }
+
+    function addToCalendar() {
+      // Build .ics (iCalendar) file for Apple Calendar / Google Calendar
+      const d = new Date(selectedDate + "T12:00:00");
+      const h = parseInt(selectedTime.split(":")[0]);
+      const m = parseInt(selectedTime.split(":")[1]);
+      const totalDur = getTotalDuration();
+      // Format as YYYYMMDDTHHMMSS (local time with no Z suffix so device uses local tz)
+      function icsDate(year, month, day, hours, mins) {
+        return String(year) +
+          String(month + 1).padStart(2, "0") +
+          String(day).padStart(2, "0") + "T" +
+          String(hours).padStart(2, "0") +
+          String(mins).padStart(2, "0") + "00";
+      }
+      const startDt = icsDate(d.getFullYear(), d.getMonth(), d.getDate(), h, m);
+      const endMin = h * 60 + m + totalDur;
+      const endDt = icsDate(d.getFullYear(), d.getMonth(), d.getDate(), Math.floor(endMin / 60), endMin % 60);
+      const uid = "lot-" + SLUG + "-" + selectedDate + "-" + selectedTime.replace(":", "") + "@lime-of-time.com";
+      // Build location string
+      let locStr = "";
+      if (selectedLocation) {
+        const locR = locations.find(l => l.localId === selectedLocation);
+        if (locR) {
+          const fullAddr = buildFullAddress(locR.address, locR.city, locR.state, locR.zipCode) || locR.address || "";
+          locStr = fullAddr ? locR.name + " - " + fullAddr : locR.name;
+        }
+      }
+      // Build description
+      const chargedPriceC = getChargedPrice();
+      let desc = selectedService.name + " (" + selectedService.duration + " min) - $" + parseFloat(selectedService.price).toFixed(2);
+      cart.forEach(c => { desc += "\\n" + c.name + " - $" + c.price.toFixed(2); });
+      desc += "\\nTotal: $" + chargedPriceC.toFixed(2);
+      desc += "\\nClient: " + document.getElementById("clientName").value;
+      const phone = document.getElementById("clientPhone").value;
+      if (phone) desc += " - " + phone;
+      desc += "\\nBooked via Lime Of Time";
+      // Escape ICS special chars
+      function icsEsc(s) { return (s || "").replace(/\\/g, "\\\\").replace(/,/g, "\\,").replace(/;/g, "\\;").replace(/\n/g, "\\n"); }
+      const summary = icsEsc(selectedService.name + " @ " + "${escHtml(owner.businessName)}");
+      const icsLines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Lime Of Time//Booking//EN",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        "BEGIN:VEVENT",
+        "UID:" + uid,
+        "DTSTAMP:" + new Date().toISOString().replace(/[-:]/g, "").split(".")[0] + "Z",
+        "DTSTART:" + startDt,
+        "DTEND:" + endDt,
+        "SUMMARY:" + summary,
+        locStr ? "LOCATION:" + icsEsc(locStr) : "",
+        "DESCRIPTION:" + icsEsc(desc),
+        "STATUS:TENTATIVE",
+        "END:VEVENT",
+        "END:VCALENDAR"
+      ].filter(l => l !== "").join("\r\n");
+      const blob = new Blob([icsLines], { type: "text/calendar;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "appointment.ics";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
 
     function saveReceipt() {
