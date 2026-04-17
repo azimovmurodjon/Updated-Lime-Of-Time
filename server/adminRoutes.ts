@@ -923,7 +923,12 @@ export function registerAdminRoutes(app: Express): void {
       const configs = await dbase.select().from(platformConfig);
       const cfgMap: Record<string, string> = {};
       configs.forEach((c: any) => { cfgMap[c.configKey] = c.configValue || ""; });
-      res.send(platformConfigPage(cfgMap));
+      // Fetch all businesses for per-phone OTP override UI
+      const bizList = await dbase
+        .select({ id: businessOwners.id, businessName: businessOwners.businessName, phone: businessOwners.phone })
+        .from(businessOwners)
+        .orderBy(businessOwners.businessName);
+      res.send(platformConfigPage(cfgMap, bizList));
     } catch (err) {
       console.error("[Admin] Platform config error:", err);
       res.status(500).send(errorPage("Failed to load platform config"));
@@ -1041,7 +1046,46 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Audit Log ─────────────────────────────────────────────────────────
+    // ── Save Per-Phone OTP Overrides ───────────────────────────────────────────
+  app.post("/api/admin/save-phone-otp-overrides", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.json({ ok: false, message: "DB unavailable" }); return; }
+      const overrides = req.body.overrides;
+      if (typeof overrides !== "object" || overrides === null || Array.isArray(overrides)) {
+        res.json({ ok: false, message: "Invalid overrides format" }); return;
+      }
+      // Validate: keys are phone strings, values are 4-8 digit codes
+      const cleaned: Record<string, string> = {};
+      for (const [phone, code] of Object.entries(overrides)) {
+        const p = phone.trim();
+        const c = String(code).trim();
+        if (p && c && /^[0-9]{4,8}$/.test(c)) {
+          cleaned[p] = c;
+        }
+      }
+      const value = JSON.stringify(cleaned);
+      // Upsert the TWILIO_PER_PHONE_OTP key
+      const existing = await dbase.select().from(platformConfig).where(eq(platformConfig.configKey, "TWILIO_PER_PHONE_OTP")).limit(1);
+      if (existing.length > 0) {
+        await dbase.update(platformConfig).set({ configValue: value, updatedAt: new Date() }).where(eq(platformConfig.configKey, "TWILIO_PER_PHONE_OTP"));
+      } else {
+        await dbase.insert(platformConfig).values({ configKey: "TWILIO_PER_PHONE_OTP", configValue: value, isSensitive: false, description: "Per-phone static OTP overrides (JSON map of phone->code)" });
+      }
+      // Invalidate cache
+      invalidatePlanCache();
+      const sessionId = getSessionFromCookie(req);
+      const session = sessionId ? sessions.get(sessionId) : null;
+      const actor = session?.user || "admin";
+      await writeAuditLog(actor, "platform_config", `Updated per-phone OTP overrides (${Object.keys(cleaned).length} entries)`);
+      res.json({ ok: true, message: `Saved ${Object.keys(cleaned).length} override(s)` });
+    } catch (err: any) {
+      console.error("[Admin] Save phone OTP overrides error:", err);
+      res.json({ ok: false, message: err?.message || "Unknown error" });
+    }
+  });
+
+  // ── Audit Log ─────────────────────────────────────────────────────
   app.get("/api/admin/audit-log", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -3373,7 +3417,10 @@ function plansPage(plans: any[]): string {
 }
 
 // ─── Platform Config Page ────────────────────────────────────────────────────
-function platformConfigPage(cfgMap: Record<string, string>): string {
+function platformConfigPage(
+  cfgMap: Record<string, string>,
+  bizList: Array<{ id: number; businessName: string; phone: string }> = []
+): string {
   const isTwilioTestMode = cfgMap["TWILIO_TEST_MODE"] === "true" || cfgMap["TWILIO_TEST_MODE"] === "1";
   const isStripeTestMode = cfgMap["STRIPE_TEST_MODE"] === "true" || cfgMap["STRIPE_TEST_MODE"] === "1";
 
@@ -3423,6 +3470,44 @@ function platformConfigPage(cfgMap: Record<string, string>): string {
           </div>
         </div>
         ${isTwilioTestMode ? '<div style="background:#f59e0b15;border:1px solid #f59e0b40;border-radius:8px;padding:10px 14px;margin-top:12px;font-size:13px;color:#f59e0b;"><strong>⚠️ Test Mode is ON.</strong> All OTP codes will be bypassed with the test code above. Disable before going live.</div>' : ""}
+
+        <!-- Per-Business OTP Overrides -->
+        <div id="perPhoneOtpSection" style="margin-top:20px;${isTwilioTestMode ? '' : 'display:none;'}">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <div>
+              <h3 style="font-size:14px;font-weight:700;margin:0;">Per-Business Static OTP</h3>
+              <p style="font-size:12px;color:var(--text-muted);margin:4px 0 0;">Select specific businesses that can log in with a fixed OTP code — no SMS sent.</p>
+            </div>
+            <button type="button" onclick="addPhoneOtpRow()" style="background:var(--primary);color:white;border:none;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">+ Add Business</button>
+          </div>
+          <div id="phoneOtpRows" style="display:flex;flex-direction:column;gap:8px;">
+            ${(() => {
+              let overrides: Record<string, string> = {};
+              try { overrides = JSON.parse(cfgMap["TWILIO_PER_PHONE_OTP"] || "{}"); } catch {}
+              if (Object.keys(overrides).length === 0) return '<p id="noOtpRows" style="font-size:13px;color:var(--text-muted);text-align:center;padding:16px;border:1px dashed var(--border);border-radius:8px;">No per-business overrides yet. Click "+ Add Business" to add one.</p>';
+              return Object.entries(overrides).map(([phone, code]) => {
+                const biz = bizList.find(b => b.phone === phone || b.phone.replace(/\D/g,'').slice(-10) === phone.replace(/\D/g,'').slice(-10));
+                const bizName = biz ? biz.businessName : phone;
+                return `<div class="phone-otp-row" style="display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
+                  <span style="flex:1;font-size:13px;font-weight:600;">${escHtml(bizName)}</span>
+                  <span style="font-size:12px;color:var(--text-muted);margin-right:4px;">${escHtml(phone)}</span>
+                  <input type="hidden" name="per_phone_otp_phone[]" value="${escHtml(phone)}" />
+                  <input type="text" name="per_phone_otp_code[]" value="${escHtml(code)}" maxlength="6" placeholder="123456"
+                    style="width:80px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:14px;text-align:center;font-weight:600;" />
+                  <button type="button" onclick="this.closest('.phone-otp-row').remove(); checkPhoneOtpRows();" style="background:#ef444420;color:#ef4444;border:none;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;">✕</button>
+                </div>`;
+              }).join('');
+            })()}
+          </div>
+          <div style="margin-top:12px;display:flex;justify-content:flex-end;">
+            <button type="button" id="savePhoneOtpBtn" onclick="savePhoneOtpOverrides()"
+              style="background:var(--primary);color:white;border:none;border-radius:8px;padding:8px 20px;font-size:13px;font-weight:600;cursor:pointer;">
+              💾 Save OTP Overrides
+            </button>
+            <span id="savePhoneOtpResult" style="margin-left:12px;font-size:13px;line-height:36px;"></span>
+          </div>
+        </div>
+
         <div style="margin-top:16px;display:flex;align-items:center;gap:12px;">
           <button type="button" id="testTwilioBtn" onclick="testTwilio()"
             style="background:#0a7ea4;color:white;padding:8px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">
@@ -3602,6 +3687,106 @@ function platformConfigPage(cfgMap: Record<string, string>): string {
         btn.disabled = false;
         btn.textContent = '🔌 Test Connection';
       }
+    }
+
+    // ── Per-Business OTP Override helpers ─────────────────────────────────
+    var BIZ_LIST = ${JSON.stringify(bizList.map(b => ({ id: b.id, name: b.businessName, phone: b.phone })))};
+
+    function checkPhoneOtpRows() {
+      var rows = document.querySelectorAll('.phone-otp-row');
+      var noRows = document.getElementById('noOtpRows');
+      if (noRows) noRows.style.display = rows.length === 0 ? 'block' : 'none';
+    }
+
+    window.addPhoneOtpRow = function addPhoneOtpRow() {
+      // Build a dropdown of businesses not yet added
+      var existingPhones = Array.from(document.querySelectorAll('[name="per_phone_otp_phone[]"]')).map(function(el) { return el.value; });
+      var available = BIZ_LIST.filter(function(b) { return !existingPhones.includes(b.phone); });
+      if (available.length === 0) {
+        alert('All businesses have already been added.');
+        return;
+      }
+      // Remove empty-state placeholder if present
+      var noRows = document.getElementById('noOtpRows');
+      if (noRows) noRows.remove();
+      // Create a select + OTP input row
+      var container = document.getElementById('phoneOtpRows');
+      var row = document.createElement('div');
+      row.className = 'phone-otp-row';
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;';
+      var sel = document.createElement('select');
+      sel.style.cssText = 'flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:13px;';
+      available.forEach(function(b) {
+        var opt = document.createElement('option');
+        opt.value = b.phone;
+        opt.textContent = b.name + ' (' + b.phone + ')';
+        sel.appendChild(opt);
+      });
+      var phoneHidden = document.createElement('input');
+      phoneHidden.type = 'hidden';
+      phoneHidden.name = 'per_phone_otp_phone[]';
+      phoneHidden.value = available[0].phone;
+      sel.addEventListener('change', function() { phoneHidden.value = sel.value; });
+      var codeInput = document.createElement('input');
+      codeInput.type = 'text';
+      codeInput.name = 'per_phone_otp_code[]';
+      codeInput.value = '123456';
+      codeInput.maxLength = 6;
+      codeInput.placeholder = '123456';
+      codeInput.style.cssText = 'width:80px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:14px;text-align:center;font-weight:600;';
+      var delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.textContent = '\u2715';
+      delBtn.style.cssText = 'background:#ef444420;color:#ef4444;border:none;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;';
+      delBtn.onclick = function() { row.remove(); checkPhoneOtpRows(); };
+      row.appendChild(sel);
+      row.appendChild(phoneHidden);
+      row.appendChild(codeInput);
+      row.appendChild(delBtn);
+      container.appendChild(row);
+    };
+
+    window.savePhoneOtpOverrides = async function savePhoneOtpOverrides() {
+      var btn = document.getElementById('savePhoneOtpBtn');
+      var result = document.getElementById('savePhoneOtpResult');
+      var phones = Array.from(document.querySelectorAll('[name="per_phone_otp_phone[]"]')).map(function(el) { return el.value.trim(); });
+      var codes = Array.from(document.querySelectorAll('[name="per_phone_otp_code[]"]')).map(function(el) { return el.value.trim(); });
+      var overrides = {};
+      phones.forEach(function(p, i) { if (p && codes[i]) overrides[p] = codes[i]; });
+      btn.disabled = true;
+      btn.textContent = '⏳ Saving...';
+      result.textContent = '';
+      try {
+        var res = await fetch('/api/admin/save-phone-otp-overrides', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ overrides: overrides })
+        });
+        var data = await res.json();
+        if (data.ok) {
+          result.textContent = '✅ Saved!';
+          result.style.color = '#22c55e';
+        } else {
+          result.textContent = '❌ ' + (data.message || 'Error saving');
+          result.style.color = '#ef4444';
+        }
+      } catch (e) {
+        result.textContent = '❌ Network error';
+        result.style.color = '#ef4444';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '💾 Save OTP Overrides';
+        setTimeout(function() { result.textContent = ''; }, 4000);
+      }
+    };
+
+    // Show/hide per-business OTP section when test mode checkbox changes
+    var testModeChk = form ? form.querySelector('[name="twilio_test_mode"]') : null;
+    if (testModeChk) {
+      testModeChk.addEventListener('change', function() {
+        var section = document.getElementById('perPhoneOtpSection');
+        if (section) section.style.display = testModeChk.checked ? 'block' : 'none';
+      });
     }
 
     window.testStripe = async function testStripe() {

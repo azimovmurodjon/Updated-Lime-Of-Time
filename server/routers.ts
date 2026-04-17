@@ -859,15 +859,29 @@ const otpRouter = router({
   send: publicProcedure
     .input(z.object({ phone: z.string().min(7) }))
     .mutation(async ({ input }) => {
-      const testMode = (await getPlatformConfig("TWILIO_TEST_MODE")) === "true";
-      const code = testMode ? "123456" : String(Math.floor(100000 + Math.random() * 900000));
+      const globalTestMode = (await getPlatformConfig("TWILIO_TEST_MODE")) === "true";
+      const testOtp = (await getPlatformConfig("TWILIO_TEST_OTP")) || "123456";
+      // Check per-phone override first — no SMS sent, static code stored
+      let perPhoneOverrides: Record<string, string> = {};
+      try { perPhoneOverrides = JSON.parse((await getPlatformConfig("TWILIO_PER_PHONE_OTP")) || "{}"); } catch {}
+      const normalizedInput = input.phone.replace(/\D/g, "").slice(-10);
+      const perPhoneCode = Object.entries(perPhoneOverrides).find(
+        ([p]) => p.replace(/\D/g, "").slice(-10) === normalizedInput
+      )?.[1];
+      if (perPhoneCode) {
+        const expiresAt = Date.now() + 10 * 60 * 1000;
+        otpStore.set(input.phone, { code: perPhoneCode, expiresAt });
+        return { success: true, testMode: true };
+      }
+      const testMode = globalTestMode;
+      const code = testMode ? testOtp : String(Math.floor(100000 + Math.random() * 900000));
       const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
       otpStore.set(input.phone, { code, expiresAt });
       if (!testMode) {
         const sent = await sendOtpViaTwilio(input.phone, code);
         if (!sent) {
           // Fall back to test mode silently if Twilio fails
-          otpStore.set(input.phone, { code: "123456", expiresAt });
+          otpStore.set(input.phone, { code: testOtp, expiresAt });
         }
       }
       return { success: true, testMode };
@@ -876,9 +890,22 @@ const otpRouter = router({
   verify: publicProcedure
     .input(z.object({ phone: z.string().min(7), code: z.string().length(6) }))
     .mutation(async ({ input }) => {
-      const testMode = (await getPlatformConfig("TWILIO_TEST_MODE")) === "true";
-      // In test mode, always accept 123456
-      if (testMode && input.code === "123456") {
+      const globalTestMode = (await getPlatformConfig("TWILIO_TEST_MODE")) === "true";
+      const testOtp = (await getPlatformConfig("TWILIO_TEST_OTP")) || "123456";
+      // Check per-phone override first
+      let perPhoneOverrides: Record<string, string> = {};
+      try { perPhoneOverrides = JSON.parse((await getPlatformConfig("TWILIO_PER_PHONE_OTP")) || "{}"); } catch {}
+      const normalizedInput = input.phone.replace(/\D/g, "").slice(-10);
+      const perPhoneCode = Object.entries(perPhoneOverrides).find(
+        ([p]) => p.replace(/\D/g, "").slice(-10) === normalizedInput
+      )?.[1];
+      if (perPhoneCode && input.code === perPhoneCode) {
+        otpStore.delete(input.phone);
+        return { success: true };
+      }
+      const testMode = globalTestMode;
+      // In global test mode, accept the configured test OTP
+      if (testMode && input.code === testOtp) {
         otpStore.delete(input.phone);
         return { success: true };
       }
