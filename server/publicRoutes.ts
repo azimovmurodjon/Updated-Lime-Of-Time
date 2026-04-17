@@ -3191,7 +3191,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       </div>
       <div style="display:flex;gap:8px;margin-bottom:10px;">
         <button class="btn btn-secondary" onclick="saveReceipt()" style="flex:1">📥 Save Receipt</button>
-        <button class="btn btn-secondary" onclick="addToCalendar()" style="flex:1;background:#f0fdf4;color:#166534;border:1.5px solid #bbf7d0;">📅 Add to Calendar</button>
+        <button class="btn btn-secondary" onclick="addToCalendar()" style="flex:1;background:var(--accent-bg);color:var(--accent);border:1.5px solid var(--border);">📅 Add to Calendar</button>
       </div>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-primary" onclick="location.reload()" style="flex:1">Book Another</button>
@@ -5576,7 +5576,7 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any,
       letter-spacing: 0.5px;
     }
     .status-pending { background: #fef3c7; color: #92400e; }
-    .status-confirmed { background: #dcfce7; color: #166534; }
+    .status-confirmed { background: var(--accent-bg); color: var(--accent-dark); }
     .status-cancelled { background: #fee2e2; color: #991b1b; }
     .status-completed { background: #e0e7ff; color: #3730a3; }
     .btn-cancel {
@@ -5631,7 +5631,7 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any,
       margin-top: 12px;
       display: none;
     }
-    .msg-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .msg-success { background: var(--accent-bg); color: var(--accent-dark); border: 1px solid var(--border); }
     .msg-error { background: var(--error-bg); color: var(--error); border: 1px solid var(--error-border); }
     .reschedule-panel { display: none; margin-top: 16px; }
     .reschedule-panel.active { display: block; }

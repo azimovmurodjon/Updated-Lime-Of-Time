@@ -108,6 +108,7 @@ async function sendAppointmentReminders() {
         customSlug: businessOwners.customSlug,
         address: businessOwners.address,
         phone: businessOwners.phone,
+        cancellationPolicy: businessOwners.cancellationPolicy,
       })
       .from(businessOwners)
       .where(inArray(businessOwners.id, ownerIds));
@@ -191,6 +192,23 @@ async function sendAppointmentReminders() {
                 .join(", ")
             : owner.address ?? undefined;
 
+          // Parse cancellation policy for deadline info
+          const cp = owner.cancellationPolicy as { enabled?: boolean; hoursBeforeAppointment?: number; feePercentage?: number } | null;
+          let cancellationDeadline: string | undefined;
+          if (cp?.enabled && cp.hoursBeforeAppointment) {
+            // Calculate deadline: appointment datetime minus hoursBeforeAppointment
+            const [apptH, apptM] = appt.time.split(":").map(Number);
+            const apptDate = new Date(appt.date + "T" + appt.time + ":00");
+            const deadlineDate = new Date(apptDate.getTime() - cp.hoursBeforeAppointment * 60 * 60 * 1000);
+            const deadlineStr = deadlineDate.toLocaleDateString("en-US", { month: "long", day: "numeric" });
+            const dH = deadlineDate.getHours();
+            const dM = deadlineDate.getMinutes();
+            const dAmpm = dH >= 12 ? "PM" : "AM";
+            const dH12 = dH % 12 || 12;
+            const dTimeStr = `${dH12}:${String(dM).padStart(2, "0")} ${dAmpm}`;
+            cancellationDeadline = `${deadlineStr} at ${dTimeStr}`;
+          }
+
           const sent = await sendAppointmentReminderEmail(owner.businessName, {
             clientName,
             clientEmail,
@@ -205,6 +223,8 @@ async function sendAppointmentReminders() {
             businessPhone: owner.phone ?? undefined,
             customSlug: owner.customSlug ?? undefined,
             locationId: appt.locationId ?? undefined,
+            cancellationDeadline,
+            cancellationFeePercentage: cp?.enabled && cp.feePercentage ? cp.feePercentage : undefined,
           });
           if (sent) {
             emailSent++;

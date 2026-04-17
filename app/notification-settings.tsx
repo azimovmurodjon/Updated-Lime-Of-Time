@@ -507,6 +507,41 @@ export default function NotificationSettingsScreen() {
           );
         })}
 
+        {/* ── Client Reminder Email ── */}
+        <Text style={[styles.sectionHeader, { color: colors.muted, marginTop: 20 }]}>Client Reminder Email</Text>
+        <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10, marginTop: -4 }}>
+          Automatically email clients 24 hours before their confirmed appointment.
+        </Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: settings.notificationsEnabled ? 1 : 0.5 }]}>
+          <View style={styles.switchRow}>
+            <View style={{ flexDirection: "row", alignItems: "center", flex: 1, marginRight: 12 }}>
+              <View style={{ width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", marginRight: 12, backgroundColor: "#0ea5e918" }}>
+                <IconSymbol name="bell.fill" size={18} color="#0ea5e9" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>24h Appointment Reminder</Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 16 }}>
+                  Sends clients a reminder email the day before their appointment with date, time, location, and a Google Calendar link.
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={(prefs.emailOnReminder ?? true) && settings.notificationsEnabled}
+              onValueChange={() => togglePref("emailOnReminder")}
+              trackColor={{ false: colors.border, true: "#0ea5e960" }}
+              thumbColor={(prefs.emailOnReminder ?? true) ? "#0ea5e9" : colors.muted}
+              disabled={!settings.notificationsEnabled}
+            />
+          </View>
+          {(prefs.emailOnReminder ?? true) && settings.notificationsEnabled && (
+            <View style={{ marginTop: 12, backgroundColor: "#0ea5e912", borderRadius: 10, padding: 10, borderTopWidth: 1, borderTopColor: colors.border }}>
+              <Text style={{ fontSize: 12, color: "#0ea5e9", lineHeight: 18 }}>
+                Preview: "Reminder: Haircut tomorrow at 10:00 AM — Lime Of Time"
+              </Text>
+            </View>
+          )}
+        </View>
+
         {/* ── Email Notifications Controller ── */}
         <Text style={[styles.sectionHeader, { color: colors.muted, marginTop: 20 }]}>Email Notifications to You</Text>
         <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10, marginTop: -4 }}>

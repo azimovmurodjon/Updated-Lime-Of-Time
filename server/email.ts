@@ -446,6 +446,10 @@ export interface AppointmentReminderEmailData {
   businessPhone?: string;
   customSlug?: string;
   locationId?: string;
+  /** Human-readable cancellation deadline, e.g. "April 16 at 9:00 AM" */
+  cancellationDeadline?: string;
+  /** Cancellation fee percentage (0-100), shown if policy is enabled */
+  cancellationFeePercentage?: number;
 }
 
 /**
@@ -518,7 +522,10 @@ export async function sendAppointmentReminderEmail(
     </div>
     <div style="margin-top:16px;padding:16px;background-color:#f5f5f5;border-radius:12px;text-align:center;">
       <div style="color:#555;font-size:14px;font-weight:600;margin-bottom:8px;">Need to reschedule or cancel?</div>
-      <div style="color:#555;font-size:13px;">Please contact us as soon as possible so we can accommodate you.</div>
+      ${data.cancellationDeadline
+        ? `<div style="color:#c0392b;font-size:13px;font-weight:600;margin-bottom:6px;">&#9888; Free cancellation until <strong>${escHtml(data.cancellationDeadline)}</strong>${data.cancellationFeePercentage ? ` &mdash; a ${data.cancellationFeePercentage}% fee applies after this time` : ""}</div>`
+        : `<div style="color:#555;font-size:13px;">Please contact us as soon as possible so we can accommodate you.</div>`
+      }
       ${displayPhone ? `<div style="margin-top:8px;"><a href="tel:${displayPhone.replace(/\D/g,"")}" style="color:#4a8c3f;font-weight:600;text-decoration:none;">${escHtml(formatPhoneDisplay(displayPhone))}</a></div>` : ""}
     </div>
     <div style="margin-top:20px;text-align:center;">

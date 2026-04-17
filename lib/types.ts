@@ -303,6 +303,8 @@ export interface NotificationPreferences {
   birthdayReminderEnabled?: boolean;
   /** Hour (0-23) at which the daily birthday reminder fires. Default 8 (8 AM) */
   birthdayReminderHour?: number;
+  /** Email reminder sent to the client 24 hours before their confirmed appointment */
+  emailOnReminder?: boolean;
 }
 
 /** Per-event SMS message templates. Each key maps to a custom message body.
@@ -336,6 +338,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   emailClientOnConfirmation: true,
   birthdayReminderEnabled: true,
   birthdayReminderHour: 8,
+  emailOnReminder: true,
 };
 
 export interface BusinessSettings {

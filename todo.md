@@ -1220,3 +1220,8 @@
 - [x] Fix all hardcoded light green colors (#f0fdf4, #166534, #bbf7d0, #dcfce7) in booking page for dark mode
 - [x] Add "Add to Calendar" Google Calendar link in booking confirmation email
 - [x] 24-hour appointment reminder: cron job sends push notification to owner + email to client 24h before appointment
+
+## Features (Apr 17 batch 25)
+- [x] Settings → Notifications: add toggle to enable/disable 24h client reminder email (emailOnReminder)
+- [x] 24h reminder email: include cancellation deadline (e.g. "Free cancellation until April 16 at 9:00 AM") and fee percentage
+- [x] Fix hardcoded light green colors on manage appointment page and review page for dark mode (Add to Calendar btn, .status-confirmed, .msg-success)
