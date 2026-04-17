@@ -1256,3 +1256,7 @@
 - [x] Home screen: Today's Revenue chip in header (shows completed revenue for today)
 - [x] Settings: move Theme Mode from Alerts tab to Account tab
 - [x] Settings: add icon to Tools tab (wrench.fill → build)
+
+## Features (Apr 17 batch 31)
+- [x] Apply FuturisticBackground to analytics-detail.tsx screen
+- [x] Today's Revenue chip: show appointment count alongside revenue (e.g., "3 appts · $240 today")

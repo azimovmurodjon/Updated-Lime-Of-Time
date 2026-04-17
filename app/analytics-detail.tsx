@@ -21,6 +21,7 @@ import { minutesToTime, timeToMinutes } from "@/lib/types";
 import { useActiveLocation } from "@/hooks/use-active-location";
 import { useResponsive } from "@/hooks/use-responsive";
 import { LocationSwitcher } from "@/components/location-switcher";
+import { FuturisticBackground } from "@/components/futuristic-background";
 
 export default function AnalyticsDetailScreen() {
   const { tab } = useLocalSearchParams<{ tab: string }>();
@@ -586,6 +587,7 @@ export default function AnalyticsDetailScreen() {
 
   return (
     <ScreenContainer tabletMaxWidth={900} edges={["top", "bottom", "left", "right"]}>
+      <FuturisticBackground />
       <View
         style={[
           styles.header,

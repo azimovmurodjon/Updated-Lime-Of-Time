@@ -462,6 +462,7 @@ export default function HomeScreen() {
       const svc = state.services.find((s) => s.id === a.serviceId);
       return sum + (svc?.price ?? 0);
     }, 0);
+    const todayCompletedCount = todayCompletedAppts.length;
     const totalRevenue = completedAppts.reduce((sum, a) => {
       if (a.totalPrice != null) return sum + a.totalPrice;
       const svc = state.services.find((s) => s.id === a.serviceId);
@@ -665,6 +666,7 @@ export default function HomeScreen() {
       upcomingDailyData,
       yearlyRevenue,
       todayRevenue,
+      todayCompletedCount,
     };
   }, [state.clients, state.appointments, state.services, filterByLocation, clientsForActiveLocation, todayStr]);
 
@@ -948,7 +950,12 @@ export default function HomeScreen() {
                 paddingVertical: 3,
                 borderWidth: 1,
                 borderColor: colors.success + "40",
+                gap: 4,
               }}>
+                <Text style={{ fontSize: 10, color: colors.success + "CC" }}>
+                  {analytics.todayCompletedCount} appt{analytics.todayCompletedCount !== 1 ? "s" : ""}
+                </Text>
+                <Text style={{ fontSize: 10, color: colors.success + "80" }}>·</Text>
                 <Text style={{ fontSize: 11, fontWeight: "700", color: colors.success }}>
                   ${analytics.todayRevenue.toFixed(0)} today
                 </Text>
