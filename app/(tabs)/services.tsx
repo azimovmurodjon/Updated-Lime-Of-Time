@@ -277,7 +277,7 @@ export default function ServicesScreen() {
                 </Text>
               </View>
             }
-            contentContainerStyle={{ paddingBottom: 80 }}
+            contentContainerStyle={{ paddingBottom: 80, flexGrow: 1 }}
           />
           </View>
         );
@@ -395,7 +395,7 @@ export default function ServicesScreen() {
               </Text>
             </View>
           }
-          contentContainerStyle={{ paddingBottom: 80 }}
+          contentContainerStyle={{ paddingBottom: 80, flexGrow: 1 }}
         />
         </View>
       )}
