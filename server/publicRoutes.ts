@@ -4072,7 +4072,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
                 '<div style="font-size:32px;margin-bottom:8px;">\u{1F4C5}</div>' +
                 '<div style="font-size:15px;font-weight:700;color:#374151;margin-bottom:4px;">No available times on this day</div>' +
                 '<div style="font-size:13px;color:#6b7280;margin-bottom:16px;">This day may be fully booked or closed.</div>' +
-                '<button onclick="document.getElementById(\'dateInput\').value=\''+nextDateStr+'\';loadSlots(\''+nextDateStr+'\')" ' +
+                '<button data-next-date="' + nextDateStr + '" onclick="var d=this.dataset.nextDate;document.getElementById(&quot;dateInput&quot;).value=d;loadSlots(d)" ' +
                 'style="background:var(--accent);color:#fff;border:none;border-radius:20px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;">' +
                 '\u2192 Try ' + nextDateLabel + '</button>' +
                 '</div>';
@@ -5027,7 +5027,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       if (phone) desc += " - " + phone;
       desc += "\\nBooked via Lime Of Time";
       // Escape ICS special chars
-      function icsEsc(s) { return (s || "").replace(/\\/g, "\\\\").replace(/,/g, "\\,").replace(/;/g, "\\;").replace(/\n/g, "\\n"); }
+      function icsEsc(s) { return (s || "").replace(/\\\\/g, "\\\\\\\\").replace(/,/g, "\\,").replace(/;/g, "\\;").replace(/\\n/g, "\\n"); }
       const summary = icsEsc(selectedService.name + " @ " + "${escHtml(owner.businessName)}");
       const icsLines = [
         "BEGIN:VCALENDAR",
@@ -5046,7 +5046,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         "STATUS:TENTATIVE",
         "END:VEVENT",
         "END:VCALENDAR"
-      ].filter(l => l !== "").join("\r\n");
+      ].filter(l => l !== "").join("\\r\\n");
       const blob = new Blob([icsLines], { type: "text/calendar;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

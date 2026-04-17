@@ -1286,3 +1286,9 @@
 
 ## Features (Apr 17 batch 36)
 - [x] Fix onboarding subscription plan cards too wide / overflowing on mobile devices (negative marginHorizontal: -hp to escape ScrollView padding, pass full screen width to PlanCarousel)
+
+## Features (Apr 17 batch 37)
+- [x] Remove URL appended after "Powered by Lime Of Time" in SMS messages (fixed in index.tsx, location-form.tsx, locations.tsx)
+- [x] Fix Services/Products FlatList filter layout — items appearing at bottom when category selected (removed flexGrow:1 from contentContainerStyle)
+- [x] Fix QR modal Share button not working on home screen (added touch stop-propagation on inner View to prevent outer backdrop Pressable from consuming button taps)
+- [x] Fix public booking page completely broken — JavaScript syntax errors in publicRoutes.ts prevented entire script from executing (fixed icsEsc regex escaping and \r\n literal in template literals)

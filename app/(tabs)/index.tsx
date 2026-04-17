@@ -786,7 +786,6 @@ export default function HomeScreen() {
         const shareData = {
           title: "Book an Appointment",
           text: `Book an appointment with ${state.settings.businessName}!${addressLine}${phoneLine}${websiteLine}\n\nSchedule online: ${url}\n\nPowered by Lime Of Time`,
-          url,
         };
         if (typeof navigator !== "undefined" && navigator.share) {
           await navigator.share(shareData);
@@ -798,7 +797,6 @@ export default function HomeScreen() {
       } else {
         await Share.share({
           message: `Book an appointment with ${state.settings.businessName}!${addressLine}${phoneLine}${websiteLine}\n\nSchedule online: ${url}\n\nPowered by Lime Of Time`,
-          url,
           title: "Book an Appointment",
         });
       }
@@ -2149,6 +2147,8 @@ export default function HomeScreen() {
               maxWidth: 340,
               gap: 16,
             }, { backgroundColor: colors.surface }]}
+            onStartShouldSetResponder={() => true}
+            onTouchEnd={(e) => e.stopPropagation()}
           >
             {/* Header */}
             <View style={{ flexDirection: "row", alignItems: "center", width: "100%", marginBottom: 4 }}>

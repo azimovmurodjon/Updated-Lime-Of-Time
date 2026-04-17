@@ -164,7 +164,6 @@ export default function LocationsScreen() {
         const phoneLine = item.phone ? `\n📞 ${formatPhoneNumber(item.phone)}` : "";
         await Share.share({
           message: `Book an appointment with ${businessName}!${addrLine}${phoneLine}\n\nSchedule online: ${url}\n\nPowered by Lime Of Time`,
-          url, // iOS uses this for the native share card preview
           title: `Book at ${item.name}`,
         });
       } catch {

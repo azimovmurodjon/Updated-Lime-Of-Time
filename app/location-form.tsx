@@ -312,7 +312,6 @@ export default function LocationFormScreen() {
     try {
       await Share.share({
         message: `Book an appointment with ${businessName}!${addrLine}${phoneLine}\n\nSchedule online: ${locationBookingUrl}\n\nPowered by Lime Of Time`,
-        url: locationBookingUrl,
         title: `Book at ${existing.name}`,
       });
     } catch {
