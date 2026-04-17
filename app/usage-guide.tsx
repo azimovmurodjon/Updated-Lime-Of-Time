@@ -3,13 +3,14 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * Comprehensive how-to guide for the Manus Scheduler app.
  * Sections are shown/hidden based on the user's subscription plan.
+ * Each section has a deep-link "Go There" button that navigates directly.
  *
  * Solo plan:   Core features only
  * Growth plan: + SMS, Analytics, Promo Codes, Staff
  * Studio plan: + Multi-location, Products, Advanced Analytics
  * Enterprise:  + All features
  */
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -17,6 +18,7 @@ import {
   StyleSheet,
   ScrollView,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
@@ -38,6 +40,10 @@ type GuideSection = {
   /** Minimum plan required: solo | growth | studio | enterprise */
   minPlan?: "solo" | "growth" | "studio" | "enterprise";
   steps: GuideStep[];
+  /** Deep-link route to navigate to when "Go There" is tapped */
+  actionRoute?: string;
+  /** Label for the deep-link button */
+  actionLabel?: string;
 };
 
 // ─── Plan order for comparison ────────────────────────────────────────────────
@@ -63,6 +69,8 @@ const GUIDE_SECTIONS: GuideSection[] = [
     title: "Getting Started",
     emoji: "🚀",
     color: "#2563EB",
+    actionRoute: "/location-form",
+    actionLabel: "Add Location",
     steps: [
       { step: "Add your business location", description: "Go to Settings → Business → Locations and tap '+' to add your first location with address, phone, and hours." },
       { step: "Set your working hours", description: "In Settings → Business → Schedule & Hours, set your daily availability and buffer time between appointments." },
@@ -75,6 +83,8 @@ const GUIDE_SECTIONS: GuideSection[] = [
     title: "Managing Appointments",
     emoji: "📅",
     color: "#10B981",
+    actionRoute: "/(tabs)/calendar",
+    actionLabel: "Open Calendar",
     steps: [
       { step: "Book an appointment", description: "Tap '+' on the Home screen or Calendar tab. Select a client, service, date, and time, then confirm." },
       { step: "View your schedule", description: "The Calendar tab shows all bookings. Switch between Day, Week, and Month views using the toggle at the top." },
@@ -88,6 +98,8 @@ const GUIDE_SECTIONS: GuideSection[] = [
     title: "Client Management",
     emoji: "👥",
     color: "#8B5CF6",
+    actionRoute: "/(tabs)/clients",
+    actionLabel: "Open Clients",
     steps: [
       { step: "Add a new client", description: "Tap the Clients tab and press '+'. Fill in name, phone, email, and optional birthday or notes." },
       { step: "View client history", description: "Tap any client card to see their full booking history, total spend, and notes." },
@@ -101,6 +113,8 @@ const GUIDE_SECTIONS: GuideSection[] = [
     title: "Services & Pricing",
     emoji: "💼",
     color: "#F59E0B",
+    actionRoute: "/(tabs)/services",
+    actionLabel: "Open Services",
     steps: [
       { step: "Create a service", description: "Tap the Services tab → '+'. Set the service name, duration (in minutes), price, and category." },
       { step: "Assign categories", description: "Use Settings → Tools → Category Management to create categories, then assign services to them for better organization." },
@@ -113,6 +127,8 @@ const GUIDE_SECTIONS: GuideSection[] = [
     title: "Payment Methods",
     emoji: "💳",
     color: "#0EA5E9",
+    actionRoute: "/payment-methods",
+    actionLabel: "Payment Settings",
     steps: [
       { step: "Set up payment methods", description: "Go to Settings → Business → Payment Methods. Add your Zelle, Cash App, or Venmo handles so clients know how to pay." },
       { step: "Record a payment", description: "When completing an appointment, you can record the payment method used directly on the appointment detail screen." },
@@ -125,6 +141,8 @@ const GUIDE_SECTIONS: GuideSection[] = [
     emoji: "📱",
     color: "#EC4899",
     minPlan: "growth",
+    actionRoute: "/sms-automation",
+    actionLabel: "SMS Settings",
     steps: [
       { step: "Enable Twilio SMS", description: "Go to Settings → Notifications → SMS Settings. Enter your Twilio Account SID, Auth Token, and phone number." },
       { step: "Automatic confirmations", description: "When SMS is enabled, clients automatically receive a confirmation SMS when their appointment is booked." },
@@ -139,6 +157,8 @@ const GUIDE_SECTIONS: GuideSection[] = [
     emoji: "📊",
     color: "#6366F1",
     minPlan: "growth",
+    actionRoute: "/analytics",
+    actionLabel: "View Analytics",
     steps: [
       { step: "View KPI dashboard", description: "The Home screen shows key metrics: today's revenue, total clients, appointments, and completion rate." },
       { step: "Detailed analytics", description: "Go to Settings → Tools → Analytics for full revenue trends, top services, client retention, and staff performance charts." },
@@ -152,6 +172,8 @@ const GUIDE_SECTIONS: GuideSection[] = [
     emoji: "🎟️",
     color: "#0EA5E9",
     minPlan: "growth",
+    actionRoute: "/promo-codes",
+    actionLabel: "Manage Promo Codes",
     steps: [
       { step: "Create a promo code", description: "Go to Settings → Tools → Promo Codes and tap '+'. Set a code name, discount type (% or flat), and optional expiry or max uses." },
       { step: "Apply during booking", description: "During the booking flow, clients or staff can enter a promo code to apply the discount automatically." },
@@ -165,6 +187,8 @@ const GUIDE_SECTIONS: GuideSection[] = [
     emoji: "👤",
     color: "#10B981",
     minPlan: "growth",
+    actionRoute: "/staff",
+    actionLabel: "Manage Staff",
     steps: [
       { step: "Add staff members", description: "Go to the Services tab → Staff section (or Settings → Business → Staff) and tap '+' to add a team member." },
       { step: "Assign services", description: "Each staff member can be assigned specific services they perform. This filters availability during booking." },
@@ -178,6 +202,8 @@ const GUIDE_SECTIONS: GuideSection[] = [
     emoji: "📍",
     color: "#3B82F6",
     minPlan: "studio",
+    actionRoute: "/location-form",
+    actionLabel: "Add Location",
     steps: [
       { step: "Add a second location", description: "Go to Settings → Business → Locations and tap '+'. Each location can have its own address, hours, and staff." },
       { step: "Switch active location", description: "Use the location switcher in the Settings header or Home screen to filter data by location." },
@@ -191,6 +217,8 @@ const GUIDE_SECTIONS: GuideSection[] = [
     emoji: "📦",
     color: "#F97316",
     minPlan: "studio",
+    actionRoute: "/products",
+    actionLabel: "Manage Products",
     steps: [
       { step: "Add products", description: "Tap the Services tab → Products section and press '+'. Set product name, price, and stock quantity." },
       { step: "Sell during appointments", description: "When completing an appointment, add products to the sale to track inventory and revenue together." },
@@ -202,6 +230,8 @@ const GUIDE_SECTIONS: GuideSection[] = [
     title: "Booking Policies",
     emoji: "📋",
     color: "#EF4444",
+    actionRoute: "/booking-policies",
+    actionLabel: "Booking Policies",
     steps: [
       { step: "Set cancellation policy", description: "Go to Settings → Business → Booking Policies to define cancellation fees and notice requirements." },
       { step: "Custom booking URL", description: "Set a custom slug for your booking page (e.g., /book/your-name) in Booking Policies." },
@@ -214,6 +244,8 @@ const GUIDE_SECTIONS: GuideSection[] = [
     title: "Notifications & Alerts",
     emoji: "🔔",
     color: "#F59E0B",
+    actionRoute: "/notification-settings",
+    actionLabel: "Notification Settings",
     steps: [
       { step: "Enable push notifications", description: "Go to Settings → Alerts and enable the notification types you want: new bookings, cancellations, reviews, etc." },
       { step: "Staff alerts", description: "Set a staff utilization threshold in Settings → Business. You'll be alerted when staff are near capacity." },
@@ -226,14 +258,26 @@ const GUIDE_SECTIONS: GuideSection[] = [
     title: "Security & Account",
     emoji: "🔒",
     color: "#6B7280",
+    actionRoute: "/(tabs)/settings",
+    actionLabel: "Open Settings",
     steps: [
       { step: "Enable biometric lock", description: "Go to Settings → Account → App Lock and enable Face ID or Touch ID to protect your business data." },
       { step: "Change theme", description: "In Settings → Account → Appearance, switch between Light, Dark, or Auto (follows system) mode." },
       { step: "Log out", description: "Scroll to the bottom of Settings → Account and tap 'Log Out' to sign out of your account." },
-      { step: "Delete account", description: "To permanently delete all data, tap 'Delete Business' in Settings → Account. This action cannot be undone." },
+      { step: "Delete account", description: "To permanently delete all data, tap 'Delete Business' in Settings → Account. This action cannot be undone and removes all data from our servers and your device." },
     ],
   },
 ];
+
+// ─── Tour Analytics type ─────────────────────────────────────────────────────
+type TourAnalytics = {
+  completions: number;
+  skips: number;
+  lastEvent?: "completed" | "skipped";
+  lastStepReached?: number;
+  lastUpdated?: string;
+  stepReachedHistory?: Array<{ event: string; stepReached: number; timestamp: string }>;
+};
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
@@ -244,6 +288,23 @@ export default function UsageGuideScreen() {
   const currentPlanKey = planInfo?.planKey ?? "solo";
 
   const [expandedId, setExpandedId] = useState<string | null>("getting-started");
+  const [tourAnalytics, setTourAnalytics] = useState<TourAnalytics | null>(null);
+
+  // Load tour analytics
+  const loadAnalytics = useCallback(async () => {
+    try {
+      const raw = await AsyncStorage.getItem("@lime_tour_analytics");
+      if (raw) setTourAnalytics(JSON.parse(raw));
+    } catch (_) {}
+  }, []);
+
+  useEffect(() => { loadAnalytics(); }, [loadAnalytics]);
+
+  // Replay tour: clear the seen flag so tour fires on next Home visit
+  const replayTour = useCallback(async () => {
+    await AsyncStorage.removeItem("@lime_tutorial_seen");
+    router.push("/(tabs)/" as any);
+  }, [router]);
 
   // Filter sections by current plan
   const visibleSections = useMemo(() => {
@@ -294,8 +355,30 @@ export default function UsageGuideScreen() {
         <View style={[s.introCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[s.introText, { color: colors.muted }]}>
             This guide covers every feature in Manus Scheduler. Sections marked with a plan badge require an upgrade.
-            Tap any section to expand it.
+            Tap any section to expand it, then tap <Text style={{ fontWeight: "700" }}>Go There</Text> to navigate directly.
           </Text>
+        </View>
+
+        {/* Replay Tour card */}
+        <View style={[s.tourCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.tourCardTitle, { color: colors.foreground }]}>🎯 App Tour</Text>
+            <Text style={[s.tourCardSubtitle, { color: colors.muted }]}>
+              {tourAnalytics
+                ? `Completed ${tourAnalytics.completions}×  ·  Skipped ${tourAnalytics.skips}×${
+                    tourAnalytics.lastStepReached != null
+                      ? `  ·  Last reached step ${tourAnalytics.lastStepReached + 1}`
+                      : ""
+                  }`
+                : "Never watched"}
+            </Text>
+          </View>
+          <Pressable
+            onPress={replayTour}
+            style={({ pressed }) => [s.replayBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}
+          >
+            <Text style={s.replayBtnText}>▶ Replay Tour</Text>
+          </Pressable>
         </View>
 
         {/* Available sections */}
@@ -337,6 +420,20 @@ export default function UsageGuideScreen() {
                       </View>
                     </View>
                   ))}
+
+                  {/* Deep-link action button */}
+                  {section.actionRoute && (
+                    <Pressable
+                      onPress={() => router.push(section.actionRoute as any)}
+                      style={({ pressed }) => [
+                        s.actionBtn,
+                        { backgroundColor: section.color, opacity: pressed ? 0.85 : 1 },
+                      ]}
+                    >
+                      <IconSymbol name="arrow.up.right.square" size={15} color="#FFFFFF" />
+                      <Text style={s.actionBtnText}>{section.actionLabel ?? "Go There"}</Text>
+                    </Pressable>
+                  )}
                 </View>
               )}
             </View>
@@ -510,6 +607,23 @@ const s = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
   },
+  actionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginTop: 4,
+    alignSelf: "flex-start",
+  },
+  actionBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: 0.2,
+  },
   lockedHeader: {
     paddingVertical: 8,
     paddingHorizontal: 4,
@@ -538,5 +652,35 @@ const s = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
+  },
+  tourCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    gap: 12,
+  },
+  tourCardTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: 3,
+  },
+  tourCardSubtitle: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  replayBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  replayBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
 });

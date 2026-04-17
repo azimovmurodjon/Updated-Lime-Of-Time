@@ -316,18 +316,39 @@ export default function HomeScreen() {
       Animated.timing(tutorialFade, { toValue: 1, duration: 300, useNativeDriver: true }).start();
     }
   }, [showTutorial, tutorialStep]);
-  const dismissTutorial = useCallback(async () => {
+  // ─── Tour Analytics ──────────────────────────────────────────────
+  const recordTourAnalytics = useCallback(async (event: "completed" | "skipped", stepReached: number) => {
+    try {
+      const existing = await AsyncStorage.getItem("@lime_tour_analytics");
+      const prev = existing ? JSON.parse(existing) : { completions: 0, skips: 0, stepReachedHistory: [] };
+      const updated = {
+        completions: event === "completed" ? (prev.completions ?? 0) + 1 : (prev.completions ?? 0),
+        skips: event === "skipped" ? (prev.skips ?? 0) + 1 : (prev.skips ?? 0),
+        stepReachedHistory: [
+          ...(prev.stepReachedHistory ?? []).slice(-49), // keep last 50 entries
+          { event, stepReached, timestamp: new Date().toISOString() },
+        ],
+        lastEvent: event,
+        lastStepReached: stepReached,
+        lastUpdated: new Date().toISOString(),
+      };
+      await AsyncStorage.setItem("@lime_tour_analytics", JSON.stringify(updated));
+    } catch (_) {}
+  }, []);
+
+  const dismissTutorial = useCallback(async (skipped = false) => {
     Animated.timing(tutorialFade, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => {
       setShowTutorial(false);
     });
     await AsyncStorage.setItem("@lime_tutorial_seen", "1");
-  }, [tutorialFade]);
+    await recordTourAnalytics(skipped ? "skipped" : "completed", tutorialStep);
+  }, [tutorialFade, tutorialStep, recordTourAnalytics]);
   const nextTutorialStep = useCallback(() => {
     if (tutorialStep < TOUR_TAB_STEPS.length - 1) {
       tutorialFade.setValue(0);
       setTutorialStep((s) => s + 1);
     } else {
-      dismissTutorial();
+      dismissTutorial(false);
     }
   }, [tutorialStep, TOUR_TAB_STEPS.length, dismissTutorial, tutorialFade]);
   const prevTutorialStep = useCallback(() => {
@@ -1937,9 +1958,9 @@ export default function HomeScreen() {
           tutorialProgressTrackBg={tutorialProgressTrackBg}
           onNext={nextTutorialStep}
           onPrev={prevTutorialStep}
-          onSkip={dismissTutorial}
+          onSkip={() => dismissTutorial(true)}
           onSetupLocation={() => {
-            dismissTutorial();
+            dismissTutorial(false);
             router.push("/location-form" as any);
           }}
         />

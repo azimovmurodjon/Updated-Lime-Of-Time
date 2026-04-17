@@ -20,6 +20,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter } from "expo-router";
 import { useThemeContext } from "@/lib/theme-provider";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { removeSessionToken, clearUserInfo } from "@/lib/_core/auth";
 import { formatPhoneNumber, getMapUrl, DEFAULT_NOTIFICATION_PREFERENCES } from "@/lib/types";
 import { trpc } from "@/lib/trpc";
 import { useAppLockContext } from "@/lib/app-lock-provider";
@@ -119,8 +120,14 @@ export default function SettingsScreen() {
               "@bookease_discounts","@bookease_gift_cards","@bookease_custom_schedule",
               "@bookease_location_custom_schedule","@bookease_products","@bookease_staff",
               "@bookease_locations","@bookease_active_location_id",
+              "@bookease_client_photos","@bookease_packages","@bookease_service_photos",
+              "@bookease_biometric_enabled",
+              "@lime_tutorial_seen",
+              "@lime_tour_analytics",
             ]);
           } catch {}
+          try { await removeSessionToken(); } catch {}
+          try { await clearUserInfo(); } catch {}
           router.replace("/onboarding");
         },
       },
@@ -130,26 +137,41 @@ export default function SettingsScreen() {
   const handleDeleteBusiness = useCallback(() => {
     Alert.alert(
       "Delete Business",
-      "This will permanently delete all your data including services, clients, appointments, and reviews. This action cannot be undone.",
+      "This will permanently delete all your business data from our servers and remove all app data from this device. This action cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Delete Everything",
           style: "destructive",
           onPress: async () => {
+            // 1. Delete all records from DB (cascade: appointments, clients, services,
+            //    reviews, discounts, giftCards, customSchedule, products, staffMembers,
+            //    locations, waitlist, promoCodes, then businessOwner itself)
             if (state.businessOwnerId) {
               try { await deleteBusinessMut.mutateAsync({ id: state.businessOwnerId }); } catch {}
             }
+            // 2. Reset in-memory store
             dispatch({ type: "RESET_ALL_DATA" });
+            // 3. Wipe ALL AsyncStorage keys used by this app
             try {
               await AsyncStorage.multiRemove([
+                // Business data
                 "@bookease_services","@bookease_clients","@bookease_appointments",
                 "@bookease_reviews","@bookease_settings","@bookease_business_owner_id",
                 "@bookease_discounts","@bookease_gift_cards","@bookease_custom_schedule",
                 "@bookease_location_custom_schedule","@bookease_products","@bookease_staff",
                 "@bookease_locations","@bookease_active_location_id",
+                "@bookease_client_photos","@bookease_packages","@bookease_service_photos",
+                // App preferences
+                "@bookease_biometric_enabled",
+                // Tour / onboarding state
+                "@lime_tutorial_seen",
+                "@lime_tour_analytics",
               ]);
             } catch {}
+            // 4. Wipe SecureStore (session token + user info)
+            try { await removeSessionToken(); } catch {}
+            try { await clearUserInfo(); } catch {}
             router.replace("/onboarding");
           },
         },
@@ -512,7 +534,27 @@ export default function SettingsScreen() {
         </View>
       </View>
 
+      {/* Replay App Tour */}
+      <Text style={[styles.sectionLabel, { marginTop: 8 }]}>Help</Text>
+      <Pressable
+        onPress={async () => {
+          try { await AsyncStorage.removeItem("@lime_tutorial_seen"); } catch {}
+          router.replace("/(tabs)");
+        }}
+        style={({ pressed }) => [styles.navCard, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.75 : 1 }]}
+      >
+        <View style={[styles.navIcon, { backgroundColor: "#6366F115" }]}>
+          <IconSymbol name="play.fill" size={22} color="#6366F1" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Replay App Tour</Text>
+          <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Re-watch the onboarding walkthrough</Text>
+        </View>
+        <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+      </Pressable>
+
       {/* Log Out */}
+      <Text style={[styles.sectionLabel, { marginTop: 8 }]}>Account Actions</Text>
       <Pressable
         onPress={handleLogout}
         style={({ pressed }) => [styles.dangerButton, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}

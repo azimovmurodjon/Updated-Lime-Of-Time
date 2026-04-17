@@ -176,6 +176,7 @@ export async function deleteBusinessOwner(id: number): Promise<void> {
   await db.delete(staffMembers).where(eq(staffMembers.businessOwnerId, id));
   await db.delete(locations).where(eq(locations.businessOwnerId, id));
   await db.delete(waitlist).where(eq(waitlist.businessOwnerId, id));
+  await db.delete(promoCodes).where(eq(promoCodes.businessOwnerId, id));
   // Finally delete the business owner itself
   await db.delete(businessOwners).where(eq(businessOwners.id, id));
 }

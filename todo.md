@@ -1317,3 +1317,10 @@
 - [x] Interactive onboarding tour: TourOverlay component with spotlight cutout + arrow + message bubbles pointing to each tab (Home, Calendar, Clients, Services, Settings)
 - [x] Onboarding tour: mandatory location setup step (last step points to Settings, CTA navigates to /location-form)
 - [x] Application Usage Guide in Settings Tools tab (subscription-aware, covers all app actions)
+
+## Features (Apr 17 batch 41)
+- [x] Full account/business deletion: cascade delete all DB records (appointments, clients, services, products, staff, locations, settings, reviews, promo codes, etc.) when business owner deletes account — added promoCodes to server deleteBusinessOwner cascade
+- [x] Full account/business deletion: wipe all local phone data (AsyncStorage all @bookease_* + @lime_* keys, SecureStore session token + user info) on both Delete Business and Log Out
+- [x] Replay App Tour button in Settings Account tab (clears @lime_tutorial_seen, navigates to Home) and in Usage Guide screen with live analytics stats
+- [x] Usage Guide deep-links: each of 13 sections has a "Go There" action button navigating directly to the relevant screen
+- [x] Onboarding tour analytics: recordTourAnalytics() tracks completed/skipped + stepReached per session in @lime_tour_analytics; Usage Guide displays completion/skip counts and last step reached

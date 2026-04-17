@@ -115,6 +115,8 @@ const MAPPING = {
   "wrench.and.screwdriver.fill": "build",
   "book.fill": "menu-book",
   "book": "menu-book",
+  "play.fill": "play-arrow",
+  "play.circle.fill": "play-circle",
 } as unknown as IconMapping;
 
 export function IconSymbol({
