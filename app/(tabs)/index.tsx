@@ -760,11 +760,27 @@ export default function HomeScreen() {
     const phoneLine = rawPhone ? `\n📞 ${formatPhoneNumber(rawPhone)}` : "";
     const websiteLine = profile.website ? `\n🌐 ${profile.website}` : "";
     try {
-      await Share.share({
-        message: `Book an appointment with ${state.settings.businessName}!${addressLine}${phoneLine}${websiteLine}\n\nSchedule online: ${url}\n\nPowered by Lime Of Time`,
-        url,
-        title: "Book an Appointment",
-      });
+      if (Platform.OS === "web") {
+        // Web: use navigator.share if available, otherwise copy to clipboard
+        const shareData = {
+          title: "Book an Appointment",
+          text: `Book an appointment with ${state.settings.businessName}!${addressLine}${phoneLine}${websiteLine}\n\nSchedule online: ${url}\n\nPowered by Lime Of Time`,
+          url,
+        };
+        if (typeof navigator !== "undefined" && navigator.share) {
+          await navigator.share(shareData);
+        } else {
+          const { default: Clipboard } = await import("expo-clipboard");
+          await Clipboard.setStringAsync(url);
+          Alert.alert("Link Copied!", "Booking link copied to clipboard.");
+        }
+      } else {
+        await Share.share({
+          message: `Book an appointment with ${state.settings.businessName}!${addressLine}${phoneLine}${websiteLine}\n\nSchedule online: ${url}\n\nPowered by Lime Of Time`,
+          url,
+          title: "Book an Appointment",
+        });
+      }
     } catch {}
   }, [state.settings, activeLocation]);
 

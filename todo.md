@@ -1204,3 +1204,8 @@
 
 ## Features (Apr 16 batch 20)
 - [x] Admin dashboard: plan-breakdown bar (Solo/Growth/Studio/Enterprise counts + proportional bar) in the stats row
+
+## Features (Apr 16 batch 21)
+- [x] Fix share button on homepage: web fallback uses navigator.share() or clipboard copy
+- [x] Fix public booking page JS syntax error (broken single-quote in selectPaymentMethod onclick) that blocked the entire booking script from executing
+- [x] Fix booking page step-0 visibility bug (owner.temporaryClosed flag incorrectly hiding the form even when location is open)

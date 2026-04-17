@@ -3014,7 +3014,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     </div>
 
     <!-- Step 0: Client Info -->
-    <div id="step-0" class="card" ${owner.temporaryClosed ? 'style="display:none"' : ""}>
+    <div id="step-0" class="card" ${owner.temporaryClosed ? 'style="display:none"' : 'style=""'}>
       <h2>Your Information</h2>
       <div class="input-group">
         <label>Name *</label>
@@ -3788,7 +3788,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       opts.push({ id: 'later', label: '⏭️ Skip for now', sub: "I'll decide later — you can discuss payment when you arrive", color: '#94a3b8' });
       opts.forEach(function(opt) {
         const isSelected = selectedPaymentMethod === opt.id;
-        html += '<div onclick="selectPaymentMethod(\'' + opt.id + '\')" style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;border:2px solid ' + (isSelected ? opt.color : 'var(--border-input)') + ';background:' + (isSelected ? opt.color + '12' : 'var(--bg-card)') + ';cursor:pointer;transition:all .15s;">';
+        html += '<div onclick="selectPaymentMethod(&apos;' + opt.id + '&apos;)" style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;border:2px solid ' + (isSelected ? opt.color : 'var(--border-input)') + ';background:' + (isSelected ? opt.color + '12' : 'var(--bg-card)') + ';cursor:pointer;transition:all .15s;">';
         html += '<div style="font-size:22px;">' + opt.label.split(' ')[0] + '</div>';
         html += '<div style="flex:1;"><div style="font-weight:600;font-size:14px;color:var(--text);">' + opt.label.slice(opt.label.indexOf(' ')+1) + '</div><div style="font-size:12px;color:#888;margin-top:2px;">' + opt.sub + '</div></div>';
         if (isSelected) html += '<div style="width:20px;height:20px;border-radius:50%;background:' + opt.color + ';display:flex;align-items:center;justify-content:center;"><span style="color:#fff;font-size:12px;">✓</span></div>';
@@ -5099,6 +5099,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         if (step0) step0.style.display = 'none';
       } else {
         banner.classList.remove('show');
+        // Only show step-0 if the business itself is not closed
         if (step0 && !${JSON.stringify(!!owner.temporaryClosed)}) step0.style.display = '';
       }
     }
