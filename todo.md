@@ -1342,3 +1342,7 @@
 ## Batch 45
 - [x] Birthday field: removed cake emoji icon from picker row
 - [x] Birthday renamed to Expire Date in picker header, all form placeholders, and client detail display label
+
+## Batch 46
+- [x] Client cards: Expired (red) / Expiring soon (amber) badge shown when expire date is past or within 7 days
+- [x] Public booking page: Expire Date field removed (internal field only)

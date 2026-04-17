@@ -12,7 +12,6 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
-import { BirthdayPicker } from "@/components/birthday-picker";
 import { useStore, generateId, formatDateStr, formatTime, formatDateDisplay } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -82,7 +81,6 @@ export default function PublicBookingScreen() {
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [clientEmail, setClientEmail] = useState("");
-  const [clientBirthday, setClientBirthday] = useState("");
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(formatDateStr(new Date()));
@@ -286,7 +284,7 @@ export default function PublicBookingScreen() {
         phone: clientPhone.trim(),
         email: clientEmail.trim(),
         notes: "Added via booking link",
-        birthday: clientBirthday.trim(),
+        birthday: "",
         createdAt: new Date().toISOString(),
       };
       dispatch({ type: "ADD_CLIENT", payload: newClient });
@@ -348,7 +346,7 @@ export default function PublicBookingScreen() {
     }
 
     setStep("done");
-  }, [selectedServiceId, selectedTime, clientName, clientPhone, clientEmail, clientBirthday, notes, selectedDate, selectedService, state, dispatch, appliedGiftCard, syncToDb, priceInfo, selectedLocationId, selectedStaffId, applicableDiscount, productCart, cartTotal]);
+  }, [selectedServiceId, selectedTime, clientName, clientPhone, clientEmail, notes, selectedDate, selectedService, state, dispatch, appliedGiftCard, syncToDb, priceInfo, selectedLocationId, selectedStaffId, applicableDiscount, productCart, cartTotal]);
 
   // Resolve the address to show: use selected location's full address if available, else global profile
   const displayAddress = selectedLocation
@@ -629,11 +627,6 @@ export default function PublicBookingScreen() {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 returnKeyType="next"
-              />
-              <BirthdayPicker
-                value={clientBirthday}
-                onChange={setClientBirthday}
-                placeholder="Expire Date (optional)"
               />
               <TextInput
                 style={[
