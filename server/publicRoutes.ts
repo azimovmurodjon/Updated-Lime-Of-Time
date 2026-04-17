@@ -4645,10 +4645,8 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         const pmDisplay = selectedPaymentMethod && selectedPaymentMethod !== 'later'
           ? (pmLabels[selectedPaymentMethod] || selectedPaymentMethod)
           : 'Pay later / in person';
-        const pmBg = selectedPaymentMethod && selectedPaymentMethod !== 'later' ? '#f0fdf4' : '#f8fafc';
-        const pmBorder = selectedPaymentMethod && selectedPaymentMethod !== 'later' ? '#bbf7d0' : '#e2e8f0';
         const pmIcon = selectedPaymentMethod && selectedPaymentMethod !== 'later' ? '\ud83d\udcb3' : '\u23ed\ufe0f';
-        pmEl.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:' + pmBg + ';border:1.5px solid ' + pmBorder + ';border-radius:12px;font-size:13px;"><span>' + pmIcon + '</span><span>Payment: <strong>' + pmDisplay + '</strong></span></div>';
+        pmEl.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--accent-bg);border:1.5px solid var(--border);border-radius:12px;font-size:13px;color:var(--text);"><span>' + pmIcon + '</span><span>Payment: <strong>' + pmDisplay + '</strong></span></div>';
       }
     }
 

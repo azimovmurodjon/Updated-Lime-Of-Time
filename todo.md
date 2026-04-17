@@ -1212,3 +1212,6 @@
 
 ## Features (Apr 16 batch 22)
 - [x] Booking confirmation page: "Add to Calendar" button that generates an .ics file (Apple Calendar + Google Calendar compatible) with all appointment details pre-filled
+
+## Fixes (Apr 16 batch 23)
+- [x] Fix payment badge on Confirm Booking step invisible in dark mode (light green bg + light text hardcoded)
