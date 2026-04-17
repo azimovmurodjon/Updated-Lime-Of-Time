@@ -613,7 +613,6 @@ export default function HomeScreen() {
     });
 
     // ─── Upcoming this week (today through end of week) ──────────────────
-    const todayStr = formatDateStr(now);
     const upcomingThisWeekAppts = filteredAppts.filter(
       (a) => a.date >= todayStr && a.date <= endWeekStr && a.status !== 'cancelled' && a.status !== 'completed'
     );
