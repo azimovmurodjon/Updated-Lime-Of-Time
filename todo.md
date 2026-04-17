@@ -1229,3 +1229,8 @@
 ## Features (Apr 17 batch 26)
 - [x] Settings → Notifications: "Remind clients X hours before" selector (12h, 24h, 48h, 72h, 1 week) replacing hardcoded 24h window
 - [x] Appointment reminder cron: use business's reminderHoursBefore setting instead of hardcoded 24h
+
+## Features (Apr 17 batch 27)
+- [x] Settings page: reorganize into tabs (Business, Notifications, Billing, Account)
+- [x] Home pending banner: replace ? icon with a cleaner bell/clock icon
+- [x] Home KPIs: replace "Upcoming This Week" with "Total Yearly Earnings", swap position with "Total Appointments"

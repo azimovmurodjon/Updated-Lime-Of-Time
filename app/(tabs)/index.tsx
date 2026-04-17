@@ -624,6 +624,17 @@ export default function HomeScreen() {
       );
     }
 
+    // ─── Total Yearly Earnings (completed appts this calendar year) ─────────
+    const yearStart = `${now.getFullYear()}-01-01`;
+    const yearEnd = `${now.getFullYear()}-12-31`;
+    const yearlyRevenue = completedAppts
+      .filter((a) => a.date >= yearStart && a.date <= yearEnd)
+      .reduce((sum, a) => {
+        if (a.totalPrice != null) return sum + a.totalPrice;
+        const svc = state.services.find((s) => s.id === a.serviceId);
+        return sum + (svc?.price ?? 0);
+      }, 0);
+
     return {
       totalClients,
       totalAppointments,
@@ -645,6 +656,7 @@ export default function HomeScreen() {
       weekConfirmed,
       weekPending,
       upcomingDailyData,
+      yearlyRevenue,
     };
   }, [state.clients, state.appointments, state.services, filterByLocation, clientsForActiveLocation]);
 
@@ -974,7 +986,7 @@ export default function HomeScreen() {
               },
             ]}
           >
-            <IconSymbol name="questionmark.circle.fill" size={20} color="#FF9800" />
+            <IconSymbol name="clock.badge.fill" size={20} color="#FF9800" />
             <Text style={styles.pendingText}>
               {pendingCount} appointment request{pendingCount > 1 ? "s" : ""} pending
             </Text>
@@ -1040,7 +1052,36 @@ export default function HomeScreen() {
             sparkType="line"
             onPress={() => setKpiDetailTab("revenue")}
           />
-          {/* Appointments Card */}
+          {/* Total Yearly Earnings Card */}
+          <GradientKpiCard
+            width={cardW}
+            gradientColors={["#7B1FA2", "#CE93D8"]}
+            iconBg="rgba(255,255,255,0.22)"
+            icon={<IconSymbol name="dollarsign.circle.fill" size={22} color="#FFF" />}
+            value={`$${analytics.yearlyRevenue.toLocaleString()}`}
+            numericValue={Math.round(analytics.yearlyRevenue)}
+            valuePrefix="$"
+            label={`${new Date().getFullYear()} Earnings`}
+            sublabel={`$${analytics.totalRevenue.toLocaleString()} all-time`}
+            sparkData={analytics.monthlyData.map((d) => d.value)}
+            sparkType="bar"
+            onPress={() => setKpiDetailTab("revenue")}
+          />
+          {/* Clients Card */}
+          <GradientKpiCard
+            width={cardW}
+            gradientColors={["#1B5E20", "#66BB6A"]}
+            iconBg="rgba(255,255,255,0.22)"
+            icon={<IconSymbol name="person.2.fill" size={22} color="#FFF" />}
+            value={String(analytics.totalClients)}
+            numericValue={analytics.totalClients}
+            label="Total Clients"
+            sublabel={`${kpiClientsData.clientsData.length} active`}
+            sparkData={analytics.monthlyData.map((d) => d.value)}
+            sparkType="bar"
+            onPress={() => setKpiDetailTab("clients")}
+          />
+          {/* Total Appointments Card */}
           <GradientKpiCard
             width={cardW}
             gradientColors={["#1565C0", "#42A5F5"]}
@@ -1058,45 +1099,6 @@ export default function HomeScreen() {
               ) : undefined
             }
             sparkData={analytics.weeklyDailyData.map((d) => d.apptCount)}
-            sparkType="bar"
-            onPress={() => setKpiDetailTab("appointments")}
-          />
-          {/* Clients Card */}
-          <GradientKpiCard
-            width={cardW}
-            gradientColors={["#1B5E20", "#66BB6A"]}
-            iconBg="rgba(255,255,255,0.22)"
-            icon={<IconSymbol name="person.2.fill" size={22} color="#FFF" />}
-            value={String(analytics.totalClients)}
-            numericValue={analytics.totalClients}
-            label="Total Clients"
-            sublabel={`${kpiClientsData.clientsData.length} active`}
-            sparkData={analytics.monthlyData.map((d) => d.value)}
-            sparkType="bar"
-            onPress={() => setKpiDetailTab("clients")}
-          />
-          {/* Upcoming This Week Card */}
-          <GradientKpiCard
-            width={cardW}
-            gradientColors={["#7B1FA2", "#CE93D8"]}
-            iconBg="rgba(255,255,255,0.22)"
-            icon={<IconSymbol name="calendar.badge.clock" size={22} color="#FFF" />}
-            value={String(analytics.upcomingThisWeek)}
-            numericValue={analytics.upcomingThisWeek}
-            label="Upcoming This Week"
-            sublabel={
-              analytics.upcomingThisWeek === 0
-                ? "No upcoming appointments"
-                : `${analytics.weekConfirmed} confirmed·${analytics.weekPending} pending`
-            }
-            badge={
-              analytics.weekPending > 0 ? (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 10, backgroundColor: "rgba(255,152,0,0.55)" }}>
-                  <Text style={{ fontSize: 11, fontWeight: "800", color: "#FFF" }}>{analytics.weekPending} pending</Text>
-                </View>
-              ) : undefined
-            }
-            sparkData={analytics.upcomingDailyData}
             sparkType="bar"
             onPress={() => setKpiDetailTab("appointments")}
           />
