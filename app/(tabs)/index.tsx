@@ -204,6 +204,70 @@ function ProgressBar({
   );
 }
 
+// ─── Animated Background ────────────────────────────────────────────
+function AnimatedBackground({ isDark, width: screenWidth }: { isDark: boolean; width: number }) {
+  const orb1X = useRef(new Animated.Value(0)).current;
+  const orb1Y = useRef(new Animated.Value(0)).current;
+  const orb2X = useRef(new Animated.Value(0)).current;
+  const orb2Y = useRef(new Animated.Value(0)).current;
+  const orb3X = useRef(new Animated.Value(0)).current;
+  const orb3Y = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = (val: Animated.Value, range: number, duration: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(val, { toValue: range, duration, useNativeDriver: true }),
+          Animated.timing(val, { toValue: -range, duration, useNativeDriver: true }),
+        ])
+      );
+    const a1 = loop(orb1X, screenWidth * 0.1, 8000);
+    const a2 = loop(orb1Y, screenWidth * 0.07, 10000);
+    const a3 = loop(orb2X, screenWidth * 0.12, 12000);
+    const a4 = loop(orb2Y, screenWidth * 0.09, 9000);
+    const a5 = loop(orb3X, screenWidth * 0.08, 14000);
+    const a6 = loop(orb3Y, screenWidth * 0.11, 11000);
+    a1.start(); a2.start(); a3.start(); a4.start(); a5.start(); a6.start();
+    return () => { a1.stop(); a2.stop(); a3.stop(); a4.stop(); a5.stop(); a6.stop(); };
+  }, [screenWidth]);
+
+  const orbSize = screenWidth * 0.8;
+  const orb1Color = isDark ? 'rgba(22,101,52,0.5)' : 'rgba(134,239,172,0.4)';
+  const orb2Color = isDark ? 'rgba(20,83,45,0.4)' : 'rgba(74,222,128,0.3)';
+  const orb3Color = isDark ? 'rgba(6,78,59,0.35)' : 'rgba(187,247,208,0.45)';
+
+  return (
+    <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+      <LinearGradient
+        colors={isDark
+          ? ['#080d08', '#0a1208', '#0d1a0e', '#080d08']
+          : ['#f0fdf4', '#f7fef9', '#ecfdf5', '#f0fdf4']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <Animated.View style={[styles.orb, {
+        width: orbSize, height: orbSize, borderRadius: orbSize / 2,
+        backgroundColor: orb1Color,
+        top: -orbSize * 0.3, left: -orbSize * 0.25,
+        transform: [{ translateX: orb1X }, { translateY: orb1Y }],
+      }]} />
+      <Animated.View style={[styles.orb, {
+        width: orbSize * 0.85, height: orbSize * 0.85, borderRadius: (orbSize * 0.85) / 2,
+        backgroundColor: orb2Color,
+        bottom: -orbSize * 0.2, right: -orbSize * 0.2,
+        transform: [{ translateX: orb2X }, { translateY: orb2Y }],
+      }]} />
+      <Animated.View style={[styles.orb, {
+        width: orbSize * 0.6, height: orbSize * 0.6, borderRadius: (orbSize * 0.6) / 2,
+        backgroundColor: orb3Color,
+        top: screenWidth * 1.2, left: screenWidth * 0.15,
+        transform: [{ translateX: orb3X }, { translateY: orb3Y }],
+      }]} />
+    </View>
+  );
+}
+
 // ─── Main Screen ─────────────────────────────────────────────────────
 
 export default function HomeScreen() {
@@ -882,24 +946,8 @@ export default function HomeScreen() {
 
   return (
     <ScreenContainer tabletMaxWidth={0}>
-      {/* ─── Background watermark (top-right anchor, bleeds off edge) ────── */}
-      <View
-        style={{
-          position: 'absolute',
-          top: -width * 0.05,
-          right: -width * 0.1,
-          width: width * 1.05,
-          height: width * 1.35,
-          opacity: isDark ? 0.18 : 0.12,
-        }}
-        pointerEvents="none"
-      >
-        <Image
-          source={{ uri: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663347678319/Dw4mhfnuurFcniLsqjLpWN/Background_4bea201c.png' }}
-          style={{ width: '100%', height: '100%' }}
-          resizeMode="cover"
-        />
-      </View>
+      {/* ─── Animated gradient orbs background ──────────────────────── */}
+      <AnimatedBackground isDark={isDark} width={width} />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
@@ -2703,5 +2751,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     marginTop: 4,
+  },
+  orb: {
+    position: "absolute",
   },
 });
