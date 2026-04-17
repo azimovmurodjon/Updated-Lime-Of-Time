@@ -882,22 +882,22 @@ export default function HomeScreen() {
 
   return (
     <ScreenContainer tabletMaxWidth={0}>
-      {/* ─── Background watermark logo (bottom-right anchor, 90% page) ───── */}
+      {/* ─── Background watermark (top-right anchor, bleeds off edge) ────── */}
       <View
         style={{
           position: 'absolute',
-          bottom: -width * 0.15,
-          right: -width * 0.15,
-          width: width * 0.9,
-          height: width * 0.9,
-          opacity: isDark ? 0.13 : 0.07,
+          top: -width * 0.05,
+          right: -width * 0.1,
+          width: width * 1.05,
+          height: width * 1.35,
+          opacity: isDark ? 0.18 : 0.12,
         }}
         pointerEvents="none"
       >
         <Image
-          source={{ uri: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663347678319/Dw4mhfnuurFcniLsqjLpWN/bg-logo_dca41b51.png' }}
+          source={{ uri: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663347678319/Dw4mhfnuurFcniLsqjLpWN/Background_4bea201c.png' }}
           style={{ width: '100%', height: '100%' }}
-          resizeMode="contain"
+          resizeMode="cover"
         />
       </View>
       <ScrollView
