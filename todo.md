@@ -1346,3 +1346,12 @@
 ## Batch 46
 - [x] Client cards: Expired (red) / Expiring soon (amber) badge shown when expire date is past or within 7 days
 - [x] Public booking page: Expire Date field removed (internal field only)
+
+## Batch 47
+- [x] Services/Products FlatList layout fix (cards render at top)
+- [x] All notification defaults set to OFF
+- [x] SMS Automation defaults set to OFF
+- [x] Subscription gating for email notifications (Growth+ only)
+- [x] Subscription gating for SMS automation (Growth+ confirmations, Studio+ full)
+- [x] Admin override preserved (isAdminOverride grants full access)
+- [x] Twilio OTP info panel added to Settings > Tools

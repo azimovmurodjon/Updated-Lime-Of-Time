@@ -69,7 +69,7 @@ interface AppState {
 const initialSettings: BusinessSettings = {
   businessName: "My Business",
   defaultDuration: 60,
-  notificationsEnabled: true,
+  notificationsEnabled: false,
   notificationPreferences: DEFAULT_NOTIFICATION_PREFERENCES,
   workingHours: DEFAULT_WORKING_HOURS,
   profile: DEFAULT_BUSINESS_PROFILE,
@@ -92,7 +92,7 @@ const initialSettings: BusinessSettings = {
   twilioAuthToken: "",
   twilioFromNumber: "",
   twilioEnabled: false,
-  twilioBookingReminder: true,
+  twilioBookingReminder: false,
   twilioReminderHoursBeforeAppt: 24,
   twilioRebookingNudge: false,
   twilioRebookingNudgeDays: 14,

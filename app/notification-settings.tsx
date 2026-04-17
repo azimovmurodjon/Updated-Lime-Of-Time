@@ -15,6 +15,7 @@ import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { FuturisticBackground } from "@/components/futuristic-background";
+import { trpc } from "@/lib/trpc";
 
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
@@ -294,6 +295,16 @@ export default function NotificationSettingsScreen() {
   const pushEvents = NOTIF_EVENTS.filter((e) => e.channel === "push");
   const emailEvents = NOTIF_EVENTS.filter((e) => e.channel === "email");
 
+  // ── Plan gating ──────────────────────────────────────────────────────────
+  const businessOwnerId = state.businessOwnerId;
+  const { data: planInfo } = trpc.subscription.getMyPlan.useQuery(
+    { businessOwnerId: businessOwnerId! },
+    { enabled: !!businessOwnerId, staleTime: 60_000 }
+  );
+  const smsLevel = planInfo?.limits?.smsLevel ?? "none";
+  const hasSmsAccess = smsLevel !== "none"; // growth+ has confirmations; studio/enterprise/admin has full
+  const hasEmailAccess = planInfo ? (planInfo.planKey !== "solo" || planInfo.isAdminOverride) : true;
+
   return (
     <ScreenContainer edges={["top", "left", "right"]}>
       <FuturisticBackground />
@@ -404,15 +415,15 @@ export default function NotificationSettingsScreen() {
               </Text>
             </View>
             <Switch
-              value={(prefs.birthdayReminderEnabled ?? true) && settings.notificationsEnabled}
+              value={(prefs.birthdayReminderEnabled ?? false) && settings.notificationsEnabled}
               onValueChange={() => togglePref("birthdayReminderEnabled")}
               trackColor={{ false: colors.border, true: "#EC489960" }}
-              thumbColor={(prefs.birthdayReminderEnabled ?? true) ? "#EC4899" : colors.muted}
+              thumbColor={(prefs.birthdayReminderEnabled ?? false) ? "#EC4899" : colors.muted}
               disabled={!settings.notificationsEnabled}
             />
           </View>
           {/* Time picker row — only visible when birthday reminder is enabled */}
-          {(prefs.birthdayReminderEnabled ?? true) && settings.notificationsEnabled && (() => {
+          {(prefs.birthdayReminderEnabled ?? false) && settings.notificationsEnabled && (() => {
             const currentHour = prefs.birthdayReminderHour ?? 8;
             const HOURS = [6, 7, 8, 9, 10, 11, 12];
             const fmt = (h: number) => {
@@ -460,18 +471,26 @@ export default function NotificationSettingsScreen() {
         </View>
 
         {/* Email Notifications */}
+        {!hasEmailAccess && (
+          <View style={{ backgroundColor: colors.warning + "18", borderRadius: 12, padding: 12, marginTop: 16, marginBottom: 4, borderWidth: 1, borderColor: colors.warning + "40", flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <IconSymbol name="lock.fill" size={16} color={colors.warning} />
+            <Text style={{ fontSize: 13, color: colors.warning, flex: 1, lineHeight: 18 }}>
+              Email notifications are available on Growth and above. Upgrade your plan to unlock.
+            </Text>
+          </View>
+        )}
         <Text style={[styles.sectionHeader, { color: colors.muted, marginTop: 20 }]}>Email Notifications</Text>
         <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10, marginTop: -4 }}>
           Sent via email. Confirmation emails go to your clients; booking alerts go to your business address.
         </Text>
 
         {emailEvents.map((event) => {
-          const enabled = !!prefs[event.key];
+          const enabled = !!prefs[event.key] && hasEmailAccess;
           const message = customMessages[event.key] ?? event.defaultMessage;
           return (
             <View
               key={event.key}
-              style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: settings.notificationsEnabled ? 1 : 0.5 }]}
+              style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: (settings.notificationsEnabled && hasEmailAccess) ? 1 : 0.5 }]}
             >
               <View style={styles.switchRow}>
                 <View style={{ flex: 1, marginRight: 12 }}>
@@ -480,14 +499,14 @@ export default function NotificationSettingsScreen() {
                 </View>
                 <Switch
                   value={enabled}
-                  onValueChange={() => togglePref(event.key)}
+                  onValueChange={() => { if (hasEmailAccess) togglePref(event.key); }}
                   trackColor={{ false: colors.border, true: colors.primary + "60" }}
                   thumbColor={enabled ? colors.primary : colors.muted}
-                  disabled={!settings.notificationsEnabled}
+                  disabled={!settings.notificationsEnabled || !hasEmailAccess}
                 />
               </View>
 
-              {enabled && settings.notificationsEnabled && (
+              {enabled && settings.notificationsEnabled && hasEmailAccess && (
                 <>
                   <MessagePreview template={message} vars={event.vars} />
                   <Pressable
@@ -515,7 +534,7 @@ export default function NotificationSettingsScreen() {
         <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10, marginTop: -4 }}>
           Automatically email clients before their confirmed appointment. Choose how far in advance below.
         </Text>
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: settings.notificationsEnabled ? 1 : 0.5 }]}>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: (settings.notificationsEnabled && hasEmailAccess) ? 1 : 0.5 }]}>
           <View style={styles.switchRow}>
             <View style={{ flexDirection: "row", alignItems: "center", flex: 1, marginRight: 12 }}>
               <View style={{ width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", marginRight: 12, backgroundColor: "#0ea5e918" }}>
@@ -529,14 +548,14 @@ export default function NotificationSettingsScreen() {
               </View>
             </View>
             <Switch
-              value={(prefs.emailOnReminder ?? true) && settings.notificationsEnabled}
-              onValueChange={() => togglePref("emailOnReminder")}
+              value={(prefs.emailOnReminder ?? false) && settings.notificationsEnabled && hasEmailAccess}
+              onValueChange={() => { if (hasEmailAccess) togglePref("emailOnReminder"); }}
               trackColor={{ false: colors.border, true: "#0ea5e960" }}
-              thumbColor={(prefs.emailOnReminder ?? true) ? "#0ea5e9" : colors.muted}
-              disabled={!settings.notificationsEnabled}
+              thumbColor={(prefs.emailOnReminder ?? false) && hasEmailAccess ? "#0ea5e9" : colors.muted}
+              disabled={!settings.notificationsEnabled || !hasEmailAccess}
             />
           </View>
-          {(prefs.emailOnReminder ?? true) && settings.notificationsEnabled && (
+          {(prefs.emailOnReminder ?? false) && settings.notificationsEnabled && (
             <View style={{ marginTop: 10, paddingHorizontal: 4 }}>
               <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 8, fontWeight: "600" }}>Send reminder how far in advance?</Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -627,7 +646,7 @@ export default function NotificationSettingsScreen() {
             color: "#4CAF50",
           },
         ] as const).map((item) => {
-          const isOn = settings[item.key] !== false; // default ON
+          const isOn = settings[item.key] === true; // default OFF
           return (
             <View
               key={item.key}

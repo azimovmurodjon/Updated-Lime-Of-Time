@@ -28,7 +28,7 @@ import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { FuturisticBackground } from "@/components/futuristic-background";
-
+import { trpc } from "@/lib/trpc";
 
 type RuleKey =
   | "twilioBookingReminder"
@@ -90,6 +90,17 @@ export default function SmsAutomationScreen() {
   // SMS is handled by the Lime Of Time platform backend — no Twilio credentials required
   // The master toggle simply enables/disables the automation rules
 
+  // ── Plan gating ──────────────────────────────────────────────────────────
+  const businessOwnerId = state.businessOwnerId;
+  const { data: planInfo } = trpc.subscription.getMyPlan.useQuery(
+    { businessOwnerId: businessOwnerId! },
+    { enabled: !!businessOwnerId, staleTime: 60_000 }
+  );
+  // smsLevel: "none" (Solo) | "confirmations" (Growth) | "full" (Studio/Enterprise/Admin)
+  const smsLevel = planInfo?.limits?.smsLevel ?? "none";
+  const hasSmsAccess = smsLevel !== "none";
+  const hasFullSms = smsLevel === "full" || (planInfo?.isAdminOverride ?? false);
+
   const [timingValues, setTimingValues] = useState<Record<string, string>>({
     twilioReminderHoursBeforeAppt: String(
       settings.twilioReminderHoursBeforeAppt ?? 24
@@ -145,6 +156,23 @@ export default function SmsAutomationScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
+        {/* Plan gating banner */}
+        {!hasSmsAccess && (
+          <View style={{ backgroundColor: colors.warning + "18", borderRadius: 12, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: colors.warning + "40", flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <IconSymbol name="lock.fill" size={16} color={colors.warning} />
+            <Text style={{ fontSize: 13, color: colors.warning, flex: 1, lineHeight: 18 }}>
+              SMS Automation is not available on the Solo plan. Upgrade to Growth or above to send automated SMS messages.
+            </Text>
+          </View>
+        )}
+        {hasSmsAccess && !hasFullSms && (
+          <View style={{ backgroundColor: colors.primary + "12", borderRadius: 12, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: colors.primary + "30", flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <IconSymbol name="info.circle.fill" size={16} color={colors.primary} />
+            <Text style={{ fontSize: 13, color: colors.primary, flex: 1, lineHeight: 18 }}>
+              Your Growth plan includes booking confirmations only. Upgrade to Studio or above for full automation (reminders, rebooking nudges, birthday SMS).
+            </Text>
+          </View>
+        )}
         {/* Master toggle */}
         <View
           style={{
@@ -178,8 +206,9 @@ export default function SmsAutomationScreen() {
             </Text>
           </View>
           <Switch
-            value={settings.twilioEnabled ?? false}
+            value={(settings.twilioEnabled ?? false) && hasSmsAccess}
             onValueChange={(v) => {
+              if (!hasSmsAccess) return;
               dispatch({
                 type: "UPDATE_SETTINGS",
                 payload: { twilioEnabled: v },
@@ -187,6 +216,7 @@ export default function SmsAutomationScreen() {
             }}
             trackColor={{ false: colors.border, true: colors.primary }}
             thumbColor="#FFF"
+            disabled={!hasSmsAccess}
           />
         </View>
 
@@ -203,7 +233,10 @@ export default function SmsAutomationScreen() {
         </Text>
 
         {RULES.map((rule) => {
-          const isOn = !!(settings[rule.key] ?? false);
+          // Rebooking nudge and birthday SMS require full SMS access (Studio+)
+          const ruleRequiresFull = rule.key === "twilioRebookingNudge" || rule.key === "twilioBirthdaySms";
+          const ruleAvailable = ruleRequiresFull ? hasFullSms : hasSmsAccess;
+          const isOn = !!(settings[rule.key] ?? false) && ruleAvailable;
           return (
             <View
               key={rule.key}
@@ -214,6 +247,7 @@ export default function SmsAutomationScreen() {
                 borderColor: isOn ? rule.iconColor + "40" : colors.border,
                 padding: 14,
                 marginBottom: 12,
+                opacity: ruleAvailable ? 1 : 0.5,
               }}
             >
               <View
@@ -270,9 +304,10 @@ export default function SmsAutomationScreen() {
                 </View>
                 <Switch
                   value={isOn}
-                  onValueChange={(v) => handleToggle(rule.key, v)}
+                  onValueChange={(v) => { if (ruleAvailable) handleToggle(rule.key, v); }}
                   trackColor={{ false: colors.border, true: rule.iconColor }}
                   thumbColor="#FFF"
+                  disabled={!ruleAvailable}
                 />
               </View>
 

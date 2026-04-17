@@ -449,6 +449,20 @@ export default function SettingsScreen() {
         </View>
         <IconSymbol name="chevron.right" size={16} color={colors.muted} />
       </Pressable>
+      {/* OTP / Phone Verification */}
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 4 }]}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <View style={[styles.navIcon, { backgroundColor: "#7C3AED15" }]}>
+            <IconSymbol name="lock.shield.fill" size={22} color="#7C3AED" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Phone OTP Verification</Text>
+            <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 16 }}>
+              Real SMS OTPs are sent via Twilio. Platform admin can enable live OTPs by setting TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_NUMBER in the admin platform config. Until configured, the test code 123456 is accepted.
+            </Text>
+          </View>
+        </View>
+      </View>
       {/* Face ID / Biometric Lock */}
       {Platform.OS !== "web" && biometricAvailable && (
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 4 }]}>

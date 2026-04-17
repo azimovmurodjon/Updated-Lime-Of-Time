@@ -347,15 +347,15 @@ export const DEFAULT_SMS_TEMPLATES: SmsTemplates = {
 export const LIME_OF_TIME_FOOTER = "\n\nSent via Lime Of Time";
 
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
-  pushOnNewBooking: true,
-  pushOnCancellation: true,
-  pushOnReschedule: true,
-  pushOnWaitlist: true,
-  emailOnNewBooking: true,
-  emailClientOnConfirmation: true,
-  birthdayReminderEnabled: true,
+  pushOnNewBooking: false,
+  pushOnCancellation: false,
+  pushOnReschedule: false,
+  pushOnWaitlist: false,
+  emailOnNewBooking: false,
+  emailClientOnConfirmation: false,
+  birthdayReminderEnabled: false,
   birthdayReminderHour: 8,
-  emailOnReminder: true,
+  emailOnReminder: false,
   reminderHoursBefore: 24,
 };
 
