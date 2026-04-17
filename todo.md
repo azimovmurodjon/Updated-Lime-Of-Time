@@ -1215,3 +1215,8 @@
 
 ## Fixes (Apr 16 batch 23)
 - [x] Fix payment badge on Confirm Booking step invisible in dark mode (light green bg + light text hardcoded)
+
+## Features (Apr 17 batch 24)
+- [x] Fix all hardcoded light green colors (#f0fdf4, #166534, #bbf7d0, #dcfce7) in booking page for dark mode
+- [x] Add "Add to Calendar" Google Calendar link in booking confirmation email
+- [x] 24-hour appointment reminder: cron job sends push notification to owner + email to client 24h before appointment

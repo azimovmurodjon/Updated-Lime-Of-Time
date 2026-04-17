@@ -4073,7 +4073,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         appliedDiscount = { name: match.name, percentage: match.percentage };
         const orig = parseFloat(selectedService.price);
         const disc = orig * (1 - match.percentage / 100);
-        info.innerHTML = '<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:12px;font-size:13px;">\ud83c\udf89 <strong>' + match.name + '</strong> \u2014 ' + match.percentage + '% off! <span style="text-decoration:line-through;color:#999;">$' + orig.toFixed(2) + '</span> \u2192 <strong style="color:#2d5a27;">$' + disc.toFixed(2) + '</strong></div>';
+          info.innerHTML = '<div style="background:var(--accent-bg);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:13px;">🎉 <strong>' + match.name + '</strong> — ' + match.percentage + '% off! <span style="text-decoration:line-through;color:var(--text-muted);">$' + orig.toFixed(2) + '</span> → <strong style="color:var(--accent-dark);">$' + disc.toFixed(2) + '</strong></div>';
         info.style.display = "block";
       } else {
         appliedDiscount = null;
@@ -4208,9 +4208,9 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       const discAmt = getDiscountAmount();
       if (appliedDiscount && discAmt > 0) {
         const afterDisc = total - discAmt;
-        totalEl.innerHTML = '<span>Total' + (totalDur > 0 ? ' (' + totalDur + ' min)' : '') + '</span><span><span style="text-decoration:line-through;color:#999;font-size:12px;">$' + total.toFixed(2) + '</span> <span style="color:#2d5a27;font-weight:700;">$' + afterDisc.toFixed(2) + '</span></span>';
+        totalEl.innerHTML = '<span>Total' + (totalDur > 0 ? ' (' + totalDur + ' min)' : '') + '</span><span><span style="text-decoration:line-through;color:var(--text-muted);font-size:12px;">$' + total.toFixed(2) + '</span> <span style="color:var(--accent-dark);font-weight:700;">$' + afterDisc.toFixed(2) + '</span></span>';
       } else {
-        totalEl.innerHTML = '<span>Total' + (totalDur > 0 ? ' (' + totalDur + ' min)' : '') + '</span><span style="color:#2d5a27;">$' + total.toFixed(2) + '</span>';
+        totalEl.innerHTML = '<span>Total' + (totalDur > 0 ? ' (' + totalDur + ' min)' : '') + '</span><span style="color:var(--accent-dark);">$' + total.toFixed(2) + '</span>';
       }
     }
 
@@ -4328,7 +4328,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       html += '<div class="detail-meta">' + dur + '</div>';
       if (s.description) html += '<div class="detail-desc">' + esc(s.description) + '</div>';
       if (inCart) {
-        html += '<button class="detail-add-btn" style="background:#e5f0e3;color:#2d5a27;" onclick="removeServiceFromCart(' + Q + id + Q + ');closeItemDetail()">✓ Added — Remove</button>';
+        html += '<button class="detail-add-btn" style="background:var(--accent-bg);color:var(--accent-dark);" onclick="removeServiceFromCart(' + Q + id + Q + ');closeItemDetail()">✓ Added — Remove</button>';
       } else {
         html += '<button class="detail-add-btn" onclick="addServiceToCart(' + Q + id + Q + ');closeItemDetail()">Add to Booking</button>';
       }
@@ -4450,7 +4450,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       html += '<div class="detail-price">$' + parseFloat(p.price).toFixed(2) + '</div>';
       if (p.description) html += '<div class="detail-desc">' + esc(p.description) + '</div>';
       if (inCart) {
-        html += '<button class="detail-add-btn" style="background:#e5f0e3;color:#2d5a27;" onclick="removeProductFromCart(' + Q + id + Q + ');closeItemDetail()">✓ Added — Remove</button>';
+        html += '<button class="detail-add-btn" style="background:var(--accent-bg);color:var(--accent-dark);" onclick="removeProductFromCart(' + Q + id + Q + ');closeItemDetail()">✓ Added — Remove</button>';
       } else {
         html += '<button class="detail-add-btn" onclick="addProductToCart(' + Q + id + Q + ');closeItemDetail()">Add to Booking</button>';
       }
@@ -4605,7 +4605,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       // Savings summary
       const totalSaved = discountAmt + giftUsed;
       if (totalSaved > 0) {
-        breakdownHtml += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;margin-top:8px;font-size:12px;color:#166534;text-align:center;">You save <strong>$' + totalSaved.toFixed(2) + '</strong> on this booking!</div>';
+        breakdownHtml += '<div style="background:var(--accent-bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-top:8px;font-size:12px;color:var(--accent-dark);text-align:center;">You save <strong>$' + totalSaved.toFixed(2) + '</strong> on this booking!</div>';
       }
 
       // Cancellation policy notice
@@ -4747,7 +4747,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       const endStr = endH12 + ":" + String(endM).padStart(2,"0") + " " + endAmpm;
       const totalPrice = getTotalPrice();
 
-      let html = '<div style="margin-bottom:12px;font-weight:700;font-size:15px;color:#2d5a27;border-bottom:2px solid #e8ece8;padding-bottom:8px;">Booking Receipt</div>';
+      let html = '<div style="margin-bottom:12px;font-weight:700;font-size:15px;color:var(--accent-dark);border-bottom:2px solid var(--border);padding-bottom:8px;">Booking Receipt</div>';
 
       // Items list
       html += '<div style="margin-bottom:12px;">';
@@ -4782,7 +4782,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       let giftUsedR = getGiftUsedAmount();
       let discountAmtR = getDiscountAmount();
 
-      html += '<div style="border-top:2px solid #2d5a27;padding-top:10px;">';
+      html += '<div style="border-top:2px solid var(--accent);padding-top:10px;">';
       // Subtotal
       html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span>Subtotal</span><span>$' + totalPrice.toFixed(2) + '</span></div>';
 
@@ -4793,18 +4793,18 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
 
       // Gift card line
       if (appliedGift && giftUsedR > 0) {
-        html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:#2d5a27;"><span>\ud83c\udf81 Gift Card</span><span>-$' + giftUsedR.toFixed(2) + '</span></div>';
+           html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:var(--accent-dark);"><span>🎁 Gift Card</span><span>-$' + giftUsedR.toFixed(2) + '</span></div>';
       }
 
       // Final total
       let finalStr = '$' + chargedPriceR.toFixed(2);
       if (chargedPriceR === 0 && (discountAmtR > 0 || giftUsedR > 0)) finalStr = 'FREE';
-      html += '<div style="display:flex;justify-content:space-between;padding:8px 0 0;font-size:16px;font-weight:700;border-top:1px solid #e8ece8;margin-top:4px;"><span>Total to Pay</span><span style="color:#2d5a27;">' + finalStr + '</span></div>';
+      html += '<div style="display:flex;justify-content:space-between;padding:8px 0 0;font-size:16px;font-weight:700;border-top:1px solid var(--border);margin-top:4px;"><span>Total to Pay</span><span style="color:var(--accent-dark);">' + finalStr + '</span></div>';
 
       // Savings badge
       const totalSavedR = discountAmtR + giftUsedR;
       if (totalSavedR > 0) {
-        html += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:6px 10px;margin-top:8px;font-size:11px;color:#166534;text-align:center;">You saved <strong>$' + totalSavedR.toFixed(2) + '</strong> on this booking!</div>';
+        html += '<div style="background:var(--accent-bg);border:1px solid var(--border);border-radius:8px;padding:6px 10px;margin-top:8px;font-size:11px;color:var(--accent-dark);text-align:center;">You saved <strong>$' + totalSavedR.toFixed(2) + '</strong> on this booking!</div>';
       }
       html += '</div>';
 
@@ -4842,9 +4842,9 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         const tag = handle.startsWith('@') ? handle.slice(1) : handle;
         return 'https://venmo.com/' + encodeURIComponent(tag) + '?txn=pay&amount=' + chargedPrice.toFixed(2) + '&note=' + encodeURIComponent('Appointment payment');
       }
-      let html = '<div style="border:1.5px solid #bbf7d0;border-radius:14px;padding:16px;background:#f0fdf4;">';
-      html += '<div style="font-weight:700;font-size:15px;color:#166534;margin-bottom:4px;">💳 Payment Options</div>';
-      html += '<div style="font-size:13px;color:#166534;margin-bottom:14px;">Scan a QR code or tap to pay <strong>' + amountStr + '</strong></div>';
+      let html = '<div style="border:1.5px solid var(--border);border-radius:14px;padding:16px;background:var(--accent-bg);">';
+      html += '<div style="font-weight:700;font-size:15px;color:var(--accent-dark);margin-bottom:4px;">💳 Payment Options</div>';
+      html += '<div style="font-size:13px;color:var(--accent-dark);margin-bottom:14px;">Scan a QR code or tap to pay <strong>' + amountStr + '</strong></div>';
       html += '<div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">';
       if (methods.zelle) {
         const url = zelleUrl(methods.zelle);
@@ -5742,7 +5742,7 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any,
             const fee = (svcPrice * cp.feePercentage / 100).toFixed(2);
             return `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:12px;margin-bottom:12px;font-size:13px;color:#991b1b;"><strong>⚠️ Late Cancellation Fee:</strong> This appointment is within <strong>${cp.hoursBeforeAppointment} hour${cp.hoursBeforeAppointment !== 1 ? 's' : ''}</strong> of the scheduled time. A <strong>${cp.feePercentage}% cancellation fee ($${fee})</strong> may apply.</div>`;
           } else {
-            return `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px;margin-bottom:12px;font-size:12px;color:#166534;">Free cancellation available (more than ${cp.hoursBeforeAppointment} hours before appointment).</div>`;
+            return `<div style="background:var(--accent-bg);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:12px;font-size:12px;color:var(--accent-dark);">Free cancellation available (more than ${cp.hoursBeforeAppointment} hours before appointment).</div>`;
           }
         }
         return '';

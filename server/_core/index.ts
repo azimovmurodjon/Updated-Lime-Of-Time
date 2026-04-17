@@ -11,6 +11,7 @@ import { registerAdminRoutes } from "../adminRoutes";
 import { registerLegalRoutes } from "../legalRoutes";
 import { registerStripeRoutes } from "../stripeRoutes";
 import { startRenewalNotificationCron } from "../renewalNotificationCron";
+import { startAppointmentReminderCron } from "../appointmentReminderCron";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -101,3 +102,4 @@ startServer().catch(console.error);
 
 // Start background crons
 startRenewalNotificationCron();
+startAppointmentReminderCron();

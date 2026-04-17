@@ -167,13 +167,29 @@ export async function sendAppointmentConfirmationEmail(
   }
   detailsHtml += `</table>`;
 
+  // Build Google Calendar link
+  const gcalStart = data.date.replace(/-/g, "") + "T" + data.time.replace(":", "") + "00";
+  const gcalEndMin = h * 60 + m + data.duration;
+  const gcalEndH = Math.floor(gcalEndMin / 60) % 24;
+  const gcalEndM = gcalEndMin % 60;
+  const gcalEnd = data.date.replace(/-/g, "") + "T" + String(gcalEndH).padStart(2, "0") + String(gcalEndM).padStart(2, "0") + "00";
+  const gcalTitle = encodeURIComponent(`${data.serviceName} @ ${businessName}`);
+  const gcalLocation = encodeURIComponent(locationDisplay || "");
+  const gcalDetails = encodeURIComponent(`Service: ${data.serviceName} (${data.duration} min)\nBooked via Lime Of Time`);
+  const googleCalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${gcalTitle}&dates=${gcalStart}/${gcalEnd}&location=${gcalLocation}&details=${gcalDetails}`;
+
   const bodyHtml = `
     <div style="color:#333;font-size:15px;line-height:1.6;margin-bottom:16px;">
       Hi <strong>${escHtml(data.clientName)}</strong>, your appointment has been <strong style="color:#2d5a27;">confirmed</strong>! We look forward to seeing you.
     </div>
     ${detailsHtml}
-    <div style="margin-top:24px;padding:16px;background-color:#e8f5e3;border-radius:12px;text-align:center;">
-      <div style="color:#2d5a27;font-size:14px;font-weight:600;margin-bottom:8px;">Need to reschedule or cancel?</div>
+    <div style="margin-top:20px;padding:16px;background-color:#e8f5e3;border-radius:12px;text-align:center;">
+      <div style="color:#2d5a27;font-size:14px;font-weight:600;margin-bottom:10px;">📅 Add to Your Calendar</div>
+      <a href="${googleCalUrl}" target="_blank" style="display:inline-block;background-color:#4a8c3f;color:#ffffff;padding:10px 24px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;margin-bottom:8px;">Open in Google Calendar</a>
+      <div style="color:#666;font-size:11px;margin-top:6px;">iPhone / Mac users: tap the date &amp; time above to save to Apple Calendar</div>
+    </div>
+    <div style="margin-top:16px;padding:16px;background-color:#f5f5f5;border-radius:12px;text-align:center;">
+      <div style="color:#555;font-size:14px;font-weight:600;margin-bottom:8px;">Need to reschedule or cancel?</div>
       <div style="color:#555;font-size:13px;">Please contact us as soon as possible so we can accommodate you.</div>
       ${displayPhone ? `<div style="margin-top:8px;"><a href="tel:${displayPhone.replace(/\D/g,"")}" style="color:#4a8c3f;font-weight:600;text-decoration:none;">${escHtml(formatPhoneDisplay(displayPhone))}</a></div>` : ""}
     </div>
@@ -410,6 +426,119 @@ export async function sendSubscriptionConfirmationEmail(
     return true;
   } catch (err) {
     console.error("[Email] Failed to send subscription confirmation:", err);
+    return false;
+  }
+}
+
+// ─── Appointment Reminder Email (to client) ──────────────────────────────────
+
+export interface AppointmentReminderEmailData {
+  clientName: string;
+  clientEmail: string;
+  serviceName: string;
+  date: string;
+  time: string;
+  duration: number;
+  totalPrice?: number;
+  locationName?: string;
+  locationAddress?: string;
+  locationPhone?: string;
+  businessPhone?: string;
+  customSlug?: string;
+  locationId?: string;
+}
+
+/**
+ * Send a "Your appointment is tomorrow" reminder email to the client.
+ * Returns true if sent successfully, false otherwise.
+ */
+export async function sendAppointmentReminderEmail(
+  businessName: string,
+  data: AppointmentReminderEmailData
+): Promise<boolean> {
+  const resend = getResend();
+  if (!resend) return false;
+  if (!data.clientEmail || !data.clientEmail.includes("@")) return false;
+
+  const dateObj = new Date(data.date + "T12:00:00");
+  const dateStr = dateObj.toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const [h, m] = data.time.split(":").map(Number);
+  const ampm = h >= 12 ? "PM" : "AM";
+  const hour12 = h % 12 || 12;
+  const timeStr = `${hour12}:${String(m).padStart(2, "0")} ${ampm}`;
+
+  const totalMin = h * 60 + m + data.duration;
+  const endH = Math.floor(totalMin / 60) % 24;
+  const endM = totalMin % 60;
+  const endAmpm = endH >= 12 ? "PM" : "AM";
+  const endHour12 = endH % 12 || 12;
+  const endTimeStr = `${endHour12}:${String(endM).padStart(2, "0")} ${endAmpm}`;
+
+  const locationDisplay = [data.locationName, data.locationAddress].filter(Boolean).join(" — ");
+  const displayPhone = data.locationPhone || data.businessPhone || "";
+
+  // Google Calendar link
+  const gcalStart = data.date.replace(/-/g, "") + "T" + data.time.replace(":", "") + "00";
+  const gcalEndH = Math.floor(totalMin / 60) % 24;
+  const gcalEndM = totalMin % 60;
+  const gcalEnd = data.date.replace(/-/g, "") + "T" + String(gcalEndH).padStart(2, "0") + String(gcalEndM).padStart(2, "0") + "00";
+  const gcalTitle = encodeURIComponent(`${data.serviceName} @ ${businessName}`);
+  const gcalLocation = encodeURIComponent(locationDisplay || "");
+  const gcalDetails = encodeURIComponent(`Service: ${data.serviceName} (${data.duration} min)\nBooked via Lime Of Time`);
+  const googleCalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${gcalTitle}&dates=${gcalStart}/${gcalEnd}&location=${gcalLocation}&details=${gcalDetails}`;
+
+  const slug = data.customSlug || businessName.replace(/\s+/g, "-").toLowerCase();
+  const bookingLink = `https://lime-of-time.com/book/${slug}${data.locationId ? "?location=" + data.locationId : ""}`;
+
+  let detailsHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">`;
+  detailsHtml += detailRow("💈", "Service", `${data.serviceName} (${data.duration} min)`);
+  detailsHtml += detailRow("📅", "Date", dateStr);
+  detailsHtml += detailRow("⏰", "Time", `${timeStr} — ${endTimeStr}`);
+  if (locationDisplay) detailsHtml += detailRow("📍", "Location", locationDisplay);
+  if (displayPhone) detailsHtml += detailRow("📞", "Phone", formatPhoneDisplay(displayPhone));
+  if (data.totalPrice !== undefined && data.totalPrice > 0) {
+    detailsHtml += detailRow("💰", "Total", `$${data.totalPrice.toFixed(2)}`);
+  }
+  detailsHtml += `</table>`;
+
+  const bodyHtml = `
+    <div style="color:#333;font-size:15px;line-height:1.6;margin-bottom:16px;">
+      Hi <strong>${escHtml(data.clientName)}</strong>, just a friendly reminder that your appointment is <strong>tomorrow</strong>! We look forward to seeing you.
+    </div>
+    ${detailsHtml}
+    <div style="margin-top:20px;padding:16px;background-color:#e8f5e3;border-radius:12px;text-align:center;">
+      <div style="color:#2d5a27;font-size:14px;font-weight:600;margin-bottom:10px;">📅 Add to Your Calendar</div>
+      <a href="${googleCalUrl}" target="_blank" style="display:inline-block;background-color:#4a8c3f;color:#ffffff;padding:10px 24px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;margin-bottom:8px;">Open in Google Calendar</a>
+    </div>
+    <div style="margin-top:16px;padding:16px;background-color:#f5f5f5;border-radius:12px;text-align:center;">
+      <div style="color:#555;font-size:14px;font-weight:600;margin-bottom:8px;">Need to reschedule or cancel?</div>
+      <div style="color:#555;font-size:13px;">Please contact us as soon as possible so we can accommodate you.</div>
+      ${displayPhone ? `<div style="margin-top:8px;"><a href="tel:${displayPhone.replace(/\D/g,"")}" style="color:#4a8c3f;font-weight:600;text-decoration:none;">${escHtml(formatPhoneDisplay(displayPhone))}</a></div>` : ""}
+    </div>
+    <div style="margin-top:20px;text-align:center;">
+      <a href="${bookingLink}" style="display:inline-block;background-color:#2d5a27;color:#ffffff;padding:12px 28px;border-radius:24px;font-size:14px;font-weight:600;text-decoration:none;">Book Another Appointment</a>
+    </div>
+  `;
+
+  const html = brandedTemplate(`Reminder: Your appointment tomorrow — ${businessName}`, bodyHtml);
+
+  try {
+    const result = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: [data.clientEmail],
+      subject: `Reminder: ${data.serviceName} tomorrow at ${timeStr} — ${businessName}`,
+      html,
+    });
+    console.log("[Email] Reminder email sent to client:", result);
+    return true;
+  } catch (err) {
+    console.error("[Email] Failed to send reminder email:", err);
     return false;
   }
 }
