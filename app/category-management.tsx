@@ -14,6 +14,8 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -327,6 +329,7 @@ export default function CategoryManagementScreen() {
 
   return (
     <ScreenContainer>
+      <FuturisticBackground />
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Pressable

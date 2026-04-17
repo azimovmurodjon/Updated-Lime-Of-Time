@@ -21,6 +21,8 @@ import { useColors } from "@/hooks/use-colors";
 import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 import {
   Review,
   minutesToTime,
@@ -301,6 +303,7 @@ export default function ClientDetailScreen() {
   if (!client) {
     return (
       <ScreenContainer edges={["top", "bottom", "left", "right"]}>
+      <FuturisticBackground />
         <View style={{ padding: hp }}>
           <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
             <IconSymbol name="chevron.left" size={24} color={colors.foreground} />

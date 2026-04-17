@@ -937,30 +937,51 @@ export default function HomeScreen() {
               </View>
             )}
           </View>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 2 }}>
-            <Text style={[styles.dateLabel, { color: colors.muted }]}>{dateLabel}</Text>
-            {analytics.todayRevenue > 0 && (
+          <View style={{ marginTop: 4 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Text style={[styles.dateLabel, { color: colors.muted }]}>{dateLabel}</Text>
+              {analytics.todayRevenue > 0 && (
+                <Pressable
+                  onPress={() => router.push({ pathname: "/analytics-detail", params: { tab: "overview" } } as any)}
+                  style={({ pressed }) => ({
+                    flexDirection: "row",
+                    alignItems: "center",
+                    backgroundColor: colors.success + "20",
+                    borderRadius: 12,
+                    paddingHorizontal: 8,
+                    paddingVertical: 3,
+                    borderWidth: 1,
+                    borderColor: colors.success + "40",
+                    gap: 4,
+                    opacity: pressed ? 0.7 : 1,
+                  })}>
+                  <Text style={{ fontSize: 10, color: colors.success + "CC" }}>
+                    {analytics.todayCompletedCount} appt{analytics.todayCompletedCount !== 1 ? "s" : ""}
+                  </Text>
+                  <Text style={{ fontSize: 10, color: colors.success + "80" }}>·</Text>
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: colors.success }}>
+                    ${analytics.todayRevenue.toFixed(0)} today
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+            {/* 7-day revenue sparkline */}
+            {analytics.weeklyDailyData.some((d) => d.value > 0) && (
               <Pressable
                 onPress={() => router.push({ pathname: "/analytics-detail", params: { tab: "overview" } } as any)}
-                style={({ pressed }) => ({
-                  flexDirection: "row",
-                  alignItems: "center",
-                  backgroundColor: colors.success + "20",
-                  borderRadius: 12,
-                  paddingHorizontal: 8,
-                  paddingVertical: 3,
-                  borderWidth: 1,
-                  borderColor: colors.success + "40",
-                  gap: 4,
-                  opacity: pressed ? 0.7 : 1,
-                })}>
-                <Text style={{ fontSize: 10, color: colors.success + "CC" }}>
-                  {analytics.todayCompletedCount} appt{analytics.todayCompletedCount !== 1 ? "s" : ""}
-                </Text>
-                <Text style={{ fontSize: 10, color: colors.success + "80" }}>·</Text>
-                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.success }}>
-                  ${analytics.todayRevenue.toFixed(0)} today
-                </Text>
+                style={{ marginTop: 6, opacity: 0.72 }}
+              >
+                <MicroBarSpark
+                  data={analytics.weeklyDailyData.map((d) => d.value)}
+                  w={contentWidth - 32}
+                  h={22}
+                  color={colors.success}
+                />
+                <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 1 }}>
+                  {analytics.weeklyDailyData.map((d, i) => (
+                    <Text key={i} style={{ fontSize: 8, color: colors.muted + "99", flex: 1, textAlign: "center" }}>{d.label}</Text>
+                  ))}
+                </View>
               </Pressable>
             )}
           </View>
@@ -2119,7 +2140,7 @@ export default function HomeScreen() {
           style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center", padding: 24 }}
           onPress={() => setShowQrModal(false)}
         >
-          <Pressable
+          <View
             style={[{
               borderRadius: 24,
               padding: 24,
@@ -2128,7 +2149,6 @@ export default function HomeScreen() {
               maxWidth: 340,
               gap: 16,
             }, { backgroundColor: colors.surface }]}
-            onPress={() => {}}
           >
             {/* Header */}
             <View style={{ flexDirection: "row", alignItems: "center", width: "100%", marginBottom: 4 }}>
@@ -2239,7 +2259,7 @@ export default function HomeScreen() {
             <Text style={{ fontSize: 11, color: colors.muted, textAlign: "center" }}>
               Display at your counter or print for clients to scan
             </Text>
-          </Pressable>
+          </View>
         </Pressable>
       </Modal>
 

@@ -17,6 +17,8 @@ import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { PromoCode } from "@/lib/types";
 import { generateId } from "@/lib/utils";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -203,6 +205,7 @@ export default function PromoCodesScreen() {
 
   return (
     <ScreenContainer>
+      <FuturisticBackground />
       {/* Header */}
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>

@@ -23,6 +23,8 @@ import {
 } from "@/lib/types";
 import { TapTimePicker, timeToMinutes as tapTimeToMinutes } from "@/components/tap-time-picker";
 import { useRef } from "react";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
@@ -777,6 +779,7 @@ export default function DiscountsScreen() {
 
   return (
     <ScreenContainer tabletMaxWidth={900} edges={["top", "left", "right"]}>
+      <FuturisticBackground />
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.headerBackBtn, pressed && { opacity: 0.6 }]}>

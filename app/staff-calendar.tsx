@@ -26,6 +26,8 @@ import {
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { Alert, Platform } from "react-native";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DAY_HEADERS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
@@ -253,6 +255,7 @@ export default function StaffCalendarScreen() {
   if (!staff) {
     return (
       <ScreenContainer edges={["top", "bottom", "left", "right"]} className="p-6">
+      <FuturisticBackground />
         <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}>
           <Pressable onPress={() => router.back()} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, marginRight: 12 })}>
             <IconSymbol name="chevron.left" size={24} color={colors.foreground} />

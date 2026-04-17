@@ -20,6 +20,8 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useCallback, useMemo } from "react";
 import { GiftCard, formatPhoneNumber, stripPhoneFormat, PUBLIC_BOOKING_URL } from "@/lib/types";
 import * as Clipboard from "expo-clipboard";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 function generateGiftCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -486,6 +488,7 @@ export default function GiftCardsScreen() {
 
   return (
     <ScreenContainer tabletMaxWidth={900} edges={["top", "left", "right"]}>
+      <FuturisticBackground />
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.headerBackBtn, pressed && { opacity: 0.6 }]}>

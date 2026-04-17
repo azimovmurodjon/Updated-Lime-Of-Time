@@ -1276,3 +1276,10 @@
 - [x] Products tab: add search bar above brand chips
 - [x] Calendar Requests: swipe-to-approve/decline gestures on pending cards (SwipeableRequestCard component)
 - [x] Analytics Overview: date range picker expanded with Today, This Week, Custom (modal with YYYY-MM-DD input)
+
+## Features (Apr 17 batch 35)
+- [x] Fix Share Link / QR not working for single-location businesses (fixed nested Pressable in QR modal blocking touch events on iOS)
+- [x] Apply FuturisticBackground to all remaining screens and tabs (33 screens updated via Python script)
+- [x] Swipe hint animation on first visit to Requests tab (showHint prop on SwipeableRequestCard, AsyncStorage tracks first visit)
+- [x] Home KPI: 7-bar revenue sparkline chip showing daily revenue for current week (MicroBarSpark using weeklyDailyData)
+- [x] Analytics Custom date range: added Last 7 days, Last 30 days, Last 90 days quick-select presets in modal

@@ -708,6 +708,46 @@ export default function AnalyticsDetailScreen() {
           <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", alignItems: "center", padding: 24 }}>
             <View style={{ backgroundColor: colors.surface, borderRadius: 20, padding: 24, width: "100%", maxWidth: 360, borderWidth: 1, borderColor: colors.border }}>
               <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground, marginBottom: 16 }}>Custom Date Range</Text>
+              {/* Quick presets */}
+              <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
+                {[
+                  { label: "Last 7 days", days: 7 },
+                  { label: "Last 30 days", days: 30 },
+                  { label: "Last 90 days", days: 90 },
+                ].map(({ label, days }) => {
+                  const endD = new Date();
+                  const startD = new Date();
+                  startD.setDate(startD.getDate() - (days - 1));
+                  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+                  return (
+                    <Pressable
+                      key={label}
+                      onPress={() => {
+                        const s = fmt(startD);
+                        const e = fmt(endD);
+                        setCustomStartInput(s);
+                        setCustomEndInput(e);
+                        setCustomStart(s);
+                        setCustomEnd(e);
+                        setDateRange("custom");
+                        setShowCustomModal(false);
+                      }}
+                      style={({ pressed }) => ({
+                        flex: 1,
+                        paddingVertical: 8,
+                        borderRadius: 10,
+                        backgroundColor: colors.primary + "18",
+                        borderWidth: 1,
+                        borderColor: colors.primary + "40",
+                        alignItems: "center",
+                        opacity: pressed ? 0.7 : 1,
+                      })}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: "600", color: colors.primary }}>{label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
               <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Start Date (YYYY-MM-DD)</Text>
               <TextInput
                 value={customStartInput}

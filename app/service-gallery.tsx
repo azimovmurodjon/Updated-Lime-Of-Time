@@ -19,6 +19,8 @@ import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import * as ImagePicker from "expo-image-picker";
 import type { ServicePhoto } from "@/lib/types";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 type LabelKey = "before" | "after" | "other";
 
@@ -95,6 +97,7 @@ export default function ServiceGalleryScreen() {
   if (!service) {
     return (
       <ScreenContainer>
+      <FuturisticBackground />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
           <Text style={{ color: colors.muted }}>Service not found.</Text>
           <Pressable onPress={() => router.back()} style={{ marginTop: 16 }}>

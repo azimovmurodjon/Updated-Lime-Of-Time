@@ -18,6 +18,8 @@ import { useColors } from "@/hooks/use-colors";
 import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { formatPhoneNumber, stripPhoneFormat } from "@/lib/types";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 // ─── Field wrapper ────────────────────────────────────────────────────────────
 // IMPORTANT: defined OUTSIDE the screen component so its identity is stable
@@ -118,6 +120,7 @@ export default function BusinessProfileScreen() {
 
   return (
     <ScreenContainer edges={["top", "left", "right"]} tabletMaxWidth={720} style={{ paddingHorizontal: hp }}>
+      <FuturisticBackground />
       {/* Header */}
       <View style={styles.header}>
         <Pressable

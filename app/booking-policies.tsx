@@ -6,6 +6,8 @@ import { useColors } from "@/hooks/use-colors";
 import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter } from "expo-router";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 export default function BookingPoliciesScreen() {
   const { state, dispatch, syncToDb } = useStore();
@@ -60,6 +62,7 @@ export default function BookingPoliciesScreen() {
 
   return (
     <ScreenContainer edges={["top", "left", "right"]} tabletMaxWidth={720}>
+      <FuturisticBackground />
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border, paddingHorizontal: hp }]}>
         <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]}>

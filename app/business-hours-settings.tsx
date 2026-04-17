@@ -29,6 +29,8 @@ import { SimpleTimePicker } from '@/components/ui/time-picker-wheel';
 import { useStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { useResponsive } from '@/hooks/use-responsive';
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 const DAYS_OF_WEEK = [
   'Monday',
@@ -144,6 +146,7 @@ export default function BusinessHoursSettings() {
   if (loading) {
     return (
       <ScreenContainer className="items-center justify-center">
+      <FuturisticBackground />
         <ActivityIndicator size="large" />
       </ScreenContainer>
     );

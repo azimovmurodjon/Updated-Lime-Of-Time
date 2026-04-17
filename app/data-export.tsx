@@ -5,6 +5,8 @@ import { useColors } from "@/hooks/use-colors";
 import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter } from "expo-router";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 const EXPORT_ITEMS = [
   { key: "Clients", icon: "person.2.fill" as const, desc: "Client list with contact info and visit history" },
@@ -47,6 +49,7 @@ export default function DataExportScreen() {
 
   return (
     <ScreenContainer edges={["top", "left", "right"]} tabletMaxWidth={720}>
+      <FuturisticBackground />
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border, paddingHorizontal: hp }]}>
         <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]}>

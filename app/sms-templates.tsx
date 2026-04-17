@@ -18,6 +18,8 @@ import { useColors } from "@/hooks/use-colors";
 import { useStore } from "@/lib/store";
 import { LIME_OF_TIME_FOOTER, SmsTemplates } from "@/lib/types";
 import * as Haptics from "expo-haptics";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 // ─── Default template bodies (without the footer) ─────────────────────────────
 const DEFAULT_BODIES: Record<keyof SmsTemplates, string> = {
@@ -214,6 +216,7 @@ export default function SmsTemplatesScreen() {
 
   return (
     <ScreenContainer>
+      <FuturisticBackground />
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Pressable

@@ -21,6 +21,8 @@ import { Appointment, Client, Product, Discount, DAYS_OF_WEEK, generateAvailable
 import { trpc } from "@/lib/trpc";
 import { useActiveLocation } from "@/hooks/use-active-location";
 import { useResponsive } from "@/hooks/use-responsive";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -608,6 +610,7 @@ export default function NewBookingScreen() {
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} tabletMaxWidth={720}>
+      <FuturisticBackground />
       {/* Header */}
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8, paddingTop: 8, paddingHorizontal: hp }}>
         <View className="flex-row items-center">

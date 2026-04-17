@@ -6,6 +6,8 @@ import { useColors } from "@/hooks/use-colors";
 import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter } from "expo-router";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 type SortMode = "newest" | "oldest" | "highest" | "lowest";
 
@@ -39,6 +41,7 @@ export default function ReviewsScreen() {
 
   return (
     <ScreenContainer tabletMaxWidth={900} edges={["top", "left", "right"]}>
+      <FuturisticBackground />
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border, paddingHorizontal: hp }]}>
         <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]}>

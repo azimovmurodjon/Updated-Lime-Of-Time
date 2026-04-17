@@ -27,6 +27,8 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 type RuleKey =
   | "twilioBookingReminder"
@@ -125,6 +127,7 @@ export default function SmsAutomationScreen() {
 
   return (
     <ScreenContainer edges={["top", "left", "right"]}>
+      <FuturisticBackground />
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Pressable

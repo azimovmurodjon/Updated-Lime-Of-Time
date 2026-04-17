@@ -27,6 +27,8 @@ import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from "
 import { useColors } from "@/hooks/use-colors";
 import { useStore } from "@/lib/store";
 import { trpc } from "@/lib/trpc";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 // ─── Plan Colors ──────────────────────────────────────────────────────────────
 
@@ -362,6 +364,7 @@ export default function SubscriptionScreen() {
   if (!businessOwnerId || isLoading) {
     return (
       <ScreenContainer>
+      <FuturisticBackground />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
           <ActivityIndicator color={colors.primary} size="large" />
         </View>

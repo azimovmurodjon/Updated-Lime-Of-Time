@@ -7,6 +7,8 @@ import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 import {
   minutesToTime,
   timeToMinutes,
@@ -52,6 +54,7 @@ export default function AppointmentDetailScreen() {
   if (!appointment) {
     return (
       <ScreenContainer edges={["top", "bottom", "left", "right"]} className="p-5">
+      <FuturisticBackground />
         <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
           <IconSymbol name="arrow.left" size={24} color={colors.foreground} />
         </Pressable>

@@ -16,6 +16,8 @@ import { useRouter } from "expo-router";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import * as Haptics from "expo-haptics";
 import { Platform } from "react-native";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 export default function SocialLinksScreen() {
   const { state, dispatch, syncToDb } = useStore();
@@ -96,6 +98,7 @@ export default function SocialLinksScreen() {
 
   return (
     <ScreenContainer>
+      <FuturisticBackground />
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Pressable
           onPress={() => router.back()}

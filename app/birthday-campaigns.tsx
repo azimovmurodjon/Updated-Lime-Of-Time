@@ -18,6 +18,8 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter } from "expo-router";
 import { Client, formatPhoneNumber, stripPhoneFormat, LIME_OF_TIME_FOOTER } from "@/lib/types";
 import { trpc } from "@/lib/trpc";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 // Parse birthday string (MM/DD/YYYY or MM/DD) and return { month, day }
 function parseBirthday(birthday: string): { month: number; day: number } | null {
@@ -169,6 +171,7 @@ export default function BirthdayCampaignsScreen() {
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]}>
+      <FuturisticBackground />
       <View style={{ flex: 1, paddingHorizontal: hp }}>
         {/* Header */}
         <View style={styles.topBar}>

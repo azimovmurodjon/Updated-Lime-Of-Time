@@ -11,6 +11,8 @@ import { UpgradePlanSheet } from "@/components/upgrade-plan-sheet";
 import { SERVICE_COLORS, Service } from "@/lib/types";
 import { TapDurationPicker, formatDuration } from "@/components/tap-duration-picker";
 import * as ImagePicker from "expo-image-picker";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 export default function ServiceFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -116,6 +118,7 @@ export default function ServiceFormScreen() {
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} tabletMaxWidth={680}>
+      <FuturisticBackground />
       {/* Header */}
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 24, paddingTop: 16, paddingHorizontal: hp }}>
         <View style={{ flexDirection: "row", alignItems: "center", flex: 1, marginRight: 12 }}>

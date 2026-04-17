@@ -18,6 +18,8 @@ import { StaffMember } from "@/lib/types";
 import { useActiveLocation } from "@/hooks/use-active-location";
 import { useResponsive } from "@/hooks/use-responsive";
 import { LocationSwitcher } from "@/components/location-switcher";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 export default function StaffScreen() {
   const { state, dispatch, syncToDb } = useStore();
@@ -292,6 +294,7 @@ export default function StaffScreen() {
 
   return (
     <ScreenContainer tabletMaxWidth={900} edges={["top", "left", "right"]} className="pt-2" style={{ paddingHorizontal: hp }}>
+      <FuturisticBackground />
       {/* Header */}
       <View style={styles.header}>
         <Pressable

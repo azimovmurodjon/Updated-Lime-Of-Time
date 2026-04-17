@@ -18,6 +18,8 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Location, LOCATION_COLORS, formatFullAddress, getMapUrl, PUBLIC_BOOKING_URL, formatPhoneNumber } from "@/lib/types";
 import { useActiveLocation } from "@/hooks/use-active-location";
 import { useResponsive } from "@/hooks/use-responsive";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 export default function LocationsScreen() {
   const { state, dispatch, syncToDb } = useStore();
@@ -455,6 +457,7 @@ export default function LocationsScreen() {
 
   return (
     <ScreenContainer tabletMaxWidth={900} edges={["top", "left", "right"]} className="pt-2" style={{ paddingHorizontal: hp }}>
+      <FuturisticBackground />
       <View style={styles.header}>
         <Pressable
           onPress={() => router.back()}

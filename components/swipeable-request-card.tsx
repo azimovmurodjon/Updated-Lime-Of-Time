@@ -10,8 +10,8 @@
  *     {card content}
  *   </SwipeableRequestCard>
  */
-import { useRef } from "react";
-import { View, Text, StyleSheet, Platform } from "react-native";
+import { useRef, useEffect } from "react";
+import { View, Text, StyleSheet, Platform, Animated } from "react-native";
 import Swipeable from "react-native-gesture-handler/Swipeable";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 
@@ -21,10 +21,27 @@ interface Props {
   onReject: () => void;
   /** Set to false to disable swipe (e.g., non-pending cards) */
   enabled?: boolean;
+  /** If true, plays a brief nudge animation to hint at swipe gestures */
+  showHint?: boolean;
 }
 
-export function SwipeableRequestCard({ children, onAccept, onReject, enabled = true }: Props) {
+export function SwipeableRequestCard({ children, onAccept, onReject, enabled = true, showHint = false }: Props) {
   const swipeRef = useRef<Swipeable>(null);
+  const hintAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!showHint || Platform.OS === "web") return;
+    // After a short delay, nudge right → back → slight left → back
+    const timer = setTimeout(() => {
+      Animated.sequence([
+        Animated.timing(hintAnim, { toValue: 40, duration: 240, useNativeDriver: true }),
+        Animated.timing(hintAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
+        Animated.timing(hintAnim, { toValue: -20, duration: 160, useNativeDriver: true }),
+        Animated.timing(hintAnim, { toValue: 0, duration: 140, useNativeDriver: true }),
+      ]).start();
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [showHint]);
 
   const renderLeftActions = () => (
     <View style={styles.leftAction}>
@@ -45,24 +62,26 @@ export function SwipeableRequestCard({ children, onAccept, onReject, enabled = t
   }
 
   return (
-    <Swipeable
-      ref={swipeRef}
-      friction={2}
-      leftThreshold={60}
-      rightThreshold={60}
-      renderLeftActions={renderLeftActions}
-      renderRightActions={renderRightActions}
-      onSwipeableOpen={(direction) => {
-        swipeRef.current?.close();
-        if (direction === "left") {
-          onAccept();
-        } else {
-          onReject();
-        }
-      }}
-    >
-      {children}
-    </Swipeable>
+    <Animated.View style={{ transform: [{ translateX: hintAnim }] }}>
+      <Swipeable
+        ref={swipeRef}
+        friction={2}
+        leftThreshold={60}
+        rightThreshold={60}
+        renderLeftActions={renderLeftActions}
+        renderRightActions={renderRightActions}
+        onSwipeableOpen={(direction) => {
+          swipeRef.current?.close();
+          if (direction === "left") {
+            onAccept();
+          } else {
+            onReject();
+          }
+        }}
+      >
+        {children}
+      </Swipeable>
+    </Animated.View>
   );
 }
 

@@ -32,6 +32,8 @@ import {
   stripPhoneFormat,
 } from "@/lib/types";
 import { TapTimePicker, timeToMinutes as tapTimeToMinutes } from "@/components/tap-time-picker";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 type DaySchedule = { enabled: boolean; start: string; end: string };
 type WeekSchedule = Record<string, DaySchedule>;
@@ -243,6 +245,7 @@ export default function StaffFormScreen() {
 
   return (
     <ScreenContainer edges={["top", "left", "right"]} tabletMaxWidth={720} className="pt-3" style={{ paddingHorizontal: hp }}>
+      <FuturisticBackground />
       {/* Header */}
       <View style={styles.header}>
         <Pressable

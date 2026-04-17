@@ -286,11 +286,24 @@ export default function CalendarScreen() {
   // Initialise from params first; will be overridden by stored value on mount if no param
   const initialFilter = (params.filter as FilterKey) || "upcoming";
   const [activeFilter, setActiveFilter] = useState<FilterKey>(initialFilter);
+  // Swipe hint: show nudge animation on first visit to Requests tab
+  const SWIPE_HINT_KEY = "@lime_swipe_hint_seen";
+  const [showSwipeHint, setShowSwipeHint] = useState(false);
 
   // Persist filter selection to AsyncStorage
   const setActiveFilterPersisted = useCallback((key: FilterKey) => {
     setActiveFilter(key);
     AsyncStorage.setItem(FILTER_STORAGE_KEY, key).catch(() => {});
+    if (key === "requests") {
+      AsyncStorage.getItem(SWIPE_HINT_KEY).then((seen) => {
+        if (!seen) {
+          setShowSwipeHint(true);
+          AsyncStorage.setItem(SWIPE_HINT_KEY, "1").catch(() => {});
+        }
+      }).catch(() => {});
+    } else {
+      setShowSwipeHint(false);
+    }
   }, []);
 
   // On mount: restore last-used filter (only if no explicit param was passed)
@@ -1213,7 +1226,7 @@ export default function CalendarScreen() {
             </Text>
           </View>
         ) : (
-          filteredAppointments.map((appt) => {
+          filteredAppointments.map((appt, apptIdx) => {
             const svc = getServiceById(appt.serviceId);
             const client = getClientById(appt.clientId);
             const staffMember = appt.staffId ? getStaffById(appt.staffId) : null;
@@ -1225,6 +1238,7 @@ export default function CalendarScreen() {
                 enabled={isRequest}
                 onAccept={() => handleAccept(appt)}
                 onReject={() => handleReject(appt)}
+                showHint={showSwipeHint && isRequest && apptIdx === 0}
               >
               <View style={[styles.filterCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: svc?.color ?? colors.primary }]}>
                 <Pressable onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })} style={{ flex: 1 }}>

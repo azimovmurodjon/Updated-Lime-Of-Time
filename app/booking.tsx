@@ -18,6 +18,8 @@ import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useMemo, useCallback } from "react";
 import { useResponsive } from "@/hooks/use-responsive";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 import {
   Appointment,
   Client,
@@ -367,6 +369,7 @@ export default function PublicBookingScreen() {
   if (isLocationTemporarilyClosed) {
     return (
       <ScreenContainer edges={["top", "bottom", "left", "right"]} style={{ paddingHorizontal: hp }}>
+      <FuturisticBackground />
         {/* Header */}
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>

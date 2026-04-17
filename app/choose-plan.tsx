@@ -14,6 +14,8 @@ import { PlanCarousel } from "@/components/plan-carousel";
 import * as WebBrowser from "expo-web-browser";
 import { getApiBaseUrl } from "@/constants/oauth";
 import { useStore } from "@/lib/store";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 export default function ChoosePlanScreen() {
   const colors = useColors();
@@ -104,6 +106,7 @@ export default function ChoosePlanScreen() {
 
   return (
     <ScreenContainer>
+      <FuturisticBackground />
       {/* Header */}
       <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 }}>
         <Pressable

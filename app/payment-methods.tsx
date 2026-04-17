@@ -15,6 +15,8 @@ import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { useRouter } from "expo-router";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 export default function PaymentMethodsScreen() {
   const { state, dispatch, syncToDb } = useStore();
@@ -49,6 +51,7 @@ export default function PaymentMethodsScreen() {
 
   return (
     <ScreenContainer>
+      <FuturisticBackground />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}

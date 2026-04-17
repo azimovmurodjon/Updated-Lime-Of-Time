@@ -24,6 +24,8 @@ import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { trpc } from "@/lib/trpc";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 const STEPS = [
   {
@@ -138,6 +140,7 @@ export default function TwilioSetupScreen() {
 
   return (
     <ScreenContainer edges={["top", "left", "right"]}>
+      <FuturisticBackground />
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>

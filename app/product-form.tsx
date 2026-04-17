@@ -23,6 +23,8 @@ import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import type { Product } from "@/lib/types";
 import * as ImagePicker from "expo-image-picker";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 export default function ProductFormScreen() {
   const { state, dispatch, syncToDb } = useStore();
@@ -164,6 +166,7 @@ export default function ProductFormScreen() {
 
   return (
     <ScreenContainer edges={["left", "right"]} tabletMaxWidth={680}>
+      <FuturisticBackground />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}

@@ -35,6 +35,8 @@ import { TapTimePicker, timeToMinutes as tapTimeToMinutes } from "@/components/t
 import QRCode from "react-native-qrcode-svg";
 import ViewShot, { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 const DAY_LABELS: Record<string, string> = { sunday: "Sun", monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu", friday: "Fri", saturday: "Sat" };
 const DAY_FULL: Record<string, string> = { sunday: "Sunday", monday: "Monday", tuesday: "Tuesday", wednesday: "Wednesday", thursday: "Thursday", friday: "Friday", saturday: "Saturday" };
@@ -320,6 +322,7 @@ export default function LocationFormScreen() {
 
   return (
     <ScreenContainer edges={["top", "left", "right"]} tabletMaxWidth={720} className="pt-3" style={{ paddingHorizontal: hp }}>
+      <FuturisticBackground />
       {/* Header */}
       <View style={styles.header}>
         <Pressable

@@ -19,6 +19,8 @@ import { useColors } from "@/hooks/use-colors";
 import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { NoteTemplate } from "@/lib/types";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 const STARTER_TEMPLATES = [
   { title: "Prefers no heat styling", body: "Client prefers no heat tools. Use air-dry or diffuser only." },
@@ -137,6 +139,7 @@ export default function NoteTemplatesScreen() {
 
   return (
     <ScreenContainer>
+      <FuturisticBackground />
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Pressable
           onPress={() => router.back()}

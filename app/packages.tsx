@@ -18,6 +18,8 @@ import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useCallback, useMemo } from "react";
 import { ServicePackage } from "@/lib/types";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 const EMPTY_FORM = {
   name: "",
@@ -256,6 +258,7 @@ export default function PackagesScreen() {
 
   return (
     <ScreenContainer>
+      <FuturisticBackground />
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Pressable
           onPress={() => router.back()}

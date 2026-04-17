@@ -10,6 +10,8 @@ import { TapTimePicker, timeToMinutes as tapTimeToMinutes } from "@/components/t
 import { useActiveLocation } from "@/hooks/use-active-location";
 import { useResponsive } from "@/hooks/use-responsive";
 import { LocationSwitcher } from "@/components/location-switcher";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
 
 const DAYS_OF_WEEK = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const DAY_LABELS: Record<string, string> = { monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu", friday: "Fri", saturday: "Sat", sunday: "Sun" };
@@ -418,6 +420,7 @@ export default function ScheduleSettingsScreen() {
 
   return (
     <ScreenContainer edges={["top", "left", "right"]} tabletMaxWidth={720}>
+      <FuturisticBackground />
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border, paddingHorizontal: hp }]}>
         <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]}>
