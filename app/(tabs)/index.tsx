@@ -232,16 +232,18 @@ function AnimatedBackground({ isDark, width: screenWidth }: { isDark: boolean; w
   }, [screenWidth]);
 
   const orbSize = screenWidth * 0.8;
-  const orb1Color = isDark ? 'rgba(22,101,52,0.5)' : 'rgba(134,239,172,0.4)';
-  const orb2Color = isDark ? 'rgba(20,83,45,0.4)' : 'rgba(74,222,128,0.3)';
-  const orb3Color = isDark ? 'rgba(6,78,59,0.35)' : 'rgba(187,247,208,0.45)';
+  // Dark: navy/teal orbs on deep navy background (#0D1B2A)
+  // Light: sage/mint orbs on off-white background (#F8FAF7)
+  const orb1Color = isDark ? 'rgba(21,34,51,0.95)'  : 'rgba(74,124,89,0.18)';   // surface dark / primary light
+  const orb2Color = isDark ? 'rgba(22,32,48,0.9)'   : 'rgba(143,191,106,0.15)'; // surfaceAlt dark / accent light
+  const orb3Color = isDark ? 'rgba(28,46,66,0.85)'  : 'rgba(238,245,232,0.7)';  // surfaceElevated dark / surfaceAlt light
 
   return (
     <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
       <LinearGradient
         colors={isDark
-          ? ['#080d08', '#0a1208', '#0d1a0e', '#080d08']
-          : ['#f0fdf4', '#f7fef9', '#ecfdf5', '#f0fdf4']}
+          ? ['#0D1B2A', '#0f1e2e', '#0D1B2A', '#0a1622']  // background.dark
+          : ['#F8FAF7', '#f4f8f2', '#EEF5E8', '#F8FAF7']} // background.light → surfaceAlt.light
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFillObject}
