@@ -1355,3 +1355,8 @@
 - [x] Subscription gating for SMS automation (Growth+ confirmations, Studio+ full)
 - [x] Admin override preserved (isAdminOverride grants full access)
 - [x] Twilio OTP info panel added to Settings > Tools
+
+## Batch 48
+- [x] UpgradeSheet component with plan comparison table and CTA to Subscription screen
+- [x] Wire UpgradeSheet into notification-settings.tsx locked email toggles (Pressable wrapper + lock icon)
+- [x] Wire UpgradeSheet into sms-automation.tsx locked SMS master toggle and rule cards

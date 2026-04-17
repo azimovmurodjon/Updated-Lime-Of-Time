@@ -16,6 +16,7 @@ import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { FuturisticBackground } from "@/components/futuristic-background";
 import { trpc } from "@/lib/trpc";
+import { UpgradeSheet } from "@/components/upgrade-sheet";
 
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
@@ -264,6 +265,7 @@ export default function NotificationSettingsScreen() {
   const [customMessages, setCustomMessages] = useState<Partial<Record<keyof NotificationPreferences, string>>>({});
   const [editingEvent, setEditingEvent] = useState<NotifEvent | null>(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [upgradeSheetVisible, setUpgradeSheetVisible] = useState(false);
 
   const toggleMaster = useCallback(() => {
     const action = { type: "UPDATE_SETTINGS" as const, payload: { notificationsEnabled: !settings.notificationsEnabled } };
@@ -294,6 +296,8 @@ export default function NotificationSettingsScreen() {
 
   const pushEvents = NOTIF_EVENTS.filter((e) => e.channel === "push");
   const emailEvents = NOTIF_EVENTS.filter((e) => e.channel === "email");
+
+  const handleLockedTap = () => setUpgradeSheetVisible(true);
 
   // ── Plan gating ──────────────────────────────────────────────────────────
   const businessOwnerId = state.businessOwnerId;
@@ -488,22 +492,27 @@ export default function NotificationSettingsScreen() {
           const enabled = !!prefs[event.key] && hasEmailAccess;
           const message = customMessages[event.key] ?? event.defaultMessage;
           return (
-            <View
+            <Pressable
               key={event.key}
-              style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: (settings.notificationsEnabled && hasEmailAccess) ? 1 : 0.5 }]}
+              onPress={!hasEmailAccess ? handleLockedTap : undefined}
+              style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: (settings.notificationsEnabled && hasEmailAccess) ? 1 : 0.55 }]}
             >
               <View style={styles.switchRow}>
                 <View style={{ flex: 1, marginRight: 12 }}>
                   <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{event.label}</Text>
                   <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 16 }}>{event.description}</Text>
                 </View>
-                <Switch
-                  value={enabled}
-                  onValueChange={() => { if (hasEmailAccess) togglePref(event.key); }}
-                  trackColor={{ false: colors.border, true: colors.primary + "60" }}
-                  thumbColor={enabled ? colors.primary : colors.muted}
-                  disabled={!settings.notificationsEnabled || !hasEmailAccess}
-                />
+                {!hasEmailAccess ? (
+                  <IconSymbol name="lock.fill" size={18} color={colors.muted} />
+                ) : (
+                  <Switch
+                    value={enabled}
+                    onValueChange={() => togglePref(event.key)}
+                    trackColor={{ false: colors.border, true: colors.primary + "60" }}
+                    thumbColor={enabled ? colors.primary : colors.muted}
+                    disabled={!settings.notificationsEnabled}
+                  />
+                )}
               </View>
 
               {enabled && settings.notificationsEnabled && hasEmailAccess && (
@@ -525,7 +534,7 @@ export default function NotificationSettingsScreen() {
                   </Pressable>
                 </>
               )}
-            </View>
+            </Pressable>
           );
         })}
 
@@ -534,7 +543,10 @@ export default function NotificationSettingsScreen() {
         <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10, marginTop: -4 }}>
           Automatically email clients before their confirmed appointment. Choose how far in advance below.
         </Text>
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: (settings.notificationsEnabled && hasEmailAccess) ? 1 : 0.5 }]}>
+        <Pressable
+          onPress={!hasEmailAccess ? handleLockedTap : undefined}
+          style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: (settings.notificationsEnabled && hasEmailAccess) ? 1 : 0.55 }]}
+        >
           <View style={styles.switchRow}>
             <View style={{ flexDirection: "row", alignItems: "center", flex: 1, marginRight: 12 }}>
               <View style={{ width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", marginRight: 12, backgroundColor: "#0ea5e918" }}>
@@ -547,13 +559,17 @@ export default function NotificationSettingsScreen() {
                 </Text>
               </View>
             </View>
-            <Switch
-              value={(prefs.emailOnReminder ?? false) && settings.notificationsEnabled && hasEmailAccess}
-              onValueChange={() => { if (hasEmailAccess) togglePref("emailOnReminder"); }}
-              trackColor={{ false: colors.border, true: "#0ea5e960" }}
-              thumbColor={(prefs.emailOnReminder ?? false) && hasEmailAccess ? "#0ea5e9" : colors.muted}
-              disabled={!settings.notificationsEnabled || !hasEmailAccess}
-            />
+            {!hasEmailAccess ? (
+              <IconSymbol name="lock.fill" size={18} color={colors.muted} />
+            ) : (
+              <Switch
+                value={(prefs.emailOnReminder ?? false) && settings.notificationsEnabled}
+                onValueChange={() => togglePref("emailOnReminder")}
+                trackColor={{ false: colors.border, true: "#0ea5e960" }}
+                thumbColor={(prefs.emailOnReminder ?? false) ? "#0ea5e9" : colors.muted}
+                disabled={!settings.notificationsEnabled}
+              />
+            )}
           </View>
           {(prefs.emailOnReminder ?? false) && settings.notificationsEnabled && (
             <View style={{ marginTop: 10, paddingHorizontal: 4 }}>
@@ -594,7 +610,7 @@ export default function NotificationSettingsScreen() {
               </View>
             </View>
           )}
-        </View>
+        </Pressable>
 
         {/* ── Email Notifications Controller ── */}
         <Text style={[styles.sectionHeader, { color: colors.muted, marginTop: 20 }]}>Email Notifications to You</Text>
@@ -648,9 +664,10 @@ export default function NotificationSettingsScreen() {
         ] as const).map((item) => {
           const isOn = settings[item.key] === true; // default OFF
           return (
-            <View
+            <Pressable
               key={item.key}
-              style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={!hasEmailAccess ? handleLockedTap : undefined}
+              style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: hasEmailAccess ? 1 : 0.55 }]}
             >
               <View style={styles.switchRow}>
                 <View style={{ flexDirection: "row", alignItems: "center", flex: 1, marginRight: 12 }}>
@@ -666,18 +683,22 @@ export default function NotificationSettingsScreen() {
                     <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 16 }}>{item.description}</Text>
                   </View>
                 </View>
-                <Switch
-                  value={isOn}
-                  onValueChange={() => {
-                    const action = { type: "UPDATE_SETTINGS" as const, payload: { [item.key]: !isOn } };
-                    dispatch(action);
-                    syncToDb(action);
-                  }}
-                  trackColor={{ false: colors.border, true: item.color + "60" }}
-                  thumbColor={isOn ? item.color : colors.muted}
-                />
+                {!hasEmailAccess ? (
+                  <IconSymbol name="lock.fill" size={18} color={colors.muted} />
+                ) : (
+                  <Switch
+                    value={isOn}
+                    onValueChange={() => {
+                      const action = { type: "UPDATE_SETTINGS" as const, payload: { [item.key]: !isOn } };
+                      dispatch(action);
+                      syncToDb(action);
+                    }}
+                    trackColor={{ false: colors.border, true: item.color + "60" }}
+                    thumbColor={isOn ? item.color : colors.muted}
+                  />
+                )}
               </View>
-            </View>
+            </Pressable>
           );
         })}
 
@@ -722,6 +743,14 @@ export default function NotificationSettingsScreen() {
         currentMessage={editingEvent ? (customMessages[editingEvent.key] ?? editingEvent.defaultMessage) : ""}
         onSave={handleSaveMessage}
         onClose={() => setEditModalVisible(false)}
+      />
+
+      {/* Upgrade sheet — shown when user taps a locked notification toggle */}
+      <UpgradeSheet
+        visible={upgradeSheetVisible}
+        onClose={() => setUpgradeSheetVisible(false)}
+        featureName="Email Notifications"
+        requiredPlan="growth"
       />
     </ScreenContainer>
   );

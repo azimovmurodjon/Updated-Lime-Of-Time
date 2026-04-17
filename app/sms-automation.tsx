@@ -29,6 +29,7 @@ import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { FuturisticBackground } from "@/components/futuristic-background";
 import { trpc } from "@/lib/trpc";
+import { UpgradeSheet } from "@/components/upgrade-sheet";
 
 type RuleKey =
   | "twilioBookingReminder"
@@ -100,6 +101,16 @@ export default function SmsAutomationScreen() {
   const smsLevel = planInfo?.limits?.smsLevel ?? "none";
   const hasSmsAccess = smsLevel !== "none";
   const hasFullSms = smsLevel === "full" || (planInfo?.isAdminOverride ?? false);
+
+  const [upgradeSheetVisible, setUpgradeSheetVisible] = useState(false);
+  const [upgradeFeatureName, setUpgradeFeatureName] = useState("");
+  const [upgradeRequiredPlan, setUpgradeRequiredPlan] = useState<"growth" | "studio" | "enterprise">("growth");
+
+  const handleLockedSmsTap = (featureName: string, plan: "growth" | "studio" | "enterprise" = "growth") => {
+    setUpgradeFeatureName(featureName);
+    setUpgradeRequiredPlan(plan);
+    setUpgradeSheetVisible(true);
+  };
 
   const [timingValues, setTimingValues] = useState<Record<string, string>>({
     twilioReminderHoursBeforeAppt: String(
@@ -205,19 +216,23 @@ export default function SmsAutomationScreen() {
                 : "Enable to send automated SMS to clients"}
             </Text>
           </View>
-          <Switch
-            value={(settings.twilioEnabled ?? false) && hasSmsAccess}
-            onValueChange={(v) => {
-              if (!hasSmsAccess) return;
-              dispatch({
-                type: "UPDATE_SETTINGS",
-                payload: { twilioEnabled: v },
-              });
-            }}
-            trackColor={{ false: colors.border, true: colors.primary }}
-            thumbColor="#FFF"
-            disabled={!hasSmsAccess}
-          />
+          {!hasSmsAccess ? (
+            <Pressable onPress={() => handleLockedSmsTap("SMS Automation", "growth")}>
+              <IconSymbol name="lock.fill" size={20} color={colors.muted} />
+            </Pressable>
+          ) : (
+            <Switch
+              value={settings.twilioEnabled ?? false}
+              onValueChange={(v) => {
+                dispatch({
+                  type: "UPDATE_SETTINGS",
+                  payload: { twilioEnabled: v },
+                });
+              }}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor="#FFF"
+            />
+          )}
         </View>
 
         {/* Automation rules */}
@@ -232,14 +247,15 @@ export default function SmsAutomationScreen() {
           Automation Rules
         </Text>
 
-        {RULES.map((rule) => {
+          {RULES.map((rule) => {
           // Rebooking nudge and birthday SMS require full SMS access (Studio+)
           const ruleRequiresFull = rule.key === "twilioRebookingNudge" || rule.key === "twilioBirthdaySms";
           const ruleAvailable = ruleRequiresFull ? hasFullSms : hasSmsAccess;
           const isOn = !!(settings[rule.key] ?? false) && ruleAvailable;
           return (
-            <View
+            <Pressable
               key={rule.key}
+              onPress={!ruleAvailable ? () => handleLockedSmsTap(rule.title, ruleRequiresFull ? "studio" : "growth") : undefined}
               style={{
                 backgroundColor: colors.surface,
                 borderRadius: 14,
@@ -247,7 +263,7 @@ export default function SmsAutomationScreen() {
                 borderColor: isOn ? rule.iconColor + "40" : colors.border,
                 padding: 14,
                 marginBottom: 12,
-                opacity: ruleAvailable ? 1 : 0.5,
+                opacity: ruleAvailable ? 1 : 0.55,
               }}
             >
               <View
@@ -302,13 +318,16 @@ export default function SmsAutomationScreen() {
                     </Text>
                   </View>
                 </View>
-                <Switch
-                  value={isOn}
-                  onValueChange={(v) => { if (ruleAvailable) handleToggle(rule.key, v); }}
-                  trackColor={{ false: colors.border, true: rule.iconColor }}
-                  thumbColor="#FFF"
-                  disabled={!ruleAvailable}
-                />
+                {!ruleAvailable ? (
+                  <IconSymbol name="lock.fill" size={18} color={colors.muted} />
+                ) : (
+                  <Switch
+                    value={isOn}
+                    onValueChange={(v) => handleToggle(rule.key, v)}
+                    trackColor={{ false: colors.border, true: rule.iconColor }}
+                    thumbColor="#FFF"
+                  />
+                )}
               </View>
 
               {/* Timing input */}
@@ -365,11 +384,11 @@ export default function SmsAutomationScreen() {
                   </View>
                 </View>
               )}
-            </View>
+            </Pressable>
           );
         })}
 
-        {/* How it works note */}
+        {/* Twilio info */}
         <View
           style={{
             backgroundColor: colors.primary + "10",
@@ -407,6 +426,14 @@ export default function SmsAutomationScreen() {
           </Text>
         </View>
       </ScrollView>
+
+      {/* Upgrade sheet — shown when user taps a locked SMS toggle */}
+      <UpgradeSheet
+        visible={upgradeSheetVisible}
+        onClose={() => setUpgradeSheetVisible(false)}
+        featureName={upgradeFeatureName}
+        requiredPlan={upgradeRequiredPlan}
+      />
     </ScreenContainer>
   );
 }
