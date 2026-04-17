@@ -1360,3 +1360,9 @@
 - [x] UpgradeSheet component with plan comparison table and CTA to Subscription screen
 - [x] Wire UpgradeSheet into notification-settings.tsx locked email toggles (Pressable wrapper + lock icon)
 - [x] Wire UpgradeSheet into sms-automation.tsx locked SMS master toggle and rule cards
+
+## Batch 49
+- [ ] Save Twilio credentials to platform config DB
+- [ ] Fix Test Connection button for Twilio (real API call + success/error display)
+- [ ] Fix Test Connection button for Stripe
+- [ ] Verify OTP flow end-to-end with real Twilio number

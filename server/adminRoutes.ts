@@ -935,18 +935,27 @@ export function registerAdminRoutes(app: Express): void {
       const dbase = await getDb();
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
       const keyDefs: Array<{ key: string; sensitive: boolean; desc: string }> = [
-        { key: "twilio_account_sid", sensitive: true, desc: "Twilio Account SID" },
-        { key: "twilio_auth_token", sensitive: true, desc: "Twilio Auth Token" },
-        { key: "twilio_from_number", sensitive: false, desc: "Twilio From Phone Number" },
-        { key: "twilio_test_mode", sensitive: false, desc: "Twilio Test Mode (true/false)" },
-        { key: "twilio_test_otp", sensitive: false, desc: "Test OTP code (default: 123456)" },
-        { key: "stripe_secret_key", sensitive: true, desc: "Stripe Secret Key" },
-        { key: "stripe_publishable_key", sensitive: false, desc: "Stripe Publishable Key" },
-        { key: "stripe_webhook_secret", sensitive: true, desc: "Stripe Webhook Secret" },
-        { key: "stripe_test_mode", sensitive: false, desc: "Stripe Test Mode (true/false)" },
+        { key: "TWILIO_ACCOUNT_SID", sensitive: true, desc: "Twilio Account SID" },
+        { key: "TWILIO_AUTH_TOKEN", sensitive: true, desc: "Twilio Auth Token" },
+        { key: "TWILIO_FROM_NUMBER", sensitive: false, desc: "Twilio From Phone Number" },
+        { key: "TWILIO_TEST_MODE", sensitive: false, desc: "Twilio Test Mode (true/false)" },
+        { key: "TWILIO_TEST_OTP", sensitive: false, desc: "Test OTP code (default: 123456)" },
+        { key: "STRIPE_SECRET_KEY", sensitive: true, desc: "Stripe Secret Key" },
+        { key: "STRIPE_PUBLISHABLE_KEY", sensitive: false, desc: "Stripe Publishable Key" },
+        { key: "STRIPE_WEBHOOK_SECRET", sensitive: true, desc: "Stripe Webhook Secret" },
+        { key: "STRIPE_TEST_MODE", sensitive: false, desc: "Stripe Test Mode (true/false)" },
       ];
+      // Checkbox fields — only present in body when checked; absent means unchecked
+      const checkboxKeys = new Set(['TWILIO_TEST_MODE', 'STRIPE_TEST_MODE']);
       for (const def of keyDefs) {
-        const value = (req.body[def.key] || "").toString().trim();
+        const formKey = def.key.toLowerCase();
+        let value: string;
+        if (checkboxKeys.has(def.key)) {
+          // Checkbox: 'true' if present, 'false' if absent
+          value = req.body[formKey] === 'true' ? 'true' : 'false';
+        } else {
+          value = (req.body[formKey] || "").toString().trim();
+        }
         // Check if exists
         const existing = await dbase.select().from(platformConfig).where(eq(platformConfig.configKey, def.key)).limit(1);
         if (existing.length > 0) {
@@ -3365,11 +3374,11 @@ function plansPage(plans: any[]): string {
 
 // ─── Platform Config Page ────────────────────────────────────────────────────
 function platformConfigPage(cfgMap: Record<string, string>): string {
-  const isTwilioTestMode = cfgMap["twilio_test_mode"] === "true" || cfgMap["twilio_test_mode"] === "1";
-  const isStripeTestMode = cfgMap["stripe_test_mode"] === "true" || cfgMap["stripe_test_mode"] === "1";
+  const isTwilioTestMode = cfgMap["TWILIO_TEST_MODE"] === "true" || cfgMap["TWILIO_TEST_MODE"] === "1";
+  const isStripeTestMode = cfgMap["STRIPE_TEST_MODE"] === "true" || cfgMap["STRIPE_TEST_MODE"] === "1";
 
-  const field = (key: string, label: string, desc: string, sensitive = false, placeholder = "") => {
-    const val = cfgMap[key] || "";
+  const field = (key: string, label: string, desc: string, sensitive = false, placeholder = "", valueOverride?: string) => {
+    const val = valueOverride !== undefined ? valueOverride : (cfgMap[key] || "");
     const displayVal = sensitive && val && val.length > 8 ? val.substring(0, 4) + "••••••••" + val.slice(-4) : val;
     return `
       <div style="margin-bottom:16px;">
@@ -3396,19 +3405,19 @@ function platformConfigPage(cfgMap: Record<string, string>): string {
           </div>
           ${isTwilioTestMode ? '<span style="background:#f59e0b20;color:#f59e0b;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;margin-left:auto;">⚠️ TEST MODE ACTIVE</span>' : '<span style="background:#05996920;color:#059669;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;margin-left:auto;">✓ LIVE MODE</span>'}
         </div>
-        ${field("twilio_account_sid", "Account SID", "Found in your Twilio Console dashboard", true, "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")}
-        ${field("twilio_auth_token", "Auth Token", "Found in your Twilio Console dashboard", true, "Your Twilio Auth Token")}
-        ${field("twilio_from_number", "From Phone Number", "Your Twilio phone number in E.164 format", false, "+14155551234")}
+        ${field("twilio_account_sid", "Account SID", "Found in your Twilio Console dashboard", true, "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", cfgMap["TWILIO_ACCOUNT_SID"] || "")}
+        ${field("twilio_auth_token", "Auth Token", "Found in your Twilio Console dashboard", true, "Your Twilio Auth Token", cfgMap["TWILIO_AUTH_TOKEN"] || "")}
+        ${field("twilio_from_number", "From Phone Number", "Your Twilio phone number in E.164 format", false, "+14155551234", cfgMap["TWILIO_FROM_NUMBER"] || "")}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
           <div>
             <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;">
-              <input type="checkbox" name="twilio_test_mode" value="true" ${isTwilioTestMode ? "checked" : ""} style="width:16px;height:16px;" />
+              <input type="checkbox" name="twilio_test_mode" value="true" ${(cfgMap["TWILIO_TEST_MODE"] === "true") ? "checked" : ""} style="width:16px;height:16px;" />
               <span><strong>Test Mode</strong> — OTP bypassed with code below</span>
             </label>
           </div>
           <div>
             <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">Test OTP Code</label>
-            <input name="twilio_test_otp" type="text" value="${escHtml(cfgMap["twilio_test_otp"] || "123456")}"
+            <input name="twilio_test_otp" type="text" value="${escHtml(cfgMap["TWILIO_TEST_OTP"] || "123456")}"
               placeholder="123456"
               style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;box-sizing:border-box;" />
           </div>
@@ -3436,11 +3445,11 @@ function platformConfigPage(cfgMap: Record<string, string>): string {
         <div style="background:#6b728015;border:1px solid #6b728030;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:var(--text-muted);">
           ℹ️ Stripe billing is planned for Phase 5. You can enter your keys now to prepare, but they will not be used until billing is activated.
         </div>
-        ${field("stripe_secret_key", "Secret Key", "From Stripe Dashboard → Developers → API Keys", true, "sk_test_...")}
-        ${field("stripe_publishable_key", "Publishable Key", "From Stripe Dashboard → Developers → API Keys", false, "pk_test_...")}
-        ${field("stripe_webhook_secret", "Webhook Secret", "From Stripe Dashboard → Webhooks → Signing Secret", true, "whsec_...")}
+        ${field("stripe_secret_key", "Secret Key", "From Stripe Dashboard → Developers → API Keys", true, "sk_test_...", cfgMap["STRIPE_SECRET_KEY"] || "")}
+        ${field("stripe_publishable_key", "Publishable Key", "From Stripe Dashboard → Developers → API Keys", false, "pk_test_...", cfgMap["STRIPE_PUBLISHABLE_KEY"] || "")}
+        ${field("stripe_webhook_secret", "Webhook Secret", "From Stripe Dashboard → Webhooks → Signing Secret", true, "whsec_...", cfgMap["STRIPE_WEBHOOK_SECRET"] || "")}
         <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;margin-top:8px;">
-          <input type="checkbox" name="stripe_test_mode" value="true" ${isStripeTestMode ? "checked" : ""} style="width:16px;height:16px;" />
+          <input type="checkbox" name="stripe_test_mode" value="true" ${(cfgMap["STRIPE_TEST_MODE"] === "true") ? "checked" : ""} style="width:16px;height:16px;" />
           <span><strong>Test Mode</strong> — Use Stripe test keys (recommended until launch)</span>
         </label>
         <div style="margin-top:16px;display:flex;align-items:center;gap:12px;">
@@ -3466,27 +3475,27 @@ function platformConfigPage(cfgMap: Record<string, string>): string {
       // ── Validation rules (only applied when field is non-empty) ──────────────
       var RULES = {
         twilio_account_sid: {
-          test: function(v) { return /^AC[a-f0-9]{32}$/i.test(v); },
+          test: function(v) { return new RegExp('^AC[a-f0-9]{32}$', 'i').test(v); },
           hint: 'Must start with AC and be 34 characters (e.g. ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)'
         },
         twilio_auth_token: {
-          test: function(v) { return /^[a-f0-9]{32}$/i.test(v); },
+          test: function(v) { return new RegExp('^[a-f0-9]{32}$', 'i').test(v); },
           hint: 'Must be exactly 32 hex characters'
         },
         twilio_from_number: {
-          test: function(v) { return /^\+[1-9]\d{6,14}$/.test(v); },
+          test: function(v) { return v.startsWith('+') && v.length >= 8 && v.length <= 16 && /^[0-9]+$/.test(v.slice(1)); },
           hint: 'Must be in E.164 format: +14155551234'
         },
         stripe_secret_key: {
-          test: function(v) { return /^sk_(live|test)_[a-zA-Z0-9]{10,}$/.test(v); },
+          test: function(v) { return v.startsWith('sk_live_') || v.startsWith('sk_test_'); },
           hint: 'Must start with sk_live_ or sk_test_'
         },
         stripe_publishable_key: {
-          test: function(v) { return /^pk_(live|test)_[a-zA-Z0-9]{10,}$/.test(v); },
+          test: function(v) { return v.startsWith('pk_live_') || v.startsWith('pk_test_'); },
           hint: 'Must start with pk_live_ or pk_test_'
         },
         stripe_webhook_secret: {
-          test: function(v) { return /^whsec_[a-zA-Z0-9]{10,}$/.test(v); },
+          test: function(v) { return v.startsWith('whsec_'); },
           hint: 'Must start with whsec_'
         }
       };
@@ -3558,8 +3567,8 @@ function platformConfigPage(cfgMap: Record<string, string>): string {
       form.addEventListener('change', checkForm);
     })();
 
-    // ── Test Connection helpers ──────────────────────────────────────────
-    async function testTwilio() {
+    // ── Test Connection helpers (global scope so onclick= can call them) ────
+    window.testTwilio = async function testTwilio() {
       var btn = document.getElementById('testTwilioBtn');
       var result = document.getElementById('twilioTestResult');
       var sid = form.querySelector('[name="twilio_account_sid"]').value.trim();
@@ -3595,7 +3604,7 @@ function platformConfigPage(cfgMap: Record<string, string>): string {
       }
     }
 
-    async function testStripe() {
+    window.testStripe = async function testStripe() {
       var btn = document.getElementById('testStripeBtn');
       var result = document.getElementById('stripeTestResult');
       var key = form.querySelector('[name="stripe_secret_key"]').value.trim();
