@@ -163,7 +163,6 @@ export default function SettingsScreen() {
 
   // ── Nav item lists ──────────────────────────────────────────────────────────
   const locationNavItems = [
-    { title: "Business Profile",  subtitle: settings.profile.ownerName ? `${settings.profile.ownerName} · ${settings.businessName}` : "Name, owner, phone, email, website", icon: "person.fill" as const, route: "/business-profile" as const, color: colors.primary },
     { title: "Schedule & Hours",  subtitle: hasMultipleLocations && activeLocation ? `${activeLocation.name} hours` : "Working hours, buffer time, custom days", icon: "calendar.badge.clock" as const, route: "/schedule-settings" as const, color: "#10B981" },
     { title: "Booking Policies",  subtitle: "Cancellation fees, booking URL, temp closure", icon: "exclamationmark.triangle.fill" as const, route: "/booking-policies" as const, color: "#FF9800" },
     { title: "Locations",         subtitle: `${state.locations.length} location${state.locations.length !== 1 ? "s" : ""} configured`, icon: "building.2.fill" as const, route: "/locations" as const, color: "#3B82F6" },
@@ -178,7 +177,6 @@ export default function SettingsScreen() {
     { title: "Note Templates",    subtitle: `${(state.noteTemplates ?? []).length} template${(state.noteTemplates ?? []).length !== 1 ? "s" : ""} saved`, icon: "note.text" as const, route: "/note-templates" as const, color: "#6366F1" },
     { title: "Packages & Bundles",subtitle: `${(state.packages ?? []).filter((p) => p.active).length} active package${(state.packages ?? []).filter((p) => p.active).length !== 1 ? "s" : ""}`, icon: "gift.fill" as const, route: "/packages" as const, color: "#E91E63" },
     { title: "Promo Codes",        subtitle: `${(state.promoCodes ?? []).filter((p) => p.active).length} active code${(state.promoCodes ?? []).filter((p) => p.active).length !== 1 ? "s" : ""}`, icon: "ticket.fill" as const, route: "/promo-codes" as const, color: "#0EA5E9" },
-    { title: "SMS Automation",    subtitle: state.settings.twilioEnabled ? "Enabled" : "Disabled", icon: "message.fill" as const, route: "/sms-automation" as const, color: "#00897B" },
     { title: "Category Management",subtitle: "Manage service and product categories", icon: "tag.fill" as const, route: "/category-management" as const, color: "#10B981" },
     { title: "Export Data",       subtitle: "PDF reports for clients, appointments, revenue", icon: "square.and.arrow.up.fill" as const, route: "/data-export" as const, color: colors.primary },
   ];
@@ -406,7 +404,20 @@ export default function SettingsScreen() {
         </View>
         <IconSymbol name="chevron.right" size={16} color={colors.muted} />
       </Pressable>
-
+      {/* SMS Automation */}
+      <Pressable
+        onPress={() => router.push("/sms-automation")}
+        style={({ pressed }) => [styles.navCard, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.75 : 1 }]}
+      >
+        <View style={[styles.navIcon, { backgroundColor: "#00897B15" }]}>
+          <IconSymbol name="message.fill" size={22} color="#00897B" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>SMS Automation</Text>
+          <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{state.settings.twilioEnabled ? "Enabled" : "Disabled"}</Text>
+        </View>
+        <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+      </Pressable>
       {/* Face ID / Biometric Lock */}
       {Platform.OS !== "web" && biometricAvailable && (
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 4 }]}>
@@ -479,6 +490,20 @@ export default function SettingsScreen() {
         <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Smart Scheduling for Small Business</Text>
       </View>
 
+      {/* Business Profile */}
+      <Pressable
+        onPress={() => router.push("/business-profile")}
+        style={({ pressed }) => [styles.navCard, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.75 : 1 }]}
+      >
+        <View style={[styles.navIcon, { backgroundColor: colors.primary + "15" }]}>
+          <IconSymbol name="person.fill" size={22} color={colors.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Business Profile</Text>
+          <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{settings.profile.ownerName ? `${settings.profile.ownerName} \u00b7 ${settings.businessName}` : "Name, owner, phone, email, website"}</Text>
+        </View>
+        <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+      </Pressable>
       {/* Log Out */}
       <Pressable
         onPress={handleLogout}

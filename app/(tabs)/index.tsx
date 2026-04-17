@@ -882,23 +882,21 @@ export default function HomeScreen() {
 
   return (
     <ScreenContainer tabletMaxWidth={0}>
-      {/* ─── Background watermark logo (full-page, centered) ───────────── */}
+      {/* ─── Background watermark logo (bottom-right anchor, 90% page) ───── */}
       <View
         style={{
           position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          alignItems: 'center',
-          justifyContent: 'center',
+          bottom: -width * 0.15,
+          right: -width * 0.15,
+          width: width * 0.9,
+          height: width * 0.9,
           opacity: isDark ? 0.13 : 0.07,
         }}
         pointerEvents="none"
       >
         <Image
           source={{ uri: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663347678319/Dw4mhfnuurFcniLsqjLpWN/bg-logo_dca41b51.png' }}
-          style={{ width: width * 1.1, height: width * 1.1 }}
+          style={{ width: '100%', height: '100%' }}
           resizeMode="contain"
         />
       </View>
