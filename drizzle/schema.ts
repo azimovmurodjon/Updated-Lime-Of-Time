@@ -110,6 +110,10 @@ export const businessOwners = mysqlTable("business_owners", {
   venmoHandle: varchar("venmoHandle", { length: 255 }),
   /** Free-text payment instructions shown on booking page */
   paymentNotes: text("paymentNotes"),
+  /** Social media handles */
+  instagramHandle: varchar("instagramHandle", { length: 255 }),
+  facebookHandle: varchar("facebookHandle", { length: 255 }),
+  tiktokHandle: varchar("tiktokHandle", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

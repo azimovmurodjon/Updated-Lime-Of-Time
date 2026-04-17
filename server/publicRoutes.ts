@@ -3261,6 +3261,18 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
   </div>
 
   <!-- Legal Footer -->
+  ${(owner.instagramHandle || owner.facebookHandle || owner.tiktokHandle) ? `
+  <div style="display:flex;align-items:center;justify-content:center;gap:16px;padding:16px 0 4px;">
+    ${owner.instagramHandle ? `<a href="https://instagram.com/${escHtml(owner.instagramHandle)}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:12px;background:rgba(225,48,108,0.1);text-decoration:none;" title="Instagram">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E1306C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.5" fill="#E1306C"/></svg>
+    </a>` : ""}
+    ${owner.facebookHandle ? `<a href="https://facebook.com/${escHtml(owner.facebookHandle)}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:12px;background:rgba(24,119,242,0.1);text-decoration:none;" title="Facebook">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="#1877F2"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+    </a>` : ""}
+    ${owner.tiktokHandle ? `<a href="https://tiktok.com/@${escHtml(owner.tiktokHandle)}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:12px;background:rgba(1,1,1,0.08);text-decoration:none;" title="TikTok">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="color:#010101"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.78 1.52V6.76a4.85 4.85 0 0 1-1.01-.07z"/></svg>
+    </a>` : ""}
+  </div>` : ""}
   <div class="legal-footer" style="max-width:480px;margin:0 auto;">
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px;">
       <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/jHoNjHdLsUGgpFhz.png" alt="Lime Of Time" style="width:28px;height:28px;border-radius:8px;object-fit:cover;border:1px solid var(--border);">
@@ -4052,7 +4064,18 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
             } else {
               noSlotsMsg.style.color = '#888';
               noSlotsMsg.style.fontWeight = 'normal';
-              noSlotsMsg.innerHTML = 'No available time slots for this date.';
+              var nextDate = new Date(date + 'T12:00:00');
+              nextDate.setDate(nextDate.getDate() + 1);
+              var nextDateStr = nextDate.toLocaleDateString('en-CA');
+              var nextDateLabel = nextDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+              noSlotsMsg.innerHTML = '<div style="text-align:center;padding:20px 0;">' +
+                '<div style="font-size:32px;margin-bottom:8px;">\u{1F4C5}</div>' +
+                '<div style="font-size:15px;font-weight:700;color:#374151;margin-bottom:4px;">No available times on this day</div>' +
+                '<div style="font-size:13px;color:#6b7280;margin-bottom:16px;">This day may be fully booked or closed.</div>' +
+                '<button onclick="document.getElementById(\'dateInput\').value=\''+nextDateStr+'\';loadSlots(\''+nextDateStr+'\')" ' +
+                'style="background:var(--accent);color:#fff;border:none;border-radius:20px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;">' +
+                '\u2192 Try ' + nextDateLabel + '</button>' +
+                '</div>';
             }
           }
           noSlots.style.display = "block";

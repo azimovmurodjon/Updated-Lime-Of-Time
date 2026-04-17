@@ -8,6 +8,7 @@ import {
   Share,
   ScrollView,
   Image,
+  ImageBackground,
   Alert,
   Platform,
   Modal,
@@ -881,6 +882,17 @@ export default function HomeScreen() {
 
   return (
     <ScreenContainer tabletMaxWidth={0}>
+      {/* ─── Background watermark logo ──────────────────────────── */}
+      <View
+        style={{ position: 'absolute', bottom: -60, right: -80, width: 380, height: 380, opacity: isDark ? 0.06 : 0.05 }}
+        pointerEvents="none"
+      >
+        <Image
+          source={{ uri: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663347678319/Dw4mhfnuurFcniLsqjLpWN/bg-logo_dca41b51.png' }}
+          style={{ width: '100%', height: '100%' }}
+          resizeMode="contain"
+        />
+      </View>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{

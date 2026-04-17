@@ -109,6 +109,9 @@ const businessRouter = router({
         cashAppHandle: z.string().optional(),
         venmoHandle: z.string().optional(),
         paymentNotes: z.string().optional(),
+        instagramHandle: z.string().optional(),
+        facebookHandle: z.string().optional(),
+        tiktokHandle: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {

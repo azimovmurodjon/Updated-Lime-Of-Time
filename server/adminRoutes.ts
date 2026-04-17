@@ -922,7 +922,7 @@ export function registerAdminRoutes(app: Express): void {
       if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
       const configs = await dbase.select().from(platformConfig);
       const cfgMap: Record<string, string> = {};
-      configs.forEach((c: any) => { cfgMap[c.key] = c.value || ""; });
+      configs.forEach((c: any) => { cfgMap[c.configKey] = c.configValue || ""; });
       res.send(platformConfigPage(cfgMap));
     } catch (err) {
       console.error("[Admin] Platform config error:", err);
@@ -3458,8 +3458,8 @@ function platformConfigPage(cfgMap: Record<string, string>): string {
     </form>
 
     <script>
+    var form = document.querySelector('form[action="/api/admin/platform-config"]');
     (function() {
-      var form = document.querySelector('form[action="/api/admin/platform-config"]');
       var btn = document.getElementById('savePlatformBtn');
       if (!form || !btn) return;
 

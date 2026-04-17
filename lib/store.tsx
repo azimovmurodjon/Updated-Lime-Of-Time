@@ -101,6 +101,9 @@ const initialSettings: BusinessSettings = {
   cashAppHandle: "",
   venmoHandle: "",
   paymentNotes: "",
+  instagramHandle: "",
+  facebookHandle: "",
+  tiktokHandle: "",
 };
 
 const initialState: AppState = {
@@ -799,6 +802,9 @@ export function dbOwnerToSettings(owner: any): Partial<BusinessSettings> {
     cashAppHandle: (owner as any).cashAppHandle ?? "",
     venmoHandle: (owner as any).venmoHandle ?? "",
     paymentNotes: (owner as any).paymentNotes ?? "",
+    instagramHandle: (owner as any).instagramHandle ?? "",
+    facebookHandle: (owner as any).facebookHandle ?? "",
+    tiktokHandle: (owner as any).tiktokHandle ?? "",
   };
 }
 
@@ -1559,6 +1565,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             if (settings.cashAppHandle !== undefined) updateData.cashAppHandle = settings.cashAppHandle;
             if (settings.venmoHandle !== undefined) updateData.venmoHandle = settings.venmoHandle;
             if (settings.paymentNotes !== undefined) updateData.paymentNotes = settings.paymentNotes;
+            if (settings.instagramHandle !== undefined) updateData.instagramHandle = settings.instagramHandle;
+            if (settings.facebookHandle !== undefined) updateData.facebookHandle = settings.facebookHandle;
+            if (settings.tiktokHandle !== undefined) updateData.tiktokHandle = settings.tiktokHandle;
             // Only update if there's something besides id
             if (Object.keys(updateData).length > 1) {
               await updateBusinessMut.mutateAsync(updateData);

@@ -167,7 +167,8 @@ export default function SettingsScreen() {
     { title: "Schedule & Hours",  subtitle: hasMultipleLocations && activeLocation ? `${activeLocation.name} hours` : "Working hours, buffer time, custom days", icon: "calendar.badge.clock" as const, route: "/schedule-settings" as const, color: "#10B981" },
     { title: "Booking Policies",  subtitle: "Cancellation fees, booking URL, temp closure", icon: "exclamationmark.triangle.fill" as const, route: "/booking-policies" as const, color: "#FF9800" },
     { title: "Locations",         subtitle: `${state.locations.length} location${state.locations.length !== 1 ? "s" : ""} configured`, icon: "building.2.fill" as const, route: "/locations" as const, color: "#3B82F6" },
-    { title: "Payment Methods",   subtitle: (() => { const m=[]; if(settings.zelleHandle)m.push("Zelle"); if(settings.cashAppHandle)m.push("Cash App"); if(settings.venmoHandle)m.push("Venmo"); return m.length>0?m.join(" · "):"Not configured"; })(), icon: "creditcard.fill" as const, route: "/payment-methods" as const, color: "#10B981" },
+    { title: "Payment Methods",   subtitle: (() => { const m=[]; if(settings.zelleHandle)m.push("Zelle"); if(settings.cashAppHandle)m.push("Cash App"); if(settings.venmoHandle)m.push("Venmo"); return m.length>0?m.join(" \u00b7 "):"Not configured"; })(), icon: "creditcard.fill" as const, route: "/payment-methods" as const, color: "#10B981" },
+    { title: "Social Links",        subtitle: (() => { const s=[]; if(settings.instagramHandle)s.push("Instagram"); if(settings.facebookHandle)s.push("Facebook"); if(settings.tiktokHandle)s.push("TikTok"); return s.length>0?s.join(" \u00b7 "):"Instagram, Facebook, TikTok"; })(), icon: "link" as const, route: "/social-links" as const, color: "#E1306C" },
   ];
 
   const toolsNavItems = [

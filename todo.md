@@ -1242,3 +1242,11 @@
 - [x] Referral/promo code: usage tracking in analytics screen
 - [x] Public booking page: staff selection step (skip if only 1 staff or no staff)
 - [x] Public booking page: filter available time slots by selected staff member's schedule
+
+## Features (Apr 17 batch 29)
+- [x] Fix admin Platform Configuration (broken/not working)
+- [x] Home screen: lime logo background watermark (dark mode: dark overlay, light mode: light overlay)
+- [x] Analytics: Promo Code report breakdown (most used codes, total discount given, revenue via referrals)
+- [x] Booking page: "No available times" friendly message with next available day suggestion
+- [x] Settings → Business: social links (Instagram, Facebook, TikTok handle fields)
+- [x] Public booking page footer: social link icons (tap-to-open)

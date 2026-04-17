@@ -81,7 +81,7 @@ export default function AnalyticsDetailScreen() {
     );
   }, [allLocationAppts, dateRangeFilter]);
 
-  const TAB_ORDER = ["overview", "clients", "appointments", "revenue", "topservice", "staff"] as const;
+  const TAB_ORDER = ["overview", "clients", "appointments", "revenue", "topservice", "staff", "promoCodes"] as const;
   const titles: Record<string, string> = {
     overview: "Analytics Overview",
     clients: "Total Clients",
@@ -89,6 +89,7 @@ export default function AnalyticsDetailScreen() {
     revenue: "Revenue",
     topservice: "Top Service",
     staff: "Staff Performance",
+    promoCodes: "Promo Code Report",
   };
 
   const currentTabIndex = TAB_ORDER.indexOf((tab ?? "overview") as typeof TAB_ORDER[number]);
@@ -819,6 +820,7 @@ export default function AnalyticsDetailScreen() {
               { label: "Revenue", tab: "revenue", icon: "chart.bar.fill" as const, color: "#FF9800" },
               { label: "Top Services", tab: "topservice", icon: "crown.fill" as const, color: "#9C27B0" },
               { label: "Staff Performance", tab: "staff", icon: "person.2.fill" as const, color: "#6366f1" },
+              { label: "Promo Codes", tab: "promoCodes", icon: "ticket.fill" as const, color: "#0369a1" },
             ].map((item) => (
               <Pressable
                 key={item.tab}
@@ -1532,6 +1534,111 @@ export default function AnalyticsDetailScreen() {
                     </View>
                   </View>
                 ))
+              )}
+            </View>
+          );
+        })()}
+
+        {/* ─── Promo Codes Tab ─────────────────────────────────── */}
+        {tab === "promoCodes" && (() => {
+          const promoCodes = state.promoCodes || [];
+          const appts = filterAppointmentsByLocation(state.appointments);
+          // Build per-code stats from appointments using discountName to match
+          const codeStats = promoCodes.map((pc) => {
+            const matchingAppts = appts.filter((a) => {
+              if (!a.discountName) return false;
+              return a.discountName.toLowerCase().includes(pc.label.toLowerCase()) ||
+                     a.discountName.toLowerCase().includes(pc.code.toLowerCase());
+            });
+            const totalDiscount = matchingAppts.reduce((s, a) => s + (a.discountAmount || 0), 0);
+            const totalRevenue = matchingAppts.reduce((s, a) => s + (a.totalPrice || 0), 0);
+            return { ...pc, apptCount: matchingAppts.length, totalDiscount, totalRevenue };
+          }).sort((a, b) => b.apptCount - a.apptCount);
+
+          const totalDiscountGiven = codeStats.reduce((s, c) => s + c.totalDiscount, 0);
+          const totalRevenueViaPromo = codeStats.reduce((s, c) => s + c.totalRevenue, 0);
+          const totalUses = codeStats.reduce((s, c) => s + c.usedCount, 0);
+
+          return (
+            <View>
+              {/* Summary cards */}
+              <View style={{ flexDirection: "row", gap: 10, marginVertical: 16 }}>
+                <View style={{ flex: 1, backgroundColor: "#0369a115", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#0369a130", alignItems: "center" }}>
+                  <Text style={{ fontSize: 22, fontWeight: "800", color: "#0369a1" }}>{totalUses}</Text>
+                  <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2, textAlign: "center" }}>Total Uses</Text>
+                </View>
+                <View style={{ flex: 1, backgroundColor: "#ef444415", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#ef444430", alignItems: "center" }}>
+                  <Text style={{ fontSize: 22, fontWeight: "800", color: "#ef4444" }}>${totalDiscountGiven.toFixed(0)}</Text>
+                  <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2, textAlign: "center" }}>Discount Given</Text>
+                </View>
+                <View style={{ flex: 1, backgroundColor: "#22c55e15", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#22c55e30", alignItems: "center" }}>
+                  <Text style={{ fontSize: 22, fontWeight: "800", color: "#22c55e" }}>${totalRevenueViaPromo.toFixed(0)}</Text>
+                  <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2, textAlign: "center" }}>Revenue via Promo</Text>
+                </View>
+              </View>
+
+              {promoCodes.length === 0 ? (
+                <View style={{ alignItems: "center", paddingVertical: 40 }}>
+                  <Text style={{ fontSize: 32 }}>🎫</Text>
+                  <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground, marginTop: 12 }}>No Promo Codes Yet</Text>
+                  <Text style={{ fontSize: 13, color: colors.muted, marginTop: 6, textAlign: "center" }}>Create promo codes in Settings → Tools → Promo Codes</Text>
+                </View>
+              ) : (
+                <View style={{ gap: 10 }}>
+                  {codeStats.map((pc) => {
+                    const discountStr = pc.percentage > 0 ? `${pc.percentage}% off` : pc.flatAmount ? `$${pc.flatAmount} off` : "—";
+                    const usageRatio = pc.maxUses ? pc.usedCount / pc.maxUses : null;
+                    const isExpired = pc.expiresAt ? pc.expiresAt < new Date().toISOString().substring(0, 10) : false;
+                    const statusColor = !pc.active || isExpired ? colors.muted : "#22c55e";
+                    const statusLabel = !pc.active ? "Inactive" : isExpired ? "Expired" : "Active";
+                    return (
+                      <View key={pc.id} style={{ backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colors.border }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                            <View style={{ backgroundColor: "#0369a118", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                              <Text style={{ fontSize: 13, fontWeight: "800", color: "#0369a1", letterSpacing: 1 }}>{pc.code}</Text>
+                            </View>
+                            <Text style={{ fontSize: 13, color: colors.muted }}>{pc.label}</Text>
+                          </View>
+                          <View style={{ backgroundColor: statusColor + "18", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                            <Text style={{ fontSize: 11, fontWeight: "600", color: statusColor }}>{statusLabel}</Text>
+                          </View>
+                        </View>
+                        <View style={{ flexDirection: "row", gap: 16, marginBottom: 8 }}>
+                          <View>
+                            <Text style={{ fontSize: 11, color: colors.muted }}>Discount</Text>
+                            <Text style={{ fontSize: 14, fontWeight: "700", color: "#0369a1" }}>{discountStr}</Text>
+                          </View>
+                          <View>
+                            <Text style={{ fontSize: 11, color: colors.muted }}>Uses</Text>
+                            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>{pc.usedCount}{pc.maxUses ? ` / ${pc.maxUses}` : ""}</Text>
+                          </View>
+                          <View>
+                            <Text style={{ fontSize: 11, color: colors.muted }}>Discount Given</Text>
+                            <Text style={{ fontSize: 14, fontWeight: "700", color: "#ef4444" }}>${pc.totalDiscount.toFixed(0)}</Text>
+                          </View>
+                          <View>
+                            <Text style={{ fontSize: 11, color: colors.muted }}>Revenue</Text>
+                            <Text style={{ fontSize: 14, fontWeight: "700", color: "#22c55e" }}>${pc.totalRevenue.toFixed(0)}</Text>
+                          </View>
+                        </View>
+                        {usageRatio !== null && (
+                          <View>
+                            <View style={{ height: 4, backgroundColor: colors.border, borderRadius: 2, overflow: "hidden" }}>
+                              <View style={{ height: 4, width: `${Math.min(usageRatio * 100, 100)}%`, backgroundColor: usageRatio >= 1 ? "#ef4444" : "#0369a1", borderRadius: 2 }} />
+                            </View>
+                            <Text style={{ fontSize: 10, color: colors.muted, marginTop: 3 }}>{Math.round(usageRatio * 100)}% of max uses reached</Text>
+                          </View>
+                        )}
+                        {pc.expiresAt && (
+                          <Text style={{ fontSize: 11, color: isExpired ? "#ef4444" : colors.muted, marginTop: 6 }}>
+                            {isExpired ? "⚠️ Expired" : "⏰ Expires"}: {pc.expiresAt}
+                          </Text>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
               )}
             </View>
           );

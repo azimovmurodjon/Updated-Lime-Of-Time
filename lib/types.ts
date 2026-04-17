@@ -403,6 +403,10 @@ export interface BusinessSettings {
   cashAppHandle?: string; // CashApp $handle (include the $)
   venmoHandle?: string; // Venmo @handle (include the @)
   paymentNotes?: string; // free-text payment instructions shown on booking page
+  // Social media handles
+  instagramHandle?: string; // Instagram username (without @)
+  facebookHandle?: string; // Facebook page name or URL slug
+  tiktokHandle?: string; // TikTok username (without @)
 }
 
 export const SERVICE_COLORS = [
