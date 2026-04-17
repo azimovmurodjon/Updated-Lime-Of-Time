@@ -510,7 +510,7 @@ export default function NotificationSettingsScreen() {
         {/* ── Client Reminder Email ── */}
         <Text style={[styles.sectionHeader, { color: colors.muted, marginTop: 20 }]}>Client Reminder Email</Text>
         <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10, marginTop: -4 }}>
-          Automatically email clients 24 hours before their confirmed appointment.
+          Automatically email clients before their confirmed appointment. Choose how far in advance below.
         </Text>
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: settings.notificationsEnabled ? 1 : 0.5 }]}>
           <View style={styles.switchRow}>
@@ -519,9 +519,9 @@ export default function NotificationSettingsScreen() {
                 <IconSymbol name="bell.fill" size={18} color="#0ea5e9" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>24h Appointment Reminder</Text>
+                <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>Appointment Reminder Email</Text>
                 <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 16 }}>
-                  Sends clients a reminder email the day before their appointment with date, time, location, and a Google Calendar link.
+                  Sends clients a reminder email before their appointment with date, time, location, and a Google Calendar link.
                 </Text>
               </View>
             </View>
@@ -534,10 +534,42 @@ export default function NotificationSettingsScreen() {
             />
           </View>
           {(prefs.emailOnReminder ?? true) && settings.notificationsEnabled && (
-            <View style={{ marginTop: 12, backgroundColor: "#0ea5e912", borderRadius: 10, padding: 10, borderTopWidth: 1, borderTopColor: colors.border }}>
-              <Text style={{ fontSize: 12, color: "#0ea5e9", lineHeight: 18 }}>
-                Preview: "Reminder: Haircut tomorrow at 10:00 AM — Lime Of Time"
-              </Text>
+            <View style={{ marginTop: 10, paddingHorizontal: 4 }}>
+              <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 8, fontWeight: "600" }}>Send reminder how far in advance?</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {([
+                  { label: "12 hours", value: 12 },
+                  { label: "24 hours", value: 24 },
+                  { label: "48 hours", value: 48 },
+                  { label: "3 days", value: 72 },
+                  { label: "1 week", value: 168 },
+                ] as { label: string; value: number }[]).map((opt) => {
+                  const selected = (prefs.reminderHoursBefore ?? 24) === opt.value;
+                  return (
+                    <Pressable
+                      key={opt.value}
+                      onPress={() => {
+                        const updated = { ...prefs, reminderHoursBefore: opt.value };
+                        const action = { type: "UPDATE_SETTINGS" as const, payload: { notificationPreferences: updated } };
+                        dispatch(action);
+                        syncToDb(action);
+                      }}
+                      style={{
+                        paddingHorizontal: 14,
+                        paddingVertical: 7,
+                        borderRadius: 20,
+                        borderWidth: 1.5,
+                        borderColor: selected ? "#0ea5e9" : colors.border,
+                        backgroundColor: selected ? "#0ea5e918" : colors.surface,
+                      }}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: selected ? "700" : "400", color: selected ? "#0ea5e9" : colors.foreground }}>
+                        {opt.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
           )}
         </View>

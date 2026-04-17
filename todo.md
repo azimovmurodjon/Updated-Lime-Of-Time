@@ -1225,3 +1225,7 @@
 - [x] Settings → Notifications: add toggle to enable/disable 24h client reminder email (emailOnReminder)
 - [x] 24h reminder email: include cancellation deadline (e.g. "Free cancellation until April 16 at 9:00 AM") and fee percentage
 - [x] Fix hardcoded light green colors on manage appointment page and review page for dark mode (Add to Calendar btn, .status-confirmed, .msg-success)
+
+## Features (Apr 17 batch 26)
+- [x] Settings → Notifications: "Remind clients X hours before" selector (12h, 24h, 48h, 72h, 1 week) replacing hardcoded 24h window
+- [x] Appointment reminder cron: use business's reminderHoursBefore setting instead of hardcoded 24h

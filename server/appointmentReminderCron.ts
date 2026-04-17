@@ -1,9 +1,11 @@
 /**
  * Appointment Reminder Cron
  *
- * Runs every hour and sends a 24-hour-ahead reminder for upcoming confirmed appointments.
+ * Runs every hour and sends reminder emails/push notifications for upcoming confirmed appointments.
+ * Each business can configure how far in advance to send the reminder (reminderHoursBefore):
+ *   12h, 24h (default), 48h, 72h, or 168h (1 week).
  *
- * For each confirmed appointment scheduled 24–25 hours from now:
+ * For each confirmed appointment in the reminder window:
  *   - Sends a push notification to the business owner's device
  *   - Sends a reminder email to the client (if they have an email on file)
  *
@@ -40,62 +42,61 @@ function formatDate(date: string): string {
   });
 }
 
+/** Supported reminder windows in hours */
+const SUPPORTED_WINDOWS = [12, 24, 48, 72, 168] as const;
+
+/**
+ * Check if an appointment falls within the reminder window for a given reminderHoursBefore value.
+ * The window is [reminderHoursBefore, reminderHoursBefore + 1) hours from now.
+ */
+function isInReminderWindow(
+  apptDate: string,
+  apptTime: string,
+  reminderHours: number,
+  now: Date
+): boolean {
+  const windowStart = new Date(now.getTime() + reminderHours * 60 * 60 * 1000);
+  const windowEnd = new Date(now.getTime() + (reminderHours + 1) * 60 * 60 * 1000);
+
+  // Build appointment datetime (treat as local midnight + time)
+  const [h, m] = apptTime.split(":").map(Number);
+  const apptDateObj = new Date(apptDate + "T00:00:00");
+  apptDateObj.setHours(h, m, 0, 0);
+
+  return apptDateObj >= windowStart && apptDateObj < windowEnd;
+}
+
 async function sendAppointmentReminders() {
   const db = await getDb();
   if (!db) return;
 
-  // Calculate the 24–25 hour window from now
   const now = new Date();
-  const windowStart = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-  const windowEnd = new Date(now.getTime() + 25 * 60 * 60 * 1000);
 
-  // Get the date strings that fall in the window
-  const startDate = windowStart.toISOString().slice(0, 10); // YYYY-MM-DD
-  const endDate = windowEnd.toISOString().slice(0, 10);
+  // We need to cover all possible reminder windows (12h–168h).
+  // Fetch confirmed appointments in the next 170 hours (max window + 2h buffer).
+  const maxWindowEnd = new Date(now.getTime() + 170 * 60 * 60 * 1000);
+  const minWindowStart = new Date(now.getTime() + 12 * 60 * 60 * 1000);
 
-  // The window start time in HH:MM
-  const windowStartHH = String(windowStart.getHours()).padStart(2, "0");
-  const windowStartMM = String(windowStart.getMinutes()).padStart(2, "0");
-  const windowEndHH = String(windowEnd.getHours()).padStart(2, "0");
-  const windowEndMM = String(windowEnd.getMinutes()).padStart(2, "0");
-  const windowStartTime = `${windowStartHH}:${windowStartMM}`;
-  const windowEndTime = `${windowEndHH}:${windowEndMM}`;
+  // Get the date range to query
+  const startDate = minWindowStart.toISOString().slice(0, 10);
+  const endDate = maxWindowEnd.toISOString().slice(0, 10);
 
   try {
-    // Fetch all confirmed appointments on the target date(s)
+    // Fetch all confirmed appointments in the date range
     const targetAppts = await db
       .select()
       .from(appointments)
-      .where(
-        and(
-          eq(appointments.status, "confirmed"),
-          // Date must be in the window range
-          ...(startDate === endDate
-            ? [eq(appointments.date, startDate)]
-            : [inArray(appointments.date, [startDate, endDate])])
-        )
-      );
+      .where(eq(appointments.status, "confirmed"));
 
-    if (targetAppts.length === 0) return;
+    // Filter to the date range in JS (simpler than complex SQL date range)
+    const rangeAppts = targetAppts.filter(
+      (a) => a.date >= startDate && a.date <= endDate
+    );
 
-    // Filter to only appointments whose time falls in the 24-25h window
-    const toRemind = targetAppts.filter((appt) => {
-      if (appt.date === startDate && appt.date === endDate) {
-        return appt.time >= windowStartTime && appt.time < windowEndTime;
-      }
-      if (appt.date === startDate) {
-        return appt.time >= windowStartTime;
-      }
-      if (appt.date === endDate) {
-        return appt.time < windowEndTime;
-      }
-      return false;
-    });
+    if (rangeAppts.length === 0) return;
 
-    if (toRemind.length === 0) return;
-
-    // Collect unique business owner IDs
-    const ownerIds = [...new Set(toRemind.map((a) => a.businessOwnerId))];
+    // Collect unique owner IDs
+    const ownerIds = [...new Set(rangeAppts.map((a) => a.businessOwnerId))];
 
     // Fetch all relevant business owners
     const owners = await db
@@ -115,7 +116,25 @@ async function sendAppointmentReminders() {
 
     const ownerMap = new Map(owners.map((o) => [o.id, o]));
 
-    // Collect unique client localIds and service localIds
+    // For each appointment, check if it falls in the owner's configured reminder window
+    const toRemind = rangeAppts.filter((appt) => {
+      const owner = ownerMap.get(appt.businessOwnerId);
+      if (!owner) return false;
+      const notifPrefs = (owner.notificationPreferences as any) ?? {};
+      const emailEnabled = notifPrefs.emailOnReminder !== false;
+      const pushEnabled = notifPrefs.pushOnReminder !== false;
+      if (!emailEnabled && !pushEnabled) return false;
+
+      const reminderHours: number = notifPrefs.reminderHoursBefore ?? 24;
+      // Only process supported windows to avoid sending at wrong times
+      if (!SUPPORTED_WINDOWS.includes(reminderHours as any)) return false;
+
+      return isInReminderWindow(appt.date, appt.time, reminderHours, now);
+    });
+
+    if (toRemind.length === 0) return;
+
+    // Collect unique client and service IDs
     const clientLocalIds = [...new Set(toRemind.map((a) => a.clientLocalId))];
     const serviceLocalIds = [...new Set(toRemind.map((a) => a.serviceLocalId))];
     const locationIds = [...new Set(toRemind.map((a) => a.locationId).filter(Boolean))] as string[];
@@ -161,20 +180,29 @@ async function sendAppointmentReminders() {
       const timeStr = formatTime(appt.time);
 
       const notifPrefs = (owner.notificationPreferences as any) ?? {};
+      const reminderHours: number = notifPrefs.reminderHoursBefore ?? 24;
+
+      // Build a human-readable "in X" label for the push notification
+      let inLabel = "soon";
+      if (reminderHours === 12) inLabel = "in 12 hours";
+      else if (reminderHours === 24) inLabel = "tomorrow";
+      else if (reminderHours === 48) inLabel = "in 2 days";
+      else if (reminderHours === 72) inLabel = "in 3 days";
+      else if (reminderHours === 168) inLabel = "next week";
 
       // ── Push notification to business owner ─────────────────────────
       const pushEnabled = notifPrefs.pushOnReminder !== false;
       if (pushEnabled && owner.expoPushToken) {
         try {
           const sent = await sendExpoPush(owner.expoPushToken, {
-            title: `⏰ Reminder: Appointment Tomorrow`,
+            title: `⏰ Reminder: Appointment ${inLabel}`,
             body: `${clientName} — ${serviceName} at ${timeStr} on ${dateStr}`,
             data: { type: "appointment_reminder", appointmentId: appt.localId },
             sound: "default",
           });
           if (sent) {
             pushSent++;
-            console.log(`[ReminderCron] Push sent to owner ${owner.id} for appt ${appt.localId}`);
+            console.log(`[ReminderCron] Push sent to owner ${owner.id} for appt ${appt.localId} (${reminderHours}h window)`);
           }
         } catch (err) {
           console.warn(`[ReminderCron] Push failed for appt ${appt.localId}:`, err);
@@ -196,10 +224,8 @@ async function sendAppointmentReminders() {
           const cp = owner.cancellationPolicy as { enabled?: boolean; hoursBeforeAppointment?: number; feePercentage?: number } | null;
           let cancellationDeadline: string | undefined;
           if (cp?.enabled && cp.hoursBeforeAppointment) {
-            // Calculate deadline: appointment datetime minus hoursBeforeAppointment
-            const [apptH, apptM] = appt.time.split(":").map(Number);
-            const apptDate = new Date(appt.date + "T" + appt.time + ":00");
-            const deadlineDate = new Date(apptDate.getTime() - cp.hoursBeforeAppointment * 60 * 60 * 1000);
+            const apptDateObj = new Date(appt.date + "T" + appt.time + ":00");
+            const deadlineDate = new Date(apptDateObj.getTime() - cp.hoursBeforeAppointment * 60 * 60 * 1000);
             const deadlineStr = deadlineDate.toLocaleDateString("en-US", { month: "long", day: "numeric" });
             const dH = deadlineDate.getHours();
             const dM = deadlineDate.getMinutes();
@@ -228,7 +254,7 @@ async function sendAppointmentReminders() {
           });
           if (sent) {
             emailSent++;
-            console.log(`[ReminderCron] Email sent to client ${clientEmail} for appt ${appt.localId}`);
+            console.log(`[ReminderCron] Email sent to ${clientEmail} for appt ${appt.localId} (${reminderHours}h window)`);
           }
         } catch (err) {
           console.warn(`[ReminderCron] Email failed for appt ${appt.localId}:`, err);
@@ -246,11 +272,11 @@ async function sendAppointmentReminders() {
 
 /**
  * Start the appointment reminder cron.
- * Runs every hour; sends reminders for appointments 24–25 hours away.
+ * Runs every hour; checks each business's configured reminder window (12h–168h).
  */
 export function startAppointmentReminderCron() {
   const INTERVAL_MS = 60 * 60 * 1000; // 1 hour
-  console.log("[ReminderCron] Started — checking every hour for 24-hour appointment reminders");
+  console.log("[ReminderCron] Started — checking every hour for appointment reminders (per-business window: 12h–168h)");
 
   // Run immediately on startup
   sendAppointmentReminders().catch(console.error);
