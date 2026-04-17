@@ -174,7 +174,7 @@ export async function getBusinessSubscriptionInfo(businessOwnerId: number) {
 // ─── Config Cache ─────────────────────────────────────────────────────────────
 
 const configCache = new Map<string, { value: string | null; time: number }>();
-const CONFIG_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+const CONFIG_CACHE_TTL = 30 * 1000; // 30 seconds (admin changes take effect quickly)
 
 export async function getPlatformConfig(key: string): Promise<string | null> {
   const cached = configCache.get(key);
@@ -209,6 +209,15 @@ export async function setPlatformConfig(
     .where(eq(platformConfig.configKey, key));
   // Invalidate cache for this key
   configCache.delete(key);
+}
+
+/** Invalidate the config cache (call after admin updates platform config) */
+export function invalidateConfigCache(key?: string) {
+  if (key) {
+    configCache.delete(key);
+  } else {
+    configCache.clear();
+  }
 }
 
 export async function getAllPlatformConfig(): Promise<

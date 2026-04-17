@@ -21,7 +21,7 @@ import {
 } from "../drizzle/schema";
 import { sql, eq, count as drizzleCount } from "drizzle-orm";
 import { ADMIN_LOGO_BASE64 } from "./admin-logo-data";
-import { invalidatePlanCache } from "./subscription";
+import { invalidatePlanCache, invalidateConfigCache } from "./subscription";
 
 // ─── Admin Auth ─────────────────────────────────────────────────────
 const ADMIN_USER = process.env.ADMIN_USERNAME || "Admin";
@@ -970,6 +970,7 @@ export function registerAdminRoutes(app: Express): void {
         }
       }
       invalidatePlanCache();
+      invalidateConfigCache(); // Clear config cache so new values take effect immediately
       // Get actor from session
       const _sessionId = getSessionFromCookie(req);
       const _session = _sessionId ? sessions.get(_sessionId) : null;
