@@ -100,6 +100,17 @@ const MAPPING = {
   "creditcard": "credit-card",
   "banknote.fill": "payments",
   "arrow.up.arrow.down": "swap-vert",
+  "target": "gps-fixed",
+  "flag.fill": "flag",
+  "trophy.fill": "emoji-events",
+  "ticket.fill": "confirmation-number",
+  "ticket": "confirmation-number",
+  "clock.badge.fill": "alarm-on",
+  "bell.badge.fill": "notification-important",
+  "wand.and.stars": "auto-fix-high",
+  "sparkles": "auto-awesome",
+  "chart.line.uptrend.xyaxis": "show-chart",
+  "person.badge.clock.fill": "pending-actions",
 } as unknown as IconMapping;
 
 export function IconSymbol({

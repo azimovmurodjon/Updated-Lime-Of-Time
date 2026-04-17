@@ -539,3 +539,32 @@ export const adminAuditLog = mysqlTable("admin_audit_log", {
 });
 export type AdminAuditLog = typeof adminAuditLog.$inferSelect;
 export type InsertAdminAuditLog = typeof adminAuditLog.$inferInsert;
+
+// ─── Promo / Referral Codes ────────────────────────────────────────
+export const promoCodes = mysqlTable("promo_codes", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Foreign key to business_owners */
+  businessOwnerId: int("businessOwnerId").notNull(),
+  /** Client-generated UUID for offline-first sync */
+  localId: varchar("localId", { length: 64 }).notNull(),
+  /** The code clients enter at checkout (e.g. "SUMMER20") */
+  code: varchar("code", { length: 50 }).notNull(),
+  /** Human-readable label (e.g. "Summer Referral") */
+  label: varchar("label", { length: 255 }).notNull(),
+  /** Discount percentage 0-100 */
+  percentage: int("percentage").notNull().default(0),
+  /** Optional flat discount amount in dollars (used when percentage is 0) */
+  flatAmount: decimal("flatAmount", { precision: 10, scale: 2 }),
+  /** Optional max number of times this code can be used (null = unlimited) */
+  maxUses: int("maxUses"),
+  /** Number of times this code has been used */
+  usedCount: int("usedCount").notNull().default(0),
+  /** Optional expiry date YYYY-MM-DD */
+  expiresAt: varchar("expiresAt", { length: 10 }),
+  /** Whether this code is currently active */
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type DbPromoCode = typeof promoCodes.$inferSelect;
+export type InsertPromoCode = typeof promoCodes.$inferInsert;

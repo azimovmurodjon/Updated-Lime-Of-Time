@@ -928,6 +928,70 @@ const subscriptionRouter = router({
     }),
 });
 
+
+// ─── Promo Codes Router ───────────────────────────────────────────────
+const promoCodesRouter = router({
+  list: publicProcedure
+    .input(z.object({ businessOwnerId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getPromoCodesByOwner(input.businessOwnerId);
+    }),
+
+  create: publicProcedure
+    .input(
+      z.object({
+        businessOwnerId: z.number(),
+        localId: z.string(),
+        code: z.string().min(1),
+        label: z.string().min(1),
+        percentage: z.number().min(0).max(100).default(0),
+        flatAmount: z.string().nullable().optional(),
+        maxUses: z.number().nullable().optional(),
+        expiresAt: z.string().nullable().optional(),
+        active: z.boolean().default(true),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const id = await db.createPromoCode(input);
+      return { id, localId: input.localId };
+    }),
+
+  update: publicProcedure
+    .input(
+      z.object({
+        localId: z.string(),
+        businessOwnerId: z.number(),
+        code: z.string().optional(),
+        label: z.string().optional(),
+        percentage: z.number().min(0).max(100).optional(),
+        flatAmount: z.string().nullable().optional(),
+        maxUses: z.number().nullable().optional(),
+        expiresAt: z.string().nullable().optional(),
+        active: z.boolean().optional(),
+        usedCount: z.number().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { localId, businessOwnerId, ...data } = input;
+      await db.updatePromoCode(localId, businessOwnerId, data);
+      return { success: true };
+    }),
+
+  delete: publicProcedure
+    .input(z.object({ localId: z.string(), businessOwnerId: z.number() }))
+    .mutation(async ({ input }) => {
+      await db.deletePromoCode(input.localId, input.businessOwnerId);
+      return { success: true };
+    }),
+
+  findByCode: publicProcedure
+    .input(z.object({ code: z.string(), businessOwnerId: z.number() }))
+    .query(async ({ input }) => {
+      const promo = await db.getPromoCodeByCode(input.code.toUpperCase(), input.businessOwnerId);
+      return promo ?? null;
+    }),
+});
+
 // ─── Root Router ─────────────────────────────────────────────────────
 
 export const appRouter = router({
@@ -954,6 +1018,7 @@ export const appRouter = router({
   twilio: twilioRouter,
   otp: otpRouter,
   subscription: subscriptionRouter,
+  promoCodes: promoCodesRouter,
 });
 
 export type AppRouter = typeof appRouter;

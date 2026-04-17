@@ -43,3 +43,10 @@ export function formatPhone(raw: string | null | undefined): string {
   // Fallback: return original
   return raw;
 }
+
+/**
+ * Generates a short random ID for local-first records.
+ */
+export function generateId(): string {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+}

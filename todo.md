@@ -1234,3 +1234,11 @@
 - [x] Settings page: reorganize into tabs (Business, Notifications, Billing, Account)
 - [x] Home pending banner: replace ? icon with a cleaner bell/clock icon
 - [x] Home KPIs: replace "Upcoming This Week" with "Total Yearly Earnings", swap position with "Total Appointments"
+
+## Features (Apr 17 batch 28)
+- [x] Home screen: monthly goal progress bar below KPI grid
+- [x] Referral/promo code system: DB schema, tRPC routes, store, UI in Settings → Tools tab
+- [x] Referral/promo code: redemption on public booking page (client enters code at checkout)
+- [x] Referral/promo code: usage tracking in analytics screen
+- [x] Public booking page: staff selection step (skip if only 1 staff or no staff)
+- [x] Public booking page: filter available time slots by selected staff member's schedule

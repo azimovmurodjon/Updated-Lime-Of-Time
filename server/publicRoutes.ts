@@ -424,6 +424,51 @@ export function registerPublicRoutes(app: Express) {
     }
   });
 
+
+  /** Validate a promo code for a business */
+  app.get("/api/public/business/:slug/promo/:code", async (req: Request, res: Response) => {
+    try {
+      const owner = await db.getBusinessOwnerBySlug(req.params.slug);
+      if (!owner) {
+        res.status(404).json({ error: "Business not found" });
+        return;
+      }
+      const code = req.params.code.toUpperCase();
+      const promo = await db.getPromoCodeByCode(code, owner.id);
+      if (!promo) {
+        res.status(404).json({ error: "Promo code not found" });
+        return;
+      }
+      if (!promo.active) {
+        res.status(400).json({ error: "This promo code is no longer active" });
+        return;
+      }
+      if (promo.expiresAt) {
+        const today = new Date().toISOString().split('T')[0];
+        if (promo.expiresAt < today) {
+          res.status(400).json({ error: `This promo code expired on ${promo.expiresAt}` });
+          return;
+        }
+      }
+      if (promo.maxUses != null && promo.usedCount >= promo.maxUses) {
+        res.status(400).json({ error: "This promo code has reached its maximum usage limit" });
+        return;
+      }
+      res.json({
+        localId: promo.localId,
+        code: promo.code,
+        label: promo.label,
+        percentage: promo.percentage,
+        flatAmount: promo.flatAmount ? parseFloat(String(promo.flatAmount)) : null,
+        usedCount: promo.usedCount,
+        maxUses: promo.maxUses,
+      });
+    } catch (err) {
+      console.error("[Public API] Error validating promo code:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   /** Get reviews for a business */
   app.get("/api/public/business/:slug/reviews", async (req: Request, res: Response) => {
     try {
@@ -608,7 +653,7 @@ export function registerPublicRoutes(app: Express) {
         return;
       }
 
-      const { clientName, clientPhone, clientEmail, serviceLocalId, date, time, duration, notes, giftCode, totalPrice, extraItems, giftApplied, giftUsedAmount, discountName, discountPercentage, discountAmount, subtotal, locationId, paymentMethod } = req.body;
+      const { clientName, clientPhone, clientEmail, serviceLocalId, date, time, duration, notes, giftCode, totalPrice, extraItems, giftApplied, giftUsedAmount, discountName, discountPercentage, discountAmount, subtotal, locationId, paymentMethod, promoCode, promoLocalId } = req.body;
 
       if (!clientName || !serviceLocalId || !date || !time) {
         res.status(400).json({ error: "Missing required fields: clientName, serviceLocalId, date, time" });
@@ -796,6 +841,14 @@ export function registerPublicRoutes(app: Express) {
         }
       }
 
+      // Increment promo code usage count if applied
+      if (promoCode && promoLocalId) {
+        try {
+          await db.incrementPromoCodeUsage(promoLocalId, owner.id);
+        } catch (err) {
+          console.warn("[PromoCode] Failed to increment usage:", err);
+        }
+      }
       // Send branded email notification via Resend
       const ownerNotifPrefs = (owner as any).notificationPreferences ?? {};
       const emailOnNewBookingEnabled = ownerNotifPrefs.emailOnNewBooking !== false;
@@ -3036,6 +3089,14 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         </div>
         <div id="giftMsg" style="font-size:12px;margin-top:4px;"></div>
       </div>
+      <div class="input-group">
+        <label>Promo Code (optional)</label>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="promoCodeInput" placeholder="e.g. SUMMER20" style="flex:1;text-transform:uppercase;" oninput="this.value=this.value.toUpperCase()">
+          <button class="btn btn-secondary" style="width:auto;padding:12px 16px;font-size:14px;" onclick="applyPromoCode()">Apply</button>
+        </div>
+        <div id="promoMsg" style="font-size:12px;margin-top:4px;"></div>
+      </div>
       <button class="btn btn-primary" onclick="goToStep(1)">Continue</button>
     </div>
 
@@ -3247,6 +3308,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     let selectedTime = null;
     let appliedGift = null;
     let appliedDiscount = null; // { name, percentage }
+    let appliedPromo = null; // { localId, code, label, percentage, flatAmount }
     let currentStep = 0;
     let calMonth, calYear;
     // Cart: extra items added via "Add More"
@@ -4508,20 +4570,35 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     }
 
     function getDiscountAmount() {
-      // Calculate discount amount based on appliedDiscount
-      if (!appliedDiscount || !selectedService) return 0;
-      // Discount applies to the primary service price only
+      // Calculate combined discount from time-based discount + promo code
+      if (!selectedService) return 0;
       const servicePrice = parseFloat(selectedService.price);
-      return servicePrice * (appliedDiscount.percentage / 100);
+      let discAmt = 0;
+      if (appliedDiscount) {
+        discAmt += servicePrice * (appliedDiscount.percentage / 100);
+      }
+      if (appliedPromo) {
+        if (appliedPromo.percentage > 0) {
+          discAmt += servicePrice * (appliedPromo.percentage / 100);
+        } else if (appliedPromo.flatAmount) {
+          discAmt += parseFloat(appliedPromo.flatAmount);
+        }
+      }
+      return discAmt;
     }
-
+    function getPromoDiscountAmount() {
+      if (!appliedPromo || !selectedService) return 0;
+      const servicePrice = parseFloat(selectedService.price);
+      if (appliedPromo.percentage > 0) return servicePrice * (appliedPromo.percentage / 100);
+      if (appliedPromo.flatAmount) return parseFloat(appliedPromo.flatAmount);
+      return 0;
+    }
     function getDiscountedTotal() {
-      // Total after percentage discount, before gift card
-      return getTotalPrice() - getDiscountAmount();
+      // Total after all discounts, before gift card
+      return Math.max(0, getTotalPrice() - getDiscountAmount());
     }
-
     function getChargedPrice() {
-      // Apply discount first, then gift card
+      // Apply discounts first, then gift card
       let total = getDiscountedTotal();
       if (appliedGift) {
         const balance = appliedGift.remainingBalance || 0;
@@ -4530,7 +4607,6 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       }
       return total;
     }
-
     function getGiftUsedAmount() {
       // How much of the gift balance is being used for this booking (after discount)
       if (!appliedGift) return 0;
@@ -4585,6 +4661,12 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       // Discount row (if applicable)
       if (appliedDiscount && discountAmt > 0) {
         breakdownHtml += '<div class="confirm-row"><span class="confirm-label" style="color:#b45309;">\ud83c\udf89 ' + esc(appliedDiscount.name) + ' (' + appliedDiscount.percentage + '% off)</span><span class="confirm-value" style="color:#b45309;">-$' + discountAmt.toFixed(2) + '</span></div>';
+      }
+      // Promo code row (if applicable)
+      const promoAmt = getPromoDiscountAmount();
+      if (appliedPromo && promoAmt > 0) {
+        const promoStr = appliedPromo.percentage > 0 ? appliedPromo.percentage + '% off' : '$' + promoAmt.toFixed(2) + ' off';
+        breakdownHtml += '<div class="confirm-row"><span class="confirm-label" style="color:#0369a1;">\ud83c\udfab ' + esc(appliedPromo.label) + ' (' + promoStr + ')</span><span class="confirm-value" style="color:#0369a1;">-$' + promoAmt.toFixed(2) + '</span></div>';
       }
 
       // Gift card row (if applicable)
@@ -4694,12 +4776,14 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
             extraItems: extraItems,
             giftApplied: !!appliedGift,
             giftUsedAmount: appliedGift ? getGiftUsedAmount() : 0,
-            discountName: appliedDiscount ? appliedDiscount.name : null,
-            discountPercentage: appliedDiscount ? appliedDiscount.percentage : 0,
+            discountName: appliedPromo ? (appliedDiscount ? appliedDiscount.name + ' + ' + appliedPromo.label : appliedPromo.label) : (appliedDiscount ? appliedDiscount.name : null),
+            discountPercentage: (appliedDiscount ? appliedDiscount.percentage : 0) + (appliedPromo && appliedPromo.percentage > 0 ? appliedPromo.percentage : 0),
             discountAmount: getDiscountAmount(),
             subtotal: getTotalPrice(),
             locationId: selectedLocation || null,
             paymentMethod: (selectedPaymentMethod && selectedPaymentMethod !== 'later') ? selectedPaymentMethod : 'later',
+            promoCode: appliedPromo ? appliedPromo.code : null,
+            promoLocalId: appliedPromo ? appliedPromo.localId : null,
           }),
         });
         const data = await res.json();
@@ -5017,6 +5101,39 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     }
 
     async function applyGiftCode() {
+
+    async function applyPromoCode() {
+      const input = document.getElementById("promoCodeInput");
+      const msgEl = document.getElementById("promoMsg");
+      const code = input.value.trim().toUpperCase();
+      if (!code) {
+        appliedPromo = null;
+        msgEl.textContent = "";
+        updatePriceSummary();
+        return;
+      }
+      msgEl.textContent = "Checking...";
+      msgEl.style.color = "#888";
+      try {
+        const res = await fetch(API + "/promo/" + encodeURIComponent(code));
+        const data = await res.json();
+        if (!res.ok) {
+          appliedPromo = null;
+          msgEl.textContent = "\u274C " + (data.error || "Invalid promo code");
+          msgEl.style.color = "var(--error, #ef4444)";
+        } else {
+          appliedPromo = data;
+          const discStr = data.percentage > 0 ? data.percentage + "% off" : "$" + parseFloat(data.flatAmount || 0).toFixed(2) + " off";
+          msgEl.textContent = "\u2705 " + data.label + " \u2014 " + discStr;
+          msgEl.style.color = "var(--success, #22c55e)";
+        }
+      } catch(e) {
+        appliedPromo = null;
+        msgEl.textContent = "\u274C Could not validate promo code";
+        msgEl.style.color = "var(--error, #ef4444)";
+      }
+      updatePriceSummary();
+    }
       const code = document.getElementById("giftCode").value.trim();
       const msg = document.getElementById("giftMsg");
       if (!code) { msg.innerHTML = ""; return; }

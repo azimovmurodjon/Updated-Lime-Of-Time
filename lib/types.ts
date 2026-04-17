@@ -249,6 +249,20 @@ export interface WaitlistEntry {
   notified: boolean; // true once we've sent the "slot available" SMS
 }
 
+/** A referral or promotional code that gives clients a discount at checkout */
+export interface PromoCode {
+  id: string;
+  code: string; // e.g. "SUMMER20"
+  label: string; // e.g. "Summer Referral"
+  percentage: number; // 0-100; if 0, use flatAmount
+  flatAmount?: number | null; // flat dollar discount
+  maxUses?: number | null; // null = unlimited
+  usedCount: number;
+  expiresAt?: string | null; // YYYY-MM-DD
+  active: boolean;
+  createdAt: string;
+}
+
 export interface CustomScheduleDay {
   date: string; // YYYY-MM-DD
   isOpen: boolean;

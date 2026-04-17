@@ -1104,6 +1104,66 @@ export default function HomeScreen() {
           />
         </View>
 
+        {/* ─── Monthly Goal Progress Bar ──────────────────────────────────── */}
+        {state.settings.monthlyRevenueGoal > 0 && (
+          <Pressable
+            onPress={() => router.push("/settings" as any)}
+            style={({ pressed }) => [styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border, padding: 14, marginTop: 12, opacity: pressed ? 0.85 : 1 }]}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: colors.primary + "20", alignItems: "center", justifyContent: "center" }}>
+                  <IconSymbol name="target" size={16} color={colors.primary} />
+                </View>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Monthly Goal</Text>
+              </View>
+              <Text style={{ fontSize: 13, fontWeight: "700", color: revenueForecast.progressPct >= 100 ? colors.success : colors.primary }}>
+                {revenueForecast.progressPct}%
+              </Text>
+            </View>
+            {/* Progress bar */}
+            <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.border, overflow: "hidden", marginBottom: 6 }}>
+              <View
+                style={{
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: revenueForecast.progressPct >= 100 ? colors.success : colors.primary,
+                  width: `${Math.min(100, revenueForecast.progressPct)}%` as any,
+                }}
+              />
+            </View>
+            {/* Projected fill bar (lighter) */}
+            {revenueForecast.projectedPct > revenueForecast.progressPct && revenueForecast.progressPct < 100 && (
+              <View style={{ height: 4, borderRadius: 2, backgroundColor: colors.border, overflow: "hidden", marginBottom: 6 }}>
+                <View
+                  style={{
+                    height: 4,
+                    borderRadius: 2,
+                    backgroundColor: colors.primary + "50",
+                    width: `${Math.min(100, revenueForecast.projectedPct)}%` as any,
+                  }}
+                />
+              </View>
+            )}
+            <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+              <Text style={{ fontSize: 12, color: colors.muted }}>
+                ${revenueForecast.earnedSoFar.toLocaleString()} earned · {revenueForecast.remainingDays}d left
+              </Text>
+              <Text style={{ fontSize: 12, color: colors.muted }}>
+                Goal: ${state.settings.monthlyRevenueGoal.toLocaleString()}
+              </Text>
+            </View>
+            {revenueForecast.projectedPct > revenueForecast.progressPct && revenueForecast.progressPct < 100 && (
+              <Text style={{ fontSize: 11, color: colors.primary, marginTop: 4 }}>
+                On track to reach ${revenueForecast.projected.toLocaleString()} by month-end
+              </Text>
+            )}
+            {revenueForecast.progressPct >= 100 && (
+              <Text style={{ fontSize: 12, color: colors.success, fontWeight: "700", marginTop: 2 }}>🎉 Goal reached this month!</Text>
+            )}
+          </Pressable>
+        )}
+
         {/* ─── Payment Summary Card ──────────────────────────────────────── */}
         <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border, padding: 16, marginTop: 12 }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>

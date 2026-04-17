@@ -26,6 +26,7 @@ import {
   WaitlistEntry,
   ServicePackage,
   ServicePhoto,
+  PromoCode,
 } from "./types";
 import { trpc } from "./trpc";
 
@@ -61,6 +62,8 @@ interface AppState {
   packages: ServicePackage[];
   /** Before/after photos per service */
   servicePhotos: ServicePhoto[];
+  /** Referral and promotional codes */
+  promoCodes: PromoCode[];
 }
 
 const initialSettings: BusinessSettings = {
@@ -122,6 +125,7 @@ const initialState: AppState = {
   waitlist: [],
   packages: [],
   servicePhotos: [],
+  promoCodes: [],
 };
 
 // --- Actions ---
@@ -177,6 +181,9 @@ type Action =
   | { type: "ADD_SERVICE_PHOTO"; payload: ServicePhoto }
   | { type: "UPDATE_SERVICE_PHOTO"; payload: ServicePhoto }
   | { type: "DELETE_SERVICE_PHOTO"; payload: string }
+  | { type: "ADD_PROMO_CODE"; payload: PromoCode }
+  | { type: "UPDATE_PROMO_CODE"; payload: PromoCode }
+  | { type: "DELETE_PROMO_CODE"; payload: string }
   | { type: "RESET_ALL_DATA" };
 
 function reducer(state: AppState, action: Action): AppState {
@@ -396,6 +403,12 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, servicePhotos: (state.servicePhotos ?? []).map((p) => p.id === action.payload.id ? action.payload : p) };
     case "DELETE_SERVICE_PHOTO":
       return { ...state, servicePhotos: (state.servicePhotos ?? []).filter((p) => p.id !== action.payload) };
+    case "ADD_PROMO_CODE":
+      return { ...state, promoCodes: [...(state.promoCodes ?? []), action.payload] };
+    case "UPDATE_PROMO_CODE":
+      return { ...state, promoCodes: (state.promoCodes ?? []).map((p) => p.id === action.payload.id ? action.payload : p) };
+    case "DELETE_PROMO_CODE":
+      return { ...state, promoCodes: (state.promoCodes ?? []).filter((p) => p.id !== action.payload) };
     case "RESET_ALL_DATA":
       return { ...initialState, loaded: true };
     default:
@@ -653,6 +666,21 @@ export function dbGiftCardToLocal(g: any): GiftCard {
   };
 }
 
+export function dbPromoCodeToLocal(p: any): import("./types").PromoCode {
+  return {
+    id: p.localId,
+    code: p.code,
+    label: p.label,
+    percentage: p.percentage ?? 0,
+    flatAmount: p.flatAmount != null ? parseFloat(String(p.flatAmount)) : null,
+    maxUses: p.maxUses ?? null,
+    usedCount: p.usedCount ?? 0,
+    expiresAt: p.expiresAt ?? null,
+    active: p.active ?? true,
+    createdAt: p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString(),
+  };
+}
+
 export function dbProductToLocal(p: any): Product {
   return {
     id: p.localId,
@@ -818,6 +846,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // --- Mutation ref: keeps syncToDb's stale closure up-to-date ---
   // syncToDb has [] deps to avoid re-creating on every render, but it needs the
   // latest mutation objects. We solve this with a ref that is updated every render.
+  const createPromoCodeMut = trpc.promoCodes.create.useMutation();
+  const updatePromoCodeMut = trpc.promoCodes.update.useMutation();
+  const deletePromoCodeMut = trpc.promoCodes.delete.useMutation();
   const mutsRef = useRef({
     createServiceMut, updateServiceMut, deleteServiceMut,
     createClientMut, updateClientMut, deleteClientMut,
@@ -830,6 +861,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     createProductMut, updateProductMut, deleteProductMut,
     createStaffMut, updateStaffMut, deleteStaffMut,
     createLocationMut, updateLocationMut, deleteLocationMut,
+    createPromoCodeMut, updatePromoCodeMut, deletePromoCodeMut,
   });
   // Update ref every render so syncToDb always has the latest mutateAsync
   mutsRef.current = {
@@ -844,6 +876,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     createProductMut, updateProductMut, deleteProductMut,
     createStaffMut, updateStaffMut, deleteStaffMut,
     createLocationMut, updateLocationMut, deleteLocationMut,
+    createPromoCodeMut, updatePromoCodeMut, deletePromoCodeMut,
   };
 
   // --- Bootstrap: Load from DB or fallback to AsyncStorage ---
@@ -918,6 +951,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                   locations: dbLocations,
                   settings: { ...initialSettings, ...settingsFromDb },
                   businessOwnerId: ownerId,
+                  promoCodes: (fullData.promoCodes || []).map(dbPromoCodeToLocal),
                 },
               });
               // Restore active location from AsyncStorage (or auto-set default)
@@ -1200,6 +1234,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           staff: (fullData.staff || []).map(dbStaffToLocal),
           locations: dbLocations,
           settings: { ...initialSettings, ...dbOwnerToSettings(fullData.owner) },
+          promoCodes: (fullData.promoCodes || []).map(dbPromoCodeToLocal),
         },
       });
       // Restore active location if it still exists, else pick default
@@ -1798,6 +1833,44 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           }
           case "DELETE_LOCATION": {
             await deleteLocationMut.mutateAsync({
+              localId: action.payload as string,
+              businessOwnerId: ownerId,
+            });
+            break;
+          }
+          case "ADD_PROMO_CODE": {
+            const pc = action.payload as import("./types").PromoCode;
+            await createPromoCodeMut.mutateAsync({
+              businessOwnerId: ownerId,
+              localId: pc.id,
+              code: pc.code.toUpperCase(),
+              label: pc.label,
+              percentage: pc.percentage,
+              flatAmount: pc.flatAmount != null ? String(pc.flatAmount) : null,
+              maxUses: pc.maxUses ?? null,
+              expiresAt: pc.expiresAt ?? null,
+              active: pc.active,
+            });
+            break;
+          }
+          case "UPDATE_PROMO_CODE": {
+            const pc = action.payload as import("./types").PromoCode;
+            await updatePromoCodeMut.mutateAsync({
+              localId: pc.id,
+              businessOwnerId: ownerId,
+              code: pc.code.toUpperCase(),
+              label: pc.label,
+              percentage: pc.percentage,
+              flatAmount: pc.flatAmount != null ? String(pc.flatAmount) : null,
+              maxUses: pc.maxUses ?? null,
+              expiresAt: pc.expiresAt ?? null,
+              active: pc.active,
+              usedCount: pc.usedCount,
+            });
+            break;
+          }
+          case "DELETE_PROMO_CODE": {
+            await deletePromoCodeMut.mutateAsync({
               localId: action.payload as string,
               businessOwnerId: ownerId,
             });
