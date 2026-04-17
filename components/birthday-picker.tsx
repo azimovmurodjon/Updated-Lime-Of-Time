@@ -142,8 +142,7 @@ export function BirthdayPicker({
           style,
         ]}
       >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <IconSymbol name="birthday.cake" size={16} color={value ? "#FF9800" : colors.muted} />
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
           <Text
             style={{
               fontSize: 15,
@@ -187,7 +186,7 @@ export function BirthdayPicker({
               <Text style={{ fontSize: 16, color: colors.error }}>Clear</Text>
             </Pressable>
             <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground }}>
-              Birthday
+              Expire Date
             </Text>
             <Pressable
               onPress={handleConfirm}

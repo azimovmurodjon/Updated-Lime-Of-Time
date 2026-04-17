@@ -1338,3 +1338,7 @@
 - [x] First-action prompt: "Add a Service" opens /service-form directly (not just Services tab)
 - [x] Tour: added "Add Services & Clients" step (tabIndex 3) pointing to Services/Clients + button
 - [x] Onboarding confetti: react-native-confetti-cannon fires after first location saved
+
+## Batch 45
+- [x] Birthday field: removed cake emoji icon from picker row
+- [x] Birthday renamed to Expire Date in picker header, all form placeholders, and client detail display label
