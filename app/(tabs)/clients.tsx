@@ -23,6 +23,7 @@ export default function ClientsScreen() {
   const { isTablet, isLargeTablet, hp, maxContentWidth } = useResponsive();
   const { checkLimit } = usePlanLimitCheck();
   const [search, setSearch] = useState("");
+  const [sortOrder, setSortOrder] = useState<"name" | "recent" | "appts">("name");
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
@@ -34,15 +35,20 @@ export default function ClientsScreen() {
   // Use location-scoped client list from store
   const filteredClients = useMemo(() => {
     const q = search.toLowerCase();
-    return clientsForActiveLocation
-      .filter(
-        (c) =>
-          c.name.toLowerCase().includes(q) ||
-          c.phone.includes(q) ||
-          c.email.toLowerCase().includes(q)
-      )
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [clientsForActiveLocation, search]);
+    const filtered = clientsForActiveLocation.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.phone.includes(q) ||
+        c.email.toLowerCase().includes(q)
+    );
+    if (sortOrder === "name") {
+      return [...filtered].sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortOrder === "recent") {
+      return [...filtered].sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+    } else {
+      return [...filtered].sort((a, b) => filterAppointmentsByLocation(getAppointmentsForClient(b.id)).length - filterAppointmentsByLocation(getAppointmentsForClient(a.id)).length);
+    }
+  }, [clientsForActiveLocation, search, sortOrder, filterAppointmentsByLocation, getAppointmentsForClient]);
 
   // Appointment count scoped to active location
   const getLocationApptCount = useCallback(
@@ -228,6 +234,24 @@ export default function ClientsScreen() {
           />
         </View>
 
+        {/* Sort chips */}
+        <View style={{ flexDirection: "row", gap: 6, marginBottom: 10 }}>
+          {(["name", "recent", "appts"] as const).map((opt) => (
+            <Pressable
+              key={opt}
+              onPress={() => setSortOrder(opt)}
+              style={({ pressed }) => ([
+                styles.sortChip,
+                { backgroundColor: sortOrder === opt ? colors.primary : colors.surface, borderColor: sortOrder === opt ? colors.primary : colors.border, opacity: pressed ? 0.7 : 1 },
+              ])}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "600", color: sortOrder === opt ? "#fff" : colors.muted }}>
+                {opt === "name" ? "A–Z" : opt === "recent" ? "Recent" : "Most Appts"}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
         {/* Add Client Form */}
         {showAdd && (
           <View style={[styles.addForm, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -310,7 +334,7 @@ export default function ClientsScreen() {
               <View style={[styles.avatar, { backgroundColor: colors.primary + "20" }]}>
                 <Text style={[styles.avatarText, { color: colors.primary }]}>{getInitials(item.name)}</Text>
               </View>
-              <View style={{ flex: 1 }}>
+              <View style={{ flex: 1, paddingVertical: 14, paddingHorizontal: 14 }}>
                 <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }} numberOfLines={1}>{item.name}</Text>
                 <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
                   <Text style={{ fontSize: 12, color: colors.muted }} numberOfLines={1}>
@@ -355,7 +379,7 @@ export default function ClientsScreen() {
                   </View>
                 )}
               </View>
-              <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+              <IconSymbol name="chevron.right" size={16} color={colors.muted} style={{ marginRight: 14 }} />
             </Pressable>
           );
         }}
@@ -393,8 +417,9 @@ const styles = StyleSheet.create({
   input: { width: "100%", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12, fontSize: 14, lineHeight: 20, marginBottom: 8, borderWidth: 1 },
   formActions: { flexDirection: "row", gap: 8, width: "100%" },
   formButton: { paddingVertical: 12, borderRadius: 12, alignItems: "center", justifyContent: "center", paddingHorizontal: 16, minHeight: 44 },
-  clientRow: { flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 12, marginBottom: 8, borderWidth: 1 },
-  avatar: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", marginRight: 12 },
+  sortChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, alignSelf: "flex-start", height: 34, justifyContent: "center", alignItems: "center" },
+  clientRow: { flexDirection: "row", alignItems: "center", borderRadius: 16, marginBottom: 10, borderWidth: 1, overflow: "hidden" },
+  avatar: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", marginLeft: 12 },
   avatarText: { fontSize: 14, fontWeight: "700" },
   emptyContainer: { alignItems: "center", paddingVertical: 48 },
 });

@@ -298,6 +298,12 @@ export default function HomeScreen() {
       emoji: "⚙️",
     },
     {
+      tabIndex: 3,
+      title: "Add Services & Clients",
+      message: "On the Services and Clients tabs, tap the + button to add your first service or client. This is how you build your catalog!",
+      emoji: "➕",
+    },
+    {
       tabIndex: 4,
       title: "Add Your First Location",
       message: "Before you start using the app, you must add your business address. Tap 'Set Up Location' below — it only takes a moment!",

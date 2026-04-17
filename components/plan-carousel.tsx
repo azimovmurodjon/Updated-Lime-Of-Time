@@ -10,7 +10,7 @@
  *  - Billing toggle at top
  *  - Compare all plans modal preserved
  */
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -52,7 +52,7 @@ type PlanCarouselProps = {
   loadingPlanKey?: string | null;
   currentPlanKey?: string | null;
   containerWidth?: number;
-  /** When true (onboarding), auto-scroll to and visually highlight the Growth plan */
+  /** When true (onboarding), show in onboarding context — no auto-scroll or pre-selection */
   isOnboarding?: boolean;
 };
 
@@ -136,17 +136,7 @@ function PlanCard({
   return (
     <View style={[
       styles.card,
-      { borderColor: isPopular ? accent : accent + "44" },
-      isPopular && styles.cardPopular,
-      isHighlighted && {
-        borderColor: accent,
-        borderWidth: 2.5,
-        shadowColor: accent,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.45,
-        shadowRadius: 18,
-        elevation: 10,
-      },
+      { borderColor: accent, borderWidth: 2 },
     ]}>
       {/* ── Gradient accent strip on left ── */}
       <LinearGradient
@@ -255,18 +245,6 @@ export function PlanCarousel({
   const colors = useColors();
   const [showCompare, setShowCompare] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
-  const growthCardY = useRef<number>(0);
-
-  // Auto-scroll to Growth plan when onboarding step first appears
-  useEffect(() => {
-    if (!isOnboarding || isLoading || !plans || plans.length === 0) return;
-    const timer = setTimeout(() => {
-      if (scrollRef.current && growthCardY.current > 0) {
-        scrollRef.current.scrollTo({ y: growthCardY.current - 20, animated: true });
-      }
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [isOnboarding, isLoading, plans.length]);
 
   if (isLoading) {
     return (
@@ -322,17 +300,14 @@ export function PlanCarousel({
 
       {/* ── Vertical plan list ── */}
       {plans.map((plan) => (
-        <View
-          key={plan.planKey}
-          onLayout={plan.planKey === "growth" ? (e) => { growthCardY.current = e.nativeEvent.layout.y; } : undefined}
-        >
+        <View key={plan.planKey} style={{ marginBottom: 14 }}>
           <PlanCard
             plan={plan}
             isYearly={isYearly}
             onSelect={() => onSelectPlan(plan.planKey, isYearly ? "yearly" : "monthly")}
             isLoading={loadingPlanKey === plan.planKey}
             isCurrentPlan={currentPlanKey === plan.planKey}
-            isHighlighted={isOnboarding && plan.planKey === "growth"}
+            isHighlighted={false}
           />
         </View>
       ))}

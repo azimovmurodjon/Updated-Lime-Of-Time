@@ -483,14 +483,6 @@ export default function SettingsScreen() {
 
   const renderAccountTab = () => (
     <>
-      {/* App Info */}
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, alignItems: "center", paddingVertical: 24 }]}>
-        <Image source={require("@/assets/images/icon.png")} style={{ width: 64, height: 64, borderRadius: 16, marginBottom: 10 }} resizeMode="contain" />
-        <Text style={{ fontSize: 18, fontWeight: "700", color: colors.primary }}>Lime Of Time</Text>
-        <Text style={{ fontSize: 13, color: colors.muted, marginTop: 4 }}>Version 1.0.0</Text>
-        <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Smart Scheduling for Small Business</Text>
-      </View>
-
       {/* Business Profile */}
       <Pressable
         onPress={() => router.push("/business-profile")}
@@ -580,6 +572,14 @@ export default function SettingsScreen() {
         <Text style={{ fontSize: 15, fontWeight: "600", color: colors.error, flex: 1 }}>Delete Business</Text>
         <IconSymbol name="chevron.right" size={16} color={colors.error + "60"} />
       </Pressable>
+
+      {/* App Info — version box at the bottom */}
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, alignItems: "center", paddingVertical: 24, marginTop: 16, marginBottom: 8 }]}>
+        <Image source={require("@/assets/images/icon.png")} style={{ width: 56, height: 56, borderRadius: 14, marginBottom: 8 }} resizeMode="contain" />
+        <Text style={{ fontSize: 16, fontWeight: "700", color: colors.primary }}>Lime Of Time</Text>
+        <Text style={{ fontSize: 12, color: colors.muted, marginTop: 3 }}>Version 1.0.0</Text>
+        <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>Smart Scheduling for Small Business</Text>
+      </View>
     </>
   );
 

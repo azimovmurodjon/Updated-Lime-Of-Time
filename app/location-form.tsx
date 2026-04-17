@@ -37,6 +37,7 @@ import QRCode from "react-native-qrcode-svg";
 import ViewShot, { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import { FuturisticBackground } from "@/components/futuristic-background";
+import ConfettiCannon from "react-native-confetti-cannon";
 
 
 const DAY_LABELS: Record<string, string> = { sunday: "Sun", monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu", friday: "Fri", saturday: "Sat" };
@@ -81,6 +82,8 @@ export default function LocationFormScreen() {
   const [errors, setErrors] = useState<{ name?: string; address?: string }>({});
   // First-action prompt (shown once after saving the very first location)
   const [showFirstActionPrompt, setShowFirstActionPrompt] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const confettiRef = useRef<any>(null);
 
   const handleSave = () => {
     // Check plan limit for new locations only
@@ -133,7 +136,9 @@ export default function LocationFormScreen() {
     if (isFirstLocation) {
       AsyncStorage.getItem("@lime_first_action_shown").then((val) => {
         if (!val) {
-          setShowFirstActionPrompt(true);
+          // Fire confetti first, then show prompt
+          setShowConfetti(true);
+          setTimeout(() => setShowFirstActionPrompt(true), 400);
         } else {
           router.back();
         }
@@ -867,7 +872,7 @@ export default function LocationFormScreen() {
             </Text>
             <View style={styles.firstActionButtons}>
               {[
-                { label: "Add a Service", emoji: "✂️", route: "/(tabs)/services" },
+                { label: "Add a Service", emoji: "✂️", route: "/service-form" },
                 { label: "Add a Client", emoji: "👤", route: "/(tabs)/clients" },
                 { label: "Set Working Hours", emoji: "🕐", route: "/(tabs)/settings" },
               ].map((item) => (
@@ -898,6 +903,20 @@ export default function LocationFormScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── Confetti burst on first location save ── */}
+      {showConfetti && (
+        <ConfettiCannon
+          ref={confettiRef}
+          count={180}
+          origin={{ x: -10, y: 0 }}
+          autoStart
+          fadeOut
+          fallSpeed={2800}
+          explosionSpeed={350}
+          onAnimationEnd={() => setShowConfetti(false)}
+        />
+      )}
     </ScreenContainer>
   );
 }
