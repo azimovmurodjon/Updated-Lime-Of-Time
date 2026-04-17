@@ -940,17 +940,20 @@ export default function HomeScreen() {
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 2 }}>
             <Text style={[styles.dateLabel, { color: colors.muted }]}>{dateLabel}</Text>
             {analytics.todayRevenue > 0 && (
-              <View style={{
-                flexDirection: "row",
-                alignItems: "center",
-                backgroundColor: colors.success + "20",
-                borderRadius: 12,
-                paddingHorizontal: 8,
-                paddingVertical: 3,
-                borderWidth: 1,
-                borderColor: colors.success + "40",
-                gap: 4,
-              }}>
+              <Pressable
+                onPress={() => router.push({ pathname: "/analytics-detail", params: { tab: "overview" } } as any)}
+                style={({ pressed }) => ({
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: colors.success + "20",
+                  borderRadius: 12,
+                  paddingHorizontal: 8,
+                  paddingVertical: 3,
+                  borderWidth: 1,
+                  borderColor: colors.success + "40",
+                  gap: 4,
+                  opacity: pressed ? 0.7 : 1,
+                })}>
                 <Text style={{ fontSize: 10, color: colors.success + "CC" }}>
                   {analytics.todayCompletedCount} appt{analytics.todayCompletedCount !== 1 ? "s" : ""}
                 </Text>
@@ -958,7 +961,7 @@ export default function HomeScreen() {
                 <Text style={{ fontSize: 11, fontWeight: "700", color: colors.success }}>
                   ${analytics.todayRevenue.toFixed(0)} today
                 </Text>
-              </View>
+              </Pressable>
             )}
           </View>
         </LinearGradient>

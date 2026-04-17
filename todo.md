@@ -1264,3 +1264,8 @@
 ## Features (Apr 17 batch 32)
 - [x] Fix large empty gap on Services page (Services and Products tabs) — added flexGrow:1 to FlatList contentContainerStyle
 - [x] Push notification for new pending bookings — already fully implemented (notifyNewBooking in server/push.ts, token registered in use-notifications.ts)
+
+## Features (Apr 17 batch 33)
+- [x] Today's Revenue chip: tappable → navigates to Analytics Overview tab
+- [x] Calendar tab icon: red badge count for pending appointment requests
+- [x] Services tab: search bar above category chips to filter by service name

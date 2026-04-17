@@ -5,8 +5,9 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Platform, AppState } from "react-native";
 import { useColors } from "@/hooks/use-colors";
 import { useResponsive } from "@/hooks/use-responsive";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import * as Notifications from "expo-notifications";
+import { useStore } from "@/lib/store";
 
 /** Returns true when the OS push-notification permission has been denied. */
 function usePushPermissionDenied(): boolean {
@@ -41,6 +42,11 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const { isTablet, isLargeTablet, iconSize, tabBarBaseHeight } = useResponsive();
   const pushDenied = usePushPermissionDenied();
+  const { state } = useStore();
+  const pendingCount = useMemo(
+    () => state.appointments.filter((a) => a.status === "pending").length,
+    [state.appointments]
+  );
 
   const bottomPadding = Platform.OS === "web"
     ? (isTablet ? 16 : 12)
@@ -87,6 +93,16 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => (
             <IconSymbol size={iconSize} name="calendar" color={color} />
           ),
+          tabBarBadge: pendingCount > 0 ? pendingCount : undefined,
+          tabBarBadgeStyle: {
+            backgroundColor: colors.error,
+            color: "#FFFFFF",
+            fontSize: 10,
+            fontWeight: "700" as const,
+            minWidth: 16,
+            height: 16,
+            borderRadius: 8,
+          },
         }}
       />
       <Tabs.Screen

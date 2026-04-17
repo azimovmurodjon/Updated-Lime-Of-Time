@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { FlatList, Text, View, Pressable, StyleSheet, ScrollView } from "react-native";
+import { FlatList, Text, View, Pressable, StyleSheet, ScrollView, TextInput } from "react-native";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
@@ -17,6 +17,7 @@ export default function ServicesScreen() {
   const [activeTab, setActiveTab] = useState<Tab>("services");
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [serviceSearch, setServiceSearch] = useState("");
 
   // Derive sorted unique brands from products
   const allBrands = useMemo(() => {
@@ -38,11 +39,16 @@ export default function ServicesScreen() {
     return state.products.filter((p) => p.brand === selectedBrand);
   }, [state.products, selectedBrand]);
 
-  // Filtered services by selected category
+  // Filtered services by selected category and search query
   const filteredServices = useMemo(() => {
-    if (!selectedCategory) return state.services;
-    return state.services.filter((s) => s.category === selectedCategory);
-  }, [state.services, selectedCategory]);
+    let svcs = state.services;
+    if (selectedCategory) svcs = svcs.filter((s) => s.category === selectedCategory);
+    if (serviceSearch.trim()) {
+      const q = serviceSearch.trim().toLowerCase();
+      svcs = svcs.filter((s) => s.name.toLowerCase().includes(q));
+    }
+    return svcs;
+  }, [state.services, selectedCategory, serviceSearch]);
 
   return (
     <ScreenContainer className="pt-2 flex-1" containerClassName="flex-1" safeAreaClassName="flex-1" tabletMaxWidth={0} style={{ paddingHorizontal: hp }}>
@@ -184,6 +190,29 @@ export default function ServicesScreen() {
 
         return (
           <View style={{ flex: 1 }}>
+          {/* Search bar */}
+          <View style={{
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: colors.surface,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: colors.border,
+            paddingHorizontal: 10,
+            marginBottom: 10,
+            height: 40,
+          }}>
+            <IconSymbol name="magnifyingglass" size={15} color={colors.muted} />
+            <TextInput
+              value={serviceSearch}
+              onChangeText={setServiceSearch}
+              placeholder="Search services…"
+              placeholderTextColor={colors.muted}
+              style={{ flex: 1, marginLeft: 8, fontSize: 14, color: colors.foreground, height: 40 }}
+              returnKeyType="search"
+              clearButtonMode="while-editing"
+            />
+          </View>
           {categoryChips}
           <FlatList
             data={listData}
