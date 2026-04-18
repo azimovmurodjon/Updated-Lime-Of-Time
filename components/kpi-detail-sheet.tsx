@@ -27,6 +27,11 @@ import { PlanCompareModal } from "@/components/plan-compare-modal";
 // ─── Types ─────────────────────────────────────────────────────────────
 export type KpiTab = "revenue" | "appointments" | "clients" | "topservice";
 export type KpiDateRange = "week" | "month" | "all";
+export type KpiSlideFilter =
+  | "today" | "week" | "month" | "year" | "alltime"
+  | "topclients" | "recentlyadded" | "birthdays"
+  | "top3week" | "top5month"
+  | null;
 
 interface RevenueData {
   weekRevenue: number;
@@ -66,6 +71,15 @@ interface KpiDetailSheetProps {
   onExport?: (tab: KpiTab) => Promise<void>;
   isFreeplan?: boolean;
   onDateRangeChange?: (range: KpiDateRange) => void;
+  slideFilter?: KpiSlideFilter;
+  slideExtraData?: {
+    label?: string;
+    value?: string | number;
+    sublabel?: string;
+    clients?: { id: string; name: string; phone?: string; email?: string; apptCount: number; totalSpent: number; birthday?: string }[];
+    services?: { id: string; name: string; color: string; bookings: number; price: number }[];
+    appointmentCount?: number;
+  };
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────
@@ -365,6 +379,8 @@ export function KpiDetailSheet({
   onExport,
   isFreeplan,
   onDateRangeChange,
+  slideFilter,
+  slideExtraData,
 }: KpiDetailSheetProps) {
   const [exporting, setExporting] = useState(false);
   const [showCompare, setShowCompare] = useState(false);
@@ -414,8 +430,24 @@ export function KpiDetailSheet({
     topservice: { title: "Services", subtitle: "Performance by service", gradient: ["#6A1B9A", "#9C27B0"] },
   };
 
+  const slideFilterTitles: Partial<Record<NonNullable<KpiSlideFilter>, { title: string; subtitle: string }>> = {
+    today: { title: "Today's Revenue", subtitle: "Earnings so far today" },
+    week: { title: "This Week", subtitle: "Revenue & appointments this week" },
+    month: { title: "This Month", subtitle: "Revenue & appointments this month" },
+    year: { title: "This Year", subtitle: "Annual performance" },
+    alltime: { title: "All Time", subtitle: "Lifetime earnings" },
+    topclients: { title: "Top Clients", subtitle: "Ranked by visits & spend" },
+    recentlyadded: { title: "Recently Added", subtitle: "Newest clients" },
+    birthdays: { title: "Birthdays Next Month", subtitle: "Clients with upcoming birthdays" },
+    top3week: { title: "Top 3 This Week", subtitle: "Most booked services this week" },
+    top5month: { title: "Top 5 This Month", subtitle: "Most booked services this month" },
+  };
+
   if (!tab) return null;
   const cfg = tabConfig[tab];
+  const slideTitle = slideFilter ? slideFilterTitles[slideFilter] : undefined;
+  const displayTitle = slideTitle?.title ?? cfg.title;
+  const displaySubtitle = slideTitle?.subtitle ?? cfg.subtitle;
 
   return (
     <Modal
@@ -433,6 +465,7 @@ export function KpiDetailSheet({
           style={{
             width: sheetW,
             maxHeight: maxH,
+            flex: 1,
             borderTopLeftRadius: 24,
             borderTopRightRadius: 24,
             backgroundColor: colors.background,
@@ -446,8 +479,8 @@ export function KpiDetailSheet({
           onPress={() => {}} // prevent dismiss on inner tap
         >
           <SheetHeader
-            title={cfg.title}
-            subtitle={cfg.subtitle}
+            title={displayTitle}
+            subtitle={displaySubtitle}
             gradientColors={cfg.gradient}
             onClose={onClose}
           />
@@ -488,6 +521,20 @@ export function KpiDetailSheet({
             {/* ─── REVENUE ─────────────────────────────────────────── */}
             {tab === "revenue" && (
               <View>
+                {/* Hero stat when opened from a specific slide */}
+                {slideFilter && slideExtraData && (slideFilter === "today" || slideFilter === "week" || slideFilter === "month" || slideFilter === "year" || slideFilter === "alltime") && (
+                  <View style={{ backgroundColor: "#E6510010", borderRadius: 16, padding: 20, marginBottom: 16, borderWidth: 1.5, borderColor: "#E65100" + "30", alignItems: "center" }}>
+                    <Text style={{ fontSize: 13, fontWeight: "600", color: "#E65100", marginBottom: 6, letterSpacing: 0.5, textTransform: "uppercase" }}>
+                      {slideExtraData.label ?? displayTitle}
+                    </Text>
+                    <Text style={{ fontSize: 36, fontWeight: "800", color: "#E65100", letterSpacing: -1 }}>
+                      {typeof slideExtraData.value === "number" ? `$${slideExtraData.value.toLocaleString()}` : (slideExtraData.value ?? "—")}
+                    </Text>
+                    {slideExtraData.sublabel ? (
+                      <Text style={{ fontSize: 12, color: "#888", marginTop: 4 }}>{slideExtraData.sublabel}</Text>
+                    ) : null}
+                  </View>
+                )}
                 <StatPills items={[
                   { label: "This Week", value: `$${revenueData.weekRevenue.toLocaleString()}`, color: "#E65100" },
                   { label: "Total Revenue", value: `$${revenueData.totalRevenue.toLocaleString()}`, color: "#FF9800" },
@@ -528,6 +575,20 @@ export function KpiDetailSheet({
             {/* ─── APPOINTMENTS ────────────────────────────────────── */}
             {tab === "appointments" && (
               <View>
+                {/* Hero stat when opened from a specific slide */}
+                {slideFilter && slideExtraData && (slideFilter === "today" || slideFilter === "week" || slideFilter === "month" || slideFilter === "year") && (
+                  <View style={{ backgroundColor: "#1565C010", borderRadius: 16, padding: 20, marginBottom: 16, borderWidth: 1.5, borderColor: "#1565C0" + "30", alignItems: "center" }}>
+                    <Text style={{ fontSize: 13, fontWeight: "600", color: "#1565C0", marginBottom: 6, letterSpacing: 0.5, textTransform: "uppercase" }}>
+                      {slideExtraData.label ?? displayTitle}
+                    </Text>
+                    <Text style={{ fontSize: 36, fontWeight: "800", color: "#1565C0", letterSpacing: -1 }}>
+                      {slideExtraData.appointmentCount ?? slideExtraData.value ?? "—"}
+                    </Text>
+                    {slideExtraData.sublabel ? (
+                      <Text style={{ fontSize: 12, color: "#888", marginTop: 4 }}>{slideExtraData.sublabel}</Text>
+                    ) : null}
+                  </View>
+                )}
                 <StatPills items={[
                   { label: "Total", value: String(appointmentsData.totalAppointments), color: "#1565C0" },
                   { label: "Completed", value: String(appointmentsData.statusCounts.completed), color: "#4CAF50" },
@@ -580,101 +641,136 @@ export function KpiDetailSheet({
               </View>
             )}
 
-            {/* ─── CLIENTS ─────────────────────────────────────────── */}
-            {tab === "clients" && (
-              <View>
-                <StatPills items={[
-                  { label: "Total Clients", value: String(clientsData.totalClients), color: "#2E7D32" },
-                  { label: "Active", value: String(clientsData.clientsData.filter((c) => c.apptCount > 0).length), color: "#4CAF50" },
-                  { label: "Total Spent", value: `$${clientsData.clientsData.reduce((s, c) => s + c.totalSpent, 0).toLocaleString()}`, color: "#FF9800" },
-                ]} />
+            {/* ─── CLIENTS ────────────────────────────────────────── */}
+            {tab === "clients" && (() => {
+              // Determine which client list to show
+              const filteredClients: { id: string; name: string; phone?: string; email?: string; apptCount: number; totalSpent: number; birthday?: string }[] =
+                (slideFilter === "topclients" || slideFilter === "recentlyadded" || slideFilter === "birthdays")
+                ? (slideExtraData?.clients ?? [])
+                : clientsData.clientsData.slice(0, 10).map((c) => ({ ...c, birthday: undefined }));
+              const isBirthday = slideFilter === "birthdays";
+              const isRecent = slideFilter === "recentlyadded";
+              const isTop = slideFilter === "topclients";
+              const sectionTitle = isBirthday ? "Birthdays Next Month" : isRecent ? "Recently Added Clients" : "Top Clients by Visits";
+              return (
+                <View>
+                  <StatPills items={[
+                    { label: "Total Clients", value: String(clientsData.totalClients), color: "#2E7D32" },
+                    { label: "Active", value: String(clientsData.clientsData.filter((c) => c.apptCount > 0).length), color: "#4CAF50" },
+                    { label: "Total Spent", value: `$${clientsData.clientsData.reduce((s, c) => s + c.totalSpent, 0).toLocaleString()}`, color: "#FF9800" },
+                  ]} />
 
-                <SectionLabel title="Top Clients by Visits" />
-                {clientsData.clientsData.length === 0 ? (
-                  <Text style={{ color: "#888", fontSize: 13, textAlign: "center", paddingVertical: 20 }}>No client data yet</Text>
-                ) : (
-                  clientsData.clientsData.slice(0, 10).map((c, i) => (
-                    <View
-                      key={c.id}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        paddingVertical: 12,
-                        paddingHorizontal: 14,
-                        backgroundColor: colors.surface,
-                        borderRadius: 12,
-                        marginBottom: 8,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                      }}
-                    >
-                      <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "#4CAF5018", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
-                        <Text style={{ fontSize: 14, fontWeight: "700", color: "#4CAF50" }}>{c.name.charAt(0).toUpperCase()}</Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }} numberOfLines={1}>{c.name}</Text>
-                        <Text style={{ fontSize: 11, color: colors.muted }} numberOfLines={1}>{c.phone || c.email || "No contact"}</Text>
-                      </View>
-                      <View style={{ alignItems: "flex-end" }}>
-                        <View style={{ backgroundColor: "#4CAF5015", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 }}>
-                          <Text style={{ fontSize: 12, fontWeight: "700", color: "#4CAF50" }}>{c.apptCount} visits</Text>
-                        </View>
-                        {c.totalSpent > 0 && (
-                          <Text style={{ fontSize: 11, color: "#FF9800", fontWeight: "600", marginTop: 3 }}>${c.totalSpent}</Text>
+                  <SectionLabel title={sectionTitle} />
+                  {filteredClients.length === 0 ? (
+                    <Text style={{ color: "#888", fontSize: 13, textAlign: "center", paddingVertical: 20 }}>No client data yet</Text>
+                  ) : (
+                    filteredClients.map((c, i) => (
+                      <View
+                        key={c.id}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          paddingVertical: 12,
+                          paddingHorizontal: 14,
+                          backgroundColor: colors.surface,
+                          borderRadius: 12,
+                          marginBottom: 8,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                        }}
+                      >
+                        {(isTop) && (
+                          <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: i < 3 ? "#FF980018" : "#E0E0E020", alignItems: "center", justifyContent: "center", marginRight: 8 }}>
+                            <Text style={{ fontSize: 12, fontWeight: "800", color: i === 0 ? "#FF9800" : i === 1 ? "#9E9E9E" : i === 2 ? "#795548" : "#999" }}>#{i + 1}</Text>
+                          </View>
                         )}
+                        <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: isBirthday ? "#E91E6318" : "#4CAF5018", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                          <Text style={{ fontSize: 14, fontWeight: "700", color: isBirthday ? "#E91E63" : "#4CAF50" }}>{c.name.charAt(0).toUpperCase()}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }} numberOfLines={1}>{c.name}</Text>
+                          {isBirthday && c.birthday ? (
+                            <Text style={{ fontSize: 11, color: "#E91E63", fontWeight: "600" }} numberOfLines={1}>🎂 {c.birthday}</Text>
+                          ) : (
+                            <Text style={{ fontSize: 11, color: colors.muted }} numberOfLines={1}>{c.phone || c.email || "No contact"}</Text>
+                          )}
+                        </View>
+                        <View style={{ alignItems: "flex-end" }}>
+                          {!isBirthday && (
+                            <View style={{ backgroundColor: "#4CAF5015", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 }}>
+                              <Text style={{ fontSize: 12, fontWeight: "700", color: "#4CAF50" }}>{c.apptCount} visits</Text>
+                            </View>
+                          )}
+                          {c.totalSpent > 0 && !isBirthday && (
+                            <Text style={{ fontSize: 11, color: "#FF9800", fontWeight: "600", marginTop: 3 }}>${c.totalSpent}</Text>
+                          )}
+                        </View>
                       </View>
-                    </View>
-                  ))
-                )}
-              </View>
-            )}
+                    ))
+                  )}
+                </View>
+              );
+            })()}
 
             {/* ─── TOP SERVICE ─────────────────────────────────────── */}
-            {tab === "topservice" && (
-              <View>
-                <StatPills items={[
-                  { label: "Services", value: String(topServiceData.serviceRanking.length), color: "#6A1B9A" },
-                  { label: "Top Bookings", value: String(topServiceData.topCount), color: "#9C27B0" },
-                  { label: "Top Service", value: topServiceData.topService?.name?.split(" ")[0] ?? "N/A", color: "#E91E63" },
-                ]} />
+            {tab === "topservice" && (() => {
+              const isFiltered = slideFilter === "top3week" || slideFilter === "top5month";
+              const serviceList = isFiltered
+                ? (slideExtraData?.services ?? [])
+                : topServiceData.serviceRanking;
+              const localMax = Math.max(...serviceList.map((s) => s.bookings), 1);
+              const sectionTitle = slideFilter === "top3week" ? "Top 3 Services This Week" : slideFilter === "top5month" ? "Top 5 Services This Month" : "Service Rankings";
+              return (
+                <View>
+                  <StatPills items={[
+                    { label: "Services", value: String(topServiceData.serviceRanking.length), color: "#6A1B9A" },
+                    { label: "Top Bookings", value: String(topServiceData.topCount), color: "#9C27B0" },
+                    { label: "Top Service", value: topServiceData.topService?.name?.split(" ")[0] ?? "N/A", color: "#E91E63" },
+                  ]} />
 
-                <SectionLabel title="Service Rankings" />
-                {topServiceData.serviceRanking.length === 0 ? (
-                  <Text style={{ color: "#888", fontSize: 13, textAlign: "center", paddingVertical: 20 }}>No booking data yet</Text>
-                ) : (
-                  topServiceData.serviceRanking.map((s, i) => (
-                    <View
-                      key={s.id}
-                      style={{
-                        paddingVertical: 12,
-                        paddingHorizontal: 14,
-                        backgroundColor: colors.surface,
-                        borderRadius: 12,
-                        marginBottom: 8,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                      }}
-                    >
-                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
-                          <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: s.color || "#9C27B0" }} />
-                          <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground, flex: 1 }} numberOfLines={1}>{s.name}</Text>
-                        </View>
-                        <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-                          <Text style={{ fontSize: 12, color: colors.muted }}>${s.price}</Text>
-                          <View style={{ backgroundColor: (s.color || "#9C27B0") + "15", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 }}>
-                            <Text style={{ fontSize: 12, fontWeight: "700", color: s.color || "#9C27B0" }}>{s.bookings} bookings</Text>
+                  <SectionLabel title={sectionTitle} />
+                  {serviceList.length === 0 ? (
+                    <Text style={{ color: "#888", fontSize: 13, textAlign: "center", paddingVertical: 20 }}>No booking data yet</Text>
+                  ) : (
+                    serviceList.map((s, i) => (
+                      <View
+                        key={s.id}
+                        style={{
+                          paddingVertical: 12,
+                          paddingHorizontal: 14,
+                          backgroundColor: colors.surface,
+                          borderRadius: 12,
+                          marginBottom: 8,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                        }}
+                      >
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                            {isFiltered && (
+                              <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: i < 3 ? (s.color || "#9C27B0") + "20" : "#E0E0E020", alignItems: "center", justifyContent: "center" }}>
+                                <Text style={{ fontSize: 11, fontWeight: "800", color: i === 0 ? (s.color || "#9C27B0") : i === 1 ? "#9E9E9E" : i === 2 ? "#795548" : "#999" }}>#{i + 1}</Text>
+                              </View>
+                            )}
+                            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: s.color || "#9C27B0" }} />
+                            <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground, flex: 1 }} numberOfLines={1}>{s.name}</Text>
+                          </View>
+                          <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                            <Text style={{ fontSize: 12, color: colors.muted }}>${s.price}</Text>
+                            <View style={{ backgroundColor: (s.color || "#9C27B0") + "15", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 }}>
+                              <Text style={{ fontSize: 12, fontWeight: "700", color: s.color || "#9C27B0" }}>{s.bookings} bookings</Text>
+                            </View>
                           </View>
                         </View>
+                        <View style={{ height: 7, borderRadius: 4, backgroundColor: (s.color || "#9C27B0") + "20", overflow: "hidden" }}>
+                          <View style={{ height: "100%", width: `${(s.bookings / localMax) * 100}%`, backgroundColor: s.color || "#9C27B0", borderRadius: 4 }} />
+                        </View>
                       </View>
-                      <View style={{ height: 7, borderRadius: 4, backgroundColor: (s.color || "#9C27B0") + "20", overflow: "hidden" }}>
-                        <View style={{ height: "100%", width: `${(s.bookings / maxBookings) * 100}%`, backgroundColor: s.color || "#9C27B0", borderRadius: 4 }} />
-                      </View>
-                    </View>
-                  ))
-                )}
-              </View>
-            )}
+                    ))
+                  )}
+                </View>
+              );
+            })()}
             {/* ─── Download Report Button ───────────────────────── */}
             {onExport && (
               isFreeplan ? (

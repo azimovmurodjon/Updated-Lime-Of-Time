@@ -29,7 +29,7 @@ import { FuturisticBackground } from "@/components/futuristic-background";
 import * as ImagePicker from "expo-image-picker";
 import { MiniBarChart, MiniDonutChart } from "@/components/mini-chart";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { KpiDetailSheet, MicroSparkLine, MicroBarSpark, type KpiTab, type KpiDateRange } from "@/components/kpi-detail-sheet";
+import { KpiDetailSheet, MicroSparkLine, MicroBarSpark, type KpiTab, type KpiDateRange, type KpiSlideFilter } from "@/components/kpi-detail-sheet";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import QRCode from "react-native-qrcode-svg";
@@ -311,6 +311,15 @@ export default function HomeScreen() {
   // ─── KPI Detail Sheet ─────────────────────────────────────────
   const [kpiDetailTab, setKpiDetailTab] = useState<KpiTab | null>(null);
   const [kpiDateRange, setKpiDateRange] = useState<KpiDateRange>("week");
+  const [kpiSlideFilter, setKpiSlideFilter] = useState<KpiSlideFilter>(null);
+  const [kpiSlideExtraData, setKpiSlideExtraData] = useState<{
+    label?: string;
+    value?: string | number;
+    sublabel?: string;
+    clients?: { id: string; name: string; phone?: string; email?: string; apptCount: number; totalSpent: number; birthday?: string }[];
+    services?: { id: string; name: string; color: string; bookings: number; price: number }[];
+    appointmentCount?: number;
+  } | undefined>(undefined);
 
   // ─── Tutorial Walkthrough ──────────────────────────────────────
   const [showTutorial, setShowTutorial] = useState(false);
@@ -972,10 +981,12 @@ export default function HomeScreen() {
     const topClients = [...clientsAll]
       .filter((c) => clientApptCounts[c.id] > 0)
       .sort((a, b) => (clientSpend[b.id] || 0) - (clientSpend[a.id] || 0))
-      .slice(0, 3);
+      .slice(0, 3)
+      .map((c) => ({ ...c, apptCount: clientApptCounts[c.id] || 0, totalSpent: clientSpend[c.id] || 0 }));
     const recentlyAdded = [...clientsAll]
       .sort((a, b) => ((b as any).createdAt || "") > ((a as any).createdAt || "") ? 1 : -1)
-      .slice(0, 3);
+      .slice(0, 3)
+      .map((c) => ({ ...c, apptCount: clientApptCounts[c.id] || 0, totalSpent: clientSpend[c.id] || 0 }));
     const nextMonthIdx = (now2.getMonth() + 1) % 12;
     const nextMonthStr = String(nextMonthIdx + 1).padStart(2, "0");
     const birthdayNextMonth = clientsAll.filter((c) => {
@@ -1465,7 +1476,7 @@ export default function HomeScreen() {
                 sublabel: `$${Math.round(kpiSlideData.allTimeEarnings).toLocaleString()} all-time`,
                 sparkData: analytics.weeklyDailyData.map((d) => d.value),
                 sparkType: "line",
-                onPress: () => { setKpiDetailTab("revenue"); },
+                onPress: () => { setKpiDetailTab("revenue"); setKpiSlideFilter("today"); setKpiSlideExtraData({ label: "Today's Earnings", value: Math.round(kpiSlideData.todayEarnings), sublabel: `vs $${Math.round(kpiSlideData.allTimeEarnings).toLocaleString()} all-time` }); },
               },
               {
                 gradientColors: ["#E65100", "#FF9800"],
@@ -1484,7 +1495,7 @@ export default function HomeScreen() {
                 ) : undefined,
                 sparkData: analytics.weeklyDailyData.map((d) => d.value),
                 sparkType: "line",
-                onPress: () => { setKpiDetailTab("revenue"); },
+                onPress: () => { setKpiDetailTab("revenue"); setKpiSlideFilter("week"); setKpiSlideExtraData({ label: "This Week's Earnings", value: Math.round(kpiSlideData.weekEarnings), sublabel: revenueChange !== 0 ? `${revenueChange >= 0 ? "+" : ""}${revenueChange}% vs last week` : undefined }); },
               },
               {
                 gradientColors: ["#BF360C", "#FF7043"],
@@ -1497,7 +1508,7 @@ export default function HomeScreen() {
                 sublabel: `$${Math.round(kpiSlideData.allTimeEarnings).toLocaleString()} all-time`,
                 sparkData: analytics.monthlyData.map((d) => d.value),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("revenue"); },
+                onPress: () => { setKpiDetailTab("revenue"); setKpiSlideFilter("month"); setKpiSlideExtraData({ label: `${new Date().toLocaleDateString("en-US", { month: "long" })} Earnings`, value: Math.round(kpiSlideData.monthEarnings), sublabel: `vs $${Math.round(kpiSlideData.allTimeEarnings).toLocaleString()} all-time` }); },
               },
               {
                 gradientColors: ["#7B1FA2", "#CE93D8"],
@@ -1510,7 +1521,7 @@ export default function HomeScreen() {
                 sublabel: `$${Math.round(kpiSlideData.allTimeEarnings).toLocaleString()} all-time`,
                 sparkData: analytics.monthlyData.map((d) => d.value),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("revenue"); },
+                onPress: () => { setKpiDetailTab("revenue"); setKpiSlideFilter("year"); setKpiSlideExtraData({ label: `${new Date().getFullYear()} Earnings`, value: Math.round(kpiSlideData.yearEarnings), sublabel: `vs $${Math.round(kpiSlideData.allTimeEarnings).toLocaleString()} all-time` }); },
               },
               {
                 gradientColors: ["#4A148C", "#9C27B0"],
@@ -1523,7 +1534,7 @@ export default function HomeScreen() {
                 sublabel: `${analytics.statusCounts.completed} completed appts`,
                 sparkData: analytics.monthlyData.map((d) => d.value),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("revenue"); },
+                onPress: () => { setKpiDetailTab("revenue"); setKpiSlideFilter("alltime"); setKpiSlideExtraData({ label: "All-Time Earnings", value: Math.round(kpiSlideData.allTimeEarnings), sublabel: `${analytics.statusCounts.completed} completed appointments` }); },
               },
             ]}
           />
@@ -1542,7 +1553,7 @@ export default function HomeScreen() {
                 sublabel: `${kpiClientsData.clientsData.length} active`,
                 sparkData: analytics.monthlyData.map((d) => d.value),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("clients"); },
+                onPress: () => { setKpiDetailTab("clients"); setKpiSlideFilter(null); setKpiSlideExtraData(undefined); },
               },
               {
                 gradientColors: ["#1B5E20", "#66BB6A"],
@@ -1555,7 +1566,7 @@ export default function HomeScreen() {
                   : "No data yet",
                 sparkData: analytics.monthlyData.map((d) => d.value),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("clients"); },
+                onPress: () => { setKpiDetailTab("clients"); setKpiSlideFilter("topclients"); setKpiSlideExtraData({ clients: kpiSlideData.topClients.map((c) => ({ id: c.id, name: c.name, phone: c.phone, email: c.email, apptCount: c.apptCount, totalSpent: c.totalSpent, birthday: c.birthday })) }); },
               },
               {
                 gradientColors: ["#2E7D32", "#81C784"],
@@ -1569,7 +1580,7 @@ export default function HomeScreen() {
                   : "No new clients",
                 sparkData: analytics.monthlyData.map((d) => d.value),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("clients"); },
+                onPress: () => { setKpiDetailTab("clients"); setKpiSlideFilter("recentlyadded"); setKpiSlideExtraData({ clients: kpiSlideData.recentlyAdded.map((c) => ({ id: c.id, name: c.name, phone: c.phone, email: c.email, apptCount: c.apptCount, totalSpent: c.totalSpent, birthday: c.birthday })) }); },
               },
               {
                 gradientColors: ["#1A237E", "#5C6BC0"],
@@ -1583,7 +1594,7 @@ export default function HomeScreen() {
                   : "None upcoming",
                 sparkData: analytics.monthlyData.map((d) => d.value),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("clients"); },
+                onPress: () => { setKpiDetailTab("clients"); setKpiSlideFilter("birthdays"); setKpiSlideExtraData({ clients: kpiSlideData.birthdayNextMonth.map((c) => ({ id: c.id, name: c.name, phone: c.phone, email: c.email, apptCount: 0, totalSpent: 0, birthday: c.birthday })) }); },
               },
             ]}
           />
@@ -1607,7 +1618,7 @@ export default function HomeScreen() {
                 ) : undefined,
                 sparkData: analytics.weeklyDailyData.map((d) => d.apptCount),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("appointments"); },
+                onPress: () => { setKpiDetailTab("appointments"); setKpiSlideFilter(null); setKpiSlideExtraData(undefined); },
               },
               {
                 gradientColors: ["#1565C0", "#42A5F5"],
@@ -1619,7 +1630,7 @@ export default function HomeScreen() {
                 sublabel: `${analytics.statusCounts.pending} pending today`,
                 sparkData: analytics.weeklyDailyData.map((d) => d.apptCount),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("appointments"); },
+                onPress: () => { setKpiDetailTab("appointments"); setKpiSlideFilter("today"); setKpiSlideExtraData({ label: "Today's Appointments", appointmentCount: kpiSlideData.todayApptCount, sublabel: `${analytics.statusCounts.pending} pending` }); },
               },
               {
                 gradientColors: ["#0D47A1", "#1976D2"],
@@ -1631,7 +1642,7 @@ export default function HomeScreen() {
                 sublabel: `${analytics.upcomingThisWeek} upcoming`,
                 sparkData: analytics.weeklyDailyData.map((d) => d.apptCount),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("appointments"); },
+                onPress: () => { setKpiDetailTab("appointments"); setKpiSlideFilter("week"); setKpiSlideExtraData({ label: "This Week's Appointments", appointmentCount: kpiSlideData.weekApptCount, sublabel: `${analytics.upcomingThisWeek} upcoming` }); },
               },
               {
                 gradientColors: ["#006064", "#26C6DA"],
@@ -1643,7 +1654,7 @@ export default function HomeScreen() {
                 sublabel: `${analytics.statusCounts.confirmed} confirmed`,
                 sparkData: analytics.weeklyDailyData.map((d) => d.apptCount),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("appointments"); },
+                onPress: () => { setKpiDetailTab("appointments"); setKpiSlideFilter("month"); setKpiSlideExtraData({ label: `${new Date().toLocaleDateString("en-US", { month: "long" })} Appointments`, appointmentCount: kpiSlideData.monthApptCount, sublabel: `${analytics.statusCounts.confirmed} confirmed` }); },
               },
               {
                 gradientColors: ["#01579B", "#0288D1"],
@@ -1655,7 +1666,7 @@ export default function HomeScreen() {
                 sublabel: `${analytics.statusCounts.completed} completed`,
                 sparkData: analytics.weeklyDailyData.map((d) => d.apptCount),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("appointments"); },
+                onPress: () => { setKpiDetailTab("appointments"); setKpiSlideFilter("year"); setKpiSlideExtraData({ label: `${new Date().getFullYear()} Appointments`, appointmentCount: kpiSlideData.yearApptCount, sublabel: `${analytics.statusCounts.completed} completed` }); },
               },
             ]}
           />
@@ -1674,7 +1685,7 @@ export default function HomeScreen() {
                 sublabel: analytics.topCount > 0 ? `${analytics.topCount} bookings all-time` : "No data yet",
                 sparkData: kpiServiceRanking.slice(0, 7).map((s) => s.bookings),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("topservice"); },
+                onPress: () => { setKpiDetailTab("topservice"); setKpiSlideFilter(null); setKpiSlideExtraData(undefined); },
               },
               {
                 gradientColors: ["#E65100", "#FF8A65"],
@@ -1687,7 +1698,7 @@ export default function HomeScreen() {
                   : "No bookings this week",
                 sparkData: kpiSlideData.top3Week.map((s) => s.count),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("topservice"); },
+                onPress: () => { setKpiDetailTab("topservice"); setKpiSlideFilter("top3week"); setKpiSlideExtraData({ services: kpiSlideData.top3Week.map((s) => ({ id: s.name, name: s.name, color: s.color, bookings: s.count, price: 0 })) }); },
               },
               {
                 gradientColors: ["#BF360C", "#FF7043"],
@@ -1700,7 +1711,7 @@ export default function HomeScreen() {
                   : "No bookings this month",
                 sparkData: kpiSlideData.top5Month.map((s) => s.count),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("topservice"); },
+                onPress: () => { setKpiDetailTab("topservice"); setKpiSlideFilter("top5month"); setKpiSlideExtraData({ services: kpiSlideData.top5Month.map((s) => ({ id: s.name, name: s.name, color: s.color, bookings: s.count, price: 0 })) }); },
               },
             ]}
           />
@@ -2735,7 +2746,7 @@ export default function HomeScreen() {
       <KpiDetailSheet
         visible={kpiDetailTab !== null}
         tab={kpiDetailTab}
-        onClose={() => setKpiDetailTab(null)}
+        onClose={() => { setKpiDetailTab(null); setKpiSlideFilter(null); setKpiSlideExtraData(undefined); }}
         onExport={handleKpiExport}
         isFreeplan={isFreeplan}
         onDateRangeChange={setKpiDateRange}
@@ -2743,6 +2754,8 @@ export default function HomeScreen() {
         appointmentsData={kpiRangedData.appointmentsData}
         clientsData={kpiRangedData.clientsData}
         topServiceData={kpiRangedData.topServiceData}
+        slideFilter={kpiSlideFilter}
+        slideExtraData={kpiSlideExtraData}
       />
     </ScreenContainer>
   );

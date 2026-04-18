@@ -1424,3 +1424,5 @@
 - [x] Redesign KPI Card 4 to swipeable Top Service slides (All Time/Top 3 This Week/Top 5 This Month)
 - [x] Each KPI slide tap opens correct KPI detail page with correct filter
 - [x] Add Payment Summary shortcut button to Calendar Unpaid filter banner
+- [ ] Fix KPI detail sheet layout so content (charts, data) is fully visible when opened
+- [ ] Wire each KPI slide to open the correct filtered view in the detail sheet
