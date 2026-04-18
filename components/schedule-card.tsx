@@ -177,6 +177,11 @@ export function ScheduleCard({
   const ACCENT = "#00C896";
   const todayStr = formatDateStr(new Date());
 
+  // Next upcoming appointment date for the Upcoming slide "View All" button
+  const nextUpcomingDate = upcomingAppointments.length > 0
+    ? upcomingAppointments[0].date
+    : todayStr;
+
   const todayMaxHeight = MAX_TODAY_VISIBLE * APPT_ROW_HEIGHT + (MAX_TODAY_VISIBLE - 1) * 10;
 
   return (
@@ -205,30 +210,30 @@ export function ScheduleCard({
                 : `${upcomingAppointments.length} scheduled`}
             </Text>
           </View>
-          {/* View All button — only on Today slide */}
-          {activeIdx === 0 && (
-            <Pressable
-              onPress={() =>
-                router.push({
-                  pathname: "/(tabs)/calendar",
-                  params: { date: todayStr, view: "day" },
-                } as any)
-              }
-              style={({ pressed }) => ({
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 4,
-                backgroundColor: colors.primary + "15",
-                borderRadius: 8,
-                paddingHorizontal: 10,
-                paddingVertical: 5,
-                opacity: pressed ? 0.7 : 1,
-              })}
-            >
-              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.primary }}>View All</Text>
-              <IconSymbol name="chevron.right" size={12} color={colors.primary} />
-            </Pressable>
-          )}
+          {/* View All button — Today slide → Day view; Upcoming slide → Month view */}
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: "/(tabs)/calendar",
+                params: activeIdx === 0
+                  ? { date: todayStr, view: "day" }
+                  : { date: nextUpcomingDate, view: "month" },
+              } as any)
+            }
+            style={({ pressed }) => ({
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 4,
+              backgroundColor: colors.primary + "15",
+              borderRadius: 8,
+              paddingHorizontal: 10,
+              paddingVertical: 5,
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <Text style={{ fontSize: 12, fontWeight: "700", color: colors.primary }}>View All</Text>
+            <IconSymbol name="chevron.right" size={12} color={colors.primary} />
+          </Pressable>
         </View>
       </View>
 
