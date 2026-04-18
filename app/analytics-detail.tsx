@@ -23,6 +23,7 @@ import { useActiveLocation } from "@/hooks/use-active-location";
 import { useResponsive } from "@/hooks/use-responsive";
 import { LocationSwitcher } from "@/components/location-switcher";
 import { FuturisticBackground } from "@/components/futuristic-background";
+import { usePlanLimitCheck } from "@/hooks/use-plan-limit-check";
 
 export default function AnalyticsDetailScreen() {
   const { tab } = useLocalSearchParams<{ tab: string }>();
@@ -31,6 +32,8 @@ export default function AnalyticsDetailScreen() {
   const colors = useColors();
   const router = useRouter();
   const { isTablet, hp } = useResponsive();
+  const { planInfo } = usePlanLimitCheck();
+  const isFreeplan = !planInfo || planInfo.planKey === "solo";
   const [generating, setGenerating] = useState(false);
   const [dateRange, setDateRange] = useState<"today" | "this_week" | "this_month" | "last_month" | "last_3m" | "last_6m" | "this_year" | "all" | "custom">("last_6m");
   const [customStart, setCustomStart] = useState("");
@@ -808,49 +811,66 @@ export default function AnalyticsDetailScreen() {
         </Modal>
 
         {/* ─── Report Generation Button ─── */}
-        <Pressable
-          onPress={() => generateYearEndReport(getReportType())}
-          disabled={generating}
-          style={({ pressed }) => [
-            styles.reportButton,
-            {
-              backgroundColor: colors.primary,
-              opacity: pressed || generating ? 0.7 : 1,
-            },
-          ]}
-        >
-          {generating ? (
-            <ActivityIndicator color="#FFF" size="small" />
-          ) : (
-            <IconSymbol name="doc.text.fill" size={18} color="#FFF" />
-          )}
-          <Text style={styles.reportButtonText}>
-            {generating ? "Generating..." : `Generate ${getReportLabel()}`}
-          </Text>
-          <IconSymbol name="square.and.arrow.up" size={16} color="#FFF" />
-        </Pressable>
+        {isFreeplan ? (
+          <Pressable
+            onPress={() => Alert.alert("Upgrade Required", "Analytics reports and data export are available on Growth, Studio, and Enterprise plans. Upgrade to unlock full analytics.", [
+              { text: "Not Now", style: "cancel" },
+              { text: "View Plans", onPress: () => router.push("/choose-plan" as any) },
+            ])}
+            style={[styles.reportButton, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}
+          >
+            <IconSymbol name="lock.fill" size={18} color={colors.muted} />
+            <Text style={[styles.reportButtonText, { color: colors.muted }]}>
+              {`Generate ${getReportLabel()}`}
+            </Text>
+            <View style={{ backgroundColor: "#F59E0B22", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: "#F59E0B44" }}>
+              <Text style={{ fontSize: 10, fontWeight: "700", color: "#F59E0B" }}>UPGRADE</Text>
+            </View>
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={() => generateYearEndReport(getReportType())}
+            disabled={generating}
+            style={({ pressed }) => [
+              styles.reportButton,
+              {
+                backgroundColor: colors.primary,
+                opacity: pressed || generating ? 0.7 : 1,
+              },
+            ]}
+          >
+            {generating ? (
+              <ActivityIndicator color="#FFF" size="small" />
+            ) : (
+              <IconSymbol name="doc.text.fill" size={18} color="#FFF" />
+            )}
+            <Text style={styles.reportButtonText}>
+              {generating ? "Generating..." : `Generate ${getReportLabel()}`}
+            </Text>
+            <IconSymbol name="square.and.arrow.up" size={16} color="#FFF" />
+          </Pressable>
+        )}
 
         {/* Overview Tab */}
         {tab === "overview" && (
           <View>
             {/* KPI Grid */}
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12 }}>
-              {[
-                { label: "Total Revenue", value: `$${totalRevenue.toLocaleString()}`, color: "#FF9800", bg: "#FFF3E0" },
-                { label: "Avg / Appt", value: `$${overviewData.avgRevenue}`, color: "#FF9800", bg: "#FFF3E0" },
-                { label: "Total Clients", value: overviewData.totalClients, color: "#4CAF50", bg: "#E8F5E9" },
-                { label: "New (30d)", value: overviewData.newClientsLast30, color: "#4CAF50", bg: "#E8F5E9" },
-                { label: "Completed", value: overviewData.completed, color: "#2196F3", bg: "#E3F2FD" },
-                { label: "Completion %", value: `${overviewData.completionRate}%`, color: "#2196F3", bg: "#E3F2FD" },
-                { label: "Cancelled", value: overviewData.cancelled, color: "#EF4444", bg: "#FEF2F2" },
-                { label: "Cancel Rate", value: `${overviewData.cancellationRate}%`, color: "#EF4444", bg: "#FEF2F2" },
-              ].map((kpi) => (
-                <View key={kpi.label} style={[styles.kpiCard, { backgroundColor: kpi.bg, borderColor: kpi.color + "30" }]}>
-                  <Text style={{ fontSize: 22, fontWeight: "800", color: kpi.color }}>{String(kpi.value)}</Text>
-                  <Text style={{ fontSize: 11, color: kpi.color + "CC", marginTop: 2 }}>{kpi.label}</Text>
-                </View>
-              ))}
-            </View>
+            {/* KPI Grid — 2 cards per row, equal width, centered */}
+            {([
+              [{ label: "Total Revenue", value: `$${totalRevenue.toLocaleString()}`, color: "#FF9800", bg: "#FFF3E0" }, { label: "Avg / Appt", value: `$${overviewData.avgRevenue}`, color: "#FF9800", bg: "#FFF3E0" }],
+              [{ label: "Total Clients", value: overviewData.totalClients, color: "#4CAF50", bg: "#E8F5E9" }, { label: "New (30d)", value: overviewData.newClientsLast30, color: "#4CAF50", bg: "#E8F5E9" }],
+              [{ label: "Completed", value: overviewData.completed, color: "#2196F3", bg: "#E3F2FD" }, { label: "Completion %", value: `${overviewData.completionRate}%`, color: "#2196F3", bg: "#E3F2FD" }],
+              [{ label: "Cancelled", value: overviewData.cancelled, color: "#EF4444", bg: "#FEF2F2" }, { label: "Cancel Rate", value: `${overviewData.cancellationRate}%`, color: "#EF4444", bg: "#FEF2F2" }],
+            ] as const).map((row, rowIdx) => (
+              <View key={rowIdx} style={{ flexDirection: "row", gap: 12, marginTop: rowIdx === 0 ? 12 : 0 }}>
+                {row.map((kpi) => (
+                  <View key={kpi.label} style={[styles.kpiCard, { backgroundColor: kpi.bg, borderColor: kpi.color + "30" }]}>
+                    <Text style={{ fontSize: 24, fontWeight: "800", color: kpi.color }}>{String(kpi.value)}</Text>
+                    <Text style={{ fontSize: 12, color: kpi.color + "CC", marginTop: 4, textAlign: "center" }}>{kpi.label}</Text>
+                  </View>
+                ))}
+              </View>
+            ))}
 
             {/* Monthly Revenue Goal Progress Bar */}
             {state.settings.monthlyRevenueGoal > 0 && (() => {
@@ -1837,10 +1857,11 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   kpiCard: {
-    width: "47%",
+    flex: 1,
+    minWidth: 140,
     alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
     borderRadius: 16,
     borderWidth: 1,
   },

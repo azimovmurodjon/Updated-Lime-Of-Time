@@ -65,6 +65,8 @@ interface BirthdayPickerProps {
   onChange: (v: string) => void;
   placeholder?: string;
   style?: object;
+  /** When true, only future dates are selectable (minimumDate = tomorrow). Default: false (past only). */
+  futureOnly?: boolean;
 }
 
 export function BirthdayPicker({
@@ -72,6 +74,7 @@ export function BirthdayPicker({
   onChange,
   placeholder = "Birthday (optional)",
   style,
+  futureOnly = false,
 }: BirthdayPickerProps) {
   const colors = useColors();
   const [modalVisible, setModalVisible] = useState(false);
@@ -122,7 +125,12 @@ export function BirthdayPicker({
     setModalVisible(false);
   };
 
-  const maxDate = new Date(); // can't be born in the future
+  // For future-only mode (e.g. promo expiry), set minimumDate to tomorrow
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 0, 0);
+  const minDate = futureOnly ? tomorrow : undefined;
+  const maxDate = futureOnly ? undefined : new Date();
 
   return (
     <>
@@ -202,6 +210,7 @@ export function BirthdayPicker({
               value={tempDate}
               mode="date"
               display="spinner"
+              minimumDate={minDate}
               maximumDate={maxDate}
               onChange={handleChange}
               style={{ width: "100%", alignSelf: "center" }}

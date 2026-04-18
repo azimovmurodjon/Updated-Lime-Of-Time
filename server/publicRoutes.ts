@@ -3097,14 +3097,6 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         </div>
         <div id="giftMsg" style="font-size:12px;margin-top:4px;"></div>
       </div>
-      <div class="input-group">
-        <label>Promo Code (optional)</label>
-        <div style="display:flex;gap:8px;">
-          <input type="text" id="promoCodeInput" placeholder="e.g. SUMMER20" style="flex:1;text-transform:uppercase;" oninput="this.value=this.value.toUpperCase()">
-          <button class="btn btn-secondary" style="width:auto;padding:12px 16px;font-size:14px;" onclick="applyPromoCode()">Apply</button>
-        </div>
-        <div id="promoMsg" style="font-size:12px;margin-top:4px;"></div>
-      </div>
       <button class="btn btn-primary" onclick="goToStep(1)">Continue</button>
     </div>
 
@@ -3230,6 +3222,14 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       <h2>Confirm Booking</h2>
       <div id="confirmDetails"></div>
       <div id="selectedPaymentSummary" style="margin:12px 0;"></div>
+      <div class="input-group" style="margin-top:12px;">
+        <label>Have a Promo Code?</label>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="promoCodeInput" placeholder="e.g. SUMMER20" style="flex:1;text-transform:uppercase;" oninput="this.value=this.value.toUpperCase()">
+          <button class="btn btn-secondary" style="width:auto;padding:12px 16px;font-size:14px;" onclick="applyPromoCode()">Apply</button>
+        </div>
+        <div id="promoMsg" style="font-size:12px;margin-top:4px;"></div>
+      </div>
       <div class="input-group" style="margin-top:12px;">
         <label>Notes (optional)</label>
         <textarea id="bookingNotes" placeholder="Any special requests..."></textarea>
@@ -4720,7 +4720,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       let totalLabel = 'Total to Pay';
       let totalColor = '#2d5a27';
       let totalStr = '$' + chargedPrice.toFixed(2);
-      if (chargedPrice === 0 && (discountAmt > 0 || giftUsed > 0)) {
+      if (chargedPrice === 0 && (discountAmt > 0 || giftUsed > 0 || promoAmt > 0)) {
         totalStr = 'FREE';
         totalLabel = 'Total';
       }
@@ -5151,7 +5151,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       if (!code) {
         appliedPromo = null;
         msgEl.textContent = "";
-        updatePriceSummary();
+        renderConfirmation();
         return;
       }
       msgEl.textContent = "Checking...";
@@ -5174,7 +5174,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         msgEl.textContent = "\u274C Could not validate promo code";
         msgEl.style.color = "var(--error, #ef4444)";
       }
-      updatePriceSummary();
+      renderConfirmation();
     }
       const code = document.getElementById("giftCode").value.trim();
       const msg = document.getElementById("giftMsg");
