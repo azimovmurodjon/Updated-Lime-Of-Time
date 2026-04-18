@@ -156,10 +156,17 @@ const servicesRouter = router({
         color: z.string(),
         category: z.string().optional(),
         locationIds: z.any().optional(),
+        description: z.string().optional().nullable(),
+        photoUri: z.string().optional().nullable(),
+        reminderHours: z.number().optional().nullable(),
       })
     )
     .mutation(async ({ input }) => {
-      const id = await db.createService(input);
+      const { reminderHours, ...rest } = input;
+      const id = await db.createService({
+        ...rest,
+        reminderHours: reminderHours != null ? String(reminderHours) : null,
+      } as any);
       return { id, localId: input.localId };
     }),
 
@@ -174,13 +181,19 @@ const servicesRouter = router({
         color: z.string().optional(),
         category: z.string().optional(),
         locationIds: z.any().optional(),
+        description: z.string().optional().nullable(),
+        photoUri: z.string().optional().nullable(),
+        reminderHours: z.number().optional().nullable(),
       })
     )
     .mutation(async ({ input }) => {
-      const { localId, businessOwnerId, ...data } = input;
+      const { localId, businessOwnerId, reminderHours, ...rest } = input;
       const svc = await db.getServiceByLocalId(localId, businessOwnerId);
       if (!svc) throw new Error(`Service not found: ${localId}`);
-      await db.updateService(svc.id, businessOwnerId, data);
+      await db.updateService(svc.id, businessOwnerId, {
+        ...rest,
+        reminderHours: reminderHours != null ? String(reminderHours) : null,
+      } as any);
       return { success: true };
     }),
 
@@ -1025,6 +1038,32 @@ const promoCodesRouter = router({
     }),
 });
 
+// ─── Files Router ──────────────────────────────────────────────────
+
+const filesRouter = router({
+  /** Upload a base64-encoded image to S3 and return the public URL */
+  uploadImage: publicProcedure
+    .input(
+      z.object({
+        /** base64-encoded image data (without data: prefix) */
+        base64: z.string(),
+        /** MIME type, e.g. "image/jpeg" */
+        mimeType: z.string().default("image/jpeg"),
+        /** Optional folder prefix */
+        folder: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { storagePut } = await import("./storage");
+      const ext = input.mimeType.split("/")[1]?.replace("jpeg", "jpg") ?? "jpg";
+      const folder = input.folder ?? "uploads";
+      const key = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const buffer = Buffer.from(input.base64, "base64");
+      const { url } = await storagePut(key, buffer, input.mimeType);
+      return { url };
+    }),
+});
+
 // ─── Root Router ─────────────────────────────────────────────────────
 
 export const appRouter = router({
@@ -1052,6 +1091,7 @@ export const appRouter = router({
   otp: otpRouter,
   subscription: subscriptionRouter,
   promoCodes: promoCodesRouter,
+  files: filesRouter,
 });
 
 export type AppRouter = typeof appRouter;

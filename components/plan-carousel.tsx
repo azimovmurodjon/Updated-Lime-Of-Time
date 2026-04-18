@@ -307,7 +307,7 @@ export function PlanCarousel({
 
       {/* ── Vertical plan list ── */}
       {plans.map((plan) => (
-        <View key={plan.planKey} style={{ marginBottom: 14 }}>
+        <View key={plan.planKey} style={{ marginBottom: 20 }}>
           <PlanCard
             plan={plan}
             isYearly={isYearly}
@@ -470,6 +470,7 @@ const styles = StyleSheet.create({
   container: {
     width: "100%",
     gap: 10,
+    paddingHorizontal: 4,
   },
   center: {
     alignItems: "center",
@@ -525,9 +526,15 @@ const styles = StyleSheet.create({
   },
   card: {
     flexDirection: "row",
-    borderRadius: 14,
-    borderWidth: 1,
+    borderRadius: 16,
+    borderWidth: 1.5,
     overflow: "hidden",
+    marginHorizontal: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
   },
   accentStrip: {
     width: 4,

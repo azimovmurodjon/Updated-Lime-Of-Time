@@ -57,7 +57,9 @@ function generateAvailableSlots(
   interval: number,
   customSchedule: any[],
   scheduleMode: "weekly" | "custom" = "weekly",
-  bufferTime: number = 0
+  bufferTime: number = 0,
+  clientToday?: string | null,
+  clientNowMinutes?: number | null
 ): string[] {
   const d = new Date(date + "T00:00:00");
   const dayIndex = d.getDay();
@@ -106,14 +108,16 @@ function generateAvailableSlots(
     }));
 
   const slots: string[] = [];
+  // Use client's local date/time if provided (avoids UTC timezone mismatch)
   const now = new Date();
-  const today = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, "0")}-${now.getDate().toString().padStart(2, "0")}`;
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const today = clientToday || `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, "0")}-${now.getDate().toString().padStart(2, "0")}`;
+  const currentMinutes = (clientNowMinutes !== null && clientNowMinutes !== undefined) ? clientNowMinutes : (now.getHours() * 60 + now.getMinutes());
 
-  // Only show slots that start strictly in the future (current minute is already in progress)
+  // Slot at time t is available if t >= currentMinutes (i.e., 9:00 AM is available at exactly 9:00 AM)
+  // It becomes unavailable only after the minute has passed (t < currentMinutes)
   for (let t = startMin; t + duration <= endMin; t += interval) {
-    // Skip past times for today
-    if (date === today && t <= currentMinutes) continue;
+    // Skip past times for today: slot is past only if its start minute is strictly less than now
+    if (date === today && t < currentMinutes) continue;
 
     // Check for conflicts
     const slotEnd = t + duration;
@@ -245,6 +249,7 @@ export function registerPublicRoutes(app: Express) {
         name: s.name,
         role: s.role || "",
         color: s.color || "#6366f1",
+        photoUri: (s as any).photoUri || null,
         serviceIds: Array.isArray(s.serviceIds) ? s.serviceIds : (s.serviceIds ? JSON.parse(s.serviceIds) : []),
         locationIds: Array.isArray(s.locationIds) ? s.locationIds : (s.locationIds ? JSON.parse(s.locationIds) : null),
         workingHours: s.workingHours ? (typeof s.workingHours === 'object' ? s.workingHours : JSON.parse(s.workingHours)) : null,
@@ -297,6 +302,9 @@ export function registerPublicRoutes(app: Express) {
       const duration = parseInt(req.query.duration as string) || 60;
       const staffLocalId = req.query.staffId as string | undefined;
       const locationLocalId = req.query.locationId as string | undefined;
+      // Client-side timezone support: use client's local date/time for past-slot filtering
+      const clientToday = (req.query.clientToday as string | undefined) || null;
+      const nowMinutes = req.query.nowMinutes !== undefined ? parseInt(req.query.nowMinutes as string) : null;
       if (!date) {
         res.status(400).json({ error: "date query parameter is required" });
         return;
@@ -334,7 +342,7 @@ export function registerPublicRoutes(app: Express) {
             effectiveWorkingHours = staffWh;
           }
         }
-        const slots = generateAvailableSlots(date, duration, effectiveWorkingHours, appts, getStep(duration), schedule, mode, buffer);
+        const slots = generateAvailableSlots(date, duration, effectiveWorkingHours, appts, getStep(duration), schedule, mode, buffer, clientToday, nowMinutes);
         // Single-location: each slot has exactly 1 location
         const slotLocationCounts: Record<string, number> = {};
         slots.forEach((s) => { slotLocationCounts[s] = 1; });
@@ -358,7 +366,7 @@ export function registerPublicRoutes(app: Express) {
             effectiveWorkingHours = staffWh;
           }
         }
-        const slots = generateAvailableSlots(date, duration, effectiveWorkingHours, allAppts, getStep(duration), allSchedule, mode, buffer);
+        const slots = generateAvailableSlots(date, duration, effectiveWorkingHours, allAppts, getStep(duration), allSchedule, mode, buffer, clientToday, nowMinutes);
         const slotLocationCounts: Record<string, number> = {};
         slots.forEach((s) => { slotLocationCounts[s] = 1; });
         res.json({ date, slots, slotLocationCounts });
@@ -387,7 +395,7 @@ export function registerPublicRoutes(app: Express) {
         }
         // Staff hours override location hours
         const effectiveWH = staffWorkingHours ?? locWH;
-        const locSlots = generateAvailableSlots(date, duration, effectiveWH, locAppts, getStep(duration), locSchedule, mode, buffer);
+        const locSlots = generateAvailableSlots(date, duration, effectiveWH, locAppts, getStep(duration), locSchedule, mode, buffer, clientToday, nowMinutes);
         locSlots.forEach((s) => { slotLocationCounts[s] = (slotLocationCounts[s] ?? 0) + 1; });
       }
 
@@ -3262,15 +3270,18 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
 
   <!-- Legal Footer -->
   ${(owner.instagramHandle || owner.facebookHandle || owner.tiktokHandle) ? `
-  <div style="display:flex;align-items:center;justify-content:center;gap:16px;padding:16px 0 4px;">
-    ${owner.instagramHandle ? `<a href="https://instagram.com/${escHtml(owner.instagramHandle)}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:12px;background:rgba(225,48,108,0.1);text-decoration:none;" title="Instagram">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E1306C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.5" fill="#E1306C"/></svg>
+  <div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:20px 0 8px;">
+    ${owner.instagramHandle ? `<a href="https://instagram.com/${escHtml(owner.instagramHandle)}" target="_blank" rel="noopener" title="Follow on Instagram"
+      style="display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#f09433 0%,#e6683c 25%,#dc2743 50%,#cc2366 75%,#bc1888 100%);text-decoration:none;box-shadow:0 2px 8px rgba(225,48,108,0.35);transition:transform 0.15s,box-shadow 0.15s;" onmouseover="this.style.transform='scale(1.1)';this.style.boxShadow='0 4px 14px rgba(225,48,108,0.5)'" onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 2px 8px rgba(225,48,108,0.35)'">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="#fff" stroke="none"/></svg>
     </a>` : ""}
-    ${owner.facebookHandle ? `<a href="https://facebook.com/${escHtml(owner.facebookHandle)}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:12px;background:rgba(24,119,242,0.1);text-decoration:none;" title="Facebook">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="#1877F2"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+    ${owner.facebookHandle ? `<a href="https://facebook.com/${escHtml(owner.facebookHandle)}" target="_blank" rel="noopener" title="Follow on Facebook"
+      style="display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:#1877F2;text-decoration:none;box-shadow:0 2px 8px rgba(24,119,242,0.35);transition:transform 0.15s,box-shadow 0.15s;" onmouseover="this.style.transform='scale(1.1)';this.style.boxShadow='0 4px 14px rgba(24,119,242,0.5)'" onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 2px 8px rgba(24,119,242,0.35)'">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
     </a>` : ""}
-    ${owner.tiktokHandle ? `<a href="https://tiktok.com/@${escHtml(owner.tiktokHandle)}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:12px;background:rgba(1,1,1,0.08);text-decoration:none;" title="TikTok">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="color:#010101"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.78 1.52V6.76a4.85 4.85 0 0 1-1.01-.07z"/></svg>
+    ${owner.tiktokHandle ? `<a href="https://tiktok.com/@${escHtml(owner.tiktokHandle)}" target="_blank" rel="noopener" title="Follow on TikTok"
+      style="display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#010101 0%,#2d2d2d 100%);border:2px solid #fe2c55;text-decoration:none;box-shadow:0 2px 8px rgba(254,44,85,0.4);transition:transform 0.15s,box-shadow 0.15s;" onmouseover="this.style.transform='scale(1.1)';this.style.boxShadow='0 4px 14px rgba(254,44,85,0.6)'" onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 2px 8px rgba(254,44,85,0.4)'">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.78 1.52V6.76a4.85 4.85 0 0 1-1.01-.07z" fill="#fe2c55"/><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.78 1.52V6.76a4.85 4.85 0 0 1-1.01-.07z" fill="#fff" opacity="0.85" transform="translate(-1.5,1.5)"/></svg>
     </a>` : ""}
   </div>` : ""}
   <div class="legal-footer" style="max-width:480px;margin:0 auto;">
@@ -3803,8 +3814,11 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         '<div class="service-info"><div class="service-name">Any Available</div>' +
         '<div class="service-meta">First available staff member</div></div></div>';
       eligible.forEach(s => {
+        var staffAvatar = s.photoUri
+          ? '<div class="service-dot" style="padding:0;overflow:hidden;border-radius:50%;"><img src="' + esc(s.photoUri) + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" /></div>'
+          : '<div class="service-dot" style="background:' + (s.color || '#6366f1') + '20;color:' + (s.color || '#6366f1') + ';border-radius:50%;">' + esc((s.name||'?')[0].toUpperCase()) + '</div>';
         html += '<div class="service-item" id="staff-' + s.localId + '" onclick="selectStaff(&apos;' + s.localId + '&apos;)">' +
-          '<div class="service-dot" style="background:' + (s.color || '#6366f1') + '20;color:' + (s.color || '#6366f1') + ';border-radius:50%;">' + esc((s.name||'?')[0].toUpperCase()) + '</div>' +
+          staffAvatar +
           '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div>' +
           '<div class="service-meta">' + esc(s.role || 'Staff') + '</div></div></div>';
       });
@@ -3984,6 +3998,11 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       let params = "/slots?date=" + date + "&duration=" + dur;
       if (selectedStaff) params += "&staffId=" + encodeURIComponent(selectedStaff.localId);
       if (selectedLocation) params += "&locationId=" + encodeURIComponent(selectedLocation);
+      // Pass client's local date/time so server can correctly filter past slots for today
+      const _now = new Date();
+      const _clientToday = _now.toLocaleDateString('en-CA'); // YYYY-MM-DD in client's local timezone
+      const _nowMinutes = _now.getHours() * 60 + _now.getMinutes();
+      params += "&clientToday=" + encodeURIComponent(_clientToday) + "&nowMinutes=" + _nowMinutes;
       return params;
     }
     async function checkDayAvailability(dates) {

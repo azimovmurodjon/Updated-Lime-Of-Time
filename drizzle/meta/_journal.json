@@ -253,6 +253,13 @@
       "when": 1776478660550,
       "tag": "0035_safe_toxin",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "5",
+      "when": 1776480416132,
+      "tag": "0036_red_malice",
+      "breakpoints": true
     }
   ]
 }

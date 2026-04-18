@@ -10,6 +10,7 @@ import {
   Platform,
   Alert,
   Modal,
+  Image,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -1160,8 +1161,12 @@ export default function NewBookingScreen() {
                         }]}
                       >
                         <View style={{ position: "relative" }}>
-                          <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: member.color || colors.primary, alignItems: "center", justifyContent: "center" }}>
-                            <Text style={{ color: "#FFF", fontSize: 12, fontWeight: "700" }}>{member.name.charAt(0).toUpperCase()}</Text>
+                          <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: member.color || colors.primary, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                            {member.photoUri ? (
+                              <Image source={{ uri: member.photoUri }} style={{ width: 28, height: 28, borderRadius: 14 }} />
+                            ) : (
+                              <Text style={{ color: "#FFF", fontSize: 12, fontWeight: "700" }}>{member.name.charAt(0).toUpperCase()}</Text>
+                            )}
                           </View>
                           {/* Availability dot — bottom-right of avatar */}
                           <View style={{

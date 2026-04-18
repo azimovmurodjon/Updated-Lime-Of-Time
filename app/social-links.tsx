@@ -8,16 +8,65 @@ import {
   ScrollView,
   Linking,
   Alert,
+  Platform,
 } from "react-native";
+import Svg, { Path, Rect, Circle, G } from "react-native-svg";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { useRouter } from "expo-router";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import * as Haptics from "expo-haptics";
-import { Platform } from "react-native";
 import { FuturisticBackground } from "@/components/futuristic-background";
 
+// ── Brand SVG Icons ──────────────────────────────────────────────────────────
+
+function InstagramIcon({ size = 22, color = "#fff" }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Rect x="2" y="2" width="20" height="20" rx="5" ry="5" stroke={color} strokeWidth="2" />
+      <Circle cx="12" cy="12" r="4" stroke={color} strokeWidth="2" />
+      <Circle cx="17.5" cy="6.5" r="1" fill={color} />
+    </Svg>
+  );
+}
+
+function FacebookIcon({ size = 22, color = "#fff" }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <Path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+    </Svg>
+  );
+}
+
+function TikTokIcon({ size = 22 }: { size?: number }) {
+  // TikTok's official dual-color logo: red shadow + cyan shadow + white main
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      {/* Red shadow layer */}
+      <Path
+        d="M20.59 7.69a4.83 4.83 0 0 1-3.77-4.25V3h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V10.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V9.69a8.18 8.18 0 0 0 4.78 1.52V7.76a4.85 4.85 0 0 1-1.01-.07z"
+        fill="#fe2c55"
+        opacity={0.7}
+        transform="translate(0.5, 0)"
+      />
+      {/* Cyan shadow layer */}
+      <Path
+        d="M20.59 7.69a4.83 4.83 0 0 1-3.77-4.25V3h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V10.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V9.69a8.18 8.18 0 0 0 4.78 1.52V7.76a4.85 4.85 0 0 1-1.01-.07z"
+        fill="#25f4ee"
+        opacity={0.7}
+        transform="translate(-0.5, 0)"
+      />
+      {/* White main layer */}
+      <Path
+        d="M20.09 7.19a4.83 4.83 0 0 1-3.77-4.25V2.5h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.51a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V9.19a8.18 8.18 0 0 0 4.78 1.52V7.26a4.85 4.85 0 0 1-1.01-.07z"
+        fill="#fff"
+      />
+    </Svg>
+  );
+}
+
+// ── Screen ───────────────────────────────────────────────────────────────────
 
 export default function SocialLinksScreen() {
   const { state, dispatch, syncToDb } = useStore();
@@ -55,44 +104,52 @@ export default function SocialLinksScreen() {
     label: string;
     placeholder: string;
     prefix: string;
-    icon: any;
-    color: string;
+    renderIcon: () => React.ReactNode;
+    /** Background for the icon badge */
+    badgeBg: string;
+    /** Border color for the badge (visible on dark mode) */
+    badgeBorder?: string;
     buildUrl: (handle: string) => string;
     value: string;
     setter: (v: string) => void;
+    previewColor: string;
   }[] = [
     {
       key: "instagram",
       label: "Instagram",
       placeholder: "your_handle",
       prefix: "@",
-      icon: "camera.fill" as const,
-      color: "#E1306C",
+      renderIcon: () => <InstagramIcon size={20} color="#fff" />,
+      badgeBg: "linear-gradient(135deg,#f09433 0%,#e6683c 25%,#dc2743 50%,#cc2366 75%,#bc1888 100%)",
       buildUrl: (h) => `https://instagram.com/${h}`,
       value: instagram,
       setter: setInstagram,
+      previewColor: "#E1306C",
     },
     {
       key: "facebook",
       label: "Facebook",
       placeholder: "YourPageName",
       prefix: "fb.com/",
-      icon: "person.2.fill" as const,
-      color: "#1877F2",
+      renderIcon: () => <FacebookIcon size={20} color="#fff" />,
+      badgeBg: "#1877F2",
       buildUrl: (h) => `https://facebook.com/${h}`,
       value: facebook,
       setter: setFacebook,
+      previewColor: "#1877F2",
     },
     {
       key: "tiktok",
       label: "TikTok",
       placeholder: "your_handle",
       prefix: "@",
-      icon: "music.note" as const,
-      color: "#010101",
+      renderIcon: () => <TikTokIcon size={20} />,
+      badgeBg: "#111",
+      badgeBorder: "#fe2c55",
       buildUrl: (h) => `https://tiktok.com/@${h}`,
       value: tiktok,
       setter: setTiktok,
+      previewColor: "#fe2c55",
     },
   ];
 
@@ -112,23 +169,42 @@ export default function SocialLinksScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Text style={[styles.sectionDesc, { color: colors.muted }]}>
-          Add your social media handles to display tap-to-open icons on your public booking page footer.
-        </Text>
+        {/* Section heading */}
+        <View style={[styles.sectionHeadingRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <IconSymbol name="person.2.fill" size={18} color={colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.sectionHeadingTitle, { color: colors.foreground }]}>Your Business Social Media</Text>
+            <Text style={[styles.sectionDesc, { color: colors.muted }]}>
+              These links appear as tap-to-open icons on your public booking page so clients can follow your business.
+            </Text>
+          </View>
+        </View>
 
         {SOCIAL_FIELDS.map((field) => (
           <View key={field.key} style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={styles.cardHeader}>
-              <View style={[styles.iconBadge, { backgroundColor: field.color + "18" }]}>
-                <IconSymbol name={field.icon} size={20} color={field.color} />
+              {/* Brand icon badge */}
+              <View style={[
+                styles.iconBadge,
+                { backgroundColor: field.badgeBg as any },
+                field.badgeBorder ? { borderWidth: 2, borderColor: field.badgeBorder } : {},
+              ]}>
+                {field.renderIcon()}
               </View>
-              <Text style={[styles.cardLabel, { color: colors.foreground }]}>{field.label}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.cardLabel, { color: colors.foreground }]}>{field.label}</Text>
+                {field.value.trim() !== "" && (
+                  <Text style={[styles.handlePreview, { color: colors.muted }]} numberOfLines={1}>
+                    {field.prefix}{field.value.replace(/^@/, "")}
+                  </Text>
+                )}
+              </View>
               {field.value.trim() !== "" && (
                 <Pressable
                   onPress={() => openLink(field.buildUrl(field.value.replace(/^@/, "").trim()))}
-                  style={({ pressed }) => [styles.previewBtn, { opacity: pressed ? 0.6 : 1, backgroundColor: field.color + "15" }]}
+                  style={({ pressed }) => [styles.previewBtn, { opacity: pressed ? 0.6 : 1, backgroundColor: field.previewColor + "18", borderColor: field.previewColor + "40" }]}
                 >
-                  <Text style={[styles.previewBtnText, { color: field.color }]}>Preview ↗</Text>
+                  <Text style={[styles.previewBtnText, { color: field.previewColor }]}>Open ↗</Text>
                 </Pressable>
               )}
             </View>
@@ -161,7 +237,7 @@ export default function SocialLinksScreen() {
         <View style={styles.note}>
           <IconSymbol name="info.circle.fill" size={14} color={colors.muted} />
           <Text style={[styles.noteText, { color: colors.muted }]}>
-            These links will appear as icons at the bottom of your public booking page so clients can follow you.
+            Clients will see these icons at the bottom of your booking page and can tap them to visit your profiles.
           </Text>
         </View>
       </ScrollView>
@@ -196,10 +272,23 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingBottom: 40,
   },
-  sectionDesc: {
-    fontSize: 14,
-    lineHeight: 20,
+  sectionHeadingRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
     marginBottom: 4,
+  },
+  sectionHeadingTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  sectionDesc: {
+    fontSize: 13,
+    lineHeight: 18,
   },
   card: {
     borderRadius: 14,
@@ -210,24 +299,29 @@ const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
   },
   iconBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
   cardLabel: {
     fontSize: 15,
-    fontWeight: "600",
-    flex: 1,
+    fontWeight: "700",
+  },
+  handlePreview: {
+    fontSize: 12,
+    marginTop: 1,
   },
   previewBtn: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: 20,
+    borderWidth: 1,
   },
   previewBtnText: {
     fontSize: 12,

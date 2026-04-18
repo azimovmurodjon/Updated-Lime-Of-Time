@@ -1,4 +1,4 @@
-import { Text, View, Pressable, StyleSheet, TextInput, ScrollView, Alert, Platform, Image } from "react-native";
+import { Text, View, Pressable, StyleSheet, TextInput, ScrollView, Alert, Platform, Image, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, generateId } from "@/lib/store";
@@ -11,7 +11,9 @@ import { UpgradePlanSheet } from "@/components/upgrade-plan-sheet";
 import { SERVICE_COLORS, Service } from "@/lib/types";
 import { TapDurationPicker, formatDuration } from "@/components/tap-duration-picker";
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import { FuturisticBackground } from "@/components/futuristic-background";
+import { trpc } from "@/lib/trpc";
 
 
 export default function ServiceFormScreen() {
@@ -20,7 +22,9 @@ export default function ServiceFormScreen() {
   const colors = useColors();
   const router = useRouter();
   const { isTablet, hp } = useResponsive();
-  const { checkLimit } = usePlanLimitCheck();
+  const { checkLimit, planInfo } = usePlanLimitCheck();
+  const smsLevel: string = (planInfo?.limits as { smsLevel?: string } | undefined)?.smsLevel ?? "none";
+  const hasSms = smsLevel !== "none";
   const [upgradeSheetVisible, setUpgradeSheetVisible] = useState(false);
   const [upgradeSheetInfo, setUpgradeSheetInfo] = useState<{ planKey: string; planName: string; limit: number } | null>(null);
 
@@ -36,9 +40,11 @@ export default function ServiceFormScreen() {
   const [category, setCategory] = useState(existing?.category ?? "");
   const [description, setDescription] = useState(existing?.description ?? "");
   const [photoUri, setPhotoUri] = useState<string | undefined>(existing?.photoUri);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [reminderHours, setReminderHours] = useState<string>(
     existing?.reminderHours != null ? String(existing.reminderHours) : ""
   );
+  const uploadImageMut = trpc.files.uploadImage.useMutation();
 
   const isEdit = !!existing;
 
@@ -62,7 +68,24 @@ export default function ServiceFormScreen() {
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0]) {
-      setPhotoUri(result.assets[0].uri);
+      const localUri = result.assets[0].uri;
+      // Upload to S3 immediately so the URL is shareable on the client portal
+      if (Platform.OS !== "web") {
+        try {
+          setUploadingPhoto(true);
+          const base64 = await FileSystem.readAsStringAsync(localUri, { encoding: FileSystem.EncodingType.Base64 });
+          const mimeType = result.assets[0].mimeType ?? "image/jpeg";
+          const { url } = await uploadImageMut.mutateAsync({ base64, mimeType, folder: "services" });
+          setPhotoUri(url);
+        } catch {
+          // Fallback to local URI if upload fails
+          setPhotoUri(localUri);
+        } finally {
+          setUploadingPhoto(false);
+        }
+      } else {
+        setPhotoUri(localUri);
+      }
     }
   };
 
@@ -225,33 +248,56 @@ export default function ServiceFormScreen() {
           returnKeyType="done"
         />
 
-        {/* SMS Reminder Timing */}
-        <Text className="text-xs font-medium text-muted mb-1 ml-1">SMS Reminder Timing (optional)</Text>
-        <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 6, marginLeft: 4, lineHeight: 15 }}>
-          Override the global reminder window for this service. Leave blank to use the default.
-        </Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 20 }}>
-          <TextInput
-            style={{
-              flex: 1,
-              backgroundColor: colors.surface,
-              borderRadius: 12,
-              paddingHorizontal: 16,
-              paddingVertical: 12,
-              fontSize: 16,
-              color: colors.foreground,
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
-            placeholder={`Default (${state.settings.twilioReminderHoursBeforeAppt ?? 24} hrs)`}
-            placeholderTextColor={colors.muted}
-            value={reminderHours}
-            onChangeText={(v) => setReminderHours(v.replace(/[^0-9.]/g, ""))}
-            keyboardType="decimal-pad"
-            returnKeyType="done"
-          />
-          <Text style={{ fontSize: 14, color: colors.muted, minWidth: 30 }}>hrs</Text>
-        </View>
+        {/* SMS Reminder Timing — only shown when plan includes SMS */}
+        {hasSms ? (
+          <>
+            <Text className="text-xs font-medium text-muted mb-1 ml-1">SMS Reminder Timing (optional)</Text>
+            <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 6, marginLeft: 4, lineHeight: 15 }}>
+              Override the global reminder window for this service. Leave blank to use the default.
+            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 20 }}>
+              <TextInput
+                style={{
+                  flex: 1,
+                  backgroundColor: colors.surface,
+                  borderRadius: 12,
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  fontSize: 16,
+                  color: colors.foreground,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+                placeholder={`Default (${state.settings.twilioReminderHoursBeforeAppt ?? 24} hrs)`}
+                placeholderTextColor={colors.muted}
+                value={reminderHours}
+                onChangeText={(v) => setReminderHours(v.replace(/[^0-9.]/g, ""))}
+                keyboardType="decimal-pad"
+                returnKeyType="done"
+              />
+              <Text style={{ fontSize: 14, color: colors.muted, minWidth: 30 }}>hrs</Text>
+            </View>
+          </>
+        ) : (
+          <View style={{
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: colors.surface,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: colors.border,
+            paddingHorizontal: 16,
+            paddingVertical: 12,
+            marginBottom: 20,
+            gap: 10,
+          }}>
+            <IconSymbol name="lock.fill" size={16} color={colors.muted} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, color: colors.foreground, fontWeight: "600" }}>SMS Reminder Timing</Text>
+              <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Upgrade your plan to set per-service SMS reminder timing.</Text>
+            </View>
+          </View>
+        )}
 
         {/* Color */}
         <Text className="text-xs font-medium text-muted mb-2 ml-1">Color</Text>
@@ -286,7 +332,12 @@ export default function ServiceFormScreen() {
             backgroundColor: colors.surface, minHeight: 110, alignItems: "center", justifyContent: "center",
           }]}
         >
-          {photoUri ? (
+          {uploadingPhoto ? (
+            <View style={{ alignItems: "center", paddingVertical: 22, gap: 8 }}>
+              <ActivityIndicator color={colors.primary} />
+              <Text style={{ fontSize: 12, color: colors.muted }}>Uploading photo...</Text>
+            </View>
+          ) : photoUri ? (
             <Image source={{ uri: photoUri }} style={{ width: "100%", height: 150, borderRadius: 10 }} resizeMode="cover" />
           ) : (
             <View style={{ alignItems: "center", paddingVertical: 22, gap: 6 }}>

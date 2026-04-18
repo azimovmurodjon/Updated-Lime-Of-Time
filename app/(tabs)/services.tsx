@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { FlatList, Text, View, Pressable, StyleSheet, ScrollView, TextInput } from "react-native";
+import React, { useState, useMemo, useRef, useCallback } from "react";
+import { FlatList, Text, View, Pressable, StyleSheet, TextInput, LayoutAnimation, Platform, UIManager } from "react-native";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
@@ -8,18 +8,38 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useResponsive } from "@/hooks/use-responsive";
 import { FuturisticBackground } from "@/components/futuristic-background";
 
+// Enable LayoutAnimation on Android
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 type Tab = "services" | "products";
+
+type ServiceListItem =
+  | { type: "header"; category: string; key: string; count: number }
+  | { type: "service"; item: ReturnType<typeof useStore>["state"]["services"][0]; key: string };
+
+type ProductListItem =
+  | { type: "header"; brand: string; key: string; count: number }
+  | { type: "product"; item: ReturnType<typeof useStore>["state"]["products"][0]; key: string };
 
 export default function ServicesScreen() {
   const { state } = useStore();
   const colors = useColors();
   const router = useRouter();
-  const { hp, maxContentWidth } = useResponsive();
+  const { hp } = useResponsive();
   const [activeTab, setActiveTab] = useState<Tab>("services");
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [serviceSearch, setServiceSearch] = useState("");
   const [productSearch, setProductSearch] = useState("");
+  // Track collapsed groups: key = category/brand name
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
+  const toggleGroup = useCallback((key: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setCollapsedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
 
   // Derive sorted unique brands from products
   const allBrands = useMemo(() => {
@@ -57,12 +77,82 @@ export default function ServicesScreen() {
     return svcs;
   }, [state.services, selectedCategory, serviceSearch]);
 
+  // Build service list data with collapsible category headers
+  const serviceListData = useMemo((): ServiceListItem[] => {
+    const catMap = new Map<string, typeof state.services>();
+    const uncategorized: typeof state.services = [];
+    filteredServices.forEach((s) => {
+      const cat = s.category || "";
+      if (!cat) { uncategorized.push(s); return; }
+      if (!catMap.has(cat)) catMap.set(cat, []);
+      catMap.get(cat)!.push(s);
+    });
+
+    const hasCategories = catMap.size > 0 && !selectedCategory && !serviceSearch.trim();
+    const result: ServiceListItem[] = [];
+
+    if (hasCategories) {
+      // Grouped mode: show collapsible category headers
+      Array.from(catMap.entries()).sort(([a], [b]) => a.localeCompare(b)).forEach(([cat, svcs]) => {
+        result.push({ type: "header", category: cat, key: `header-${cat}`, count: svcs.length });
+        if (!collapsedGroups[cat]) {
+          svcs.forEach((s) => result.push({ type: "service", item: s, key: s.id }));
+        }
+      });
+      if (uncategorized.length > 0) {
+        const uncatKey = "__uncategorized__";
+        result.push({ type: "header", category: "Uncategorized", key: `header-${uncatKey}`, count: uncategorized.length });
+        if (!collapsedGroups[uncatKey]) {
+          uncategorized.forEach((s) => result.push({ type: "service", item: s, key: s.id }));
+        }
+      }
+    } else {
+      // Flat mode: no headers
+      filteredServices.forEach((s) => result.push({ type: "service", item: s, key: s.id }));
+    }
+    return result;
+  }, [filteredServices, selectedCategory, serviceSearch, collapsedGroups]);
+
+  // Build product list data with collapsible brand headers
+  const productListData = useMemo((): ProductListItem[] => {
+    const brandMap = new Map<string, typeof state.products>();
+    const noBrand: typeof state.products = [];
+    filteredProducts.forEach((p) => {
+      const brand = p.brand || "";
+      if (!brand) { noBrand.push(p); return; }
+      if (!brandMap.has(brand)) brandMap.set(brand, []);
+      brandMap.get(brand)!.push(p);
+    });
+
+    const hasBrands = brandMap.size > 0 && !selectedBrand && !productSearch.trim();
+    const result: ProductListItem[] = [];
+
+    if (hasBrands) {
+      Array.from(brandMap.entries()).sort(([a], [b]) => a.localeCompare(b)).forEach(([brand, prods]) => {
+        result.push({ type: "header", brand, key: `brand-${brand}`, count: prods.length });
+        if (!collapsedGroups[`brand-${brand}`]) {
+          prods.forEach((p) => result.push({ type: "product", item: p, key: p.id }));
+        }
+      });
+      if (noBrand.length > 0) {
+        const noBrandKey = "brand-__none__";
+        result.push({ type: "header", brand: "No Brand", key: noBrandKey, count: noBrand.length });
+        if (!collapsedGroups[noBrandKey]) {
+          noBrand.forEach((p) => result.push({ type: "product", item: p, key: p.id }));
+        }
+      }
+    } else {
+      filteredProducts.forEach((p) => result.push({ type: "product", item: p, key: p.id }));
+    }
+    return result;
+  }, [filteredProducts, selectedBrand, productSearch, collapsedGroups]);
+
   return (
     <ScreenContainer className="pt-2 flex-1" containerClassName="flex-1" safeAreaClassName="flex-1" tabletMaxWidth={0} style={{ paddingHorizontal: hp }}>
       <FuturisticBackground />
       {/* Header */}
       <View style={styles.header}>
-        <Text className="text-2xl font-bold text-foreground">
+        <Text style={{ fontSize: 22, fontWeight: "700", color: colors.foreground }}>
           {activeTab === "services" ? "Services" : "Products"}
         </Text>
         <Pressable
@@ -83,133 +173,28 @@ export default function ServicesScreen() {
       </View>
 
       {/* Segmented Control */}
-      <View
-        style={[
-          styles.segmentContainer,
-          { backgroundColor: colors.surface, borderColor: colors.border },
-        ]}
-      >
+      <View style={[styles.segmentContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <Pressable
           onPress={() => setActiveTab("services")}
-          style={[
-            styles.segmentBtn,
-            activeTab === "services" && {
-              backgroundColor: colors.primary,
-            },
-          ]}
+          style={[styles.segmentBtn, activeTab === "services" && { backgroundColor: colors.primary }]}
         >
-          <IconSymbol
-            name="list.bullet"
-            size={16}
-            color={activeTab === "services" ? "#fff" : colors.muted}
-          />
-          <Text
-            style={[
-              styles.segmentText,
-              {
-                color: activeTab === "services" ? "#fff" : colors.muted,
-              },
-            ]}
-          >
-            Services
-          </Text>
+          <IconSymbol name="list.bullet" size={16} color={activeTab === "services" ? "#fff" : colors.muted} />
+          <Text style={[styles.segmentText, { color: activeTab === "services" ? "#fff" : colors.muted }]}>Services</Text>
         </Pressable>
         <Pressable
           onPress={() => setActiveTab("products")}
-          style={[
-            styles.segmentBtn,
-            activeTab === "products" && {
-              backgroundColor: colors.primary,
-            },
-          ]}
+          style={[styles.segmentBtn, activeTab === "products" && { backgroundColor: colors.primary }]}
         >
-          <IconSymbol
-            name="bag.fill"
-            size={16}
-            color={activeTab === "products" ? "#fff" : colors.muted}
-          />
-          <Text
-            style={[
-              styles.segmentText,
-              {
-                color: activeTab === "products" ? "#fff" : colors.muted,
-              },
-            ]}
-          >
-            Products
-          </Text>
+          <IconSymbol name="bag.fill" size={16} color={activeTab === "products" ? "#fff" : colors.muted} />
+          <Text style={[styles.segmentText, { color: activeTab === "products" ? "#fff" : colors.muted }]}>Products</Text>
         </Pressable>
       </View>
 
-      {/* Services List - grouped by category */}
-      {activeTab === "services" && (() => {
-        // Category filter chips
-        const categoryChips = allCategories.length > 0 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 10, gap: 8, flexDirection: "row" }}
-            style={{ marginBottom: 4 }}
-          >
-            <Pressable
-              onPress={() => setSelectedCategory(null)}
-              style={[styles.brandChip, { backgroundColor: !selectedCategory ? colors.primary : colors.surface, borderColor: !selectedCategory ? colors.primary : colors.border }]}
-            >
-              <Text style={{ fontSize: 12, fontWeight: "600", color: !selectedCategory ? "#fff" : colors.muted }}>All</Text>
-            </Pressable>
-            {allCategories.map((cat) => (
-              <Pressable
-                key={cat}
-                onPress={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
-                style={[styles.brandChip, { backgroundColor: selectedCategory === cat ? colors.primary : colors.surface, borderColor: selectedCategory === cat ? colors.primary : colors.border }]}
-              >
-                <Text style={{ fontSize: 12, fontWeight: "600", color: selectedCategory === cat ? "#fff" : colors.muted }} numberOfLines={1}>{cat}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        ) : null;
-
-        // Group filteredServices by category
-        const grouped: { category: string; services: typeof state.services }[] = [];
-        const uncategorized: typeof state.services = [];
-        const catMap = new Map<string, typeof state.services>();
-        filteredServices.forEach((s) => {
-          const cat = s.category || "";
-          if (!cat) { uncategorized.push(s); return; }
-          if (!catMap.has(cat)) catMap.set(cat, []);
-          catMap.get(cat)!.push(s);
-        });
-        // Sort categories alphabetically
-        Array.from(catMap.entries()).sort(([a], [b]) => a.localeCompare(b)).forEach(([cat, svcs]) => {
-          grouped.push({ category: cat, services: svcs });
-        });
-        if (uncategorized.length > 0) grouped.push({ category: "", services: uncategorized });
-
-        // Build flat list data with section headers
-        type ListItem = { type: "header"; category: string; key: string } | { type: "service"; item: typeof state.services[0]; key: string };
-        const listData: ListItem[] = [];
-        const hasCategories = catMap.size > 0 && !selectedCategory;
-        grouped.forEach((g) => {
-          if (hasCategories) {
-            listData.push({ type: "header", category: g.category || "Uncategorized", key: `header-${g.category || "uncategorized"}` });
-          }
-          g.services.forEach((s) => listData.push({ type: "service", item: s, key: s.id }));
-        });
-
-        return (
-          <View style={{ flex: 1 }}>
+      {/* ── Services Tab ── */}
+      {activeTab === "services" && (
+        <View style={{ flex: 1 }}>
           {/* Search bar */}
-          <View style={{
-            flexDirection: "row",
-            alignItems: "center",
-            backgroundColor: colors.surface,
-            borderRadius: 12,
-            borderWidth: 1,
-            borderColor: colors.border,
-            paddingHorizontal: 10,
-            marginBottom: 10,
-            height: 40,
-          }}>
+          <View style={[styles.searchBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <IconSymbol name="magnifyingglass" size={15} color={colors.muted} />
             <TextInput
               value={serviceSearch}
@@ -221,65 +206,77 @@ export default function ServicesScreen() {
               clearButtonMode="while-editing"
             />
           </View>
-          {categoryChips}
+          {/* Category filter chips */}
+          {allCategories.length > 0 && (
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={[null, ...allCategories]}
+              keyExtractor={(item) => item ?? "__all__"}
+              style={{ marginBottom: 8, flexGrow: 0 }}
+              contentContainerStyle={{ gap: 8, paddingVertical: 2 }}
+              renderItem={({ item: cat }) => (
+                <Pressable
+                  onPress={() => setSelectedCategory(cat)}
+                  style={[styles.brandChip, {
+                    backgroundColor: selectedCategory === cat ? colors.primary : colors.surface,
+                    borderColor: selectedCategory === cat ? colors.primary : colors.border,
+                  }]}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: selectedCategory === cat ? "#fff" : colors.muted }}>
+                    {cat ?? "All"}
+                  </Text>
+                </Pressable>
+              )}
+            />
+          )}
+          {/* Services list */}
           <FlatList
-            data={listData}
+            data={serviceListData}
             keyExtractor={(item) => item.key}
             showsVerticalScrollIndicator={false}
             renderItem={({ item: row }) => {
               if (row.type === "header") {
+                const isCollapsed = !!collapsedGroups[row.category === "Uncategorized" ? "__uncategorized__" : row.category];
                 return (
-                  <View style={{ paddingVertical: 8, paddingHorizontal: 4, marginTop: 8 }}>
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 1 }}>
-                      {row.category}
-                    </Text>
-                  </View>
+                  <Pressable
+                    onPress={() => toggleGroup(row.category === "Uncategorized" ? "__uncategorized__" : row.category)}
+                    style={[styles.groupHeader, { borderBottomColor: colors.border }]}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
+                      <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.8 }}>
+                        {row.category}
+                      </Text>
+                      <View style={[styles.countBadge, { backgroundColor: colors.primary + "20" }]}>
+                        <Text style={{ fontSize: 10, fontWeight: "700", color: colors.primary }}>{row.count}</Text>
+                      </View>
+                    </View>
+                    <IconSymbol
+                      name={isCollapsed ? "chevron.right" : "chevron.down"}
+                      size={14}
+                      color={colors.muted}
+                    />
+                  </Pressable>
                 );
               }
               const svc = row.item;
               return (
                 <Pressable
-                  onPress={() =>
-                    router.push({ pathname: "/service-form" as any, params: { id: svc.id } })
-                  }
-                  style={({ pressed }) => [
-                    styles.serviceCard,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: colors.border,
-                      opacity: pressed ? 0.7 : 1,
-                    },
-                  ]}
+                  onPress={() => router.push({ pathname: "/service-form" as any, params: { id: svc.id } })}
+                  style={({ pressed }) => [styles.serviceCard, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
                 >
                   <View style={[styles.colorBar, { backgroundColor: svc.color }]} />
                   <View style={styles.cardContent}>
-                    <Text
-                      className="text-base font-semibold text-foreground"
-                      numberOfLines={1}
-                    >
-                      {svc.name}
-                    </Text>
+                    <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }} numberOfLines={1}>{svc.name}</Text>
                     <View style={styles.metaRow}>
-                      <IconSymbol name="clock.fill" size={13} color={colors.muted} />
-                      <Text className="text-xs text-muted" style={{ marginLeft: 4 }}>
-                        {svc.duration} min
-                      </Text>
-                      <Text
-                        className="text-xs text-muted"
-                        style={{ marginHorizontal: 8 }}
-                      >
-                        ·
-                      </Text>
-                      <Text
-                        className="text-sm font-semibold"
-                        style={{ color: colors.primary }}
-                      >
-                        ${svc.price}
-                      </Text>
-                      {svc.category && !hasCategories ? (
+                      <IconSymbol name="clock.fill" size={12} color={colors.muted} />
+                      <Text style={{ fontSize: 12, color: colors.muted, marginLeft: 4 }}>{svc.duration} min</Text>
+                      <Text style={{ fontSize: 12, color: colors.muted, marginHorizontal: 6 }}>·</Text>
+                      <Text style={{ fontSize: 13, fontWeight: "600", color: colors.primary }}>${svc.price}</Text>
+                      {svc.category && selectedCategory ? (
                         <>
-                          <Text className="text-xs text-muted" style={{ marginHorizontal: 8 }}>·</Text>
-                          <Text className="text-xs" style={{ color: colors.muted }}>{svc.category}</Text>
+                          <Text style={{ fontSize: 12, color: colors.muted, marginHorizontal: 6 }}>·</Text>
+                          <Text style={{ fontSize: 12, color: colors.muted }}>{svc.category}</Text>
                         </>
                       ) : null}
                     </View>
@@ -287,13 +284,7 @@ export default function ServicesScreen() {
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginRight: 8 }}>
                     <Pressable
                       onPress={() => router.push({ pathname: "/service-gallery" as any, params: { serviceId: svc.id } })}
-                      style={({ pressed }) => ({
-                        backgroundColor: colors.primary + "15",
-                        borderRadius: 8,
-                        paddingHorizontal: 8,
-                        paddingVertical: 5,
-                        opacity: pressed ? 0.7 : 1,
-                      })}
+                      style={({ pressed }) => ({ backgroundColor: colors.primary + "15", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, opacity: pressed ? 0.7 : 1 })}
                     >
                       <IconSymbol name="photo.fill" size={14} color={colors.primary} />
                     </Pressable>
@@ -305,156 +296,122 @@ export default function ServicesScreen() {
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
                 <IconSymbol name="list.bullet" size={48} color={colors.muted} />
-                <Text className="text-base text-muted" style={{ marginTop: 12 }}>
-                  No services yet
-                </Text>
-                <Text className="text-sm text-muted" style={{ marginTop: 4 }}>
-                  Tap + to create your first service
-                </Text>
+                <Text style={{ fontSize: 15, color: colors.muted, marginTop: 12 }}>No services yet</Text>
+                <Text style={{ fontSize: 13, color: colors.muted, marginTop: 4 }}>Tap + to create your first service</Text>
               </View>
             }
-            contentContainerStyle={{ paddingBottom: 80, flexGrow: 1 }}
-          />
-          </View>
-        );
-      })()}
-
-      {/* Products List */}
-      {activeTab === "products" && (
-        <View style={{ flex: 1 }}>
-        {/* Product search bar */}
-        <View style={{
-          flexDirection: "row",
-          alignItems: "center",
-          backgroundColor: colors.surface,
-          borderRadius: 12,
-          borderWidth: 1,
-          borderColor: colors.border,
-          paddingHorizontal: 10,
-          marginBottom: 10,
-          height: 40,
-        }}>
-          <IconSymbol name="magnifyingglass" size={15} color={colors.muted} />
-          <TextInput
-            value={productSearch}
-            onChangeText={setProductSearch}
-            placeholder="Search products…"
-            placeholderTextColor={colors.muted}
-            style={{ flex: 1, marginLeft: 8, fontSize: 14, color: colors.foreground, height: 40 }}
-            returnKeyType="search"
-            clearButtonMode="while-editing"
+            contentContainerStyle={{ paddingBottom: 80 }}
           />
         </View>
-        {/* Brand filter chips */}
-        {allBrands.length > 0 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 10, gap: 8, flexDirection: "row" }}
-            style={{ marginBottom: 4 }}
-          >
-            <Pressable
-              onPress={() => setSelectedBrand(null)}
-              style={[styles.brandChip, { backgroundColor: !selectedBrand ? colors.primary : colors.surface, borderColor: !selectedBrand ? colors.primary : colors.border }]}
-            >
-              <Text style={{ fontSize: 12, fontWeight: "600", color: !selectedBrand ? "#fff" : colors.muted }}>All</Text>
-            </Pressable>
-            {allBrands.map((brand) => (
-              <Pressable
-                key={brand}
-                onPress={() => setSelectedBrand(selectedBrand === brand ? null : brand)}
-                style={[styles.brandChip, { backgroundColor: selectedBrand === brand ? colors.primary : colors.surface, borderColor: selectedBrand === brand ? colors.primary : colors.border }]}
-              >
-                <Text style={{ fontSize: 12, fontWeight: "600", color: selectedBrand === brand ? "#fff" : colors.muted }} numberOfLines={1}>{brand}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        )}
-        <FlatList
-          data={filteredProducts}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <Pressable
-              onPress={() =>
-                router.push({ pathname: "/product-form" as any, params: { id: item.id } })
-              }
-              style={({ pressed }) => [
-                styles.productCard,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: colors.border,
-                  opacity: pressed ? 0.7 : 1,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.productIcon,
-                  { backgroundColor: colors.primary + "18" },
-                ]}
-              >
-                <IconSymbol name="bag.fill" size={20} color={colors.primary} />
-              </View>
-              <View style={styles.cardContent}>
-                <Text
-                  className="text-base font-semibold text-foreground"
-                  numberOfLines={1}
+      )}
+
+      {/* ── Products Tab ── */}
+      {activeTab === "products" && (
+        <View style={{ flex: 1 }}>
+          {/* Product search bar */}
+          <View style={[styles.searchBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <IconSymbol name="magnifyingglass" size={15} color={colors.muted} />
+            <TextInput
+              value={productSearch}
+              onChangeText={setProductSearch}
+              placeholder="Search products…"
+              placeholderTextColor={colors.muted}
+              style={{ flex: 1, marginLeft: 8, fontSize: 14, color: colors.foreground, height: 40 }}
+              returnKeyType="search"
+              clearButtonMode="while-editing"
+            />
+          </View>
+          {/* Brand filter chips */}
+          {allBrands.length > 0 && (
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={[null, ...allBrands]}
+              keyExtractor={(item) => item ?? "__all__"}
+              style={{ marginBottom: 8, flexGrow: 0 }}
+              contentContainerStyle={{ gap: 8, paddingVertical: 2 }}
+              renderItem={({ item: brand }) => (
+                <Pressable
+                  onPress={() => setSelectedBrand(brand)}
+                  style={[styles.brandChip, {
+                    backgroundColor: selectedBrand === brand ? colors.primary : colors.surface,
+                    borderColor: selectedBrand === brand ? colors.primary : colors.border,
+                  }]}
                 >
-                  {item.name}
-                </Text>
-                <View style={styles.metaRow}>
-                  <Text
-                    className="text-sm font-semibold"
-                    style={{ color: colors.primary }}
-                  >
-                    ${item.price.toFixed(2)}
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: selectedBrand === brand ? "#fff" : colors.muted }}>
+                    {brand ?? "All"}
                   </Text>
-                  {!item.available && (
-                    <>
-                      <Text
-                        className="text-xs text-muted"
-                        style={{ marginHorizontal: 8 }}
-                      >
-                        ·
-                      </Text>
-                      <Text className="text-xs" style={{ color: colors.error }}>
-                        Unavailable
-                      </Text>
-                    </>
-                  )}
-                </View>
-                {item.description ? (
-                  <Text
-                    className="text-xs text-muted"
-                    numberOfLines={1}
-                    style={{ marginTop: 2 }}
-                  >
-                    {item.description}
-                  </Text>
-                ) : null}
-              </View>
-              <IconSymbol
-                name="chevron.right"
-                size={16}
-                color={colors.muted}
-                style={{ marginRight: 14 }}
-              />
-            </Pressable>
+                </Pressable>
+              )}
+            />
           )}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <IconSymbol name="bag.fill" size={48} color={colors.muted} />
-              <Text className="text-base text-muted" style={{ marginTop: 12 }}>
-                No products yet
-              </Text>
-              <Text className="text-sm text-muted" style={{ marginTop: 4 }}>
-                Tap + to add your first product
-              </Text>
-            </View>
-          }
-          contentContainerStyle={{ paddingBottom: 80, flexGrow: 1 }}
-        />
+          {/* Products list */}
+          <FlatList
+            data={productListData}
+            keyExtractor={(item) => item.key}
+            showsVerticalScrollIndicator={false}
+            renderItem={({ item: row }) => {
+              if (row.type === "header") {
+                const groupKey = `brand-${row.brand === "No Brand" ? "__none__" : row.brand}`;
+                const isCollapsed = !!collapsedGroups[groupKey];
+                return (
+                  <Pressable
+                    onPress={() => toggleGroup(groupKey)}
+                    style={[styles.groupHeader, { borderBottomColor: colors.border }]}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
+                      <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.8 }}>
+                        {row.brand}
+                      </Text>
+                      <View style={[styles.countBadge, { backgroundColor: colors.primary + "20" }]}>
+                        <Text style={{ fontSize: 10, fontWeight: "700", color: colors.primary }}>{row.count}</Text>
+                      </View>
+                    </View>
+                    <IconSymbol
+                      name={isCollapsed ? "chevron.right" : "chevron.down"}
+                      size={14}
+                      color={colors.muted}
+                    />
+                  </Pressable>
+                );
+              }
+              const item = row.item;
+              return (
+                <Pressable
+                  onPress={() => router.push({ pathname: "/product-form" as any, params: { id: item.id } })}
+                  style={({ pressed }) => [styles.productCard, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <View style={[styles.productIcon, { backgroundColor: colors.primary + "18" }]}>
+                    <IconSymbol name="bag.fill" size={20} color={colors.primary} />
+                  </View>
+                  <View style={styles.cardContent}>
+                    <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }} numberOfLines={1}>{item.name}</Text>
+                    <View style={styles.metaRow}>
+                      <Text style={{ fontSize: 13, fontWeight: "600", color: colors.primary }}>${item.price.toFixed(2)}</Text>
+                      {!item.available && (
+                        <>
+                          <Text style={{ fontSize: 12, color: colors.muted, marginHorizontal: 6 }}>·</Text>
+                          <Text style={{ fontSize: 12, color: colors.error }}>Unavailable</Text>
+                        </>
+                      )}
+                    </View>
+                    {item.description ? (
+                      <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }} numberOfLines={1}>{item.description}</Text>
+                    ) : null}
+                  </View>
+                  <IconSymbol name="chevron.right" size={16} color={colors.muted} style={{ marginRight: 14 }} />
+                </Pressable>
+              );
+            }}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <IconSymbol name="bag.fill" size={48} color={colors.muted} />
+                <Text style={{ fontSize: 15, color: colors.muted, marginTop: 12 }}>No products yet</Text>
+                <Text style={{ fontSize: 13, color: colors.muted, marginTop: 4 }}>Tap + to add your first product</Text>
+              </View>
+            }
+            contentContainerStyle={{ paddingBottom: 80 }}
+          />
         </View>
       )}
     </ScreenContainer>
@@ -495,11 +452,36 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    marginBottom: 10,
+    height: 40,
+  },
+  groupHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    marginTop: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    marginBottom: 4,
+  },
+  countBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    minWidth: 20,
+    alignItems: "center",
+  },
   serviceCard: {
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 16,
-    marginBottom: 10,
+    marginBottom: 8,
     borderWidth: 1,
     overflow: "hidden",
   },
@@ -509,7 +491,7 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     flex: 1,
-    paddingVertical: 14,
+    paddingVertical: 13,
     paddingHorizontal: 14,
   },
   metaRow: {
@@ -521,7 +503,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 16,
-    marginBottom: 10,
+    marginBottom: 8,
     borderWidth: 1,
     overflow: "hidden",
   },

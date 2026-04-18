@@ -906,7 +906,7 @@ export default function AppointmentDetailScreen() {
       {/* Reschedule Modal */}
       <Modal visible={showRescheduleModal} transparent animationType="slide">
         <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" }}>
-          <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, maxHeight: "85%" }}>
+          <View style={{ backgroundColor: colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, maxHeight: "85%" }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
               <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground }}>Reschedule Appointment</Text>
               <Pressable onPress={() => setShowRescheduleModal(false)} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
@@ -915,60 +915,65 @@ export default function AppointmentDetailScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Month navigation */}
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <Pressable
-                  onPress={() => setReschedCalMonth(m => {
-                    const d = new Date(m.year, m.month - 1, 1);
-                    return { year: d.getFullYear(), month: d.getMonth() };
-                  })}
-                  style={({ pressed }) => [{ padding: 8, opacity: pressed ? 0.6 : 1 }]}
-                >
-                  <IconSymbol name="chevron.left" size={20} color={colors.primary} />
-                </Pressable>
-                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>
-                  {new Date(reschedCalMonth.year, reschedCalMonth.month, 1).toLocaleString("default", { month: "long", year: "numeric" })}
-                </Text>
-                <Pressable
-                  onPress={() => setReschedCalMonth(m => {
-                    const d = new Date(m.year, m.month + 1, 1);
-                    return { year: d.getFullYear(), month: d.getMonth() };
-                  })}
-                  style={({ pressed }) => [{ padding: 8, opacity: pressed ? 0.6 : 1 }]}
-                >
-                  <IconSymbol name="chevron.right" size={20} color={colors.primary} />
-                </Pressable>
-              </View>
+              {/* Calendar card */}
+              <View style={{ backgroundColor: colors.surface, borderRadius: 16, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: colors.border }}>
+                {/* Month navigation */}
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                  <Pressable
+                    onPress={() => setReschedCalMonth(m => {
+                      const d = new Date(m.year, m.month - 1, 1);
+                      return { year: d.getFullYear(), month: d.getMonth() };
+                    })}
+                    style={({ pressed }) => [{ padding: 8, opacity: pressed ? 0.6 : 1, backgroundColor: colors.background, borderRadius: 10 }]}
+                  >
+                    <IconSymbol name="chevron.left" size={18} color={colors.primary} />
+                  </Pressable>
+                  <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>
+                    {new Date(reschedCalMonth.year, reschedCalMonth.month, 1).toLocaleString("default", { month: "long", year: "numeric" })}
+                  </Text>
+                  <Pressable
+                    onPress={() => setReschedCalMonth(m => {
+                      const d = new Date(m.year, m.month + 1, 1);
+                      return { year: d.getFullYear(), month: d.getMonth() };
+                    })}
+                    style={({ pressed }) => [{ padding: 8, opacity: pressed ? 0.6 : 1, backgroundColor: colors.background, borderRadius: 10 }]}
+                  >
+                    <IconSymbol name="chevron.right" size={18} color={colors.primary} />
+                  </Pressable>
+                </View>
 
-              {/* Day headers */}
-              <View style={{ flexDirection: "row", marginBottom: 4 }}>
-                {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d => (
-                  <Text key={d} style={{ flex: 1, textAlign: "center", fontSize: 11, fontWeight: "600", color: colors.muted }}>{d}</Text>
-                ))}
-              </View>
+                {/* Day headers */}
+                <View style={{ flexDirection: "row", marginBottom: 6 }}>
+                  {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d => (
+                    <Text key={d} style={{ flex: 1, textAlign: "center", fontSize: 11, fontWeight: "700", color: colors.muted, letterSpacing: 0.3 }}>{d}</Text>
+                  ))}
+                </View>
 
-              {/* Calendar grid */}
-              <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-                {reschedCalDays.map((day, idx) => {
-                  if (!day) return <View key={`e${idx}`} style={{ width: "14.28%", aspectRatio: 1 }} />;
-                  const dateStr = `${reschedCalMonth.year}-${String(reschedCalMonth.month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-                  const isPast = new Date(dateStr + "T23:59:59") < today;
-                  const isSelected = dateStr === reschedDate;
-                  return (
-                    <Pressable
-                      key={dateStr}
-                      onPress={() => { if (!isPast) { setReschedDate(dateStr); setReschedTime(null); } }}
-                      style={({ pressed }) => [{
-                        width: "14.28%", aspectRatio: 1, alignItems: "center", justifyContent: "center",
-                        borderRadius: 100,
-                        backgroundColor: isSelected ? colors.primary : "transparent",
-                        opacity: isPast ? 0.3 : pressed ? 0.7 : 1,
-                      }]}
-                    >
-                      <Text style={{ fontSize: 14, fontWeight: isSelected ? "700" : "400", color: isSelected ? "#FFF" : colors.foreground }}>{day}</Text>
-                    </Pressable>
-                  );
-                })}
+                {/* Calendar grid */}
+                <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                  {reschedCalDays.map((day, idx) => {
+                    if (!day) return <View key={`e${idx}`} style={{ width: "14.28%", height: 40 }} />;
+                    const dateStr = `${reschedCalMonth.year}-${String(reschedCalMonth.month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                    const isPast = new Date(dateStr + "T23:59:59") < today;
+                    const isSelected = dateStr === reschedDate;
+                    const todayStr = today.toISOString().split("T")[0];
+                    const isToday = dateStr === todayStr;
+                    return (
+                      <Pressable
+                        key={dateStr}
+                        onPress={() => { if (!isPast) { setReschedDate(dateStr); setReschedTime(null); } }}
+                        style={({ pressed }) => [{
+                          width: "14.28%", height: 40, alignItems: "center", justifyContent: "center",
+                          borderRadius: 10,
+                          backgroundColor: isSelected ? colors.primary : isToday ? colors.primary + "20" : "transparent",
+                          opacity: isPast ? 0.3 : pressed ? 0.7 : 1,
+                        }]}
+                      >
+                        <Text style={{ fontSize: 15, fontWeight: isSelected || isToday ? "700" : "400", color: isSelected ? "#FFF" : isToday ? colors.primary : colors.foreground }}>{day}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
               </View>
 
               {/* Time slots */}

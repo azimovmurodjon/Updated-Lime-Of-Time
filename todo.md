@@ -1371,3 +1371,13 @@
 - [x] Fix Choose Plan onboarding page to always start from top (Solo plan first, not scrolled to Most Popular)
 - [ ] Investigate and fix discount not applying correctly when booking appointment from the app
 - [x] Fix discount not applying correctly when booking appointment from the app (3 bugs fixed: maxUses persistence, maxUses enforcement at booking time, discount applied to full subtotal)
+- [ ] Fix client portal: filter out past time slots for today's date (slot < current time must not show)
+- [ ] Fix client portal: service images not appearing on booking portal
+- [ ] Fix social media icons: improve visual design, fix TikTok logo visibility in dark mode
+- [ ] Fix reschedule popup calendar: low contrast / poor visibility of dates
+- [ ] Fix staff profile picture: not showing when selecting staff in app booking and client portal
+- [ ] Fix Choose Plan popup: cards too close to edges, add padding and spacing between cards
+- [ ] Fix Analytics tab: remove auto-scrolling slides carousel
+- [ ] Fix New Service form: hide/disable SMS Reminder Timing if subscription doesn't include SMS
+- [ ] Fix Custom Date Range picker: replace text input with scroll-wheel date picker like birthday selector
+- [ ] Fix Services/Products list layout: list appears too far below filter chips; add collapsible category/brand groups

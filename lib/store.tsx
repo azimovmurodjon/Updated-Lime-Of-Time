@@ -478,6 +478,9 @@ export function dbServiceToLocal(s: any): Service {
     color: s.color,
     category: s.category ?? undefined,
     locationIds: s.locationIds ?? null,
+    description: s.description ?? undefined,
+    photoUri: s.photoUri ?? undefined,
+    reminderHours: s.reminderHours != null ? parseFloat(s.reminderHours) : null,
     createdAt: s.createdAt ? new Date(s.createdAt).toISOString() : new Date().toISOString(),
   };
 }
@@ -709,6 +712,8 @@ export function dbStaffToLocal(s: any): StaffMember {
     locationIds: s.locationIds ?? null,
     workingHours: s.workingHours ?? null,
     active: s.active ?? true,
+    photoUri: s.photoUri ?? undefined,
+    commissionRate: s.commissionRate != null ? parseFloat(s.commissionRate) : null,
     createdAt: s.createdAt ? new Date(s.createdAt).toISOString() : new Date().toISOString(),
   };
 }
@@ -1369,6 +1374,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               color: svc.color,
               category: svc.category,
               locationIds: svc.locationIds,
+              description: svc.description,
+              photoUri: svc.photoUri,
+              reminderHours: svc.reminderHours != null ? svc.reminderHours : undefined,
             });
             break;
           }
@@ -1383,6 +1391,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               color: svc.color,
               category: svc.category,
               locationIds: svc.locationIds,
+              description: svc.description,
+              photoUri: svc.photoUri,
+              reminderHours: svc.reminderHours != null ? svc.reminderHours : undefined,
             });
             break;
           }

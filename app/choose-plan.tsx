@@ -122,14 +122,16 @@ export default function ChoosePlanScreen() {
       </Text>
 
       {/* Carousel */}
-      <PlanCarousel
-        plans={(plans ?? []) as any}
-        isLoading={isLoading}
-        isYearly={isYearly}
-        onToggleBilling={setIsYearly}
-        onSelectPlan={handleSelectPlan}
-        loadingPlanKey={loadingPlanKey}
-      />
+      <View style={{ flex: 1, paddingHorizontal: 16 }}>
+        <PlanCarousel
+          plans={(plans ?? []) as any}
+          isLoading={isLoading}
+          isYearly={isYearly}
+          onToggleBilling={setIsYearly}
+          onSelectPlan={handleSelectPlan}
+          loadingPlanKey={loadingPlanKey}
+        />
+      </View>
 
       {/* Footer */}
       <Text style={{ fontSize: 12, color: colors.muted, textAlign: "center", paddingBottom: 16, paddingHorizontal: 20 }}>

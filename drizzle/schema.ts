@@ -136,6 +136,12 @@ export const services = mysqlTable("services", {
   category: varchar("category", { length: 100 }),
   /** Location localIds this service is available at (JSON array, null = all) */
   locationIds: json("locationIds"),
+  /** Optional description shown on booking page */
+  description: text("description"),
+  /** Optional photo URI (S3 URL) shown on booking page */
+  photoUri: varchar("photoUri", { length: 2048 }),
+  /** Override global SMS reminder timing (hours before appointment, null = use global) */
+  reminderHours: decimal("reminderHours", { precision: 5, scale: 2 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

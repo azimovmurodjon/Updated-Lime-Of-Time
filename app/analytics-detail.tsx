@@ -8,7 +8,6 @@ import {
   Alert,
   Platform,
   ActivityIndicator,
-  PanResponder,
   Modal,
   TextInput,
 } from "react-native";
@@ -39,6 +38,14 @@ export default function AnalyticsDetailScreen() {
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [customStartInput, setCustomStartInput] = useState("");
   const [customEndInput, setCustomEndInput] = useState("");
+  // Scroll-wheel date picker state
+  const today = new Date();
+  const [startYear, setStartYear] = useState(today.getFullYear());
+  const [startMonth, setStartMonth] = useState(today.getMonth() + 1);
+  const [startDay, setStartDay] = useState(1);
+  const [endYear, setEndYear] = useState(today.getFullYear());
+  const [endMonth, setEndMonth] = useState(today.getMonth() + 1);
+  const [endDay, setEndDay] = useState(today.getDate());
 
   const DATE_RANGES: { key: typeof dateRange; label: string }[] = [
     { key: "today", label: "Today" },
@@ -118,29 +125,7 @@ export default function AnalyticsDetailScreen() {
     promoCodes: "Promo Code Report",
   };
 
-  const currentTabIndex = TAB_ORDER.indexOf((tab ?? "overview") as typeof TAB_ORDER[number]);
 
-  const swipePanResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gs) =>
-        Math.abs(gs.dx) > 20 && Math.abs(gs.dx) > Math.abs(gs.dy) * 1.5,
-      onPanResponderRelease: (_, gs) => {
-        if (gs.dx < -50) {
-          // Swipe left → next tab
-          const nextIdx = currentTabIndex + 1;
-          if (nextIdx < TAB_ORDER.length) {
-            router.replace({ pathname: "/analytics-detail", params: { tab: TAB_ORDER[nextIdx] } });
-          }
-        } else if (gs.dx > 50) {
-          // Swipe right → previous tab
-          const prevIdx = currentTabIndex - 1;
-          if (prevIdx >= 0) {
-            router.replace({ pathname: "/analytics-detail", params: { tab: TAB_ORDER[prevIdx] } });
-          }
-        }
-      },
-    })
-  ).current;
 
   // Clients analytics — scoped to active location
   const clientsData = useMemo(() => {
@@ -637,22 +622,8 @@ export default function AnalyticsDetailScreen() {
         <View style={{ width: 24 }} />
       </View>
 
-      {/* Tab position dots */}
-      <View style={{ flexDirection: "row", justifyContent: "center", gap: 6, paddingVertical: 8 }}>
-        {TAB_ORDER.map((t, i) => (
-          <Pressable
-            key={t}
-            onPress={() => router.replace({ pathname: "/analytics-detail", params: { tab: t } })}
-            style={{
-              width: i === currentTabIndex ? 18 : 6,
-              height: 6,
-              borderRadius: 3,
-              backgroundColor: i === currentTabIndex ? colors.primary : colors.border,
-            }}
-          />
-        ))}
-      </View>
-      <View style={{ flex: 1 }} {...swipePanResponder.panHandlers}>
+
+      <View style={{ flex: 1 }}>
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
@@ -748,26 +719,63 @@ export default function AnalyticsDetailScreen() {
                   );
                 })}
               </View>
-              <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>Start Date (YYYY-MM-DD)</Text>
-              <TextInput
-                value={customStartInput}
-                onChangeText={setCustomStartInput}
-                placeholder="e.g. 2026-01-01"
-                placeholderTextColor={colors.muted}
-                style={{ backgroundColor: colors.background, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: colors.foreground, marginBottom: 14 }}
-                keyboardType="numbers-and-punctuation"
-                returnKeyType="next"
-              />
-              <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>End Date (YYYY-MM-DD)</Text>
-              <TextInput
-                value={customEndInput}
-                onChangeText={setCustomEndInput}
-                placeholder="e.g. 2026-03-31"
-                placeholderTextColor={colors.muted}
-                style={{ backgroundColor: colors.background, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: colors.foreground, marginBottom: 20 }}
-                keyboardType="numbers-and-punctuation"
-                returnKeyType="done"
-              />
+              {/* ── Scroll-wheel date pickers ── */}
+              {([
+                { label: "Start Date", year: startYear, month: startMonth, day: startDay, setYear: setStartYear, setMonth: setStartMonth, setDay: setStartDay, isEnd: false },
+                { label: "End Date", year: endYear, month: endMonth, day: endDay, setYear: setEndYear, setMonth: setEndMonth, setDay: setEndDay, isEnd: true },
+              ] as const).map(({ label, year, month, day, setYear, setMonth, setDay, isEnd }) => {
+                const daysInMonth = new Date(year, month, 0).getDate();
+                // Limit end date to today; start date can go back 5 years
+                const maxYear = isEnd ? today.getFullYear() : today.getFullYear();
+                const maxMonth = (isEnd && year === today.getFullYear()) ? today.getMonth() + 1 : 12;
+                const maxDay = (isEnd && year === today.getFullYear() && month === today.getMonth() + 1) ? today.getDate() : daysInMonth;
+                const years = Array.from({ length: 6 }, (_, i) => today.getFullYear() - 5 + i).filter(y => y <= maxYear);
+                const months = Array.from({ length: 12 }, (_, i) => i + 1).filter(m => !isEnd || year < today.getFullYear() || m <= maxMonth);
+                const days = Array.from({ length: daysInMonth }, (_, i) => i + 1).filter(d => !isEnd || year < today.getFullYear() || month < today.getMonth() + 1 || d <= maxDay);
+                const ITEM_H = 36;
+                const VISIBLE = 3;
+                const mkPicker = (items: number[], selected: number, onSelect: (v: number) => void, fmt?: (v: number) => string, colWidth = 64) => (
+                  <View style={{ position: "relative" }}>
+                    {/* Center highlight lines */}
+                    <View style={{ position: "absolute", top: ITEM_H, left: 0, right: 0, height: ITEM_H, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.primary + "60", borderRadius: 6, backgroundColor: colors.primary + "10", zIndex: 1, pointerEvents: "none" }} />
+                    <ScrollView
+                      style={{ height: ITEM_H * VISIBLE, width: colWidth }}
+                      showsVerticalScrollIndicator={false}
+                      snapToInterval={ITEM_H}
+                      decelerationRate="fast"
+                      contentOffset={{ x: 0, y: (items.indexOf(selected)) * ITEM_H }}
+                      onMomentumScrollEnd={(e) => {
+                        const idx = Math.round(e.nativeEvent.contentOffset.y / ITEM_H);
+                        const clamped = Math.max(0, Math.min(idx, items.length - 1));
+                        onSelect(items[clamped]);
+                      }}
+                    >
+                      {items.map((v) => (
+                        <Pressable key={v} onPress={() => onSelect(v)} style={{ height: ITEM_H, alignItems: "center", justifyContent: "center" }}>
+                          <Text style={{ fontSize: 15, fontWeight: v === selected ? "700" : "400", color: v === selected ? colors.primary : colors.muted }}>
+                            {fmt ? fmt(v) : String(v).padStart(2, "0")}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                );
+                return (
+                  <View key={label} style={{ marginBottom: 14 }}>
+                    <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 6 }}>{label}</Text>
+                    <View style={{ flexDirection: "row", gap: 6, backgroundColor: colors.background, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 8, alignItems: "center", justifyContent: "center" }}>
+                      {mkPicker(years, year, setYear, (v) => String(v), 72)}
+                      <Text style={{ color: colors.muted, fontSize: 16 }}>/</Text>
+                      {mkPicker(months, month, (v) => { setMonth(v); if (day > new Date(year, v, 0).getDate()) setDay(1); }, undefined, 52)}
+                      <Text style={{ color: colors.muted, fontSize: 16 }}>/</Text>
+                      {mkPicker(days, day, setDay, undefined, 52)}
+                    </View>
+                    <Text style={{ fontSize: 11, color: colors.muted, marginTop: 4, textAlign: "center" }}>
+                      {String(year)}-{String(month).padStart(2, "0")}-{String(day).padStart(2, "0")}
+                    </Text>
+                  </View>
+                );
+              })}
               <View style={{ flexDirection: "row", gap: 10 }}>
                 <Pressable
                   onPress={() => setShowCustomModal(false)}
@@ -777,19 +785,16 @@ export default function AnalyticsDetailScreen() {
                 </Pressable>
                 <Pressable
                   onPress={() => {
-                    const s = customStartInput.trim();
-                    const e = customEndInput.trim();
-                    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
-                    if (!dateRe.test(s) || !dateRe.test(e)) {
-                      Alert.alert("Invalid Date", "Please enter dates in YYYY-MM-DD format.");
-                      return;
-                    }
+                    const s = `${startYear}-${String(startMonth).padStart(2, "0")}-${String(startDay).padStart(2, "0")}`;
+                    const e = `${endYear}-${String(endMonth).padStart(2, "0")}-${String(endDay).padStart(2, "0")}`;
                     if (s > e) {
                       Alert.alert("Invalid Range", "Start date must be before or equal to end date.");
                       return;
                     }
                     setCustomStart(s);
                     setCustomEnd(e);
+                    setCustomStartInput(s);
+                    setCustomEndInput(e);
                     setDateRange("custom");
                     setShowCustomModal(false);
                   }}
