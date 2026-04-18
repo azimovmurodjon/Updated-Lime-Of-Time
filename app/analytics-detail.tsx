@@ -627,22 +627,12 @@ export default function AnalyticsDetailScreen() {
 
 
       <View style={{ flex: 1 }}>
-      <ScrollView
-        contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Location Switcher — uses global activeLocationId */}
-        {hasMultiLoc && (
-          <View style={{ marginTop: 12, marginBottom: 4 }}>
-            <LocationSwitcher showAll />
-          </View>
-        )}
-
-        {/* ─── Date Range Picker ─── */}
+        {/* ─── Date Range Picker (outside main scroll so it's not clipped) ─── */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 8, paddingVertical: 12, flexDirection: "row", paddingRight: hp }}
+          contentContainerStyle={{ gap: 8, paddingVertical: 10, paddingHorizontal: hp, flexDirection: "row" }}
+          style={{ flexShrink: 0 }}
         >
           {DATE_RANGES.map((r) => (
             <Pressable
@@ -672,6 +662,16 @@ export default function AnalyticsDetailScreen() {
             </Pressable>
           ))}
         </ScrollView>
+      <ScrollView
+        contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Location Switcher — uses global activeLocationId */}
+        {hasMultiLoc && (
+          <View style={{ marginTop: 4, marginBottom: 4 }}>
+            <LocationSwitcher showAll />
+          </View>
+        )}
         {/* ─── Custom Date Range Modal ─── */}
         <Modal
           visible={showCustomModal}

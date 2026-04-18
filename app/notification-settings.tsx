@@ -360,6 +360,35 @@ export default function NotificationSettingsScreen() {
           Sent directly to your device. Tap "Edit" to customise the message text.
         </Text>
 
+        {/* ── Auto-Complete Alert (top of push list) ── */}
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: settings.notificationsEnabled ? 1 : 0.5 }]}>
+          <View style={styles.switchRow}>
+            <View style={{ flex: 1, marginRight: 12 }}>
+              <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>Auto-Complete Alert</Text>
+              <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 16 }}>
+                Notifies you when an appointment is automatically marked as completed{settings.autoCompleteEnabled ? ` (${settings.autoCompleteDelayMinutes} min after end time)` : ""}.
+              </Text>
+            </View>
+            <Switch
+              value={settings.autoCompleteEnabled && settings.notificationsEnabled}
+              onValueChange={() => {
+                const action = { type: "UPDATE_SETTINGS" as const, payload: { autoCompleteEnabled: !settings.autoCompleteEnabled } };
+                dispatch(action);
+                syncToDb(action);
+              }}
+              trackColor={{ false: colors.border, true: colors.primary + "60" }}
+              thumbColor={settings.autoCompleteEnabled ? colors.primary : colors.muted}
+              disabled={!settings.notificationsEnabled}
+            />
+          </View>
+          {settings.autoCompleteEnabled && settings.notificationsEnabled && (
+            <MessagePreview
+              template="✅ Appointment Completed — {clientName}'s {service} on {date} at {time} has been automatically marked as completed. Duration: {duration}."
+              vars={["{clientName}", "{service}", "{date}", "{time}", "{duration}"]}
+            />
+          )}
+        </View>
+
         {pushEvents.map((event) => {
           const enabled = !!prefs[event.key];
           const message = customMessages[event.key] ?? event.defaultMessage;
@@ -702,38 +731,7 @@ export default function NotificationSettingsScreen() {
           );
         })}
 
-        {/* Auto-Complete Notification */}
-        <Text style={[styles.sectionHeader, { color: colors.muted, marginTop: 20 }]}>Auto-Complete Notification</Text>
-        <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10, marginTop: -4 }}>
-          Sent when an appointment is automatically marked as completed after the scheduled end time.
-        </Text>
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: settings.notificationsEnabled ? 1 : 0.5 }]}>
-          <View style={styles.switchRow}>
-            <View style={{ flex: 1, marginRight: 12 }}>
-              <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>Auto-Complete Alert</Text>
-              <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 16 }}>
-                Notifies you when an appointment is automatically marked as completed{settings.autoCompleteEnabled ? ` (${settings.autoCompleteDelayMinutes} min after end time)` : ""}.
-              </Text>
-            </View>
-            <Switch
-              value={settings.autoCompleteEnabled && settings.notificationsEnabled}
-              onValueChange={() => {
-                const action = { type: "UPDATE_SETTINGS" as const, payload: { autoCompleteEnabled: !settings.autoCompleteEnabled } };
-                dispatch(action);
-                syncToDb(action);
-              }}
-              trackColor={{ false: colors.border, true: colors.primary + "60" }}
-              thumbColor={settings.autoCompleteEnabled ? colors.primary : colors.muted}
-              disabled={!settings.notificationsEnabled}
-            />
-          </View>
-          {settings.autoCompleteEnabled && settings.notificationsEnabled && (
-            <MessagePreview
-              template="✅ Appointment Completed — {clientName}'s {service} on {date} at {time} has been automatically marked as completed. Duration: {duration}."
-              vars={["{clientName}", "{service}", "{date}", "{time}", "{duration}"]}
-            />
-          )}
-        </View>
+
       </ScrollView>
 
       {/* Edit message modal */}

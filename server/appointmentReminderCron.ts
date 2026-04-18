@@ -110,6 +110,7 @@ async function sendAppointmentReminders() {
         address: businessOwners.address,
         phone: businessOwners.phone,
         cancellationPolicy: businessOwners.cancellationPolicy,
+        subscriptionStatus: businessOwners.subscriptionStatus,
       })
       .from(businessOwners)
       .where(inArray(businessOwners.id, ownerIds));
@@ -210,9 +211,12 @@ async function sendAppointmentReminders() {
       }
 
       // ── Reminder email to client ─────────────────────────────────────
+      // Email reminders are only available on paid plans (not free tier)
+      const ownerSubStatus = owner.subscriptionStatus as string | undefined;
+      const isFreePlan = !ownerSubStatus || ownerSubStatus === "free";
       const emailEnabled = notifPrefs.emailOnReminder !== false;
       const clientEmail = client?.email;
-      if (emailEnabled && clientEmail && clientEmail.includes("@")) {
+      if (emailEnabled && !isFreePlan && clientEmail && clientEmail.includes("@")) {
         try {
           const locationAddress = location
             ? [location.address, location.city, location.state, location.zipCode]

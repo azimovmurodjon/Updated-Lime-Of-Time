@@ -858,9 +858,12 @@ export function registerPublicRoutes(app: Express) {
         }
       }
       // Send branded email notification via Resend
+      // Email notifications are only available on paid plans (not free tier)
       const ownerNotifPrefs = (owner as any).notificationPreferences ?? {};
       const emailOnNewBookingEnabled = ownerNotifPrefs.emailOnNewBooking !== false;
-      if (owner.email && emailOnNewBookingEnabled) {
+      const ownerSubStatus = (owner as any).subscriptionStatus as string | undefined;
+      const isFreePlan = !ownerSubStatus || ownerSubStatus === "free";
+      if (owner.email && emailOnNewBookingEnabled && !isFreePlan) {
         try {
           await sendBookingNotificationEmail(owner.email, owner.businessName, {
             clientName,
