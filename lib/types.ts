@@ -322,6 +322,14 @@ export interface NotificationPreferences {
   /** How many hours before the appointment to send the client reminder email.
    * Options: 12, 24, 48, 72, 168 (1 week). Default: 24. */
   reminderHoursBefore?: number;
+  /** SMS to client when appointment is confirmed by owner */
+  smsClientOnConfirmation?: boolean;
+  /** SMS to client when appointment is cancelled */
+  smsClientOnCancellation?: boolean;
+  /** Email to client when appointment is cancelled */
+  emailClientOnCancellation?: boolean;
+  /** Email to client when appointment is marked completed */
+  emailClientOnComplete?: boolean;
 }
 
 /** Per-event SMS message templates. Each key maps to a custom message body.
@@ -357,6 +365,10 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   birthdayReminderHour: 8,
   emailOnReminder: false,
   reminderHoursBefore: 24,
+  smsClientOnConfirmation: true,
+  smsClientOnCancellation: true,
+  emailClientOnCancellation: false,
+  emailClientOnComplete: false,
 };
 
 export interface BusinessSettings {

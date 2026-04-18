@@ -347,9 +347,11 @@ const appointmentsRouter = router({
           ]);
           if (owner && enrichedAppt) {
             // Only send if owner has emailClientOnConfirmation preference enabled (default true)
+            // Also respect the master notificationsEnabled toggle
             const prefs = (owner as any).notificationPreferences ?? {};
+            const masterNotifOn = (owner as any).notificationsEnabled !== false;
             const emailEnabled = prefs.emailClientOnConfirmation !== false;
-            if (emailEnabled && enrichedAppt.clientEmail && enrichedAppt.clientEmail.includes("@")) {
+            if (masterNotifOn && emailEnabled && enrichedAppt.clientEmail && enrichedAppt.clientEmail.includes("@")) {
               await sendAppointmentConfirmationEmail(owner.businessName, {
                 clientName: enrichedAppt.clientName ?? "Valued Client",
                 clientEmail: enrichedAppt.clientEmail,

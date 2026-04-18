@@ -549,7 +549,11 @@ export default function NewBookingScreen() {
     }
 
     // Send confirmation SMS to client
-    if (selectedClient?.phone) {
+    // Respect master notificationsEnabled and smsClientOnConfirmation toggle
+    const notifPrefs = state.settings.notificationPreferences ?? {};
+    const masterNotifOn = state.settings.notificationsEnabled !== false;
+    const smsClientConfirmOn = (notifPrefs as any).smsClientOnConfirmation !== false; // default true
+    if (selectedClient?.phone && masterNotifOn && smsClientConfirmOn) {
       const svc = selectedService;
       const biz = state.settings;
       const profile = biz.profile;

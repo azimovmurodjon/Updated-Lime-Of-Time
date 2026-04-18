@@ -91,6 +91,45 @@ const NOTIF_EVENTS: NotifEvent[] = [
     defaultMessage:
       "Hi {clientName}, your appointment for {service} has been confirmed for {date} at {time} at {location}. We look forward to seeing you! — {businessName}",
   },
+  {
+    key: "emailClientOnCancellation",
+    label: "Cancellation Notice to Client",
+    description: "Email sent to the client when their appointment is cancelled.",
+    channel: "email",
+    vars: ["{clientName}", "{service}", "{date}", "{time}", "{businessName}"],
+    defaultMessage:
+      "Hi {clientName}, your appointment for {service} on {date} at {time} has been cancelled. Please contact us to reschedule. — {businessName}",
+  },
+  {
+    key: "emailClientOnComplete",
+    label: "Completion Follow-up to Client",
+    description: "Email sent to the client when their appointment is marked completed.",
+    channel: "email",
+    vars: ["{clientName}", "{service}", "{date}", "{businessName}"],
+    defaultMessage:
+      "Hi {clientName}, thank you for visiting us for {service} on {date}! We hope to see you again soon. — {businessName}",
+  },
+];
+
+const CLIENT_SMS_EVENTS: NotifEvent[] = [
+  {
+    key: "smsClientOnConfirmation",
+    label: "Confirmation SMS to Client",
+    description: "SMS sent to the client when you confirm their appointment.",
+    channel: "push",
+    vars: ["{clientName}", "{service}", "{date}", "{time}", "{location}"],
+    defaultMessage:
+      "Hi {clientName}, your {service} appointment on {date} at {time} is confirmed! 📍 {location}",
+  },
+  {
+    key: "smsClientOnCancellation",
+    label: "Cancellation SMS to Client",
+    description: "SMS sent to the client when their appointment is cancelled.",
+    channel: "push",
+    vars: ["{clientName}", "{service}", "{date}", "{time}"],
+    defaultMessage:
+      "Hi {clientName}, your {service} appointment on {date} at {time} has been cancelled. Please contact us to reschedule.",
+  },
 ];
 
 // ─── Message Preview ──────────────────────────────────────────────────────────
@@ -731,6 +770,67 @@ export default function NotificationSettingsScreen() {
           );
         })}
 
+        {/* ── Client SMS Notifications ── */}
+        <Text style={[styles.sectionHeader, { color: colors.muted, marginTop: 20 }]}>Client SMS Notifications</Text>
+        <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10, marginTop: -4 }}>
+          Control which events trigger an automated SMS to your clients. Requires SMS Automation to be enabled.
+        </Text>
+        {!hasSmsAccess && (
+          <View style={{ backgroundColor: colors.warning + "18", borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: colors.warning + "40", flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <IconSymbol name="lock.fill" size={16} color={colors.warning} />
+            <Text style={{ fontSize: 13, color: colors.warning, flex: 1, lineHeight: 18 }}>
+              Client SMS requires Growth plan or above. Upgrade to send automated SMS to clients.
+            </Text>
+          </View>
+        )}
+        {CLIENT_SMS_EVENTS.map((event) => {
+          const enabled = !!(prefs[event.key as keyof NotificationPreferences]) && hasSmsAccess && (settings.notificationsEnabled ?? true);
+          const message = customMessages[event.key] ?? event.defaultMessage;
+          return (
+            <Pressable
+              key={event.key}
+              onPress={!hasSmsAccess ? handleLockedTap : undefined}
+              style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: (hasSmsAccess && (settings.notificationsEnabled ?? true)) ? 1 : 0.55 }]}
+            >
+              <View style={styles.switchRow}>
+                <View style={{ flex: 1, marginRight: 12 }}>
+                  <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{event.label}</Text>
+                  <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 16 }}>{event.description}</Text>
+                </View>
+                {!hasSmsAccess ? (
+                  <IconSymbol name="lock.fill" size={18} color={colors.muted} />
+                ) : (
+                  <Switch
+                    value={enabled}
+                    onValueChange={() => togglePref(event.key as keyof NotificationPreferences)}
+                    trackColor={{ false: colors.border, true: colors.primary + "60" }}
+                    thumbColor={enabled ? colors.primary : colors.muted}
+                    disabled={!(settings.notificationsEnabled ?? true)}
+                  />
+                )}
+              </View>
+              {enabled && (
+                <>
+                  <MessagePreview template={message} vars={event.vars} />
+                  <Pressable
+                    onPress={() => handleEditMessage(event)}
+                    style={({ pressed }) => ({
+                      marginTop: 10,
+                      alignSelf: "flex-end",
+                      backgroundColor: colors.primary + "15",
+                      borderRadius: 8,
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      opacity: pressed ? 0.7 : 1,
+                    })}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: "600", color: colors.primary }}>Edit Message</Text>
+                  </Pressable>
+                </>
+              )}
+            </Pressable>
+          );
+        })}
 
       </ScrollView>
 

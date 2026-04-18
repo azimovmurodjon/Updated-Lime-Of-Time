@@ -1395,3 +1395,7 @@
 - [x] Verify $0 appointments excluded from revenue totals
 - [x] Fix promo code usedCount auto-increment when client uses code during booking
 - [x] Add gap between analytics stat boxes (they are touching each other)
+- [x] Add client email notification toggles to Notification Preferences screen
+- [x] Gate client SMS sends by notification toggle (if SMS off, don't send to client)
+- [x] Gate client email sends by notification toggle and subscription plan
+- [x] Connect client notification toggles to subscription plan (paid plan only)

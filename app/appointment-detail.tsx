@@ -186,8 +186,11 @@ export default function AppointmentDetailScreen() {
     dispatch({ type: "UPDATE_APPOINTMENT", payload: updated });
     syncToDb({ type: "UPDATE_APPOINTMENT", payload: updated });
     setShowRescheduleModal(false);
-    // Send reschedule SMS if client has phone
-    if (client?.phone) {
+      // Send reschedule SMS if client has phone — respect master notificationsEnabled
+    const _notifPrefs3 = state.settings.notificationPreferences ?? {};
+    const _masterNotifOn3 = state.settings.notificationsEnabled !== false;
+    const _smsReschedOn = (_notifPrefs3 as any).smsClientOnConfirmation !== false; // reuse confirmation toggle for reschedule
+    if (client?.phone && _masterNotifOn3 && _smsReschedOn) {
       const svcName = service ? getServiceDisplayName(service) : "your appointment";
       const locLine = assignedLocation?.name ? `\n📍 ${assignedLocation.name}` : "";
       const slug = biz.customSlug || biz.businessName.replace(/\s+/g, "-").toLowerCase();
@@ -250,8 +253,11 @@ export default function AppointmentDetailScreen() {
     syncToDb({ type: "UPDATE_APPOINTMENT", payload: updated });
     setShowPaymentModal(false);
     setPaymentConfirmInput("");
-    // Send payment receipt SMS to client
-    if (client?.phone) {
+    // Send payment receipt SMS to client — respect master notificationsEnabled
+    const _notifPrefsP = state.settings.notificationPreferences ?? {};
+    const _masterNotifOnP = state.settings.notificationsEnabled !== false;
+    const _smsPaymentOn = (_notifPrefsP as any).smsClientOnConfirmation !== false; // reuse confirmation toggle for payment receipt
+    if (client?.phone && _masterNotifOnP && _smsPaymentOn) {
       const methodLabel =
         appointment.paymentMethod === 'zelle' ? 'Zelle' :
         appointment.paymentMethod === 'cashapp' ? 'Cash App' :
@@ -293,7 +299,13 @@ export default function AppointmentDetailScreen() {
     const doIt = (cancellationReason?: string) => {
       dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status, ...(cancellationReason ? { cancellationReason } : {}) } });
       syncToDb({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status, ...(cancellationReason ? { cancellationReason } : {}) } });
-      if (client?.phone) {
+      // Respect master notificationsEnabled and per-event SMS toggles
+      const _notifPrefs2 = state.settings.notificationPreferences ?? {};
+      const _masterNotifOn2 = state.settings.notificationsEnabled !== false;
+      const _smsCancelOn = (_notifPrefs2 as any).smsClientOnCancellation !== false; // default true
+      const _smsConfirmOn = (_notifPrefs2 as any).smsClientOnConfirmation !== false; // default true
+      const _smsAllowed = status === "cancelled" ? _smsCancelOn : _smsConfirmOn;
+      if (client?.phone && _masterNotifOn2 && _smsAllowed) {
         let msg = "";
         if (status === "completed") {
           const completedFullAddr = assignedLocation
