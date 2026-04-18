@@ -44,7 +44,7 @@ export function useActiveLocation(): ActiveLocationContext {
   }, [staff, activeLocationId]);
 
   const effectiveWorkingHours = useMemo<Record<string, WorkingHours>>(() => {
-    if (activeLocation?.workingHours) {
+    if (activeLocation?.workingHours && Object.keys(activeLocation.workingHours).length > 0) {
       return activeLocation.workingHours as Record<string, WorkingHours>;
     }
     return settings.workingHours;

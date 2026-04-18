@@ -383,15 +383,31 @@ function reducer(state: AppState, action: Action): AppState {
       };
     case "DELETE_STAFF":
       return { ...state, staff: state.staff.filter((s) => s.id !== action.payload) };
-    case "ADD_LOCATION":
-      return { ...state, locations: [...state.locations, action.payload] };
-    case "UPDATE_LOCATION":
+    case "ADD_LOCATION": {
+      const addLocPayload = action.payload as Location;
+      const normalizedAddLoc: Location = {
+        ...addLocPayload,
+        workingHours: (addLocPayload.workingHours && Object.keys(addLocPayload.workingHours).length > 0)
+          ? normalizeWorkingHours(addLocPayload.workingHours)
+          : null,
+      };
+      return { ...state, locations: [...state.locations, normalizedAddLoc] };
+    }
+    case "UPDATE_LOCATION": {
+      const updLocPayload = action.payload as Location;
+      const normalizedUpdLoc: Location = {
+        ...updLocPayload,
+        workingHours: (updLocPayload.workingHours && Object.keys(updLocPayload.workingHours).length > 0)
+          ? normalizeWorkingHours(updLocPayload.workingHours)
+          : null,
+      };
       return {
         ...state,
         locations: state.locations.map((l) =>
-          l.id === action.payload.id ? action.payload : l
+          l.id === normalizedUpdLoc.id ? normalizedUpdLoc : l
         ),
       };
+    }
     case "DELETE_LOCATION":
       return { ...state, locations: state.locations.filter((l) => l.id !== action.payload) };
     case "ADD_CLIENT_PHOTO":
@@ -750,7 +766,7 @@ export function dbLocationToLocal(l: any): Location {
     active: l.active ?? true,
     temporarilyClosed: l.temporarilyClosed ?? false,
     reopenOn: l.reopenOn ?? undefined,
-    workingHours: l.workingHours ? normalizeWorkingHours(l.workingHours) : null,
+    workingHours: (l.workingHours && Object.keys(l.workingHours).length > 0) ? normalizeWorkingHours(l.workingHours) : null,
     createdAt: l.createdAt ? new Date(l.createdAt).toISOString() : new Date().toISOString(),
   };
 }
@@ -1074,7 +1090,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             locationCustomSchedule: locationCustomScheduleRaw ? JSON.parse(locationCustomScheduleRaw) : {},
             products: productsRaw ? JSON.parse(productsRaw) : [],
             staff: staffRaw ? JSON.parse(staffRaw) : [],
-            locations: locationsRaw ? JSON.parse(locationsRaw) : [],
+            locations: locationsRaw ? (JSON.parse(locationsRaw) as Location[]).map((l) => ({
+              ...l,
+              workingHours: (l.workingHours && Object.keys(l.workingHours).length > 0)
+                ? normalizeWorkingHours(l.workingHours)
+                : null,
+            })) : [],
             settings: loadedSettings,
             businessOwnerId: storedOwnerId ? parseInt(storedOwnerId, 10) : null,
             clientPhotos: clientPhotosRaw ? JSON.parse(clientPhotosRaw) : [],
