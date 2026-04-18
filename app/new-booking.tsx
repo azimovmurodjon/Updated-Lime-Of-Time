@@ -77,12 +77,17 @@ export default function NewBookingScreen() {
   // When activeLocationId is null (All mode), keep null so the date picker shows all locations.
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(() => {
-    // If user is in "All" mode (null), do not pre-select any location
-    if (state.activeLocationId === null && state.locations.filter((l) => l.active).length > 1) {
+    const allActive = state.locations.filter((l) => l.active);
+    // If user is in "All" mode (null) AND there are multiple locations, keep null
+    if (state.activeLocationId === null && allActive.length > 1) {
       return null;
     }
+    // If there's an explicit active location, use it
     const activeLoc = state.locations.find((l) => l.id === state.activeLocationId && l.active);
     if (activeLoc) return activeLoc.id;
+    // If there's only one active location, always pre-select it so its hours are used
+    if (allActive.length === 1) return allActive[0].id;
+    // Fall back to default location
     const defaultLoc = state.locations.find((l) => l.isDefault && l.active);
     return defaultLoc?.id ?? null;
   });
@@ -245,11 +250,20 @@ export default function NewBookingScreen() {
     [state.locations, selectedLocationId]
   );
   const locationWorkingHours = useMemo(() => {
+    // Use the explicitly selected location's hours
     if (selectedLocation?.workingHours && Object.keys(selectedLocation.workingHours).length > 0) {
       return selectedLocation.workingHours as Record<string, import('@/lib/types').WorkingHours>;
     }
+    // If no location is selected but there is exactly one active location, use its hours
+    // (handles the case where selectedLocationId is null but only one location exists)
+    if (!selectedLocationId && activeLocations.length === 1) {
+      const onlyLoc = activeLocations[0];
+      if (onlyLoc.workingHours && Object.keys(onlyLoc.workingHours).length > 0) {
+        return onlyLoc.workingHours as Record<string, import('@/lib/types').WorkingHours>;
+      }
+    }
     return state.settings.workingHours;
-  }, [selectedLocation, state.settings.workingHours]);
+  }, [selectedLocation, selectedLocationId, activeLocations, state.settings.workingHours]);
   // Filter appointments by the form-selected location (not the global active location)
   const locationAppts = useMemo(
     () => {
