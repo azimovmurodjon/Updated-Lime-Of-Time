@@ -15,7 +15,7 @@ import {
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter } from "expo-router";
-import { formatTime } from "@/lib/store";
+import { formatTime, formatDateStr } from "@/lib/store";
 import { minutesToTime, timeToMinutes } from "@/lib/types";
 import { formatPhone } from "@/lib/utils";
 import type { Appointment, Service, Client, StaffMember, Location } from "@/lib/types";
@@ -175,6 +175,7 @@ export function ScheduleCard({
   };
 
   const ACCENT = "#00C896";
+  const todayStr = formatDateStr(new Date());
 
   const todayMaxHeight = MAX_TODAY_VISIBLE * APPT_ROW_HEIGHT + (MAX_TODAY_VISIBLE - 1) * 10;
 
@@ -204,6 +205,30 @@ export function ScheduleCard({
                 : `${upcomingAppointments.length} scheduled`}
             </Text>
           </View>
+          {/* View All button — only on Today slide */}
+          {activeIdx === 0 && (
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: "/(tabs)/calendar",
+                  params: { date: todayStr, view: "day" },
+                } as any)
+              }
+              style={({ pressed }) => ({
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+                backgroundColor: colors.primary + "15",
+                borderRadius: 8,
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+                opacity: pressed ? 0.7 : 1,
+              })}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.primary }}>View All</Text>
+              <IconSymbol name="chevron.right" size={12} color={colors.primary} />
+            </Pressable>
+          )}
         </View>
       </View>
 

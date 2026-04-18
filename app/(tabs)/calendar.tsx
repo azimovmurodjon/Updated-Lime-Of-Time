@@ -265,7 +265,7 @@ export default function CalendarScreen() {
   const { state, dispatch, getServiceById, getClientById, getStaffById, getLocationById, syncToDb, filterAppointmentsByLocation, getActiveCustomSchedule } = useStore();
   const colors = useColors();
   const router = useRouter();
-  const params = useLocalSearchParams<{ filter?: string }>();
+  const params = useLocalSearchParams<{ filter?: string; date?: string; view?: string }>();
   const { width, isTablet, isLargeTablet, hp, maxContentWidth } = useResponsive();
 
   // Live clock for the current-time indicator — updates every 30 seconds
@@ -381,6 +381,24 @@ export default function CalendarScreen() {
       setActiveFilterPersisted(params.filter as FilterKey);
     }
   }, [params.filter, setActiveFilterPersisted]);
+
+  // Deep-link: pre-select a date and optionally switch view
+  useEffect(() => {
+    if (params.date) {
+      setSelectedDate(params.date);
+      const d = new Date(params.date + "T12:00:00");
+      setCurrentMonth(d.getMonth());
+      setCurrentYear(d.getFullYear());
+      // Compute week start for the given date
+      const ws = new Date(d);
+      ws.setDate(d.getDate() - d.getDay());
+      setWeekStart(ws);
+    }
+    if (params.view === "day" || params.view === "week" || params.view === "month") {
+      setCalendarView(params.view as CalendarView);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.date, params.view]);
 
   const { activeLocation, activeLocations, hasMultipleLocations: hasMultiLoc, setActiveLocation } = useActiveLocation();
   const calLocationFilter = activeLocation?.id ?? null;
