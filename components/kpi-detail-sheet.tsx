@@ -62,6 +62,7 @@ interface KpiDetailSheetProps {
   clientsData: ClientsData;
   topServiceData: TopServiceData;
   onExport?: (tab: KpiTab) => Promise<void>;
+  isFreeplan?: boolean;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────
@@ -359,6 +360,7 @@ export function KpiDetailSheet({
   clientsData,
   topServiceData,
   onExport,
+  isFreeplan,
 }: KpiDetailSheetProps) {
   const [exporting, setExporting] = useState(false);
 
@@ -376,7 +378,7 @@ export function KpiDetailSheet({
   const isTablet = width >= 768;
   const sheetW = isTablet ? Math.min(width, 640) : width;
   const chartW = sheetW - 40;
-  const maxH = height * 0.88;
+  const maxH = height * 0.92;
 
   const revenueChange =
     revenueData.prevWeekRevenue > 0
@@ -440,8 +442,9 @@ export function KpiDetailSheet({
           />
 
           <ScrollView
-            contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+            contentContainerStyle={{ padding: 20, paddingBottom: 48 }}
             showsVerticalScrollIndicator={false}
+            style={{ flex: 1 }}
           >
             {/* ─── REVENUE ─────────────────────────────────────────── */}
             {tab === "revenue" && (
@@ -635,36 +638,70 @@ export function KpiDetailSheet({
             )}
             {/* ─── Download Report Button ───────────────────────── */}
             {onExport && (
-              <Pressable
-                onPress={handleExport}
-                disabled={exporting}
-                style={({ pressed }) => ({
-                  marginTop: 24,
-                  borderRadius: 14,
-                  overflow: "hidden",
-                  opacity: pressed || exporting ? 0.7 : 1,
-                  transform: [{ scale: pressed ? 0.98 : 1 }],
-                })}
-              >
-                <LinearGradient
-                  colors={cfg.gradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    paddingVertical: 15,
-                    paddingHorizontal: 24,
-                    gap: 10,
-                  }}
+              isFreeplan ? (
+                // Free plan: show upgrade prompt instead of download
+                <Pressable
+                  onPress={handleExport}
+                  style={({ pressed }) => ({
+                    marginTop: 24,
+                    borderRadius: 14,
+                    overflow: "hidden",
+                    opacity: pressed ? 0.85 : 1,
+                    transform: [{ scale: pressed ? 0.98 : 1 }],
+                  })}
                 >
-                  <IconSymbol name="arrow.down.circle.fill" size={20} color="#FFF" />
-                  <Text style={{ fontSize: 15, fontWeight: "700", color: "#FFF", letterSpacing: -0.2 }}>
-                    {exporting ? "Generating Report…" : "Download Report"}
-                  </Text>
-                </LinearGradient>
-              </Pressable>
+                  <LinearGradient
+                    colors={["#6B7280", "#9CA3AF"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      paddingVertical: 15,
+                      paddingHorizontal: 24,
+                      gap: 10,
+                    }}
+                  >
+                    <IconSymbol name="lock.fill" size={18} color="#FFF" />
+                    <View style={{ alignItems: "center" }}>
+                      <Text style={{ fontSize: 15, fontWeight: "700", color: "#FFF", letterSpacing: -0.2 }}>Upgrade to Download Reports</Text>
+                      <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.8)", marginTop: 2 }}>Available on Growth &amp; Pro plans</Text>
+                    </View>
+                  </LinearGradient>
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={handleExport}
+                  disabled={exporting}
+                  style={({ pressed }) => ({
+                    marginTop: 24,
+                    borderRadius: 14,
+                    overflow: "hidden",
+                    opacity: pressed || exporting ? 0.7 : 1,
+                    transform: [{ scale: pressed ? 0.98 : 1 }],
+                  })}
+                >
+                  <LinearGradient
+                    colors={cfg.gradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      paddingVertical: 15,
+                      paddingHorizontal: 24,
+                      gap: 10,
+                    }}
+                  >
+                    <IconSymbol name="arrow.down.circle.fill" size={20} color="#FFF" />
+                    <Text style={{ fontSize: 15, fontWeight: "700", color: "#FFF", letterSpacing: -0.2 }}>
+                      {exporting ? "Generating Report…" : "Download Report"}
+                    </Text>
+                  </LinearGradient>
+                </Pressable>
+              )
             )}
           </ScrollView>
         </Pressable>

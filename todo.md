@@ -1408,3 +1408,7 @@
 - [ ] Fix booking calendar not syncing with location-specific business hours
 - [x] Fixed location business hours mismatch in new booking flow: normalize workingHours in ADD_LOCATION/UPDATE_LOCATION reducers, AsyncStorage cache load path, and use-active-location hook; treat empty {} same as null so global hours fallback works correctly
 - [x] Fixed Mark Paid reverting to unpaid: dbAppointmentToLocal was not mapping paymentStatus, paymentMethod, paymentConfirmationNumber from DB columns back to local state — added all three fields to the return object
+- [x] Gate document downloads behind subscription: free users see upgrade prompt instead of downloading
+- [x] Fix KPI page to show fully including data and buttons
+- [x] Add payment method label (Cash, Zelle, Venmo, etc.) alongside paid badge on appointment cards
+- [x] Add outstanding revenue total in Unpaid list header (e.g., "3 appointments · $285 outstanding")

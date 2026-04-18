@@ -1191,17 +1191,15 @@ export default function CalendarScreen() {
           const total = filteredAppointments.reduce((s, a) => s + (a.totalPrice ?? 0), 0);
           const isUnpaid = activeFilter === "unpaid";
           const bannerColor = isUnpaid ? "#EF4444" : "#22C55E";
+          const apptCount = filteredAppointments.length;
           return (
             <View style={{ backgroundColor: bannerColor + "12", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 10, borderWidth: 1, borderColor: bannerColor + "30" }}>
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <IconSymbol name={isUnpaid ? "exclamationmark.circle.fill" : "checkmark.circle.fill"} size={18} color={bannerColor} />
-                  <Text style={{ fontSize: 13, fontWeight: "700", color: bannerColor }}>
-                    {filteredAppointments.length} appointment{filteredAppointments.length !== 1 ? "s" : ""}
-                  </Text>
-                </View>
-                <Text style={{ fontSize: 16, fontWeight: "800", color: bannerColor }}>
-                  ${total.toFixed(2)} {isUnpaid ? "outstanding" : "collected"}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <IconSymbol name={isUnpaid ? "exclamationmark.circle.fill" : "checkmark.circle.fill"} size={18} color={bannerColor} />
+                <Text style={{ fontSize: 14, fontWeight: "700", color: bannerColor, flex: 1 }}>
+                  {apptCount} appointment{apptCount !== 1 ? "s" : ""}{" · "}
+                  <Text style={{ fontSize: 15, fontWeight: "800" }}>${total.toFixed(2)}</Text>
+                  {" "}{isUnpaid ? "outstanding" : "collected"}
                 </Text>
               </View>
               {isUnpaid && (
@@ -1275,10 +1273,16 @@ export default function CalendarScreen() {
                       {(activeFilter === "unpaid" || activeFilter === "paid") && appt.totalPrice != null && (
                         <View style={[styles.statusBadge, {
                           backgroundColor: appt.paymentStatus === "paid" ? "#22C55E18" : "#EF444418",
+                          flexDirection: "row", gap: 4, alignItems: "center",
                         }]}>
                           <Text style={{ fontSize: 11, fontWeight: "700", color: appt.paymentStatus === "paid" ? "#22C55E" : "#EF4444" }}>
                             ${appt.totalPrice.toFixed(2)}
                           </Text>
+                          {appt.paymentStatus === "paid" && appt.paymentMethod && (
+                            <Text style={{ fontSize: 10, fontWeight: "600", color: "#22C55E", opacity: 0.85 }}>
+                              {appt.paymentMethod === "cashapp" ? "Card" : appt.paymentMethod.charAt(0).toUpperCase() + appt.paymentMethod.slice(1)}
+                            </Text>
+                          )}
                         </View>
                       )}
                     </View>

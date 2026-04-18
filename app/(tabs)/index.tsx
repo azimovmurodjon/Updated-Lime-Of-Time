@@ -856,6 +856,9 @@ export default function HomeScreen() {
     return formatTime(minutesToTime(timeToMinutes(time) + duration));
   };
 
+  const { planInfo } = usePlanLimitCheck();
+  const isFreeplan = !planInfo || planInfo.planKey === "solo";
+
   const handleKpiExport = useCallback(async (tab: KpiTab) => {
     if (isFreeplan) {
       Alert.alert(
@@ -901,10 +904,7 @@ export default function HomeScreen() {
     } catch (e) {
       Alert.alert("Export Failed", "Could not generate the report. Please try again.");
     }
-  }, [state, activeLocation, filterByLocation, clientsForActiveLocation]);
-
-  const { planInfo } = usePlanLimitCheck();
-  const isFreeplan = !planInfo || planInfo.planKey === "solo";
+  }, [state, activeLocation, filterByLocation, clientsForActiveLocation, isFreeplan, router]);
 
   const logoSource = state.settings.businessLogoUri
     ? { uri: state.settings.businessLogoUri }
@@ -2310,6 +2310,7 @@ export default function HomeScreen() {
         tab={kpiDetailTab}
         onClose={() => setKpiDetailTab(null)}
         onExport={handleKpiExport}
+        isFreeplan={isFreeplan}
         revenueData={{
           weekRevenue: analytics.weekRevenue,
           prevWeekRevenue: analytics.prevWeekRevenue,
