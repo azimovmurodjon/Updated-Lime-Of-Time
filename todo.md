@@ -1403,3 +1403,4 @@
 - [x] Add No-Show action button on appointment detail screen
 - [x] Add No-Show SMS template gated to Growth plan
 - [x] Add No-Show notification toggle to Notification Preferences
+- [x] Fix Mark as Paid not working correctly on appointment detail screen

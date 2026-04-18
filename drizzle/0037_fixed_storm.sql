@@ -1,0 +1,2 @@
+ALTER TABLE `appointments` MODIFY COLUMN `status` enum('pending','confirmed','completed','cancelled','no_show') NOT NULL DEFAULT 'pending';--> statement-breakpoint
+ALTER TABLE `appointments` MODIFY COLUMN `paymentMethod` enum('zelle','venmo','cashapp','cash','unpaid','free') DEFAULT 'unpaid';

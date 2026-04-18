@@ -185,7 +185,7 @@ export const appointments = mysqlTable("appointments", {
   /** Duration in minutes */
   duration: int("duration").notNull(),
   /** Appointment status */
-  status: mysqlEnum("status", ["pending", "confirmed", "completed", "cancelled"])
+  status: mysqlEnum("status", ["pending", "confirmed", "completed", "cancelled", "no_show"])
     .default("pending")
     .notNull(),
   notes: text("notes"),
@@ -210,7 +210,7 @@ export const appointments = mysqlTable("appointments", {
   /** Reason provided when appointment was cancelled */
   cancellationReason: varchar("cancellationReason", { length: 255 }),
   /** Payment method chosen by client: zelle | venmo | cashapp | cash | unpaid */
-  paymentMethod: mysqlEnum("paymentMethod", ["zelle", "venmo", "cashapp", "cash", "unpaid"]).default("unpaid"),
+  paymentMethod: mysqlEnum("paymentMethod", ["zelle", "venmo", "cashapp", "cash", "unpaid", "free"]).default("unpaid"),
   /** Payment status: unpaid | pending_cash | paid */
   paymentStatus: mysqlEnum("paymentStatus", ["unpaid", "pending_cash", "paid"]).default("unpaid"),
   /** Confirmation number provided by business owner after receiving digital payment */

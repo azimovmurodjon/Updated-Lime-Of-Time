@@ -1523,6 +1523,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               giftUsedAmount: appt.giftUsedAmount,
               staffId: appt.staffId,
               locationId: appt.locationId,
+              paymentStatus: appt.paymentStatus,
+              paymentMethod: appt.paymentMethod || undefined,
+              paymentConfirmationNumber: appt.paymentConfirmationNumber || undefined,
             });
             break;
           }
