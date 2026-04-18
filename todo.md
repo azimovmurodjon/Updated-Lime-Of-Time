@@ -1389,3 +1389,4 @@
 - [x] Fix QR code Share button not working on iOS
 - [x] Add quick action buttons (New Booking, View Today) to home header
 - [x] Add promo code usage counter (X / Y uses) on Discounts screen
+- [x] Auto-mark appointment as paid when total charge is $0

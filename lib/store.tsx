@@ -230,9 +230,13 @@ function reducer(state: AppState, action: Action): AppState {
         // Keep reviews so they are preserved even after client is deleted
       };
     case "ADD_APPOINTMENT": {
-      const newAppts = [...state.appointments, action.payload];
+      // Auto-mark as paid when total charge is $0 (free service, full discount, gift card cover, etc.)
+      const incomingAppt = (action.payload.totalPrice ?? 0) <= 0 && action.payload.paymentStatus !== 'paid'
+        ? { ...action.payload, paymentStatus: 'paid' as const }
+        : action.payload;
+      const newAppts = [...state.appointments, incomingAppt];
       // Auto-deactivate discount if maxUses reached (count completed appointments)
-      const addDiscountName = action.payload.discountName;
+      const addDiscountName = incomingAppt.discountName;
       let discountsAfterAdd = state.discounts;
       if (addDiscountName) {
         discountsAfterAdd = state.discounts.map((d) => {

@@ -541,8 +541,8 @@ export default function NewBookingScreen() {
         discountPercent: appliedDiscount?.percentage,
         discountAmount: discountAmount > 0 ? discountAmount : undefined,
         discountName: appliedDiscount?.name,
-        paymentMethod: (selectedPaymentMethod as 'zelle' | 'venmo' | 'cashapp' | 'cash' | undefined) ?? undefined,
-        paymentStatus: selectedPaymentMethod === 'cash' ? 'pending_cash' : (selectedPaymentMethod ? 'unpaid' : undefined),
+        paymentMethod: totalPrice <= 0 ? 'free' as any : ((selectedPaymentMethod as 'zelle' | 'venmo' | 'cashapp' | 'cash' | undefined) ?? undefined),
+        paymentStatus: totalPrice <= 0 ? 'paid' as const : (selectedPaymentMethod === 'cash' ? 'pending_cash' : (selectedPaymentMethod ? 'unpaid' : undefined)),
       };
       dispatch({ type: "ADD_APPOINTMENT", payload: appointment });
       syncToDb({ type: "ADD_APPOINTMENT", payload: appointment });

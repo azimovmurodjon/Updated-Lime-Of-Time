@@ -327,6 +327,8 @@ export default function PublicBookingScreen() {
       locationId: selectedLocationId ?? undefined,
       staffId: selectedStaffId ?? undefined,
       extraItems: cartExtraItems.length > 0 ? cartExtraItems : undefined,
+      // Auto-mark as paid when total charge is $0 (fully discounted / gift card / free service)
+      ...(priceInfo.final + cartTotal <= 0 ? { paymentStatus: 'paid' as const, paymentMethod: 'free' as any } : {}),
     };
     dispatch({ type: "ADD_APPOINTMENT", payload: appointment });
     syncToDb({ type: "ADD_APPOINTMENT", payload: appointment });
