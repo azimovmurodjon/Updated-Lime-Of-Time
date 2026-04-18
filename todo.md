@@ -1407,3 +1407,4 @@
 - [x] Fix client booking portal step-1 Continue button not working
 - [ ] Fix booking calendar not syncing with location-specific business hours
 - [x] Fixed location business hours mismatch in new booking flow: normalize workingHours in ADD_LOCATION/UPDATE_LOCATION reducers, AsyncStorage cache load path, and use-active-location hook; treat empty {} same as null so global hours fallback works correctly
+- [x] Fixed Mark Paid reverting to unpaid: dbAppointmentToLocal was not mapping paymentStatus, paymentMethod, paymentConfirmationNumber from DB columns back to local state — added all three fields to the return object

@@ -633,8 +633,11 @@ export function dbAppointmentToLocal(a: any): Appointment {
     discountPercent,
     discountAmount,
     discountName,
-     staffId: a.staffId ?? undefined,
+    staffId: a.staffId ?? undefined,
     locationId: a.locationId ?? undefined,
+    paymentStatus: (a.paymentStatus as Appointment['paymentStatus']) ?? undefined,
+    paymentMethod: (a.paymentMethod as Appointment['paymentMethod']) ?? undefined,
+    paymentConfirmationNumber: a.paymentConfirmationNumber ?? undefined,
   } as Appointment;
 }
 export function dbReviewToLocal(r: any): Review {
