@@ -1369,3 +1369,5 @@
 - [x] Remove autoFocus from onboarding phone, OTP, and business-info screens so keyboard only opens on tap
 - [x] Remove Done button from phone number entry screen (changed returnKeyType from "done" to "next")
 - [x] Fix Choose Plan onboarding page to always start from top (Solo plan first, not scrolled to Most Popular)
+- [ ] Investigate and fix discount not applying correctly when booking appointment from the app
+- [x] Fix discount not applying correctly when booking appointment from the app (3 bugs fixed: maxUses persistence, maxUses enforcement at booking time, discount applied to full subtotal)

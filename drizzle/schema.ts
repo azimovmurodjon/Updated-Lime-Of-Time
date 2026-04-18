@@ -258,6 +258,8 @@ export const discounts = mysqlTable("discounts", {
   dates: json("dates"),
   /** Optional: only for specific service localIds (JSON array), null = all services */
   serviceIds: json("serviceIds"),
+  /** Optional max number of times this discount can be applied (null = unlimited) */
+  maxUses: int("maxUses"),
   /** Whether the discount is currently active */
   active: boolean("active").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

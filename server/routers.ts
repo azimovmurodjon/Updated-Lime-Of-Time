@@ -428,6 +428,7 @@ const discountsRouter = router({
         daysOfWeek: z.array(z.string()).optional(),
         dates: z.array(z.string()).optional(),
         serviceIds: z.array(z.string()).nullable().optional(),
+        maxUses: z.number().nullable().optional(),
         active: z.boolean().default(true),
       })
     )
@@ -437,6 +438,7 @@ const discountsRouter = router({
         daysOfWeek: input.daysOfWeek ?? [],
         dates: input.dates ?? [],
         serviceIds: input.serviceIds ?? null,
+        maxUses: input.maxUses ?? null,
       });
       return { id, localId: input.localId };
     }),
@@ -453,6 +455,7 @@ const discountsRouter = router({
         daysOfWeek: z.array(z.string()).optional(),
         dates: z.array(z.string()).optional(),
         serviceIds: z.array(z.string()).nullable().optional(),
+        maxUses: z.number().nullable().optional(),
         active: z.boolean().optional(),
       })
     )

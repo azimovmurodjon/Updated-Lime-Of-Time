@@ -246,6 +246,13 @@
       "when": 1776395361501,
       "tag": "0034_odd_morlocks",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "5",
+      "when": 1776478660550,
+      "tag": "0035_safe_toxin",
+      "breakpoints": true
     }
   ]
 }

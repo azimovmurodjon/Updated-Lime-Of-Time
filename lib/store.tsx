@@ -621,6 +621,7 @@ export function dbDiscountToLocal(d: any): Discount {
     daysOfWeek: Array.isArray(d.daysOfWeek) ? d.daysOfWeek : [],
     dates: Array.isArray(d.dates) ? d.dates : [],
     serviceIds: d.serviceIds ?? null,
+    maxUses: d.maxUses ?? null,
     active: d.active ?? true,
     createdAt: d.createdAt ? new Date(d.createdAt).toISOString() : new Date().toISOString(),
   };
@@ -1586,6 +1587,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               daysOfWeek: disc.daysOfWeek,
               dates: disc.dates ?? [],
               serviceIds: disc.serviceIds,
+              maxUses: disc.maxUses ?? null,
               active: disc.active,
             });
             break;
@@ -1602,6 +1604,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               daysOfWeek: disc.daysOfWeek,
               dates: disc.dates ?? [],
               serviceIds: disc.serviceIds,
+              maxUses: disc.maxUses ?? null,
               active: disc.active,
             });
             break;

@@ -158,16 +158,17 @@ export default function NewBookingScreen() {
     return configured > 0 ? configured : Math.min(totalDuration, 30);
   }, [(state.settings as any).slotInterval, totalDuration]);
 
-  // Auto-detect applicable discount
+  // Auto-detect applicable discount (pass appointments to enforce maxUses cap)
   const appliedDiscount = useMemo(() => {
     if (!selectedServiceId || !selectedDate || !selectedTime) return null;
-    return getApplicableDiscount(state.discounts, selectedDate, selectedTime, selectedServiceId);
-  }, [state.discounts, selectedDate, selectedTime, selectedServiceId]);
+    return getApplicableDiscount(state.discounts, selectedDate, selectedTime, selectedServiceId, state.appointments);
+  }, [state.discounts, selectedDate, selectedTime, selectedServiceId, state.appointments]);
 
   const discountAmount = useMemo(() => {
-    if (!appliedDiscount || !selectedService) return 0;
-    return parseFloat(String(selectedService.price)) * (appliedDiscount.percentage / 100);
-  }, [appliedDiscount, selectedService]);
+    if (!appliedDiscount) return 0;
+    // Apply discount to the full cart subtotal (base service + extra items)
+    return subtotal * (appliedDiscount.percentage / 100);
+  }, [appliedDiscount, subtotal]);
 
   const totalPrice = subtotal - discountAmount;
 

@@ -670,7 +670,8 @@ export function getApplicableDiscount(
   discounts: Discount[],
   date: string,
   time: string,
-  serviceId: string
+  serviceId: string,
+  appointments?: { discountName?: string; status?: string }[]
 ): Discount | null {
   const dateObj = new Date(date + "T12:00:00");
   const dayIndex = dateObj.getDay();
@@ -692,6 +693,13 @@ export function getApplicableDiscount(
     if (timeMin < discStart || timeMin >= discEnd) continue;
     // Check service filter
     if (disc.serviceIds && disc.serviceIds.length > 0 && !disc.serviceIds.includes(serviceId)) continue;
+    // Check maxUses: count all appointments (any status except cancelled) that used this discount
+    if (disc.maxUses != null && appointments) {
+      const usedCount = appointments.filter(
+        (a) => a.discountName === disc.name && a.status !== "cancelled"
+      ).length;
+      if (usedCount >= disc.maxUses) continue;
+    }
     return disc;
   }
   return null;
