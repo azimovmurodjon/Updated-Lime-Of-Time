@@ -1,7 +1,8 @@
 /**
  * Status Detail Page
- * Swipeable columns for each appointment status (Completed / Confirmed / Pending / Cancelled)
+ * Swipeable columns for each appointment status (All / Completed / Confirmed / Pending / Cancelled)
  * with a timeline filter (Week / Month / 3M / 6M / Year) and scrollable appointment list.
+ * Appointment rows support swipe-left (Mark Paid) and swipe-right (Reschedule) actions.
  */
 import React, { useMemo, useRef, useState, useCallback } from "react";
 import {
@@ -14,7 +15,9 @@ import {
   Dimensions,
   NativeSyntheticEvent,
   NativeScrollEvent,
+  Alert,
 } from "react-native";
+import { Swipeable } from "react-native-gesture-handler";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -89,53 +92,98 @@ function formatApptTime(time: string): string {
   return `${hour}:${m.toString().padStart(2, "0")} ${period}`;
 }
 
-// ─── Appointment row ──────────────────────────────────────────────────────────
+// ─── Swipeable Appointment Row ────────────────────────────────────────────────
 function ApptRow({
   appt,
   clientName,
   serviceName,
   statusColor,
   onPress,
+  onMarkPaid,
+  onReschedule,
 }: {
   appt: Appointment;
   clientName: string;
   serviceName: string;
   statusColor: string;
   onPress: () => void;
+  onMarkPaid: () => void;
+  onReschedule: () => void;
 }) {
   const colors = useColors();
-  return (
+  const swipeRef = useRef<Swipeable>(null);
+
+  const renderRightActions = () => (
     <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.apptRow,
-        { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.75 : 1 },
-      ]}
+      onPress={() => {
+        swipeRef.current?.close();
+        onMarkPaid();
+      }}
+      style={styles.swipeActionRight}
     >
-      {/* Status indicator */}
-      <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-      <View style={{ flex: 1 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }} numberOfLines={1}>
-            {clientName}
-          </Text>
-          <Text style={{ fontSize: 12, color: colors.muted }}>
-            {formatApptDate(appt.date)}
-          </Text>
-        </View>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 2 }}>
-          <Text style={{ fontSize: 12, color: colors.muted }} numberOfLines={1}>
-            {serviceName} · {formatApptTime(appt.time)}
-          </Text>
-          {appt.totalPrice != null && appt.totalPrice > 0 && (
-            <Text style={{ fontSize: 13, fontWeight: "700", color: statusColor }}>
-              ${appt.totalPrice.toLocaleString()}
-            </Text>
-          )}
-        </View>
+      <View style={[styles.swipeActionInner, { backgroundColor: "#00C896" }]}>
+        <IconSymbol name="checkmark.circle.fill" size={22} color="#fff" />
+        <Text style={styles.swipeActionText}>Mark{"\n"}Paid</Text>
       </View>
-      <IconSymbol name="chevron.right" size={14} color={colors.muted} style={{ marginLeft: 8 }} />
     </Pressable>
+  );
+
+  const renderLeftActions = () => (
+    <Pressable
+      onPress={() => {
+        swipeRef.current?.close();
+        onReschedule();
+      }}
+      style={styles.swipeActionLeft}
+    >
+      <View style={[styles.swipeActionInner, { backgroundColor: "#0a7ea4" }]}>
+        <IconSymbol name="calendar.badge.clock" size={22} color="#fff" />
+        <Text style={styles.swipeActionText}>Reschedule</Text>
+      </View>
+    </Pressable>
+  );
+
+  return (
+    <Swipeable
+      ref={swipeRef}
+      renderRightActions={renderRightActions}
+      renderLeftActions={renderLeftActions}
+      overshootRight={false}
+      overshootLeft={false}
+      friction={2}
+    >
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.apptRow,
+          { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.8 : 1 },
+        ]}
+      >
+        {/* Status indicator */}
+        <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+        <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }} numberOfLines={1}>
+              {clientName}
+            </Text>
+            <Text style={{ fontSize: 12, color: colors.muted }}>
+              {formatApptDate(appt.date)}
+            </Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 2 }}>
+            <Text style={{ fontSize: 12, color: colors.muted }} numberOfLines={1}>
+              {serviceName} · {formatApptTime(appt.time)}
+            </Text>
+            {appt.totalPrice != null && appt.totalPrice > 0 && (
+              <Text style={{ fontSize: 13, fontWeight: "700", color: statusColor }}>
+                ${appt.totalPrice.toLocaleString()}
+              </Text>
+            )}
+          </View>
+        </View>
+        <IconSymbol name="chevron.right" size={14} color={colors.muted} style={{ marginLeft: 8 }} />
+      </Pressable>
+    </Swipeable>
   );
 }
 
@@ -146,6 +194,8 @@ function StatusColumn({
   clients,
   services,
   onPressAppt,
+  onMarkPaid,
+  onReschedule,
   width,
 }: {
   statusKey: AppointmentStatus | "all";
@@ -153,6 +203,8 @@ function StatusColumn({
   clients: { id: string; name: string }[];
   services: { id: string; name: string }[];
   onPressAppt: (id: string) => void;
+  onMarkPaid: (id: string) => void;
+  onReschedule: (id: string) => void;
   width: number;
 }) {
   const colors = useColors();
@@ -186,6 +238,15 @@ function StatusColumn({
         </Text>
       </View>
 
+      {/* Swipe hint */}
+      {sorted.length > 0 && (
+        <View style={styles.swipeHint}>
+          <Text style={{ fontSize: 11, color: colors.muted, textAlign: "center" }}>
+            ← Reschedule  ·  Swipe rows  ·  Mark Paid →
+          </Text>
+        </View>
+      )}
+
       {sorted.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center" }}>
@@ -204,6 +265,8 @@ function StatusColumn({
               serviceName={serviceMap[item.serviceId] ?? "Service"}
               statusColor={cfg.color}
               onPress={() => onPressAppt(item.id)}
+              onMarkPaid={() => onMarkPaid(item.id)}
+              onReschedule={() => onReschedule(item.id)}
             />
           )}
           contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingBottom: 24 }}
@@ -218,7 +281,7 @@ export default function StatusDetailPage() {
   const colors = useColors();
   const router = useRouter();
   const params = useLocalSearchParams<{ status?: string }>();
-  const { state } = useStore();
+  const { state, dispatch } = useStore();
 
   // Determine initial status from params
   const initialStatus = useMemo<AppointmentStatus | "all">(() => {
@@ -258,6 +321,27 @@ export default function StatusDetailPage() {
     []
   );
 
+  const handleMarkPaid = useCallback((id: string) => {
+    Alert.alert(
+      "Mark as Paid",
+      "Mark this appointment as completed and paid?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Mark Paid",
+          style: "default",
+          onPress: () => {
+            dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id, status: "completed" as AppointmentStatus } });
+          },
+        },
+      ]
+    );
+  }, [dispatch]);
+
+  const handleReschedule = useCallback((id: string) => {
+    router.push({ pathname: "/appointment-detail", params: { id } } as any);
+  }, [router]);
+
   const activeStatus = STATUSES[activeStatusIdx];
 
   return (
@@ -268,7 +352,7 @@ export default function StatusDetailPage() {
           onPress={() => router.back()}
           style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, padding: 8 })}
         >
-          <IconSymbol name="chevron.left.forwardslash.chevron.right" size={20} color={colors.primary} />
+          <IconSymbol name="chevron.left" size={22} color={colors.foreground} />
         </Pressable>
         <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground, flex: 1, textAlign: "center" }}>
           Appointment Status
@@ -352,6 +436,8 @@ export default function StatusDetailPage() {
               clients={state.clients}
               services={state.services}
               onPressAppt={(id) => router.push({ pathname: "/appointment-detail", params: { id } } as any)}
+              onMarkPaid={handleMarkPaid}
+              onReschedule={handleReschedule}
               width={SCREEN_W}
             />
           </ScrollView>
@@ -403,6 +489,11 @@ const styles = StyleSheet.create({
     padding: 20,
     alignItems: "center",
   },
+  swipeHint: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    marginTop: -4,
+  },
   emptyState: {
     paddingVertical: 40,
     paddingHorizontal: 24,
@@ -421,5 +512,26 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     flexShrink: 0,
+  },
+  swipeActionRight: {
+    justifyContent: "center",
+    marginBottom: 0,
+  },
+  swipeActionLeft: {
+    justifyContent: "center",
+  },
+  swipeActionInner: {
+    width: 72,
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 12,
+  },
+  swipeActionText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
+    textAlign: "center",
   },
 });

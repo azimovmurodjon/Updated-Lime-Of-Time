@@ -8,7 +8,7 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from "react-native";
-import Svg, { Circle, G } from "react-native-svg";
+import Svg, { Circle, G, Path } from "react-native-svg";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 
@@ -20,6 +20,7 @@ type Slide = typeof SLIDES[number];
 export interface ServiceBreakdownItem {
   label: string;
   value: number;
+  revenue?: number;
   color: string;
 }
 
@@ -50,59 +51,107 @@ export interface PaymentSummaryCardProps {
   onPressUnpaid?: () => void;
   onPressFullSummary?: () => void;
   onPressStatus?: (status: string) => void;
+  onPressService?: (serviceLabel: string) => void;
 }
 
-// ─── Donut Chart for By Service ───────────────────────────────────────────────
-function DonutChart({ data, size = 90 }: { data: ServiceBreakdownItem[]; size?: number }) {
+// ─── Donut Chart ──────────────────────────────────────────────────────────────
+function DonutChart({
+  data,
+  size = 96,
+  selectedIdx,
+  onPressSegment,
+}: {
+  data: ServiceBreakdownItem[];
+  size?: number;
+  selectedIdx: number | null;
+  onPressSegment: (idx: number) => void;
+}) {
   const total = data.reduce((s, d) => s + d.value, 0);
   if (total === 0) return null;
 
-  const radius = size / 2 - 8;
+  const radius = size / 2 - 10;
   const circumference = 2 * Math.PI * radius;
   const cx = size / 2;
   const cy = size / 2;
-  const strokeWidth = 14;
+  const strokeWidth = 16;
 
   let offset = 0;
-  const segments = data.map((item) => {
+  const segments = data.slice(0, 6).map((item, idx) => {
     const pct = item.value / total;
     const dash = pct * circumference;
     const gap = circumference - dash;
     const rotation = offset * 360 - 90;
     offset += pct;
-    return { ...item, dash, gap, rotation };
+    return { ...item, dash, gap, rotation, idx };
   });
 
   return (
-    <Svg width={size} height={size}>
-      <G>
-        {segments.map((seg, i) => (
-          <Circle
-            key={i}
-            cx={cx}
-            cy={cy}
-            r={radius}
-            fill="none"
-            stroke={seg.color}
-            strokeWidth={strokeWidth}
-            strokeDasharray={`${seg.dash} ${seg.gap}`}
-            strokeDashoffset={0}
-            strokeLinecap="round"
-            transform={`rotate(${seg.rotation} ${cx} ${cy})`}
-            opacity={0.9}
-          />
-        ))}
-      </G>
-    </Svg>
+    <View style={{ width: size, height: size }}>
+      <Svg width={size} height={size}>
+        <G>
+          {segments.map((seg) => (
+            <Circle
+              key={seg.idx}
+              cx={cx}
+              cy={cy}
+              r={radius}
+              fill="none"
+              stroke={seg.color}
+              strokeWidth={selectedIdx === seg.idx ? strokeWidth + 3 : strokeWidth}
+              strokeDasharray={`${seg.dash} ${seg.gap}`}
+              strokeDashoffset={0}
+              strokeLinecap="round"
+              transform={`rotate(${seg.rotation} ${cx} ${cy})`}
+              opacity={selectedIdx === null || selectedIdx === seg.idx ? 0.92 : 0.45}
+            />
+          ))}
+        </G>
+      </Svg>
+      {/* Invisible pressable overlay per segment is complex in SVG — use a single tap to cycle */}
+      <Pressable
+        onPress={() => {
+          const next = selectedIdx === null ? 0 : (selectedIdx + 1) % segments.length;
+          onPressSegment(next);
+        }}
+        style={{ position: "absolute", top: 0, left: 0, width: size, height: size, alignItems: "center", justifyContent: "center" }}
+      >
+        <View style={{ alignItems: "center" }}>
+          {selectedIdx !== null && selectedIdx < segments.length ? (
+            <>
+              <Text style={{ fontSize: 15, fontWeight: "800", color: segments[selectedIdx].color }}>
+                {segments[selectedIdx].value}
+              </Text>
+              <Text style={{ fontSize: 9, color: "#888", fontWeight: "600", textAlign: "center", maxWidth: 44 }} numberOfLines={2}>
+                {segments[selectedIdx].label}
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={{ fontSize: 17, fontWeight: "800", color: "#fff" }}>{total}</Text>
+              <Text style={{ fontSize: 9, color: "#888", fontWeight: "600" }}>TOTAL</Text>
+            </>
+          )}
+        </View>
+      </Pressable>
+    </View>
   );
 }
 
 // ─── By Service Slide ─────────────────────────────────────────────────────────
-function ServiceSlide({ data, width }: { data: ServiceBreakdownItem[]; width: number }) {
+function ServiceSlide({
+  data,
+  width,
+  onPressService,
+}: {
+  data: ServiceBreakdownItem[];
+  width: number;
+  onPressService?: (label: string) => void;
+}) {
   const colors = useColors();
   const [expanded, setExpanded] = useState(false);
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const total = data.reduce((s, d) => s + d.value, 0);
-  const displayData = expanded ? data : data.slice(0, 4);
+  const displayData = expanded ? data : data.slice(0, 5);
 
   if (data.length === 0) {
     return (
@@ -116,36 +165,71 @@ function ServiceSlide({ data, width }: { data: ServiceBreakdownItem[]; width: nu
     <View>
       {/* Donut + legend row */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-        {/* Donut chart */}
-        <View style={{ alignItems: "center", justifyContent: "center" }}>
-          <DonutChart data={data.slice(0, 5)} size={90} />
-          {/* Center label */}
-          <View style={{ position: "absolute", alignItems: "center" }}>
-            <Text style={{ fontSize: 16, fontWeight: "800", color: colors.foreground }}>{total}</Text>
-            <Text style={{ fontSize: 9, color: colors.muted, fontWeight: "600" }}>TOTAL</Text>
-          </View>
-        </View>
+        <DonutChart
+          data={data}
+          size={96}
+          selectedIdx={selectedIdx}
+          onPressSegment={(idx) => {
+            setSelectedIdx((prev) => (prev === idx ? null : idx));
+            if (onPressService) onPressService(data[idx]?.label ?? "");
+          }}
+        />
 
         {/* Legend */}
-        <View style={{ flex: 1, gap: 6 }}>
+        <View style={{ flex: 1, gap: 5 }}>
           {displayData.map((item, i) => {
             const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
+            const isSelected = selectedIdx === i;
             return (
-              <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Pressable
+                key={i}
+                onPress={() => {
+                  setSelectedIdx((prev) => (prev === i ? null : i));
+                  if (onPressService) onPressService(item.label);
+                }}
+                style={({ pressed }) => ({
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                  opacity: pressed ? 0.7 : 1,
+                  backgroundColor: isSelected ? item.color + "18" : "transparent",
+                  borderRadius: 6,
+                  paddingVertical: 2,
+                  paddingHorizontal: 3,
+                })}
+              >
                 <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: item.color, flexShrink: 0 }} />
-                <Text style={{ fontSize: 12, color: colors.foreground, fontWeight: "600", flex: 1 }} numberOfLines={1}>
+                <Text style={{ fontSize: 11, color: colors.foreground, fontWeight: "600", flex: 1 }} numberOfLines={1}>
                   {item.label}
                 </Text>
-                <Text style={{ fontSize: 11, color: colors.muted, marginRight: 4 }}>{pct}%</Text>
-                <Text style={{ fontSize: 12, fontWeight: "700", color: item.color }}>{item.value}</Text>
-              </View>
+                <Text style={{ fontSize: 10, color: colors.muted }}>{pct}%</Text>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: item.color }}>{item.value}</Text>
+              </Pressable>
             );
           })}
         </View>
       </View>
 
+      {/* Revenue per service rows */}
+      {data.some((d) => (d.revenue ?? 0) > 0) && (
+        <View style={{ marginTop: 10, gap: 4 }}>
+          <Text style={{ fontSize: 11, color: colors.muted, fontWeight: "600", marginBottom: 2 }}>REVENUE BY SERVICE</Text>
+          {displayData.filter((d) => (d.revenue ?? 0) > 0).map((item, i) => (
+            <View key={i} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flex: 1 }}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: item.color }} />
+                <Text style={{ fontSize: 12, color: colors.foreground, flex: 1 }} numberOfLines={1}>{item.label}</Text>
+              </View>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: item.color }}>
+                {item.value} appt{item.value !== 1 ? "s" : ""} · ${(item.revenue ?? 0).toLocaleString()}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
+
       {/* View Data expand button */}
-      {data.length > 4 && (
+      {data.length > 5 && (
         <Pressable
           onPress={() => setExpanded((v) => !v)}
           style={({ pressed }) => ({
@@ -164,49 +248,36 @@ function ServiceSlide({ data, width }: { data: ServiceBreakdownItem[]; width: nu
             {expanded ? "Show Less" : `View All ${data.length} Services`}
           </Text>
           <IconSymbol
-            name={expanded ? "chevron.right" : "chevron.right"}
+            name="chevron.right"
             size={12}
             color={colors.primary}
             style={{ transform: [{ rotate: expanded ? "-90deg" : "90deg" }] }}
           />
         </Pressable>
       )}
-
-      {/* Expanded detail rows */}
-      {expanded && (
-        <View style={{ marginTop: 10, gap: 6 }}>
-          {data.map((item, i) => {
-            const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
-            return (
-              <View key={i} style={{ gap: 3 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
-                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: item.color }} />
-                    <Text style={{ fontSize: 12, color: colors.foreground, fontWeight: "600", flex: 1 }} numberOfLines={1}>
-                      {item.label}
-                    </Text>
-                  </View>
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: item.color }}>{item.value}</Text>
-                </View>
-                <View style={{ height: 4, borderRadius: 2, backgroundColor: colors.border, overflow: "hidden" }}>
-                  <View style={{ height: 4, borderRadius: 2, backgroundColor: item.color, width: `${pct}%` as any, opacity: 0.8 }} />
-                </View>
-              </View>
-            );
-          })}
-        </View>
-      )}
     </View>
   );
 }
 
 // ─── Status Slide ─────────────────────────────────────────────────────────────
-function StatusSlide({ statusCounts, total, onPressStatus }: {
+type StatusTimeline = "week" | "month" | "all";
+const STATUS_TIMELINES: { key: StatusTimeline; label: string }[] = [
+  { key: "week", label: "Week" },
+  { key: "month", label: "Month" },
+  { key: "all", label: "All" },
+];
+
+function StatusSlide({
+  statusCounts,
+  total,
+  onPressStatus,
+}: {
   statusCounts: StatusCounts;
   total: number;
   onPressStatus?: (status: string) => void;
 }) {
   const colors = useColors();
+  const [timeline, setTimeline] = useState<StatusTimeline>("month");
 
   const statuses = [
     { key: "completed", label: "Completed", value: statusCounts.completed, color: ACCENT, icon: "checkmark.circle.fill" as const },
@@ -217,6 +288,33 @@ function StatusSlide({ statusCounts, total, onPressStatus }: {
 
   return (
     <View style={{ gap: 8 }}>
+      {/* Timeline filter */}
+      <View style={{ flexDirection: "row", gap: 6, marginBottom: 4 }}>
+        {STATUS_TIMELINES.map((t) => (
+          <Pressable
+            key={t.key}
+            onPress={() => {
+              setTimeline(t.key);
+              onPressStatus?.(`timeline:${t.key}`);
+            }}
+            style={({ pressed }) => ({
+              flex: 1,
+              alignItems: "center",
+              paddingVertical: 5,
+              borderRadius: 8,
+              backgroundColor: timeline === t.key ? ACCENT + "20" : colors.border + "50",
+              borderWidth: 1,
+              borderColor: timeline === t.key ? ACCENT : "transparent",
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <Text style={{ fontSize: 12, fontWeight: "700", color: timeline === t.key ? ACCENT : colors.muted }}>
+              {t.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
       {statuses.map((item) => {
         const pct = total > 0 ? item.value / total : 0;
         return (
@@ -270,6 +368,7 @@ export function PaymentSummaryCard({
   onPressUnpaid,
   onPressFullSummary,
   onPressStatus,
+  onPressService,
 }: PaymentSummaryCardProps) {
   const colors = useColors();
   const [activeIdx, setActiveIdx] = useState(0);
@@ -387,7 +486,7 @@ export function PaymentSummaryCard({
 
         {/* Slide 2: By Service */}
         <View style={{ width, paddingHorizontal: 16, paddingBottom: 12 }}>
-          <ServiceSlide data={serviceBreakdown} width={width - 32} />
+          <ServiceSlide data={serviceBreakdown} width={width - 32} onPressService={onPressService} />
         </View>
 
         {/* Slide 3: Status */}

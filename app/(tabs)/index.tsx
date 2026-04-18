@@ -38,6 +38,7 @@ import { TourOverlay } from "@/components/tour-overlay";
 import { usePlanLimitCheck } from "@/hooks/use-plan-limit-check";
 import { RevenueChartCard } from "@/components/revenue-chart-card";
 import { PaymentSummaryCard } from "@/components/payment-summary-card";
+import { ChartDrillDownSheet, type DrillDownAppointment } from "@/components/chart-drilldown-sheet";
 
 // App logo URL (same as app.config.ts logoUrl)
 const APP_LOGO_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/jHoNjHdLsUGgpFhz.png";
@@ -325,6 +326,13 @@ export default function HomeScreen() {
     completedAppointments?: { id: string; clientName: string; serviceName: string; date: string; price: number }[];
   } | undefined>(undefined);
 
+  // ─── Chart Drill-Down Sheet ─────────────────────────────────────
+  const [drillDownVisible, setDrillDownVisible] = useState(false);
+  const [drillDownLabel, setDrillDownLabel] = useState("");
+  const [drillDownSubtitle, setDrillDownSubtitle] = useState("");
+  const [drillDownAppointments, setDrillDownAppointments] = useState<DrillDownAppointment[]>([]);
+  const [drillDownRevenue, setDrillDownRevenue] = useState(0);
+
   // ─── Tutorial Walkthrough ──────────────────────────────────────
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
@@ -475,8 +483,81 @@ export default function HomeScreen() {
     }
     setShowQrModal(true);
   }, [state.locations, activeLocation]);
+  // ─── Chart Drill-Down Handler ────────────────────────────────────────
+  const handleChartPointPress = useCallback((period: string, label: string, value: number) => {
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    let appts: typeof state.appointments = [];
+    let subtitle = "";
 
-  // ─── Primary booking URL (for QR card) ──────────────────────────────────
+    if (period === "daily") {
+      // label is like "8am", "2pm" — find hour
+      const h = label.endsWith("am") ? parseInt(label) : label === "12pm" ? 12 : parseInt(label) + 12;
+      appts = state.appointments.filter((a) => {
+        if (a.date !== todayStr || a.status === "cancelled") return false;
+        const mins = timeToMinutes(a.time);
+        return mins >= h * 60 && mins < (h + 1) * 60;
+      });
+      subtitle = `Today · ${label}`;
+    } else if (period === "weekly") {
+      // label is day name like "Mon", "Tue" — find the date
+      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const dayIdx = dayNames.indexOf(label);
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - now.getDay());
+      const targetDate = new Date(weekStart);
+      targetDate.setDate(weekStart.getDate() + dayIdx);
+      const targetStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, "0")}-${String(targetDate.getDate()).padStart(2, "0")}`;
+      appts = state.appointments.filter((a) => a.date === targetStr && a.status !== "cancelled");
+      subtitle = `This Week · ${label}`;
+    } else if (period === "monthly") {
+      // label is day number like "1", "15"
+      const day = parseInt(label);
+      const dStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      appts = state.appointments.filter((a) => a.date === dStr && a.status !== "cancelled");
+      subtitle = `${now.toLocaleDateString("en-US", { month: "long" })} ${day}`;
+    } else {
+      // 3m, 6m, 1y — label is month name like "Jan", "Apr"
+      // Find the year-month that matches this label
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const mIdx = monthNames.indexOf(label);
+      if (mIdx !== -1) {
+        // Find which year this month belongs to (could be last year)
+        let year = now.getFullYear();
+        if (mIdx > now.getMonth()) year -= 1;
+        const mS = `${year}-${String(mIdx + 1).padStart(2, "0")}-01`;
+        const mLD = new Date(year, mIdx + 1, 0).getDate();
+        const mE = `${year}-${String(mIdx + 1).padStart(2, "0")}-${String(mLD).padStart(2, "0")}`;
+        appts = state.appointments.filter((a) => a.date >= mS && a.date <= mE && a.status !== "cancelled");
+        subtitle = `${label} ${year}`;
+      }
+    }
+
+    const clientMap: Record<string, string> = {};
+    state.clients.forEach((c) => { clientMap[c.id] = c.name; });
+    const serviceMap: Record<string, string> = {};
+    state.services.forEach((s) => { serviceMap[s.id] = s.name; });
+
+    const drillAppts: DrillDownAppointment[] = appts.map((a) => ({
+      id: a.id,
+      clientName: clientMap[a.clientId] ?? "Unknown",
+      serviceName: serviceMap[a.serviceId] ?? "Service",
+      time: a.time,
+      date: a.date,
+      amount: a.totalPrice ?? state.services.find((s) => s.id === a.serviceId)?.price ?? 0,
+      status: a.status,
+    }));
+
+    const totalRev = drillAppts.filter((a) => a.status === "completed").reduce((s, a) => s + a.amount, 0);
+
+    setDrillDownLabel(label);
+    setDrillDownSubtitle(subtitle);
+    setDrillDownAppointments(drillAppts);
+    setDrillDownRevenue(totalRev);
+    setDrillDownVisible(true);
+  }, [state.appointments, state.clients, state.services]);
+
+  // ─── Primary booking URL (for QR card) ────────────────────────────────────────
   // Base URL (no location param) used for the home card QR preview
   const primaryBookingUrl = useMemo(() => {
     const slug = state.settings.customSlug || state.settings.businessName.replace(/\s+/g, "-").toLowerCase();
@@ -617,13 +698,18 @@ export default function HomeScreen() {
     }
 
     const svcCounts: Record<string, number> = {};
+    const svcRevenue: Record<string, number> = {};
     activeAppts.forEach((a) => {
       svcCounts[a.serviceId] = (svcCounts[a.serviceId] || 0) + 1;
+      if (a.status === "completed" && a.totalPrice) {
+        svcRevenue[a.serviceId] = (svcRevenue[a.serviceId] || 0) + a.totalPrice;
+      }
     });
     const serviceBreakdown = state.services
       .map((s) => ({
         label: s.name,
         value: svcCounts[s.id] || 0,
+        revenue: svcRevenue[s.id] || 0,
         color: s.color,
       }))
       .filter((s) => s.value > 0)
@@ -1927,6 +2013,7 @@ export default function HomeScreen() {
           revenueChange={revenueChange}
           monthName={new Date().toLocaleDateString("en-US", { month: "long" })}
           onPress={(period) => router.push({ pathname: "/analytics-detail", params: { tab: "revenue" } } as any)}
+          onPointPress={handleChartPointPress}
           width={contentWidth}
         />
 
@@ -2642,6 +2729,18 @@ export default function HomeScreen() {
         topServiceData={kpiRangedData.topServiceData}
         slideFilter={kpiSlideFilter}
         slideExtraData={kpiSlideExtraData}
+      />
+      <ChartDrillDownSheet
+        visible={drillDownVisible}
+        onClose={() => setDrillDownVisible(false)}
+        label={drillDownLabel}
+        subtitle={drillDownSubtitle}
+        totalRevenue={drillDownRevenue}
+        appointments={drillDownAppointments}
+        onPressAppointment={(id) => {
+          setDrillDownVisible(false);
+          router.push({ pathname: "/appointment-detail", params: { id } } as any);
+        }}
       />
     </ScreenContainer>
   );
