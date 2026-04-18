@@ -5075,7 +5075,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         "STATUS:CONFIRMED",
         "END:VEVENT",
         "END:VCALENDAR"
-      ].filter(l => l !== "").join("\r\n");
+      ].filter(l => l !== "").join("\\r\\n");
       // iOS/Android: use data URI with webcal-compatible MIME type so the OS opens the native Calendar app
       // Desktop: fall back to Blob download
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
