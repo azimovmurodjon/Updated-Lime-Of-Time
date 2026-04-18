@@ -14,7 +14,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 
 const ACCENT = "#00C896";
 
-const SLIDES = ["Payment", "By Service", "Status"] as const;
+const SLIDES = ["Status", "Payment", "By Service"] as const;
 type Slide = typeof SLIDES[number];
 
 export interface ServiceBreakdownItem {
@@ -390,9 +390,9 @@ export function PaymentSummaryCard({
 
   // Slide-specific header config
   const slideConfig = [
+    { title: "Status", icon: "checkmark.circle.fill" as const, iconColor: "#00C896", action: () => onPressStatus?.("all"), actionLabel: "View All" },
     { title: "Payment Summary", icon: "dollarsign.circle.fill" as const, iconColor: ACCENT, action: onPressFullSummary, actionLabel: "Full Summary" },
     { title: "By Service", icon: "paperplane.fill" as const, iconColor: "#A78BFA", action: undefined, actionLabel: undefined },
-    { title: "Status", icon: "checkmark.circle.fill" as const, iconColor: "#00C896", action: () => onPressStatus?.("all"), actionLabel: "View All" },
   ];
   const cfg = slideConfig[activeIdx];
 
@@ -439,7 +439,16 @@ export function PaymentSummaryCard({
         snapToAlignment="start"
         style={{ width }}
       >
-        {/* Slide 1: Payment */}
+        {/* Slide 1: Status */}
+        <View style={{ width, paddingHorizontal: 16, paddingBottom: 12 }}>
+          <StatusSlide
+            statusCounts={statusCounts}
+            total={totalAppts}
+            onPressStatus={onPressStatus}
+          />
+        </View>
+
+        {/* Slide 2: Payment */}
         <View style={{ width, paddingHorizontal: 16, paddingBottom: 12 }}>
           <View style={{ flexDirection: "row", gap: 12 }}>
             <Pressable
@@ -484,18 +493,9 @@ export function PaymentSummaryCard({
           )}
         </View>
 
-        {/* Slide 2: By Service */}
+        {/* Slide 3: By Service */}
         <View style={{ width, paddingHorizontal: 16, paddingBottom: 12 }}>
           <ServiceSlide data={serviceBreakdown} width={width - 32} onPressService={onPressService} />
-        </View>
-
-        {/* Slide 3: Status */}
-        <View style={{ width, paddingHorizontal: 16, paddingBottom: 12 }}>
-          <StatusSlide
-            statusCounts={statusCounts}
-            total={totalAppts}
-            onPressStatus={onPressStatus}
-          />
         </View>
       </ScrollView>
 

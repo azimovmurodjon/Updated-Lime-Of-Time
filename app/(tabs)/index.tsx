@@ -39,6 +39,7 @@ import { usePlanLimitCheck } from "@/hooks/use-plan-limit-check";
 import { RevenueChartCard } from "@/components/revenue-chart-card";
 import { PaymentSummaryCard } from "@/components/payment-summary-card";
 import { ChartDrillDownSheet, type DrillDownAppointment } from "@/components/chart-drilldown-sheet";
+import { ScheduleCard } from "@/components/schedule-card";
 
 // App logo URL (same as app.config.ts logoUrl)
 const APP_LOGO_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/jHoNjHdLsUGgpFhz.png";
@@ -2056,70 +2057,6 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* ─── Revenue Forecast Widget ────────────────────────────────── */}
-        <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 24 }]}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-            <View>
-              <Text style={[styles.chartTitle, { color: colors.foreground }]}>{revenueForecast.monthName} Forecast</Text>
-              <Text style={[styles.chartSubtitle, { color: colors.muted }]}>Day {revenueForecast.dayOfMonth} of {revenueForecast.daysInMonth}</Text>
-            </View>
-            <Pressable
-              onPress={() => router.push("/(tabs)/settings" as any)}
-              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-            >
-              {revenueForecast.goal > 0 ? (
-                <View style={{ alignItems: "flex-end" }}>
-                  <Text style={{ fontSize: 11, color: colors.muted }}>Goal</Text>
-                  <Text style={{ fontSize: 15, fontWeight: "800", color: colors.foreground }}>${revenueForecast.goal.toLocaleString()}</Text>
-                </View>
-              ) : (
-                <View style={{ backgroundColor: colors.primary + "15", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}>
-                  <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>Set Goal</Text>
-                </View>
-              )}
-            </Pressable>
-          </View>
-
-          {/* Three stat columns */}
-          <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
-            <View style={{ flex: 1, backgroundColor: colors.background, borderRadius: 10, padding: 10, alignItems: "center" }}>
-              <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 2 }}>Earned</Text>
-              <Text style={{ fontSize: 16, fontWeight: "800", color: colors.foreground }}>${Math.round(revenueForecast.earnedSoFar).toLocaleString()}</Text>
-            </View>
-            <View style={{ flex: 1, backgroundColor: colors.background, borderRadius: 10, padding: 10, alignItems: "center" }}>
-              <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 2 }}>Scheduled</Text>
-              <Text style={{ fontSize: 16, fontWeight: "800", color: "#3B82F6" }}>${Math.round(revenueForecast.scheduledRevenue).toLocaleString()}</Text>
-            </View>
-            <View style={{ flex: 1, backgroundColor: colors.background, borderRadius: 10, padding: 10, alignItems: "center" }}>
-              <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 2 }}>Projected</Text>
-              <Text style={{ fontSize: 16, fontWeight: "800", color: revenueForecast.goal > 0 && revenueForecast.projected >= revenueForecast.goal ? "#22C55E" : colors.primary }}>
-                ${revenueForecast.projected.toLocaleString()}
-              </Text>
-            </View>
-          </View>
-
-          {/* Progress bar — only shown when goal is set */}
-          {revenueForecast.goal > 0 && (
-            <View>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
-                <Text style={{ fontSize: 11, color: colors.muted }}>Progress toward goal</Text>
-                <Text style={{ fontSize: 11, fontWeight: "700", color: revenueForecast.progressPct >= 100 ? "#22C55E" : colors.primary }}>
-                  {revenueForecast.progressPct}%
-                </Text>
-              </View>
-              <View style={{ height: 8, backgroundColor: colors.border, borderRadius: 4, overflow: "hidden" }}>
-                {/* Projected bar (lighter) */}
-                <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${revenueForecast.projectedPct}%`, backgroundColor: colors.primary + "40", borderRadius: 4 }} />
-                {/* Earned bar (solid) */}
-                <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${revenueForecast.progressPct}%`, backgroundColor: revenueForecast.progressPct >= 100 ? "#22C55E" : colors.primary, borderRadius: 4 }} />
-              </View>
-              {revenueForecast.progressPct >= 100 && (
-                <Text style={{ fontSize: 12, color: "#22C55E", fontWeight: "700", marginTop: 6, textAlign: "center" }}>🎉 Goal reached!</Text>
-              )}
-            </View>
-          )}
-        </View>
-
         {/* ─── Share Booking Link QR Card ──────────────────────────────────── */}
         <Pressable
           onPress={openQrModal}
@@ -2269,216 +2206,16 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        {/* ─── Today's Schedule ────────────────────────────────────── */}
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 24, marginBottom: 12 }}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>Today's Schedule</Text>
-          <View style={{ backgroundColor: colors.primary + "15", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 }}>
-            <Text style={{ fontSize: 12, fontWeight: "700", color: colors.primary }}>{todayAppts.length} appts</Text>
-          </View>
-        </View>
-        {todayAppts.length === 0 ? (
-          <View
-            style={[
-              styles.emptyCard,
-              { backgroundColor: colors.surface, borderColor: colors.border },
-            ]}
-          >
-            <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: colors.primary + "12", alignItems: "center", justifyContent: "center", marginBottom: 4 }}>
-              <IconSymbol name="calendar" size={32} color={colors.primary + "80"} />
-            </View>
-            <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "600", marginTop: 4 }}>No appointments today</Text>
-            <Text style={{ color: colors.muted, fontSize: 13, marginTop: 4, textAlign: "center" }}>Your schedule is clear — enjoy your day!</Text>
-            <Pressable
-              onPress={() => router.push("/new-booking")}
-              style={({ pressed }) => [
-                styles.bookBtn,
-                { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 },
-              ]}
-            >
-              <Text style={styles.bookBtnText}>Book an Appointment</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <View style={isTablet ? { flexDirection: "row", flexWrap: "wrap", gap: cardGap } : undefined}>
-            {todayAppts.map((appt) => {
-              const svc = getServiceById(appt.serviceId);
-              const client = getClientById(appt.clientId);
-              const staffMember = appt.staffId ? state.staff.find((s) => s.id === appt.staffId) : null;
-              const apptLocation = appt.locationId ? state.locations.find((l) => l.id === appt.locationId) : null;
-              const accentColor = svc?.color ?? colors.primary;
-              const statusColor =
-                appt.status === "confirmed" ? colors.success
-                : appt.status === "pending" ? "#FF9800"
-                : appt.status === "completed" ? colors.primary
-                : appt.status === "no_show" ? "#F59E0B"
-                : colors.error;
-              const timeLabel = `${formatTime(appt.time)} – ${getEndTime(appt.time, appt.duration)}`;
-              const clientPhone = client?.phone ? formatPhone(client.phone) : null;
-              return (
-                <Pressable
-                  key={appt.id}
-                  onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })}
-                  style={({ pressed }) => ([
-                    {
-                      backgroundColor: colors.surface,
-                      borderRadius: 14,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      borderLeftWidth: 4,
-                      borderLeftColor: accentColor,
-                      overflow: "hidden",
-                      marginBottom: 10,
-                      opacity: pressed ? 0.85 : 1,
-                      ...(isTablet ? { width: Math.floor((contentWidth - cardGap) / 2) } : {}),
-                    },
-                  ])}
-                >
-                  <View style={{ padding: 14, gap: 5 }}>
-                    {/* Row 1: time range (left) + status badge (right) */}
-                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                      <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, flex: 1, marginRight: 8 }} numberOfLines={1}>
-                        {timeLabel}
-                      </Text>
-                      <View style={{ backgroundColor: statusColor + "22", paddingHorizontal: 9, paddingVertical: 3, borderRadius: 8, flexShrink: 0 }}>
-                        <Text style={{ fontSize: 11, fontWeight: "700", color: statusColor }}>
-                          {appt.status.charAt(0).toUpperCase() + appt.status.slice(1)}
-                        </Text>
-                      </View>
-                    </View>
-                    {/* Row 2: service name + duration */}
-                    <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }} numberOfLines={1}>
-                      {svc ? `${svc.name} (${appt.duration ?? svc.duration} min)` : "Service"}
-                    </Text>
-                    {/* Row 3: client name · phone + staff */}
-                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                      <Text style={{ fontSize: 13, color: colors.muted, flex: 1, marginRight: 8 }} numberOfLines={1}>
-                        {client?.name ?? "Client"}{clientPhone ? ` · ${clientPhone}` : ""}
-                      </Text>
-                      {staffMember ? (
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flexShrink: 0 }}>
-                          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: accentColor }} />
-                          <Text style={{ fontSize: 13, color: accentColor, fontWeight: "600" }} numberOfLines={1}>
-                            {staffMember.name}
-                          </Text>
-                        </View>
-                      ) : null}
-                    </View>
-                    {/* Row 4: location badge — shown only in All Locations mode */}
-                    {!selectedLocationFilter && apptLocation && (
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
-                        <IconSymbol name="mappin.circle.fill" size={12} color={colors.muted} />
-                        <Text style={{ fontSize: 12, color: colors.muted }} numberOfLines={1}>{apptLocation.name}</Text>
-                      </View>
-                    )}
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
-        {/* ─── Upcoming Appointments ──────────────────────────────── */}
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 28, marginBottom: 12 }}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>Upcoming</Text>
-          <View style={{ backgroundColor: colors.primary + "20", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 }}>
-            <Text style={{ fontSize: 12, fontWeight: "700", color: colors.primary }}>{upcomingAppointments.length} scheduled</Text>
-          </View>
-        </View>
-        {upcomingAppointments.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border, paddingVertical: 24 }]}>
-            <IconSymbol name="calendar.badge.checkmark" size={32} color={colors.primary + "60"} />
-            <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "600", marginTop: 10 }}>No upcoming appointments</Text>
-            <Text style={{ color: colors.muted, fontSize: 13, marginTop: 4, textAlign: "center" }}>All clear — add a booking to see it here.</Text>
-          </View>
-        ) : (
-          <View style={isTablet ? { flexDirection: "row", flexWrap: "wrap", gap: cardGap } : { gap: 10 }}>
-            {upcomingAppointments.map((appt) => {
-              const svc = getServiceById(appt.serviceId);
-              const client = getClientById(appt.clientId);
-              const staffMember = appt.staffId ? state.staff.find((s) => s.id === appt.staffId) : null;
-              const apptLocation = appt.locationId ? state.locations.find((l) => l.id === appt.locationId) : null;
-              const isToday = appt.date === todayStr;
-              const apptDate = new Date(appt.date + "T00:00:00");
-              const dayLabel = isToday
-                ? "TODAY"
-                : apptDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }).toUpperCase();
-              const accentColor = svc?.color ?? colors.primary;
-              const statusColor =
-                appt.status === "confirmed" ? colors.success
-                : appt.status === "pending" ? "#FF9800"
-                : appt.status === "completed" ? colors.primary
-                : appt.status === "no_show" ? "#F59E0B"
-                : colors.error;
-              const price = appt.totalPrice ?? svc?.price ?? null;
-              // Format date · time range line: "Mon, Apr 13 · 2:30 PM – 3:30 PM"
-              const dateTimeLabel = `${apptDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} · ${formatTime(appt.time)} – ${getEndTime(appt.time, appt.duration)}`;
-              const clientPhone = client?.phone ? formatPhone(client.phone) : null;
-              return (
-                <Pressable
-                  key={appt.id}
-                  onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })}
-                  style={({ pressed }) => ([
-                    {
-                      backgroundColor: colors.surface,
-                      borderRadius: 14,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      borderLeftWidth: 4,
-                      borderLeftColor: accentColor,
-                      overflow: "hidden",
-                      opacity: pressed ? 0.85 : 1,
-                      ...(isTablet ? { width: Math.floor((contentWidth - cardGap) / 2) } : {}),
-                    },
-                  ])}
-                >
-                  <View style={{ padding: 14, gap: 5 }}>
-                    {/* Row 1: date·time range (left) + status badge (right) */}
-                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                      <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, flex: 1, marginRight: 8 }} numberOfLines={1}>
-                        {dateTimeLabel}
-                      </Text>
-                      <View style={{
-                        backgroundColor: statusColor + "22",
-                        paddingHorizontal: 9,
-                        paddingVertical: 3,
-                        borderRadius: 8,
-                        flexShrink: 0,
-                      }}>
-                        <Text style={{ fontSize: 11, fontWeight: "700", color: statusColor }}>
-                          {appt.status.charAt(0).toUpperCase() + appt.status.slice(1)}
-                        </Text>
-                      </View>
-                    </View>
-                    {/* Row 2: service name + duration */}
-                    <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }} numberOfLines={1}>
-                      {svc ? `${svc.name} (${appt.duration ?? svc.duration} min)` : "Service"}
-                    </Text>
-                    {/* Row 3: client name · phone + staff dot */}
-                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                      <Text style={{ fontSize: 13, color: colors.muted, flex: 1, marginRight: 8 }} numberOfLines={1}>
-                        {client?.name ?? "Client"}{clientPhone ? ` · ${clientPhone}` : ""}
-                      </Text>
-                      {staffMember ? (
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flexShrink: 0 }}>
-                          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: accentColor }} />
-                          <Text style={{ fontSize: 13, color: accentColor, fontWeight: "600" }} numberOfLines={1}>
-                            {staffMember.name}
-                          </Text>
-                        </View>
-                      ) : null}
-                    </View>
-                    {/* Row 4: location badge — shown only in All Locations mode */}
-                    {!selectedLocationFilter && apptLocation && (
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
-                        <IconSymbol name="mappin.circle.fill" size={12} color={colors.muted} />
-                        <Text style={{ fontSize: 12, color: colors.muted }} numberOfLines={1}>{apptLocation.name}</Text>
-                      </View>
-                    )}
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
+        {/* ─── Schedule Card (Today + Upcoming) ─────────────────────── */}
+        <ScheduleCard
+          todayAppts={todayAppts}
+          upcomingAppointments={upcomingAppointments}
+          selectedLocationFilter={selectedLocationFilter}
+          getServiceById={getServiceById}
+          getClientById={getClientById}
+          staff={state.staff}
+          locations={state.locations}
+        />
       </ScrollView>
 
       {/* FAB */}

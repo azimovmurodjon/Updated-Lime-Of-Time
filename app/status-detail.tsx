@@ -48,7 +48,9 @@ const TIMELINES: { key: TimelineKey; label: string }[] = [
 
 function getDateRange(key: TimelineKey): { start: string; end: string } {
   const now = new Date();
-  const today = formatDateStr(now);
+  // Use end of current month as the far-future bound so upcoming appointments are included
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const farFuture = formatDateStr(endOfMonth);
   switch (key) {
     case "week": {
       const s = new Date(now);
@@ -65,17 +67,17 @@ function getDateRange(key: TimelineKey): { start: string; end: string } {
     case "3m": {
       const s = new Date(now);
       s.setMonth(now.getMonth() - 3);
-      return { start: formatDateStr(s), end: today };
+      return { start: formatDateStr(s), end: farFuture };
     }
     case "6m": {
       const s = new Date(now);
       s.setMonth(now.getMonth() - 6);
-      return { start: formatDateStr(s), end: today };
+      return { start: formatDateStr(s), end: farFuture };
     }
     case "year": {
       const s = new Date(now);
       s.setFullYear(now.getFullYear() - 1);
-      return { start: formatDateStr(s), end: today };
+      return { start: formatDateStr(s), end: farFuture };
     }
   }
 }
