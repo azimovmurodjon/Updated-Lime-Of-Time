@@ -183,6 +183,8 @@ export default function OnboardingScreen() {
   const [step, setStep] = useState<Step>(isSocialFlow ? "socialPhone" : 1);
   const prevStepRef = useRef<Step>(isSocialFlow ? "socialPhone" : 1);
   const [displayStep, setDisplayStep] = useState<Step>(isSocialFlow ? "socialPhone" : 1);
+  // Increment to force PlanCarousel remount (resets inner scroll to top) each time subscription step is shown
+  const [planCarouselKey, setPlanCarouselKey] = useState(0);
   const slideX = useSharedValue(0);
   const slideOpacity = useSharedValue(1);
 
@@ -453,6 +455,10 @@ export default function OnboardingScreen() {
       otpBoxScales.forEach(s => { s.value = 1; });
       otpBoxBorders.forEach(b => { b.value = 0; });
       // Auto-focus removed — user taps to start entering OTP
+    }
+    if (displayStep === "subscription") {
+      // Force PlanCarousel to remount so its inner scroll resets to top (Solo plan visible first)
+      setPlanCarouselKey(k => k + 1);
     }
   }, [displayStep]);
 
@@ -1343,6 +1349,7 @@ export default function OnboardingScreen() {
 
                 <Animated.View style={[inputStyle]}>
                   <PlanCarousel
+                    key={planCarouselKey}
                     plans={(publicPlans ?? []) as any}
                     isLoading={plansLoading}
                     isYearly={subIsYearly}

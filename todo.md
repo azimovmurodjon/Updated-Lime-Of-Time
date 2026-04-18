@@ -1368,3 +1368,4 @@
 - [ ] Verify OTP flow end-to-end with real Twilio number
 - [x] Remove autoFocus from onboarding phone, OTP, and business-info screens so keyboard only opens on tap
 - [x] Remove Done button from phone number entry screen (changed returnKeyType from "done" to "next")
+- [x] Fix Choose Plan onboarding page to always start from top (Solo plan first, not scrolled to Most Popular)

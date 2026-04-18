@@ -10,7 +10,7 @@
  *  - Billing toggle at top
  *  - Compare all plans modal preserved
  */
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -245,6 +245,13 @@ export function PlanCarousel({
   const colors = useColors();
   const [showCompare, setShowCompare] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+
+  // When used in onboarding, always reset scroll to top so Solo plan is visible first
+  useEffect(() => {
+    if (isOnboarding && scrollRef.current) {
+      scrollRef.current.scrollTo({ y: 0, animated: false });
+    }
+  }, [isOnboarding]);
 
   if (isLoading) {
     return (
