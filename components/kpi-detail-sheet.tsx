@@ -489,8 +489,8 @@ export function KpiDetailSheet({
             onClose={onClose}
           />
 
-          {/* ─── Date Range Filter ─────────────────────────────────── */}
-          <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 4 }}>
+            {/* ─── Date Range Filter (hidden when a specific slide filter is active) ─── */}
+          {!slideFilter && <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 4 }}>
             {(["week", "month", "all"] as KpiDateRange[]).map((r) => {
               const labels: Record<KpiDateRange, string> = { week: "This Week", month: "This Month", all: "All Time" };
               const active = dateRange === r;
@@ -515,10 +515,10 @@ export function KpiDetailSheet({
                 </Pressable>
               );
             })}
-          </View>
+          </View>}
 
           <ScrollView
-            contentContainerStyle={{ padding: 20, paddingBottom: 48 }}
+            contentContainerStyle={{ padding: 20, paddingTop: slideFilter ? 16 : 20, paddingBottom: 48 }}
             showsVerticalScrollIndicator={false}
             style={{ flex: 1 }}
           >

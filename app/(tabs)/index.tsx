@@ -36,6 +36,7 @@ import QRCode from "react-native-qrcode-svg";
 import Svg, { Path as SvgPath } from "react-native-svg";
 import { TourOverlay } from "@/components/tour-overlay";
 import { usePlanLimitCheck } from "@/hooks/use-plan-limit-check";
+import { RevenueChartCard } from "@/components/revenue-chart-card";
 
 // App logo URL (same as app.config.ts logoUrl)
 const APP_LOGO_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/jHoNjHdLsUGgpFhz.png";
@@ -729,6 +730,57 @@ export default function HomeScreen() {
         return sum + (svc?.price ?? 0);
       }, 0);
 
+    // ─── Hourly data (today by hour, 8am-8pm) ──────────────────────────────
+    const CHART_COLOR = "#00C896"; // single modern teal-green color for all charts
+    const hourlyData: { label: string; value: number; apptCount: number }[] = [];
+    const todayAppts = filterByLocation(state.appointments).filter((a) => a.date === todayStr && a.status !== "cancelled");
+    for (let h = 8; h <= 20; h++) {
+      const hLabel = h < 12 ? `${h}am` : h === 12 ? "12pm" : `${h - 12}pm`;
+      const hAppts = todayAppts.filter((a) => {
+        const mins = timeToMinutes(a.time);
+        return mins >= h * 60 && mins < (h + 1) * 60;
+      });
+      const hRev = hAppts.filter((a) => a.status === "completed").reduce((sum, a) => {
+        if (a.totalPrice != null) return sum + a.totalPrice;
+        const svc = state.services.find((s) => s.id === a.serviceId);
+        return sum + (svc?.price ?? 0);
+      }, 0);
+      hourlyData.push({ label: hLabel, value: Math.round(hRev), apptCount: hAppts.length });
+    }
+
+    // ─── Monthly data (current month by day) ───────────────────────────────
+    const mStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+    const mLastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const currentMonthDailyData: { label: string; value: number; apptCount: number }[] = [];
+    for (let d = 1; d <= mLastDay; d++) {
+      const dStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      const dAppts = completedAppts.filter((a) => a.date === dStr);
+      const dRev = dAppts.reduce((sum, a) => {
+        if (a.totalPrice != null) return sum + a.totalPrice;
+        const svc = state.services.find((s) => s.id === a.serviceId);
+        return sum + (svc?.price ?? 0);
+      }, 0);
+      const allDAppts = filterByLocation(state.appointments).filter((a) => a.date === dStr && a.status !== "cancelled");
+      currentMonthDailyData.push({ label: String(d), value: Math.round(dRev), apptCount: allDAppts.length });
+    }
+
+    // ─── 12-month yearly data ──────────────────────────────────────────────
+    const yearlyMonthlyData: { label: string; value: number; apptCount: number }[] = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const mStr = d.toLocaleDateString("en-US", { month: "short" });
+      const mS = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+      const mLD = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      const mE = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(mLD).padStart(2, "0")}`;
+      const mRev = completedAppts.filter((a) => a.date >= mS && a.date <= mE).reduce((sum, a) => {
+        if (a.totalPrice != null) return sum + a.totalPrice;
+        const svc = state.services.find((s) => s.id === a.serviceId);
+        return sum + (svc?.price ?? 0);
+      }, 0);
+      const mAppts = filterByLocation(state.appointments).filter((a) => a.date >= mS && a.date <= mE && a.status !== "cancelled").length;
+      yearlyMonthlyData.push({ label: mStr, value: Math.round(mRev), apptCount: mAppts });
+    }
+
     return {
       totalClients,
       totalAppointments,
@@ -753,6 +805,11 @@ export default function HomeScreen() {
       yearlyRevenue,
       todayRevenue,
       todayCompletedCount,
+      hourlyData,
+      currentMonthDailyData,
+      yearlyMonthlyData,
+      CHART_COLOR,
+      mStart,
     };
   }, [state.clients, state.appointments, state.services, filterByLocation, clientsForActiveLocation, todayStr]);
 
@@ -1887,94 +1944,23 @@ export default function HomeScreen() {
             )}
         </View>
 
-        {/* ─── Weekly Overview Chart ───────────────────────────────────── */}
-        <Pressable
-          onPress={() => router.push({ pathname: "/analytics-detail", params: { tab: "revenue" } } as any)}
-          style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
-        >
-        <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 16 }]}>
-          <View style={styles.chartHeader}>
-            <View>
-              <Text style={[styles.chartTitle, { color: colors.foreground }]}>This Week</Text>
-              <Text style={[styles.chartSubtitle, { color: colors.muted }]}>Daily revenue · last 7 days</Text>
-            </View>
-            <View style={{ alignItems: "flex-end" }}>
-              <Text style={{ fontSize: 18, fontWeight: "800", color: colors.foreground }}>
-                ${analytics.weekRevenue.toLocaleString()}
-              </Text>
-              {revenueChange !== 0 && (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 }}>
-                  <IconSymbol
-                    name={revenueChange > 0 ? "arrow.up.right" : "arrow.down.right"}
-                    size={11}
-                    color={revenueChange > 0 ? colors.success : colors.error}
-                  />
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: revenueChange > 0 ? colors.success : colors.error }}>
-                    {Math.abs(revenueChange)}% vs last week
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
-          <MiniBarChart
-            data={analytics.weeklyDailyData}
-            height={isTablet ? 220 : 180}
-            width={contentWidth - 32}
-          />
-          {/* Appointment count row below bars */}
-          <View style={{ flexDirection: "row", marginTop: 8, paddingHorizontal: 4 }}>
-            {analytics.weeklyDailyData.map((d, i) => (
-              <View key={i} style={{ flex: 1, alignItems: "center" }}>
-                <View style={[
-                  { paddingHorizontal: 4, paddingVertical: 2, borderRadius: 6, minWidth: 22, alignItems: "center" },
-                  d.apptCount > 0 ? { backgroundColor: d.color + "20" } : {},
-                ]}>
-                  <Text style={{ fontSize: 10, fontWeight: "700", color: d.apptCount > 0 ? d.color : colors.border }}>
-                    {d.apptCount > 0 ? `${d.apptCount}` : "–"}
-                  </Text>
-                </View>
-                <Text style={{ fontSize: 9, color: colors.muted, marginTop: 1 }}>appts</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-        </Pressable>
-
-        {/* ─── Revenue Trend (6-month) ────────────────────────────── */}
-        <Pressable
-          onPress={() => router.push({ pathname: "/analytics-detail", params: { tab: "revenue" } } as any)}
-          style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
-        >
-        <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 12 }]}>
-          <View style={styles.chartHeader}>
-            <View>
-              <Text style={[styles.chartTitle, { color: colors.foreground }]}>Revenue Trend</Text>
-              <Text style={[styles.chartSubtitle, { color: colors.muted }]}>Last 6 months</Text>
-            </View>
-            <View style={{ alignItems: "flex-end" }}>
-              <Text style={{ fontSize: 18, fontWeight: "800", color: colors.foreground }}>
-                ${analytics.monthlyData.reduce((s, d) => s + d.value, 0).toLocaleString()}
-              </Text>
-              {(() => {
-                const months = analytics.monthlyData;
-                const prev = months[months.length - 2]?.value ?? 0;
-                const curr = months[months.length - 1]?.value ?? 0;
-                const pct = prev > 0 ? Math.round(((curr - prev) / prev) * 100) : curr > 0 ? 100 : 0;
-                if (pct === 0) return null;
-                return (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 }}>
-                    <IconSymbol name={pct > 0 ? "arrow.up.right" : "arrow.down.right"} size={11} color={pct > 0 ? colors.success : colors.error} />
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: pct > 0 ? colors.success : colors.error }}>
-                      {Math.abs(pct)}% vs last month
-                    </Text>
-                  </View>
-                );
-              })()}
-            </View>
-          </View>
-          <MiniBarChart data={analytics.monthlyData} height={isTablet ? 220 : 190} width={contentWidth - 32} />
-        </View>
-        </Pressable>
+        {/* ─── Unified Revenue Chart Card ───────────────────────────────── */}
+        <RevenueChartCard
+          hourlyData={analytics.hourlyData}
+          weeklyData={analytics.weeklyDailyData.map((d) => ({ label: d.label, value: d.value, apptCount: d.apptCount }))}
+          currentMonthData={analytics.currentMonthDailyData}
+          sixMonthData={analytics.monthlyData.map((d) => ({ label: d.label, value: d.value, apptCount: 0 }))}
+          yearlyData={analytics.yearlyMonthlyData}
+          todayRevenue={analytics.todayRevenue}
+          weekRevenue={analytics.weekRevenue}
+          monthRevenue={analytics.currentMonthDailyData.reduce((s, d) => s + d.value, 0)}
+          sixMonthRevenue={analytics.monthlyData.reduce((s, d) => s + d.value, 0)}
+          yearRevenue={analytics.yearlyRevenue}
+          revenueChange={revenueChange}
+          monthName={new Date().toLocaleDateString("en-US", { month: "long" })}
+          onPress={(period) => router.push({ pathname: "/analytics-detail", params: { tab: "revenue" } } as any)}
+          width={contentWidth}
+        />
 
         {/* ─── Service Breakdown + Status (side by side) ────────── */}
         <View style={[styles.sideBySideRow, { gap: cardGap, marginTop: 16 }]}>
