@@ -6,6 +6,7 @@ import {
   StyleSheet,
   NativeSyntheticEvent,
   NativeScrollEvent,
+  Pressable,
 } from "react-native";
 import Svg, { Path, Line, Circle, Defs, LinearGradient as SvgGradient, Stop, Text as SvgText } from "react-native-svg";
 import { useColors } from "@/hooks/use-colors";
@@ -37,6 +38,7 @@ export interface RevenueChartCardProps {
   revenueChange: number;
   monthName: string;
   onPress?: (period: Period) => void;
+  onPointPress?: (period: Period, pointLabel: string, pointValue: number) => void;
   width: number;
 }
 
@@ -46,11 +48,13 @@ function AreaLineChart({
   width,
   height,
   color = ACCENT,
+  onPointPress,
 }: {
   data: ChartPoint[];
   width: number;
   height: number;
   color?: string;
+  onPointPress?: (point: ChartPoint) => void;
 }) {
   const colors = useColors();
   if (!data || data.length === 0) return null;
@@ -103,7 +107,7 @@ function AreaLineChart({
 
   return (
     <View style={{ width, height }}>
-      <Svg width={width} height={height}>
+      <Svg width={width} height={height} style={{ position: "absolute", top: 0, left: 0 }}>
         <Defs>
           <SvgGradient id={`areaGrad_${color.replace("#", "")}`} x1="0" y1="0" x2="0" y2="1">
             <Stop offset="0" stopColor={color} stopOpacity={0.32} />
@@ -170,6 +174,27 @@ function AreaLineChart({
           ) : null
         )}
       </Svg>
+
+      {/* Tappable hit areas over each data point */}
+      {onPointPress && pts.map((p, i) => (
+        <Pressable
+          key={i}
+          onPress={() => onPointPress(p)}
+          style={{
+            position: "absolute",
+            left: p.x - 16,
+            top: p.y - 16,
+            width: 32,
+            height: 32,
+            borderRadius: 16,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          hitSlop={8}
+        >
+          <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color, opacity: 0.3 }} />
+        </Pressable>
+      ))}
     </View>
   );
 }
@@ -191,6 +216,7 @@ export function RevenueChartCard({
   revenueChange,
   monthName,
   onPress,
+  onPointPress,
   width,
 }: RevenueChartCardProps) {
   const colors = useColors();
@@ -304,6 +330,7 @@ export function RevenueChartCard({
                   width={width - 32}
                   height={chartH}
                   color={ACCENT}
+                  onPointPress={onPointPress ? (pt) => onPointPress(p, pt.label, pt.value) : undefined}
                 />
               ) : (
                 <View style={{ height: chartH, alignItems: "center", justifyContent: "center" }}>
@@ -317,7 +344,7 @@ export function RevenueChartCard({
 
       {/* Period label + page dots */}
       <View style={styles.footer}>
-        <Text style={[styles.periodLabel, { color: colors.muted }]}>{activePeriod}</Text>
+        <Text style={[styles.periodLabel, { color: colors.muted }]} numberOfLines={1}>{activePeriod}</Text>
         <View style={styles.dots}>
           {PERIODS.map((_, i) => (
             <View
@@ -382,7 +409,7 @@ const styles = StyleSheet.create({
   periodLabel: {
     fontSize: 11,
     fontWeight: "600",
-    width: 40,
+    width: 56,
   },
   dots: {
     flexDirection: "row",

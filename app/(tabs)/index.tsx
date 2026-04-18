@@ -37,6 +37,7 @@ import Svg, { Path as SvgPath } from "react-native-svg";
 import { TourOverlay } from "@/components/tour-overlay";
 import { usePlanLimitCheck } from "@/hooks/use-plan-limit-check";
 import { RevenueChartCard } from "@/components/revenue-chart-card";
+import { PaymentSummaryCard } from "@/components/payment-summary-card";
 
 // App logo URL (same as app.config.ts logoUrl)
 const APP_LOGO_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/jHoNjHdLsUGgpFhz.png";
@@ -1892,76 +1893,22 @@ export default function HomeScreen() {
           </Pressable>
         )}
 
-        {/* ─── Payment Summary Card ──────────────────────────────────────── */}
-        <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border, padding: 16, marginTop: 12 }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: colors.success + '22', alignItems: 'center', justifyContent: 'center' }}>
-                  <IconSymbol name="dollarsign.circle.fill" size={18} color={colors.success} />
-                </View>
-                <Text style={{ fontSize: 15, fontWeight: '700', color: colors.foreground }}>Payment Summary</Text>
-              </View>
-              <Pressable
-                onPress={() => router.push("/payment-summary" as any)}
-                style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.primary + '15', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 })}
-              >
-                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary }}>Full Summary</Text>
-                <IconSymbol name="chevron.right" size={12} color={colors.primary} />
-              </Pressable>
-            </View>
-
-            {/* Paid / Unpaid row */}
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              {/* Paid — taps into paid filter */}
-              <Pressable
-                onPress={() => router.push({ pathname: '/(tabs)/calendar', params: { filter: 'paid' } } as any)}
-                style={({ pressed }) => ({ flex: 1, backgroundColor: colors.success + '15', borderRadius: 12, padding: 12, opacity: pressed ? 0.75 : 1 })}
-              >
-                <Text style={{ fontSize: 11, fontWeight: '600', color: colors.success, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Paid</Text>
-                <Text style={{ fontSize: 20, fontWeight: '800', color: colors.success }}>${analytics.paidRevenue.toLocaleString()}</Text>
-                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{analytics.paidCount} appointment{analytics.paidCount !== 1 ? 's' : ''}</Text>
-              </Pressable>
-              {/* Unpaid — taps into unpaid filter */}
-              <Pressable
-                onPress={() => router.push({ pathname: '/(tabs)/calendar', params: { filter: 'unpaid' } } as any)}
-                style={({ pressed }) => ({ flex: 1, backgroundColor: colors.error + '15', borderRadius: 12, padding: 12, opacity: pressed ? 0.75 : 1 })}
-              >
-                <Text style={{ fontSize: 11, fontWeight: '600', color: colors.error, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Outstanding</Text>
-                <Text style={{ fontSize: 20, fontWeight: '800', color: colors.error }}>${analytics.unpaidRevenue.toLocaleString()}</Text>
-                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{analytics.unpaidCount} appointment{analytics.unpaidCount !== 1 ? 's' : ''}</Text>
-              </Pressable>
-            </View>
-
-            {/* Payment method breakdown */}
-            {Object.keys(analytics.methodBreakdown).length > 0 && (
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
-                {Object.entries(analytics.methodBreakdown).map(([method, entry]) => (
-                  <View key={method} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.border + '80', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
-                    <Text style={{ fontSize: 12, color: colors.foreground, fontWeight: '600' }}>{entry.label}</Text>
-                    <Text style={{ fontSize: 11, color: colors.muted }}>×{entry.count}</Text>
-                    <Text style={{ fontSize: 11, color: colors.success, fontWeight: '600' }}>${entry.revenue.toFixed(0)}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {/* Progress bar: paid vs total */}
-            {(analytics.paidRevenue + analytics.unpaidRevenue) > 0 && (
-              <View style={{ marginTop: 10 }}>
-                <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden' }}>
-                  <View style={{
-                    height: 6,
-                    borderRadius: 3,
-                    backgroundColor: colors.success,
-                    width: `${Math.round((analytics.paidRevenue / (analytics.paidRevenue + analytics.unpaidRevenue)) * 100)}%` as any,
-                  }} />
-                </View>
-                <Text style={{ fontSize: 11, color: colors.muted, marginTop: 4 }}>
-                  {Math.round((analytics.paidRevenue / (analytics.paidRevenue + analytics.unpaidRevenue)) * 100)}% collected
-                </Text>
-              </View>
-            )}
-        </View>
+        {/* ─── Payment Summary Card (swipeable: Payment / By Service / Status) ── */}
+        <PaymentSummaryCard
+          paidRevenue={analytics.paidRevenue}
+          unpaidRevenue={analytics.unpaidRevenue}
+          paidCount={analytics.paidCount}
+          unpaidCount={analytics.unpaidCount}
+          methodBreakdown={analytics.methodBreakdown}
+          serviceBreakdown={analytics.serviceBreakdown}
+          statusCounts={analytics.statusCounts}
+          totalAppointments={analytics.totalAppointments}
+          width={contentWidth}
+          onPressPaid={() => router.push({ pathname: '/(tabs)/calendar', params: { filter: 'paid' } } as any)}
+          onPressUnpaid={() => router.push({ pathname: '/(tabs)/calendar', params: { filter: 'unpaid' } } as any)}
+          onPressFullSummary={() => router.push('/payment-summary' as any)}
+          onPressStatus={(status) => router.push({ pathname: '/status-detail', params: { status } } as any)}
+        />
 
         {/* ─── Unified Revenue Chart Card ───────────────────────────────── */}
         <RevenueChartCard
@@ -1985,111 +1932,62 @@ export default function HomeScreen() {
 
         {/* ─── Service Breakdown + Status (side by side) ────────── */}
         <View style={[styles.sideBySideRow, { gap: cardGap, marginTop: 16 }]}>
-          {/* Service Breakdown */}
-          <View
-            style={[
-              styles.chartCard,
-              {
-                flex: 1,
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-              },
-            ]}
-          >
-            <Text
-              style={[
-                styles.chartTitle,
-                { color: colors.foreground, marginBottom: 12 },
-              ]}
-            >
-              By Service
-            </Text>
+          {/* Service Breakdown - Modern horizontal bar chart */}
+          <View style={[styles.chartCard, { flex: 1, backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.chartTitle, { color: colors.foreground, marginBottom: 12 }]}>By Service</Text>
             {analytics.serviceBreakdown.length > 0 ? (
-              <MiniDonutChart
-                data={analytics.serviceBreakdown.slice(0, 4)}
-                size={70}
-                compact
-              />
+              <View style={{ gap: 8 }}>
+                {analytics.serviceBreakdown.slice(0, 4).map((item, i) => {
+                  const maxVal = Math.max(...analytics.serviceBreakdown.slice(0, 4).map((d) => d.value), 1);
+                  return (
+                    <View key={i} style={{ gap: 3 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flex: 1 }}>
+                          <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: item.color }} />
+                          <Text style={{ fontSize: 11, color: colors.foreground, fontWeight: '600', flex: 1 }} numberOfLines={1}>{item.label}</Text>
+                        </View>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: item.color, marginLeft: 4 }}>{item.value}</Text>
+                      </View>
+                      <View style={{ height: 5, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden' }}>
+                        <View style={{ height: 5, borderRadius: 3, backgroundColor: item.color, width: `${Math.round((item.value / maxVal) * 100)}%` as any, opacity: 0.85 }} />
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
             ) : (
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: colors.muted,
-                  textAlign: "center",
-                  paddingVertical: 20,
-                }}
-              >
-                No data yet
-              </Text>
+              <Text style={{ fontSize: 12, color: colors.muted, textAlign: 'center', paddingVertical: 20 }}>No data yet</Text>
             )}
           </View>
 
-          {/* Status Breakdown */}
-          <View
-            style={[
-              styles.chartCard,
-              {
-                flex: 1,
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-              },
-            ]}
+          {/* Status Breakdown - tappable rows navigating to status-detail */}
+          <Pressable
+            onPress={() => router.push({ pathname: '/status-detail', params: { status: 'all' } } as any)}
+            style={[styles.chartCard, { flex: 1, backgroundColor: colors.surface, borderColor: colors.border }]}
           >
-            <Text
-              style={[
-                styles.chartTitle,
-                { color: colors.foreground, marginBottom: 12 },
-              ]}
-            >
-              Status
-            </Text>
+            <Text style={[styles.chartTitle, { color: colors.foreground, marginBottom: 12 }]}>Status</Text>
             <View style={styles.statusList}>
               {[
-                {
-                  label: "Completed",
-                  value: analytics.statusCounts.completed,
-                  color: colors.primary,
-                },
-                {
-                  label: "Confirmed",
-                  value: analytics.statusCounts.confirmed,
-                  color: colors.success,
-                },
-                {
-                  label: "Pending",
-                  value: analytics.statusCounts.pending,
-                  color: "#FF9800",
-                },
-                {
-                  label: "Cancelled",
-                  value: analytics.statusCounts.cancelled,
-                  color: colors.error,
-                },
+                { label: 'Completed', value: analytics.statusCounts.completed, color: '#00C896' },
+                { label: 'Confirmed', value: analytics.statusCounts.confirmed, color: colors.primary },
+                { label: 'Pending', value: analytics.statusCounts.pending, color: '#FF9800' },
+                { label: 'Cancelled', value: analytics.statusCounts.cancelled, color: colors.error },
               ].map((item) => (
                 <View key={item.label} style={styles.statusItem}>
                   <View style={styles.statusLabelRow}>
-                    <Text style={[styles.statusLabel, { color: colors.muted }]}>
-                      {item.label}
-                    </Text>
-                    <Text
-                      style={[styles.statusValue, { color: item.color }]}
-                    >
-                      {item.value}
-                    </Text>
+                    <Text style={[styles.statusLabel, { color: colors.muted }]}>{item.label}</Text>
+                    <Text style={[styles.statusValue, { color: item.color }]}>{item.value}</Text>
                   </View>
                   <ProgressBar
                     value={item.value}
-                    max={Math.max(
-                      analytics.totalAppointments + analytics.statusCounts.cancelled,
-                      1
-                    )}
+                    max={Math.max(analytics.totalAppointments + analytics.statusCounts.cancelled, 1)}
                     color={item.color}
-                    bgColor={colors.border + "60"}
+                    bgColor={colors.border + '60'}
                   />
                 </View>
               ))}
             </View>
-          </View>
+          </Pressable>
         </View>
         {/* ─── Birthday Banner ──────────────────────────────────────── */}
         {birthdayClients.length > 0 && (
