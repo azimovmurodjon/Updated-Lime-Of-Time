@@ -39,6 +39,54 @@ function getEndTime(time: string, duration: number): string {
   return formatTime(minutesToTime(timeToMinutes(time) + duration));
 }
 
+/** Returns a human-readable group label for a date string (YYYY-MM-DD). */
+function getDateGroupLabel(dateStr: string, todayStr: string): string {
+  const today = new Date(todayStr + "T12:00:00");
+  const date = new Date(dateStr + "T12:00:00");
+  const diffDays = Math.round((date.getTime() - today.getTime()) / 86_400_000);
+
+  if (diffDays === 1) return "Tomorrow";
+
+  // Start of this week (Sunday) and next week
+  const todayDow = today.getDay(); // 0=Sun
+  const startOfThisWeek = new Date(today);
+  startOfThisWeek.setDate(today.getDate() - todayDow);
+  const startOfNextWeek = new Date(startOfThisWeek);
+  startOfNextWeek.setDate(startOfThisWeek.getDate() + 7);
+  const startOfWeekAfter = new Date(startOfNextWeek);
+  startOfWeekAfter.setDate(startOfNextWeek.getDate() + 7);
+
+  if (date >= startOfThisWeek && date < startOfNextWeek) return "This Week";
+  if (date >= startOfNextWeek && date < startOfWeekAfter) return "Next Week";
+
+  // Month label for anything further out
+  const MONTHS = ["January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"];
+  const sameYear = date.getFullYear() === today.getFullYear();
+  return sameYear
+    ? MONTHS[date.getMonth()]
+    : `${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+/** Groups appointments by date-label, preserving order. */
+function groupUpcomingAppts(
+  appts: Appointment[],
+  todayStr: string
+): { label: string; items: Appointment[] }[] {
+  const groups: { label: string; items: Appointment[] }[] = [];
+  let currentLabel = "";
+  for (const appt of appts) {
+    const label = getDateGroupLabel(appt.date, todayStr);
+    if (label !== currentLabel) {
+      groups.push({ label, items: [appt] });
+      currentLabel = label;
+    } else {
+      groups[groups.length - 1].items.push(appt);
+    }
+  }
+  return groups;
+}
+
 const SLIDES = ["Today", "Upcoming"] as const;
 type Slide = typeof SLIDES[number];
 
@@ -314,22 +362,48 @@ export function ScheduleCard({
             <ScrollView
               showsVerticalScrollIndicator={false}
               nestedScrollEnabled
-              contentContainerStyle={{ gap: 10, paddingBottom: 4 }}
+              contentContainerStyle={{ paddingBottom: 4 }}
               style={{ maxHeight: MAX_TODAY_VISIBLE * APPT_ROW_HEIGHT + (MAX_TODAY_VISIBLE - 1) * 10 }}
             >
-              {upcomingAppointments.map((appt) => (
-                <ApptRow
-                  key={appt.id}
-                  appt={appt}
-                  showDate={true}
-                  selectedLocationFilter={selectedLocationFilter}
-                  getServiceById={getServiceById}
-                  getClientById={getClientById}
-                  staff={staff}
-                  locations={locations}
-                  colors={colors}
-                  router={router}
-                />
+              {groupUpcomingAppts(upcomingAppointments, todayStr).map((group) => (
+                <View key={group.label}>
+                  {/* Group header */}
+                  <View style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                    marginBottom: 8,
+                    marginTop: 4,
+                  }}>
+                    <Text style={{
+                      fontSize: 11,
+                      fontWeight: "700",
+                      color: ACCENT,
+                      textTransform: "uppercase",
+                      letterSpacing: 0.8,
+                    }}>
+                      {group.label}
+                    </Text>
+                    <View style={{ flex: 1, height: 1, backgroundColor: ACCENT + "30" }} />
+                  </View>
+                  {/* Appointments in this group */}
+                  <View style={{ gap: 10, marginBottom: 12 }}>
+                    {group.items.map((appt) => (
+                      <ApptRow
+                        key={appt.id}
+                        appt={appt}
+                        showDate={true}
+                        selectedLocationFilter={selectedLocationFilter}
+                        getServiceById={getServiceById}
+                        getClientById={getClientById}
+                        staff={staff}
+                        locations={locations}
+                        colors={colors}
+                        router={router}
+                      />
+                    ))}
+                  </View>
+                </View>
               ))}
             </ScrollView>
           )}

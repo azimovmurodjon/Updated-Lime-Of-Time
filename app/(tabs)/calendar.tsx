@@ -1120,11 +1120,12 @@ export default function CalendarScreen() {
               {hasCustomOverride && !isSelected && (
                 <View style={[styles.overrideDot, { backgroundColor: custom?.isOpen ? colors.success : colors.error }]} />
               )}
-              {/* Status dots */}
+              {/* Appointment dots — one per status present on this day */}
               <View style={styles.dotsRow}>
-                {statuses?.has("confirmed") && <View style={[styles.dot, { backgroundColor: "#1B5E20" }]} />}
-                {statuses?.has("pending") && <View style={[styles.dot, { backgroundColor: "#2196F3" }]} />}
-                {statuses?.has("cancelled") && <View style={[styles.dot, { backgroundColor: "#F44336" }]} />}
+                {statuses?.has("confirmed") && <View style={[styles.dot, { backgroundColor: colors.success }]} />}
+                {statuses?.has("pending") && <View style={[styles.dot, { backgroundColor: "#FF9800" }]} />}
+                {statuses?.has("completed") && <View style={[styles.dot, { backgroundColor: colors.primary }]} />}
+                {statuses?.has("cancelled") && <View style={[styles.dot, { backgroundColor: colors.muted }]} />}
               </View>
             </Pressable>
           );
@@ -1133,10 +1134,10 @@ export default function CalendarScreen() {
 
       {/* Legend */}
       <View style={[styles.dotLegend, { paddingHorizontal: hp }]}>
-        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: colors.success }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Open Override</Text></View>
-        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: colors.error }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Closed Override</Text></View>
-        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: "#1B5E20" }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Accepted</Text></View>
-        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: "#2196F3" }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Pending</Text></View>
+        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: colors.success }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Confirmed</Text></View>
+        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: "#FF9800" }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Pending</Text></View>
+        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: colors.primary }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Completed</Text></View>
+        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: colors.muted }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Cancelled</Text></View>
       </View>
 
       {/* Selected Date Panel */}
@@ -1827,8 +1828,8 @@ const styles = StyleSheet.create({
   dayHeaderRow: { flexDirection: "row", marginBottom: 4 },
   calendarGrid: { flexDirection: "row", flexWrap: "wrap", width: "100%" },
   dayCell: { alignItems: "center", justifyContent: "center" },
-  dotsRow: { flexDirection: "row", gap: 2, position: "absolute", bottom: 3 },
-  dot: { width: 4, height: 4, borderRadius: 2 },
+  dotsRow: { flexDirection: "row", gap: 2, position: "absolute", bottom: 2 },
+  dot: { width: 5, height: 5, borderRadius: 2.5 },
   overrideDot: { width: 5, height: 5, borderRadius: 2.5, position: "absolute", top: 3, right: 6 },
   dotLegend: { flexDirection: "row", justifyContent: "center", gap: 12, marginTop: 6, marginBottom: 8, flexWrap: "wrap" },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
