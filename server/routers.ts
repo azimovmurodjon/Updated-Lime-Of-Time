@@ -436,6 +436,15 @@ const appointmentsRouter = router({
       await db.bulkMarkPaid(input.localIds, input.businessOwnerId, input.paymentMethod);
       return { success: true, count: input.localIds.length };
     }),
+  bulkMarkUnpaid: publicProcedure
+    .input(z.object({
+      localIds: z.array(z.string()),
+      businessOwnerId: z.number(),
+    }))
+    .mutation(async ({ input }) => {
+      await db.bulkMarkUnpaid(input.localIds, input.businessOwnerId);
+      return { success: true, count: input.localIds.length };
+    }),
 });
 // ─── Reviews Router ──────────────────────────────────────────────────
 

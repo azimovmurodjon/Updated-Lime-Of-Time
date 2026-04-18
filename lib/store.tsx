@@ -480,6 +480,8 @@ interface StoreContextType {
   refreshFromDb: () => Promise<void>;
   /** Bulk mark multiple appointments as paid in a single DB call */
   bulkMarkPaid: (localIds: string[], paymentMethod: string) => Promise<void>;
+  /** Bulk revert appointments back to unpaid in a single DB call (for undo) */
+  bulkMarkUnpaid: (localIds: string[]) => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextType | null>(null);
@@ -874,6 +876,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const updateApptMut = trpc.appointments.update.useMutation();
   const deleteApptMut = trpc.appointments.delete.useMutation();
   const bulkMarkPaidMut = trpc.appointments.bulkMarkPaid.useMutation();
+  const bulkMarkUnpaidMut = trpc.appointments.bulkMarkUnpaid.useMutation();
   const createReviewMut = trpc.reviews.create.useMutation();
   const deleteReviewMut = trpc.reviews.delete.useMutation();
   const updateBusinessMut = trpc.business.update.useMutation();
@@ -2075,6 +2078,28 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [state.businessOwnerId, state.appointments, dispatch, bulkMarkPaidMut]
   );
 
+  const bulkMarkUnpaid = useCallback(
+    async (localIds: string[]) => {
+      if (!state.businessOwnerId || localIds.length === 0) return;
+      // Optimistically revert local state for all appointments
+      localIds.forEach((id) => {
+        const appt = state.appointments.find((a) => a.id === id);
+        if (appt) {
+          dispatch({
+            type: "UPDATE_APPOINTMENT",
+            payload: { ...appt, paymentStatus: "unpaid" as const, paymentMethod: "unpaid" as Appointment["paymentMethod"] },
+          });
+        }
+      });
+      // Single bulk DB call
+      await bulkMarkUnpaidMut.mutateAsync({
+        localIds,
+        businessOwnerId: state.businessOwnerId,
+      });
+    },
+    [state.businessOwnerId, state.appointments, dispatch, bulkMarkUnpaidMut]
+  );
+
   const setActiveLocation = useCallback(
     (locationId: string | null) => {
       dispatch({ type: "SET_ACTIVE_LOCATION", payload: locationId });
@@ -2150,6 +2175,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setActiveLocation,
         refreshFromDb,
         bulkMarkPaid,
+        bulkMarkUnpaid,
       }}
     >
       {children}

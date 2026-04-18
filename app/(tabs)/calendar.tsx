@@ -262,7 +262,7 @@ function TimelineView({
 }
 
 export default function CalendarScreen() {
-  const { state, dispatch, getServiceById, getClientById, getStaffById, getLocationById, syncToDb, filterAppointmentsByLocation, getActiveCustomSchedule, bulkMarkPaid } = useStore();
+  const { state, dispatch, getServiceById, getClientById, getStaffById, getLocationById, syncToDb, filterAppointmentsByLocation, getActiveCustomSchedule, bulkMarkPaid, bulkMarkUnpaid } = useStore();
   const colors = useColors();
   const router = useRouter();
   const params = useLocalSearchParams<{ filter?: string; date?: string; view?: string }>();
@@ -327,6 +327,8 @@ export default function CalendarScreen() {
   const [payModalAppt, setPayModalAppt] = useState<Appointment | null>(null);
   const [payModalMethod, setPayModalMethod] = useState<PaymentMethodKey>("cash");
   const [payModalIsBulk, setPayModalIsBulk] = useState(false);
+  const [undoToast, setUndoToast] = useState<{ count: number; ids: string[] } | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const doMarkPaid = useCallback(async (appts: Appointment[], method: PaymentMethodKey) => {
     if (appts.length === 0) return;
@@ -1805,7 +1807,13 @@ export default function CalendarScreen() {
             <Pressable
               onPress={() => {
                 if (payModalIsBulk) {
-                  doMarkPaid(filteredAppointments.filter((a) => a.paymentStatus !== "paid"), payModalMethod);
+                  const apptsToPay = filteredAppointments.filter((a) => a.paymentStatus !== "paid");
+                  const ids = apptsToPay.map((a) => a.id);
+                  doMarkPaid(apptsToPay, payModalMethod);
+                  // Show undo toast for 5 seconds
+                  if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+                  setUndoToast({ count: apptsToPay.length, ids });
+                  undoTimerRef.current = setTimeout(() => setUndoToast(null), 5000);
                 } else if (payModalAppt) {
                   doMarkPaid([payModalAppt], payModalMethod);
                 }
@@ -1822,6 +1830,25 @@ export default function CalendarScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Undo toast — appears after bulk Mark All Paid */}
+      {undoToast && (
+        <View style={styles.undoToast}>
+          <Text style={styles.undoToastText}>
+            {undoToast.count} appointment{undoToast.count !== 1 ? "s" : ""} marked paid
+          </Text>
+          <Pressable
+            onPress={() => {
+              if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+              bulkMarkUnpaid(undoToast.ids);
+              setUndoToast(null);
+            }}
+            style={({ pressed }) => [styles.undoBtn, { opacity: pressed ? 0.7 : 1 }]}
+          >
+            <Text style={styles.undoBtnText}>Undo</Text>
+          </Pressable>
+        </View>
+      )}
     </ScreenContainer>
   );
 }
@@ -1865,4 +1892,25 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, paddingBottom: 40 },
   modalBtn: { paddingVertical: 14, borderRadius: 14, borderWidth: 1, alignItems: "center" },
+  undoToast: {
+    position: "absolute",
+    bottom: 90,
+    left: 16,
+    right: 16,
+    backgroundColor: "#1F2937",
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    gap: 10,
+    zIndex: 999,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  undoToastText: { flex: 1, color: "#FFF", fontSize: 14, fontWeight: "500" },
+  undoBtn: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: "#00C896", borderRadius: 10 },
+  undoBtnText: { color: "#FFF", fontWeight: "700", fontSize: 13 },
 });

@@ -299,7 +299,7 @@ export function ScheduleCard({
         style={{ width: cardWidth }}
       >
         {/* Slide 1: Today */}
-        <View style={{ width: cardWidth, paddingHorizontal: 0, paddingBottom: 4 }}>
+        <View style={{ width: cardWidth, paddingHorizontal: 14, paddingBottom: 4 }}>
           {todayAppts.length === 0 ? (
             <View style={[styles.emptyState, { borderColor: colors.border }]}>
               <View style={{ width: 56, height: 56, borderRadius: 18, backgroundColor: ACCENT + "15", alignItems: "center", justifyContent: "center", marginBottom: 4 }}>
@@ -347,7 +347,7 @@ export function ScheduleCard({
         </View>
 
         {/* Slide 2: Upcoming */}
-        <View style={{ width: cardWidth, paddingHorizontal: 0, paddingBottom: 4 }}>
+        <View style={{ width: cardWidth, paddingHorizontal: 14, paddingBottom: 4 }}>
           {upcomingAppointments.length === 0 ? (
             <View style={[styles.emptyState, { borderColor: colors.border, paddingVertical: 24 }]}>
               <IconSymbol name="calendar.badge.checkmark" size={32} color={ACCENT + "70"} />

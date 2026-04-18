@@ -446,6 +446,28 @@ export async function bulkMarkPaid(
   }
 }
 
+export async function bulkMarkUnpaid(
+  localIds: string[],
+  businessOwnerId: number
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (localIds.length === 0) return;
+  const CHUNK = 200;
+  for (let i = 0; i < localIds.length; i += CHUNK) {
+    const chunk = localIds.slice(i, i + CHUNK);
+    await db
+      .update(appointments)
+      .set({ paymentStatus: "unpaid", paymentMethod: "unpaid" })
+      .where(
+        and(
+          eq(appointments.businessOwnerId, businessOwnerId),
+          inArray(appointments.localId, chunk)
+        )
+      );
+  }
+}
+
 export async function deleteAppointment(
   localId: string,
   businessOwnerId: number

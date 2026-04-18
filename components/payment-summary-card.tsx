@@ -14,6 +14,15 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 
 const ACCENT = "#00C896";
 
+const METHOD_COLORS: Record<string, string> = {
+  cash: "#22C55E",
+  zelle: "#6366F1",
+  venmo: "#3B82F6",
+  cashapp: "#00C896",
+  free: "#9CA3AF",
+  unpaid: "#EF4444",
+};
+
 const SLIDES = ["Status", "Payment", "By Service"] as const;
 type Slide = typeof SLIDES[number];
 
@@ -471,12 +480,29 @@ export function PaymentSummaryCard({
 
           {/* Payment method breakdown */}
           {Object.keys(methodBreakdown).length > 0 && (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-              {Object.entries(methodBreakdown).map(([method, entry]) => (
-                <View key={method} style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.border + "80", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
-                  <Text style={{ fontSize: 12, color: colors.foreground, fontWeight: "600" }}>{entry.label}</Text>
-                  <Text style={{ fontSize: 11, color: colors.muted }}>×{entry.count}</Text>
-                  <Text style={{ fontSize: 11, color: ACCENT, fontWeight: "600" }}>${entry.revenue.toFixed(0)}</Text>
+            <View style={{ marginTop: 12, gap: 0 }}>
+              <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>By Payment Method</Text>
+              {Object.entries(methodBreakdown)
+                .sort((a, b) => b[1].revenue - a[1].revenue)
+                .map(([method, entry], idx, arr) => (
+                <View
+                  key={method}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingVertical: 8,
+                    borderBottomWidth: idx < arr.length - 1 ? 0.5 : 0,
+                    borderBottomColor: colors.border,
+                  }}
+                >
+                  {/* Color dot */}
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: METHOD_COLORS[method] ?? ACCENT, marginRight: 8 }} />
+                  {/* Method name */}
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground, flex: 1 }}>{entry.label}</Text>
+                  {/* Count */}
+                  <Text style={{ fontSize: 12, color: colors.muted, marginRight: 10 }}>{entry.count} appt{entry.count !== 1 ? "s" : ""}</Text>
+                  {/* Revenue */}
+                  <Text style={{ fontSize: 13, fontWeight: "800", color: METHOD_COLORS[method] ?? ACCENT }}>${entry.revenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
                 </View>
               ))}
             </View>
