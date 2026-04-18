@@ -1418,3 +1418,9 @@
 - [x] Wire Top Service KPI card to open topservice tab directly
 - [x] Add date range filter (This Week / This Month / All Time) to KPI detail sheet
 - [x] Build Payment Summary page with date range filter, paid/unpaid breakdown, and subscription-gated PDF download
+- [x] Redesign KPI Card 1 to swipeable Earnings slides (Today/Week/Month/Year/All Time)
+- [x] Redesign KPI Card 2 to swipeable Clients slides (Total/Top Clients/Recently Added/Upcoming Birthdays)
+- [x] Redesign KPI Card 3 to swipeable Appointments slides (Total/Today/Week/Month/Year)
+- [x] Redesign KPI Card 4 to swipeable Top Service slides (All Time/Top 3 This Week/Top 5 This Month)
+- [x] Each KPI slide tap opens correct KPI detail page with correct filter
+- [x] Add Payment Summary shortcut button to Calendar Unpaid filter banner

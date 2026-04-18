@@ -1203,16 +1203,24 @@ export default function CalendarScreen() {
                 </Text>
               </View>
               {isUnpaid && (
-                <Pressable
-                  onPress={() => {
-                    setPayModalIsBulk(true);
-                    setPayModalAppt(null);
-                    setPayModalMethod("cash");
-                  }}
-                  style={({ pressed }) => [{ marginTop: 10, backgroundColor: "#22C55E", borderRadius: 10, paddingVertical: 9, alignItems: "center", opacity: pressed ? 0.8 : 1 }]}
-                >
-                  <Text style={{ color: "#FFF", fontSize: 13, fontWeight: "700" }}>Mark All Paid</Text>
-                </Pressable>
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+                  <Pressable
+                    onPress={() => {
+                      setPayModalIsBulk(true);
+                      setPayModalAppt(null);
+                      setPayModalMethod("cash");
+                    }}
+                    style={({ pressed }) => [{ flex: 1, backgroundColor: "#22C55E", borderRadius: 10, paddingVertical: 9, alignItems: "center", opacity: pressed ? 0.8 : 1 }]}
+                  >
+                    <Text style={{ color: "#FFF", fontSize: 13, fontWeight: "700" }}>Mark All Paid</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => router.push("/payment-summary" as any)}
+                    style={({ pressed }) => [{ flex: 1, backgroundColor: "#3B82F620", borderRadius: 10, paddingVertical: 9, alignItems: "center", borderWidth: 1, borderColor: "#3B82F640", opacity: pressed ? 0.8 : 1 }]}
+                  >
+                    <Text style={{ color: "#3B82F6", fontSize: 13, fontWeight: "700" }}>Payment Summary</Text>
+                  </Pressable>
+                </View>
               )}
             </View>
           );

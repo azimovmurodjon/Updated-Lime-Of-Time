@@ -199,6 +199,71 @@ function GradientKpiCard({
   );
 }
 
+// ─── Swipeable KPI Card (multiple slides with dot indicators) ──────────────
+function SwipeableKpiCard({
+  slides,
+  width: cardWidth,
+}: {
+  slides: Array<{
+    gradientColors: [string, string];
+    iconBg: string;
+    icon: React.ReactNode;
+    value: string;
+    numericValue?: number;
+    valuePrefix?: string;
+    valueSuffix?: string;
+    label: string;
+    sublabel?: string;
+    badge?: React.ReactNode;
+    sparkData?: number[];
+    sparkType?: "line" | "bar";
+    onPress?: () => void;
+  }>;
+  width: number;
+}) {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
+
+  return (
+    <View style={{ width: cardWidth }}>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        snapToInterval={cardWidth}
+        decelerationRate="fast"
+        onMomentumScrollEnd={(e) => {
+          const idx = Math.round(e.nativeEvent.contentOffset.x / cardWidth);
+          setActiveIdx(idx);
+        }}
+        style={{ width: cardWidth }}
+        contentContainerStyle={{ width: cardWidth * slides.length }}
+      >
+        {slides.map((slide, i) => (
+          <GradientKpiCard key={i} width={cardWidth} {...slide} />
+        ))}
+      </ScrollView>
+      {/* Dot indicators */}
+      {slides.length > 1 && (
+        <View style={{ flexDirection: "row", justifyContent: "center", gap: 5, marginTop: 6 }}>
+          {slides.map((_, i) => (
+            <View
+              key={i}
+              style={{
+                width: i === activeIdx ? 14 : 6,
+                height: 6,
+                borderRadius: 3,
+                backgroundColor: i === activeIdx ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.3)",
+              }}
+            />
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
 // ─── Progress Bar (inline, lightweight) ────────────────────────────
 function ProgressBar({
   value,
@@ -865,6 +930,87 @@ export default function HomeScreen() {
     return { earnedSoFar, scheduledRevenue, projected, goal, progressPct, projectedPct, monthName, daysInMonth, dayOfMonth, remainingDays };
   }, [state.appointments, state.services, state.settings.monthlyRevenueGoal, filterByLocation]);
 
+  // ─── KPI Slide Data (extra computed values for swipeable cards) ────────────
+  const kpiSlideData = useMemo(() => {
+    const allAppts = filterByLocation(state.appointments);
+    const now2 = new Date();
+    const todayStr2 = formatDateStr(now2);
+
+    // Earnings: today, week, month, year, all-time
+    const getPrice = (a: (typeof allAppts)[0]) => {
+      if (a.totalPrice != null) return a.totalPrice;
+      return state.services.find((s) => s.id === a.serviceId)?.price ?? 0;
+    };
+    const completed = allAppts.filter((a) => a.status === "completed");
+    const todayEarnings = completed.filter((a) => a.date === todayStr2).reduce((s, a) => s + getPrice(a), 0);
+    const startOfWeek2 = new Date(now2); startOfWeek2.setDate(now2.getDate() - now2.getDay());
+    const endOfWeek2 = new Date(startOfWeek2); endOfWeek2.setDate(startOfWeek2.getDate() + 6);
+    const weekEarnings = completed.filter((a) => a.date >= formatDateStr(startOfWeek2) && a.date <= formatDateStr(endOfWeek2)).reduce((s, a) => s + getPrice(a), 0);
+    const mStart2 = `${now2.getFullYear()}-${String(now2.getMonth() + 1).padStart(2, "0")}-01`;
+    const mLastDay = new Date(now2.getFullYear(), now2.getMonth() + 1, 0).getDate();
+    const mEnd2 = `${now2.getFullYear()}-${String(now2.getMonth() + 1).padStart(2, "0")}-${String(mLastDay).padStart(2, "0")}`;
+    const monthEarnings = completed.filter((a) => a.date >= mStart2 && a.date <= mEnd2).reduce((s, a) => s + getPrice(a), 0);
+    const yearEarnings = completed.filter((a) => a.date >= `${now2.getFullYear()}-01-01` && a.date <= `${now2.getFullYear()}-12-31`).reduce((s, a) => s + getPrice(a), 0);
+    const allTimeEarnings = completed.reduce((s, a) => s + getPrice(a), 0);
+
+    // Appointments: today, week, month, year, total
+    const activeAppts2 = allAppts.filter((a) => a.status !== "cancelled");
+    const todayApptCount = activeAppts2.filter((a) => a.date === todayStr2).length;
+    const weekApptCount = activeAppts2.filter((a) => a.date >= formatDateStr(startOfWeek2) && a.date <= formatDateStr(endOfWeek2)).length;
+    const monthApptCount = activeAppts2.filter((a) => a.date >= mStart2 && a.date <= mEnd2).length;
+    const yearApptCount = activeAppts2.filter((a) => a.date >= `${now2.getFullYear()}-01-01` && a.date <= `${now2.getFullYear()}-12-31`).length;
+    const totalApptCount = activeAppts2.length;
+
+    // Clients: top clients, recently added, upcoming birthdays next month
+    const clientsAll = clientsForActiveLocation;
+    const clientApptCounts: Record<string, number> = {};
+    const clientSpend: Record<string, number> = {};
+    completed.forEach((a) => {
+      clientApptCounts[a.clientId] = (clientApptCounts[a.clientId] || 0) + 1;
+      clientSpend[a.clientId] = (clientSpend[a.clientId] || 0) + getPrice(a);
+    });
+    const topClients = [...clientsAll]
+      .filter((c) => clientApptCounts[c.id] > 0)
+      .sort((a, b) => (clientSpend[b.id] || 0) - (clientSpend[a.id] || 0))
+      .slice(0, 3);
+    const recentlyAdded = [...clientsAll]
+      .sort((a, b) => ((b as any).createdAt || "") > ((a as any).createdAt || "") ? 1 : -1)
+      .slice(0, 3);
+    const nextMonthIdx = (now2.getMonth() + 1) % 12;
+    const nextMonthStr = String(nextMonthIdx + 1).padStart(2, "0");
+    const birthdayNextMonth = clientsAll.filter((c) => {
+      if (!c.birthday) return false;
+      const parts = c.birthday.replace(/-/g, "/").split("/");
+      if (parts.length < 2) return false;
+      return parts[0].padStart(2, "0") === nextMonthStr;
+    });
+
+    // Services: top 3 this week, top 5 this month
+    const weekAppts2 = activeAppts2.filter((a) => a.date >= formatDateStr(startOfWeek2) && a.date <= formatDateStr(endOfWeek2));
+    const monthAppts2 = activeAppts2.filter((a) => a.date >= mStart2 && a.date <= mEnd2);
+    const svcCountWeek: Record<string, number> = {};
+    weekAppts2.forEach((a) => { svcCountWeek[a.serviceId] = (svcCountWeek[a.serviceId] || 0) + 1; });
+    const svcCountMonth: Record<string, number> = {};
+    monthAppts2.forEach((a) => { svcCountMonth[a.serviceId] = (svcCountMonth[a.serviceId] || 0) + 1; });
+    const top3Week = state.services
+      .map((s) => ({ name: s.name, count: svcCountWeek[s.id] || 0, color: s.color }))
+      .filter((s) => s.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3);
+    const top5Month = state.services
+      .map((s) => ({ name: s.name, count: svcCountMonth[s.id] || 0, color: s.color }))
+      .filter((s) => s.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    return {
+      todayEarnings, weekEarnings, monthEarnings, yearEarnings, allTimeEarnings,
+      todayApptCount, weekApptCount, monthApptCount, yearApptCount, totalApptCount,
+      topClients, recentlyAdded, birthdayNextMonth,
+      top3Week, top5Month,
+    };
+  }, [state.appointments, state.services, filterByLocation, clientsForActiveLocation]);
+
   const pendingCount = analytics.statusCounts.pending;
   const revenueChange =
     analytics.prevWeekRevenue > 0
@@ -1299,97 +1445,264 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* ─── KPI Cards (2x2 gradient grid) ─────────────────── */}
+        {/* ─── KPI Cards (swipeable groups) ─────────────────── */}
         <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 20 }]}>
           Overview
         </Text>
         <View style={[styles.kpiGrid, { gap: cardGap }]}>
-          {/* Revenue Card */}
-          <GradientKpiCard
+          {/* ── Earnings Card (5 slides: Today / Week / Month / Year / All Time) ── */}
+          <SwipeableKpiCard
             width={cardW}
-            gradientColors={["#E65100", "#FF9800"]}
-            iconBg="rgba(255,255,255,0.22)"
-            icon={<IconSymbol name="dollarsign.circle.fill" size={22} color="#FFF" />}
-            value={`$${analytics.weekRevenue.toLocaleString()}`}
-            numericValue={Math.round(analytics.weekRevenue)}
-            valuePrefix="$"
-            label="This Week Revenue"
-            sublabel={`$${analytics.totalRevenue.toLocaleString()} all-time`}
-            badge={
-              revenueChange !== 0 ? (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 10, backgroundColor: revenueChange > 0 ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.18)" }}>
-                  <IconSymbol name={revenueChange > 0 ? "arrow.up.right" : "arrow.down.right"} size={10} color="#FFF" />
-                  <Text style={{ fontSize: 11, fontWeight: "800", color: "#FFF" }}>{Math.abs(revenueChange)}%</Text>
-                </View>
-              ) : undefined
-            }
-            sparkData={analytics.weeklyDailyData.map((d) => d.value)}
-            sparkType="line"
-            onPress={() => setKpiDetailTab("revenue")}
+            slides={[
+              {
+                gradientColors: ["#E65100", "#FF9800"],
+                iconBg: "rgba(255,255,255,0.22)",
+                icon: <IconSymbol name="dollarsign.circle.fill" size={22} color="#FFF" />,
+                value: `$${Math.round(kpiSlideData.todayEarnings).toLocaleString()}`,
+                numericValue: Math.round(kpiSlideData.todayEarnings),
+                valuePrefix: "$",
+                label: "Today's Earnings",
+                sublabel: `$${Math.round(kpiSlideData.allTimeEarnings).toLocaleString()} all-time`,
+                sparkData: analytics.weeklyDailyData.map((d) => d.value),
+                sparkType: "line",
+                onPress: () => { setKpiDetailTab("revenue"); },
+              },
+              {
+                gradientColors: ["#E65100", "#FF9800"],
+                iconBg: "rgba(255,255,255,0.22)",
+                icon: <IconSymbol name="dollarsign.circle.fill" size={22} color="#FFF" />,
+                value: `$${Math.round(kpiSlideData.weekEarnings).toLocaleString()}`,
+                numericValue: Math.round(kpiSlideData.weekEarnings),
+                valuePrefix: "$",
+                label: "This Week",
+                sublabel: `$${Math.round(kpiSlideData.allTimeEarnings).toLocaleString()} all-time`,
+                badge: revenueChange !== 0 ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 10, backgroundColor: revenueChange > 0 ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.18)" }}>
+                    <IconSymbol name={revenueChange > 0 ? "arrow.up.right" : "arrow.down.right"} size={10} color="#FFF" />
+                    <Text style={{ fontSize: 11, fontWeight: "800", color: "#FFF" }}>{Math.abs(revenueChange)}%</Text>
+                  </View>
+                ) : undefined,
+                sparkData: analytics.weeklyDailyData.map((d) => d.value),
+                sparkType: "line",
+                onPress: () => { setKpiDetailTab("revenue"); },
+              },
+              {
+                gradientColors: ["#BF360C", "#FF7043"],
+                iconBg: "rgba(255,255,255,0.22)",
+                icon: <IconSymbol name="dollarsign.circle.fill" size={22} color="#FFF" />,
+                value: `$${Math.round(kpiSlideData.monthEarnings).toLocaleString()}`,
+                numericValue: Math.round(kpiSlideData.monthEarnings),
+                valuePrefix: "$",
+                label: `${new Date().toLocaleDateString("en-US", { month: "long" })} Earnings`,
+                sublabel: `$${Math.round(kpiSlideData.allTimeEarnings).toLocaleString()} all-time`,
+                sparkData: analytics.monthlyData.map((d) => d.value),
+                sparkType: "bar",
+                onPress: () => { setKpiDetailTab("revenue"); },
+              },
+              {
+                gradientColors: ["#7B1FA2", "#CE93D8"],
+                iconBg: "rgba(255,255,255,0.22)",
+                icon: <IconSymbol name="dollarsign.circle.fill" size={22} color="#FFF" />,
+                value: `$${Math.round(kpiSlideData.yearEarnings).toLocaleString()}`,
+                numericValue: Math.round(kpiSlideData.yearEarnings),
+                valuePrefix: "$",
+                label: `${new Date().getFullYear()} Earnings`,
+                sublabel: `$${Math.round(kpiSlideData.allTimeEarnings).toLocaleString()} all-time`,
+                sparkData: analytics.monthlyData.map((d) => d.value),
+                sparkType: "bar",
+                onPress: () => { setKpiDetailTab("revenue"); },
+              },
+              {
+                gradientColors: ["#4A148C", "#9C27B0"],
+                iconBg: "rgba(255,255,255,0.22)",
+                icon: <IconSymbol name="dollarsign.circle.fill" size={22} color="#FFF" />,
+                value: `$${Math.round(kpiSlideData.allTimeEarnings).toLocaleString()}`,
+                numericValue: Math.round(kpiSlideData.allTimeEarnings),
+                valuePrefix: "$",
+                label: "All-Time Earnings",
+                sublabel: `${analytics.statusCounts.completed} completed appts`,
+                sparkData: analytics.monthlyData.map((d) => d.value),
+                sparkType: "bar",
+                onPress: () => { setKpiDetailTab("revenue"); },
+              },
+            ]}
           />
-          {/* Total Yearly Earnings Card */}
-          <GradientKpiCard
+
+          {/* ── Clients Card (4 slides: Total / Top Clients / Recently Added / Birthdays) ── */}
+          <SwipeableKpiCard
             width={cardW}
-            gradientColors={["#7B1FA2", "#CE93D8"]}
-            iconBg="rgba(255,255,255,0.22)"
-            icon={<IconSymbol name="dollarsign.circle.fill" size={22} color="#FFF" />}
-            value={`$${analytics.yearlyRevenue.toLocaleString()}`}
-            numericValue={Math.round(analytics.yearlyRevenue)}
-            valuePrefix="$"
-            label={`${new Date().getFullYear()} Earnings`}
-            sublabel={`$${analytics.totalRevenue.toLocaleString()} all-time`}
-            sparkData={analytics.monthlyData.map((d) => d.value)}
-            sparkType="bar"
-            onPress={() => setKpiDetailTab("revenue")}
+            slides={[
+              {
+                gradientColors: ["#1B5E20", "#66BB6A"],
+                iconBg: "rgba(255,255,255,0.22)",
+                icon: <IconSymbol name="person.2.fill" size={22} color="#FFF" />,
+                value: String(analytics.totalClients),
+                numericValue: analytics.totalClients,
+                label: "Total Clients",
+                sublabel: `${kpiClientsData.clientsData.length} active`,
+                sparkData: analytics.monthlyData.map((d) => d.value),
+                sparkType: "bar",
+                onPress: () => { setKpiDetailTab("clients"); },
+              },
+              {
+                gradientColors: ["#1B5E20", "#66BB6A"],
+                iconBg: "rgba(255,255,255,0.22)",
+                icon: <IconSymbol name="person.2.fill" size={22} color="#FFF" />,
+                value: kpiSlideData.topClients.length > 0 ? kpiSlideData.topClients[0].name.split(" ")[0] : "—",
+                label: "Top Clients",
+                sublabel: kpiSlideData.topClients.length > 0
+                  ? kpiSlideData.topClients.map((c) => c.name.split(" ")[0]).join(" · ")
+                  : "No data yet",
+                sparkData: analytics.monthlyData.map((d) => d.value),
+                sparkType: "bar",
+                onPress: () => { setKpiDetailTab("clients"); },
+              },
+              {
+                gradientColors: ["#2E7D32", "#81C784"],
+                iconBg: "rgba(255,255,255,0.22)",
+                icon: <IconSymbol name="person.badge.plus" size={22} color="#FFF" />,
+                value: String(kpiSlideData.recentlyAdded.length),
+                numericValue: kpiSlideData.recentlyAdded.length,
+                label: "Recently Added",
+                sublabel: kpiSlideData.recentlyAdded.length > 0
+                  ? kpiSlideData.recentlyAdded.map((c) => c.name.split(" ")[0]).join(" · ")
+                  : "No new clients",
+                sparkData: analytics.monthlyData.map((d) => d.value),
+                sparkType: "bar",
+                onPress: () => { setKpiDetailTab("clients"); },
+              },
+              {
+                gradientColors: ["#1A237E", "#5C6BC0"],
+                iconBg: "rgba(255,255,255,0.22)",
+                icon: <IconSymbol name="gift.fill" size={22} color="#FFF" />,
+                value: String(kpiSlideData.birthdayNextMonth.length),
+                numericValue: kpiSlideData.birthdayNextMonth.length,
+                label: `Birthdays Next Month`,
+                sublabel: kpiSlideData.birthdayNextMonth.length > 0
+                  ? kpiSlideData.birthdayNextMonth.slice(0, 3).map((c) => c.name.split(" ")[0]).join(" · ")
+                  : "None upcoming",
+                sparkData: analytics.monthlyData.map((d) => d.value),
+                sparkType: "bar",
+                onPress: () => { setKpiDetailTab("clients"); },
+              },
+            ]}
           />
-          {/* Clients Card */}
-          <GradientKpiCard
+
+          {/* ── Appointments Card (5 slides: Total / Today / Week / Month / Year) ── */}
+          <SwipeableKpiCard
             width={cardW}
-            gradientColors={["#1B5E20", "#66BB6A"]}
-            iconBg="rgba(255,255,255,0.22)"
-            icon={<IconSymbol name="person.2.fill" size={22} color="#FFF" />}
-            value={String(analytics.totalClients)}
-            numericValue={analytics.totalClients}
-            label="Total Clients"
-            sublabel={`${kpiClientsData.clientsData.length} active`}
-            sparkData={analytics.monthlyData.map((d) => d.value)}
-            sparkType="bar"
-            onPress={() => setKpiDetailTab("clients")}
+            slides={[
+              {
+                gradientColors: ["#1565C0", "#42A5F5"],
+                iconBg: "rgba(255,255,255,0.22)",
+                icon: <IconSymbol name="calendar" size={22} color="#FFF" />,
+                value: String(kpiSlideData.totalApptCount),
+                numericValue: kpiSlideData.totalApptCount,
+                label: "Total Appointments",
+                sublabel: `${analytics.statusCounts.completed} completed`,
+                badge: analytics.statusCounts.pending > 0 ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 10, backgroundColor: "rgba(255,152,0,0.55)" }}>
+                    <Text style={{ fontSize: 11, fontWeight: "800", color: "#FFF" }}>{analytics.statusCounts.pending} pending</Text>
+                  </View>
+                ) : undefined,
+                sparkData: analytics.weeklyDailyData.map((d) => d.apptCount),
+                sparkType: "bar",
+                onPress: () => { setKpiDetailTab("appointments"); },
+              },
+              {
+                gradientColors: ["#1565C0", "#42A5F5"],
+                iconBg: "rgba(255,255,255,0.22)",
+                icon: <IconSymbol name="calendar" size={22} color="#FFF" />,
+                value: String(kpiSlideData.todayApptCount),
+                numericValue: kpiSlideData.todayApptCount,
+                label: "Today's Appointments",
+                sublabel: `${analytics.statusCounts.pending} pending today`,
+                sparkData: analytics.weeklyDailyData.map((d) => d.apptCount),
+                sparkType: "bar",
+                onPress: () => { setKpiDetailTab("appointments"); },
+              },
+              {
+                gradientColors: ["#0D47A1", "#1976D2"],
+                iconBg: "rgba(255,255,255,0.22)",
+                icon: <IconSymbol name="calendar" size={22} color="#FFF" />,
+                value: String(kpiSlideData.weekApptCount),
+                numericValue: kpiSlideData.weekApptCount,
+                label: "This Week",
+                sublabel: `${analytics.upcomingThisWeek} upcoming`,
+                sparkData: analytics.weeklyDailyData.map((d) => d.apptCount),
+                sparkType: "bar",
+                onPress: () => { setKpiDetailTab("appointments"); },
+              },
+              {
+                gradientColors: ["#006064", "#26C6DA"],
+                iconBg: "rgba(255,255,255,0.22)",
+                icon: <IconSymbol name="calendar" size={22} color="#FFF" />,
+                value: String(kpiSlideData.monthApptCount),
+                numericValue: kpiSlideData.monthApptCount,
+                label: `${new Date().toLocaleDateString("en-US", { month: "long" })} Appointments`,
+                sublabel: `${analytics.statusCounts.confirmed} confirmed`,
+                sparkData: analytics.weeklyDailyData.map((d) => d.apptCount),
+                sparkType: "bar",
+                onPress: () => { setKpiDetailTab("appointments"); },
+              },
+              {
+                gradientColors: ["#01579B", "#0288D1"],
+                iconBg: "rgba(255,255,255,0.22)",
+                icon: <IconSymbol name="calendar" size={22} color="#FFF" />,
+                value: String(kpiSlideData.yearApptCount),
+                numericValue: kpiSlideData.yearApptCount,
+                label: `${new Date().getFullYear()} Appointments`,
+                sublabel: `${analytics.statusCounts.completed} completed`,
+                sparkData: analytics.weeklyDailyData.map((d) => d.apptCount),
+                sparkType: "bar",
+                onPress: () => { setKpiDetailTab("appointments"); },
+              },
+            ]}
           />
-          {/* Total Appointments Card */}
-          <GradientKpiCard
+
+          {/* ── Top Service Card (3 slides: All-Time / Top 3 This Week / Top 5 This Month) ── */}
+          <SwipeableKpiCard
             width={cardW}
-            gradientColors={["#1565C0", "#42A5F5"]}
-            iconBg="rgba(255,255,255,0.22)"
-            icon={<IconSymbol name="calendar" size={22} color="#FFF" />}
-            value={String(analytics.totalAppointments)}
-            numericValue={analytics.totalAppointments}
-            label="Total Appointments"
-            sublabel={`${analytics.statusCounts.completed} completed`}
-            badge={
-              analytics.statusCounts.pending > 0 ? (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 10, backgroundColor: "rgba(255,152,0,0.55)" }}>
-                  <Text style={{ fontSize: 11, fontWeight: "800", color: "#FFF" }}>{analytics.statusCounts.pending} pending</Text>
-                </View>
-              ) : undefined
-            }
-            sparkData={analytics.weeklyDailyData.map((d) => d.apptCount)}
-            sparkType="bar"
-            onPress={() => setKpiDetailTab("appointments")}
-          />
-          {/* Top Service Card */}
-          <GradientKpiCard
-            width={cardW}
-            gradientColors={["#E65100", "#FF8A65"]}
-            iconBg="rgba(255,255,255,0.22)"
-            icon={<IconSymbol name="star.fill" size={22} color="#FFF" />}
-            value={analytics.topService ? analytics.topService.name.split(" ").slice(0, 2).join(" ") : "—"}
-            numericValue={analytics.topCount}
-            label="Top Service"
-            sublabel={analytics.topCount > 0 ? `${analytics.topCount} bookings` : "No data yet"}
-            sparkData={kpiServiceRanking.slice(0, 7).map((s) => s.bookings)}
-            sparkType="bar"
-            onPress={() => setKpiDetailTab("topservice")}
+            slides={[
+              {
+                gradientColors: ["#E65100", "#FF8A65"],
+                iconBg: "rgba(255,255,255,0.22)",
+                icon: <IconSymbol name="star.fill" size={22} color="#FFF" />,
+                value: analytics.topService ? analytics.topService.name.split(" ").slice(0, 2).join(" ") : "—",
+                numericValue: analytics.topCount,
+                label: "Top Service",
+                sublabel: analytics.topCount > 0 ? `${analytics.topCount} bookings all-time` : "No data yet",
+                sparkData: kpiServiceRanking.slice(0, 7).map((s) => s.bookings),
+                sparkType: "bar",
+                onPress: () => { setKpiDetailTab("topservice"); },
+              },
+              {
+                gradientColors: ["#E65100", "#FF8A65"],
+                iconBg: "rgba(255,255,255,0.22)",
+                icon: <IconSymbol name="star.fill" size={22} color="#FFF" />,
+                value: kpiSlideData.top3Week.length > 0 ? kpiSlideData.top3Week[0].name.split(" ").slice(0, 2).join(" ") : "—",
+                label: "Top 3 This Week",
+                sublabel: kpiSlideData.top3Week.length > 0
+                  ? kpiSlideData.top3Week.map((s) => `${s.name.split(" ")[0]} (${s.count})`).join(" · ")
+                  : "No bookings this week",
+                sparkData: kpiSlideData.top3Week.map((s) => s.count),
+                sparkType: "bar",
+                onPress: () => { setKpiDetailTab("topservice"); },
+              },
+              {
+                gradientColors: ["#BF360C", "#FF7043"],
+                iconBg: "rgba(255,255,255,0.22)",
+                icon: <IconSymbol name="star.fill" size={22} color="#FFF" />,
+                value: kpiSlideData.top5Month.length > 0 ? kpiSlideData.top5Month[0].name.split(" ").slice(0, 2).join(" ") : "—",
+                label: "Top 5 This Month",
+                sublabel: kpiSlideData.top5Month.length > 0
+                  ? kpiSlideData.top5Month.slice(0, 3).map((s) => `${s.name.split(" ")[0]} (${s.count})`).join(" · ")
+                  : "No bookings this month",
+                sparkData: kpiSlideData.top5Month.map((s) => s.count),
+                sparkType: "bar",
+                onPress: () => { setKpiDetailTab("topservice"); },
+              },
+            ]}
           />
         </View>
 
