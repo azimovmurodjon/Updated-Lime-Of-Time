@@ -1,4 +1,4 @@
-import { eq, and, sql, isNull } from "drizzle-orm";
+import { eq, and, sql, isNull, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql2 from "mysql2/promise";
 import {
@@ -420,6 +420,30 @@ export async function updateAppointment(
         eq(appointments.businessOwnerId, businessOwnerId)
       )
     );
+}
+
+export async function bulkMarkPaid(
+  localIds: string[],
+  businessOwnerId: number,
+  paymentMethod: string
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (localIds.length === 0) return;
+  // Process in chunks of 200 to avoid query size limits
+  const CHUNK = 200;
+  for (let i = 0; i < localIds.length; i += CHUNK) {
+    const chunk = localIds.slice(i, i + CHUNK);
+    await db
+      .update(appointments)
+      .set({ paymentStatus: "paid", paymentMethod: paymentMethod as any })
+      .where(
+        and(
+          eq(appointments.businessOwnerId, businessOwnerId),
+          inArray(appointments.localId, chunk)
+        )
+      );
+  }
 }
 
 export async function deleteAppointment(

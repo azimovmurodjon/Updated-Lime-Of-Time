@@ -426,8 +426,17 @@ const appointmentsRouter = router({
       await db.deleteAppointment(input.localId, input.businessOwnerId);
       return { success: true };
     }),
+  bulkMarkPaid: publicProcedure
+    .input(z.object({
+      localIds: z.array(z.string()),
+      businessOwnerId: z.number(),
+      paymentMethod: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      await db.bulkMarkPaid(input.localIds, input.businessOwnerId, input.paymentMethod);
+      return { success: true, count: input.localIds.length };
+    }),
 });
-
 // ─── Reviews Router ──────────────────────────────────────────────────
 
 const reviewsRouter = router({

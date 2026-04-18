@@ -262,7 +262,7 @@ function TimelineView({
 }
 
 export default function CalendarScreen() {
-  const { state, dispatch, getServiceById, getClientById, getStaffById, getLocationById, syncToDb, filterAppointmentsByLocation, getActiveCustomSchedule } = useStore();
+  const { state, dispatch, getServiceById, getClientById, getStaffById, getLocationById, syncToDb, filterAppointmentsByLocation, getActiveCustomSchedule, bulkMarkPaid } = useStore();
   const colors = useColors();
   const router = useRouter();
   const params = useLocalSearchParams<{ filter?: string; date?: string; view?: string }>();
@@ -328,13 +328,18 @@ export default function CalendarScreen() {
   const [payModalMethod, setPayModalMethod] = useState<PaymentMethodKey>("cash");
   const [payModalIsBulk, setPayModalIsBulk] = useState(false);
 
-  const doMarkPaid = useCallback((appts: Appointment[], method: PaymentMethodKey) => {
-    appts.forEach((appt) => {
-      const updated = { ...appt, paymentStatus: "paid" as const, paymentMethod: method };
+  const doMarkPaid = useCallback(async (appts: Appointment[], method: PaymentMethodKey) => {
+    if (appts.length === 0) return;
+    if (appts.length === 1) {
+      // Single appointment: use existing syncToDb path for immediate feedback
+      const updated = { ...appts[0], paymentStatus: "paid" as const, paymentMethod: method };
       dispatch({ type: "UPDATE_APPOINTMENT", payload: updated });
-      syncToDb({ type: "UPDATE_APPOINTMENT", payload: updated });
-    });
-  }, [dispatch, syncToDb]);
+      await syncToDb({ type: "UPDATE_APPOINTMENT", payload: updated });
+    } else {
+      // Bulk: single DB call — much faster and avoids server overload
+      await bulkMarkPaid(appts.map((a) => a.id), method);
+    }
+  }, [dispatch, syncToDb, bulkMarkPaid]);
 
   // Workday override modal state
   const [showTimePickerModal, setShowTimePickerModal] = useState(false);
