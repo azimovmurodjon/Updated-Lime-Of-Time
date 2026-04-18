@@ -8,7 +8,7 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from "react-native";
-import Svg, { Path, Defs, LinearGradient as SvgGradient, Stop } from "react-native-svg";
+import Svg, { Circle, G } from "react-native-svg";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 
@@ -52,49 +52,156 @@ export interface PaymentSummaryCardProps {
   onPressStatus?: (status: string) => void;
 }
 
-// ─── Modern Horizontal Bar Chart for By Service ──────────────────────────────
-function ServiceBarChart({ data, width }: { data: ServiceBreakdownItem[]; width: number }) {
-  const colors = useColors();
-  const maxVal = Math.max(...data.map((d) => d.value), 1);
+// ─── Donut Chart for By Service ───────────────────────────────────────────────
+function DonutChart({ data, size = 90 }: { data: ServiceBreakdownItem[]; size?: number }) {
+  const total = data.reduce((s, d) => s + d.value, 0);
+  if (total === 0) return null;
+
+  const radius = size / 2 - 8;
+  const circumference = 2 * Math.PI * radius;
+  const cx = size / 2;
+  const cy = size / 2;
+  const strokeWidth = 14;
+
+  let offset = 0;
+  const segments = data.map((item) => {
+    const pct = item.value / total;
+    const dash = pct * circumference;
+    const gap = circumference - dash;
+    const rotation = offset * 360 - 90;
+    offset += pct;
+    return { ...item, dash, gap, rotation };
+  });
 
   return (
-    <View style={{ gap: 10, marginTop: 4 }}>
-      {data.slice(0, 5).map((item, i) => {
-        const pct = item.value / maxVal;
-        return (
-          <View key={i} style={{ gap: 4 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
-                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: item.color }} />
+    <Svg width={size} height={size}>
+      <G>
+        {segments.map((seg, i) => (
+          <Circle
+            key={i}
+            cx={cx}
+            cy={cy}
+            r={radius}
+            fill="none"
+            stroke={seg.color}
+            strokeWidth={strokeWidth}
+            strokeDasharray={`${seg.dash} ${seg.gap}`}
+            strokeDashoffset={0}
+            strokeLinecap="round"
+            transform={`rotate(${seg.rotation} ${cx} ${cy})`}
+            opacity={0.9}
+          />
+        ))}
+      </G>
+    </Svg>
+  );
+}
+
+// ─── By Service Slide ─────────────────────────────────────────────────────────
+function ServiceSlide({ data, width }: { data: ServiceBreakdownItem[]; width: number }) {
+  const colors = useColors();
+  const [expanded, setExpanded] = useState(false);
+  const total = data.reduce((s, d) => s + d.value, 0);
+  const displayData = expanded ? data : data.slice(0, 4);
+
+  if (data.length === 0) {
+    return (
+      <View style={{ height: 120, alignItems: "center", justifyContent: "center" }}>
+        <Text style={{ fontSize: 13, color: colors.muted }}>No service data yet</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View>
+      {/* Donut + legend row */}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+        {/* Donut chart */}
+        <View style={{ alignItems: "center", justifyContent: "center" }}>
+          <DonutChart data={data.slice(0, 5)} size={90} />
+          {/* Center label */}
+          <View style={{ position: "absolute", alignItems: "center" }}>
+            <Text style={{ fontSize: 16, fontWeight: "800", color: colors.foreground }}>{total}</Text>
+            <Text style={{ fontSize: 9, color: colors.muted, fontWeight: "600" }}>TOTAL</Text>
+          </View>
+        </View>
+
+        {/* Legend */}
+        <View style={{ flex: 1, gap: 6 }}>
+          {displayData.map((item, i) => {
+            const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
+            return (
+              <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: item.color, flexShrink: 0 }} />
                 <Text style={{ fontSize: 12, color: colors.foreground, fontWeight: "600", flex: 1 }} numberOfLines={1}>
                   {item.label}
                 </Text>
+                <Text style={{ fontSize: 11, color: colors.muted, marginRight: 4 }}>{pct}%</Text>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: item.color }}>{item.value}</Text>
               </View>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: item.color, marginLeft: 8 }}>
-                {item.value}
-              </Text>
-            </View>
-            {/* Animated bar */}
-            <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: "hidden" }}>
-              <View
-                style={{
-                  height: 6,
-                  borderRadius: 3,
-                  backgroundColor: item.color,
-                  width: `${Math.round(pct * 100)}%` as any,
-                  opacity: 0.85,
-                }}
-              />
-            </View>
-          </View>
-        );
-      })}
+            );
+          })}
+        </View>
+      </View>
+
+      {/* View Data expand button */}
+      {data.length > 4 && (
+        <Pressable
+          onPress={() => setExpanded((v) => !v)}
+          style={({ pressed }) => ({
+            marginTop: 10,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 4,
+            paddingVertical: 7,
+            borderRadius: 10,
+            backgroundColor: colors.primary + "15",
+            opacity: pressed ? 0.7 : 1,
+          })}
+        >
+          <Text style={{ fontSize: 12, fontWeight: "700", color: colors.primary }}>
+            {expanded ? "Show Less" : `View All ${data.length} Services`}
+          </Text>
+          <IconSymbol
+            name={expanded ? "chevron.right" : "chevron.right"}
+            size={12}
+            color={colors.primary}
+            style={{ transform: [{ rotate: expanded ? "-90deg" : "90deg" }] }}
+          />
+        </Pressable>
+      )}
+
+      {/* Expanded detail rows */}
+      {expanded && (
+        <View style={{ marginTop: 10, gap: 6 }}>
+          {data.map((item, i) => {
+            const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
+            return (
+              <View key={i} style={{ gap: 3 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: item.color }} />
+                    <Text style={{ fontSize: 12, color: colors.foreground, fontWeight: "600", flex: 1 }} numberOfLines={1}>
+                      {item.label}
+                    </Text>
+                  </View>
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: item.color }}>{item.value}</Text>
+                </View>
+                <View style={{ height: 4, borderRadius: 2, backgroundColor: colors.border, overflow: "hidden" }}>
+                  <View style={{ height: 4, borderRadius: 2, backgroundColor: item.color, width: `${pct}%` as any, opacity: 0.8 }} />
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      )}
     </View>
   );
 }
 
-// ─── Status Ring Chart ────────────────────────────────────────────────────────
-function StatusRingChart({ statusCounts, total, onPressStatus }: {
+// ─── Status Slide ─────────────────────────────────────────────────────────────
+function StatusSlide({ statusCounts, total, onPressStatus }: {
   statusCounts: StatusCounts;
   total: number;
   onPressStatus?: (status: string) => void;
@@ -102,49 +209,48 @@ function StatusRingChart({ statusCounts, total, onPressStatus }: {
   const colors = useColors();
 
   const statuses = [
-    { key: "completed", label: "Completed", value: statusCounts.completed, color: ACCENT },
-    { key: "confirmed", label: "Confirmed", value: statusCounts.confirmed, color: colors.primary },
-    { key: "pending", label: "Pending", value: statusCounts.pending, color: "#FF9800" },
-    { key: "cancelled", label: "Cancelled", value: statusCounts.cancelled, color: colors.error },
+    { key: "completed", label: "Completed", value: statusCounts.completed, color: ACCENT, icon: "checkmark.circle.fill" as const },
+    { key: "confirmed", label: "Confirmed", value: statusCounts.confirmed, color: colors.primary, icon: "paperplane.fill" as const },
+    { key: "pending", label: "Pending", value: statusCounts.pending, color: "#FF9800", icon: "chevron.right" as const },
+    { key: "cancelled", label: "Cancelled", value: statusCounts.cancelled, color: colors.error, icon: "xmark.circle.fill" as const },
   ];
 
   return (
-    <View style={{ gap: 8, marginTop: 4 }}>
+    <View style={{ gap: 8 }}>
       {statuses.map((item) => {
         const pct = total > 0 ? item.value / total : 0;
         return (
           <Pressable
             key={item.key}
             onPress={() => onPressStatus?.(item.key)}
-            style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
+            style={({ pressed }) => ({
+              opacity: pressed ? 0.75 : 1,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+              backgroundColor: item.color + "12",
+              borderRadius: 10,
+              padding: 10,
+            })}
           >
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
-              <Text style={{ fontSize: 12, color: colors.muted, fontWeight: "500" }}>{item.label}</Text>
-              <Text style={{ fontSize: 13, fontWeight: "700", color: item.color }}>{item.value}</Text>
+            {/* Icon badge */}
+            <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: item.color + "25", alignItems: "center", justifyContent: "center" }}>
+              <IconSymbol name={item.icon} size={16} color={item.color} />
             </View>
-            <View style={{ height: 5, borderRadius: 3, backgroundColor: colors.border, overflow: "hidden" }}>
-              <View
-                style={{
-                  height: 5,
-                  borderRadius: 3,
-                  backgroundColor: item.color,
-                  width: `${Math.round(pct * 100)}%` as any,
-                }}
-              />
+            {/* Label + bar */}
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                <Text style={{ fontSize: 12, color: colors.foreground, fontWeight: "600" }}>{item.label}</Text>
+                <Text style={{ fontSize: 14, fontWeight: "800", color: item.color }}>{item.value}</Text>
+              </View>
+              <View style={{ height: 4, borderRadius: 2, backgroundColor: colors.border, overflow: "hidden" }}>
+                <View style={{ height: 4, borderRadius: 2, backgroundColor: item.color, width: `${Math.round(pct * 100)}%` as any }} />
+              </View>
             </View>
+            <IconSymbol name="chevron.right" size={12} color={colors.muted} />
           </Pressable>
         );
       })}
-      <Pressable
-        onPress={() => onPressStatus?.("all")}
-        style={({ pressed }) => ({
-          marginTop: 6,
-          alignItems: "center",
-          opacity: pressed ? 0.7 : 1,
-        })}
-      >
-        <Text style={{ fontSize: 11, color: colors.primary, fontWeight: "600" }}>View All →</Text>
-      </Pressable>
     </View>
   );
 }
@@ -183,33 +289,39 @@ export function PaymentSummaryCard({
   const collectedPct = totalRevenue > 0 ? Math.round((paidRevenue / totalRevenue) * 100) : 0;
   const totalAppts = totalAppointments + statusCounts.cancelled;
 
+  // Slide-specific header config
+  const slideConfig = [
+    { title: "Payment Summary", icon: "dollarsign.circle.fill" as const, iconColor: ACCENT, action: onPressFullSummary, actionLabel: "Full Summary" },
+    { title: "By Service", icon: "paperplane.fill" as const, iconColor: "#A78BFA", action: undefined, actionLabel: undefined },
+    { title: "Status", icon: "checkmark.circle.fill" as const, iconColor: "#00C896", action: () => onPressStatus?.("all"), actionLabel: "View All" },
+  ];
+  const cfg = slideConfig[activeIdx];
+
   return (
     <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       {/* Header row */}
       <View style={styles.headerRow}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: ACCENT + "22", alignItems: "center", justifyContent: "center" }}>
-            <IconSymbol name="dollarsign.circle.fill" size={18} color={ACCENT} />
+          <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: cfg.iconColor + "22", alignItems: "center", justifyContent: "center" }}>
+            <IconSymbol name={cfg.icon} size={18} color={cfg.iconColor} />
           </View>
-          <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>
-            {SLIDES[activeIdx] === "Payment" ? "Payment Summary" : SLIDES[activeIdx] === "By Service" ? "By Service" : "Status"}
-          </Text>
+          <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>{cfg.title}</Text>
         </View>
-        {SLIDES[activeIdx] === "Payment" && (
+        {cfg.action && cfg.actionLabel && (
           <Pressable
-            onPress={onPressFullSummary}
-            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.primary + "15", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 })}
+            onPress={cfg.action}
+            style={({ pressed }) => ({
+              opacity: pressed ? 0.7 : 1,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 4,
+              backgroundColor: colors.primary + "15",
+              borderRadius: 8,
+              paddingHorizontal: 10,
+              paddingVertical: 5,
+            })}
           >
-            <Text style={{ fontSize: 12, fontWeight: "700", color: colors.primary }}>Full Summary</Text>
-            <IconSymbol name="chevron.right" size={12} color={colors.primary} />
-          </Pressable>
-        )}
-        {SLIDES[activeIdx] === "Status" && (
-          <Pressable
-            onPress={() => onPressStatus?.("all")}
-            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.primary + "15", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 })}
-          >
-            <Text style={{ fontSize: 12, fontWeight: "700", color: colors.primary }}>View All</Text>
+            <Text style={{ fontSize: 12, fontWeight: "700", color: colors.primary }}>{cfg.actionLabel}</Text>
             <IconSymbol name="chevron.right" size={12} color={colors.primary} />
           </Pressable>
         )}
@@ -275,18 +387,12 @@ export function PaymentSummaryCard({
 
         {/* Slide 2: By Service */}
         <View style={{ width, paddingHorizontal: 16, paddingBottom: 12 }}>
-          {serviceBreakdown.length > 0 ? (
-            <ServiceBarChart data={serviceBreakdown} width={width - 32} />
-          ) : (
-            <View style={{ height: 120, alignItems: "center", justifyContent: "center" }}>
-              <Text style={{ fontSize: 13, color: colors.muted }}>No service data yet</Text>
-            </View>
-          )}
+          <ServiceSlide data={serviceBreakdown} width={width - 32} />
         </View>
 
         {/* Slide 3: Status */}
         <View style={{ width, paddingHorizontal: 16, paddingBottom: 12 }}>
-          <StatusRingChart
+          <StatusSlide
             statusCounts={statusCounts}
             total={totalAppts}
             onPressStatus={onPressStatus}

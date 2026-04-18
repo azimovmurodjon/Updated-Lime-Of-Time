@@ -1930,65 +1930,7 @@ export default function HomeScreen() {
           width={contentWidth}
         />
 
-        {/* ─── Service Breakdown + Status (side by side) ────────── */}
-        <View style={[styles.sideBySideRow, { gap: cardGap, marginTop: 16 }]}>
-          {/* Service Breakdown - Modern horizontal bar chart */}
-          <View style={[styles.chartCard, { flex: 1, backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.chartTitle, { color: colors.foreground, marginBottom: 12 }]}>By Service</Text>
-            {analytics.serviceBreakdown.length > 0 ? (
-              <View style={{ gap: 8 }}>
-                {analytics.serviceBreakdown.slice(0, 4).map((item, i) => {
-                  const maxVal = Math.max(...analytics.serviceBreakdown.slice(0, 4).map((d) => d.value), 1);
-                  return (
-                    <View key={i} style={{ gap: 3 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flex: 1 }}>
-                          <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: item.color }} />
-                          <Text style={{ fontSize: 11, color: colors.foreground, fontWeight: '600', flex: 1 }} numberOfLines={1}>{item.label}</Text>
-                        </View>
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: item.color, marginLeft: 4 }}>{item.value}</Text>
-                      </View>
-                      <View style={{ height: 5, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden' }}>
-                        <View style={{ height: 5, borderRadius: 3, backgroundColor: item.color, width: `${Math.round((item.value / maxVal) * 100)}%` as any, opacity: 0.85 }} />
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-            ) : (
-              <Text style={{ fontSize: 12, color: colors.muted, textAlign: 'center', paddingVertical: 20 }}>No data yet</Text>
-            )}
-          </View>
 
-          {/* Status Breakdown - tappable rows navigating to status-detail */}
-          <Pressable
-            onPress={() => router.push({ pathname: '/status-detail', params: { status: 'all' } } as any)}
-            style={[styles.chartCard, { flex: 1, backgroundColor: colors.surface, borderColor: colors.border }]}
-          >
-            <Text style={[styles.chartTitle, { color: colors.foreground, marginBottom: 12 }]}>Status</Text>
-            <View style={styles.statusList}>
-              {[
-                { label: 'Completed', value: analytics.statusCounts.completed, color: '#00C896' },
-                { label: 'Confirmed', value: analytics.statusCounts.confirmed, color: colors.primary },
-                { label: 'Pending', value: analytics.statusCounts.pending, color: '#FF9800' },
-                { label: 'Cancelled', value: analytics.statusCounts.cancelled, color: colors.error },
-              ].map((item) => (
-                <View key={item.label} style={styles.statusItem}>
-                  <View style={styles.statusLabelRow}>
-                    <Text style={[styles.statusLabel, { color: colors.muted }]}>{item.label}</Text>
-                    <Text style={[styles.statusValue, { color: item.color }]}>{item.value}</Text>
-                  </View>
-                  <ProgressBar
-                    value={item.value}
-                    max={Math.max(analytics.totalAppointments + analytics.statusCounts.cancelled, 1)}
-                    color={item.color}
-                    bgColor={colors.border + '60'}
-                  />
-                </View>
-              ))}
-            </View>
-          </Pressable>
-        </View>
         {/* ─── Birthday Banner ──────────────────────────────────────── */}
         {birthdayClients.length > 0 && (
           <View style={{ marginTop: 20, borderRadius: 16, overflow: "hidden" }}>
