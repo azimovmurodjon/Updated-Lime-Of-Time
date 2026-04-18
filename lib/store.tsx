@@ -750,7 +750,7 @@ export function dbLocationToLocal(l: any): Location {
     active: l.active ?? true,
     temporarilyClosed: l.temporarilyClosed ?? false,
     reopenOn: l.reopenOn ?? undefined,
-    workingHours: l.workingHours ?? null,
+    workingHours: l.workingHours ? normalizeWorkingHours(l.workingHours) : null,
     createdAt: l.createdAt ? new Date(l.createdAt).toISOString() : new Date().toISOString(),
   };
 }

@@ -1405,3 +1405,4 @@
 - [x] Add No-Show notification toggle to Notification Preferences
 - [x] Fix Mark as Paid not working correctly on appointment detail screen
 - [x] Fix client booking portal step-1 Continue button not working
+- [ ] Fix booking calendar not syncing with location-specific business hours
