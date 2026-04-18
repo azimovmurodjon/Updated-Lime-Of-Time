@@ -35,9 +35,20 @@ import * as Sharing from "expo-sharing";
 import QRCode from "react-native-qrcode-svg";
 import Svg, { Path as SvgPath } from "react-native-svg";
 import { TourOverlay } from "@/components/tour-overlay";
+import { usePlanLimitCheck } from "@/hooks/use-plan-limit-check";
 
 // App logo URL (same as app.config.ts logoUrl)
 const APP_LOGO_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/jHoNjHdLsUGgpFhz.png";
+// ─── Live clock hook (updates every second) ────────────────────────────
+function useLiveClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
+
 // ─── Count-up hook ──────────────────────────────────────────────────────
 function useCountUp(target: number, duration = 900): number {
   const [display, setDisplay] = useState(0);
@@ -402,7 +413,7 @@ export default function HomeScreen() {
   // Use the store's location-aware filter (single source of truth)
   const filterByLocation = filterAppointmentsByLocation;
 
-  const now = new Date();
+  const now = useLiveClock();
   const todayStr = formatDateStr(now);
   const greeting =
     now.getHours() < 12
@@ -415,6 +426,12 @@ export default function HomeScreen() {
     month: "long",
     day: "numeric",
   });
+  const liveTimeStr = now.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
 
   const todayAppts = useMemo(() => {
     const all = filterByLocation(getAppointmentsForDate(todayStr));
@@ -422,6 +439,12 @@ export default function HomeScreen() {
       .filter((a) => a.status === "confirmed" || a.status === "pending")
       .sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
   }, [todayStr, selectedLocationFilter, filterByLocation, getAppointmentsForDate]);
+
+  // ─── Next Appointment (for header widget) ────────────────────────
+  const nextAppt = useMemo(() => {
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    return todayAppts.find((a) => timeToMinutes(a.time) > currentMinutes) ?? null;
+  }, [todayAppts, now]);
 
   // ─── Birthday Clients ─────────────────────────────────────────────
   const birthdayClients = useMemo(() => {
@@ -834,6 +857,17 @@ export default function HomeScreen() {
   };
 
   const handleKpiExport = useCallback(async (tab: KpiTab) => {
+    if (isFreeplan) {
+      Alert.alert(
+        "Upgrade Required",
+        "PDF exports are available on the Growth and Pro plans.",
+        [
+          { text: "Not Now", style: "cancel" },
+          { text: "View Plans", onPress: () => router.push("/subscription" as any) },
+        ]
+      );
+      return;
+    }
     if (Platform.OS === "web") {
       Alert.alert("Not Available", "PDF export is available on mobile devices.");
       return;
@@ -868,6 +902,9 @@ export default function HomeScreen() {
       Alert.alert("Export Failed", "Could not generate the report. Please try again.");
     }
   }, [state, activeLocation, filterByLocation, clientsForActiveLocation]);
+
+  const { planInfo } = usePlanLimitCheck();
+  const isFreeplan = !planInfo || planInfo.planKey === "solo";
 
   const logoSource = state.settings.businessLogoUri
     ? { uri: state.settings.businessLogoUri }
@@ -914,15 +951,22 @@ export default function HomeScreen() {
               </Text>
               <Text style={[styles.greetingText, { color: colors.muted }]}>{greeting}</Text>
             </View>
-            {state.settings.temporaryClosed && (
-              <View style={[styles.closedBadge, { backgroundColor: colors.error + "15" }]}>
-                <Text style={{ fontSize: 10, fontWeight: "700", color: colors.error }}>
-                  CLOSED
-                </Text>
-              </View>
-            )}
+            {/* Live clock widget — right side of header */}
+            <View style={{ alignItems: "flex-end", gap: 2 }}>
+              <Text style={{ fontSize: 22, fontWeight: "800", color: colors.primary, letterSpacing: 0.5, fontVariant: ["tabular-nums"] }}>
+                {liveTimeStr.replace(/ (AM|PM)$/, "")}
+              </Text>
+              <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted }}>
+                {liveTimeStr.match(/(AM|PM)$/)?.[0] ?? ""}
+              </Text>
+              {state.settings.temporaryClosed && (
+                <View style={[styles.closedBadge, { backgroundColor: colors.error + "15" }]}>
+                  <Text style={{ fontSize: 10, fontWeight: "700", color: colors.error }}>CLOSED</Text>
+                </View>
+              )}
+            </View>
           </View>
-          <View style={{ marginTop: 4 }}>
+          <View style={{ marginTop: 6 }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <Text style={[styles.dateLabel, { color: colors.muted }]}>{dateLabel}</Text>
               {analytics.todayRevenue > 0 && (
@@ -967,6 +1011,54 @@ export default function HomeScreen() {
                     <Text key={i} style={{ fontSize: 8, color: colors.muted + "99", flex: 1, textAlign: "center" }}>{d.label}</Text>
                   ))}
                 </View>
+              </Pressable>
+            )}
+            {/* Next Appointment widget */}
+            {todayAppts.length > 0 && (
+              <Pressable
+                onPress={() => nextAppt
+                  ? router.push({ pathname: "/appointment-detail", params: { id: nextAppt.id } })
+                  : router.push("/(tabs)/calendar" as any)
+                }
+                style={({ pressed }) => ({
+                  marginTop: 8,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: nextAppt ? colors.primary + "12" : colors.surface,
+                  borderRadius: 10,
+                  paddingHorizontal: 10,
+                  paddingVertical: 7,
+                  borderWidth: 1,
+                  borderColor: nextAppt ? colors.primary + "30" : colors.border,
+                  gap: 8,
+                  opacity: pressed ? 0.75 : 1,
+                })}
+              >
+                <IconSymbol
+                  name={nextAppt ? "clock.fill" : "checkmark.circle.fill"}
+                  size={14}
+                  color={nextAppt ? colors.primary : colors.success}
+                />
+                {nextAppt ? (() => {
+                  const nextClient = getClientById(nextAppt.clientId);
+                  const nextSvc = getServiceById(nextAppt.serviceId);
+                  const minsUntil = timeToMinutes(nextAppt.time) - (now.getHours() * 60 + now.getMinutes());
+                  const hoursUntil = Math.floor(minsUntil / 60);
+                  const minsRemainder = minsUntil % 60;
+                  const countdownStr = hoursUntil > 0
+                    ? `in ${hoursUntil}h ${minsRemainder}m`
+                    : `in ${minsUntil}m`;
+                  return (
+                    <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600", flex: 1 }} numberOfLines={1}>
+                      Next: {formatTime(nextAppt.time)} · {nextSvc?.name ?? "Appointment"} · {nextClient?.name ?? "Client"} · <Text style={{ fontWeight: "800" }}>{countdownStr}</Text>
+                    </Text>
+                  );
+                })() : (
+                  <Text style={{ fontSize: 12, color: colors.success, fontWeight: "600" }}>
+                    All done for today — {todayAppts.length} appt{todayAppts.length !== 1 ? "s" : ""} completed
+                  </Text>
+                )}
+                <IconSymbol name="chevron.right" size={12} color={nextAppt ? colors.primary + "80" : colors.success + "80"} />
               </Pressable>
             )}
           </View>

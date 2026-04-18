@@ -1381,3 +1381,8 @@
 - [ ] Fix New Service form: hide/disable SMS Reminder Timing if subscription doesn't include SMS
 - [ ] Fix Custom Date Range picker: replace text input with scroll-wheel date picker like birthday selector
 - [ ] Fix Services/Products list layout: list appears too far below filter chips; add collapsible category/brand groups
+- [x] Add live clock and date to home header with professional display
+- [x] Add next appointment countdown widget in home header
+- [x] Gate PDF downloads for free (solo) plan users with upgrade prompt
+- [x] Fix promo code Apply button not working (applyPromoCode was nested inside applyGiftCode)
+- [x] Fix product/service detail placeholder background color (changed from green to neutral grey)

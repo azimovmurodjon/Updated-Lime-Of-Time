@@ -1832,7 +1832,7 @@ function baseStyles(): string {
       .detail-sheet { background:var(--bg-card); border-radius:24px 24px 0 0; padding:24px 20px 40px; max-width:480px; width:100%; max-height:85vh; overflow-y:auto; position:relative; }
       .detail-sheet .drag-handle { width:40px; height:4px; background:var(--border); border-radius:2px; margin:0 auto 20px; }
       .detail-sheet .detail-photo { width:100%; height:180px; object-fit:cover; border-radius:12px; margin-bottom:14px; }
-      .detail-sheet .detail-photo-placeholder { width:100%; height:120px; background:var(--accent-bg-light); border-radius:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; margin-bottom:14px; font-size:36px; }
+      .detail-sheet .detail-photo-placeholder { width:100%; height:120px; background:var(--border); border-radius:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; margin-bottom:14px; font-size:36px; opacity:0.7; }
       .detail-sheet .detail-photo-placeholder .ph-hint { font-size:11px; color:var(--text-muted); font-weight:500; text-align:center; padding:0 12px; }
       .detail-sheet .detail-badge { display:inline-block; background:var(--accent-bg-light); color:var(--accent-dark); font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; margin-bottom:8px; }
       .detail-sheet .detail-name { font-size:20px; font-weight:800; color:var(--text); margin-bottom:6px; }
@@ -5145,8 +5145,6 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       URL.revokeObjectURL(url);
     }
 
-    async function applyGiftCode() {
-
     async function applyPromoCode() {
       const input = document.getElementById("promoCodeInput");
       const msgEl = document.getElementById("promoMsg");
@@ -5179,6 +5177,8 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       }
       renderConfirmation();
     }
+
+    async function applyGiftCode() {
       const code = document.getElementById("giftCode").value.trim();
       const msg = document.getElementById("giftMsg");
       if (!code) { msg.innerHTML = ""; return; }

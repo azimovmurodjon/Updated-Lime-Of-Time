@@ -6,6 +6,7 @@ import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter } from "expo-router";
 import { FuturisticBackground } from "@/components/futuristic-background";
+import { usePlanLimitCheck } from "@/hooks/use-plan-limit-check";
 
 
 const EXPORT_ITEMS = [
@@ -20,8 +21,21 @@ export default function DataExportScreen() {
   const colors = useColors();
   const router = useRouter();
   const { isTablet, hp } = useResponsive();
+  const { planInfo } = usePlanLimitCheck();
+  const isFreeplan = !planInfo || planInfo.planKey === "solo";
 
   const handleExport = async (label: string) => {
+    if (isFreeplan) {
+      Alert.alert(
+        "Upgrade Required",
+        "PDF exports are available on the Growth and Pro plans. Upgrade your subscription to unlock professional PDF reports.",
+        [
+          { text: "Not Now", style: "cancel" },
+          { text: "View Plans", onPress: () => router.push("/subscription" as any) },
+        ]
+      );
+      return;
+    }
     try {
       const { generateClientsPdf, generateAppointmentsPdf, generateServicesPdf, generateRevenuePdf, exportPdf } = await import("@/lib/pdf-export");
       const accent = colors.primary;
@@ -60,6 +74,30 @@ export default function DataExportScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: hp, paddingVertical: 16, paddingBottom: 40 }}>
+        {isFreeplan && (
+          <Pressable
+            onPress={() => router.push("/subscription" as any)}
+            style={({ pressed }) => ({
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+              backgroundColor: "#FF980015",
+              borderRadius: 12,
+              padding: 12,
+              borderWidth: 1,
+              borderColor: "#FF980040",
+              marginBottom: 14,
+              opacity: pressed ? 0.8 : 1,
+            })}
+          >
+            <IconSymbol name="lock.fill" size={18} color="#FF9800" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontWeight: "700", color: "#FF9800" }}>PDF Export is a Pro Feature</Text>
+              <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Upgrade to Growth or Pro to download professional PDF reports.</Text>
+            </View>
+            <IconSymbol name="chevron.right" size={14} color="#FF9800" />
+          </Pressable>
+        )}
         <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 16, lineHeight: 20 }}>
           Generate professional PDF reports for your business data. Reports include your business branding and current data.
         </Text>
@@ -73,14 +111,21 @@ export default function DataExportScreen() {
               { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.8 : 1 },
             ]}
           >
-            <View style={[styles.iconWrap, { backgroundColor: colors.primary + "15" }]}>
-              <IconSymbol name={item.icon} size={22} color={colors.primary} />
+            <View style={[styles.iconWrap, { backgroundColor: isFreeplan ? colors.muted + "15" : colors.primary + "15" }]}>
+              <IconSymbol name={item.icon} size={22} color={isFreeplan ? colors.muted : colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{item.key} Report</Text>
+              <Text style={{ fontSize: 15, fontWeight: "600", color: isFreeplan ? colors.muted : colors.foreground }}>{item.key} Report</Text>
               <Text style={{ fontSize: 12, color: colors.muted, marginTop: 3, lineHeight: 17 }}>{item.desc}</Text>
             </View>
-            <IconSymbol name="square.and.arrow.up.fill" size={18} color={colors.primary} />
+            {isFreeplan ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#FF980015", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
+                <IconSymbol name="lock.fill" size={12} color="#FF9800" />
+                <Text style={{ fontSize: 11, fontWeight: "700", color: "#FF9800" }}>Pro</Text>
+              </View>
+            ) : (
+              <IconSymbol name="square.and.arrow.up.fill" size={18} color={colors.primary} />
+            )}
           </Pressable>
         ))}
 
