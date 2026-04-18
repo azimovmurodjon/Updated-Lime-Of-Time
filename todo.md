@@ -1415,3 +1415,6 @@
 - [x] Add "Payment Confirmed" email toggle to notification settings (on/off like other email notifications)
 - [x] Gate ALL email notifications behind paid subscription — free/Solo users cannot send any emails; show disabled state with upgrade prompt
 - [x] Add "Compare all plans" full-screen modal in KPI sheet upgrade prompt with side-by-side feature matrix
+- [x] Wire Top Service KPI card to open topservice tab directly
+- [x] Add date range filter (This Week / This Month / All Time) to KPI detail sheet
+- [x] Build Payment Summary page with date range filter, paid/unpaid breakdown, and subscription-gated PDF download

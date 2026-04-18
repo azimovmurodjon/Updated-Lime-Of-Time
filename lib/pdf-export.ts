@@ -344,3 +344,108 @@ export async function exportPdf(html: string, filename: string): Promise<void> {
     await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: filename });
   }
 }
+
+// ── Payment Summary Report ────────────────────────────────────────────
+
+export function generatePaymentSummaryPdf(
+  businessName: string,
+  appointments: Appointment[],
+  services: Service[],
+  clients: Client[],
+  accentColor: string,
+  dateRangeLabel: string,
+  locationName?: string,
+  locationAddress?: string
+): string {
+  const getPrice = (a: Appointment) => a.totalPrice ?? services.find((s) => s.id === a.serviceId)?.price ?? 0;
+  const getClientName = (a: Appointment) => clients.find((c) => c.id === a.clientId)?.name ?? "Unknown";
+  const getServiceName = (a: Appointment) => services.find((s) => s.id === a.serviceId)?.name ?? "Unknown";
+
+  const active = appointments.filter((a) => a.status !== "cancelled");
+  const paid = active.filter((a) => a.paymentStatus === "paid");
+  const unpaid = active.filter((a) => a.paymentStatus !== "paid");
+
+  const paidTotal = paid.reduce((s, a) => s + getPrice(a), 0);
+  const unpaidTotal = unpaid.reduce((s, a) => s + getPrice(a), 0);
+  const totalAmount = paidTotal + unpaidTotal;
+  const collectionRate = totalAmount > 0 ? Math.round((paidTotal / totalAmount) * 100) : 0;
+
+  // Payment method breakdown
+  const methodMap: Record<string, { label: string; count: number; total: number }> = {};
+  const methodLabels: Record<string, string> = { cash: "Cash", zelle: "Zelle", venmo: "Venmo", cashapp: "Card" };
+  paid.forEach((a) => {
+    const m = a.paymentMethod || "unknown";
+    if (!methodMap[m]) methodMap[m] = { label: methodLabels[m] || m, count: 0, total: 0 };
+    methodMap[m].count++;
+    methodMap[m].total += getPrice(a);
+  });
+  const methodRows = Object.values(methodMap).sort((a, b) => b.total - a.total);
+
+  const fmtDate = (d: string) => {
+    try { return new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
+    catch { return d; }
+  };
+
+  const paidRows = paid.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 50);
+  const unpaidRows = unpaid.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 50);
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8">${pdfStyles(accentColor)}</head><body>
+    ${pdfHeader(businessName, "Payment Summary", dateRangeLabel, locationName, locationAddress)}
+    <div class="summary-grid">
+      <div class="summary-card"><div class="label">Total Collected</div><div class="value">${fmtCurrency(paidTotal)}</div></div>
+      <div class="summary-card"><div class="label">Outstanding</div><div class="value" style="color:#EF4444;">${fmtCurrency(unpaidTotal)}</div></div>
+      <div class="summary-card"><div class="label">Collection Rate</div><div class="value">${collectionRate}%</div></div>
+    </div>
+
+    ${methodRows.length > 0 ? `
+    <div class="section">
+      <div class="section-title">Payment Method Breakdown</div>
+      <table>
+        <thead><tr><th>Method</th><th>Count</th><th>Total Collected</th></tr></thead>
+        <tbody>
+          ${methodRows.map((m) => `<tr>
+            <td style="font-weight:600;">${escHtml(m.label)}</td>
+            <td>${m.count}</td>
+            <td>${fmtCurrency(m.total)}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>` : ""}
+
+    ${paidRows.length > 0 ? `
+    <div class="section">
+      <div class="section-title">Paid Appointments (${paid.length})</div>
+      <table>
+        <thead><tr><th>Date</th><th>Client</th><th>Service</th><th>Method</th><th>Amount</th></tr></thead>
+        <tbody>
+          ${paidRows.map((a) => `<tr>
+            <td>${fmtDate(a.date)}</td>
+            <td style="font-weight:600;">${escHtml(getClientName(a))}</td>
+            <td>${escHtml(getServiceName(a))}</td>
+            <td>${escHtml(methodLabels[a.paymentMethod || ""] || a.paymentMethod || "—")}</td>
+            <td style="font-weight:600;color:#22C55E;">${fmtCurrency(getPrice(a))}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>` : ""}
+
+    ${unpaidRows.length > 0 ? `
+    <div class="section">
+      <div class="section-title">Outstanding Appointments (${unpaid.length})</div>
+      <table>
+        <thead><tr><th>Date</th><th>Client</th><th>Service</th><th>Status</th><th>Amount Due</th></tr></thead>
+        <tbody>
+          ${unpaidRows.map((a) => `<tr>
+            <td>${fmtDate(a.date)}</td>
+            <td style="font-weight:600;">${escHtml(getClientName(a))}</td>
+            <td>${escHtml(getServiceName(a))}</td>
+            <td><span class="badge badge-${a.status}">${a.status}</span></td>
+            <td style="font-weight:600;color:#EF4444;">${fmtCurrency(getPrice(a))}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>` : ""}
+
+    ${pdfFooter(businessName)}
+  </body></html>`;
+}

@@ -26,6 +26,7 @@ import { PlanCompareModal } from "@/components/plan-compare-modal";
 
 // ─── Types ─────────────────────────────────────────────────────────────
 export type KpiTab = "revenue" | "appointments" | "clients" | "topservice";
+export type KpiDateRange = "week" | "month" | "all";
 
 interface RevenueData {
   weekRevenue: number;
@@ -64,6 +65,7 @@ interface KpiDetailSheetProps {
   topServiceData: TopServiceData;
   onExport?: (tab: KpiTab) => Promise<void>;
   isFreeplan?: boolean;
+  onDateRangeChange?: (range: KpiDateRange) => void;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────
@@ -362,9 +364,16 @@ export function KpiDetailSheet({
   topServiceData,
   onExport,
   isFreeplan,
+  onDateRangeChange,
 }: KpiDetailSheetProps) {
   const [exporting, setExporting] = useState(false);
   const [showCompare, setShowCompare] = useState(false);
+  const [dateRange, setDateRange] = useState<KpiDateRange>("week");
+
+  const handleRangeChange = (range: KpiDateRange) => {
+    setDateRange(range);
+    onDateRangeChange?.(range);
+  };
 
   const handleExport = async () => {
     if (!tab || !onExport || exporting) return;
@@ -442,6 +451,34 @@ export function KpiDetailSheet({
             gradientColors={cfg.gradient}
             onClose={onClose}
           />
+
+          {/* ─── Date Range Filter ─────────────────────────────────── */}
+          <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 4 }}>
+            {(["week", "month", "all"] as KpiDateRange[]).map((r) => {
+              const labels: Record<KpiDateRange, string> = { week: "This Week", month: "This Month", all: "All Time" };
+              const active = dateRange === r;
+              return (
+                <Pressable
+                  key={r}
+                  onPress={() => handleRangeChange(r)}
+                  style={({ pressed }) => ({
+                    flex: 1,
+                    paddingVertical: 8,
+                    borderRadius: 10,
+                    alignItems: "center",
+                    backgroundColor: active ? cfg.gradient[0] : colors.surface,
+                    borderWidth: 1,
+                    borderColor: active ? cfg.gradient[0] : colors.border,
+                    opacity: pressed ? 0.75 : 1,
+                  })}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: active ? "700" : "500", color: active ? "#FFF" : colors.muted }}>
+                    {labels[r]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
 
           <ScrollView
             contentContainerStyle={{ padding: 20, paddingBottom: 48 }}

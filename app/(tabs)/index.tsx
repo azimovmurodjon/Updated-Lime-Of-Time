@@ -29,7 +29,7 @@ import { FuturisticBackground } from "@/components/futuristic-background";
 import * as ImagePicker from "expo-image-picker";
 import { MiniBarChart, MiniDonutChart } from "@/components/mini-chart";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { KpiDetailSheet, MicroSparkLine, MicroBarSpark, type KpiTab } from "@/components/kpi-detail-sheet";
+import { KpiDetailSheet, MicroSparkLine, MicroBarSpark, type KpiTab, type KpiDateRange } from "@/components/kpi-detail-sheet";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import QRCode from "react-native-qrcode-svg";
@@ -245,6 +245,7 @@ export default function HomeScreen() {
 
   // ─── KPI Detail Sheet ─────────────────────────────────────────
   const [kpiDetailTab, setKpiDetailTab] = useState<KpiTab | null>(null);
+  const [kpiDateRange, setKpiDateRange] = useState<KpiDateRange>("week");
 
   // ─── Tutorial Walkthrough ──────────────────────────────────────
   const [showTutorial, setShowTutorial] = useState(false);
@@ -725,6 +726,105 @@ export default function HomeScreen() {
       bookings: filteredAppts.filter((a) => a.serviceId === s.id).length,
     })).filter((s) => s.bookings > 0).sort((a, b) => b.bookings - a.bookings);
   }, [state.services, state.appointments, filterByLocation]);
+
+  // ─── KPI Ranged Data (responds to date range filter in KPI sheet) ────────
+  const kpiRangedData = useMemo(() => {
+    const now = new Date();
+    const todayStr2 = formatDateStr(now);
+    let rangeStart = "";
+    let rangeEnd = todayStr2;
+    if (kpiDateRange === "week") {
+      const s = new Date(now);
+      s.setDate(now.getDate() - now.getDay());
+      rangeStart = formatDateStr(s);
+    } else if (kpiDateRange === "month") {
+      rangeStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+    } else {
+      rangeStart = "2000-01-01";
+    }
+
+    const allAppts = filterByLocation(state.appointments);
+    const rangedAppts = allAppts.filter((a) => a.date >= rangeStart && a.date <= rangeEnd);
+    const completedRanged = rangedAppts.filter((a) => a.status === "completed");
+    const activeRanged = rangedAppts.filter((a) => a.status !== "cancelled");
+
+    const getPrice = (a: (typeof state.appointments)[0]) => {
+      if (a.totalPrice != null) return a.totalPrice;
+      return state.services.find((s) => s.id === a.serviceId)?.price ?? 0;
+    };
+
+    const weekRevenue = completedRanged.reduce((s, a) => s + getPrice(a), 0);
+    const totalRevenue = allAppts.filter((a) => a.status === "completed").reduce((s, a) => s + getPrice(a), 0);
+
+    // Build 6 data points for the chart based on range
+    const monthlyData: { label: string; value: number; color: string }[] = [];
+    const mColors = ["#4CAF50", "#2196F3", "#FF9800", "#9C27B0", "#E91E63", "#00BCD4"];
+    if (kpiDateRange === "week") {
+      const days = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(now);
+        d.setDate(now.getDate() - now.getDay() + i);
+        const dStr = formatDateStr(d);
+        const rev = completedRanged.filter((a) => a.date === dStr).reduce((s, a) => s + getPrice(a), 0);
+        monthlyData.push({ label: days[i], value: Math.round(rev), color: mColors[i % 6] });
+      }
+    } else if (kpiDateRange === "month") {
+      for (let w = 0; w < 4; w++) {
+        const wStart = new Date(now.getFullYear(), now.getMonth(), w * 7 + 1);
+        const wEnd = new Date(now.getFullYear(), now.getMonth(), Math.min((w + 1) * 7, new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()));
+        const rev = completedRanged.filter((a) => a.date >= formatDateStr(wStart) && a.date <= formatDateStr(wEnd)).reduce((s, a) => s + getPrice(a), 0);
+        monthlyData.push({ label: `Wk${w + 1}`, value: Math.round(rev), color: mColors[w] });
+      }
+    } else {
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const mStr = d.toLocaleDateString("en-US", { month: "short" });
+        const mStart = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+        const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        const mEnd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+        const rev = allAppts.filter((a) => a.status === "completed" && a.date >= mStart && a.date <= mEnd).reduce((s, a) => s + getPrice(a), 0);
+        monthlyData.push({ label: mStr, value: Math.round(rev), color: mColors[5 - i] });
+      }
+    }
+
+    const weeklyDailyData = monthlyData.map((d) => ({ ...d, apptCount: activeRanged.filter((a) => a.date === d.label).length }));
+
+    const svcCounts: Record<string, number> = {};
+    activeRanged.forEach((a) => { svcCounts[a.serviceId] = (svcCounts[a.serviceId] || 0) + 1; });
+    const serviceBreakdown = state.services.map((s) => ({ label: s.name, value: svcCounts[s.id] || 0, color: s.color }))
+      .filter((s) => s.value > 0).sort((a, b) => b.value - a.value);
+
+    const statusCounts = {
+      pending: rangedAppts.filter((a) => a.status === "pending").length,
+      confirmed: rangedAppts.filter((a) => a.status === "confirmed").length,
+      completed: completedRanged.length,
+      cancelled: rangedAppts.filter((a) => a.status === "cancelled").length,
+    };
+
+    const clientsData = clientsForActiveLocation.map((c) => {
+      const cAppts = completedRanged.filter((a) => a.clientId === c.id);
+      const totalSpent = cAppts.reduce((s, a) => s + getPrice(a), 0);
+      return { id: c.id, name: c.name, phone: c.phone, email: c.email, apptCount: cAppts.length, totalSpent };
+    }).filter((c) => c.apptCount > 0).sort((a, b) => b.apptCount - a.apptCount);
+
+    const serviceRanking = state.services.map((s) => ({
+      id: s.id, name: s.name, color: s.color, price: s.price,
+      bookings: activeRanged.filter((a) => a.serviceId === s.id).length,
+    })).filter((s) => s.bookings > 0).sort((a, b) => b.bookings - a.bookings);
+
+    const topSvc = serviceRanking[0];
+
+    return {
+      revenueData: { weekRevenue, prevWeekRevenue: 0, totalRevenue, monthlyData, weeklyDailyData, serviceBreakdown },
+      appointmentsData: { totalAppointments: activeRanged.length, statusCounts, weeklyDailyData, serviceBreakdown },
+      clientsData: { totalClients: clientsForActiveLocation.length, clientsData },
+      topServiceData: {
+        topService: topSvc ? state.services.find((s) => s.id === topSvc.id) ?? undefined : undefined,
+        topCount: topSvc?.bookings ?? 0,
+        serviceRanking,
+      },
+    };
+  }, [kpiDateRange, state.appointments, state.services, filterByLocation, clientsForActiveLocation]);
 
   // ─── Revenue Forecast (current month) ────────────────────────────────────
   const revenueForecast = useMemo(() => {
@@ -1277,6 +1377,20 @@ export default function HomeScreen() {
             sparkType="bar"
             onPress={() => setKpiDetailTab("appointments")}
           />
+          {/* Top Service Card */}
+          <GradientKpiCard
+            width={cardW}
+            gradientColors={["#E65100", "#FF8A65"]}
+            iconBg="rgba(255,255,255,0.22)"
+            icon={<IconSymbol name="star.fill" size={22} color="#FFF" />}
+            value={analytics.topService ? analytics.topService.name.split(" ").slice(0, 2).join(" ") : "—"}
+            numericValue={analytics.topCount}
+            label="Top Service"
+            sublabel={analytics.topCount > 0 ? `${analytics.topCount} bookings` : "No data yet"}
+            sparkData={kpiServiceRanking.slice(0, 7).map((s) => s.bookings)}
+            sparkType="bar"
+            onPress={() => setKpiDetailTab("topservice")}
+          />
         </View>
 
         {/* ─── Monthly Goal Progress Bar ──────────────────────────────────── */}
@@ -1349,11 +1463,11 @@ export default function HomeScreen() {
                 <Text style={{ fontSize: 15, fontWeight: '700', color: colors.foreground }}>Payment Summary</Text>
               </View>
               <Pressable
-                onPress={() => router.push({ pathname: '/(tabs)/calendar', params: { filter: 'unpaid' } } as any)}
-                style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.error + '15', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 })}
+                onPress={() => router.push("/payment-summary" as any)}
+                style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.primary + '15', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 })}
               >
-                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.error }}>View Unpaid</Text>
-                <IconSymbol name="chevron.right" size={12} color={colors.error} />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary }}>Full Summary</Text>
+                <IconSymbol name="chevron.right" size={12} color={colors.primary} />
               </Pressable>
             </View>
 
@@ -2311,26 +2425,11 @@ export default function HomeScreen() {
         onClose={() => setKpiDetailTab(null)}
         onExport={handleKpiExport}
         isFreeplan={isFreeplan}
-        revenueData={{
-          weekRevenue: analytics.weekRevenue,
-          prevWeekRevenue: analytics.prevWeekRevenue,
-          totalRevenue: analytics.totalRevenue,
-          monthlyData: analytics.monthlyData,
-          weeklyDailyData: analytics.weeklyDailyData,
-          serviceBreakdown: analytics.serviceBreakdown,
-        }}
-        appointmentsData={{
-          totalAppointments: analytics.totalAppointments,
-          statusCounts: analytics.statusCounts,
-          weeklyDailyData: analytics.weeklyDailyData,
-          serviceBreakdown: analytics.serviceBreakdown,
-        }}
-        clientsData={kpiClientsData}
-        topServiceData={{
-          topService: analytics.topService,
-          topCount: analytics.topCount,
-          serviceRanking: kpiServiceRanking,
-        }}
+        onDateRangeChange={setKpiDateRange}
+        revenueData={kpiRangedData.revenueData}
+        appointmentsData={kpiRangedData.appointmentsData}
+        clientsData={kpiRangedData.clientsData}
+        topServiceData={kpiRangedData.topServiceData}
       />
     </ScreenContainer>
   );
