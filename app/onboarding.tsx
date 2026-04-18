@@ -182,6 +182,7 @@ export default function OnboardingScreen() {
   const isSocialFlow = socialParams.socialLogin === "1";
   const [step, setStep] = useState<Step>(isSocialFlow ? "socialPhone" : 1);
   const prevStepRef = useRef<Step>(isSocialFlow ? "socialPhone" : 1);
+  const outerScrollRef = useRef<ScrollView>(null);
   const [displayStep, setDisplayStep] = useState<Step>(isSocialFlow ? "socialPhone" : 1);
   // Increment to force PlanCarousel remount (resets inner scroll to top) each time subscription step is shown
   const [planCarouselKey, setPlanCarouselKey] = useState(0);
@@ -459,6 +460,8 @@ export default function OnboardingScreen() {
     if (displayStep === "subscription") {
       // Force PlanCarousel to remount so its inner scroll resets to top (Solo plan visible first)
       setPlanCarouselKey(k => k + 1);
+      // Also reset the outer onboarding ScrollView to top so Solo plan is the first visible card
+      setTimeout(() => outerScrollRef.current?.scrollTo({ y: 0, animated: false }), 50);
     }
   }, [displayStep]);
 
@@ -850,6 +853,7 @@ export default function OnboardingScreen() {
         style={{ flex: 1 }}
       >
         <ScrollView
+          ref={outerScrollRef}
           contentContainerStyle={{
             flexGrow: 1,
             paddingHorizontal: hp,
