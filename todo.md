@@ -1366,3 +1366,5 @@
 - [ ] Fix Test Connection button for Twilio (real API call + success/error display)
 - [ ] Fix Test Connection button for Stripe
 - [ ] Verify OTP flow end-to-end with real Twilio number
+- [x] Remove autoFocus from onboarding phone, OTP, and business-info screens so keyboard only opens on tap
+- [x] Remove Done button from phone number entry screen (changed returnKeyType from "done" to "next")

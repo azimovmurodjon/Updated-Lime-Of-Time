@@ -452,7 +452,7 @@ export default function OnboardingScreen() {
       setOtpError("");
       otpBoxScales.forEach(s => { s.value = 1; });
       otpBoxBorders.forEach(b => { b.value = 0; });
-      setTimeout(() => otpRefs.current[0]?.focus(), 200);
+      // Auto-focus removed — user taps to start entering OTP
     }
   }, [displayStep]);
 
@@ -929,10 +929,9 @@ export default function OnboardingScreen() {
                       value={phone}
                       onChangeText={handlePhoneChange}
                       keyboardType="phone-pad"
-                      returnKeyType="done"
+                      returnKeyType="next"
                       onSubmitEditing={() => handleBtnPress(handlePhoneNext)}
                       maxLength={selectedCountry.dial === "+1" ? 14 : 15}
-                      autoFocus
                       editable={!loading}
                       onFocus={() => setInputFocused(true)}
                       onBlur={() => setInputFocused(false)}
@@ -1028,10 +1027,9 @@ export default function OnboardingScreen() {
                       value={phone}
                       onChangeText={handlePhoneChange}
                       keyboardType="phone-pad"
-                      returnKeyType="done"
+                      returnKeyType="next"
                       onSubmitEditing={() => handleBtnPress(handleSocialPhoneNext)}
                       maxLength={selectedCountry.dial === "+1" ? 14 : 15}
-                      autoFocus
                       editable={!loading}
                       onFocus={() => setInputFocused(true)}
                       onBlur={() => setInputFocused(false)}
@@ -1215,7 +1213,6 @@ export default function OnboardingScreen() {
                         if (onboardingErrors.businessName) setOnboardingErrors((e) => ({ ...e, businessName: undefined }));
                       }}
                       returnKeyType="next"
-                      autoFocus
                       editable={!loading}
                     />
                     {onboardingErrors.businessName ? (
