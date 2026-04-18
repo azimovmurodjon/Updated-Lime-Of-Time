@@ -370,6 +370,25 @@ export default function DiscountsScreen() {
               )}
             </View>
           )}
+          {/* Usage progress bar — only shown when maxUses is set */}
+          {item.maxUses != null && item.maxUses > 0 && (
+            <View style={{ marginBottom: 10 }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                <Text style={{ fontSize: 11, color: colors.muted, fontWeight: "600" }}>Usage</Text>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: maxUsesReached ? colors.error : colors.primary }}>
+                  {usageCount} / {item.maxUses} uses
+                </Text>
+              </View>
+              <View style={{ height: 6, backgroundColor: colors.border, borderRadius: 3, overflow: "hidden" }}>
+                <View style={{
+                  height: 6,
+                  borderRadius: 3,
+                  backgroundColor: maxUsesReached ? colors.error : colors.primary,
+                  width: `${Math.min((usageCount / item.maxUses) * 100, 100)}%` as any,
+                }} />
+              </View>
+            </View>
+          )}
           <View style={styles.cardDetails}>
             <View style={styles.detailRow}>
               <IconSymbol name="clock.fill" size={14} color={colors.muted} />

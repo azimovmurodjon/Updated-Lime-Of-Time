@@ -1386,3 +1386,6 @@
 - [x] Gate PDF downloads for free (solo) plan users with upgrade prompt
 - [x] Fix promo code Apply button not working (applyPromoCode was nested inside applyGiftCode)
 - [x] Fix product/service detail placeholder background color (changed from green to neutral grey)
+- [x] Fix QR code Share button not working on iOS
+- [x] Add quick action buttons (New Booking, View Today) to home header
+- [x] Add promo code usage counter (X / Y uses) on Discounts screen

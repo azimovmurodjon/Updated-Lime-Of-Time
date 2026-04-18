@@ -1062,6 +1062,46 @@ export default function HomeScreen() {
               </Pressable>
             )}
           </View>
+
+          {/* ─── Header Quick Actions ──────────────────────────────────── */}
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+            <Pressable
+              onPress={() => router.push("/new-booking" as any)}
+              style={({ pressed }) => ({
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                backgroundColor: colors.primary,
+                borderRadius: 12,
+                paddingVertical: 10,
+                opacity: pressed ? 0.82 : 1,
+              })}
+            >
+              <IconSymbol name="plus.circle.fill" size={16} color="#fff" />
+              <Text style={{ fontSize: 13, fontWeight: "700", color: "#fff" }}>New Booking</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => router.push({ pathname: "/(tabs)/calendar", params: { filter: "today" } } as any)}
+              style={({ pressed }) => ({
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                backgroundColor: "rgba(255,255,255,0.12)",
+                borderRadius: 12,
+                paddingVertical: 10,
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.2)",
+                opacity: pressed ? 0.75 : 1,
+              })}
+            >
+              <IconSymbol name="calendar" size={16} color={colors.foreground} />
+              <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground }}>View Today</Text>
+            </Pressable>
+          </View>
         </LinearGradient>
 
         {/* Location Filter */}
@@ -2237,12 +2277,13 @@ export default function HomeScreen() {
                 <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground }}>Copy Link</Text>
               </Pressable>
               <Pressable
-                onPress={() => {
+                onPress={async () => {
                   const selectedLoc = qrSelectedLocationId
                     ? state.locations.find((l) => l.id === qrSelectedLocationId) ?? null
                     : null;
+                  // Share directly — do NOT close the modal first (iOS setTimeout approach fails silently)
+                  await doShareForLocation(selectedLoc);
                   setShowQrModal(false);
-                  setTimeout(() => doShareForLocation(selectedLoc), 300);
                 }}
                 style={({ pressed }) => [{
                   flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
