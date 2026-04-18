@@ -4,7 +4,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import * as db from "./db";
-import { sendAppointmentConfirmationEmail } from "./email";
+import { sendAppointmentConfirmationEmail, sendPaymentReceiptEmail } from "./email";
 import {
   getPlatformConfig,
   getPublicPlans,
@@ -375,6 +375,45 @@ const appointmentsRouter = router({
           }
         } catch (emailErr) {
           console.error("[Email] Failed to send confirmation email:", emailErr);
+        }
+      }
+
+      // Send payment receipt email to client when appointment is marked paid
+      if (data.paymentStatus === "paid") {
+        try {
+          const [owner, enrichedAppt] = await Promise.all([
+            db.getBusinessOwnerById(businessOwnerId),
+            db.getEnrichedAppointment(localId, businessOwnerId),
+          ]);
+          if (owner && enrichedAppt) {
+            const prefs = (owner as any).notificationPreferences ?? {};
+            const masterNotifOn = (owner as any).notificationsEnabled !== false;
+            const emailEnabled = prefs.emailClientOnPaymentConfirmed === true;
+            // Only send on paid plans (not solo/free)
+            const planKey = (owner as any).subscriptionPlan ?? "solo";
+            const isAdminOverride = !!(owner as any).adminOverride;
+            const hasPaidPlan = isAdminOverride || (planKey !== "solo" && planKey !== "free");
+            if (masterNotifOn && emailEnabled && hasPaidPlan && enrichedAppt.clientEmail && enrichedAppt.clientEmail.includes("@")) {
+              await sendPaymentReceiptEmail(owner.businessName, {
+                clientName: enrichedAppt.clientName ?? "Valued Client",
+                clientEmail: enrichedAppt.clientEmail,
+                serviceName: enrichedAppt.serviceName ?? "Service",
+                date: enrichedAppt.date,
+                time: enrichedAppt.time,
+                duration: enrichedAppt.duration ?? 60,
+                totalPrice: enrichedAppt.totalPrice ? Number(enrichedAppt.totalPrice) : undefined,
+                paymentMethod: data.paymentMethod,
+                paymentConfirmationNumber: data.paymentConfirmationNumber,
+                locationName: enrichedAppt.locationName ?? undefined,
+                locationAddress: enrichedAppt.locationAddress ?? undefined,
+                businessPhone: owner.phone ?? undefined,
+                customSlug: (owner as any).customSlug ?? undefined,
+                locationId: enrichedAppt.locationId ?? undefined,
+              });
+            }
+          }
+        } catch (emailErr) {
+          console.error("[Email] Failed to send payment receipt email:", emailErr);
         }
       }
 

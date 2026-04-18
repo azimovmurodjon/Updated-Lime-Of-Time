@@ -22,6 +22,7 @@ import Svg, {
 } from "react-native-svg";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { PlanCompareModal } from "@/components/plan-compare-modal";
 
 // ─── Types ─────────────────────────────────────────────────────────────
 export type KpiTab = "revenue" | "appointments" | "clients" | "topservice";
@@ -363,6 +364,7 @@ export function KpiDetailSheet({
   isFreeplan,
 }: KpiDetailSheetProps) {
   const [exporting, setExporting] = useState(false);
+  const [showCompare, setShowCompare] = useState(false);
 
   const handleExport = async () => {
     if (!tab || !onExport || exporting) return;
@@ -640,36 +642,48 @@ export function KpiDetailSheet({
             {onExport && (
               isFreeplan ? (
                 // Free plan: show upgrade prompt instead of download
-                <Pressable
-                  onPress={handleExport}
-                  style={({ pressed }) => ({
-                    marginTop: 24,
-                    borderRadius: 14,
-                    overflow: "hidden",
-                    opacity: pressed ? 0.85 : 1,
-                    transform: [{ scale: pressed ? 0.98 : 1 }],
-                  })}
-                >
-                  <LinearGradient
-                    colors={["#6B7280", "#9CA3AF"]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      paddingVertical: 15,
-                      paddingHorizontal: 24,
-                      gap: 10,
-                    }}
+                <React.Fragment>
+                  <Pressable
+                    onPress={handleExport}
+                    style={({ pressed }) => ({
+                      marginTop: 24,
+                      borderRadius: 14,
+                      overflow: "hidden",
+                      opacity: pressed ? 0.85 : 1,
+                      transform: [{ scale: pressed ? 0.98 : 1 }],
+                    })}
                   >
-                    <IconSymbol name="lock.fill" size={18} color="#FFF" />
-                    <View style={{ alignItems: "center" }}>
-                      <Text style={{ fontSize: 15, fontWeight: "700", color: "#FFF", letterSpacing: -0.2 }}>Upgrade to Download Reports</Text>
-                      <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.8)", marginTop: 2 }}>Available on Growth &amp; Pro plans</Text>
-                    </View>
-                  </LinearGradient>
-                </Pressable>
+                    <LinearGradient
+                      colors={["#6B7280", "#9CA3AF"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        paddingVertical: 15,
+                        paddingHorizontal: 24,
+                        gap: 10,
+                      }}
+                    >
+                      <IconSymbol name="lock.fill" size={18} color="#FFF" />
+                      <View style={{ alignItems: "center" }}>
+                        <Text style={{ fontSize: 15, fontWeight: "700", color: "#FFF", letterSpacing: -0.2 }}>Upgrade to Download Reports</Text>
+                        <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.8)", marginTop: 2 }}>Available on Growth &amp; Pro plans</Text>
+                      </View>
+                    </LinearGradient>
+                  </Pressable>
+                  {/* Compare all plans link */}
+                  <Pressable
+                    onPress={() => setShowCompare(true)}
+                    style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, alignSelf: "center", marginTop: 10, padding: 6 })}
+                  >
+                    <Text style={{ fontSize: 13, color: "#2563EB", fontWeight: "600", textDecorationLine: "underline" }}>
+                      Compare all plans
+                    </Text>
+                  </Pressable>
+                  <PlanCompareModal visible={showCompare} onClose={() => setShowCompare(false)} />
+                </React.Fragment>
               ) : (
                 <Pressable
                   onPress={handleExport}

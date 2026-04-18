@@ -1412,3 +1412,6 @@
 - [x] Fix KPI page to show fully including data and buttons
 - [x] Add payment method label (Cash, Zelle, Venmo, etc.) alongside paid badge on appointment cards
 - [x] Add outstanding revenue total in Unpaid list header (e.g., "3 appointments · $285 outstanding")
+- [x] Add "Payment Confirmed" email toggle to notification settings (on/off like other email notifications)
+- [x] Gate ALL email notifications behind paid subscription — free/Solo users cannot send any emails; show disabled state with upgrade prompt
+- [x] Add "Compare all plans" full-screen modal in KPI sheet upgrade prompt with side-by-side feature matrix

@@ -332,6 +332,8 @@ export interface NotificationPreferences {
   emailClientOnComplete?: boolean;
   /** SMS to client when appointment is marked as no-show */
   smsClientOnNoShow?: boolean;
+  /** Email to client when owner marks appointment as paid (payment receipt) */
+  emailClientOnPaymentConfirmed?: boolean;
 }
 
 /** Per-event SMS message templates. Each key maps to a custom message body.
@@ -374,6 +376,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   emailClientOnCancellation: false,
   emailClientOnComplete: false,
   smsClientOnNoShow: true,
+  emailClientOnPaymentConfirmed: false,
 };
 
 export interface BusinessSettings {

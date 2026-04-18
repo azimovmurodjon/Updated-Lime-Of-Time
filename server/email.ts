@@ -549,3 +549,105 @@ export async function sendAppointmentReminderEmail(
     return false;
   }
 }
+
+export interface PaymentReceiptEmailData {
+  clientName: string;
+  clientEmail: string;
+  serviceName: string;
+  date: string;
+  time: string;
+  duration: number;
+  totalPrice?: number;
+  paymentMethod?: string;
+  paymentConfirmationNumber?: string;
+  locationName?: string;
+  locationAddress?: string;
+  businessPhone?: string;
+  customSlug?: string;
+  locationId?: string;
+}
+
+/**
+ * Send a branded "Payment Received" receipt email to the client.
+ * Returns true if sent successfully, false otherwise.
+ */
+export async function sendPaymentReceiptEmail(
+  businessName: string,
+  data: PaymentReceiptEmailData
+): Promise<boolean> {
+  const resend = getResend();
+  if (!resend) return false;
+  if (!data.clientEmail || !data.clientEmail.includes("@")) return false;
+
+  const dateObj = new Date(data.date + "T12:00:00");
+  const dateStr = dateObj.toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const [h, m] = data.time.split(":").map(Number);
+  const ampm = h >= 12 ? "PM" : "AM";
+  const hour12 = h % 12 || 12;
+  const timeStr = `${hour12}:${String(m).padStart(2, "0")} ${ampm}`;
+
+  const methodLabels: Record<string, string> = {
+    cash: "Cash",
+    zelle: "Zelle",
+    venmo: "Venmo",
+    cashapp: "Card",
+  };
+  const methodLabel = data.paymentMethod ? (methodLabels[data.paymentMethod] ?? data.paymentMethod) : undefined;
+
+  const slug = data.customSlug || businessName.replace(/\s+/g, "-").toLowerCase();
+  const bookingLink = `https://lime-of-time.com/book/${slug}${data.locationId ? "?location=" + data.locationId : ""}`;
+
+  let detailsHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">`;
+  detailsHtml += detailRow("💈", "Service", `${data.serviceName} (${data.duration} min)`);
+  detailsHtml += detailRow("📅", "Date", dateStr);
+  detailsHtml += detailRow("⏰", "Time", timeStr);
+  if (data.locationName || data.locationAddress) {
+    detailsHtml += detailRow("📍", "Location", [data.locationName, data.locationAddress].filter(Boolean).join(" — "));
+  }
+  if (data.totalPrice !== undefined && data.totalPrice > 0) {
+    detailsHtml += detailRow("💰", "Amount Paid", `$${data.totalPrice.toFixed(2)}`);
+  }
+  if (methodLabel) {
+    detailsHtml += detailRow("💳", "Payment Method", methodLabel);
+  }
+  if (data.paymentConfirmationNumber) {
+    detailsHtml += detailRow("🔖", "Confirmation #", escHtml(data.paymentConfirmationNumber));
+  }
+  detailsHtml += `</table>`;
+
+  const bodyHtml = `
+    <div style="color:#333;font-size:15px;line-height:1.6;margin-bottom:16px;">
+      Hi <strong>${escHtml(data.clientName)}</strong>, your payment has been <strong style="color:#2d5a27;">received</strong>. Thank you for your business!
+    </div>
+    ${detailsHtml}
+    <div style="margin-top:16px;padding:16px;background-color:#e8f5e3;border-radius:12px;text-align:center;">
+      <div style="color:#2d5a27;font-size:14px;font-weight:600;margin-bottom:8px;">✅ Payment Confirmed</div>
+      <div style="color:#555;font-size:13px;">This email serves as your payment receipt. Please keep it for your records.</div>
+    </div>
+    <div style="margin-top:20px;text-align:center;">
+      <a href="${bookingLink}" style="display:inline-block;background-color:#2d5a27;color:#ffffff;padding:12px 28px;border-radius:24px;font-size:14px;font-weight:600;text-decoration:none;">Book Another Appointment</a>
+    </div>
+  `;
+
+  const html = brandedTemplate(`Payment Received — ${businessName}`, bodyHtml);
+
+  try {
+    const result = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: [data.clientEmail],
+      subject: `Payment received for ${data.serviceName} — ${businessName}`,
+      html,
+    });
+    console.log("[Email] Payment receipt email sent to client:", result);
+    return true;
+  } catch (err) {
+    console.error("[Email] Failed to send payment receipt email:", err);
+    return false;
+  }
+}

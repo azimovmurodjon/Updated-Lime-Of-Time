@@ -109,6 +109,15 @@ const NOTIF_EVENTS: NotifEvent[] = [
     defaultMessage:
       "Hi {clientName}, thank you for visiting us for {service} on {date}! We hope to see you again soon. — {businessName}",
   },
+  {
+    key: "emailClientOnPaymentConfirmed",
+    label: "Payment Receipt to Client",
+    description: "Email sent to the client when you mark their appointment as paid.",
+    channel: "email",
+    vars: ["{clientName}", "{service}", "{date}", "{amount}", "{paymentMethod}", "{businessName}"],
+    defaultMessage:
+      "Hi {clientName}, your payment of {amount} for {service} on {date} has been received. Thank you! — {businessName}",
+  },
 ];
 
 const CLIENT_SMS_EVENTS: NotifEvent[] = [
