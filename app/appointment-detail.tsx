@@ -56,6 +56,24 @@ export default function AppointmentDetailScreen() {
     [state.appointments, id]
   );
 
+  // ── All hooks must be declared before any early return (Rules of Hooks) ──
+  const [cancelReasonModal, setCancelReasonModal] = useState(false);
+  const [selectedReason, setSelectedReason] = useState("");
+  const [customReason, setCustomReason] = useState("");
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const today = new Date();
+  const [reschedDate, setReschedDate] = useState<string>(appointment?.date ?? "");
+  const [reschedTime, setReschedTime] = useState<string | null>(null);
+  const [reschedCalMonth, setReschedCalMonth] = useState<{ year: number; month: number }>(() => {
+    const d = appointment ? new Date(appointment.date + "T12:00:00") : new Date();
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentConfirmInput, setPaymentConfirmInput] = useState("");
+  const [selectedPayMethod, setSelectedPayMethod] = useState<'cash' | 'zelle' | 'venmo' | 'cashapp'>(
+    (appointment?.paymentMethod && appointment.paymentMethod !== 'unpaid' ? appointment.paymentMethod : 'cash') as 'cash' | 'zelle' | 'venmo' | 'cashapp'
+  );
+
   if (!appointment) {
     return (
       <ScreenContainer edges={["top", "bottom", "left", "right"]} className="p-5">
@@ -150,20 +168,6 @@ export default function AppointmentDetailScreen() {
     router.back();
   };
 
-  const [cancelReasonModal, setCancelReasonModal] = useState(false);
-  const [selectedReason, setSelectedReason] = useState("");
-  const [customReason, setCustomReason] = useState("");
-
-  // Reschedule modal state
-  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
-  const today = new Date();
-  const [reschedDate, setReschedDate] = useState<string>(appointment.date);
-  const [reschedTime, setReschedTime] = useState<string | null>(null);
-  const [reschedCalMonth, setReschedCalMonth] = useState<{ year: number; month: number }>(() => {
-    const d = new Date(appointment.date + "T12:00:00");
-    return { year: d.getFullYear(), month: d.getMonth() };
-  });
-
   const reschedSlots = useMemo(() => {
     const loc = assignedLocation;
     const wh = (loc?.workingHours && Object.keys(loc.workingHours).length > 0)
@@ -235,12 +239,6 @@ export default function AppointmentDetailScreen() {
     { key: 'venmo' as const, label: 'Venmo' },
     { key: 'cashapp' as const, label: 'Card' },
   ];
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentConfirmInput, setPaymentConfirmInput] = useState("");
-  const [selectedPayMethod, setSelectedPayMethod] = useState<'cash' | 'zelle' | 'venmo' | 'cashapp'>(
-    (appointment?.paymentMethod && appointment.paymentMethod !== 'unpaid' ? appointment.paymentMethod : 'cash') as 'cash' | 'zelle' | 'venmo' | 'cashapp'
-  );
-
   const handleMarkPaid = (confirmationNumber?: string) => {
     // Use the method from the picker if the appointment doesn't have one set
     const effectiveMethod = appointment.paymentMethod && appointment.paymentMethod !== 'unpaid'
