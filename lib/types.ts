@@ -85,7 +85,7 @@ export interface Appointment {
   /** Reason for cancellation (set when status changes to 'cancelled') */
   cancellationReason?: string;
   /** Payment method chosen: zelle | venmo | cashapp | cash | unpaid */
-  paymentMethod?: "zelle" | "venmo" | "cashapp" | "cash" | "unpaid";
+  paymentMethod?: "zelle" | "venmo" | "cashapp" | "cash" | "unpaid" | "free";
   /** Payment status: unpaid | pending_cash | paid */
   paymentStatus?: "unpaid" | "pending_cash" | "paid";
   /** Confirmation number provided by business owner after receiving digital payment */

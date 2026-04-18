@@ -1390,3 +1390,8 @@
 - [x] Add quick action buttons (New Booking, View Today) to home header
 - [x] Add promo code usage counter (X / Y uses) on Discounts screen
 - [x] Auto-mark appointment as paid when total charge is $0
+- [x] Fix Add to Calendar on booking confirmation page (full address, native iOS/Android calendar)
+- [x] Add Complimentary badge on appointment detail for $0 appointments
+- [x] Verify $0 appointments excluded from revenue totals
+- [x] Fix promo code usedCount auto-increment when client uses code during booking
+- [x] Add gap between analytics stat boxes (they are touching each other)

@@ -247,7 +247,21 @@ function reducer(state: AppState, action: Action): AppState {
           return d;
         });
       }
-      return { ...state, appointments: newAppts, discounts: discountsAfterAdd };
+      // Increment promo code usedCount locally when appointment has a promo code
+      // (Server-side increment happens via API; this keeps local state in sync immediately)
+      let promoCodesAfterAdd = state.promoCodes ?? [];
+      if (incomingAppt.discountName) {
+        // Check if the discountName matches a promo code (promo codes use their label as discountName)
+        const matchedPromo = promoCodesAfterAdd.find(
+          (p) => p.label === incomingAppt.discountName || p.code === incomingAppt.discountName
+        );
+        if (matchedPromo) {
+          promoCodesAfterAdd = promoCodesAfterAdd.map((p) =>
+            p.id === matchedPromo.id ? { ...p, usedCount: (p.usedCount ?? 0) + 1 } : p
+          );
+        }
+      }
+      return { ...state, appointments: newAppts, discounts: discountsAfterAdd, promoCodes: promoCodesAfterAdd };
     }
     case "UPDATE_APPOINTMENT":
       return {

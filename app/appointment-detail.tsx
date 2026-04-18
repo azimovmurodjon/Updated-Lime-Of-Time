@@ -590,7 +590,15 @@ export default function AppointmentDetailScreen() {
                 </Text>
               </View>
             </View>
-            {appointment.paymentMethod && (
+            {(appointment.totalPrice ?? 0) <= 0 ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <View style={{ backgroundColor: colors.primary + '18', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <Text style={{ fontSize: 13 }}>🎁</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: colors.primary }}>Complimentary</Text>
+                </View>
+                <Text style={{ fontSize: 12, color: colors.muted }}>No charge</Text>
+              </View>
+            ) : appointment.paymentMethod && appointment.paymentMethod !== 'free' ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: appointment.paymentStatus !== 'paid' ? 10 : 0 }}>
                 <Text style={{ fontSize: 14, color: colors.foreground }}>
                   {appointment.paymentMethod === 'zelle' ? '💜 Zelle' : appointment.paymentMethod === 'cashapp' ? '💚 Cash App' : appointment.paymentMethod === 'venmo' ? '💙 Venmo' : '💵 Cash'}
@@ -599,7 +607,7 @@ export default function AppointmentDetailScreen() {
                   <Text style={{ fontSize: 12, color: colors.muted }}>Conf# {appointment.paymentConfirmationNumber}</Text>
                 )}
               </View>
-            )}
+            ) : null}
             {appointment.paymentStatus !== 'paid' && (
               <Pressable
                 onPress={() => setShowPaymentModal(true)}

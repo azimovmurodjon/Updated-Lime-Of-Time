@@ -856,21 +856,23 @@ export default function AnalyticsDetailScreen() {
           <View>
             {/* KPI Grid */}
             {/* KPI Grid — 2 cards per row, equal width, centered */}
-            {([
-              [{ label: "Total Revenue", value: `$${totalRevenue.toLocaleString()}`, color: "#FF9800", bg: "#FFF3E0" }, { label: "Avg / Appt", value: `$${overviewData.avgRevenue}`, color: "#FF9800", bg: "#FFF3E0" }],
-              [{ label: "Total Clients", value: overviewData.totalClients, color: "#4CAF50", bg: "#E8F5E9" }, { label: "New (30d)", value: overviewData.newClientsLast30, color: "#4CAF50", bg: "#E8F5E9" }],
-              [{ label: "Completed", value: overviewData.completed, color: "#2196F3", bg: "#E3F2FD" }, { label: "Completion %", value: `${overviewData.completionRate}%`, color: "#2196F3", bg: "#E3F2FD" }],
-              [{ label: "Cancelled", value: overviewData.cancelled, color: "#EF4444", bg: "#FEF2F2" }, { label: "Cancel Rate", value: `${overviewData.cancellationRate}%`, color: "#EF4444", bg: "#FEF2F2" }],
-            ] as const).map((row, rowIdx) => (
-              <View key={rowIdx} style={{ flexDirection: "row", gap: 12, marginTop: rowIdx === 0 ? 12 : 0 }}>
-                {row.map((kpi) => (
-                  <View key={kpi.label} style={[styles.kpiCard, { backgroundColor: kpi.bg, borderColor: kpi.color + "30" }]}>
-                    <Text style={{ fontSize: 24, fontWeight: "800", color: kpi.color }}>{String(kpi.value)}</Text>
-                    <Text style={{ fontSize: 12, color: kpi.color + "CC", marginTop: 4, textAlign: "center" }}>{kpi.label}</Text>
-                  </View>
-                ))}
-              </View>
-            ))}
+            <View style={{ gap: 10, marginTop: 12, marginBottom: 4 }}>
+              {([
+                [{ label: "Total Revenue", value: `$${totalRevenue.toLocaleString()}`, color: "#FF9800", bg: "#FFF3E0" }, { label: "Avg / Appt", value: `$${overviewData.avgRevenue}`, color: "#FF9800", bg: "#FFF3E0" }],
+                [{ label: "Total Clients", value: overviewData.totalClients, color: "#4CAF50", bg: "#E8F5E9" }, { label: "New (30d)", value: overviewData.newClientsLast30, color: "#4CAF50", bg: "#E8F5E9" }],
+                [{ label: "Completed", value: overviewData.completed, color: "#2196F3", bg: "#E3F2FD" }, { label: "Completion %", value: `${overviewData.completionRate}%`, color: "#2196F3", bg: "#E3F2FD" }],
+                [{ label: "Cancelled", value: overviewData.cancelled, color: "#EF4444", bg: "#FEF2F2" }, { label: "Cancel Rate", value: `${overviewData.cancellationRate}%`, color: "#EF4444", bg: "#FEF2F2" }],
+              ] as const).map((row, rowIdx) => (
+                <View key={rowIdx} style={{ flexDirection: "row", gap: 10 }}>
+                  {row.map((kpi) => (
+                    <View key={kpi.label} style={[styles.kpiCard, { backgroundColor: kpi.bg, borderColor: kpi.color + "30" }]}>
+                      <Text style={{ fontSize: 24, fontWeight: "800", color: kpi.color }}>{String(kpi.value)}</Text>
+                      <Text style={{ fontSize: 12, color: kpi.color + "CC", marginTop: 4, textAlign: "center" }}>{kpi.label}</Text>
+                    </View>
+                  ))}
+                </View>
+              ))}
+            </View>
 
             {/* Monthly Revenue Goal Progress Bar */}
             {state.settings.monthlyRevenueGoal > 0 && (() => {

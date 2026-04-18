@@ -5030,23 +5030,30 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       const endMin = h * 60 + m + totalDur;
       const endDt = icsDate(d.getFullYear(), d.getMonth(), d.getDate(), Math.floor(endMin / 60), endMin % 60);
       const uid = "lot-" + SLUG + "-" + selectedDate + "-" + selectedTime.replace(":", "") + "@lime-of-time.com";
-      // Build location string
+      // Build location string — prefer selected location, fall back to owner address
       let locStr = "";
       if (selectedLocation) {
         const locR = locations.find(l => l.localId === selectedLocation);
         if (locR) {
           const fullAddr = buildFullAddress(locR.address, locR.city, locR.state, locR.zipCode) || locR.address || "";
-          locStr = fullAddr ? locR.name + " - " + fullAddr : locR.name;
+          locStr = fullAddr ? locR.name + ", " + fullAddr : locR.name;
         }
+      } else if (locations.length === 1) {
+        const locR = locations[0];
+        const fullAddr = buildFullAddress(locR.address, locR.city, locR.state, locR.zipCode) || locR.address || "";
+        locStr = fullAddr ? locR.name + ", " + fullAddr : locR.name;
       }
+      if (!locStr) locStr = ${JSON.stringify(owner.address || '')};
       // Build description
       const chargedPriceC = getChargedPrice();
+      const clientNameVal = (document.getElementById("clientName") || {}).value || "";
+      const clientPhoneVal = (document.getElementById("clientPhone") || {}).value || "";
       let desc = selectedService.name + " (" + selectedService.duration + " min) - $" + parseFloat(selectedService.price).toFixed(2);
       cart.forEach(c => { desc += "\\n" + c.name + " - $" + c.price.toFixed(2); });
       desc += "\\nTotal: $" + chargedPriceC.toFixed(2);
-      desc += "\\nClient: " + document.getElementById("clientName").value;
-      const phone = document.getElementById("clientPhone").value;
-      if (phone) desc += " - " + phone;
+      if (clientNameVal) desc += "\\nClient: " + clientNameVal;
+      if (clientPhoneVal) desc += " - " + clientPhoneVal;
+      if (locStr) desc += "\\nLocation: " + locStr;
       desc += "\\nBooked via Lime Of Time";
       // Escape ICS special chars
       function icsEsc(s) { return (s || "").replace(/\\\\/g, "\\\\\\\\").replace(/,/g, "\\,").replace(/;/g, "\\;").replace(/\\n/g, "\\n"); }
@@ -5065,19 +5072,42 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         "SUMMARY:" + summary,
         locStr ? "LOCATION:" + icsEsc(locStr) : "",
         "DESCRIPTION:" + icsEsc(desc),
-        "STATUS:TENTATIVE",
+        "STATUS:CONFIRMED",
         "END:VEVENT",
         "END:VCALENDAR"
-      ].filter(l => l !== "").join("\\r\\n");
-      const blob = new Blob([icsLines], { type: "text/calendar;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "appointment.ics";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      ].filter(l => l !== "").join("\r\n");
+      // iOS/Android: use data URI with webcal-compatible MIME type so the OS opens the native Calendar app
+      // Desktop: fall back to Blob download
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      const isAndroid = /Android/.test(navigator.userAgent);
+      if (isIOS || isAndroid) {
+        // data: URI approach — iOS Safari and Android Chrome both intercept text/calendar and open native Calendar
+        const encoded = encodeURIComponent(icsLines);
+        const dataUri = "data:text/calendar;charset=utf-8," + encoded;
+        window.location.href = dataUri;
+      } else {
+        // Desktop: standard Blob download
+        try {
+          const blob = new Blob([icsLines], { type: "text/calendar;charset=utf-8" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "appointment.ics";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } catch(e) {
+          // Fallback: data URI for browsers that don't support createObjectURL
+          const encoded = encodeURIComponent(icsLines);
+          const a = document.createElement("a");
+          a.href = "data:text/calendar;charset=utf-8," + encoded;
+          a.download = "appointment.ics";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
+      }
     }
 
     function saveReceipt() {
