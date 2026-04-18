@@ -7,6 +7,7 @@ import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useMemo, useState, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
+import { usePlanLimitCheck } from "@/hooks/use-plan-limit-check";
 import { FuturisticBackground } from "@/components/futuristic-background";
 
 import {
@@ -47,6 +48,8 @@ export default function AppointmentDetailScreen() {
   const router = useRouter();
   const { isTablet, hp } = useResponsive();
   const sendSmsMutation = trpc.twilio.sendSms.useMutation();
+  const { planInfo } = usePlanLimitCheck();
+  const isGrowthPlan = planInfo && planInfo.planKey !== "solo";
 
   const appointment = useMemo(
     () => state.appointments.find((a) => a.id === id),
@@ -407,6 +410,61 @@ export default function AppointmentDetailScreen() {
         [
           { text: "No", style: "cancel" },
           { text: "Yes", onPress: () => doIt() },
+        ]
+      );
+    }
+  };
+
+  const handleNoShow = () => {
+    if (!isGrowthPlan) {
+      Alert.alert("Upgrade Required", "No-Show SMS is available on the Growth plan and above. Upgrade to automatically notify clients when they miss their appointment.", [{ text: "OK" }]);
+      return;
+    }
+    const doIt = () => {
+      dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status: "no_show" } });
+      syncToDb({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status: "no_show" } });
+      // Send no-show SMS if enabled
+      const _notifPrefsNS = state.settings.notificationPreferences ?? {};
+      const _masterNotifNS = state.settings.notificationsEnabled !== false;
+      const _smsNoShowOn = (_notifPrefsNS as any).smsClientOnNoShow !== false;
+      if (client?.phone && _masterNotifNS && _smsNoShowOn) {
+        const biz = state.settings;
+        const noShowSlug = biz.customSlug || biz.businessName.replace(/\s+/g, "-").toLowerCase();
+        const customNoShowTpl = biz.smsTemplates?.noShow;
+        let msg: string;
+        if (customNoShowTpl) {
+          msg = applyTemplate(customNoShowTpl, {
+            clientName: client.name,
+            businessName: biz.businessName,
+            serviceName: service ? getServiceDisplayName(service) : "service",
+            date: formatDateDisplay(appointment.date),
+            time: appointment.time,
+            bookingUrl: `${PUBLIC_BOOKING_URL}/book/${noShowSlug}${assignedLocation?.id ? "?location=" + assignedLocation.id : ""}`,
+          });
+        } else {
+          msg = `Hi ${client.name}, we noticed you missed your appointment for ${service ? getServiceDisplayName(service) : "your service"} on ${formatDateDisplay(appointment.date)} at ${appointment.time}. We’d love to see you — tap to rebook: ${PUBLIC_BOOKING_URL}/book/${noShowSlug}${assignedLocation?.id ? "?location=" + assignedLocation.id : ""}${LIME_OF_TIME_FOOTER}`;
+        }
+        const rawPhoneNS = stripPhoneFormat(client.phone);
+        if (biz.twilioEnabled && state.businessOwnerId) {
+          const toNumberNS = rawPhoneNS.startsWith("+") ? rawPhoneNS : `+1${rawPhoneNS.replace(/\D/g, "")}`;
+          sendSmsMutation
+            .mutateAsync({ businessOwnerId: state.businessOwnerId, toNumber: toNumberNS, body: msg, smsAction: "rebooking" })
+            .catch(() => openSms(client.phone, msg));
+        } else {
+          openSms(client.phone, msg);
+        }
+      }
+      router.back();
+    };
+    if (Platform.OS === "web") {
+      doIt();
+    } else {
+      Alert.alert(
+        "Mark as No-Show",
+        `Mark this appointment as no-show? ${isGrowthPlan && (state.settings.notificationPreferences as any)?.smsClientOnNoShow !== false ? "An SMS will be sent to " + (client?.name ?? "the client") + " with a rebooking link." : ""}`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Mark No-Show", style: "destructive", onPress: doIt },
         ]
       );
     }
@@ -838,6 +896,13 @@ export default function AppointmentDetailScreen() {
             >
               <IconSymbol name="calendar" size={20} color="#FFFFFF" />
               <Text className="text-white font-semibold ml-2">Reschedule</Text>
+            </Pressable>
+            <Pressable
+              onPress={handleNoShow}
+              style={({ pressed }) => [styles.actionButton, { backgroundColor: "#F59E0B", opacity: pressed ? 0.8 : 1 }]}
+            >
+              <IconSymbol name="person.fill.xmark" size={20} color="#FFFFFF" />
+              <Text className="text-white font-semibold ml-2">Mark as No-Show{!isGrowthPlan ? " 🔒" : ""}</Text>
             </Pressable>
             <Pressable
               onPress={() => handleStatusChange("cancelled")}

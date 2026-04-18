@@ -130,6 +130,15 @@ const CLIENT_SMS_EVENTS: NotifEvent[] = [
     defaultMessage:
       "Hi {clientName}, your {service} appointment on {date} at {time} has been cancelled. Please contact us to reschedule.",
   },
+  {
+    key: "smsClientOnNoShow",
+    label: "No-Show SMS to Client",
+    description: "SMS sent to the client when you mark their appointment as no-show, with a rebooking link.",
+    channel: "push",
+    vars: ["{clientName}", "{service}", "{date}", "{time}", "{bookingUrl}"],
+    defaultMessage:
+      "Hi {clientName}, we noticed you missed your {service} on {date} at {time}. We\u2019d love to see you \u2014 tap to rebook: {bookingUrl}",
+  },
 ];
 
 // ─── Message Preview ──────────────────────────────────────────────────────────

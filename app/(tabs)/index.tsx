@@ -1899,6 +1899,7 @@ export default function HomeScreen() {
                 appt.status === "confirmed" ? colors.success
                 : appt.status === "pending" ? "#FF9800"
                 : appt.status === "completed" ? colors.primary
+                : appt.status === "no_show" ? "#F59E0B"
                 : colors.error;
               const timeLabel = `${formatTime(appt.time)} – ${getEndTime(appt.time, appt.duration)}`;
               const clientPhone = client?.phone ? formatPhone(client.phone) : null;
@@ -1994,6 +1995,7 @@ export default function HomeScreen() {
                 appt.status === "confirmed" ? colors.success
                 : appt.status === "pending" ? "#FF9800"
                 : appt.status === "completed" ? colors.primary
+                : appt.status === "no_show" ? "#F59E0B"
                 : colors.error;
               const price = appt.totalPrice ?? svc?.price ?? null;
               // Format date · time range line: "Mon, Apr 13 · 2:30 PM – 3:30 PM"

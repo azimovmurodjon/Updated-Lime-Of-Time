@@ -281,7 +281,7 @@ const appointmentsRouter = router({
         date: z.string(),
         time: z.string(),
         duration: z.number(),
-        status: z.enum(["pending", "confirmed", "completed", "cancelled"]).default("pending"),
+        status: z.enum(["pending", "confirmed", "completed", "cancelled", "no_show"]).default("pending"),
         notes: z.string().optional(),
         totalPrice: z.number().optional(),
         extraItems: z.any().optional(),
@@ -310,7 +310,7 @@ const appointmentsRouter = router({
       z.object({
         localId: z.string(),
         businessOwnerId: z.number(),
-        status: z.enum(["pending", "confirmed", "completed", "cancelled"]).optional(),
+        status: z.enum(["pending", "confirmed", "completed", "cancelled", "no_show"]).optional(),
         date: z.string().optional(),
         time: z.string().optional(),
         duration: z.number().optional(),

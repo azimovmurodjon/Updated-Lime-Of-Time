@@ -826,6 +826,7 @@ export default function CalendarScreen() {
       appt.status === "confirmed" ? "#1B5E20"
       : appt.status === "pending" ? "#FF9800"
       : appt.status === "completed" ? colors.primary
+      : appt.status === "no_show" ? "#F59E0B"
       : "#F44336";
     const isRequest = appt.status === "pending";
     return (
@@ -1231,7 +1232,7 @@ export default function CalendarScreen() {
             const client = getClientById(appt.clientId);
             const staffMember = appt.staffId ? getStaffById(appt.staffId) : null;
             const isRequest = appt.status === "pending";
-            const statusColor = appt.status === "confirmed" ? "#1B5E20" : appt.status === "pending" ? "#FF9800" : appt.status === "completed" ? colors.primary : "#F44336";
+            const statusColor = appt.status === "confirmed" ? "#1B5E20" : appt.status === "pending" ? "#FF9800" : appt.status === "completed" ? colors.primary : appt.status === "no_show" ? "#F59E0B" : "#F44336";
             return (
               <SwipeableRequestCard
                 key={appt.id}

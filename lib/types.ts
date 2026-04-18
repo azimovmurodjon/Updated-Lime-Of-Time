@@ -44,7 +44,7 @@ export interface ServicePhoto {
   takenAt: string; // ISO date string
 }
 
-export type AppointmentStatus = "pending" | "confirmed" | "completed" | "cancelled";
+export type AppointmentStatus = "pending" | "confirmed" | "completed" | "cancelled" | "no_show";
 
 export interface AppointmentExtraItem {
   type: "service" | "product";
@@ -330,6 +330,8 @@ export interface NotificationPreferences {
   emailClientOnCancellation?: boolean;
   /** Email to client when appointment is marked completed */
   emailClientOnComplete?: boolean;
+  /** SMS to client when appointment is marked as no-show */
+  smsClientOnNoShow?: boolean;
 }
 
 /** Per-event SMS message templates. Each key maps to a custom message body.
@@ -342,6 +344,7 @@ export interface SmsTemplates {
   completed?: string;      // sent when appointment is marked complete
   newBooking?: string;     // sent to owner on new booking request (internal)
   followUp?: string;       // sent as a follow-up / re-booking nudge from client page
+  noShow?: string;         // sent when appointment is marked as no-show
 }
 export const DEFAULT_SMS_TEMPLATES: SmsTemplates = {
   confirmation: undefined,
@@ -350,6 +353,7 @@ export const DEFAULT_SMS_TEMPLATES: SmsTemplates = {
   completed: undefined,
   newBooking: undefined,
   followUp: undefined,
+  noShow: undefined,
 };
 
 export const LIME_OF_TIME_FOOTER = "\n\nSent via Lime Of Time";
@@ -369,6 +373,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   smsClientOnCancellation: true,
   emailClientOnCancellation: false,
   emailClientOnComplete: false,
+  smsClientOnNoShow: true,
 };
 
 export interface BusinessSettings {

@@ -117,6 +117,7 @@ const MAPPING = {
   "book": "menu-book",
   "play.fill": "play-arrow",
   "play.circle.fill": "play-circle",
+  "person.fill.xmark": "person-off",
 } as unknown as IconMapping;
 
 export function IconSymbol({

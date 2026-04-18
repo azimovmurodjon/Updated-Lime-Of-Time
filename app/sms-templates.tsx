@@ -97,6 +97,10 @@ Thank you for being a valued client of {businessName}! We'd love to schedule you
 🔗 Book now: {bookingUrl}
 Best regards,
 {businessName}`,
+  noShow: `Hi {clientName}, we noticed you missed your appointment for {serviceName} on {date} at {time}. We'd love to see you — tap to rebook: {bookingUrl}
+
+Best regards,
+{businessName}`,
 };
 
 const TEMPLATE_META: { key: keyof SmsTemplates; label: string; icon: string; description: string }[] = [
@@ -135,6 +139,12 @@ const TEMPLATE_META: { key: keyof SmsTemplates; label: string; icon: string; des
     label: "Follow-Up / Re-book",
     icon: "message.fill",
     description: "Sent to client from the Clients page as a re-booking nudge",
+  },
+  {
+    key: "noShow",
+    label: "No-Show Notification",
+    icon: "person.fill.xmark",
+    description: "Sent to client when you mark their appointment as no-show (Growth plan)",
   },
 ];
 

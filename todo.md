@@ -1399,3 +1399,7 @@
 - [x] Gate client SMS sends by notification toggle (if SMS off, don't send to client)
 - [x] Gate client email sends by notification toggle and subscription plan
 - [x] Connect client notification toggles to subscription plan (paid plan only)
+- [x] Add No-Show appointment status to types and store
+- [x] Add No-Show action button on appointment detail screen
+- [x] Add No-Show SMS template gated to Growth plan
+- [x] Add No-Show notification toggle to Notification Preferences
