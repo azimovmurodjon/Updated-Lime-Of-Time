@@ -781,6 +781,14 @@ export default function HomeScreen() {
       yearlyMonthlyData.push({ label: mStr, value: Math.round(mRev), apptCount: mAppts });
     }
 
+    // 3-month data (last 3 months, monthly buckets)
+    const threeMonthData = yearlyMonthlyData.slice(-3);
+    const threeMonthRevenue = threeMonthData.reduce((s, d) => s + d.value, 0);
+
+    // 6-month data (last 6 months, monthly buckets)
+    const sixMonthData = yearlyMonthlyData.slice(-6);
+    const sixMonthRevenue = sixMonthData.reduce((s, d) => s + d.value, 0);
+
     return {
       totalClients,
       totalAppointments,
@@ -808,6 +816,10 @@ export default function HomeScreen() {
       hourlyData,
       currentMonthDailyData,
       yearlyMonthlyData,
+      threeMonthData,
+      threeMonthRevenue,
+      sixMonthData,
+      sixMonthRevenue,
       CHART_COLOR,
       mStart,
     };
@@ -1073,6 +1085,12 @@ export default function HomeScreen() {
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
 
+    // Per-period pending counts for accurate sublabels
+    const todayPendingCount = allAppts.filter((a) => a.status === "pending" && a.date === todayStr2).length;
+    const weekPendingCount = allAppts.filter((a) => a.status === "pending" && a.date >= formatDateStr(startOfWeek2) && a.date <= formatDateStr(endOfWeek2)).length;
+    const monthConfirmedCount = allAppts.filter((a) => a.status === "confirmed" && a.date >= mStart2 && a.date <= mEnd2).length;
+    const yearCompletedCount = allAppts.filter((a) => a.status === "completed" && a.date >= `${now2.getFullYear()}-01-01` && a.date <= `${now2.getFullYear()}-12-31`).length;
+
     // Helper to build appointment row data
     const buildApptRow = (a: (typeof allAppts)[0]) => {
       const client = clientsAll.find((c) => c.id === a.clientId);
@@ -1111,6 +1129,7 @@ export default function HomeScreen() {
     return {
       todayEarnings, weekEarnings, monthEarnings, yearEarnings, allTimeEarnings,
       todayApptCount, weekApptCount, monthApptCount, yearApptCount, totalApptCount,
+      todayPendingCount, weekPendingCount, monthConfirmedCount, yearCompletedCount,
       topClients, recentlyAdded, birthdayNextMonth,
       top3Week, top5Month,
       todayApptList, weekApptList, monthApptList, yearApptList,
@@ -1723,10 +1742,10 @@ export default function HomeScreen() {
                 value: String(kpiSlideData.todayApptCount),
                 numericValue: kpiSlideData.todayApptCount,
                 label: "Today's Appointments",
-                sublabel: `${analytics.statusCounts.pending} pending today`,
+                sublabel: `${kpiSlideData.todayPendingCount} pending today`,
                 sparkData: analytics.weeklyDailyData.map((d) => d.apptCount),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("appointments"); setKpiSlideFilter("today"); setKpiSlideExtraData({ label: "Today's Appointments", appointmentCount: kpiSlideData.todayApptCount, sublabel: `${analytics.statusCounts.pending} pending`, appointments: kpiSlideData.todayApptList }); },
+                onPress: () => { setKpiDetailTab("appointments"); setKpiSlideFilter("today"); setKpiSlideExtraData({ label: "Today's Appointments", appointmentCount: kpiSlideData.todayApptCount, sublabel: `${kpiSlideData.todayPendingCount} pending`, appointments: kpiSlideData.todayApptList }); },
               },
               {
                 gradientColors: ["#0D47A1", "#1976D2"],
@@ -1735,10 +1754,10 @@ export default function HomeScreen() {
                 value: String(kpiSlideData.weekApptCount),
                 numericValue: kpiSlideData.weekApptCount,
                 label: "This Week",
-                sublabel: `${analytics.upcomingThisWeek} upcoming`,
+                sublabel: `${kpiSlideData.weekPendingCount} pending this week`,
                 sparkData: analytics.weeklyDailyData.map((d) => d.apptCount),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("appointments"); setKpiSlideFilter("week"); setKpiSlideExtraData({ label: "This Week's Appointments", appointmentCount: kpiSlideData.weekApptCount, sublabel: `${analytics.upcomingThisWeek} upcoming`, appointments: kpiSlideData.weekApptList }); },
+                onPress: () => { setKpiDetailTab("appointments"); setKpiSlideFilter("week"); setKpiSlideExtraData({ label: "This Week's Appointments", appointmentCount: kpiSlideData.weekApptCount, sublabel: `${kpiSlideData.weekPendingCount} pending`, appointments: kpiSlideData.weekApptList }); },
               },
               {
                 gradientColors: ["#006064", "#26C6DA"],
@@ -1747,10 +1766,10 @@ export default function HomeScreen() {
                 value: String(kpiSlideData.monthApptCount),
                 numericValue: kpiSlideData.monthApptCount,
                 label: `${new Date().toLocaleDateString("en-US", { month: "long" })} Appointments`,
-                sublabel: `${analytics.statusCounts.confirmed} confirmed`,
+                sublabel: `${kpiSlideData.monthConfirmedCount} confirmed this month`,
                 sparkData: analytics.weeklyDailyData.map((d) => d.apptCount),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("appointments"); setKpiSlideFilter("month"); setKpiSlideExtraData({ label: `${new Date().toLocaleDateString("en-US", { month: "long" })} Appointments`, appointmentCount: kpiSlideData.monthApptCount, sublabel: `${analytics.statusCounts.confirmed} confirmed`, appointments: kpiSlideData.monthApptList }); },
+                onPress: () => { setKpiDetailTab("appointments"); setKpiSlideFilter("month"); setKpiSlideExtraData({ label: `${new Date().toLocaleDateString("en-US", { month: "long" })} Appointments`, appointmentCount: kpiSlideData.monthApptCount, sublabel: `${kpiSlideData.monthConfirmedCount} confirmed`, appointments: kpiSlideData.monthApptList }); },
               },
               {
                 gradientColors: ["#01579B", "#0288D1"],
@@ -1759,10 +1778,10 @@ export default function HomeScreen() {
                 value: String(kpiSlideData.yearApptCount),
                 numericValue: kpiSlideData.yearApptCount,
                 label: `${new Date().getFullYear()} Appointments`,
-                sublabel: `${analytics.statusCounts.completed} completed`,
+                sublabel: `${kpiSlideData.yearCompletedCount} completed this year`,
                 sparkData: analytics.weeklyDailyData.map((d) => d.apptCount),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("appointments"); setKpiSlideFilter("year"); setKpiSlideExtraData({ label: `${new Date().getFullYear()} Appointments`, appointmentCount: kpiSlideData.yearApptCount, sublabel: `${analytics.statusCounts.completed} completed`, appointments: kpiSlideData.yearApptList }); },
+                onPress: () => { setKpiDetailTab("appointments"); setKpiSlideFilter("year"); setKpiSlideExtraData({ label: `${new Date().getFullYear()} Appointments`, appointmentCount: kpiSlideData.yearApptCount, sublabel: `${kpiSlideData.yearCompletedCount} completed`, appointments: kpiSlideData.yearApptList }); },
               },
             ]}
           />
@@ -1949,12 +1968,14 @@ export default function HomeScreen() {
           hourlyData={analytics.hourlyData}
           weeklyData={analytics.weeklyDailyData.map((d) => ({ label: d.label, value: d.value, apptCount: d.apptCount }))}
           currentMonthData={analytics.currentMonthDailyData}
-          sixMonthData={analytics.monthlyData.map((d) => ({ label: d.label, value: d.value, apptCount: 0 }))}
+          threeMonthData={analytics.threeMonthData}
+          sixMonthData={analytics.sixMonthData}
           yearlyData={analytics.yearlyMonthlyData}
           todayRevenue={analytics.todayRevenue}
           weekRevenue={analytics.weekRevenue}
           monthRevenue={analytics.currentMonthDailyData.reduce((s, d) => s + d.value, 0)}
-          sixMonthRevenue={analytics.monthlyData.reduce((s, d) => s + d.value, 0)}
+          threeMonthRevenue={analytics.threeMonthRevenue}
+          sixMonthRevenue={analytics.sixMonthRevenue}
           yearRevenue={analytics.yearlyRevenue}
           revenueChange={revenueChange}
           monthName={new Date().toLocaleDateString("en-US", { month: "long" })}

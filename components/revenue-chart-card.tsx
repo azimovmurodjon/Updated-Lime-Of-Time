@@ -3,18 +3,16 @@ import {
   View,
   Text,
   ScrollView,
-  Pressable,
-  Dimensions,
   StyleSheet,
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from "react-native";
-import Svg, { Path, Line, Rect, Circle, Defs, LinearGradient as SvgGradient, Stop } from "react-native-svg";
+import Svg, { Path, Line, Circle, Defs, LinearGradient as SvgGradient, Stop, Text as SvgText } from "react-native-svg";
 import { useColors } from "@/hooks/use-colors";
 
 const ACCENT = "#00C896";
-const ACCENT_DIM = "#00C89618";
-const PERIODS = ["Daily", "Weekly", "Monthly", "6 Months", "1 Year"] as const;
+
+const PERIODS = ["Daily", "Weekly", "Monthly", "3 Months", "6 Months", "1 Year"] as const;
 type Period = typeof PERIODS[number];
 
 interface ChartPoint {
@@ -23,15 +21,17 @@ interface ChartPoint {
   apptCount: number;
 }
 
-interface RevenueChartCardProps {
+export interface RevenueChartCardProps {
   hourlyData: ChartPoint[];
   weeklyData: ChartPoint[];
   currentMonthData: ChartPoint[];
+  threeMonthData: ChartPoint[];
   sixMonthData: ChartPoint[];
   yearlyData: ChartPoint[];
   todayRevenue: number;
   weekRevenue: number;
   monthRevenue: number;
+  threeMonthRevenue: number;
   sixMonthRevenue: number;
   yearRevenue: number;
   revenueChange: number;
@@ -40,7 +40,7 @@ interface RevenueChartCardProps {
   width: number;
 }
 
-// ─── Modern Area Line Chart ──────────────────────────────────────────────────
+// ─── Unified Area Line Chart (used for ALL periods) ──────────────────────────
 function AreaLineChart({
   data,
   width,
@@ -53,233 +53,123 @@ function AreaLineChart({
   color?: string;
 }) {
   const colors = useColors();
-  if (!data.length) return null;
-  const max = Math.max(...data.map((d) => d.value), 1);
-  const padL = 8;
-  const padR = 8;
+  if (!data || data.length === 0) return null;
+
+  const padL = 44;
+  const padR = 12;
   const padT = 12;
-  const padB = 28;
+  const padB = 32;
   const chartW = width - padL - padR;
   const chartH = height - padT - padB;
 
+  const maxVal = Math.max(...data.map((d) => d.value), 1);
+
+  // Nice round max
+  const mag = Math.pow(10, Math.floor(Math.log10(maxVal)));
+  const n = maxVal / mag;
+  const niceMax = (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * mag;
+
   const pts = data.map((d, i) => ({
     x: padL + (i / Math.max(data.length - 1, 1)) * chartW,
-    y: padT + chartH - (d.value / max) * chartH,
+    y: padT + chartH - (d.value / niceMax) * chartH,
     ...d,
   }));
 
-  // Build smooth path using cubic bezier
-  let linePath = `M ${pts[0].x} ${pts[0].y}`;
+  // Smooth cubic bezier path
+  let linePath = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
   for (let i = 1; i < pts.length; i++) {
     const prev = pts[i - 1];
     const curr = pts[i];
     const cpx = (prev.x + curr.x) / 2;
-    linePath += ` C ${cpx} ${prev.y} ${cpx} ${curr.y} ${curr.x} ${curr.y}`;
+    linePath += ` C ${cpx.toFixed(1)} ${prev.y.toFixed(1)} ${cpx.toFixed(1)} ${curr.y.toFixed(1)} ${curr.x.toFixed(1)} ${curr.y.toFixed(1)}`;
   }
-
-  // Area path (close to bottom)
   const areaPath =
     linePath +
-    ` L ${pts[pts.length - 1].x} ${padT + chartH} L ${pts[0].x} ${padT + chartH} Z`;
+    ` L ${pts[pts.length - 1].x.toFixed(1)} ${(padT + chartH).toFixed(1)} L ${pts[0].x.toFixed(1)} ${(padT + chartH).toFixed(1)} Z`;
 
-  // Y-axis grid lines (3 lines)
-  const gridLines = [0.25, 0.5, 0.75, 1].map((f) => ({
-    y: padT + chartH - f * chartH,
-    label: max * f >= 1000 ? `$${Math.round(max * f / 1000)}k` : `$${Math.round(max * f)}`,
-  }));
+  // Y-axis grid lines
+  const gridCount = 4;
+  const gridLines = Array.from({ length: gridCount }, (_, i) => {
+    const f = (i + 1) / gridCount;
+    const val = niceMax * f;
+    return {
+      y: padT + chartH - f * chartH,
+      label: val >= 10000 ? `$${(val / 1000).toFixed(0)}k` : val >= 1000 ? `$${(val / 1000).toFixed(1)}k` : `$${Math.round(val)}`,
+    };
+  });
 
-  // Show every Nth label to avoid crowding
-  const step = data.length <= 8 ? 1 : data.length <= 14 ? 2 : data.length <= 24 ? 3 : 4;
-
-  return (
-    <Svg width={width} height={height}>
-      <Defs>
-        <SvgGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={color} stopOpacity={0.28} />
-          <Stop offset="1" stopColor={color} stopOpacity={0.0} />
-        </SvgGradient>
-      </Defs>
-      {/* Grid lines */}
-      {gridLines.map((g, i) => (
-        <React.Fragment key={i}>
-          <Line
-            x1={padL}
-            y1={g.y}
-            x2={padL + chartW}
-            y2={g.y}
-            stroke={colors.border}
-            strokeWidth={0.5}
-            strokeDasharray="3,3"
-          />
-          <Text
-            style={{
-              position: "absolute",
-              top: g.y - 8,
-              left: 0,
-              fontSize: 9,
-              color: colors.muted,
-            }}
-          />
-        </React.Fragment>
-      ))}
-      {/* Area fill */}
-      <Path d={areaPath} fill="url(#areaGrad)" />
-      {/* Line */}
-      <Path d={linePath} stroke={color} strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      {/* Dots for small datasets */}
-      {data.length <= 12 && pts.map((p, i) => (
-        <Circle key={i} cx={p.x} cy={p.y} r={3} fill={color} />
-      ))}
-      {/* X-axis labels */}
-      {pts.map((p, i) =>
-        i % step === 0 ? (
-          <React.Fragment key={i}>
-            <Text
-              style={{
-                position: "absolute",
-                top: padT + chartH + 6,
-                left: p.x - 16,
-                width: 32,
-                textAlign: "center",
-                fontSize: 9,
-                color: colors.muted,
-              }}
-            />
-          </React.Fragment>
-        ) : null
-      )}
-    </Svg>
-  );
-}
-
-// ─── Modern Bar Chart ────────────────────────────────────────────────────────
-function ModernBarChart({
-  data,
-  width,
-  height,
-  color = ACCENT,
-  showLabels = true,
-}: {
-  data: ChartPoint[];
-  width: number;
-  height: number;
-  color?: string;
-  showLabels?: boolean;
-}) {
-  const colors = useColors();
-  if (!data.length) return null;
-  const max = Math.max(...data.map((d) => d.value), 1);
-  const padT = 12;
-  const padB = showLabels ? 28 : 8;
-  const padL = 4;
-  const padR = 4;
-  const chartH = height - padT - padB;
-  const barW = Math.max(2, (width - padL - padR) / data.length - 3);
-  const gap = (width - padL - padR - barW * data.length) / Math.max(data.length - 1, 1);
-  const step = data.length <= 8 ? 1 : data.length <= 14 ? 2 : data.length <= 24 ? 4 : 6;
-
-  return (
-    <Svg width={width} height={height}>
-      <Defs>
-        <SvgGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={color} stopOpacity={1} />
-          <Stop offset="1" stopColor={color} stopOpacity={0.5} />
-        </SvgGradient>
-      </Defs>
-      {data.map((d, i) => {
-        const barH = Math.max(d.value > 0 ? 2 : 0, (d.value / max) * chartH);
-        const x = padL + i * (barW + gap);
-        const y = padT + chartH - barH;
-        const isActive = d.apptCount > 0 || d.value > 0;
-        return (
-          <React.Fragment key={i}>
-            {/* Background bar */}
-            <Rect
-              x={x}
-              y={padT}
-              width={barW}
-              height={chartH}
-              rx={barW / 2}
-              fill={colors.border}
-              opacity={0.3}
-            />
-            {/* Value bar */}
-            {barH > 0 && (
-              <Rect
-                x={x}
-                y={y}
-                width={barW}
-                height={barH}
-                rx={barW / 2}
-                fill={isActive ? "url(#barGrad)" : colors.border}
-                opacity={isActive ? 1 : 0.4}
-              />
-            )}
-          </React.Fragment>
-        );
-      })}
-    </Svg>
-  );
-}
-
-// ─── Chart with labels overlay ───────────────────────────────────────────────
-function ChartWithLabels({
-  data,
-  width,
-  height,
-  color = ACCENT,
-  chartType = "bar",
-}: {
-  data: ChartPoint[];
-  width: number;
-  height: number;
-  color?: string;
-  chartType?: "bar" | "line";
-}) {
-  const colors = useColors();
-  if (!data.length) return null;
-  const max = Math.max(...data.map((d) => d.value), 1);
-  const padT = 12;
-  const padB = 28;
-  const padL = 4;
-  const padR = 4;
-  const chartH = height - padT - padB;
-  const step = data.length <= 8 ? 1 : data.length <= 14 ? 2 : data.length <= 24 ? 4 : 6;
-
-  const getX = (i: number) => {
-    if (chartType === "line") {
-      return padL + (i / Math.max(data.length - 1, 1)) * (width - padL - padR);
-    }
-    const barW = Math.max(2, (width - padL - padR) / data.length - 3);
-    const gap = (width - padL - padR - barW * data.length) / Math.max(data.length - 1, 1);
-    return padL + i * (barW + gap) + barW / 2;
-  };
+  // X-axis label step to avoid crowding
+  const step = data.length <= 7 ? 1 : data.length <= 12 ? 2 : data.length <= 18 ? 3 : data.length <= 24 ? 4 : Math.ceil(data.length / 6);
 
   return (
     <View style={{ width, height }}>
-      {chartType === "bar" ? (
-        <ModernBarChart data={data} width={width} height={height} color={color} />
-      ) : (
-        <AreaLineChart data={data} width={width} height={height} color={color} />
-      )}
-      {/* X-axis labels overlay */}
-      <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: padB, flexDirection: "row" }}>
-        {data.map((d, i) =>
-          i % step === 0 ? (
-            <View
-              key={i}
-              style={{
-                position: "absolute",
-                left: getX(i) - 16,
-                width: 32,
-                alignItems: "center",
-              }}
+      <Svg width={width} height={height}>
+        <Defs>
+          <SvgGradient id={`areaGrad_${color.replace("#", "")}`} x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={color} stopOpacity={0.32} />
+            <Stop offset="1" stopColor={color} stopOpacity={0.0} />
+          </SvgGradient>
+        </Defs>
+
+        {/* Horizontal grid lines + Y labels */}
+        {gridLines.map((g, i) => (
+          <React.Fragment key={i}>
+            <Line
+              x1={padL}
+              y1={g.y}
+              x2={padL + chartW}
+              y2={g.y}
+              stroke={colors.border}
+              strokeWidth={0.5}
+              strokeDasharray="3,4"
+            />
+            <SvgText
+              x={padL - 4}
+              y={g.y + 4}
+              textAnchor="end"
+              fontSize={9}
+              fill={colors.muted}
             >
-              <Text style={{ fontSize: 9, color: colors.muted }}>{d.label}</Text>
-            </View>
+              {g.label}
+            </SvgText>
+          </React.Fragment>
+        ))}
+
+        {/* Area fill */}
+        <Path d={areaPath} fill={`url(#areaGrad_${color.replace("#", "")})`} />
+
+        {/* Line */}
+        <Path
+          d={linePath}
+          stroke={color}
+          strokeWidth={2.5}
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+
+        {/* Dots (only for small datasets) */}
+        {data.length <= 14 &&
+          pts.map((p, i) => (
+            <Circle key={i} cx={p.x} cy={p.y} r={3.5} fill={color} />
+          ))}
+
+        {/* X-axis labels */}
+        {pts.map((p, i) =>
+          i % step === 0 ? (
+            <SvgText
+              key={i}
+              x={p.x}
+              y={padT + chartH + padB - 4}
+              textAnchor="middle"
+              fontSize={9}
+              fill={colors.muted}
+            >
+              {p.label}
+            </SvgText>
           ) : null
         )}
-      </View>
+      </Svg>
     </View>
   );
 }
@@ -289,11 +179,13 @@ export function RevenueChartCard({
   hourlyData,
   weeklyData,
   currentMonthData,
+  threeMonthData,
   sixMonthData,
   yearlyData,
   todayRevenue,
   weekRevenue,
   monthRevenue,
+  threeMonthRevenue,
   sixMonthRevenue,
   yearRevenue,
   revenueChange,
@@ -302,186 +194,147 @@ export function RevenueChartCard({
   width,
 }: RevenueChartCardProps) {
   const colors = useColors();
-  const [activePeriod, setActivePeriod] = useState<Period>("Weekly");
+  const [activePeriodIdx, setActivePeriodIdx] = useState(1); // default: Weekly
   const scrollRef = useRef<ScrollView>(null);
-  const periodIndex = PERIODS.indexOf(activePeriod);
 
-  const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const x = e.nativeEvent.contentOffset.x;
-    const idx = Math.round(x / width);
-    const p = PERIODS[Math.max(0, Math.min(idx, PERIODS.length - 1))];
-    if (p !== activePeriod) setActivePeriod(p);
-  }, [activePeriod, width]);
+  const handleMomentumScrollEnd = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const x = e.nativeEvent.contentOffset.x;
+      const idx = Math.round(x / width);
+      const clamped = Math.max(0, Math.min(idx, PERIODS.length - 1));
+      if (clamped !== activePeriodIdx) setActivePeriodIdx(clamped);
+    },
+    [activePeriodIdx, width]
+  );
 
-  const scrollTo = (idx: number) => {
-    scrollRef.current?.scrollTo({ x: idx * width, animated: true });
-    setActivePeriod(PERIODS[idx]);
-  };
+  const activePeriod = PERIODS[activePeriodIdx];
 
   const periodConfig: Record<Period, {
     title: string;
     subtitle: string;
     revenue: number;
     data: ChartPoint[];
-    chartType: "bar" | "line";
     change?: number;
+    changeLabel?: string;
   }> = {
     "Daily": {
       title: "Today",
       subtitle: "Revenue by hour",
       revenue: todayRevenue,
       data: hourlyData,
-      chartType: "bar",
     },
     "Weekly": {
       title: "This Week",
       subtitle: "Daily revenue · last 7 days",
       revenue: weekRevenue,
       data: weeklyData,
-      chartType: "bar",
       change: revenueChange,
+      changeLabel: "vs last week",
     },
     "Monthly": {
       title: monthName,
       subtitle: "Daily revenue this month",
       revenue: monthRevenue,
       data: currentMonthData,
-      chartType: "bar",
+    },
+    "3 Months": {
+      title: "Last 3 Months",
+      subtitle: "Monthly revenue trend",
+      revenue: threeMonthRevenue,
+      data: threeMonthData,
     },
     "6 Months": {
       title: "Last 6 Months",
       subtitle: "Monthly revenue trend",
       revenue: sixMonthRevenue,
       data: sixMonthData,
-      chartType: "line",
     },
     "1 Year": {
       title: "This Year",
       subtitle: "Monthly revenue · 12 months",
       revenue: yearRevenue,
       data: yearlyData,
-      chartType: "line",
     },
   };
 
-  const cfg = periodConfig[activePeriod];
-  const chartH = 170;
+  const chartH = 190;
 
   return (
-    <Pressable
-      onPress={() => onPress?.(activePeriod)}
-      style={({ pressed }) => ({ opacity: pressed ? 0.92 : 1 })}
-    >
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        {/* Period selector tabs */}
-        <View style={styles.tabRow}>
-          {PERIODS.map((p, i) => {
-            const active = p === activePeriod;
-            return (
-              <Pressable
-                key={p}
-                onPress={() => scrollTo(i)}
-                style={({ pressed }) => [
-                  styles.tab,
-                  active && { backgroundColor: ACCENT },
-                  pressed && { opacity: 0.7 },
-                ]}
-              >
-                <Text style={[styles.tabText, { color: active ? "#FFF" : colors.muted }]}>{p}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {/* Swipeable chart pages */}
-        <ScrollView
-          ref={scrollRef}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          onMomentumScrollEnd={handleScroll}
-          scrollEventThrottle={16}
-          contentOffset={{ x: periodIndex * width, y: 0 }}
-          style={{ width }}
-        >
-          {PERIODS.map((p) => {
-            const pcfg = periodConfig[p];
-            return (
-              <View key={p} style={{ width, paddingHorizontal: 16, paddingBottom: 16 }}>
-                {/* Header */}
-                <View style={styles.header}>
-                  <View>
-                    <Text style={[styles.title, { color: colors.foreground }]}>{pcfg.title}</Text>
-                    <Text style={[styles.subtitle, { color: colors.muted }]}>{pcfg.subtitle}</Text>
-                  </View>
-                  <View style={{ alignItems: "flex-end" }}>
-                    <Text style={[styles.value, { color: colors.foreground }]}>
-                      ${pcfg.revenue.toLocaleString()}
-                    </Text>
-                    {pcfg.change !== undefined && pcfg.change !== 0 && (
-                      <View style={styles.changeRow}>
-                        <Text style={[styles.changeText, { color: pcfg.change > 0 ? "#00C896" : colors.error }]}>
-                          {pcfg.change > 0 ? "↑" : "↓"} {Math.abs(pcfg.change)}% vs last week
-                        </Text>
-                      </View>
-                    )}
-                  </View>
+    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      {/* Swipeable chart pages — NO tab buttons */}
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={handleMomentumScrollEnd}
+        scrollEventThrottle={16}
+        decelerationRate="fast"
+        snapToInterval={width}
+        snapToAlignment="start"
+        contentOffset={{ x: activePeriodIdx * width, y: 0 }}
+        style={{ width }}
+      >
+        {PERIODS.map((p) => {
+          const pcfg = periodConfig[p];
+          return (
+            <View key={p} style={{ width, paddingHorizontal: 16, paddingBottom: 8 }}>
+              {/* Header */}
+              <View style={styles.header}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.title, { color: colors.foreground }]}>{pcfg.title}</Text>
+                  <Text style={[styles.subtitle, { color: colors.muted }]}>{pcfg.subtitle}</Text>
                 </View>
-
-                {/* Chart */}
-                {pcfg.data.length > 0 ? (
-                  <ChartWithLabels
-                    data={pcfg.data}
-                    width={width - 32}
-                    height={chartH}
-                    color={ACCENT}
-                    chartType={pcfg.chartType}
-                  />
-                ) : (
-                  <View style={{ height: chartH, alignItems: "center", justifyContent: "center" }}>
-                    <Text style={{ color: colors.muted, fontSize: 13 }}>No data yet</Text>
-                  </View>
-                )}
-
-                {/* Appt count row for bar charts */}
-                {pcfg.chartType === "bar" && pcfg.data.length > 0 && (
-                  <View style={styles.apptRow}>
-                    {pcfg.data.map((d, i) => {
-                      const step = pcfg.data.length <= 8 ? 1 : pcfg.data.length <= 14 ? 2 : pcfg.data.length <= 24 ? 4 : 6;
-                      if (i % step !== 0) return null;
-                      return (
-                        <View key={i} style={styles.apptCell}>
-                          {d.apptCount > 0 ? (
-                            <View style={[styles.apptBadge, { backgroundColor: ACCENT_DIM }]}>
-                              <Text style={[styles.apptBadgeText, { color: ACCENT }]}>{d.apptCount}</Text>
-                            </View>
-                          ) : (
-                            <Text style={[styles.apptBadgeText, { color: colors.border }]}>–</Text>
-                          )}
-                        </View>
-                      );
-                    })}
-                  </View>
-                )}
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={[styles.value, { color: colors.foreground }]}>
+                    ${(pcfg.revenue ?? 0).toLocaleString()}
+                  </Text>
+                  {pcfg.change !== undefined && pcfg.change !== 0 && (
+                    <Text style={[styles.changeText, { color: pcfg.change > 0 ? ACCENT : colors.error }]}>
+                      {pcfg.change > 0 ? "↑" : "↓"} {Math.abs(pcfg.change)}% {pcfg.changeLabel}
+                    </Text>
+                  )}
+                </View>
               </View>
-            );
-          })}
-        </ScrollView>
 
-        {/* Page dots */}
+              {/* Unified area line chart for all periods */}
+              {pcfg.data && pcfg.data.length > 0 ? (
+                <AreaLineChart
+                  data={pcfg.data}
+                  width={width - 32}
+                  height={chartH}
+                  color={ACCENT}
+                />
+              ) : (
+                <View style={{ height: chartH, alignItems: "center", justifyContent: "center" }}>
+                  <Text style={{ color: colors.muted, fontSize: 13 }}>No data yet</Text>
+                </View>
+              )}
+            </View>
+          );
+        })}
+      </ScrollView>
+
+      {/* Period label + page dots */}
+      <View style={styles.footer}>
+        <Text style={[styles.periodLabel, { color: colors.muted }]}>{activePeriod}</Text>
         <View style={styles.dots}>
-          {PERIODS.map((p, i) => (
+          {PERIODS.map((_, i) => (
             <View
               key={i}
               style={[
                 styles.dot,
-                { backgroundColor: p === activePeriod ? ACCENT : colors.border },
+                {
+                  backgroundColor: i === activePeriodIdx ? ACCENT : colors.border,
+                  width: i === activePeriodIdx ? 16 : 5,
+                },
               ]}
             />
           ))}
         </View>
+        <View style={{ width: 40 }} />
       </View>
-    </Pressable>
+    </View>
   );
 }
 
@@ -492,79 +345,51 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     marginTop: 16,
   },
-  tabRow: {
-    flexDirection: "row",
-    paddingHorizontal: 12,
-    paddingTop: 14,
-    paddingBottom: 10,
-    gap: 6,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 6,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  tabText: {
-    fontSize: 11,
-    fontWeight: "700",
-  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 12,
-    marginTop: 4,
+    paddingTop: 16,
+    paddingBottom: 10,
   },
   title: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "700",
+    letterSpacing: -0.3,
   },
   subtitle: {
     fontSize: 11,
     marginTop: 2,
   },
   value: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "800",
     letterSpacing: -0.5,
-  },
-  changeRow: {
-    marginTop: 2,
   },
   changeText: {
     fontSize: 11,
     fontWeight: "700",
+    marginTop: 2,
   },
-  apptRow: {
+  footer: {
     flexDirection: "row",
-    marginTop: 6,
-    flexWrap: "wrap",
-  },
-  apptCell: {
-    flex: 1,
     alignItems: "center",
-    minWidth: 24,
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    paddingTop: 4,
   },
-  apptBadge: {
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-    borderRadius: 6,
-    minWidth: 20,
-    alignItems: "center",
-  },
-  apptBadgeText: {
-    fontSize: 10,
-    fontWeight: "700",
+  periodLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    width: 40,
   },
   dots: {
     flexDirection: "row",
-    justifyContent: "center",
-    gap: 5,
-    paddingBottom: 12,
+    alignItems: "center",
+    gap: 4,
   },
   dot: {
-    width: 5,
     height: 5,
     borderRadius: 3,
   },
