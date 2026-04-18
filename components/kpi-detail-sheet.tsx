@@ -23,6 +23,7 @@ import Svg, {
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { PlanCompareModal } from "@/components/plan-compare-modal";
+import { useRouter } from "expo-router";
 
 // ─── Types ─────────────────────────────────────────────────────────────
 export type KpiTab = "revenue" | "appointments" | "clients" | "topservice";
@@ -79,6 +80,8 @@ interface KpiDetailSheetProps {
     clients?: { id: string; name: string; phone?: string; email?: string; apptCount: number; totalSpent: number; birthday?: string }[];
     services?: { id: string; name: string; color: string; bookings: number; price: number }[];
     appointmentCount?: number;
+    appointments?: { id: string; clientName: string; serviceName: string; time: string; date: string; status: string; price: number }[];
+    completedAppointments?: { id: string; clientName: string; serviceName: string; date: string; price: number }[];
   };
 }
 
@@ -385,6 +388,7 @@ export function KpiDetailSheet({
   const [exporting, setExporting] = useState(false);
   const [showCompare, setShowCompare] = useState(false);
   const [dateRange, setDateRange] = useState<KpiDateRange>("week");
+  const router = useRouter();
 
   const handleRangeChange = (range: KpiDateRange) => {
     setDateRange(range);
@@ -519,127 +523,233 @@ export function KpiDetailSheet({
             style={{ flex: 1 }}
           >
             {/* ─── REVENUE ─────────────────────────────────────────── */}
-            {tab === "revenue" && (
-              <View>
-                {/* Hero stat when opened from a specific slide */}
-                {slideFilter && slideExtraData && (slideFilter === "today" || slideFilter === "week" || slideFilter === "month" || slideFilter === "year" || slideFilter === "alltime") && (
-                  <View style={{ backgroundColor: "#E6510010", borderRadius: 16, padding: 20, marginBottom: 16, borderWidth: 1.5, borderColor: "#E65100" + "30", alignItems: "center" }}>
-                    <Text style={{ fontSize: 13, fontWeight: "600", color: "#E65100", marginBottom: 6, letterSpacing: 0.5, textTransform: "uppercase" }}>
-                      {slideExtraData.label ?? displayTitle}
-                    </Text>
-                    <Text style={{ fontSize: 36, fontWeight: "800", color: "#E65100", letterSpacing: -1 }}>
-                      {typeof slideExtraData.value === "number" ? `$${slideExtraData.value.toLocaleString()}` : (slideExtraData.value ?? "—")}
-                    </Text>
-                    {slideExtraData.sublabel ? (
-                      <Text style={{ fontSize: 12, color: "#888", marginTop: 4 }}>{slideExtraData.sublabel}</Text>
-                    ) : null}
-                  </View>
-                )}
-                <StatPills items={[
-                  { label: "This Week", value: `$${revenueData.weekRevenue.toLocaleString()}`, color: "#E65100" },
-                  { label: "Total Revenue", value: `$${revenueData.totalRevenue.toLocaleString()}`, color: "#FF9800" },
-                  { label: "vs Last Week", value: `${revenueChange >= 0 ? "+" : ""}${revenueChange}%`, color: revenueChange >= 0 ? "#4CAF50" : "#EF4444" },
-                ]} />
+            {tab === "revenue" && (() => {
+              const isFiltered = slideFilter === "today" || slideFilter === "week" || slideFilter === "month" || slideFilter === "year" || slideFilter === "alltime";
+              return (
+                <View>
+                  {/* Hero stat when opened from a specific slide */}
+                  {isFiltered && slideExtraData && (
+                    <View style={{ backgroundColor: "#E6510010", borderRadius: 16, padding: 20, marginBottom: 16, borderWidth: 1.5, borderColor: "#E65100" + "30", alignItems: "center" }}>
+                      <Text style={{ fontSize: 13, fontWeight: "600", color: "#E65100", marginBottom: 6, letterSpacing: 0.5, textTransform: "uppercase" }}>
+                        {slideExtraData.label ?? displayTitle}
+                      </Text>
+                      <Text style={{ fontSize: 36, fontWeight: "800", color: "#E65100", letterSpacing: -1 }}>
+                        {typeof slideExtraData.value === "number" ? `$${slideExtraData.value.toLocaleString()}` : (slideExtraData.value ?? "—")}
+                      </Text>
+                      {slideExtraData.sublabel ? (
+                        <Text style={{ fontSize: 12, color: "#888", marginTop: 4 }}>{slideExtraData.sublabel}</Text>
+                      ) : null}
+                    </View>
+                  )}
 
-                <SectionLabel title="Monthly Revenue (6 months)" />
-                <FullBarChart data={revenueData.monthlyData} w={chartW} h={200} />
+                  {/* Filtered view: show completed appointments for the period */}
+                  {isFiltered ? (
+                    <>
+                      <StatPills items={[
+                        { label: "This Week", value: `$${revenueData.weekRevenue.toLocaleString()}`, color: "#E65100" },
+                        { label: "Total Revenue", value: `$${revenueData.totalRevenue.toLocaleString()}`, color: "#FF9800" },
+                        { label: "vs Last Week", value: `${revenueChange >= 0 ? "+" : ""}${revenueChange}%`, color: revenueChange >= 0 ? "#4CAF50" : "#EF4444" },
+                      ]} />
+                      <SectionLabel title="Completed Appointments" />
+                      {(slideExtraData?.completedAppointments ?? []).length === 0 ? (
+                        <Text style={{ color: "#888", fontSize: 13, textAlign: "center", paddingVertical: 20 }}>No completed appointments for this period</Text>
+                      ) : (
+                        (slideExtraData?.completedAppointments ?? []).map((a) => (
+                          <Pressable
+                            key={a.id}
+                            onPress={() => { onClose(); setTimeout(() => router.push({ pathname: "/appointment-detail", params: { id: a.id } } as any), 300); }}
+                            style={({ pressed }) => ({
+                              flexDirection: "row",
+                              alignItems: "center",
+                              paddingVertical: 12,
+                              paddingHorizontal: 14,
+                              backgroundColor: colors.surface,
+                              borderRadius: 12,
+                              marginBottom: 8,
+                              borderWidth: 1,
+                              borderColor: colors.border,
+                              opacity: pressed ? 0.75 : 1,
+                            })}
+                          >
+                            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#E6510018", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                              <Text style={{ fontSize: 15, fontWeight: "700", color: "#E65100" }}>{a.clientName.charAt(0).toUpperCase()}</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }} numberOfLines={1}>{a.clientName}</Text>
+                              <Text style={{ fontSize: 12, color: colors.muted }} numberOfLines={1}>{a.serviceName} · {a.date}</Text>
+                            </View>
+                            <View style={{ alignItems: "flex-end" }}>
+                              <Text style={{ fontSize: 14, fontWeight: "700", color: "#E65100" }}>${a.price}</Text>
+                              <IconSymbol name="chevron.right" size={14} color={colors.muted} />
+                            </View>
+                          </Pressable>
+                        ))
+                      )}
+                    </>
+                  ) : (
+                    /* Full chart view when no filter */
+                    <>
+                      <StatPills items={[
+                        { label: "This Week", value: `$${revenueData.weekRevenue.toLocaleString()}`, color: "#E65100" },
+                        { label: "Total Revenue", value: `$${revenueData.totalRevenue.toLocaleString()}`, color: "#FF9800" },
+                        { label: "vs Last Week", value: `${revenueChange >= 0 ? "+" : ""}${revenueChange}%`, color: revenueChange >= 0 ? "#4CAF50" : "#EF4444" },
+                      ]} />
 
-                <View style={{ height: 16 }} />
-                <SectionLabel title="Daily Revenue (this week)" />
-                <FullLineChart
-                  data={revenueData.weeklyDailyData.map((d) => ({ label: d.label, value: d.value }))}
-                  w={chartW}
-                  h={180}
-                  color="#E65100"
-                />
+                      <SectionLabel title="Monthly Revenue (6 months)" />
+                      <FullBarChart data={revenueData.monthlyData} w={chartW} h={200} />
 
-                {serviceRevenueItems.length > 0 && (
-                  <>
-                    <View style={{ height: 16 }} />
-                    <SectionLabel title="Bookings by Service" />
-                    {serviceRevenueItems.map((s, i) => (
-                      <HBar
-                        key={i}
-                        label={s.label}
-                        value={s.value}
-                        max={Math.max(...serviceRevenueItems.map((x) => x.value), 1)}
-                        color={s.color || "#4A7C59"}
-                        suffix={`${s.value} bookings`}
+                      <View style={{ height: 16 }} />
+                      <SectionLabel title="Daily Revenue (this week)" />
+                      <FullLineChart
+                        data={revenueData.weeklyDailyData.map((d) => ({ label: d.label, value: d.value }))}
+                        w={chartW}
+                        h={180}
+                        color="#E65100"
                       />
-                    ))}
-                  </>
-                )}
-              </View>
-            )}
+
+                      {serviceRevenueItems.length > 0 && (
+                        <>
+                          <View style={{ height: 16 }} />
+                          <SectionLabel title="Bookings by Service" />
+                          {serviceRevenueItems.map((s, i) => (
+                            <HBar
+                              key={i}
+                              label={s.label}
+                              value={s.value}
+                              max={Math.max(...serviceRevenueItems.map((x) => x.value), 1)}
+                              color={s.color || "#4A7C59"}
+                              suffix={`${s.value} bookings`}
+                            />
+                          ))}
+                        </>
+                      )}
+                    </>
+                  )}
+                </View>
+              );
+            })()}
 
             {/* ─── APPOINTMENTS ────────────────────────────────────── */}
-            {tab === "appointments" && (
-              <View>
-                {/* Hero stat when opened from a specific slide */}
-                {slideFilter && slideExtraData && (slideFilter === "today" || slideFilter === "week" || slideFilter === "month" || slideFilter === "year") && (
-                  <View style={{ backgroundColor: "#1565C010", borderRadius: 16, padding: 20, marginBottom: 16, borderWidth: 1.5, borderColor: "#1565C0" + "30", alignItems: "center" }}>
-                    <Text style={{ fontSize: 13, fontWeight: "600", color: "#1565C0", marginBottom: 6, letterSpacing: 0.5, textTransform: "uppercase" }}>
-                      {slideExtraData.label ?? displayTitle}
-                    </Text>
-                    <Text style={{ fontSize: 36, fontWeight: "800", color: "#1565C0", letterSpacing: -1 }}>
-                      {slideExtraData.appointmentCount ?? slideExtraData.value ?? "—"}
-                    </Text>
-                    {slideExtraData.sublabel ? (
-                      <Text style={{ fontSize: 12, color: "#888", marginTop: 4 }}>{slideExtraData.sublabel}</Text>
-                    ) : null}
-                  </View>
-                )}
-                <StatPills items={[
-                  { label: "Total", value: String(appointmentsData.totalAppointments), color: "#1565C0" },
-                  { label: "Completed", value: String(appointmentsData.statusCounts.completed), color: "#4CAF50" },
-                  { label: "Pending", value: String(appointmentsData.statusCounts.pending), color: "#FF9800" },
-                  { label: "Cancelled", value: String(appointmentsData.statusCounts.cancelled), color: "#EF4444" },
-                ]} />
+            {tab === "appointments" && (() => {
+              const isApptFiltered = slideFilter === "today" || slideFilter === "week" || slideFilter === "month" || slideFilter === "year";
+              return (
+                <View>
+                  {/* Hero stat when opened from a specific slide */}
+                  {isApptFiltered && slideExtraData && (
+                    <View style={{ backgroundColor: "#1565C010", borderRadius: 16, padding: 20, marginBottom: 16, borderWidth: 1.5, borderColor: "#1565C030", alignItems: "center" }}>
+                      <Text style={{ fontSize: 13, fontWeight: "600", color: "#1565C0", marginBottom: 6, letterSpacing: 0.5, textTransform: "uppercase" }}>
+                        {slideExtraData.label ?? displayTitle}
+                      </Text>
+                      <Text style={{ fontSize: 36, fontWeight: "800", color: "#1565C0", letterSpacing: -1 }}>
+                        {slideExtraData.appointmentCount ?? slideExtraData.value ?? "—"}
+                      </Text>
+                      {slideExtraData.sublabel ? (
+                        <Text style={{ fontSize: 12, color: "#888", marginTop: 4 }}>{slideExtraData.sublabel}</Text>
+                      ) : null}
+                    </View>
+                  )}
 
-                <SectionLabel title="Daily Appointments (this week)" />
-                <FullBarChart
-                  data={appointmentsData.weeklyDailyData.map((d) => ({ label: d.label, value: d.apptCount, color: d.color }))}
-                  w={chartW}
-                  h={180}
-                  formatValue={(v) => String(v)}
-                />
+                  {isApptFiltered ? (
+                    <>
+                      <StatPills items={[
+                        { label: "Total", value: String(appointmentsData.totalAppointments), color: "#1565C0" },
+                        { label: "Completed", value: String(appointmentsData.statusCounts.completed), color: "#4CAF50" },
+                        { label: "Pending", value: String(appointmentsData.statusCounts.pending), color: "#FF9800" },
+                      ]} />
+                      <SectionLabel title="Appointments" />
+                      {(slideExtraData?.appointments ?? []).length === 0 ? (
+                        <Text style={{ color: "#888", fontSize: 13, textAlign: "center", paddingVertical: 20 }}>No appointments for this period</Text>
+                      ) : (
+                        (slideExtraData?.appointments ?? []).map((a) => (
+                          <Pressable
+                            key={a.id}
+                            onPress={() => { onClose(); setTimeout(() => router.push({ pathname: "/appointment-detail", params: { id: a.id } } as any), 300); }}
+                            style={({ pressed }) => ({
+                              flexDirection: "row",
+                              alignItems: "center",
+                              paddingVertical: 12,
+                              paddingHorizontal: 14,
+                              backgroundColor: colors.surface,
+                              borderRadius: 12,
+                              marginBottom: 8,
+                              borderWidth: 1,
+                              borderColor: colors.border,
+                              opacity: pressed ? 0.75 : 1,
+                            })}
+                          >
+                            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#1565C018", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                              <Text style={{ fontSize: 15, fontWeight: "700", color: "#1565C0" }}>{a.clientName.charAt(0).toUpperCase()}</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }} numberOfLines={1}>{a.clientName}</Text>
+                              <Text style={{ fontSize: 12, color: colors.muted }} numberOfLines={1}>{a.serviceName} · {a.time}</Text>
+                            </View>
+                            <View style={{ alignItems: "flex-end" }}>
+                              <View style={{ backgroundColor: a.status === "completed" ? "#4CAF5015" : a.status === "confirmed" ? "#2196F315" : "#FF980015", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 }}>
+                                <Text style={{ fontSize: 11, fontWeight: "700", color: a.status === "completed" ? "#4CAF50" : a.status === "confirmed" ? "#2196F3" : "#FF9800", textTransform: "capitalize" }}>{a.status}</Text>
+                              </View>
+                              <IconSymbol name="chevron.right" size={14} color={colors.muted} />
+                            </View>
+                          </Pressable>
+                        ))
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <StatPills items={[
+                        { label: "Total", value: String(appointmentsData.totalAppointments), color: "#1565C0" },
+                        { label: "Completed", value: String(appointmentsData.statusCounts.completed), color: "#4CAF50" },
+                        { label: "Pending", value: String(appointmentsData.statusCounts.pending), color: "#FF9800" },
+                        { label: "Cancelled", value: String(appointmentsData.statusCounts.cancelled), color: "#EF4444" },
+                      ]} />
 
-                <View style={{ height: 16 }} />
-                <SectionLabel title="Status Breakdown" />
-                {[
-                  { label: "Completed", value: appointmentsData.statusCounts.completed, color: "#4CAF50" },
-                  { label: "Confirmed", value: appointmentsData.statusCounts.confirmed, color: "#2196F3" },
-                  { label: "Pending", value: appointmentsData.statusCounts.pending, color: "#FF9800" },
-                  { label: "Cancelled", value: appointmentsData.statusCounts.cancelled, color: "#EF4444" },
-                ].map((item, i) => (
-                  <HBar
-                    key={i}
-                    label={item.label}
-                    value={item.value}
-                    max={Math.max(appointmentsData.totalAppointments + appointmentsData.statusCounts.cancelled, 1)}
-                    color={item.color}
-                    suffix={String(item.value)}
-                  />
-                ))}
-
-                {appointmentsData.serviceBreakdown.length > 0 && (
-                  <>
-                    <View style={{ height: 8 }} />
-                    <SectionLabel title="By Service" />
-                    {appointmentsData.serviceBreakdown.slice(0, 6).map((s, i) => (
-                      <HBar
-                        key={i}
-                        label={s.label}
-                        value={s.value}
-                        max={Math.max(...appointmentsData.serviceBreakdown.map((x) => x.value), 1)}
-                        color={s.color || "#2196F3"}
-                        suffix={`${s.value} bookings`}
+                      <SectionLabel title="Daily Appointments (this week)" />
+                      <FullBarChart
+                        data={appointmentsData.weeklyDailyData.map((d) => ({ label: d.label, value: d.apptCount, color: d.color }))}
+                        w={chartW}
+                        h={180}
+                        formatValue={(v) => String(v)}
                       />
-                    ))}
-                  </>
-                )}
-              </View>
-            )}
+
+                      <View style={{ height: 16 }} />
+                      <SectionLabel title="Status Breakdown" />
+                      {[
+                        { label: "Completed", value: appointmentsData.statusCounts.completed, color: "#4CAF50" },
+                        { label: "Confirmed", value: appointmentsData.statusCounts.confirmed, color: "#2196F3" },
+                        { label: "Pending", value: appointmentsData.statusCounts.pending, color: "#FF9800" },
+                        { label: "Cancelled", value: appointmentsData.statusCounts.cancelled, color: "#EF4444" },
+                      ].map((item, i) => (
+                        <HBar
+                          key={i}
+                          label={item.label}
+                          value={item.value}
+                          max={Math.max(appointmentsData.totalAppointments + appointmentsData.statusCounts.cancelled, 1)}
+                          color={item.color}
+                          suffix={String(item.value)}
+                        />
+                      ))}
+
+                      {appointmentsData.serviceBreakdown.length > 0 && (
+                        <>
+                          <View style={{ height: 8 }} />
+                          <SectionLabel title="By Service" />
+                          {appointmentsData.serviceBreakdown.slice(0, 6).map((s, i) => (
+                            <HBar
+                              key={i}
+                              label={s.label}
+                              value={s.value}
+                              max={Math.max(...appointmentsData.serviceBreakdown.map((x) => x.value), 1)}
+                              color={s.color || "#2196F3"}
+                              suffix={`${s.value} bookings`}
+                            />
+                          ))}
+                        </>
+                      )}
+                    </>
+                  )}
+                </View>
+              );
+            })()}
 
             {/* ─── CLIENTS ────────────────────────────────────────── */}
             {tab === "clients" && (() => {
@@ -665,9 +775,10 @@ export function KpiDetailSheet({
                     <Text style={{ color: "#888", fontSize: 13, textAlign: "center", paddingVertical: 20 }}>No client data yet</Text>
                   ) : (
                     filteredClients.map((c, i) => (
-                      <View
+                      <Pressable
                         key={c.id}
-                        style={{
+                        onPress={() => { onClose(); setTimeout(() => router.push({ pathname: "/client-detail", params: { id: c.id } } as any), 300); }}
+                        style={({ pressed }) => ({
                           flexDirection: "row",
                           alignItems: "center",
                           paddingVertical: 12,
@@ -677,7 +788,8 @@ export function KpiDetailSheet({
                           marginBottom: 8,
                           borderWidth: 1,
                           borderColor: colors.border,
-                        }}
+                          opacity: pressed ? 0.75 : 1,
+                        })}
                       >
                         {(isTop) && (
                           <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: i < 3 ? "#FF980018" : "#E0E0E020", alignItems: "center", justifyContent: "center", marginRight: 8 }}>
@@ -704,8 +816,9 @@ export function KpiDetailSheet({
                           {c.totalSpent > 0 && !isBirthday && (
                             <Text style={{ fontSize: 11, color: "#FF9800", fontWeight: "600", marginTop: 3 }}>${c.totalSpent}</Text>
                           )}
+                          <IconSymbol name="chevron.right" size={14} color={colors.muted} style={{ marginTop: 2 }} />
                         </View>
-                      </View>
+                      </Pressable>
                     ))
                   )}
                 </View>

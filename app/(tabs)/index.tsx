@@ -319,6 +319,8 @@ export default function HomeScreen() {
     clients?: { id: string; name: string; phone?: string; email?: string; apptCount: number; totalSpent: number; birthday?: string }[];
     services?: { id: string; name: string; color: string; bookings: number; price: number }[];
     appointmentCount?: number;
+    appointments?: { id: string; clientName: string; serviceName: string; time: string; date: string; status: string; price: number }[];
+    completedAppointments?: { id: string; clientName: string; serviceName: string; date: string; price: number }[];
   } | undefined>(undefined);
 
   // ─── Tutorial Walkthrough ──────────────────────────────────────
@@ -1014,11 +1016,48 @@ export default function HomeScreen() {
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
 
+    // Helper to build appointment row data
+    const buildApptRow = (a: (typeof allAppts)[0]) => {
+      const client = clientsAll.find((c) => c.id === a.clientId);
+      const service = state.services.find((s) => s.id === a.serviceId);
+      return {
+        id: a.id,
+        clientName: client?.name ?? "Unknown",
+        serviceName: service?.name ?? "Service",
+        time: a.time,
+        date: a.date,
+        status: a.status,
+        price: getPrice(a),
+      };
+    };
+    const buildCompletedRow = (a: (typeof allAppts)[0]) => ({
+      id: a.id,
+      clientName: clientsAll.find((c) => c.id === a.clientId)?.name ?? "Unknown",
+      serviceName: state.services.find((s) => s.id === a.serviceId)?.name ?? "Service",
+      date: a.date,
+      price: getPrice(a),
+    });
+
+    // Filtered appointment lists for each period
+    const todayApptList = activeAppts2.filter((a) => a.date === todayStr2).map(buildApptRow);
+    const weekApptList = weekAppts2.map(buildApptRow);
+    const monthApptList = monthAppts2.map(buildApptRow);
+    const yearApptList = activeAppts2.filter((a) => a.date >= `${now2.getFullYear()}-01-01` && a.date <= `${now2.getFullYear()}-12-31`).map(buildApptRow);
+
+    // Completed appointments for revenue filtered views
+    const todayCompletedList = completed.filter((a) => a.date === todayStr2).map(buildCompletedRow);
+    const weekCompletedList = completed.filter((a) => a.date >= formatDateStr(startOfWeek2) && a.date <= formatDateStr(endOfWeek2)).map(buildCompletedRow);
+    const monthCompletedList = completed.filter((a) => a.date >= mStart2 && a.date <= mEnd2).map(buildCompletedRow);
+    const yearCompletedList = completed.filter((a) => a.date >= `${now2.getFullYear()}-01-01` && a.date <= `${now2.getFullYear()}-12-31`).map(buildCompletedRow);
+    const allTimeCompletedList = completed.map(buildCompletedRow);
+
     return {
       todayEarnings, weekEarnings, monthEarnings, yearEarnings, allTimeEarnings,
       todayApptCount, weekApptCount, monthApptCount, yearApptCount, totalApptCount,
       topClients, recentlyAdded, birthdayNextMonth,
       top3Week, top5Month,
+      todayApptList, weekApptList, monthApptList, yearApptList,
+      todayCompletedList, weekCompletedList, monthCompletedList, yearCompletedList, allTimeCompletedList,
     };
   }, [state.appointments, state.services, filterByLocation, clientsForActiveLocation]);
 
@@ -1476,7 +1515,7 @@ export default function HomeScreen() {
                 sublabel: `$${Math.round(kpiSlideData.allTimeEarnings).toLocaleString()} all-time`,
                 sparkData: analytics.weeklyDailyData.map((d) => d.value),
                 sparkType: "line",
-                onPress: () => { setKpiDetailTab("revenue"); setKpiSlideFilter("today"); setKpiSlideExtraData({ label: "Today's Earnings", value: Math.round(kpiSlideData.todayEarnings), sublabel: `vs $${Math.round(kpiSlideData.allTimeEarnings).toLocaleString()} all-time` }); },
+                onPress: () => { setKpiDetailTab("revenue"); setKpiSlideFilter("today"); setKpiSlideExtraData({ label: "Today's Earnings", value: Math.round(kpiSlideData.todayEarnings), sublabel: `vs $${Math.round(kpiSlideData.allTimeEarnings).toLocaleString()} all-time`, completedAppointments: kpiSlideData.todayCompletedList }); },
               },
               {
                 gradientColors: ["#E65100", "#FF9800"],
@@ -1495,7 +1534,7 @@ export default function HomeScreen() {
                 ) : undefined,
                 sparkData: analytics.weeklyDailyData.map((d) => d.value),
                 sparkType: "line",
-                onPress: () => { setKpiDetailTab("revenue"); setKpiSlideFilter("week"); setKpiSlideExtraData({ label: "This Week's Earnings", value: Math.round(kpiSlideData.weekEarnings), sublabel: revenueChange !== 0 ? `${revenueChange >= 0 ? "+" : ""}${revenueChange}% vs last week` : undefined }); },
+                onPress: () => { setKpiDetailTab("revenue"); setKpiSlideFilter("week"); setKpiSlideExtraData({ label: "This Week's Earnings", value: Math.round(kpiSlideData.weekEarnings), sublabel: revenueChange !== 0 ? `${revenueChange >= 0 ? "+" : ""}${revenueChange}% vs last week` : undefined, completedAppointments: kpiSlideData.weekCompletedList }); },
               },
               {
                 gradientColors: ["#BF360C", "#FF7043"],
@@ -1508,7 +1547,7 @@ export default function HomeScreen() {
                 sublabel: `$${Math.round(kpiSlideData.allTimeEarnings).toLocaleString()} all-time`,
                 sparkData: analytics.monthlyData.map((d) => d.value),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("revenue"); setKpiSlideFilter("month"); setKpiSlideExtraData({ label: `${new Date().toLocaleDateString("en-US", { month: "long" })} Earnings`, value: Math.round(kpiSlideData.monthEarnings), sublabel: `vs $${Math.round(kpiSlideData.allTimeEarnings).toLocaleString()} all-time` }); },
+                onPress: () => { setKpiDetailTab("revenue"); setKpiSlideFilter("month"); setKpiSlideExtraData({ label: `${new Date().toLocaleDateString("en-US", { month: "long" })} Earnings`, value: Math.round(kpiSlideData.monthEarnings), sublabel: `vs $${Math.round(kpiSlideData.allTimeEarnings).toLocaleString()} all-time`, completedAppointments: kpiSlideData.monthCompletedList }); },
               },
               {
                 gradientColors: ["#7B1FA2", "#CE93D8"],
@@ -1521,7 +1560,7 @@ export default function HomeScreen() {
                 sublabel: `$${Math.round(kpiSlideData.allTimeEarnings).toLocaleString()} all-time`,
                 sparkData: analytics.monthlyData.map((d) => d.value),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("revenue"); setKpiSlideFilter("year"); setKpiSlideExtraData({ label: `${new Date().getFullYear()} Earnings`, value: Math.round(kpiSlideData.yearEarnings), sublabel: `vs $${Math.round(kpiSlideData.allTimeEarnings).toLocaleString()} all-time` }); },
+                onPress: () => { setKpiDetailTab("revenue"); setKpiSlideFilter("year"); setKpiSlideExtraData({ label: `${new Date().getFullYear()} Earnings`, value: Math.round(kpiSlideData.yearEarnings), sublabel: `vs $${Math.round(kpiSlideData.allTimeEarnings).toLocaleString()} all-time`, completedAppointments: kpiSlideData.yearCompletedList }); },
               },
               {
                 gradientColors: ["#4A148C", "#9C27B0"],
@@ -1534,7 +1573,7 @@ export default function HomeScreen() {
                 sublabel: `${analytics.statusCounts.completed} completed appts`,
                 sparkData: analytics.monthlyData.map((d) => d.value),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("revenue"); setKpiSlideFilter("alltime"); setKpiSlideExtraData({ label: "All-Time Earnings", value: Math.round(kpiSlideData.allTimeEarnings), sublabel: `${analytics.statusCounts.completed} completed appointments` }); },
+                onPress: () => { setKpiDetailTab("revenue"); setKpiSlideFilter("alltime"); setKpiSlideExtraData({ label: "All-Time Earnings", value: Math.round(kpiSlideData.allTimeEarnings), sublabel: `${analytics.statusCounts.completed} completed appointments`, completedAppointments: kpiSlideData.allTimeCompletedList }); },
               },
             ]}
           />
@@ -1630,7 +1669,7 @@ export default function HomeScreen() {
                 sublabel: `${analytics.statusCounts.pending} pending today`,
                 sparkData: analytics.weeklyDailyData.map((d) => d.apptCount),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("appointments"); setKpiSlideFilter("today"); setKpiSlideExtraData({ label: "Today's Appointments", appointmentCount: kpiSlideData.todayApptCount, sublabel: `${analytics.statusCounts.pending} pending` }); },
+                onPress: () => { setKpiDetailTab("appointments"); setKpiSlideFilter("today"); setKpiSlideExtraData({ label: "Today's Appointments", appointmentCount: kpiSlideData.todayApptCount, sublabel: `${analytics.statusCounts.pending} pending`, appointments: kpiSlideData.todayApptList }); },
               },
               {
                 gradientColors: ["#0D47A1", "#1976D2"],
@@ -1642,7 +1681,7 @@ export default function HomeScreen() {
                 sublabel: `${analytics.upcomingThisWeek} upcoming`,
                 sparkData: analytics.weeklyDailyData.map((d) => d.apptCount),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("appointments"); setKpiSlideFilter("week"); setKpiSlideExtraData({ label: "This Week's Appointments", appointmentCount: kpiSlideData.weekApptCount, sublabel: `${analytics.upcomingThisWeek} upcoming` }); },
+                onPress: () => { setKpiDetailTab("appointments"); setKpiSlideFilter("week"); setKpiSlideExtraData({ label: "This Week's Appointments", appointmentCount: kpiSlideData.weekApptCount, sublabel: `${analytics.upcomingThisWeek} upcoming`, appointments: kpiSlideData.weekApptList }); },
               },
               {
                 gradientColors: ["#006064", "#26C6DA"],
@@ -1654,7 +1693,7 @@ export default function HomeScreen() {
                 sublabel: `${analytics.statusCounts.confirmed} confirmed`,
                 sparkData: analytics.weeklyDailyData.map((d) => d.apptCount),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("appointments"); setKpiSlideFilter("month"); setKpiSlideExtraData({ label: `${new Date().toLocaleDateString("en-US", { month: "long" })} Appointments`, appointmentCount: kpiSlideData.monthApptCount, sublabel: `${analytics.statusCounts.confirmed} confirmed` }); },
+                onPress: () => { setKpiDetailTab("appointments"); setKpiSlideFilter("month"); setKpiSlideExtraData({ label: `${new Date().toLocaleDateString("en-US", { month: "long" })} Appointments`, appointmentCount: kpiSlideData.monthApptCount, sublabel: `${analytics.statusCounts.confirmed} confirmed`, appointments: kpiSlideData.monthApptList }); },
               },
               {
                 gradientColors: ["#01579B", "#0288D1"],
@@ -1666,7 +1705,7 @@ export default function HomeScreen() {
                 sublabel: `${analytics.statusCounts.completed} completed`,
                 sparkData: analytics.weeklyDailyData.map((d) => d.apptCount),
                 sparkType: "bar",
-                onPress: () => { setKpiDetailTab("appointments"); setKpiSlideFilter("year"); setKpiSlideExtraData({ label: `${new Date().getFullYear()} Appointments`, appointmentCount: kpiSlideData.yearApptCount, sublabel: `${analytics.statusCounts.completed} completed` }); },
+                onPress: () => { setKpiDetailTab("appointments"); setKpiSlideFilter("year"); setKpiSlideExtraData({ label: `${new Date().getFullYear()} Appointments`, appointmentCount: kpiSlideData.yearApptCount, sublabel: `${analytics.statusCounts.completed} completed`, appointments: kpiSlideData.yearApptList }); },
               },
             ]}
           />
