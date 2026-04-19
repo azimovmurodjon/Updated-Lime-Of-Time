@@ -1048,9 +1048,41 @@ export default function AppointmentDetailScreen() {
               </Pressable>
             </View>
             <Text style={{ fontSize: 14, color: colors.muted, marginBottom: 16, lineHeight: 20 }}>
-              The refund will be sent to the client’s card via Stripe. Leave the amount blank for a full refund.
+              The refund will be sent to the client's card via Stripe.
             </Text>
-            <Text style={{ fontSize: 12, fontWeight: '600', color: colors.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Refund Amount (optional)</Text>
+            {/* Full Refund quick-tap */}
+            <Pressable
+              onPress={() => {
+                const total = appointment?.totalPrice ?? 0;
+                Alert.alert(
+                  'Confirm Full Refund',
+                  `Issue a full refund of $${total.toFixed(2)} to the client's card?`,
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Refund', style: 'destructive', onPress: () => handleRefund(undefined) },
+                  ]
+                );
+              }}
+              disabled={refunding}
+              style={({ pressed }) => [{
+                backgroundColor: '#635BFF',
+                borderRadius: 12,
+                paddingVertical: 14,
+                alignItems: 'center',
+                marginBottom: 12,
+                opacity: pressed || refunding ? 0.7 : 1,
+              }]}
+            >
+              <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFF' }}>
+                {refunding ? 'Processing…' : `Full Refund · $${(appointment?.totalPrice ?? 0).toFixed(2)}`}
+              </Text>
+            </Pressable>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+              <Text style={{ fontSize: 12, color: colors.muted }}>or enter partial amount</Text>
+              <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+            </View>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: colors.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Partial Refund Amount</Text>
             <TextInput
               value={refundAmount}
               onChangeText={setRefundAmount}

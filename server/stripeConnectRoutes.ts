@@ -9,7 +9,7 @@ import express from "express";
 import type { Express, Request, Response } from "express";
 import Stripe from "stripe";
 import { getDb } from "./db";
-import { businessOwners, appointments } from "../drizzle/schema";
+import { businessOwners, appointments, clients, services } from "../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 import { getPlatformConfig } from "./subscription";
 
@@ -493,6 +493,62 @@ export function registerStripeConnectRoutes(app: Express): void {
             eq(appointments.businessOwnerId, businessOwnerId)
           )
         );
+
+      // ── Send Twilio SMS to client ──────────────────────────────────────
+      try {
+        const accountSid = await getPlatformConfig("TWILIO_ACCOUNT_SID");
+        const authToken = await getPlatformConfig("TWILIO_AUTH_TOKEN");
+        const fromNumber = await getPlatformConfig("TWILIO_FROM_NUMBER");
+        const testMode = await getPlatformConfig("TWILIO_TEST_MODE");
+
+        if (accountSid && authToken && fromNumber) {
+          // Fetch client phone
+          const clientRows = await db
+            .select({ phone: clients.phone, name: clients.name })
+            .from(clients)
+            .where(and(eq(clients.localId, (appt as any).clientLocalId ?? ""), eq(clients.businessOwnerId, businessOwnerId)))
+            .limit(1);
+          const clientPhone = clientRows[0]?.phone;
+          const clientName = clientRows[0]?.name ?? "there";
+
+          // Fetch service name
+          const svcRows = await db
+            .select({ name: services.name })
+            .from(services)
+            .where(and(eq(services.localId, (appt as any).serviceLocalId ?? ""), eq(services.businessOwnerId, businessOwnerId)))
+            .limit(1);
+          const serviceName = svcRows[0]?.name ?? "your appointment";
+
+          const refundAmt = refund.amount / 100;
+          const apptDate = (appt as any).date ?? "";
+          const formattedDate = apptDate
+            ? new Date(apptDate + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+            : "your appointment";
+
+          const smsBody = `Hi ${clientName}, your refund of $${refundAmt.toFixed(2)} for ${serviceName} on ${formattedDate} has been processed. It will appear on your card in 5\u201310 business days. \u2014 Lime Of Time`;
+
+          if (clientPhone) {
+            if (testMode === "true") {
+              console.log(`[SMS TEST MODE] Refund SMS to ${clientPhone}: ${smsBody}`);
+            } else {
+              const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+              const params = new URLSearchParams();
+              params.append("From", fromNumber);
+              params.append("To", clientPhone);
+              params.append("Body", smsBody);
+              const credentials = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+              await fetch(url, {
+                method: "POST",
+                headers: { Authorization: `Basic ${credentials}`, "Content-Type": "application/x-www-form-urlencoded" },
+                body: params.toString(),
+              }).catch((smsErr) => console.error("[StripeConnect] refund SMS error:", smsErr));
+            }
+          }
+        }
+      } catch (smsErr) {
+        // SMS failure should not block the refund response
+        console.error("[StripeConnect] refund SMS send error:", smsErr);
+      }
 
       res.json({ ok: true, refundId: refund.id, status: refund.status, amount: refund.amount / 100 });
     } catch (err: any) {
