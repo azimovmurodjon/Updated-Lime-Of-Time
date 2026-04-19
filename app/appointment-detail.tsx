@@ -169,7 +169,10 @@ export default function AppointmentDetailScreen() {
           biz.customSlug,
           assignedLocation?.city ?? profile.city,
           assignedLocation?.state ?? profile.state,
-          assignedLocation?.zipCode ?? profile.zipCode
+          assignedLocation?.zipCode ?? profile.zipCode,
+          biz.zelleHandle,
+          biz.cashAppHandle,
+          biz.venmoHandle
         );
       }
       openSms(client.phone, msg);
@@ -1019,6 +1022,23 @@ Would you also like to charge a no-show fee via Stripe?`,
             >
               <IconSymbol name="xmark" size={20} color="#FFFFFF" />
               <Text className="text-white font-semibold ml-2">Cancel Appointment</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* Persistent no-show fee button for already-marked no-show appointments */}
+        {appointment.status === "no_show" && !!(state.settings as any).stripeConnectEnabled && (
+          <View className="gap-3 mt-2 mb-2">
+            <Pressable
+              onPress={() => {
+                const defaultFee = service ? Math.round((service.price ?? 0) * 0.5 * 100) / 100 : 0;
+                setNoShowFeeAmount(String(defaultFee > 0 ? defaultFee : ""));
+                setShowNoShowFeeModal(true);
+              }}
+              style={({ pressed }) => [styles.actionButton, { backgroundColor: "#F59E0B", opacity: pressed ? 0.8 : 1 }]}
+            >
+              <IconSymbol name="creditcard" size={20} color="#FFFFFF" />
+              <Text className="text-white font-semibold ml-2">Charge No-Show Fee</Text>
             </Pressable>
           </View>
         )}

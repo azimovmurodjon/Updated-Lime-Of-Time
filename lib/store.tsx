@@ -1061,7 +1061,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           try {
             const cachedSettingsRaw = await AsyncStorage.getItem(STORAGE_KEYS.settings);
             const cachedPhone: string | null = cachedSettingsRaw
-              ? (JSON.parse(cachedSettingsRaw) as BusinessSettings).phone ?? null
+              ? (JSON.parse(cachedSettingsRaw) as BusinessSettings).profile?.phone ?? null
               : null;
             if (cachedPhone) {
               const ownerByPhone = await trpcUtils.business.checkByPhone.fetch({ phone: cachedPhone });

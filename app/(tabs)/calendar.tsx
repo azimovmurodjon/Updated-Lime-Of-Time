@@ -818,7 +818,10 @@ export default function CalendarScreen() {
       apptLoc?.phone || state.settings.profile.phone,
       client?.phone, appt.id, apptLoc?.name, apptLoc?.id,
       state.settings.customSlug,
-      apptLoc?.city, apptLoc?.state, apptLoc?.zipCode
+      apptLoc?.city, apptLoc?.state, apptLoc?.zipCode,
+      state.settings.zelleHandle,
+      state.settings.cashAppHandle,
+      state.settings.venmoHandle
     );
     if (client?.phone) openSmsWithMessage(client.phone, message);
     else Alert.alert("Appointment Confirmed", message);

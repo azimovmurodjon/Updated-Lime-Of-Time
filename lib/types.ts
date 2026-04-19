@@ -297,6 +297,12 @@ export interface BusinessProfile {
   zipCode?: string;
   description: string;
   website: string;
+  /** Zelle phone/email handle for payment SMS */
+  zelleHandle?: string;
+  /** Cash App $handle for payment SMS */
+  cashAppHandle?: string;
+  /** Venmo @handle for payment SMS */
+  venmoHandle?: string;
 }
 
 export interface CancellationPolicy {
@@ -835,7 +841,10 @@ export function generateAcceptMessage(
   customSlug?: string,
   city?: string,
   state?: string,
-  zipCode?: string
+  zipCode?: string,
+  zelleHandle?: string,
+  cashAppHandle?: string,
+  venmoHandle?: string
 ): string {
   const endTime = formatTimeDisplay(minutesToTime(timeToMinutes(time) + serviceDuration));
   const slug = customSlug || businessName.replace(/\s+/g, "-").toLowerCase();
@@ -848,7 +857,15 @@ export function generateAcceptMessage(
   const locationLine = locationName
     ? (fullAddr ? `${locationName} — ${fullAddr}` : locationName)
     : fullAddr;
-  return `Dear ${clientName},\n\nGreat news! Your appointment request has been accepted.\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${locationLine}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early.${manageUrl ? `\n\n🔄 Need to reschedule or cancel? Use this link (available 24+ hours before your appointment):\n${manageUrl}` : ""}\n\n⭐ After your visit, leave a review: ${reviewUrl}\n\nWe look forward to seeing you!\n${businessName}`;
+  // Build payment handles line
+  const paymentLines: string[] = [];
+  if (zelleHandle) paymentLines.push(`💳 Zelle: ${zelleHandle}`);
+  if (cashAppHandle) paymentLines.push(`💵 Cash App: ${cashAppHandle}`);
+  if (venmoHandle) paymentLines.push(`💸 Venmo: ${venmoHandle}`);
+  const paymentSection = paymentLines.length > 0
+    ? `\n\n💰 Payment Options:\n${paymentLines.join("\n")}`
+    : "";
+  return `Dear ${clientName},\n\nGreat news! Your appointment request has been accepted.\n\n📋 Service: ${serviceName} (${serviceDuration} min)\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} - ${endTime}\n📍 Location: ${locationLine}\n🏢 Business: ${businessName}\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}${paymentSection}\n\nPlease arrive 5 minutes early.${manageUrl ? `\n\n🔄 Need to reschedule or cancel? Use this link (available 24+ hours before your appointment):\n${manageUrl}` : ""}\n\n⭐ After your visit, leave a review: ${reviewUrl}\n\nWe look forward to seeing you!\n${businessName}`;
 }
 
 /** Generate professional appointment rejection message */
