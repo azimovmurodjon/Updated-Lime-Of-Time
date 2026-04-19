@@ -1403,6 +1403,44 @@ export function registerPublicRoutes(app: Express) {
     }
   });
 
+  // ── Stripe payment success: look up appointment by checkout session_id ──────
+  // GET /api/public/business/:slug/appointment-by-session?session_id=cs_xxx
+  app.get("/api/public/business/:slug/appointment-by-session", async (req: Request, res: Response) => {
+    try {
+      const { session_id } = req.query as { session_id?: string };
+      if (!session_id) { res.status(400).json({ error: "session_id required" }); return; }
+      const owner = await db.getBusinessOwnerBySlug(req.params.slug);
+      if (!owner) { res.status(404).json({ error: "Business not found" }); return; }
+      const { getDb } = await import("./db");
+      const dbase = await getDb();
+      if (!dbase) { res.status(503).json({ error: "DB unavailable" }); return; }
+      const { appointments: apptTable } = await import("../drizzle/schema");
+      const { eq, and } = await import("drizzle-orm");
+      let rows = await dbase.select().from(apptTable).where(
+        and(eq((apptTable as any).stripeCheckoutSessionId, session_id), eq(apptTable.businessOwnerId, owner.id))
+      ).limit(1);
+      if (!rows.length) {
+        // Webhook may not have fired yet — wait up to 3s and retry
+        await new Promise(r => setTimeout(r, 3000));
+        rows = await dbase.select().from(apptTable).where(
+          and(eq((apptTable as any).stripeCheckoutSessionId, session_id), eq(apptTable.businessOwnerId, owner.id))
+        ).limit(1);
+      }
+      if (!rows.length) { res.status(404).json({ error: "Appointment not found for this session" }); return; }
+      const appt = rows[0];
+      const services = await db.getServicesByOwner(owner.id);
+      const svc = (services as any[]).find((s: any) => s.localId === appt.serviceLocalId);
+      const clientsList = await db.getClientsByOwner(owner.id);
+      const client = (clientsList as any[]).find((c: any) => c.localId === appt.clientLocalId);
+      const clientName = client?.name || "Client";
+      const manageUrl = `/api/manage/${req.params.slug}/${appt.localId}`;
+      res.json({ ok: true, appointment: { localId: appt.localId, clientName, serviceName: svc?.name || appt.serviceLocalId, date: appt.date, time: appt.time, duration: appt.duration, totalPrice: appt.totalPrice, paymentStatus: appt.paymentStatus, paymentMethod: appt.paymentMethod, manageUrl } });
+    } catch (err) {
+      console.error("[Public] appointment-by-session error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // ── Manage Appointment Page (client self-service) ─────────────────
 
   /** Client appointment management page */
@@ -5515,6 +5553,80 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     loadDiscounts();
     loadStaff();
     autoFillGift();
+
+    // ── Handle Stripe payment success redirect ──────────────────────────
+    (async function handlePaymentReturn() {
+      const params = new URLSearchParams(window.location.search);
+      const paymentParam = params.get('payment');
+      const sessionId = params.get('session_id');
+      if (paymentParam === 'success' && sessionId) {
+        // Show a loading state while we fetch the appointment
+        for (let i = 0; i <= 6; i++) { const el = document.getElementById('step-' + i); if (el) el.style.display = 'none'; }
+        document.getElementById('step-indicator').style.display = 'none';
+        const loadingEl = document.getElementById('step-6');
+        if (loadingEl) {
+          loadingEl.style.display = 'block';
+          loadingEl.innerHTML = '<div style="text-align:center;padding:40px 20px;"><div style="font-size:48px;margin-bottom:16px;">⏳</div><p style="color:#666;">Confirming your payment...</p></div>';
+        }
+        window.scrollTo(0, 0);
+        try {
+          const res = await fetch(API + '/appointment-by-session?session_id=' + encodeURIComponent(sessionId));
+          const data = await res.json();
+          if (data.ok && data.appointment) {
+            const a = data.appointment;
+            // Format date
+            const [yr, mo, dy] = (a.date || '').split('-').map(Number);
+            const dateObj = new Date(yr, mo - 1, dy);
+            const dateStr = dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+            // Format time
+            const [hh, mm] = (a.time || '00:00').split(':').map(Number);
+            const ampm = hh >= 12 ? 'PM' : 'AM';
+            const h12 = hh === 0 ? 12 : hh > 12 ? hh - 12 : hh;
+            const timeStr = h12 + ':' + String(mm).padStart(2,'0') + ' ' + ampm;
+            const endMin = hh * 60 + mm + (a.duration || 60);
+            const eh = Math.floor(endMin / 60), em = endMin % 60;
+            const eampm = eh >= 12 ? 'PM' : 'AM';
+            const eh12 = eh === 0 ? 12 : eh > 12 ? eh - 12 : eh;
+            const endStr = eh12 + ':' + String(em).padStart(2,'0') + ' ' + eampm;
+            const receiptHtml = '<div style="background:#f0faf0;border:1px solid #c3e6cb;border-radius:12px;padding:16px;text-align:left;margin-bottom:16px;">' +
+              '<div style="font-size:13px;font-weight:600;color:#155724;margin-bottom:10px;">💳 Paid by Card</div>' +
+              '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#666;">Service</span><span style="font-weight:600;">' + a.serviceName + '</span></div>' +
+              '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#666;">Date</span><span style="font-weight:600;">' + dateStr + '</span></div>' +
+              '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#666;">Time</span><span style="font-weight:600;">' + timeStr + ' — ' + endStr + '</span></div>' +
+              '<div style="display:flex;justify-content:space-between;padding:8px 0 0;font-size:16px;font-weight:700;border-top:1px solid #c3e6cb;margin-top:4px;"><span>Total Paid</span><span style="color:#155724;">$' + parseFloat(a.totalPrice || '0').toFixed(2) + '</span></div>' +
+              '</div>';
+            document.getElementById('successReceipt').innerHTML = receiptHtml;
+            if (a.manageUrl) {
+              const ml = document.getElementById('manageLinkHref');
+              if (ml) ml.href = a.manageUrl;
+              const mlWrap = document.getElementById('manageLink');
+              if (mlWrap) mlWrap.style.display = 'block';
+            }
+            // Re-render the step-6 success screen properly
+            for (let i = 0; i <= 6; i++) { const el = document.getElementById('step-' + i); if (el) el.style.display = 'none'; }
+            document.getElementById('step-indicator').style.display = 'none';
+            document.getElementById('step-6').style.display = 'block';
+            // Clear the URL params so a refresh doesn't re-trigger this
+            window.history.replaceState({}, '', window.location.pathname);
+          } else {
+            // Appointment not found — show generic success
+            document.getElementById('step-6').innerHTML = '<div style="text-align:center;padding:40px 20px;"><div style="font-size:64px;margin-bottom:16px;">✅</div><h2 style="color:#2d5a27;">Payment Successful!</h2><p style="color:#666;">Your appointment has been confirmed and payment received.</p></div>';
+          }
+        } catch(e) {
+          document.getElementById('step-6').innerHTML = '<div style="text-align:center;padding:40px 20px;"><div style="font-size:64px;margin-bottom:16px;">✅</div><h2 style="color:#2d5a27;">Payment Successful!</h2><p style="color:#666;">Your appointment has been confirmed and payment received.</p></div>';
+        }
+      } else if (paymentParam === 'cancelled') {
+        // Payment was cancelled — show a message and let them retry
+        const errEl = document.getElementById('bookingError');
+        if (errEl) {
+          errEl.textContent = 'Payment was cancelled. Please try again or choose a different payment method.';
+          errEl.style.display = 'block';
+        }
+        // Navigate back to step 5 (payment step)
+        goToStep(5);
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    })();
   </script>
 </body>
 </html>`;
