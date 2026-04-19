@@ -891,6 +891,11 @@ export default function CalendarScreen() {
           <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
             <Text style={{ fontSize: 11, fontWeight: "600", color: statusColor, textTransform: "capitalize" }}>{appt.status}</Text>
           </View>
+          {appt.paymentMethod === "card" && appt.paymentStatus === "paid" && (
+            <View style={{ backgroundColor: "#635BFF18", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
+              <Text style={{ fontSize: 11, fontWeight: "600", color: "#635BFF" }}>💳 Card</Text>
+            </View>
+          )}
           {hasMultiLoc && appt.locationId && (() => {
             const loc = getLocationById(appt.locationId);
             if (!loc) return null;

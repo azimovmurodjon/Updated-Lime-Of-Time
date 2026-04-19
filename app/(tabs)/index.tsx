@@ -774,7 +774,8 @@ export default function HomeScreen() {
       cash: 'Cash',
       zelle: 'Zelle',
       venmo: 'Venmo',
-      cashapp: 'Card',
+      cashapp: 'Cash App',
+      card: 'Card',
       unpaid: 'Unpaid',
     };
     const methodBreakdown: Record<string, { count: number; revenue: number; label: string }> = {};

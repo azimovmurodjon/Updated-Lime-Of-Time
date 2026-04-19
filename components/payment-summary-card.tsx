@@ -19,6 +19,7 @@ const METHOD_COLORS: Record<string, string> = {
   zelle: "#6366F1",
   venmo: "#3B82F6",
   cashapp: "#00C896",
+  card: "#635BFF",
   free: "#9CA3AF",
   unpaid: "#EF4444",
 };

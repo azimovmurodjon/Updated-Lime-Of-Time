@@ -6,6 +6,7 @@ import { useColors } from "@/hooks/use-colors";
 import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useMemo, useState, useCallback } from "react";
+import { apiCall } from "@/lib/_core/api";
 import { trpc } from "@/lib/trpc";
 import { usePlanLimitCheck } from "@/hooks/use-plan-limit-check";
 import { FuturisticBackground } from "@/components/futuristic-background";
@@ -70,6 +71,9 @@ export default function AppointmentDetailScreen() {
   });
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentConfirmInput, setPaymentConfirmInput] = useState("");
+  const [refunding, setRefunding] = useState(false);
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [refundAmount, setRefundAmount] = useState("");
   const [selectedPayMethod, setSelectedPayMethod] = useState<'cash' | 'zelle' | 'venmo' | 'cashapp'>(
     (appointment?.paymentMethod && appointment.paymentMethod !== 'unpaid' ? appointment.paymentMethod : 'cash') as 'cash' | 'zelle' | 'venmo' | 'cashapp'
   );
@@ -237,8 +241,34 @@ export default function AppointmentDetailScreen() {
     { key: 'cash' as const, label: 'Cash' },
     { key: 'zelle' as const, label: 'Zelle' },
     { key: 'venmo' as const, label: 'Venmo' },
-    { key: 'cashapp' as const, label: 'Card' },
+    { key: 'cashapp' as const, label: 'Cash App' },
   ];
+
+  const handleRefund = useCallback(async (partial?: number) => {
+    if (!appointment || !state.businessOwnerId) return;
+    setRefunding(true);
+    try {
+      const result = await apiCall<{ ok: boolean; refundId: string; amount: number }>("/api/stripe-connect/refund", {
+        method: "POST",
+        body: JSON.stringify({
+          businessOwnerId: state.businessOwnerId,
+          appointmentLocalId: appointment.id,
+          ...(partial ? { amount: partial } : {}),
+        }),
+      });
+      const refundedAppt = { ...appointment, paymentStatus: "unpaid" as const, paymentMethod: undefined };
+      dispatch({ type: "UPDATE_APPOINTMENT", payload: refundedAppt });
+      syncToDb({ type: "UPDATE_APPOINTMENT", payload: refundedAppt });
+      Alert.alert("Refund Issued", `$${result.amount.toFixed(2)} has been refunded to the client's card.\nRefund ID: ${result.refundId}`);
+    } catch (err: any) {
+      Alert.alert("Refund Failed", err?.message ?? "Could not issue refund. Please try again.");
+    } finally {
+      setRefunding(false);
+      setShowRefundModal(false);
+      setRefundAmount("");
+    }
+  }, [appointment, state.businessOwnerId, dispatch, syncToDb]);
+
   const handleMarkPaid = (confirmationNumber?: string) => {
     // Use the method from the picker if the appointment doesn't have one set
     const effectiveMethod = appointment.paymentMethod && appointment.paymentMethod !== 'unpaid'
@@ -669,7 +699,7 @@ export default function AppointmentDetailScreen() {
             ) : appointment.paymentMethod && appointment.paymentMethod !== 'free' ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: appointment.paymentStatus !== 'paid' ? 10 : 0 }}>
                 <Text style={{ fontSize: 14, color: colors.foreground }}>
-                  {appointment.paymentMethod === 'zelle' ? '💜 Zelle' : appointment.paymentMethod === 'cashapp' ? '💚 Cash App' : appointment.paymentMethod === 'venmo' ? '💙 Venmo' : '💵 Cash'}
+                  {appointment.paymentMethod === 'card' ? '💳 Card' : appointment.paymentMethod === 'zelle' ? '💜 Zelle' : appointment.paymentMethod === 'cashapp' ? '💚 Cash App' : appointment.paymentMethod === 'venmo' ? '💙 Venmo' : '💵 Cash'}
                 </Text>
                 {appointment.paymentConfirmationNumber && (
                   <Text style={{ fontSize: 12, color: colors.muted }}>Conf# {appointment.paymentConfirmationNumber}</Text>
@@ -683,6 +713,16 @@ export default function AppointmentDetailScreen() {
               >
                 <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>
                   {appointment.paymentMethod === 'cash' ? 'Confirm Cash Received' : 'Mark as Paid'}
+                </Text>
+              </Pressable>
+            )}
+            {appointment.paymentStatus === 'paid' && appointment.paymentMethod === 'card' && (
+              <Pressable
+                onPress={() => setShowRefundModal(true)}
+                style={({ pressed }) => [{ backgroundColor: '#635BFF15', borderRadius: 12, paddingVertical: 10, alignItems: 'center', marginTop: 8, borderWidth: 1, borderColor: '#635BFF40', opacity: pressed ? 0.7 : 1 }]}
+              >
+                <Text style={{ color: '#635BFF', fontWeight: '700', fontSize: 14 }}>
+                  {refunding ? 'Processing Refund…' : '💳 Issue Refund'}
                 </Text>
               </Pressable>
             )}
@@ -980,6 +1020,64 @@ export default function AppointmentDetailScreen() {
                 style={{ flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: colors.success, alignItems: 'center' }}
               >
                 <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFF' }}>Confirm Paid</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Refund Modal */}
+      <Modal visible={showRefundModal} transparent animationType="slide">
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' }}>
+          <View style={{ backgroundColor: colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: colors.foreground }}>💳 Issue Refund</Text>
+              <Pressable onPress={() => { setShowRefundModal(false); setRefundAmount(''); }} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
+                <IconSymbol name="xmark" size={22} color={colors.muted} />
+              </Pressable>
+            </View>
+            <Text style={{ fontSize: 14, color: colors.muted, marginBottom: 16, lineHeight: 20 }}>
+              The refund will be sent to the client’s card via Stripe. Leave the amount blank for a full refund.
+            </Text>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: colors.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Refund Amount (optional)</Text>
+            <TextInput
+              value={refundAmount}
+              onChangeText={setRefundAmount}
+              placeholder={`Full refund ($${((appointment?.totalPrice ?? 0)).toFixed(2)})`}
+              placeholderTextColor={colors.muted}
+              keyboardType="decimal-pad"
+              returnKeyType="done"
+              style={{ backgroundColor: colors.surface, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colors.foreground, borderWidth: 1, borderColor: colors.border, marginBottom: 20 }}
+            />
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity
+                onPress={() => { setShowRefundModal(false); setRefundAmount(''); }}
+                style={{ flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, alignItems: 'center' }}
+              >
+                <Text style={{ fontSize: 15, fontWeight: '600', color: colors.muted }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  const partial = refundAmount.trim() ? parseFloat(refundAmount.trim()) : undefined;
+                  if (partial !== undefined && (isNaN(partial) || partial <= 0)) {
+                    Alert.alert('Invalid Amount', 'Please enter a valid positive amount or leave blank for full refund.');
+                    return;
+                  }
+                  Alert.alert(
+                    'Confirm Refund',
+                    partial
+                      ? `Issue a $${partial.toFixed(2)} partial refund to the client’s card?`
+                      : `Issue a full refund of $${((appointment?.totalPrice ?? 0)).toFixed(2)} to the client’s card?`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Refund', style: 'destructive', onPress: () => handleRefund(partial) },
+                    ]
+                  );
+                }}
+                disabled={refunding}
+                style={{ flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: '#635BFF', alignItems: 'center', opacity: refunding ? 0.6 : 1 }}
+              >
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFF' }}>{refunding ? 'Processing…' : 'Issue Refund'}</Text>
               </TouchableOpacity>
             </View>
           </View>

@@ -424,4 +424,74 @@ export function registerStripeConnectRoutes(app: Express): void {
       res.status(500).json({ error: err?.message });
     }
   });
+
+  // ── 10. Refund a card payment ────────────────────────────────────────────────
+  // POST /api/stripe-connect/refund
+  // Body: { businessOwnerId, appointmentLocalId, amount? }  (amount in dollars; omit for full refund)
+  app.post("/api/stripe-connect/refund", async (req: Request, res: Response) => {
+    try {
+      const { businessOwnerId, appointmentLocalId, amount } = req.body as {
+        businessOwnerId: number;
+        appointmentLocalId: string;
+        amount?: number;
+      };
+
+      if (!businessOwnerId || !appointmentLocalId) {
+        res.status(400).json({ error: "businessOwnerId and appointmentLocalId are required" }); return;
+      }
+
+      const stripe = await getStripe();
+      if (!stripe) { res.status(503).json({ error: "Stripe not configured" }); return; }
+
+      const owner = await getOwner(businessOwnerId);
+      const accountId = (owner as any)?.stripeConnectAccountId as string | null;
+      if (!accountId) { res.status(400).json({ error: "Business has no connected Stripe account" }); return; }
+
+      const db = await getDb();
+      if (!db) { res.status(503).json({ error: "DB unavailable" }); return; }
+
+      const rows = await db
+        .select()
+        .from(appointments)
+        .where(
+          and(
+            eq(appointments.localId, appointmentLocalId),
+            eq(appointments.businessOwnerId, businessOwnerId)
+          )
+        )
+        .limit(1);
+
+      const appt = rows[0];
+      if (!appt) { res.status(404).json({ error: "Appointment not found" }); return; }
+
+      const sessionId = (appt as any).stripeCheckoutSessionId as string | null;
+      if (!sessionId) { res.status(400).json({ error: "No Stripe checkout session found for this appointment" }); return; }
+
+      const session = await stripe.checkout.sessions.retrieve(sessionId, {}, { stripeAccount: accountId });
+      const paymentIntentId = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id;
+      if (!paymentIntentId) { res.status(400).json({ error: "No payment intent found for this session" }); return; }
+
+      const refundParams: Stripe.RefundCreateParams = { payment_intent: paymentIntentId };
+      if (amount && amount > 0) {
+        refundParams.amount = Math.round(amount * 100);
+      }
+
+      const refund = await stripe.refunds.create(refundParams, { stripeAccount: accountId });
+
+      await db
+        .update(appointments)
+        .set({ paymentStatus: "unpaid", paymentMethod: null } as any)
+        .where(
+          and(
+            eq(appointments.localId, appointmentLocalId),
+            eq(appointments.businessOwnerId, businessOwnerId)
+          )
+        );
+
+      res.json({ ok: true, refundId: refund.id, status: refund.status, amount: refund.amount / 100 });
+    } catch (err: any) {
+      console.error("[StripeConnect] refund error:", err);
+      res.status(500).json({ error: err?.message ?? "Failed to issue refund" });
+    }
+  });
 }

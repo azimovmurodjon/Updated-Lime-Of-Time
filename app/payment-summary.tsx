@@ -41,7 +41,8 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   cash: "Cash",
   zelle: "Zelle",
   venmo: "Venmo",
-  cashapp: "Card",
+  cashapp: "Cash App",
+  card: "Card",
 };
 
 const METHOD_COLORS: Record<string, string> = {
@@ -49,6 +50,7 @@ const METHOD_COLORS: Record<string, string> = {
   zelle: "#6366F1",
   venmo: "#3B82F6",
   cashapp: "#00C896",
+  card: "#635BFF",
   free: "#9CA3AF",
   unpaid: "#EF4444",
 };
@@ -133,9 +135,13 @@ function ApptRow({
           ${price.toFixed(2)}
         </Text>
         {isPaid ? (
-          <View style={[styles.badge, { backgroundColor: colors.success + "20" }]}>
-            <Text style={[styles.badgeText, { color: colors.success }]}>
-              {PAYMENT_METHOD_LABELS[appt.paymentMethod || ""] || "Paid"}
+          <View style={[styles.badge, {
+            backgroundColor: appt.paymentMethod === "card" ? "#635BFF20" : colors.success + "20"
+          }]}>
+            <Text style={[styles.badgeText, {
+              color: appt.paymentMethod === "card" ? "#635BFF" : colors.success
+            }]}>
+              {appt.paymentMethod === "card" ? "💳 Card" : (PAYMENT_METHOD_LABELS[appt.paymentMethod || ""] || "Paid")}
             </Text>
           </View>
         ) : (
