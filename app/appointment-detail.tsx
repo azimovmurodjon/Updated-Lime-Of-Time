@@ -10,6 +10,8 @@ import { apiCall } from "@/lib/_core/api";
 import { trpc } from "@/lib/trpc";
 import { usePlanLimitCheck } from "@/hooks/use-plan-limit-check";
 import { FuturisticBackground } from "@/components/futuristic-background";
+import * as WebBrowser from "expo-web-browser";
+import { getApiBaseUrl } from "@/constants/oauth";
 
 import {
   minutesToTime,
@@ -74,6 +76,9 @@ export default function AppointmentDetailScreen() {
   const [refunding, setRefunding] = useState(false);
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [refundAmount, setRefundAmount] = useState("");
+  const [showNoShowFeeModal, setShowNoShowFeeModal] = useState(false);
+  const [noShowFeeAmount, setNoShowFeeAmount] = useState("");
+  const [noShowFeeLoading, setNoShowFeeLoading] = useState(false);
   const [selectedPayMethod, setSelectedPayMethod] = useState<'cash' | 'zelle' | 'venmo' | 'cashapp'>(
     (appointment?.paymentMethod && appointment.paymentMethod !== 'unpaid' ? appointment.paymentMethod : 'cash') as 'cash' | 'zelle' | 'venmo' | 'cashapp'
   );
@@ -443,6 +448,37 @@ export default function AppointmentDetailScreen() {
     }
   };
 
+  // ── No-show fee via Stripe ───────────────────────────────────────────────
+  const handleChargeNoShowFee = useCallback(async (feeAmount: number) => {
+    if (!state.businessOwnerId || !appointment) return;
+    setNoShowFeeLoading(true);
+    try {
+      const apiBase = getApiBaseUrl();
+      const successUrl = `${apiBase}/api/stripe-connect/webhook-success?type=no_show_fee&appointmentId=${appointment.id}`;
+      const cancelUrl = `${apiBase}/api/stripe-connect/webhook-cancel`;
+      const result = await apiCall<{ url: string; sessionId: string }>("/api/stripe-connect/no-show-fee", {
+        method: "POST",
+        body: JSON.stringify({
+          businessOwnerId: state.businessOwnerId,
+          appointmentLocalId: appointment.id,
+          amount: feeAmount,
+          serviceName: service ? getServiceDisplayName(service) : "Appointment",
+          clientName: client?.name ?? "",
+          successUrl,
+          cancelUrl,
+        }),
+      });
+      setShowNoShowFeeModal(false);
+      if (result.url) {
+        await WebBrowser.openBrowserAsync(result.url);
+      }
+    } catch (err: any) {
+      Alert.alert("Error", err?.message ?? "Could not create no-show fee charge");
+    } finally {
+      setNoShowFeeLoading(false);
+    }
+  }, [state.businessOwnerId, appointment, service, client]);
+
   const handleNoShow = () => {
     if (!isGrowthPlan) {
       Alert.alert("Upgrade Required", "No-Show SMS is available on the Growth plan and above. Upgrade to automatically notify clients when they miss their appointment.", [{ text: "OK" }]);
@@ -484,8 +520,32 @@ export default function AppointmentDetailScreen() {
       }
       router.back();
     };
+    // Check if Stripe is connected — if so, offer fee charging option
+    const stripeConnected = !!(state.settings as any).stripeConnectEnabled;
     if (Platform.OS === "web") {
       doIt();
+    } else if (stripeConnected) {
+      // Offer to charge a no-show fee via Stripe
+      const defaultFee = service ? Math.round((service.price ?? 0) * 0.5 * 100) / 100 : 0;
+      Alert.alert(
+        "Mark as No-Show",
+        `Mark this appointment as no-show?${isGrowthPlan && (state.settings.notificationPreferences as any)?.smsClientOnNoShow !== false ? " An SMS will be sent to " + (client?.name ?? "the client") + " with a rebooking link." : ""}
+
+Would you also like to charge a no-show fee via Stripe?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "No Fee", style: "default", onPress: doIt },
+          {
+            text: "Charge Fee",
+            style: "destructive",
+            onPress: () => {
+              doIt();
+              setNoShowFeeAmount(String(defaultFee > 0 ? defaultFee : ""));
+              setShowNoShowFeeModal(true);
+            },
+          },
+        ]
+      );
     } else {
       Alert.alert(
         "Mark as No-Show",
@@ -1121,6 +1181,62 @@ export default function AppointmentDetailScreen() {
                 style={{ flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: '#635BFF', alignItems: 'center', opacity: refunding ? 0.6 : 1 }}
               >
                 <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFF' }}>{refunding ? 'Processing…' : 'Issue Refund'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* No-Show Fee Modal */}
+      <Modal visible={showNoShowFeeModal} transparent animationType="slide" onRequestClose={() => setShowNoShowFeeModal(false)}>
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' }}>
+          <View style={{ backgroundColor: colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: colors.foreground }}>💳 Charge No-Show Fee</Text>
+              <Pressable onPress={() => setShowNoShowFeeModal(false)} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
+                <IconSymbol name="xmark" size={22} color={colors.muted} />
+              </Pressable>
+            </View>
+            <Text style={{ fontSize: 14, color: colors.muted, marginBottom: 16, lineHeight: 20 }}>
+              Charge {client?.name ?? 'the client'} a no-show fee via Stripe. They will receive a secure payment link.
+              {service ? ` Suggested: $${Math.round((service.price ?? 0) * 0.5 * 100) / 100} (50% of service price)` : ''}
+            </Text>
+            <TextInput
+              style={{ borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: colors.foreground, borderColor: colors.border, backgroundColor: colors.surface }}
+              value={noShowFeeAmount}
+              onChangeText={setNoShowFeeAmount}
+              placeholder="Fee amount (e.g. 25.00)"
+              placeholderTextColor={colors.muted}
+              keyboardType="decimal-pad"
+              returnKeyType="done"
+            />
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+              <TouchableOpacity
+                onPress={() => setShowNoShowFeeModal(false)}
+                style={{ flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, alignItems: 'center' }}
+              >
+                <Text style={{ fontSize: 15, fontWeight: '600', color: colors.muted }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  const fee = parseFloat(noShowFeeAmount.trim());
+                  if (isNaN(fee) || fee <= 0) {
+                    Alert.alert('Invalid Amount', 'Please enter a valid fee amount.');
+                    return;
+                  }
+                  Alert.alert(
+                    'Confirm No-Show Fee',
+                    `Charge ${client?.name ?? 'the client'} a no-show fee of $${fee.toFixed(2)} via Stripe?`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Charge', style: 'destructive', onPress: () => handleChargeNoShowFee(fee) },
+                    ]
+                  );
+                }}
+                disabled={noShowFeeLoading}
+                style={{ flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: '#F59E0B', alignItems: 'center', opacity: noShowFeeLoading ? 0.6 : 1 }}
+              >
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFF' }}>{noShowFeeLoading ? 'Processing…' : 'Send Payment Link'}</Text>
               </TouchableOpacity>
             </View>
           </View>

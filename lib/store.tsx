@@ -1053,6 +1053,66 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             // The AsyncStorage cache (written on last successful DB load) will be used as offline fallback below
             // This means the user sees their last-known data instead of a blank app
           }
+
+          // ── ID mismatch recovery ──────────────────────────────────────────────
+          // If the stored ID returned no owner (DB was re-seeded / migrated), try
+          // looking up the owner by the cached phone number so the app self-heals
+          // without requiring the user to re-onboard.
+          try {
+            const cachedSettingsRaw = await AsyncStorage.getItem(STORAGE_KEYS.settings);
+            const cachedPhone: string | null = cachedSettingsRaw
+              ? (JSON.parse(cachedSettingsRaw) as BusinessSettings).phone ?? null
+              : null;
+            if (cachedPhone) {
+              const ownerByPhone = await trpcUtils.business.checkByPhone.fetch({ phone: cachedPhone });
+              if (ownerByPhone && ownerByPhone.id && ownerByPhone.id !== parseInt(storedOwnerId, 10)) {
+                logger.warn("[Store] businessOwnerId mismatch — updating from", storedOwnerId, "to", ownerByPhone.id);
+                await AsyncStorage.setItem(STORAGE_KEYS.businessOwnerId, String(ownerByPhone.id));
+                dispatch({ type: "SET_BUSINESS_OWNER_ID", payload: ownerByPhone.id });
+                // Re-fetch full data with the corrected ID
+                try {
+                  const fullData2 = await trpcUtils.business.getFullData.fetch({ id: ownerByPhone.id });
+                  if (fullData2 && fullData2.owner) {
+                    const settingsFromDb2 = dbOwnerToSettings(fullData2.owner);
+                    const dbLocations2 = (fullData2.locations || []).map(dbLocationToLocal);
+                    const allScheduleEntries2 = (fullData2.customSchedule || []).map(dbCustomScheduleToLocal);
+                    const globalSchedule2 = allScheduleEntries2.filter((cs) => !cs.locationId);
+                    const locationScheduleMap2: Record<string, CustomScheduleDay[]> = {};
+                    for (const cs of allScheduleEntries2) {
+                      if (cs.locationId) {
+                        if (!locationScheduleMap2[cs.locationId]) locationScheduleMap2[cs.locationId] = [];
+                        locationScheduleMap2[cs.locationId].push(cs);
+                      }
+                    }
+                    dispatch({
+                      type: "LOAD_DATA",
+                      payload: {
+                        services: (fullData2.services || []).map(dbServiceToLocal),
+                        clients: (fullData2.clients || []).map(dbClientToLocal),
+                        appointments: (fullData2.appointments || []).map(dbAppointmentToLocal),
+                        reviews: (fullData2.reviews || []).map(dbReviewToLocal),
+                        discounts: (fullData2.discounts || []).map(dbDiscountToLocal),
+                        giftCards: (fullData2.giftCards || []).map(dbGiftCardToLocal),
+                        customSchedule: globalSchedule2,
+                        locationCustomSchedule: locationScheduleMap2,
+                        products: (fullData2.products || []).map(dbProductToLocal),
+                        staff: (fullData2.staff || []).map(dbStaffToLocal),
+                        locations: dbLocations2,
+                        settings: { ...initialSettings, ...settingsFromDb2 },
+                        businessOwnerId: ownerByPhone.id,
+                        promoCodes: (fullData2.promoCodes || []).map(dbPromoCodeToLocal),
+                      },
+                    });
+                    return;
+                  }
+                } catch (e2) {
+                  logger.error("[Store] Re-fetch after ID mismatch recovery failed:", e2);
+                }
+              }
+            }
+          } catch (recoveryErr) {
+            logger.warn("[Store] ID mismatch recovery failed:", recoveryErr);
+          }
         }
 
         // Fallback: load from AsyncStorage cache (written on last successful DB sync)

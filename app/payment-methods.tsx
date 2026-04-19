@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   Text,
   View,
@@ -10,6 +10,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Modal,
+  Pressable,
+  Share,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
@@ -20,6 +23,9 @@ import { FuturisticBackground } from "@/components/futuristic-background";
 import { apiCall } from "@/lib/_core/api";
 import * as WebBrowser from "expo-web-browser";
 import { getApiBaseUrl } from "@/constants/oauth";
+import QRCode from "react-native-qrcode-svg";
+import ViewShot, { captureRef } from "react-native-view-shot";
+import * as Sharing from "expo-sharing";
 
 type ConnectStatus = {
   connected: boolean;
@@ -70,6 +76,30 @@ export default function PaymentMethodsScreen() {
   // Payout schedule state
   const [payoutData, setPayoutData] = useState<PayoutData | null>(null);
   const [payoutLoading, setPayoutLoading] = useState(false);
+
+  // QR code modal state
+  type QrMethod = { label: string; handle: string; color: string; qrValue: string };
+  const [qrModal, setQrModal] = useState<QrMethod | null>(null);
+  const qrRef = useRef<ViewShot>(null);
+  const [savingQr, setSavingQr] = useState(false);
+
+  const saveQrToPhotos = useCallback(async () => {
+    if (!qrRef.current) return;
+    setSavingQr(true);
+    try {
+      const uri = await captureRef(qrRef, { format: "png", quality: 1 });
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(uri, { mimeType: "image/png", dialogTitle: "Save or Share QR Code" });
+      } else {
+        Alert.alert("Sharing not available", "Cannot share on this device.");
+      }
+    } catch (e: any) {
+      Alert.alert("Error", e?.message ?? "Failed to save QR code");
+    } finally {
+      setSavingQr(false);
+    }
+  }, []);
 
   const handleSave = useCallback(() => {
     const action = {
@@ -453,6 +483,15 @@ export default function PaymentMethodsScreen() {
                 <Text style={styles.iconBadgeText}>Z</Text>
               </View>
               <Text style={[styles.methodName, { color: colors.foreground }]}>Zelle</Text>
+              {zelleHandle.trim() ? (
+                <TouchableOpacity
+                  style={[styles.qrBtn, { borderColor: "#6C1D45" }]}
+                  onPress={() => setQrModal({ label: "Zelle", handle: zelleHandle.trim(), color: "#6C1D45", qrValue: zelleHandle.trim() })}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.qrBtnText, { color: "#6C1D45" }]}>QR</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
             <Text style={[styles.fieldLabel, { color: colors.muted }]}>Phone number or email</Text>
             <TextInput
@@ -474,6 +513,18 @@ export default function PaymentMethodsScreen() {
                 <Text style={styles.iconBadgeText}>$</Text>
               </View>
               <Text style={[styles.methodName, { color: colors.foreground }]}>Cash App</Text>
+              {cashAppHandle.trim() ? (
+                <TouchableOpacity
+                  style={[styles.qrBtn, { borderColor: "#00C244" }]}
+                  onPress={() => {
+                    const tag = cashAppHandle.trim().startsWith("$") ? cashAppHandle.trim() : `$${cashAppHandle.trim()}`;
+                    setQrModal({ label: "Cash App", handle: tag, color: "#00C244", qrValue: `https://cash.app/${tag.replace("$", "")}` });
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.qrBtnText, { color: "#00C244" }]}>QR</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
             <Text style={[styles.fieldLabel, { color: colors.muted }]}>$Cashtag</Text>
             <TextInput
@@ -494,6 +545,18 @@ export default function PaymentMethodsScreen() {
                 <Text style={styles.iconBadgeText}>V</Text>
               </View>
               <Text style={[styles.methodName, { color: colors.foreground }]}>Venmo</Text>
+              {venmoHandle.trim() ? (
+                <TouchableOpacity
+                  style={[styles.qrBtn, { borderColor: "#3D95CE" }]}
+                  onPress={() => {
+                    const user = venmoHandle.trim().replace(/^@/, "");
+                    setQrModal({ label: "Venmo", handle: `@${user}`, color: "#3D95CE", qrValue: `https://venmo.com/${user}` });
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.qrBtnText, { color: "#3D95CE" }]}>QR</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
             <Text style={[styles.fieldLabel, { color: colors.muted }]}>@Username</Text>
             <TextInput
@@ -581,6 +644,55 @@ export default function PaymentMethodsScreen() {
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* QR Code Modal */}
+      <Modal visible={!!qrModal} transparent animationType="slide" onRequestClose={() => setQrModal(null)}>
+        <Pressable style={styles.qrModalOverlay} onPress={() => setQrModal(null)}>
+          <Pressable style={[styles.qrModalContent, { backgroundColor: colors.background }]} onPress={() => {}}>
+            {/* Header */}
+            <View style={styles.qrModalHeader}>
+              <Text style={[styles.qrModalTitle, { color: colors.foreground }]}>
+                {qrModal?.label} QR Code
+              </Text>
+              <Pressable onPress={() => setQrModal(null)} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+                <IconSymbol name="xmark" size={22} color={colors.foreground} />
+              </Pressable>
+            </View>
+            {qrModal && (
+              <>
+                <Text style={[styles.qrModalSubtitle, { color: colors.muted }]}>
+                  Clients can scan this to send payment to {qrModal.handle}
+                </Text>
+                {/* QR code capture area */}
+                <ViewShot ref={qrRef} style={styles.qrCapture}>
+                  <QRCode value={qrModal.qrValue} size={200} color="#000" backgroundColor="#FFF" />
+                </ViewShot>
+                <Text style={[styles.qrHandleText, { color: colors.muted }]} numberOfLines={2}>
+                  {qrModal.handle}
+                </Text>
+                {/* Action buttons */}
+                <View style={styles.qrActions}>
+                  <Pressable
+                    onPress={saveQrToPhotos}
+                    disabled={savingQr}
+                    style={({ pressed }) => [styles.qrActionBtn, { backgroundColor: qrModal.color, opacity: (pressed || savingQr) ? 0.75 : 1 }]}
+                  >
+                    <IconSymbol name="arrow.down.to.line" size={16} color="#FFF" />
+                    <Text style={styles.qrActionBtnText}>{savingQr ? "Saving..." : "Save / Share"}</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => Share.share({ url: qrModal.qrValue, message: `Pay me via ${qrModal.label}: ${qrModal.handle}` })}
+                    style={({ pressed }) => [styles.qrActionBtn, { backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
+                  >
+                    <IconSymbol name="square.and.arrow.up" size={16} color={colors.foreground} />
+                    <Text style={[styles.qrActionBtnText, { color: colors.foreground }]}>Share Link</Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -868,5 +980,79 @@ const styles = StyleSheet.create({
   payoutHistoryAmount: {
     fontSize: 13,
     fontWeight: "600",
+  },
+  // QR button on payment method cards
+  qrBtn: {
+    marginLeft: "auto",
+    borderWidth: 1.5,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  qrBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  // QR Modal
+  qrModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "flex-end",
+  },
+  qrModalContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+    alignItems: "center",
+  },
+  qrModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
+    marginBottom: 12,
+  },
+  qrModalTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+  },
+  qrModalSubtitle: {
+    fontSize: 13,
+    textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 18,
+  },
+  qrCapture: {
+    padding: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    marginBottom: 12,
+  },
+  qrHandleText: {
+    fontSize: 13,
+    textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 18,
+  },
+  qrActions: {
+    flexDirection: "row",
+    gap: 10,
+    width: "100%",
+  },
+  qrActionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 13,
+    borderRadius: 12,
+  },
+  qrActionBtnText: {
+    color: "#FFF",
+    fontWeight: "700",
+    fontSize: 14,
   },
 });

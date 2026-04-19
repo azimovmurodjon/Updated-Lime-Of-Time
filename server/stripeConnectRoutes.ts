@@ -557,6 +557,93 @@ export function registerStripeConnectRoutes(app: Express): void {
     }
   });
 
+  // ── 11. No-show fee charge ─────────────────────────────────────────────────
+  // POST /api/stripe-connect/no-show-fee
+  // Body: { businessOwnerId, appointmentLocalId, amount, serviceName?, clientName?, successUrl, cancelUrl }
+  // Creates a new Stripe Checkout session for the no-show fee amount.
+  app.post("/api/stripe-connect/no-show-fee", async (req: Request, res: Response) => {
+    try {
+      const {
+        businessOwnerId,
+        appointmentLocalId,
+        amount,
+        serviceName,
+        clientName,
+        successUrl,
+        cancelUrl,
+        currency = "usd",
+      } = req.body as {
+        businessOwnerId: number;
+        appointmentLocalId: string;
+        amount: number;
+        serviceName?: string;
+        clientName?: string;
+        successUrl: string;
+        cancelUrl: string;
+        currency?: string;
+      };
+
+      if (!businessOwnerId || !appointmentLocalId || !amount || !successUrl || !cancelUrl) {
+        res.status(400).json({ error: "Missing required fields" }); return;
+      }
+
+      const stripe = await getStripe();
+      if (!stripe) { res.status(503).json({ error: "Stripe not configured" }); return; }
+
+      const owner = await getOwner(businessOwnerId);
+      if (!owner) { res.status(404).json({ error: "Business not found" }); return; }
+      const accountId = (owner as any)?.stripeConnectAccountId as string | null;
+      if (!accountId) { res.status(400).json({ error: "Business has not connected Stripe yet" }); return; }
+      const chargesEnabled = (owner as any)?.stripeConnectEnabled as boolean | null;
+      if (!chargesEnabled) { res.status(400).json({ error: "Stripe account is not yet fully set up" }); return; }
+
+      const amountCents = Math.round(amount * 100);
+      const platformFeeCents = Math.round(amountCents * PLATFORM_FEE_PERCENT);
+
+      const session = await stripe.checkout.sessions.create(
+        {
+          payment_method_types: ["card"],
+          line_items: [
+            {
+              price_data: {
+                currency,
+                product_data: {
+                  name: `No-Show Fee — ${serviceName || "Appointment"}`,
+                  description: `No-show fee for ${clientName || "client"}'s missed appointment`,
+                },
+                unit_amount: amountCents,
+              },
+              quantity: 1,
+            },
+          ],
+          mode: "payment",
+          success_url: successUrl,
+          cancel_url: cancelUrl,
+          metadata: {
+            appointmentLocalId,
+            businessOwnerId: String(businessOwnerId),
+            clientName: clientName ?? "",
+            feeType: "no_show",
+          },
+          payment_intent_data: {
+            application_fee_amount: platformFeeCents,
+            metadata: {
+              appointmentLocalId,
+              businessOwnerId: String(businessOwnerId),
+              feeType: "no_show",
+            },
+          },
+        },
+        { stripeAccount: accountId }
+      );
+
+      res.json({ sessionId: session.id, url: session.url });
+    } catch (err: any) {
+      console.error("[StripeConnect] no-show-fee error:", err);
+      res.status(500).json({ error: err?.message ?? "Failed to create no-show fee session" });
+    }
+  });
+
   // ── 10. Payout schedule ───────────────────────────────────────────────────────────────────────────────────
   // GET /api/stripe-connect/payouts?businessOwnerId=123
   // Returns payout schedule info + recent payouts for the connected account.
