@@ -6043,6 +6043,60 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any,
     </div>
     `}
 
+    ${(() => {
+      // Show payment QR codes for upcoming confirmed/pending appointments
+      const zelleHandle = (owner as any).zelleHandle || '';
+      const cashAppHandle = (owner as any).cashAppHandle || '';
+      const venmoHandle = (owner as any).venmoHandle || '';
+      const hasPaymentHandles = zelleHandle || cashAppHandle || venmoHandle;
+      const isUpcoming = appt.status === 'confirmed' || appt.status === 'pending';
+      const apptPrice = parseFloat(appt.totalPrice || appt.price || '0');
+      if (!hasPaymentHandles || !isUpcoming || apptPrice <= 0) return '';
+      const amountStr = '$' + apptPrice.toFixed(2);
+      function qrUrl(text: string) {
+        return 'https://chart.googleapis.com/chart?cht=qr&chs=180x180&choe=UTF-8&chl=' + encodeURIComponent(text);
+      }
+      let html = '<div style="border:1.5px solid var(--border);border-radius:16px;padding:20px;background:var(--accent-bg);margin-bottom:16px;">';
+      html += '<div style="font-weight:700;font-size:16px;color:var(--accent-dark);margin-bottom:4px;">💰 Pay for Your Appointment</div>';
+      html += '<div style="font-size:13px;color:var(--accent-dark);margin-bottom:16px;">Scan a QR code or tap to send <strong>' + escHtml(amountStr) + '</strong> before your appointment.</div>';
+      html += '<div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">';
+      if (zelleHandle) {
+        const url = 'zelle:' + zelleHandle;
+        html += '<div style="flex:1;min-width:130px;max-width:160px;background:#fff;border-radius:12px;padding:12px;border:1px solid #e8ece8;text-align:center;">';
+        html += '<div style="font-weight:700;font-size:13px;color:#6d28d9;margin-bottom:8px;">💜 Zelle</div>';
+        html += '<img src="' + qrUrl(url) + '" alt="Zelle QR" style="width:120px;height:120px;border-radius:8px;" loading="lazy">';
+        html += '<div style="font-size:11px;color:#888;margin-top:6px;word-break:break-all;">' + escHtml(zelleHandle) + '</div>';
+        html += '</div>';
+      }
+      if (cashAppHandle) {
+        const tag = cashAppHandle.startsWith('$') ? cashAppHandle : '$' + cashAppHandle;
+        const url = 'https://cash.app/' + encodeURIComponent(tag) + '/' + apptPrice.toFixed(2);
+        html += '<div style="flex:1;min-width:130px;max-width:160px;background:#fff;border-radius:12px;padding:12px;border:1px solid #e8ece8;text-align:center;">';
+        html += '<div style="font-weight:700;font-size:13px;color:#00d632;margin-bottom:8px;">💚 Cash App</div>';
+        html += '<a href="' + url + '" target="_blank" style="display:block;">';
+        html += '<img src="' + qrUrl(url) + '" alt="Cash App QR" style="width:120px;height:120px;border-radius:8px;" loading="lazy">';
+        html += '</a>';
+        html += '<div style="font-size:11px;color:#888;margin-top:6px;">' + escHtml(tag) + '</div>';
+        html += '</div>';
+      }
+      if (venmoHandle) {
+        const tag = venmoHandle.startsWith('@') ? venmoHandle : '@' + venmoHandle;
+        const handle = venmoHandle.startsWith('@') ? venmoHandle.slice(1) : venmoHandle;
+        const url = 'https://venmo.com/' + encodeURIComponent(handle) + '?txn=pay&amount=' + apptPrice.toFixed(2) + '&note=' + encodeURIComponent('Appointment payment');
+        html += '<div style="flex:1;min-width:130px;max-width:160px;background:#fff;border-radius:12px;padding:12px;border:1px solid #e8ece8;text-align:center;">';
+        html += '<div style="font-weight:700;font-size:13px;color:#3d95ce;margin-bottom:8px;">💙 Venmo</div>';
+        html += '<a href="' + url + '" target="_blank" style="display:block;">';
+        html += '<img src="' + qrUrl(url) + '" alt="Venmo QR" style="width:120px;height:120px;border-radius:8px;" loading="lazy">';
+        html += '</a>';
+        html += '<div style="font-size:11px;color:#888;margin-top:6px;">' + escHtml(tag) + '</div>';
+        html += '</div>';
+      }
+      html += '</div>';
+      html += '<div style="font-size:11px;color:var(--text-muted);margin-top:12px;text-align:center;">Tap any QR code to open the payment app directly on your phone.</div>';
+      html += '</div>';
+      return html;
+    })()}
+
     <div style="text-align:center;margin-top:32px;">
       <a href="/api/book/${escHtml(slug)}" style="color:var(--accent);font-size:14px;text-decoration:none;">Book a new appointment</a>
     </div>
