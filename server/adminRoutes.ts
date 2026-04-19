@@ -1443,6 +1443,7 @@ function sidebarHtml(activePage: string): string {
       ${navSection('SAAS')}
       ${navItem('/api/admin/subscriptions', '💳', 'Subscriptions', a === 'subscriptions')}
       ${navItem('/api/admin/plans', '📋', 'Plan Pricing', a === 'plans')}
+      ${navItem('/api/admin/stripe-connect', '💳', 'Stripe Connect', a === 'stripe-connect')}
 
       ${navSection('SYSTEM')}
       ${navItem('/api/admin/platform-config', '🔧', 'Platform Config', a === 'platform-config')}

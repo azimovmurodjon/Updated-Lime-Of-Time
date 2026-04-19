@@ -8,8 +8,10 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { registerPublicRoutes } from "../publicRoutes";
 import { registerAdminRoutes } from "../adminRoutes";
+import { registerAdminStripeConnectRoutes } from "../adminStripeConnect";
 import { registerLegalRoutes } from "../legalRoutes";
 import { registerStripeRoutes } from "../stripeRoutes";
+import { registerStripeConnectRoutes } from "../stripeConnectRoutes";
 import { startRenewalNotificationCron } from "../renewalNotificationCron";
 import { startAppointmentReminderCron } from "../appointmentReminderCron";
 
@@ -76,9 +78,11 @@ async function startServer() {
 
   // Register Stripe payment routes (must be before json middleware for webhook raw body)
   registerStripeRoutes(app);
+  registerStripeConnectRoutes(app);
 
   // Register admin dashboard
   registerAdminRoutes(app);
+  registerAdminStripeConnectRoutes(app);
 
   // Register legal pages (privacy, terms, eula, data deletion)
   registerLegalRoutes(app);

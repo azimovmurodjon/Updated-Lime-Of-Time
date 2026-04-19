@@ -1426,3 +1426,18 @@
 - [x] Add Payment Summary shortcut button to Calendar Unpaid filter banner
 - [ ] Fix KPI detail sheet layout so content (charts, data) is fully visible when opened
 - [ ] Wire each KPI slide to open the correct filtered view in the detail sheet
+
+## Stripe Connect Integration (Option B — Hosted Checkout)
+
+- [ ] DB schema: add stripeConnectAccountId, stripeConnectEnabled, stripeConnectOnboardingComplete to businessOwners
+- [ ] DB schema: add stripePaymentIntentId, stripeCheckoutSessionId to appointments
+- [ ] DB schema: add "card" to paymentMethod enum on appointments
+- [ ] Server: create stripeConnectRoutes.ts with create-account, onboarding-link, account-status, dashboard-link, create-checkout-for-appointment endpoints
+- [ ] Server: add webhook handlers for account.updated, checkout.session.completed (connect payments)
+- [ ] Server: register stripeConnectRoutes in _core/index.ts
+- [ ] Admin Panel: add Stripe Connect section — list all connected accounts, status, 1.5% platform fee config
+- [ ] Business owner Settings: add "Accept Card Payments" section with Connect Stripe button, status badge, Stripe dashboard link
+- [ ] Client booking flow: add Card Payment step using Stripe hosted Checkout, handle success/cancel deep link
+- [ ] Appointment detail: show card payment badge when paymentMethod === "card"
+- [ ] Calendar: add "Card" chip to payment method filter chips
+- [ ] Payment Summary: add Card to method breakdown

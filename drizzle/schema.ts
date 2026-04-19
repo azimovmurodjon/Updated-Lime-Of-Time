@@ -110,6 +110,15 @@ export const businessOwners = mysqlTable("business_owners", {
   venmoHandle: varchar("venmoHandle", { length: 255 }),
   /** Free-text payment instructions shown on booking page */
   paymentNotes: text("paymentNotes"),
+  // ─── Stripe Connect (card payments for clients) ───────────────────────
+  /** Stripe Connect Express account ID (acct_...) */
+  stripeConnectAccountId: varchar("stripeConnectAccountId", { length: 255 }),
+  /** Whether this connected account has charges enabled */
+  stripeConnectEnabled: boolean("stripeConnectEnabled").default(false).notNull(),
+  /** Whether the Stripe Express onboarding flow has been completed */
+  stripeConnectOnboardingComplete: boolean("stripeConnectOnboardingComplete").default(false).notNull(),
+  /** Whether the business owner has opted in to accept card payments from clients */
+  acceptCardPayments: boolean("acceptCardPayments").default(false).notNull(),
   /** Social media handles */
   instagramHandle: varchar("instagramHandle", { length: 255 }),
   facebookHandle: varchar("facebookHandle", { length: 255 }),
@@ -209,8 +218,10 @@ export const appointments = mysqlTable("appointments", {
   locationId: varchar("locationId", { length: 64 }),
   /** Reason provided when appointment was cancelled */
   cancellationReason: varchar("cancellationReason", { length: 255 }),
-  /** Payment method chosen by client: zelle | venmo | cashapp | cash | unpaid */
-  paymentMethod: mysqlEnum("paymentMethod", ["zelle", "venmo", "cashapp", "cash", "unpaid", "free"]).default("unpaid"),
+  /** Payment method chosen by client: zelle | venmo | cashapp | cash | card | unpaid | free */
+  paymentMethod: mysqlEnum("paymentMethod", ["zelle", "venmo", "cashapp", "cash", "card", "unpaid", "free"]).default("unpaid"),
+  /** Stripe Checkout Session ID when paid by card */
+  stripeCheckoutSessionId: varchar("stripeCheckoutSessionId", { length: 255 }),
   /** Payment status: unpaid | pending_cash | paid */
   paymentStatus: mysqlEnum("paymentStatus", ["unpaid", "pending_cash", "paid"]).default("unpaid"),
   /** Confirmation number provided by business owner after receiving digital payment */

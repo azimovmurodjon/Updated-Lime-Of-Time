@@ -1,5 +1,6 @@
 import { Express, Request, Response } from "express";
 import * as db from "./db";
+import { getPlatformConfig } from "./subscription";
 import { sendBookingNotificationEmail } from "./email";
 import { notifyOwner } from "./_core/notification";
 import {
@@ -3319,7 +3320,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     const WEEKLY_DAYS = ${JSON.stringify(whJson)};
     const DAYS_MAP = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
     const CANCEL_POLICY = ${JSON.stringify(owner.cancellationPolicy || { enabled: false, hoursBeforeAppointment: 2, feePercentage: 50 })};
-    const PAYMENT_METHODS = ${JSON.stringify({ zelle: (owner as any).zelleHandle || null, cashApp: (owner as any).cashAppHandle || null, venmo: (owner as any).venmoHandle || null })};
+    const PAYMENT_METHODS = ${JSON.stringify({ zelle: (owner as any).zelleHandle || null, cashApp: (owner as any).cashAppHandle || null, venmo: (owner as any).venmoHandle || null, stripeEnabled: !!(owner as any).stripeConnectEnabled, businessOwnerId: owner.id })};
     let services = [];
     let products = [];
     let discounts = [];
@@ -3878,6 +3879,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       if (methods.zelle) opts.push({ id: 'zelle', label: '💜 Zelle', sub: methods.zelle, color: '#6d28d9' });
       if (methods.cashApp) opts.push({ id: 'cashapp', label: '💚 Cash App', sub: methods.cashApp.startsWith('$') ? methods.cashApp : '$' + methods.cashApp, color: '#00d632' });
       if (methods.venmo) opts.push({ id: 'venmo', label: '💙 Venmo', sub: methods.venmo.startsWith('@') ? methods.venmo : '@' + methods.venmo, color: '#3d95ce' });
+      if (methods.stripeEnabled && chargedPrice > 0) opts.push({ id: 'card', label: '💳 Pay by Card', sub: 'Visa, Mastercard, Apple Pay, Google Pay — secure checkout via Stripe', color: '#635bff' });
       opts.push({ id: 'cash', label: '💵 Cash', sub: 'Pay in person at the time of your appointment', color: '#888' });
       opts.push({ id: 'later', label: '⏭️ Skip for now', sub: "I'll decide later — you can discuss payment when you arrive", color: '#94a3b8' });
       opts.forEach(function(opt) {
@@ -4804,6 +4806,75 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
 
         const chargedPrice = getChargedPrice();
         const extraItems = cart.map(c => ({ name: c.name, price: c.price, type: c.type }));
+
+        // ── Card payment: book first, then redirect to Stripe Checkout ──────
+        if (selectedPaymentMethod === 'card' && PAYMENT_METHODS.stripeEnabled && chargedPrice > 0) {
+          btn.textContent = 'Creating booking...';
+          const bookRes = await fetch(API + "/book", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              clientName: document.getElementById("clientName").value.trim(),
+              clientPhone: document.getElementById("clientPhone").value.replace(/\\D/g, ""),
+              clientEmail: document.getElementById("clientEmail").value.trim(),
+              serviceLocalId: selectedService.localId,
+              date: selectedDate,
+              time: selectedTime,
+              duration: totalDur,
+              notes: notesText,
+              giftCode: appliedGift ? document.getElementById("giftCode").value.trim() : null,
+              totalPrice: chargedPrice,
+              extraItems: extraItems,
+              giftApplied: !!appliedGift,
+              giftUsedAmount: appliedGift ? getGiftUsedAmount() : 0,
+              discountName: appliedPromo ? (appliedDiscount ? appliedDiscount.name + ' + ' + appliedPromo.label : appliedPromo.label) : (appliedDiscount ? appliedDiscount.name : null),
+              discountPercentage: (appliedDiscount ? appliedDiscount.percentage : 0) + (appliedPromo && appliedPromo.percentage > 0 ? appliedPromo.percentage : 0),
+              discountAmount: getDiscountAmount(),
+              subtotal: getTotalPrice(),
+              locationId: selectedLocation || null,
+              paymentMethod: 'card',
+              promoCode: appliedPromo ? appliedPromo.code : null,
+              promoLocalId: appliedPromo ? appliedPromo.localId : null,
+            }),
+          });
+          const bookData = await bookRes.json();
+          if (!bookRes.ok) {
+            errEl.textContent = bookData.error || 'Failed to submit booking';
+            errEl.style.display = 'block';
+            btn.disabled = false;
+            btn.textContent = 'Confirm Booking';
+            return;
+          }
+          // Create Stripe Checkout session
+          btn.textContent = 'Redirecting to payment...';
+          const origin = window.location.origin;
+          const successUrl = origin + window.location.pathname + '?payment=success&session_id={CHECKOUT_SESSION_ID}';
+          const cancelUrl = origin + window.location.pathname + '?payment=cancelled';
+          const checkoutRes = await fetch('/api/stripe-connect/create-checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              businessOwnerId: PAYMENT_METHODS.businessOwnerId,
+              appointmentLocalId: bookData.appointmentId || bookData.localId || '',
+              clientName: document.getElementById('clientName').value.trim(),
+              serviceName: selectedService.name,
+              amount: chargedPrice,
+              successUrl: successUrl,
+              cancelUrl: cancelUrl,
+            }),
+          });
+          const checkoutData = await checkoutRes.json();
+          if (!checkoutRes.ok || !checkoutData.url) {
+            errEl.textContent = checkoutData.error || 'Failed to create payment session. Your booking is saved — please pay in person.';
+            errEl.style.display = 'block';
+            btn.disabled = false;
+            btn.textContent = 'Confirm Booking';
+            return;
+          }
+          window.location.href = checkoutData.url;
+          return;
+        }
+
         const res = await fetch(API + "/book", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

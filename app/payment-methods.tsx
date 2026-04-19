@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Text,
   View,
@@ -9,6 +9,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
@@ -16,19 +17,35 @@ import { useColors } from "@/hooks/use-colors";
 import { useRouter } from "expo-router";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { FuturisticBackground } from "@/components/futuristic-background";
+import { apiCall } from "@/lib/_core/api";
+import * as WebBrowser from "expo-web-browser";
+import { getApiBaseUrl } from "@/constants/oauth";
 
+type ConnectStatus = {
+  connected: boolean;
+  chargesEnabled: boolean;
+  onboardingComplete: boolean;
+  accountId: string | null;
+  stripeConfigured: boolean;
+};
 
 export default function PaymentMethodsScreen() {
   const { state, dispatch, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
   const settings = state.settings;
+  const businessOwnerId = state.businessOwnerId;
 
   const [zelleHandle, setZelleHandle] = useState(settings.zelleHandle ?? "");
   const [cashAppHandle, setCashAppHandle] = useState(settings.cashAppHandle ?? "");
   const [venmoHandle, setVenmoHandle] = useState(settings.venmoHandle ?? "");
   const [paymentNotes, setPaymentNotes] = useState(settings.paymentNotes ?? "");
   const [saved, setSaved] = useState(false);
+
+  // Stripe Connect state
+  const [connectStatus, setConnectStatus] = useState<ConnectStatus | null>(null);
+  const [connectLoading, setConnectLoading] = useState(false);
+  const [connectStatusLoading, setConnectStatusLoading] = useState(true);
 
   const handleSave = useCallback(() => {
     const action = {
@@ -48,6 +65,120 @@ export default function PaymentMethodsScreen() {
 
   const hasAnyMethod =
     zelleHandle.trim() || cashAppHandle.trim() || venmoHandle.trim();
+
+  // Load Stripe Connect status on mount
+  const loadConnectStatus = useCallback(async () => {
+    if (!businessOwnerId) return;
+    setConnectStatusLoading(true);
+    try {
+      const data = await apiCall<ConnectStatus>(
+        `/api/stripe-connect/status?businessOwnerId=${businessOwnerId}`
+      );
+      setConnectStatus(data);
+    } catch {
+      setConnectStatus(null);
+    } finally {
+      setConnectStatusLoading(false);
+    }
+  }, [businessOwnerId]);
+
+  useEffect(() => {
+    loadConnectStatus();
+  }, [loadConnectStatus]);
+
+  const handleConnectStripe = useCallback(async () => {
+    if (!businessOwnerId) return;
+    setConnectLoading(true);
+    try {
+      const data = await apiCall<{ url: string }>("/api/stripe-connect/onboard", {
+        method: "POST",
+        body: JSON.stringify({ businessOwnerId }),
+      });
+      if (data.url) {
+        await WebBrowser.openBrowserAsync(data.url);
+        // Refresh status after returning from browser
+        await loadConnectStatus();
+      }
+    } catch (err: any) {
+      Alert.alert("Error", err?.message ?? "Failed to start Stripe onboarding");
+    } finally {
+      setConnectLoading(false);
+    }
+  }, [businessOwnerId, loadConnectStatus]);
+
+  const handleOpenDashboard = useCallback(async () => {
+    if (!businessOwnerId) return;
+    setConnectLoading(true);
+    try {
+      const data = await apiCall<{ url: string }>("/api/stripe-connect/dashboard-link", {
+        method: "POST",
+        body: JSON.stringify({ businessOwnerId }),
+      });
+      if (data.url) {
+        await WebBrowser.openBrowserAsync(data.url);
+      }
+    } catch (err: any) {
+      Alert.alert("Error", err?.message ?? "Failed to open Stripe dashboard");
+    } finally {
+      setConnectLoading(false);
+    }
+  }, [businessOwnerId]);
+
+  const handleDisconnect = useCallback(() => {
+    Alert.alert(
+      "Disconnect Stripe",
+      "Are you sure you want to disconnect your Stripe account? Clients will no longer be able to pay by card.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Disconnect",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await apiCall("/api/admin/stripe-connect/disconnect", {
+                method: "POST",
+                body: JSON.stringify({ businessOwnerId }),
+              });
+              await loadConnectStatus();
+            } catch (err: any) {
+              Alert.alert("Error", err?.message ?? "Failed to disconnect");
+            }
+          },
+        },
+      ]
+    );
+  }, [businessOwnerId, loadConnectStatus]);
+
+  // Stripe Connect status badge
+  const renderConnectBadge = () => {
+    if (!connectStatus) return null;
+    if (!connectStatus.stripeConfigured) {
+      return (
+        <View style={[styles.badge, { backgroundColor: "#f59e0b20" }]}>
+          <Text style={[styles.badgeText, { color: "#f59e0b" }]}>⚠ Not Configured</Text>
+        </View>
+      );
+    }
+    if (!connectStatus.connected) {
+      return (
+        <View style={[styles.badge, { backgroundColor: "#6b728020" }]}>
+          <Text style={[styles.badgeText, { color: "#6b7280" }]}>Not Connected</Text>
+        </View>
+      );
+    }
+    if (connectStatus.chargesEnabled) {
+      return (
+        <View style={[styles.badge, { backgroundColor: "#22c55e20" }]}>
+          <Text style={[styles.badgeText, { color: "#16a34a" }]}>✓ Active</Text>
+        </View>
+      );
+    }
+    return (
+      <View style={[styles.badge, { backgroundColor: "#f59e0b20" }]}>
+        <Text style={[styles.badgeText, { color: "#f59e0b" }]}>Pending Verification</Text>
+      </View>
+    );
+  };
 
   return (
     <ScreenContainer>
@@ -72,6 +203,121 @@ export default function PaymentMethodsScreen() {
             </TouchableOpacity>
             <Text style={[styles.title, { color: colors.foreground }]}>Payment Methods</Text>
             <View style={{ width: 36 }} />
+          </View>
+
+          {/* ── Stripe Connect Section ── */}
+          <View style={[styles.stripeCard, { backgroundColor: "#635bff12", borderColor: "#635bff40" }]}>
+            <View style={styles.stripeHeader}>
+              <View style={styles.stripeTitleRow}>
+                <Text style={styles.stripeIcon}>💳</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.stripeTitle, { color: colors.foreground }]}>Accept Card Payments</Text>
+                  <Text style={[styles.stripeSubtitle, { color: colors.muted }]}>
+                    Powered by Stripe Connect · 1.5% platform fee
+                  </Text>
+                </View>
+              </View>
+              {connectStatusLoading ? (
+                <ActivityIndicator size="small" color="#635bff" />
+              ) : (
+                renderConnectBadge()
+              )}
+            </View>
+
+            {!connectStatusLoading && connectStatus && (
+              <>
+                {!connectStatus.stripeConfigured && (
+                  <Text style={[styles.stripeNote, { color: colors.muted }]}>
+                    Stripe is not configured yet. Ask your platform admin to add the Stripe Secret Key in Platform Config.
+                  </Text>
+                )}
+
+                {connectStatus.stripeConfigured && !connectStatus.connected && (
+                  <>
+                    <Text style={[styles.stripeNote, { color: colors.muted }]}>
+                      Connect your Stripe account to let clients pay by card (Visa, Mastercard, Apple Pay, Google Pay) when booking. Funds go directly to your bank.
+                    </Text>
+                    <TouchableOpacity
+                      style={[styles.stripeBtn, { backgroundColor: "#635bff" }]}
+                      onPress={handleConnectStripe}
+                      disabled={connectLoading}
+                      activeOpacity={0.8}
+                    >
+                      {connectLoading ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.stripeBtnText}>Connect with Stripe →</Text>
+                      )}
+                    </TouchableOpacity>
+                  </>
+                )}
+
+                {connectStatus.connected && !connectStatus.chargesEnabled && (
+                  <>
+                    <Text style={[styles.stripeNote, { color: "#f59e0b" }]}>
+                      Your Stripe account is connected but not fully verified yet. Complete the onboarding to start accepting card payments.
+                    </Text>
+                    <TouchableOpacity
+                      style={[styles.stripeBtn, { backgroundColor: "#f59e0b" }]}
+                      onPress={handleConnectStripe}
+                      disabled={connectLoading}
+                      activeOpacity={0.8}
+                    >
+                      {connectLoading ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.stripeBtnText}>Complete Onboarding →</Text>
+                      )}
+                    </TouchableOpacity>
+                  </>
+                )}
+
+                {connectStatus.chargesEnabled && (
+                  <>
+                    <Text style={[styles.stripeNote, { color: "#16a34a" }]}>
+                      Your Stripe account is active. Clients can now pay by card on the booking page.
+                    </Text>
+                    <View style={styles.stripeActions}>
+                      <TouchableOpacity
+                        style={[styles.stripeBtnSmall, { backgroundColor: "#635bff" }]}
+                        onPress={handleOpenDashboard}
+                        disabled={connectLoading}
+                        activeOpacity={0.8}
+                      >
+                        {connectLoading ? (
+                          <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                          <Text style={styles.stripeBtnText}>View Stripe Dashboard</Text>
+                        )}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.stripeBtnSmall, { backgroundColor: "#ef444420", borderWidth: 1, borderColor: "#ef4444" }]}
+                        onPress={handleDisconnect}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.stripeBtnText, { color: "#ef4444" }]}>Disconnect</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                )}
+
+                <TouchableOpacity
+                  onPress={loadConnectStatus}
+                  style={styles.refreshBtn}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <IconSymbol name="arrow.clockwise" size={13} color={colors.muted} />
+                  <Text style={[styles.refreshText, { color: colors.muted }]}>Refresh status</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+
+          {/* Divider */}
+          <View style={[styles.divider, { borderColor: colors.border }]}>
+            <Text style={[styles.dividerText, { color: colors.muted, backgroundColor: colors.background }]}>
+              Manual Payment Handles
+            </Text>
           </View>
 
           {/* Info Banner */}
@@ -238,6 +484,98 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
   },
+  // Stripe Connect
+  stripeCard: {
+    borderRadius: 16,
+    borderWidth: 1.5,
+    padding: 16,
+    marginBottom: 20,
+  },
+  stripeHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  stripeTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+  stripeIcon: {
+    fontSize: 24,
+  },
+  stripeTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  stripeSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  stripeNote: {
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 12,
+  },
+  stripeBtn: {
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  stripeActions: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 8,
+  },
+  stripeBtnSmall: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  stripeBtnText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    alignSelf: "flex-start",
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  refreshBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 4,
+  },
+  refreshText: {
+    fontSize: 12,
+  },
+  // Divider
+  divider: {
+    borderTopWidth: 1,
+    alignItems: "center",
+    marginBottom: 16,
+    marginTop: 4,
+  },
+  dividerText: {
+    fontSize: 12,
+    fontWeight: "600",
+    paddingHorizontal: 10,
+    marginTop: -9,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  // Existing styles
   infoBanner: {
     flexDirection: "row",
     alignItems: "flex-start",
