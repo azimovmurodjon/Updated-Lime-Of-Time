@@ -274,6 +274,13 @@
       "when": 1776572921925,
       "tag": "0038_uneven_squadron_sinister",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "5",
+      "when": 1776575758888,
+      "tag": "0039_old_thundra",
+      "breakpoints": true
     }
   ]
 }

@@ -92,6 +92,12 @@ export interface Appointment {
   paymentConfirmationNumber?: string;
   /** ISO timestamp when payment was confirmed */
   paymentConfirmedAt?: string;
+  /** ISO timestamp when a Stripe refund was issued */
+  refundedAt?: string;
+  /** Amount refunded in dollars */
+  refundedAmount?: number;
+  /** Stripe refund ID */
+  stripeRefundId?: string;
 }
 
 export interface Review {

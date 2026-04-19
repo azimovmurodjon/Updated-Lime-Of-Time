@@ -716,7 +716,7 @@ export default function AppointmentDetailScreen() {
                 </Text>
               </Pressable>
             )}
-            {appointment.paymentStatus === 'paid' && appointment.paymentMethod === 'card' && (
+            {appointment.paymentStatus === 'paid' && appointment.paymentMethod === 'card' && !appointment.refundedAt && (
               <Pressable
                 onPress={() => setShowRefundModal(true)}
                 style={({ pressed }) => [{ backgroundColor: '#635BFF15', borderRadius: 12, paddingVertical: 10, alignItems: 'center', marginTop: 8, borderWidth: 1, borderColor: '#635BFF40', opacity: pressed ? 0.7 : 1 }]}
@@ -725,6 +725,17 @@ export default function AppointmentDetailScreen() {
                   {refunding ? 'Processing Refund…' : '💳 Issue Refund'}
                 </Text>
               </Pressable>
+            )}
+            {appointment.refundedAt && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, backgroundColor: '#EF444415', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: '#EF444430' }}>
+                <Text style={{ fontSize: 13, color: '#EF4444' }}>↩ Refunded</Text>
+                {appointment.refundedAmount != null && (
+                  <Text style={{ fontSize: 13, color: '#EF4444', fontWeight: '700' }}>${appointment.refundedAmount.toFixed(2)}</Text>
+                )}
+                <Text style={{ fontSize: 12, color: colors.muted, marginLeft: 'auto' }}>
+                  {new Date(appointment.refundedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </Text>
+              </View>
             )}
           </View>
         )}

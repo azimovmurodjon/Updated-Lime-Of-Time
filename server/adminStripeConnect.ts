@@ -235,6 +235,22 @@ function stripeConnectPage(data: {
       </table>
     </div>
 
+    <!-- Webhook Setup Guide -->
+    <div class="card" style="border:1px solid #f59e0b40;background:#f59e0b08;">
+      <h2 style="color:#f59e0b;">⚡ Webhook Setup Required</h2>
+      <p style="font-size:13px;color:#9ca3af;margin-bottom:14px;">To automatically confirm card payments even when clients close the browser, you must register a webhook endpoint in your Stripe Dashboard. Without this, payments may not be marked as paid if the client navigates away before being redirected back.</p>
+      <div style="background:#1a1a2e;border-radius:8px;padding:14px;margin-bottom:14px;font-family:monospace;font-size:12px;color:#a5f3fc;word-break:break-all;">
+        https://YOUR-SERVER-DOMAIN/api/stripe-connect/webhook
+      </div>
+      <div style="font-size:13px;color:#9ca3af;line-height:1.8;">
+        <p style="margin-bottom:6px;"><strong style="color:#e4e6eb;">Step 1:</strong> Go to <a href="https://dashboard.stripe.com/webhooks" target="_blank" style="color:#60a5fa;">Stripe Dashboard → Developers → Webhooks</a></p>
+        <p style="margin-bottom:6px;"><strong style="color:#e4e6eb;">Step 2:</strong> Click <strong style="color:#e4e6eb;">Add endpoint</strong> and paste the URL above (replace YOUR-SERVER-DOMAIN with your actual domain)</p>
+        <p style="margin-bottom:6px;"><strong style="color:#e4e6eb;">Step 3:</strong> Under <em>Events to listen to</em>, select: <code style="background:#2a2a3e;padding:2px 6px;border-radius:4px;color:#a5f3fc;">checkout.session.completed</code></p>
+        <p style="margin-bottom:6px;"><strong style="color:#e4e6eb;">Step 4:</strong> Click <strong style="color:#e4e6eb;">Add endpoint</strong>, then reveal and copy the <strong style="color:#e4e6eb;">Signing secret</strong> (starts with <code style="background:#2a2a3e;padding:2px 6px;border-radius:4px;color:#a5f3fc;">whsec_</code>)</p>
+        <p><strong style="color:#e4e6eb;">Step 5:</strong> Go to <a href="/api/admin/config" style="color:#60a5fa;">Platform Config</a> and paste the signing secret into the <strong style="color:#e4e6eb;">STRIPE_CONNECT_WEBHOOK_SECRET</strong> field</p>
+      </div>
+    </div>
+
     <!-- How It Works -->
     <div class="card">
       <h2>ℹ️ How Stripe Connect Works</h2>

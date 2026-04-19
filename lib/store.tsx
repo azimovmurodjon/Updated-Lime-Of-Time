@@ -642,6 +642,10 @@ export function dbAppointmentToLocal(a: any): Appointment {
     paymentStatus: (a.paymentStatus as Appointment['paymentStatus']) ?? undefined,
     paymentMethod: (a.paymentMethod as Appointment['paymentMethod']) ?? undefined,
     paymentConfirmationNumber: a.paymentConfirmationNumber ?? undefined,
+    paymentConfirmedAt: a.paymentConfirmedAt ? new Date(a.paymentConfirmedAt).toISOString() : undefined,
+    refundedAt: a.refundedAt ? new Date(a.refundedAt).toISOString() : undefined,
+    refundedAmount: a.refundedAmount != null ? parseFloat(a.refundedAmount) : undefined,
+    stripeRefundId: a.stripeRefundId ?? undefined,
   } as Appointment;
 }
 export function dbReviewToLocal(r: any): Review {

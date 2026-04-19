@@ -480,7 +480,13 @@ export function registerStripeConnectRoutes(app: Express): void {
 
       await db
         .update(appointments)
-        .set({ paymentStatus: "unpaid", paymentMethod: null } as any)
+        .set({
+          paymentStatus: "unpaid",
+          paymentMethod: null,
+          refundedAt: new Date(),
+          refundedAmount: String(refund.amount / 100),
+          stripeRefundId: refund.id,
+        } as any)
         .where(
           and(
             eq(appointments.localId, appointmentLocalId),

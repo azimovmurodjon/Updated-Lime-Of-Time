@@ -283,12 +283,13 @@ export default function CalendarScreen() {
   const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
   const [selectedDate, setSelectedDate] = useState(() => formatDateStr(new Date()));
   // Payment method filter (only active when activeFilter === "paid")
-  type MethodFilterKey = "cash" | "zelle" | "venmo" | "cashapp";
+  type MethodFilterKey = "cash" | "zelle" | "venmo" | "cashapp" | "card";
   const METHOD_FILTER_OPTIONS: { key: MethodFilterKey; label: string; color: string }[] = [
     { key: "cash", label: "Cash", color: "#22C55E" },
     { key: "zelle", label: "Zelle", color: "#6366F1" },
     { key: "venmo", label: "Venmo", color: "#3B82F6" },
-    { key: "cashapp", label: "Card", color: "#00C896" },
+    { key: "cashapp", label: "Cash App", color: "#00C896" },
+    { key: "card", label: "Card", color: "#635BFF" },
   ];
   const [methodFilter, setMethodFilter] = useState<MethodFilterKey | null>(null);
   const FILTER_STORAGE_KEY = "@lime_calendar_filter";

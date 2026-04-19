@@ -228,6 +228,12 @@ export const appointments = mysqlTable("appointments", {
   paymentConfirmationNumber: varchar("paymentConfirmationNumber", { length: 64 }),
   /** Timestamp when payment was confirmed */
   paymentConfirmedAt: timestamp("paymentConfirmedAt"),
+  /** Timestamp when a Stripe refund was issued */
+  refundedAt: timestamp("refundedAt"),
+  /** Amount refunded in dollars (null = no refund issued) */
+  refundedAmount: decimal("refundedAmount", { precision: 10, scale: 2 }),
+  /** Stripe refund ID for reference */
+  stripeRefundId: varchar("stripeRefundId", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
