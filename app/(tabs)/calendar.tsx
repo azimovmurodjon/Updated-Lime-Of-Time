@@ -954,6 +954,11 @@ export default function CalendarScreen() {
               <Text style={{ fontSize: 11, fontWeight: "600", color: "#635BFF" }}>💳 Card</Text>
             </View>
           )}
+          {appt.clientPaidNotifiedAt && appt.paymentStatus !== "paid" && (
+            <View style={{ backgroundColor: "#FFF7ED", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: "#FED7AA" }}>
+              <Text style={{ fontSize: 11, fontWeight: "600", color: "#C2410C" }}>💰 Payment Sent</Text>
+            </View>
+          )}
           {hasMultiLoc && appt.locationId && (() => {
             const loc = getLocationById(appt.locationId);
             if (!loc) return null;

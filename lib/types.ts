@@ -98,6 +98,8 @@ export interface Appointment {
   refundedAmount?: number;
   /** Stripe refund ID */
   stripeRefundId?: string;
+  /** ISO timestamp when client tapped 'I Sent Payment' on the manage page */
+  clientPaidNotifiedAt?: string;
 }
 
 export interface Review {

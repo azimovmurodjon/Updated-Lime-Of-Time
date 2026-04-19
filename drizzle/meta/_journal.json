@@ -281,6 +281,13 @@
       "when": 1776575758888,
       "tag": "0039_old_thundra",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "5",
+      "when": 1776635428898,
+      "tag": "0040_skinny_lizard",
+      "breakpoints": true
     }
   ]
 }

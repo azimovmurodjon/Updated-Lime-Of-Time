@@ -776,6 +776,15 @@ Would you also like to charge a no-show fee via Stripe?`,
                 )}
               </View>
             ) : null}
+            {appointment.clientPaidNotifiedAt && appointment.paymentStatus !== 'paid' && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, backgroundColor: '#FFF7ED', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: '#FED7AA' }}>
+                <Text style={{ fontSize: 13 }}>💰</Text>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#C2410C', flex: 1 }}>Client says payment was sent</Text>
+                <Pressable onPress={() => setShowPaymentModal(true)} style={({ pressed }) => [{ backgroundColor: '#EA580C', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, opacity: pressed ? 0.7 : 1 }]}>
+                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Confirm</Text>
+                </Pressable>
+              </View>
+            )}
             {appointment.paymentStatus !== 'paid' && (
               <Pressable
                 onPress={() => setShowPaymentModal(true)}

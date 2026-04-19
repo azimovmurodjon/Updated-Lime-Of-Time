@@ -8,6 +8,7 @@ import {
   notifyCancellation,
   notifyReschedule,
   notifyWaitlist,
+  sendExpoPush,
 } from "./push";
 
 // ─── Rate limiter for Manus platform notifyOwner ────────────────────────────
@@ -1256,6 +1257,73 @@ export function registerPublicRoutes(app: Express) {
       res.json({ success: true, message: "Appointment rescheduled successfully. The business will confirm your new time." });
     } catch (err) {
       console.error("[Public API] Error rescheduling appointment:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  /** Client marks payment as sent — flags appointment for owner review */
+  app.post("/api/public/appointment/:appointmentId/mark-paid", async (req: Request, res: Response) => {
+    try {
+      const { appointmentId } = req.params;
+      const { slug, clientPhone, paymentMethod, paymentNote } = req.body;
+      if (!slug) {
+        res.status(400).json({ error: "slug is required" });
+        return;
+      }
+      const owner = await db.getBusinessOwnerBySlug(slug);
+      if (!owner) {
+        res.status(404).json({ error: "Business not found" });
+        return;
+      }
+      const appt = await db.getAppointmentByLocalId(appointmentId, owner.id);
+      if (!appt) {
+        res.status(404).json({ error: "Appointment not found" });
+        return;
+      }
+      if (appt.status === "cancelled" || appt.status === "completed") {
+        res.status(400).json({ error: `Cannot mark a ${appt.status} appointment as paid` });
+        return;
+      }
+      // Verify client identity by phone if phone is on record
+      const clientList = await db.getClientsByOwner(owner.id);
+      const client = clientList.find((c) => c.localId === appt.clientLocalId);
+      const normPhone = (p: string) => { const d = p.replace(/\D/g, ""); return d.length >= 10 ? d.slice(-10) : d; };
+      if (client && client.phone && client.phone.trim()) {
+        if (!clientPhone || !clientPhone.trim()) {
+          res.status(403).json({ error: "Please enter your phone number to verify your identity." });
+          return;
+        }
+        if (normPhone(clientPhone) !== normPhone(client.phone)) {
+          res.status(403).json({ error: "Phone number does not match." });
+          return;
+        }
+      }
+      // Update appointment: set clientPaidNotifiedAt and paymentMethod if provided
+      const updateData: Record<string, any> = { clientPaidNotifiedAt: new Date() };
+      if (paymentMethod && ["zelle", "venmo", "cashapp", "cash", "card", "unpaid", "free"].includes(paymentMethod)) {
+        updateData.paymentMethod = paymentMethod;
+      }
+      if (paymentNote) updateData.notes = (appt.notes ? appt.notes + "\n" : "") + `[Client payment note: ${paymentNote}]`;
+      await db.updateAppointment(appointmentId, owner.id, updateData);
+      // Push notification to business owner
+      try {
+        const svcList = await db.getServicesByOwner(owner.id);
+        const svc = svcList.find((s) => s.localId === appt.serviceLocalId);
+        const ownerPushToken = (owner as any).expoPushToken as string | null | undefined;
+        const methodLabel = paymentMethod ? paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1) : "Payment";
+        if (ownerPushToken) {
+          await sendExpoPush(ownerPushToken, {
+            title: `💰 ${methodLabel} Received — ${owner.businessName}`,
+            body: `${client?.name || "A client"} says they sent payment for ${svc?.name || "appointment"} on ${appt.date} at ${appt.time}. Tap to confirm.`,
+            data: { type: "general" as const, appointmentId },
+          });
+        }
+      } catch (pushErr) {
+        console.warn("[Public API] Failed to send mark-paid notification:", pushErr);
+      }
+      res.json({ success: true, message: "Payment notification sent to the business. They will confirm receipt shortly." });
+    } catch (err) {
+      console.error("[Public API] Error marking appointment as paid:", err);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -6022,6 +6090,30 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any,
 
       ${isPending ? '<p style="font-size:12px;color:var(--text-secondary);margin-top:12px;text-align:center;">Your appointment is pending approval. You can cancel it, but rescheduling is available only after the business confirms your appointment.</p>' : ''}
 
+      ${(() => {
+        const apptPrice2 = parseFloat(appt.totalPrice || appt.price || '0');
+        const alreadyClientNotified = !!(appt as any).clientPaidNotifiedAt;
+        const alreadyPaid = appt.paymentStatus === 'paid';
+        if (apptPrice2 <= 0 || alreadyPaid) return '';
+        if (alreadyClientNotified) {
+          return '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;margin-top:12px;font-size:13px;color:#166534;text-align:center;">✅ You already notified the business that you sent payment. They will confirm receipt shortly.</div>';
+        }
+        return `<button class="btn-reschedule" id="mark-paid-btn" onclick="markAsPaid()" style="margin-top:12px;background:#f0fdf4;border-color:#22c55e;color:#166534;">💰 I Sent Payment</button>
+<div id="mark-paid-panel" style="display:none;margin-top:12px;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;">
+  <p style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:8px;">How did you pay?</p>
+  <select id="pay-method-select" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg-card);color:var(--text-primary);margin-bottom:10px;">
+    <option value="">Select payment method...</option>
+    <option value="zelle">💜 Zelle</option>
+    <option value="cashapp">💚 Cash App</option>
+    <option value="venmo">💙 Venmo</option>
+    <option value="cash">💵 Cash</option>
+    <option value="card">💳 Card</option>
+  </select>
+  <input type="text" id="pay-note" placeholder="Optional note (e.g. confirmation #)" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg-card);color:var(--text-primary);margin-bottom:10px;box-sizing:border-box;" />
+  <button onclick="submitMarkPaid()" style="width:100%;padding:12px;background:#22c55e;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;">✅ Notify Business</button>
+</div>`;
+      })()}
+
       ${canReschedule ? `
       <button class="btn-reschedule" id="reschedule-toggle" onclick="toggleReschedule()">Request Reschedule</button>
 
@@ -6218,6 +6310,42 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any,
         showMsg('Network error. Please try again.', true);
         btn.disabled = false;
         btn.textContent = 'Confirm New Time';
+      }
+    }
+
+    function markAsPaid() {
+      const panel = document.getElementById('mark-paid-panel');
+      if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    }
+
+    async function submitMarkPaid() {
+      const phone = document.getElementById('phone-input').value.trim();
+      if (!phone) { showMsg('Please enter your phone number to verify your identity.', true); return; }
+      const method = document.getElementById('pay-method-select').value;
+      if (!method) { showMsg('Please select how you paid.', true); return; }
+      const note = document.getElementById('pay-note').value.trim();
+      const btn = document.querySelector('#mark-paid-panel button[onclick="submitMarkPaid()"]') || document.querySelector('#mark-paid-panel button:last-child');
+      if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
+      try {
+        const res = await fetch(API_BASE + '/api/public/appointment/' + APPT_ID + '/mark-paid', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug: SLUG, clientPhone: phone, paymentMethod: method, paymentNote: note || undefined })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          const panel = document.getElementById('mark-paid-panel');
+          if (panel) panel.outerHTML = '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;margin-top:12px;font-size:13px;color:#166534;text-align:center;">✅ Payment notification sent! The business will confirm receipt shortly.</div>';
+          const markBtn = document.getElementById('mark-paid-btn');
+          if (markBtn) markBtn.style.display = 'none';
+          showMsg(data.message || 'Payment notification sent!', false);
+        } else {
+          showMsg(data.error || 'Failed to send notification.', true);
+          if (btn) { btn.disabled = false; btn.textContent = '✅ Notify Business'; }
+        }
+      } catch (e) {
+        showMsg('Network error. Please try again.', true);
+        if (btn) { btn.disabled = false; btn.textContent = '✅ Notify Business'; }
       }
     }
   </script>

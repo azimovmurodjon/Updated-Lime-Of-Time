@@ -228,6 +228,8 @@ export const appointments = mysqlTable("appointments", {
   paymentConfirmationNumber: varchar("paymentConfirmationNumber", { length: 64 }),
   /** Timestamp when payment was confirmed */
   paymentConfirmedAt: timestamp("paymentConfirmedAt"),
+  /** Timestamp when client tapped 'Mark as Paid' on the manage page */
+  clientPaidNotifiedAt: timestamp("clientPaidNotifiedAt"),
   /** Timestamp when a Stripe refund was issued */
   refundedAt: timestamp("refundedAt"),
   /** Amount refunded in dollars (null = no refund issued) */
