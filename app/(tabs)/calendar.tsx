@@ -10,6 +10,9 @@ import {
   ScrollView,
   Switch,
   Modal,
+  TextInput,
+  ActivityIndicator,
+  KeyboardAvoidingView,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { FuturisticBackground } from "@/components/futuristic-background";
@@ -17,6 +20,7 @@ import { useStore, formatTime, formatDateStr, formatDateDisplay } from "@/lib/st
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { apiCall } from "@/lib/_core/api";
 import { useActiveLocation } from "@/hooks/use-active-location";
 import { useResponsive } from "@/hooks/use-responsive";
 import {
@@ -339,6 +343,9 @@ export default function CalendarScreen() {
   const [payModalMethod, setPayModalMethod] = useState<PaymentMethodKey>("cash");
   const [payModalIsBulk, setPayModalIsBulk] = useState(false);
   const [undoToast, setUndoToast] = useState<{ count: number; ids: string[] } | null>(null);
+  const [calRefundAppt, setCalRefundAppt] = useState<Appointment | null>(null);
+  const [calRefundAmount, setCalRefundAmount] = useState("");
+  const [calRefundLoading, setCalRefundLoading] = useState(false);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const doMarkPaid = useCallback(async (appts: Appointment[], method: PaymentMethodKey) => {
@@ -853,6 +860,50 @@ export default function CalendarScreen() {
     cancelled: "#9CA3AF",
   };
 
+  // ─── Calendar Refund Handler ────────────────────────────────────────────
+
+  const handleCalRefund = useCallback(async () => {
+    if (!calRefundAppt) return;
+    const appt = calRefundAppt;
+    const total = appt.totalPrice ?? 0;
+    const amountNum = calRefundAmount.trim() ? parseFloat(calRefundAmount.trim()) : total;
+    if (isNaN(amountNum) || amountNum <= 0 || amountNum > total) {
+      Alert.alert("Invalid Amount", `Please enter an amount between $0.01 and $${total.toFixed(2)}.`);
+      return;
+    }
+    Alert.alert(
+      "Confirm Refund",
+      `Issue a $${amountNum.toFixed(2)} refund for this appointment?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Refund",
+          style: "destructive",
+          onPress: async () => {
+            setCalRefundLoading(true);
+            try {
+              await apiCall("/api/stripe-connect/refund", {
+                method: "POST",
+                body: JSON.stringify({ appointmentLocalId: appt.id, amount: amountNum }),
+              });
+              dispatch({
+                type: "UPDATE_APPOINTMENT",
+                payload: { ...appt, refundedAt: new Date().toISOString(), refundedAmount: amountNum },
+              });
+              setCalRefundAppt(null);
+              setCalRefundAmount("");
+              Alert.alert("Refund Issued", `$${amountNum.toFixed(2)} refund has been processed.`);
+            } catch (err: any) {
+              Alert.alert("Refund Failed", err?.message ?? "Could not process refund. Please try again.");
+            } finally {
+              setCalRefundLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [calRefundAppt, calRefundAmount, dispatch]);
+
   // ─── Appointment Card ─────────────────────────────────────────────────
 
   const renderApptCard = (appt: Appointment, showDate = false) => {
@@ -866,10 +917,13 @@ export default function CalendarScreen() {
       : appt.status === "no_show" ? "#F59E0B"
       : "#F44336";
     const isRequest = appt.status === "pending";
+    const isCardPaidUnrefunded = appt.paymentMethod === "card" && appt.paymentStatus === "paid" && !appt.refundedAt;
     return (
       <View key={appt.id} style={[styles.apptCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: svc?.color ?? colors.primary }]}>
         <Pressable
           onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })}
+          onLongPress={isCardPaidUnrefunded ? () => { setCalRefundAppt(appt); setCalRefundAmount(""); } : undefined}
+          delayLongPress={500}
           style={{ alignSelf: "stretch" }}
         >
           <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>
@@ -1883,6 +1937,75 @@ export default function CalendarScreen() {
         </Pressable>
       </Modal>
 
+      {/* Calendar Refund Modal — triggered by long-press on card-paid appointment */}
+      <Modal
+        visible={!!calRefundAppt}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCalRefundAppt(null)}
+      >
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+          <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)" }} onPress={() => setCalRefundAppt(null)} />
+          <View style={[styles.payModal, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+            <Text style={[styles.payModalTitle, { color: colors.foreground }]}>Issue Refund</Text>
+            {calRefundAppt && (
+              <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 12, textAlign: "center" }}>
+                {getClientById(calRefundAppt.clientId)?.name ?? "Client"} · {calRefundAppt.date} · ${(calRefundAppt.totalPrice ?? 0).toFixed(2)} total
+              </Text>
+            )}
+            {/* Full refund quick-tap */}
+            <Pressable
+              onPress={() => {
+                if (calRefundAppt) setCalRefundAmount(String(calRefundAppt.totalPrice ?? 0));
+              }}
+              style={({ pressed }) => [{
+                backgroundColor: pressed ? "#4f46e5" : "#635BFF",
+                borderRadius: 12,
+                paddingVertical: 14,
+                alignItems: "center",
+                marginBottom: 10,
+              }]}
+            >
+              <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 15 }}>
+                Full Refund · ${(calRefundAppt?.totalPrice ?? 0).toFixed(2)}
+              </Text>
+            </Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}>
+              <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+              <Text style={{ color: colors.muted, fontSize: 12, marginHorizontal: 10 }}>or partial amount</Text>
+              <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+            </View>
+            <TextInput
+              value={calRefundAmount}
+              onChangeText={setCalRefundAmount}
+              placeholder={`Amount (max $${(calRefundAppt?.totalPrice ?? 0).toFixed(2)})`}
+              placeholderTextColor={colors.muted}
+              keyboardType="decimal-pad"
+              returnKeyType="done"
+              style={[styles.payModalInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
+            />
+            <Pressable
+              onPress={handleCalRefund}
+              style={({ pressed }) => [{
+                backgroundColor: pressed ? "#b91c1c" : "#EF4444",
+                borderRadius: 12,
+                paddingVertical: 14,
+                alignItems: "center",
+                marginBottom: 8,
+              }]}
+            >
+              {calRefundLoading
+                ? <ActivityIndicator color="#FFF" />
+                : <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 15 }}>Confirm Refund</Text>
+              }
+            </Pressable>
+            <Pressable onPress={() => setCalRefundAppt(null)} style={{ alignItems: "center", paddingVertical: 10 }}>
+              <Text style={{ color: colors.muted, fontSize: 14 }}>Cancel</Text>
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       {/* Undo toast — appears after bulk Mark All Paid */}
       {undoToast && (
         <View style={styles.undoToast}>
@@ -1965,4 +2088,23 @@ const styles = StyleSheet.create({
   undoToastText: { flex: 1, color: "#FFF", fontSize: 14, fontWeight: "500" },
   undoBtn: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: "#00C896", borderRadius: 10 },
   undoBtnText: { color: "#FFF", fontWeight: "700", fontSize: 13 },
+  payModal: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    borderTopWidth: 1,
+  },
+  payModalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  payModalInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 16,
+    marginBottom: 16,
+  },
 });

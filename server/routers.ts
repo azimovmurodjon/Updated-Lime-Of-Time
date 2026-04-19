@@ -378,6 +378,67 @@ const appointmentsRouter = router({
         }
       }
 
+      // ── SMS notifications for status changes ────────────────────────
+      // Helper to send SMS via Twilio platform credentials
+      const sendStatusSms = async (toPhone: string, body: string, smsAction: "confirmation" | "reminder" | "rebooking" | "birthday" = "confirmation") => {
+        try {
+          const allowed = await isSmsAllowed(businessOwnerId, smsAction);
+          if (!allowed) return;
+          const accountSid = await getPlatformConfig("TWILIO_ACCOUNT_SID");
+          const authToken = await getPlatformConfig("TWILIO_AUTH_TOKEN");
+          const fromNumber = await getPlatformConfig("TWILIO_FROM_NUMBER");
+          if (!accountSid || !authToken || !fromNumber) return;
+          const testMode = await getPlatformConfig("TWILIO_TEST_MODE");
+          if (testMode === "true") {
+            console.log(`[SMS TEST MODE] To: ${toPhone} | Body: ${body}`);
+            return;
+          }
+          const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+          const params = new URLSearchParams();
+          params.append("From", fromNumber);
+          params.append("To", toPhone);
+          params.append("Body", body);
+          const credentials = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+          await fetch(url, {
+            method: "POST",
+            headers: { Authorization: `Basic ${credentials}`, "Content-Type": "application/x-www-form-urlencoded" },
+            body: params.toString(),
+          });
+        } catch (smsErr) {
+          console.error("[SMS] Failed to send status SMS:", smsErr);
+        }
+      };
+
+      if (data.status === "confirmed" || data.status === "cancelled" || data.status === "completed" || data.status === "no_show") {
+        try {
+          const [owner, enrichedAppt] = await Promise.all([
+            db.getBusinessOwnerById(businessOwnerId),
+            db.getEnrichedAppointment(localId, businessOwnerId),
+          ]);
+          if (owner && enrichedAppt) {
+            const prefs = (owner as any).notificationPreferences ?? {};
+            const masterNotifOn = (owner as any).notificationsEnabled !== false;
+            const clientPhone = enrichedAppt.clientPhone;
+            if (masterNotifOn && clientPhone) {
+              const clientName = enrichedAppt.clientName ?? "Valued Client";
+              const serviceName = enrichedAppt.serviceName ?? "your appointment";
+              const businessName = owner.businessName;
+              if (data.status === "confirmed" && prefs.smsClientOnConfirmation !== false) {
+                await sendStatusSms(clientPhone, `Hi ${clientName}, your appointment for ${serviceName} has been confirmed by ${businessName}. See you soon!`);
+              } else if (data.status === "cancelled" && prefs.smsClientOnCancellation !== false) {
+                await sendStatusSms(clientPhone, `Hi ${clientName}, your appointment for ${serviceName} with ${businessName} has been cancelled. Please contact us to reschedule.`);
+              } else if (data.status === "completed" && prefs.smsClientOnCompletion === true) {
+                await sendStatusSms(clientPhone, `Hi ${clientName}, thank you for visiting ${businessName}! We hope to see you again soon.`);
+              } else if (data.status === "no_show" && prefs.smsClientOnNoShow === true) {
+                await sendStatusSms(clientPhone, `Hi ${clientName}, we missed you today at ${businessName} for your ${serviceName} appointment. Please contact us to reschedule.`);
+              }
+            }
+          }
+        } catch (smsErr) {
+          console.error("[SMS] Failed to send status change SMS:", smsErr);
+        }
+      }
+
       // Send payment receipt email to client when appointment is marked paid
       if (data.paymentStatus === "paid") {
         try {

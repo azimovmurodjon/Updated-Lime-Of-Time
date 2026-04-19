@@ -861,10 +861,11 @@ export function registerPublicRoutes(app: Express) {
       // Send branded email notification via Resend
       // Email notifications are only available on paid plans (not free tier)
       const ownerNotifPrefs = (owner as any).notificationPreferences ?? {};
+      const masterNotifEnabled = (owner as any).notificationsEnabled !== false;
       const emailOnNewBookingEnabled = ownerNotifPrefs.emailOnNewBooking !== false;
       const ownerSubStatus = (owner as any).subscriptionStatus as string | undefined;
       const isFreePlan = !ownerSubStatus || ownerSubStatus === "free";
-      if (owner.email && emailOnNewBookingEnabled && !isFreePlan) {
+      if (masterNotifEnabled && owner.email && emailOnNewBookingEnabled && !isFreePlan) {
         try {
           await sendBookingNotificationEmail(owner.email, owner.businessName, {
             clientName,
@@ -887,7 +888,7 @@ export function registerPublicRoutes(app: Express) {
       }
 
       // Send push notification to business owner's device
-      const pushOnNewBookingEnabled = ownerNotifPrefs.pushOnNewBooking !== false;
+      const pushOnNewBookingEnabled = masterNotifEnabled && ownerNotifPrefs.pushOnNewBooking !== false;
       if (pushOnNewBookingEnabled) try {
         const ownerPushToken = (owner as any).expoPushToken as string | null | undefined;
         if (ownerPushToken) {

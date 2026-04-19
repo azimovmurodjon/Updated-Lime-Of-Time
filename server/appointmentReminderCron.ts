@@ -105,6 +105,7 @@ async function sendAppointmentReminders() {
         businessName: businessOwners.businessName,
         email: businessOwners.email,
         expoPushToken: businessOwners.expoPushToken,
+        notificationsEnabled: businessOwners.notificationsEnabled,
         notificationPreferences: businessOwners.notificationPreferences,
         customSlug: businessOwners.customSlug,
         address: businessOwners.address,
@@ -192,7 +193,9 @@ async function sendAppointmentReminders() {
       else if (reminderHours === 168) inLabel = "next week";
 
       // ── Push notification to business owner ─────────────────────────
-      const pushEnabled = notifPrefs.pushOnReminder !== false;
+      // Check master notifications toggle first
+      const masterEnabled = owner.notificationsEnabled !== false;
+      const pushEnabled = masterEnabled && notifPrefs.pushOnReminder !== false;
       if (pushEnabled && owner.expoPushToken) {
         try {
           const sent = await sendExpoPush(owner.expoPushToken, {
@@ -214,7 +217,7 @@ async function sendAppointmentReminders() {
       // Email reminders are only available on paid plans (not free tier)
       const ownerSubStatus = owner.subscriptionStatus as string | undefined;
       const isFreePlan = !ownerSubStatus || ownerSubStatus === "free";
-      const masterNotifEnabled = (owner as any).notificationsEnabled !== false;
+      const masterNotifEnabled = owner.notificationsEnabled !== false;
       const emailEnabled = notifPrefs.emailOnReminder !== false;
       const clientEmail = client?.email;
       if (masterNotifEnabled && emailEnabled && !isFreePlan && clientEmail && clientEmail.includes("@")) {

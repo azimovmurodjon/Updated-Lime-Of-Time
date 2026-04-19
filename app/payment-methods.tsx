@@ -29,6 +29,26 @@ type ConnectStatus = {
   stripeConfigured: boolean;
 };
 
+type PayoutInfo = {
+  id: string;
+  amount: number;
+  currency: string;
+  arrivalDate: number; // Unix timestamp
+  status: string;
+  description: string | null;
+};
+
+type PayoutData = {
+  schedule: {
+    interval: string;
+    weeklyAnchor: string | null;
+    monthlyAnchor: number | null;
+    delayDays: number | null;
+  } | null;
+  nextPayout: PayoutInfo | null;
+  recentPayouts: PayoutInfo[];
+};
+
 export default function PaymentMethodsScreen() {
   const { state, dispatch, syncToDb } = useStore();
   const colors = useColors();
@@ -46,6 +66,10 @@ export default function PaymentMethodsScreen() {
   const [connectStatus, setConnectStatus] = useState<ConnectStatus | null>(null);
   const [connectLoading, setConnectLoading] = useState(false);
   const [connectStatusLoading, setConnectStatusLoading] = useState(true);
+
+  // Payout schedule state
+  const [payoutData, setPayoutData] = useState<PayoutData | null>(null);
+  const [payoutLoading, setPayoutLoading] = useState(false);
 
   const handleSave = useCallback(() => {
     const action = {
@@ -85,6 +109,28 @@ export default function PaymentMethodsScreen() {
   useEffect(() => {
     loadConnectStatus();
   }, [loadConnectStatus]);
+
+  const loadPayoutData = useCallback(async () => {
+    if (!businessOwnerId) return;
+    setPayoutLoading(true);
+    try {
+      const data = await apiCall<PayoutData>(
+        `/api/stripe-connect/payouts?businessOwnerId=${businessOwnerId}`
+      );
+      setPayoutData(data);
+    } catch {
+      setPayoutData(null);
+    } finally {
+      setPayoutLoading(false);
+    }
+  }, [businessOwnerId]);
+
+  // Load payout data once Stripe is confirmed active
+  useEffect(() => {
+    if (connectStatus?.chargesEnabled) {
+      loadPayoutData();
+    }
+  }, [connectStatus?.chargesEnabled, loadPayoutData]);
 
   const handleConnectStripe = useCallback(async () => {
     if (!businessOwnerId) return;
@@ -277,6 +323,78 @@ export default function PaymentMethodsScreen() {
                     <Text style={[styles.stripeNote, { color: "#16a34a" }]}>
                       Your Stripe account is active. Clients can now pay by card on the booking page.
                     </Text>
+
+                    {/* Payout Schedule Section */}
+                    <View style={[styles.payoutSection, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                      <View style={styles.payoutSectionHeader}>
+                        <Text style={[styles.payoutSectionTitle, { color: colors.foreground }]}>💰 Payout Schedule</Text>
+                        {payoutLoading && <ActivityIndicator size="small" color="#635bff" />}
+                      </View>
+
+                      {!payoutLoading && payoutData && (
+                        <>
+                          {/* Schedule interval */}
+                          {payoutData.schedule && (
+                            <View style={styles.payoutRow}>
+                              <Text style={[styles.payoutLabel, { color: colors.muted }]}>Frequency</Text>
+                              <Text style={[styles.payoutValue, { color: colors.foreground }]}>
+                                {payoutData.schedule.interval === "daily" ? "Daily" :
+                                 payoutData.schedule.interval === "weekly"
+                                   ? `Weekly (${payoutData.schedule.weeklyAnchor ? payoutData.schedule.weeklyAnchor.charAt(0).toUpperCase() + payoutData.schedule.weeklyAnchor.slice(1) : ""})` :
+                                 payoutData.schedule.interval === "monthly"
+                                   ? `Monthly (day ${payoutData.schedule.monthlyAnchor ?? ""})` :
+                                 payoutData.schedule.interval === "manual" ? "Manual" :
+                                 payoutData.schedule.interval}
+                                {payoutData.schedule.delayDays ? ` · ${payoutData.schedule.delayDays}d delay` : ""}
+                              </Text>
+                            </View>
+                          )}
+
+                          {/* Next payout */}
+                          {payoutData.nextPayout ? (
+                            <View style={styles.payoutRow}>
+                              <Text style={[styles.payoutLabel, { color: colors.muted }]}>Next Payout</Text>
+                              <View style={{ alignItems: "flex-end" }}>
+                                <Text style={[styles.payoutValue, { color: "#16a34a", fontWeight: "700" }]}>
+                                  ${payoutData.nextPayout.amount.toFixed(2)}
+                                </Text>
+                                <Text style={[styles.payoutSub, { color: colors.muted }]}>
+                                  {new Date(payoutData.nextPayout.arrivalDate * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                                </Text>
+                              </View>
+                            </View>
+                          ) : (
+                            <Text style={[styles.payoutEmpty, { color: colors.muted }]}>No upcoming payouts</Text>
+                          )}
+
+                          {/* Recent payouts */}
+                          {payoutData.recentPayouts.filter(p => p.status === "paid").length > 0 && (
+                            <>
+                              <Text style={[styles.payoutHistoryLabel, { color: colors.muted }]}>Recent Payouts</Text>
+                              {payoutData.recentPayouts
+                                .filter(p => p.status === "paid")
+                                .slice(0, 3)
+                                .map((p) => (
+                                  <View key={p.id} style={[styles.payoutHistoryRow, { borderTopColor: colors.border }]}>
+                                    <Text style={[styles.payoutHistoryDate, { color: colors.muted }]}>
+                                      {new Date(p.arrivalDate * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                                    </Text>
+                                    <Text style={[styles.payoutHistoryAmount, { color: colors.foreground }]}>
+                                      ${p.amount.toFixed(2)}
+                                    </Text>
+                                  </View>
+                                ))
+                              }
+                            </>
+                          )}
+                        </>
+                      )}
+
+                      {!payoutLoading && !payoutData && (
+                        <Text style={[styles.payoutEmpty, { color: colors.muted }]}>Unable to load payout info</Text>
+                      )}
+                    </View>
+
                     <View style={styles.stripeActions}>
                       <TouchableOpacity
                         style={[styles.stripeBtnSmall, { backgroundColor: "#635bff" }]}
@@ -688,5 +806,67 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "700",
     fontSize: 16,
+  },
+  // Payout section
+  payoutSection: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 12,
+  },
+  payoutSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  payoutSectionTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  payoutRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  payoutLabel: {
+    fontSize: 13,
+  },
+  payoutValue: {
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "right",
+  },
+  payoutSub: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  payoutEmpty: {
+    fontSize: 13,
+    fontStyle: "italic",
+    textAlign: "center",
+    paddingVertical: 4,
+  },
+  payoutHistoryLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  payoutHistoryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 6,
+    borderTopWidth: 0.5,
+  },
+  payoutHistoryDate: {
+    fontSize: 13,
+  },
+  payoutHistoryAmount: {
+    fontSize: 13,
+    fontWeight: "600",
   },
 });

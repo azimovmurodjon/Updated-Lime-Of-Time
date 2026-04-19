@@ -556,4 +556,61 @@ export function registerStripeConnectRoutes(app: Express): void {
       res.status(500).json({ error: err?.message ?? "Failed to issue refund" });
     }
   });
+
+  // ── 10. Payout schedule ───────────────────────────────────────────────────────────────────────────────────
+  // GET /api/stripe-connect/payouts?businessOwnerId=123
+  // Returns payout schedule info + recent payouts for the connected account.
+  app.get("/api/stripe-connect/payouts", async (req: Request, res: Response) => {
+    try {
+      const businessOwnerId = parseInt(String(req.query.businessOwnerId ?? "0"), 10);
+      if (!businessOwnerId) { res.status(400).json({ error: "businessOwnerId required" }); return; }
+
+      const stripe = await getStripe();
+      if (!stripe) { res.status(503).json({ error: "Stripe not configured" }); return; }
+
+      const owner = await getOwner(businessOwnerId);
+      if (!owner) { res.status(404).json({ error: "Business not found" }); return; }
+
+      const accountId = (owner as any).stripeConnectAccountId as string | null;
+      if (!accountId) { res.status(404).json({ error: "No Stripe account connected" }); return; }
+
+      // Fetch account to get payout schedule
+      const account = await stripe.accounts.retrieve(accountId);
+      const schedule = account.settings?.payouts?.schedule ?? null;
+
+      // Fetch recent payouts (last 5)
+      const payoutList = await stripe.payouts.list(
+        { limit: 5 },
+        { stripeAccount: accountId }
+      );
+
+      const payouts = payoutList.data.map((p) => ({
+        id: p.id,
+        amount: p.amount / 100,
+        currency: p.currency,
+        arrivalDate: p.arrival_date, // Unix timestamp
+        status: p.status, // paid | pending | in_transit | canceled | failed
+        description: p.description,
+      }));
+
+      // Determine next expected payout date from the first pending/in_transit payout
+      const nextPayout = payouts.find((p) => p.status === "pending" || p.status === "in_transit") ?? null;
+
+      res.json({
+        schedule: schedule
+          ? {
+              interval: schedule.interval, // daily | weekly | monthly | manual
+              weeklyAnchor: (schedule as any).weekly_anchor ?? null,
+              monthlyAnchor: (schedule as any).monthly_anchor ?? null,
+              delayDays: (schedule as any).delay_days ?? null,
+            }
+          : null,
+        nextPayout,
+        recentPayouts: payouts,
+      });
+    } catch (err: any) {
+      console.error("[StripeConnect] payouts error:", err);
+      res.status(500).json({ error: err?.message ?? "Failed to fetch payouts" });
+    }
+  });
 }
