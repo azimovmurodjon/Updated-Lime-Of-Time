@@ -61,6 +61,7 @@ export interface PaymentSummaryCardProps {
   onPressFullSummary?: () => void;
   onPressStatus?: (status: string) => void;
   onPressService?: (serviceLabel: string) => void;
+  onPressMethod?: (method: string) => void;
 }
 
 // ─── Donut Chart ──────────────────────────────────────────────────────────────
@@ -378,6 +379,7 @@ export function PaymentSummaryCard({
   onPressFullSummary,
   onPressStatus,
   onPressService,
+  onPressMethod,
 }: PaymentSummaryCardProps) {
   const colors = useColors();
   const [activeIdx, setActiveIdx] = useState(0);
@@ -485,15 +487,17 @@ export function PaymentSummaryCard({
               {Object.entries(methodBreakdown)
                 .sort((a, b) => b[1].revenue - a[1].revenue)
                 .map(([method, entry], idx, arr) => (
-                <View
+                <Pressable
                   key={method}
-                  style={{
+                  onPress={() => onPressMethod?.(method)}
+                  style={({ pressed }) => ({
                     flexDirection: "row",
                     alignItems: "center",
                     paddingVertical: 8,
                     borderBottomWidth: idx < arr.length - 1 ? 0.5 : 0,
                     borderBottomColor: colors.border,
-                  }}
+                    opacity: pressed ? 0.7 : 1,
+                  })}
                 >
                   {/* Color dot */}
                   <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: METHOD_COLORS[method] ?? ACCENT, marginRight: 8 }} />
@@ -503,7 +507,8 @@ export function PaymentSummaryCard({
                   <Text style={{ fontSize: 12, color: colors.muted, marginRight: 10 }}>{entry.count} appt{entry.count !== 1 ? "s" : ""}</Text>
                   {/* Revenue */}
                   <Text style={{ fontSize: 13, fontWeight: "800", color: METHOD_COLORS[method] ?? ACCENT }}>${entry.revenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
-                </View>
+                  <IconSymbol name="chevron.right" size={11} color={colors.muted} style={{ marginLeft: 4 }} />
+                </Pressable>
               ))}
             </View>
           )}

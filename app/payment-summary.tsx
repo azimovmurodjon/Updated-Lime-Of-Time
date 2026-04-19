@@ -14,7 +14,7 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
@@ -42,6 +42,15 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   zelle: "Zelle",
   venmo: "Venmo",
   cashapp: "Card",
+};
+
+const METHOD_COLORS: Record<string, string> = {
+  cash: "#22C55E",
+  zelle: "#6366F1",
+  venmo: "#3B82F6",
+  cashapp: "#00C896",
+  free: "#9CA3AF",
+  unpaid: "#EF4444",
 };
 
 function getDateRange(key: DateRangeKey): { start: string; end: string } {
@@ -142,6 +151,7 @@ function ApptRow({
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 export default function PaymentSummaryScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ method?: string; label?: string }>();
   const colors = useColors();
   const { state } = useStore();
   const { planInfo } = usePlanLimitCheck();
@@ -149,6 +159,7 @@ export default function PaymentSummaryScreen() {
 
   const [dateRange, setDateRange] = useState<DateRangeKey>("month");
   const [filterTab, setFilterTab] = useState<FilterTab>("all");
+  const [methodFilter, setMethodFilter] = useState<string | null>(params.method ?? null);
   const [exporting, setExporting] = useState(false);
 
   // ─── Filter appointments by date range and active location ───────────────
@@ -196,7 +207,9 @@ export default function PaymentSummaryScreen() {
       unpaidTotal,
       total,
       collectionRate,
-      methodBreakdown: Object.values(methodMap).sort((a, b) => b.total - a.total),
+      methodBreakdown: Object.entries(methodMap)
+        .sort((a, b) => b[1].total - a[1].total)
+        .map(([key, v]) => ({ key, ...v })),
     };
   }, [filteredAppts, state.services]);
 
@@ -208,6 +221,7 @@ export default function PaymentSummaryScreen() {
     let list = filteredAppts;
     if (filterTab === "paid") list = filteredAppts.filter((a) => a.paymentStatus === "paid");
     if (filterTab === "unpaid") list = filteredAppts.filter((a) => a.paymentStatus !== "paid");
+    if (methodFilter) list = list.filter((a) => (a.paymentMethod || "unknown") === methodFilter);
 
     return list
       .sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time))
@@ -217,7 +231,7 @@ export default function PaymentSummaryScreen() {
         serviceName: state.services.find((s) => s.id === a.serviceId)?.name ?? "Unknown",
         price: getPrice(a),
       }));
-  }, [filteredAppts, filterTab, state.clients, state.services]);
+  }, [filteredAppts, filterTab, methodFilter, state.clients, state.services]);
 
   // ─── Export handler ───────────────────────────────────────────────────────
   const handleExport = useCallback(async () => {
@@ -265,7 +279,9 @@ export default function PaymentSummaryScreen() {
         >
           <Text style={{ fontSize: 24, color: colors.primary, lineHeight: 28 }}>‹</Text>
         </Pressable>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Payment Summary</Text>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>
+          {methodFilter ? `${PAYMENT_METHOD_LABELS[methodFilter] ?? methodFilter} Payments` : "Payment Summary"}
+        </Text>
         <Pressable
           onPress={handleExport}
           style={({ pressed }) => [
@@ -368,17 +384,59 @@ export default function PaymentSummaryScreen() {
         )}
 
         {/* ─── Payment Method Breakdown ───────────────────────────────── */}
+        {/* ─── Active method filter banner ──────────────────────────── */}
+        {methodFilter && (
+          <Pressable
+            onPress={() => setMethodFilter(null)}
+            style={({ pressed }) => ({
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+              paddingHorizontal: 14,
+              paddingVertical: 10,
+              borderRadius: 12,
+              backgroundColor: (METHOD_COLORS[methodFilter] ?? colors.primary) + "18",
+              borderWidth: 1,
+              borderColor: (METHOD_COLORS[methodFilter] ?? colors.primary) + "40",
+              opacity: pressed ? 0.75 : 1,
+            })}
+          >
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: METHOD_COLORS[methodFilter] ?? colors.primary }} />
+            <Text style={{ flex: 1, fontSize: 13, fontWeight: "700", color: METHOD_COLORS[methodFilter] ?? colors.primary }}>
+              Filtered: {PAYMENT_METHOD_LABELS[methodFilter] ?? methodFilter}
+            </Text>
+            <Text style={{ fontSize: 12, color: colors.muted }}>Tap to clear ×</Text>
+          </Pressable>
+        )}
+
         {stats.methodBreakdown.length > 0 && (
           <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>By Payment Method</Text>
-            {stats.methodBreakdown.map((m, i) => (
-              <View key={i} style={[styles.methodRow, { borderBottomColor: colors.border }]}>
-                <View style={[styles.methodDot, { backgroundColor: colors.primary }]} />
-                <Text style={[styles.methodLabel, { color: colors.foreground }]}>{m.label}</Text>
-                <Text style={[styles.methodCount, { color: colors.muted }]}>{m.count} appt{m.count !== 1 ? "s" : ""}</Text>
-                <Text style={[styles.methodTotal, { color: colors.success }]}>${m.total.toFixed(2)}</Text>
-              </View>
-            ))}
+            {stats.methodBreakdown.map((m, i) => {
+              const isActive = methodFilter === m.key;
+              const dotColor = METHOD_COLORS[m.key] ?? colors.primary;
+              return (
+                <Pressable
+                  key={m.key}
+                  onPress={() => setMethodFilter((prev) => (prev === m.key ? null : m.key))}
+                  style={({ pressed }) => ([
+                    styles.methodRow,
+                    {
+                      borderBottomColor: colors.border,
+                      backgroundColor: isActive ? dotColor + "12" : "transparent",
+                      borderRadius: isActive ? 8 : 0,
+                      opacity: pressed ? 0.75 : 1,
+                    },
+                  ])}
+                >
+                  <View style={[styles.methodDot, { backgroundColor: dotColor }]} />
+                  <Text style={[styles.methodLabel, { color: isActive ? dotColor : colors.foreground, fontWeight: isActive ? "800" : "600" }]}>{m.label}</Text>
+                  <Text style={[styles.methodCount, { color: colors.muted }]}>{m.count} appt{m.count !== 1 ? "s" : ""}</Text>
+                  <Text style={[styles.methodTotal, { color: dotColor }]}>${m.total.toFixed(2)}</Text>
+                  <IconSymbol name="chevron.right" size={12} color={isActive ? dotColor : colors.muted} />
+                </Pressable>
+              );
+            })}
           </View>
         )}
 
@@ -423,14 +481,19 @@ export default function PaymentSummaryScreen() {
         ) : (
           <View style={styles.listContainer}>
             {displayedAppts.map(({ appt, clientName, serviceName, price }) => (
-              <ApptRow
+              <Pressable
                 key={appt.id}
-                appt={appt}
-                clientName={clientName}
-                serviceName={serviceName}
-                price={price}
-                colors={colors}
-              />
+                onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } } as any)}
+                style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
+              >
+                <ApptRow
+                  appt={appt}
+                  clientName={clientName}
+                  serviceName={serviceName}
+                  price={price}
+                  colors={colors}
+                />
+              </Pressable>
             ))}
           </View>
         )}

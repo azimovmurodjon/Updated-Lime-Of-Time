@@ -1995,6 +1995,7 @@ export default function HomeScreen() {
           onPressUnpaid={() => router.push({ pathname: '/(tabs)/calendar', params: { filter: 'unpaid' } } as any)}
           onPressFullSummary={() => router.push('/payment-summary' as any)}
           onPressStatus={(status) => router.push({ pathname: '/status-detail', params: { status } } as any)}
+          onPressMethod={(method) => router.push({ pathname: '/payment-summary', params: { method } } as any)}
         />
 
         {/* ─── Unified Revenue Chart Card ───────────────────────────────── */}
