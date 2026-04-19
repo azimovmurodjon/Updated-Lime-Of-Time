@@ -5025,7 +5025,10 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       if (!hasPayment) return;
       const chargedPrice = getChargedPrice();
       if (chargedPrice <= 0) return; // Free booking — no payment needed
+      // Don't show if client already paid via Stripe card
+      if (selectedPaymentMethod === 'card') return;
       const amountStr = '$' + chargedPrice.toFixed(2);
+      const isPaylater = !selectedPaymentMethod || selectedPaymentMethod === 'later';
       // Build QR URL using Google Charts API (no API key needed)
       function qrUrl(text) {
         return 'https://chart.googleapis.com/chart?cht=qr&chs=180x180&choe=UTF-8&chl=' + encodeURIComponent(text);
@@ -5043,9 +5046,13 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         const tag = handle.startsWith('@') ? handle.slice(1) : handle;
         return 'https://venmo.com/' + encodeURIComponent(tag) + '?txn=pay&amount=' + chargedPrice.toFixed(2) + '&note=' + encodeURIComponent('Appointment payment');
       }
+      const sectionTitle = isPaylater ? '💰 How to Pay' : '💰 Payment Options';
+      const sectionSubtitle = isPaylater
+        ? 'Scan a QR code or tap to send <strong>' + amountStr + '</strong> before your appointment'
+        : 'Scan a QR code or tap to pay <strong>' + amountStr + '</strong>';
       let html = '<div style="border:1.5px solid var(--border);border-radius:14px;padding:16px;background:var(--accent-bg);">';
-      html += '<div style="font-weight:700;font-size:15px;color:var(--accent-dark);margin-bottom:4px;">💳 Payment Options</div>';
-      html += '<div style="font-size:13px;color:var(--accent-dark);margin-bottom:14px;">Scan a QR code or tap to pay <strong>' + amountStr + '</strong></div>';
+      html += '<div style="font-weight:700;font-size:15px;color:var(--accent-dark);margin-bottom:4px;">' + sectionTitle + '</div>';
+      html += '<div style="font-size:13px;color:var(--accent-dark);margin-bottom:14px;">' + sectionSubtitle + '</div>';
       html += '<div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">';
       if (methods.zelle) {
         const url = zelleUrl(methods.zelle);

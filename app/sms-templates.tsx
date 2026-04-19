@@ -160,6 +160,7 @@ const VARIABLES = [
   { tag: "{clientPhone}", hint: "Client's phone" },
   { tag: "{bookingUrl}", hint: "Your booking page link" },
   { tag: "{reviewUrl}", hint: "Your review page link" },
+  { tag: "{paymentOptions}", hint: "Zelle/Cash App/Venmo handles" },
 ];
 
 export default function SmsTemplatesScreen() {

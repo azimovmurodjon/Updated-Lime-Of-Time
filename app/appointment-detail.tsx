@@ -139,6 +139,12 @@ export default function AppointmentDetailScreen() {
           ? formatFullAddress(assignedLocation.address, assignedLocation.city, assignedLocation.state, assignedLocation.zipCode)
           : formatFullAddress(profile.address, profile.city, profile.state, profile.zipCode);
         const locLine = assignedLocation?.name ? (fullAddr ? `${assignedLocation.name} \u2014 ${fullAddr}` : assignedLocation.name) : fullAddr;
+        // Build paymentOptions string for {paymentOptions} template variable
+        const _payLines: string[] = [];
+        if (biz.zelleHandle) _payLines.push(`💳 Zelle: ${biz.zelleHandle}`);
+        if (biz.cashAppHandle) _payLines.push(`💵 Cash App: ${biz.cashAppHandle}`);
+        if (biz.venmoHandle) _payLines.push(`💸 Venmo: ${biz.venmoHandle}`);
+        const _paymentOptions = _payLines.length > 0 ? _payLines.join("\n") : "";
         msg = applyTemplate(customTpl, {
           clientName: client.name,
           businessName: biz.businessName,
@@ -151,6 +157,7 @@ export default function AppointmentDetailScreen() {
           clientPhone: client.phone,
           bookingUrl: `${PUBLIC_BOOKING_URL}/book/${slug}${assignedLocation?.id ? "?location=" + assignedLocation.id : ""}`,
           reviewUrl: `${PUBLIC_BOOKING_URL}/review/${slug}`,
+          paymentOptions: _paymentOptions,
         });
       } else {
         msg = generateAcceptMessage(

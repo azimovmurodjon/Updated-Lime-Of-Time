@@ -421,20 +421,22 @@ export function useNotifications() {
                 trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: autoCompleteDate },
               });
 
-              // Also schedule the actual status update via a separate identifier
-              // We use a second notification with a special marker that the listener
-              // will intercept to trigger the store update
+              // Also schedule the actual status update via a separate silent notification
+              // The listener intercepts the _action flag to trigger the store update.
+              // We suppress the banner by using an empty title/body and no sound.
               await Notifications.scheduleNotificationAsync({
                 identifier: `autocomplete-action-${appt.id}`,
                 content: {
-                  title: `_autocomplete_`,
-                  body: `_autocomplete_${appt.id}`,
+                  title: "",
+                  body: "",
                   data: {
                     type: "appointment_completed",
                     appointmentId: appt.id,
                     _action: "mark_complete",
                   } as any,
                   sound: false,
+                  // Suppress the banner on iOS — this is an internal action-only notification
+                  ...(Platform.OS === "ios" ? { interruptionLevel: "passive" as any } : {}),
                 },
                 trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: autoCompleteDate },
               });
