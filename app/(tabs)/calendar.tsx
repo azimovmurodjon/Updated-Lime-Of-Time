@@ -282,6 +282,15 @@ export default function CalendarScreen() {
   const [currentMonth, setCurrentMonth] = useState(() => new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
   const [selectedDate, setSelectedDate] = useState(() => formatDateStr(new Date()));
+  // Payment method filter (only active when activeFilter === "paid")
+  type MethodFilterKey = "cash" | "zelle" | "venmo" | "cashapp";
+  const METHOD_FILTER_OPTIONS: { key: MethodFilterKey; label: string; color: string }[] = [
+    { key: "cash", label: "Cash", color: "#22C55E" },
+    { key: "zelle", label: "Zelle", color: "#6366F1" },
+    { key: "venmo", label: "Venmo", color: "#3B82F6" },
+    { key: "cashapp", label: "Card", color: "#00C896" },
+  ];
+  const [methodFilter, setMethodFilter] = useState<MethodFilterKey | null>(null);
   const FILTER_STORAGE_KEY = "@lime_calendar_filter";
   // Initialise from params first; will be overridden by stored value on mount if no param
   const initialFilter = (params.filter as FilterKey) || "upcoming";
@@ -293,6 +302,7 @@ export default function CalendarScreen() {
   // Persist filter selection to AsyncStorage
   const setActiveFilterPersisted = useCallback((key: FilterKey) => {
     setActiveFilter(key);
+    if (key !== "paid") setMethodFilter(null);
     AsyncStorage.setItem(FILTER_STORAGE_KEY, key).catch(() => {});
     if (key === "requests") {
       AsyncStorage.getItem(SWIPE_HINT_KEY).then((seen) => {
@@ -623,10 +633,11 @@ export default function CalendarScreen() {
         return base
           .filter((a) => a.status !== "cancelled" && a.paymentStatus !== "paid")
           .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
-      case "paid":
-        return base
-          .filter((a) => a.paymentStatus === "paid")
-          .sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
+      case "paid": {
+        const paidList = base.filter((a) => a.paymentStatus === "paid");
+        const methodFiltered = methodFilter ? paidList.filter((a) => a.paymentMethod === methodFilter) : paidList;
+        return methodFiltered.sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
+      }
       case "requests":
         return base.filter((a) => a.status === "pending")
           .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
@@ -638,7 +649,7 @@ export default function CalendarScreen() {
           .sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
       default: return [];
     }
-  }, [locationAppointments, activeFilter, todayStr]);
+  }, [locationAppointments, activeFilter, methodFilter, todayStr]);
 
   // ─── Navigation ───────────────────────────────────────────────────────
 
@@ -1184,7 +1195,7 @@ export default function CalendarScreen() {
       {/* Filter Tabs */}
       <View style={{ paddingHorizontal: hp, marginTop: 20 }}>
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>All Appointments</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: activeFilter === "paid" ? 6 : 12 }}>
           {FILTERS.map((f) => {
             const isActive = activeFilter === f.key;
             const count =
@@ -1211,6 +1222,41 @@ export default function CalendarScreen() {
             );
           })}
         </ScrollView>
+
+        {/* Payment method chips — only shown when Paid filter is active */}
+        {activeFilter === "paid" && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+            <View style={{ flexDirection: "row", gap: 6, paddingHorizontal: 2, paddingVertical: 2 }}>
+              {METHOD_FILTER_OPTIONS.map((m) => {
+                const isActive = methodFilter === m.key;
+                const count = locationAppointments.filter((a) => a.paymentStatus === "paid" && a.paymentMethod === m.key).length;
+                return (
+                  <Pressable
+                    key={m.key}
+                    onPress={() => setMethodFilter((prev) => (prev === m.key ? null : m.key))}
+                    style={({ pressed }) => [{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 5,
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      borderRadius: 20,
+                      backgroundColor: isActive ? m.color : colors.surface,
+                      borderWidth: 1,
+                      borderColor: isActive ? m.color : colors.border,
+                      opacity: pressed ? 0.7 : 1,
+                    }]}
+                  >
+                    <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: isActive ? "#FFF" : m.color }} />
+                    <Text style={{ fontSize: 12, fontWeight: "600", color: isActive ? "#FFF" : colors.foreground }}>
+                      {m.label} ({count})
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </ScrollView>
+        )}
 
         {/* Unpaid / Paid summary banner */}
         {(activeFilter === "unpaid" || activeFilter === "paid") && filteredAppointments.length > 0 && (() => {
