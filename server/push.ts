@@ -32,6 +32,8 @@ export type PushPayload = {
   sound?: "default" | null;
   badge?: number;
   channelId?: string;
+  /** Notification category identifier for inline action buttons (iOS/Android) */
+  categoryIdentifier?: string;
 };
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
@@ -60,7 +62,7 @@ export async function sendExpoPush(
     return false;
   }
 
-  const body = {
+  const body: Record<string, unknown> = {
     to: expoPushToken,
     title: payload.title,
     body: payload.body,
@@ -70,6 +72,10 @@ export async function sendExpoPush(
     channelId: payload.channelId ?? "appointments",
     priority: "high",
   };
+  // Attach category identifier for inline action buttons (iOS/Android)
+  if (payload.categoryIdentifier) {
+    body.categoryIdentifier = payload.categoryIdentifier;
+  }
 
   try {
     const response = await fetch(EXPO_PUSH_URL, {
@@ -147,6 +153,8 @@ export async function notifyNewBooking(
     body: lines,
     data: { type: "appointment_request", appointmentId, filter: "requests" },
     channelId: "appointments",
+    // Show Accept / Decline action buttons on the notification banner
+    categoryIdentifier: "apptrequest",
   });
 }
 
@@ -238,6 +246,8 @@ export async function notifyReschedule(
     body: lines,
     data: { type: "appointment_rescheduled", appointmentId, filter: "requests" },
     channelId: "appointments",
+    // Show Accept / Decline action buttons on the notification banner
+    categoryIdentifier: "apptrequest",
   });
 }
 

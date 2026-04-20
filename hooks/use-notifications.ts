@@ -58,6 +58,21 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
     return null;
   }
 
+  // Register interactive notification category for appointment requests (Accept / Decline)
+  // Category identifier must NOT contain `:` or `-` (Expo limitation)
+  await Notifications.setNotificationCategoryAsync("apptrequest", [
+    {
+      identifier: "accept",
+      buttonTitle: "✅ Accept",
+      options: { opensAppToForeground: false, isDestructive: false, isAuthenticationRequired: false },
+    },
+    {
+      identifier: "decline",
+      buttonTitle: "❌ Decline",
+      options: { opensAppToForeground: false, isDestructive: true, isAuthenticationRequired: false },
+    },
+  ]);
+
   // Set up Android notification channels
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("appointments", {
@@ -299,6 +314,41 @@ export function useNotifications() {
 
     const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
       const data = response.notification.request.content.data as NotificationData;
+      const actionId = response.actionIdentifier;
+
+      // ── Inline action: Accept appointment ─────────────────────────────────
+      if (actionId === "accept" && data?.appointmentId) {
+        const apptId = data.appointmentId;
+        const appt = state.appointments.find((a) => a.id === apptId);
+        if (appt && appt.status === "pending") {
+          const updateAction = {
+            type: "UPDATE_APPOINTMENT_STATUS" as const,
+            payload: { id: apptId, status: "confirmed" as const },
+          };
+          dispatch(updateAction);
+          syncToDb(updateAction);
+          logger.log("[Notifications] Accepted appointment from banner:", apptId);
+        }
+        return; // Don't navigate — action was handled silently
+      }
+
+      // ── Inline action: Decline appointment ────────────────────────────────
+      if (actionId === "decline" && data?.appointmentId) {
+        const apptId = data.appointmentId;
+        const appt = state.appointments.find((a) => a.id === apptId);
+        if (appt && (appt.status === "pending" || appt.status === "confirmed")) {
+          const updateAction = {
+            type: "UPDATE_APPOINTMENT_STATUS" as const,
+            payload: { id: apptId, status: "cancelled" as const },
+          };
+          dispatch(updateAction);
+          syncToDb(updateAction);
+          logger.log("[Notifications] Declined appointment from banner:", apptId);
+        }
+        return; // Don't navigate — action was handled silently
+      }
+
+      // ── Default: tap on notification body → navigate ──────────────────────
       if (data) {
         setTimeout(() => handleNotificationNavigation(data), 300);
       }

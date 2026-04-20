@@ -1520,3 +1520,6 @@
 - [ ] Fix Home page Status section: Week/Month/All tabs filter appointment counts correctly
 - [ ] Fix Home page Status section: "View All" navigates to Calendar tab (not a different page)
 - [ ] Fix Home page Status section: clicking a status row (Completed/Confirmed/Pending/Cancelled) navigates to Calendar tab with correct filter
+
+- [ ] Add inline Accept/Decline notification action buttons (iOS/Android notification banner) for appointment_request and appointment_rescheduled notifications
+- [ ] Verify Calendar tab red badge for pending requests is working correctly
