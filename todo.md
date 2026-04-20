@@ -1474,3 +1474,4 @@
 - [x] Update OTP send route to write log entry (phone, status, error) on each send attempt
 - [x] Add OTP log table HTML below the send panel in Platform Config page
 - [x] Add 30-second resend cooldown on Send OTP button after successful send
+- [x] Add missing Twilio Verify Service SID input field to Platform Config page (was causing OTP send to fail)

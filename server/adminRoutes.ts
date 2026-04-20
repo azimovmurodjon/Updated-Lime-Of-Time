@@ -945,6 +945,7 @@ export function registerAdminRoutes(app: Express): void {
       const keyDefs: Array<{ key: string; sensitive: boolean; desc: string }> = [
         { key: "TWILIO_ACCOUNT_SID", sensitive: true, desc: "Twilio Account SID" },
         { key: "TWILIO_AUTH_TOKEN", sensitive: true, desc: "Twilio Auth Token" },
+        { key: "TWILIO_VERIFY_SERVICE_SID", sensitive: true, desc: "Twilio Verify Service SID" },
         { key: "TWILIO_FROM_NUMBER", sensitive: false, desc: "Twilio From Phone Number" },
         { key: "TWILIO_TEST_MODE", sensitive: false, desc: "Twilio Test Mode (true/false)" },
         { key: "TWILIO_TEST_OTP", sensitive: false, desc: "Test OTP code (default: 123456)" },
@@ -4023,6 +4024,7 @@ function platformConfigPage(
         </div>
         ${field("twilio_account_sid", "Account SID", "Found in your Twilio Console dashboard", true, "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", cfgMap["TWILIO_ACCOUNT_SID"] || "")}
         ${field("twilio_auth_token", "Auth Token", "Found in your Twilio Console dashboard", true, "Your Twilio Auth Token", cfgMap["TWILIO_AUTH_TOKEN"] || "")}
+        ${field("twilio_verify_service_sid", "Verify Service SID", "From Twilio Console → Verify → Services — starts with VA...", true, "VAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", cfgMap["TWILIO_VERIFY_SERVICE_SID"] || "")}
         ${field("twilio_from_number", "From Phone Number", "Your Twilio phone number in E.164 format", false, "+14155551234", cfgMap["TWILIO_FROM_NUMBER"] || "")}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
           <div>
