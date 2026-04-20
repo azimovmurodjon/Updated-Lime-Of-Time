@@ -418,7 +418,7 @@ export function registerStripeConnectRoutes(app: Express): void {
                 await sendExpoPush(owners[0].pushToken, {
                   title: "✅ Payout Arrived",
                   body: `$${amountDollars} ${currency} has been deposited to your bank account.`,
-                  data: { type: "general" },
+                  data: { type: "stripe_payout" },
                   sound: "default",
                 });
               }
@@ -451,7 +451,7 @@ export function registerStripeConnectRoutes(app: Express): void {
                 await sendExpoPush(owners[0].pushToken, {
                   title: "⚠️ Payout Failed",
                   body: `$${amountDollars} ${currency} payout failed. ${failureMsg}`,
-                  data: { type: "general" },
+                  data: { type: "stripe_payout" },
                   sound: "default",
                 });
                 console.log(`[StripeConnect] Payout FAILED notification sent to owner ${owners[0].id}: $${amountDollars}`);
@@ -488,7 +488,7 @@ export function registerStripeConnectRoutes(app: Express): void {
                 await sendExpoPush(owners[0].pushToken, {
                   title: "💸 Payout Initiated",
                   body: `$${amountDollars} ${currency} is on its way — expected to arrive ${arrivalDate}.`,
-                  data: { type: "general" },
+                  data: { type: "stripe_payout" },
                   sound: "default",
                 });
                 console.log(`[StripeConnect] Payout notification sent to owner ${owners[0].id}: $${amountDollars} arriving ${arrivalDate}`);

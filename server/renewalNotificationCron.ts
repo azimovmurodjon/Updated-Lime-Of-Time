@@ -65,7 +65,7 @@ async function sendRenewalNotifications() {
         const sent = await sendExpoPush(owner.expoPushToken!, {
           title: "Subscription Renewing in 3 Days",
           body: `Your ${planName} plan renews on ${renewalDate}. Manage billing in Settings → Subscription.`,
-          data: { type: "general" },
+          data: { type: "subscription_renewal" },
           sound: "default",
         });
         if (sent) {

@@ -1315,7 +1315,7 @@ export function registerPublicRoutes(app: Express) {
           await sendExpoPush(ownerPushToken, {
             title: `💰 ${methodLabel} Received — ${owner.businessName}`,
             body: `${client?.name || "A client"} says they sent payment for ${svc?.name || "appointment"} on ${appt.date} at ${appt.time}. Tap to confirm.`,
-            data: { type: "general" as const, appointmentId },
+            data: { type: "payment_received" as const, appointmentId, filter: "upcoming" as const },
           });
         }
       } catch (pushErr) {

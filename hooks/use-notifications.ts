@@ -32,6 +32,9 @@ export type NotificationData = {
     | "appointment_cancelled"
     | "appointment_rescheduled"
     | "appointment_completed"
+    | "payment_received"
+    | "stripe_payout"
+    | "subscription_renewal"
     | "waitlist"
     | "general";
   /** Appointment ID to navigate to */
@@ -187,42 +190,78 @@ export function useNotifications() {
       const filter = data.filter as string | undefined;
 
       switch (notifType) {
+        // ── Actionable: go directly to the appointment so owner can accept/decline ──
         case "appointment_request":
         case "appointment_rescheduled":
-          router.push({ pathname: "/(tabs)/calendar", params: { filter: "requests" } });
-          break;
-
-        case "appointment_cancelled":
-          router.push({ pathname: "/(tabs)/calendar", params: { filter: "cancelled" } });
-          break;
-
-        case "appointment_completed":
           if (appointmentId) {
-            router.push({ pathname: "/appointment-detail", params: { id: appointmentId } });
+            // Deep-link straight to the detail screen — all accept/cancel actions are there
+            router.push({ pathname: "/appointment-detail", params: { id: appointmentId, from: "notification" } });
           } else {
-            router.push({ pathname: "/(tabs)/calendar", params: { filter: "completed" } });
+            // Fallback: open the Requests tab if no ID is available
+            router.push({ pathname: "/(tabs)/calendar", params: { filter: "requests" } });
           }
           break;
 
-        case "waitlist":
-          router.push({ pathname: "/(tabs)/calendar", params: { filter: "requests" } });
-          break;
-
-        case "appointment_reminder":
+        // ── Payment received: go to appointment detail to confirm payment ──────────
+        case "payment_received":
           if (appointmentId) {
-            router.push({ pathname: "/appointment-detail", params: { id: appointmentId } });
+            router.push({ pathname: "/appointment-detail", params: { id: appointmentId, from: "notification" } });
           } else {
             router.push({ pathname: "/(tabs)/calendar", params: { filter: "upcoming" } });
           }
           break;
 
+        // ── Cancellation: open cancelled tab (no appointment to act on) ───────────
+        case "appointment_cancelled":
+          if (appointmentId) {
+            router.push({ pathname: "/appointment-detail", params: { id: appointmentId, from: "notification" } });
+          } else {
+            router.push({ pathname: "/(tabs)/calendar", params: { filter: "cancelled" } });
+          }
+          break;
+
+        // ── Completed: view the completed appointment record ──────────────────────
+        case "appointment_completed":
+          if (appointmentId) {
+            router.push({ pathname: "/appointment-detail", params: { id: appointmentId, from: "notification" } });
+          } else {
+            router.push({ pathname: "/(tabs)/calendar", params: { filter: "completed" } });
+          }
+          break;
+
+        // ── Waitlist: no appointment yet — open Requests tab to schedule ──────────
+        case "waitlist":
+          router.push({ pathname: "/(tabs)/calendar", params: { filter: "requests" } });
+          break;
+
+        // ── Reminder: go directly to the appointment ──────────────────────────────
+        case "appointment_reminder":
+          if (appointmentId) {
+            router.push({ pathname: "/appointment-detail", params: { id: appointmentId, from: "notification" } });
+          } else {
+            router.push({ pathname: "/(tabs)/calendar", params: { filter: "upcoming" } });
+          }
+          break;
+
+        // ── Stripe / subscription / general ──────────────────────────────────────
+        case "stripe_payout":
+          router.push({ pathname: "/(tabs)/settings", params: { tab: "account" } });
+          break;
+
+        case "subscription_renewal":
+          router.push({ pathname: "/subscription" });
+          break;
+
         default:
-          if (filter) {
+          if (appointmentId) {
+            router.push({ pathname: "/appointment-detail", params: { id: appointmentId, from: "notification" } });
+          } else if (filter) {
             router.push({ pathname: "/(tabs)/calendar", params: { filter } });
-          } else if (appointmentId) {
-            router.push({ pathname: "/appointment-detail", params: { id: appointmentId } });
           } else if (data.url && typeof data.url === "string") {
             router.push(data.url as any);
+          } else {
+            // Fallback: open the calendar home
+            router.push({ pathname: "/(tabs)/calendar" });
           }
           break;
       }

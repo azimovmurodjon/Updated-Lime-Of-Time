@@ -15,6 +15,9 @@ export type PushNotificationData = {
     | "waitlist"
     | "appointment_reminder"
     | "appointment_completed"
+    | "payment_received"
+    | "stripe_payout"
+    | "subscription_renewal"
     | "general";
   /** Appointment local ID for navigating to the specific appointment */
   appointmentId?: string;
