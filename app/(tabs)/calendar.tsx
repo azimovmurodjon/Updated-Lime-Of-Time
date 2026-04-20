@@ -433,7 +433,7 @@ export default function CalendarScreen() {
 
   // Use per-location workingHours if available, fall back to global settings (same logic as schedule-settings.tsx)
   const effectiveWorkingHours = useMemo(() => {
-    if (activeLocation?.workingHours && Object.keys(activeLocation.workingHours).length > 0) {
+    if (activeLocation?.workingHours != null && Object.keys(activeLocation.workingHours).length > 0) {
       return activeLocation.workingHours;
     }
     return state.settings.workingHours;
@@ -446,9 +446,9 @@ export default function CalendarScreen() {
     // Merge: for each day, find the earliest start and latest end across all locations
     const merged: Record<string, { enabled: boolean; start: string; end: string }> = {};
     for (const loc of activeLocations) {
-      const wh = (loc.workingHours && Object.keys(loc.workingHours).length > 0)
+      const wh = (loc.workingHours != null && Object.keys(loc.workingHours).length > 0)
         ? loc.workingHours
-        : state.settings.workingHours;
+        : (state.settings.workingHours ?? undefined);
       if (!wh) continue;
       for (const [day, hours] of Object.entries(wh)) {
         if (!hours || !(hours as any).enabled) continue;
@@ -496,7 +496,7 @@ export default function CalendarScreen() {
         if (locCustom) { if (locCustom.isOpen) return true; continue; }
         const d = new Date(dateStr + "T12:00:00");
         const dayName = DAY_NAMES[d.getDay()];
-        const wh = (loc.workingHours && Object.keys(loc.workingHours).length > 0)
+        const wh = (loc.workingHours != null && Object.keys(loc.workingHours).length > 0)
           ? (loc.workingHours as any)[dayName]
           : state.settings.workingHours?.[dayName];
         if (wh && wh.enabled && !loc.temporarilyClosed) return true;
@@ -537,7 +537,7 @@ export default function CalendarScreen() {
         }
         const d = new Date(dateStr + "T12:00:00");
         const dayName = DAY_NAMES[d.getDay()];
-        const wh = (loc.workingHours && Object.keys(loc.workingHours).length > 0)
+        const wh = (loc.workingHours != null && Object.keys(loc.workingHours).length > 0)
           ? (loc.workingHours as any)[dayName]
           : state.settings.workingHours?.[dayName];
         if (wh && wh.enabled && !loc.temporarilyClosed) {

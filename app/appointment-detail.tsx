@@ -178,9 +178,9 @@ export default function AppointmentDetailScreen() {
   const reschedSlots = useMemo(() => {
     if (!appointment) return [];
     const loc = assignedLocation;
-    const wh = (loc?.workingHours && Object.keys(loc.workingHours).length > 0)
+    const wh = (loc?.workingHours != null && Object.keys(loc.workingHours).length > 0)
       ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
-      : state.settings.workingHours;
+      : (state.settings.workingHours ?? undefined);
     // Exclude the current appointment from conflict check
     const otherAppts = state.appointments.filter(a => a.id !== appointment.id);
     return generateAvailableSlots(

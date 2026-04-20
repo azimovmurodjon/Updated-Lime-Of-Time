@@ -1523,3 +1523,20 @@
 
 - [ ] Add inline Accept/Decline notification action buttons (iOS/Android notification banner) for appointment_request and appointment_rescheduled notifications
 - [ ] Verify Calendar tab red badge for pending requests is working correctly
+
+- [x] Fix null workingHours crash in lib/types.ts (generateAvailableSlots now uses resolvedWorkingHours with != null guard)
+- [x] Fix null workingHours crash in app/appointment-detail.tsx (reschedSlots useMemo)
+- [x] Fix null workingHours crash in app/new-booking.tsx (5 occurrences of Object.keys(null) pattern)
+- [x] Fix null workingHours crash in app/calendar.tsx (4 occurrences of Object.keys(null) pattern)
+- [x] Fix Zelle QR broken image on booking page (use plain handle as QR value instead of zelle: scheme)
+- [x] Card payment success page: retry up to 9s, show location and client name in receipt
+- [x] Auto-mark appointment as paid when Stripe webhook fires (push notification + app auto-update)
+- [x] Push notification deep-links to correct screens (appointment-detail, calendar, settings, subscription)
+- [x] Inline Accept/Decline notification action buttons (categoryIdentifier: apptrequest)
+- [x] Calendar tab red badge for pending requests
+- [x] Fix hooks ordering crash in appointment-detail.tsx (early return was before 5 hooks)
+- [x] Per-location QR codes in Settings > Locations screen
+- [x] Sharing links/QR always use base URL (no ?location= param)
+- [x] Location-first booking flow (step 0 = Location)
+- [x] Persistent location banner on all booking steps
+- [x] Auto-skip location step for single-location businesses

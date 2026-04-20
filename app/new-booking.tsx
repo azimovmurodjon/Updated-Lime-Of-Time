@@ -111,9 +111,9 @@ export default function NewBookingScreen() {
       if (endDate && selectedDate > endDate) { result[loc.id] = false; continue; }
       const locCustomSchedule = getLocCustomSchedule(loc.id);
       const customDay = locCustomSchedule.find((cs: { date: string; isOpen: boolean }) => cs.date === selectedDate);
-      const locWH = (loc.workingHours && Object.keys(loc.workingHours).length > 0)
+      const locWH = (loc.workingHours != null && Object.keys(loc.workingHours).length > 0)
         ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
-        : state.settings.workingHours;
+        : (state.settings.workingHours ?? undefined);
       if (state.settings.scheduleMode === "custom") {
         result[loc.id] = !!(customDay?.isOpen);
       } else if (customDay) {
@@ -193,9 +193,9 @@ export default function NewBookingScreen() {
       // If location is closed on this date, time is also unavailable
       if (locationOpenOnDate[loc.id] === false) { result[loc.id] = false; continue; }
       const locCustomSchedule = getLocCustomSchedule(loc.id);
-      const locWH = (loc.workingHours && Object.keys(loc.workingHours).length > 0)
+      const locWH = (loc.workingHours != null && Object.keys(loc.workingHours).length > 0)
         ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
-        : state.settings.workingHours;
+        : (state.settings.workingHours ?? undefined);
       const locAppts = state.appointments.filter((a) => a.locationId === loc.id);
       const slots = generateAvailableSlots(
         selectedDate, totalDuration, locWH, locAppts, effectiveStep,
@@ -314,9 +314,9 @@ export default function NewBookingScreen() {
     for (const loc of activeLocations) {
       if (locationOpenOnDate[loc.id] === false) continue;
       const locCustomSchedule = getLocCustomSchedule(loc.id);
-      const locWH = (loc.workingHours && Object.keys(loc.workingHours).length > 0)
+      const locWH = (loc.workingHours != null && Object.keys(loc.workingHours).length > 0)
         ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
-        : state.settings.workingHours;
+        : (state.settings.workingHours ?? undefined);
       const locAppts = state.appointments.filter((a) => a.locationId === loc.id);
       const slots = generateAvailableSlots(
         selectedDate, totalDuration, locWH, locAppts, effectiveStep,
@@ -396,9 +396,9 @@ export default function NewBookingScreen() {
             if (loc.temporarilyClosed) continue;
             const locCustomSchedule = getLocCustomSchedule(loc.id);
             const locCustomDay = locCustomSchedule.find((cs: { date: string; isOpen: boolean }) => cs.date === ds);
-            const locWH = (loc.workingHours && Object.keys(loc.workingHours).length > 0)
+            const locWH = (loc.workingHours != null && Object.keys(loc.workingHours).length > 0)
               ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
-              : state.settings.workingHours;
+              : (state.settings.workingHours ?? undefined);
             if (state.settings.scheduleMode === "custom") {
               if (locCustomDay?.isOpen) { anyOpen = true; break; }
             } else {
@@ -436,9 +436,9 @@ export default function NewBookingScreen() {
           for (const loc of activeLocations) {
             if (loc.temporarilyClosed) continue;
             const locCustomSchedule = getLocCustomSchedule(loc.id);
-            const locWH = (loc.workingHours && Object.keys(loc.workingHours).length > 0)
+            const locWH = (loc.workingHours != null && Object.keys(loc.workingHours).length > 0)
               ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
-              : state.settings.workingHours;
+              : (state.settings.workingHours ?? undefined);
             const locAppts = state.appointments.filter((a) => a.locationId === loc.id);
             const slots = generateAvailableSlots(ds, totalDuration, locWH, locAppts, effectiveStep, locCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
             if (slots.length > 0) { anySlots = true; break; }

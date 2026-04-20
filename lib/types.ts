@@ -625,13 +625,15 @@ function filterSlots(
 export function generateAvailableSlots(
   date: string,
   serviceDuration: number,
-  workingHours: Record<string, WorkingHours>,
+  workingHours: Record<string, WorkingHours> | null | undefined,
   appointments: Appointment[],
   stepMinutes: number = 30,
   customSchedule?: CustomScheduleDay[],
   scheduleMode: "weekly" | "custom" = "weekly",
   bufferTime: number = 0
 ): string[] {
+  // Guard: if workingHours is null/undefined, fall back to DEFAULT_WORKING_HOURS
+  const resolvedWorkingHours: Record<string, WorkingHours> = workingHours ?? DEFAULT_WORKING_HOURS;
   const customDay = customSchedule?.find((cs) => cs.date === date);
 
   if (scheduleMode === "custom") {
@@ -669,7 +671,7 @@ export function generateAvailableSlots(
     const dateObj2 = new Date(date + "T12:00:00");
     const dayIndex2 = dateObj2.getDay();
     const dayName2 = DAYS_OF_WEEK[dayIndex2];
-    const wh2 = workingHours[dayName2] || workingHours[dayName2.toLowerCase()];
+    const wh2 = resolvedWorkingHours[dayName2] || resolvedWorkingHours[dayName2.toLowerCase()];
     const fallbackStart = wh2?.start ?? "09:00";
     const fallbackEnd = wh2?.end ?? "17:00";
     const startMin2 = timeToMinutes(fallbackStart);
@@ -685,7 +687,7 @@ export function generateAvailableSlots(
   const dateObj = new Date(date + "T12:00:00");
   const dayIndex = dateObj.getDay();
   const dayName = DAYS_OF_WEEK[dayIndex];
-  const wh = workingHours[dayName] || workingHours[dayName.toLowerCase()];
+  const wh = resolvedWorkingHours[dayName] || resolvedWorkingHours[dayName.toLowerCase()];
   if (!wh || !wh.enabled) return [];
 
   const startMin = timeToMinutes(wh.start);

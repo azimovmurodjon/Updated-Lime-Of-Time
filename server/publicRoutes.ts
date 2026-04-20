@@ -5214,8 +5214,9 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       }
       // Build deep-link URLs for each payment app
       function zelleUrl(handle) {
-        // Zelle doesn't have a universal deep link, show handle as QR
-        return 'zelle:' + handle;
+        // Zelle doesn't have a universal deep link; use plain handle as QR value
+        // so Google Charts can render it (zelle: scheme is not a valid URL)
+        return handle;
       }
       function cashAppUrl(handle) {
         const tag = handle.startsWith('$') ? handle : '$' + handle;
@@ -6388,7 +6389,7 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any,
       const showCashApp = cashAppHandle && (!clientMethod || clientMethod === 'cashapp');
       const showVenmo = venmoHandle && (!clientMethod || clientMethod === 'venmo');
       if (showZelle) {
-        const url = 'zelle:' + zelleHandle;
+        const url = zelleHandle; // plain handle/email/phone as QR value
         html += '<div style="flex:1;min-width:130px;max-width:200px;background:#fff;border-radius:12px;padding:12px;border:2px solid #6d28d9;text-align:center;">';
         html += '<div style="font-weight:700;font-size:13px;color:#6d28d9;margin-bottom:8px;">💜 Zelle</div>';
         html += '<img src="' + qrUrl(url) + '" alt="Zelle QR" style="width:140px;height:140px;border-radius:8px;" loading="lazy">';
