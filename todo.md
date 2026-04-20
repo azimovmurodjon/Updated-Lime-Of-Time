@@ -1485,3 +1485,8 @@
 - [x] Add staggered fade-in + slide-up animation to tagline and "by Innovancio" text on onboarding screen load
 - [x] Add separate slide-up fade-in animation to "Lime Of Time" app name to complete staggered entrance sequence
 - [x] Add splash screen logo pulse/scale animation and fade transition before dismissing to onboarding screen
+- [x] Fix Verify Service SID save/load in platform config (currently shows placeholder after save)
+- [x] Fix Test Mode toggle — when OFF use real Twilio Verify, when ON use static OTP code
+- [x] Add per-phone test mode override (specific numbers bypass Twilio, others get real OTP)
+- [x] Fix app-side OTP send/verify to respect Test Mode setting from DB
+- [x] Verify all Twilio connections end-to-end

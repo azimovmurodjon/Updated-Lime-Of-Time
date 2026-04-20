@@ -132,6 +132,18 @@ export function registerAdminRoutes(app: Express): void {
     res.json({ ok: true, ts: Date.now() });
   });
 
+  // Debug: read raw Twilio config from DB (bypasses cache)
+  app.get("/api/admin/debug-config", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.json({ error: "no db" }); return; }
+      const rows = await dbase.select().from(platformConfig);
+      const result: Record<string, string | null> = {};
+      for (const row of rows) result[row.configKey] = row.configValue;
+      res.json(result);
+    } catch (err: any) { res.json({ error: err.message }); }
+  });
+
   // Logout
   app.get("/api/admin/logout", (_req: Request, res: Response) => {
     const sessionId = getSessionFromCookie(_req);
@@ -970,10 +982,11 @@ export function registerAdminRoutes(app: Express): void {
         } else {
           value = (req.body[formKey] || "").toString().trim();
         }
-        // Check if exists
+        // Upsert: update if exists, insert if not
         const existing = await dbase.select().from(platformConfig).where(eq(platformConfig.configKey, def.key)).limit(1);
         if (existing.length > 0) {
-          await dbase.update(platformConfig).set({ configValue: value, updatedAt: new Date() }).where(eq(platformConfig.configKey, def.key));
+          // Do NOT pass updatedAt — let onUpdateNow() handle it to avoid Drizzle MySQL2 conflicts
+          await dbase.update(platformConfig).set({ configValue: value }).where(eq(platformConfig.configKey, def.key));
         } else {
           await dbase.insert(platformConfig).values({ configKey: def.key, configValue: value, isSensitive: def.sensitive, description: def.desc });
         }
