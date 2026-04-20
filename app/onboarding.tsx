@@ -647,10 +647,18 @@ export default function OnboardingScreen() {
     };
     const target = backMap[displayStep];
     if (!target || loading) return;
-    if (displayStep === "otp") {
+    // Going back to step 1 (phone entry) — clear phone + OTP state
+    // and reset the typing flag so auto-advance doesn't fire on the pre-filled value
+    if (target === 1) {
+      setPhone("");
       setOtpValue("");
       setOtpError("");
       setOtpDigits(["","","","","",""]);
+      userIsTypingPhoneRef.current = false;
+      if (autoAdvanceRef.current) {
+        clearTimeout(autoAdvanceRef.current);
+        autoAdvanceRef.current = null;
+      }
     }
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     navigateToStep(target);
@@ -670,9 +678,13 @@ export default function OnboardingScreen() {
     });
 
   // ─── Auto-advance when phone is fully entered ──────────────────────
+  // Only fires when the user is actively typing — NOT when navigating back
   const autoAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const userIsTypingPhoneRef = useRef(false);
+
   useEffect(() => {
-    if (displayStep !== 1 || loading) return;
+    // Only auto-advance if the user actively typed (not a back-navigation)
+    if (displayStep !== 1 || loading || !userIsTypingPhoneRef.current) return;
     const stripped = stripPhoneFormat(phone);
     const isUS = selectedCountry.dial === "+1";
     const targetLen = isUS ? 10 : 8; // US: 10 digits, international: ≥8 digits
@@ -694,6 +706,7 @@ export default function OnboardingScreen() {
   }, [phone, displayStep, selectedCountry, loading]);
 
   const handlePhoneChange = (text: string) => {
+    userIsTypingPhoneRef.current = true; // Mark that user is actively typing
     setPhone(formatPhoneNumber(text));
   };
 

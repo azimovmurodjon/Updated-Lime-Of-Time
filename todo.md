@@ -1457,3 +1457,4 @@
 - [x] Fix: Business info step not scrolling on onboarding
 - [x] Wire Twilio Verify OTP into server send/check routes
 - [x] Add OTP test panel to Admin screen
+- [x] Fix: back from Business Info loops between OTP and Phone step due to auto-advance firing on pre-filled phone
