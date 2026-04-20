@@ -211,6 +211,50 @@ function ClockIcon({ size, color }: { size: number; color: string }) {
   );
 }
 
+// ─── Animated Progress Dots ────────────────────────────────────────────────
+function ProgressDots({ step }: { step: Step }) {
+  const stepToNum = (st: Step): number => {
+    if (st === 1 || st === "otp" || st === "socialPhone") return 1;
+    if (st === 2) return 2;
+    if (st === "subscription") return 3;
+    return 4;
+  };
+  const numericStep = stepToNum(step);
+
+  // One shared value per dot for width
+  const w1 = useSharedValue(numericStep === 1 ? 24 : 8);
+  const w2 = useSharedValue(numericStep === 2 ? 24 : 8);
+  const w3 = useSharedValue(numericStep === 3 ? 24 : 8);
+  const w4 = useSharedValue(numericStep === 4 ? 24 : 8);
+  const widths = [w1, w2, w3, w4];
+
+  useEffect(() => {
+    widths.forEach((w, i) => {
+      w.value = withTiming(i + 1 === numericStep ? 24 : 8, { duration: 250, easing: Easing.out(Easing.cubic) });
+    });
+  }, [numericStep]);
+
+  const s1 = useAnimatedStyle(() => ({ width: w1.value }));
+  const s2 = useAnimatedStyle(() => ({ width: w2.value }));
+  const s3 = useAnimatedStyle(() => ({ width: w3.value }));
+  const s4 = useAnimatedStyle(() => ({ width: w4.value }));
+  const dotStyles = [s1, s2, s3, s4];
+
+  return (
+    <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, marginBottom: 20 }}>
+      {[1, 2, 3, 4].map((s, i) => (
+        <Animated.View
+          key={s}
+          style={[
+            { height: 8, borderRadius: 4, backgroundColor: s <= numericStep ? "#8FBF6A" : "rgba(255,255,255,0.25)" },
+            dotStyles[i],
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
+
 export default function OnboardingScreen() {
   const { dispatch, syncToDb, state: appState } = useStore();
   const colors = useColors();
@@ -237,20 +281,36 @@ export default function OnboardingScreen() {
 
   const navigateToStep = useCallback((nextStep: Step) => {
     const direction = stepIndex(nextStep) >= stepIndex(prevStepRef.current) ? 1 : -1;
-    const W = 380; // approximate card width
-    // Slide current content out
-    slideX.value = withTiming(direction * -W, { duration: 220, easing: Easing.in(Easing.quad) }, () => {
-      runOnJS(setDisplayStep)(nextStep);
-      // Slide new content in from opposite side
-      slideX.value = direction * W;
-      slideX.value = withTiming(0, { duration: 260, easing: Easing.out(Easing.quad) });
+    // Use real screen width for a full off-screen slide
+    const W = width > 0 ? width : 400;
+    const SLIDE_OUT_DURATION = 200;
+    const SLIDE_IN_DURATION = 280;
+
+    // Phase 1: slide current card out to the left (forward) or right (back)
+    slideX.value = withTiming(
+      direction * -W,
+      { duration: SLIDE_OUT_DURATION, easing: Easing.in(Easing.cubic) },
+      () => {
+        // Swap content instantly while card is off-screen
+        runOnJS(setDisplayStep)(nextStep);
+        // Position new card off-screen on the opposite side
+        slideX.value = direction * W;
+        // Phase 2: slide new card in from the side
+        slideX.value = withTiming(0, {
+          duration: SLIDE_IN_DURATION,
+          easing: Easing.out(Easing.cubic),
+        });
+      },
+    );
+
+    // Opacity: fade out quickly, then fade back in as new content arrives
+    slideOpacity.value = withTiming(0, { duration: SLIDE_OUT_DURATION * 0.7 }, () => {
+      slideOpacity.value = withTiming(1, { duration: SLIDE_IN_DURATION * 0.8 });
     });
-    slideOpacity.value = withTiming(0, { duration: 180 }, () => {
-      slideOpacity.value = withTiming(1, { duration: 260 });
-    });
+
     prevStepRef.current = nextStep;
     setStep(nextStep);
-  }, []);
+  }, [width]);
   const { biometricAvailable, biometricType, toggleBiometric } = useAppLockContext();
   const [selectedCountry, setSelectedCountry] = useState<Country>(DEFAULT_COUNTRY);
   const [phone, setPhone] = useState("");
@@ -945,32 +1005,12 @@ export default function OnboardingScreen() {
               <View style={{ width: 24, height: 1, backgroundColor: "rgba(255,255,255,0.3)" }} />
             </View>
           </Animated.View>          {/* ─── Progress Dots ──────────────────────────────────── */}
-          <View style={styles.progressRow}>
-            {[1, 2, 3, 4].map((s) => {
-              const stepToNum = (st: Step): number => {
-                if (st === 1 || st === "otp" || st === "socialPhone") return 1;
-                if (st === 2) return 2;
-                if (st === "subscription") return 3;
-                return 4;
-              };
-              const numericStep = stepToNum(displayStep);
-              return (
-                <View
-                  key={s}
-                  style={[
-                    styles.progressDot,
-                    {
-                      backgroundColor: s <= numericStep ? "#8FBF6A" : "rgba(255,255,255,0.25)",
-                      width: s === numericStep ? 24 : 8,
-                    },
-                  ]}
-                />
-              );
-            })}
-          </View>
+          <ProgressDots step={displayStep} />
 
           {/* ─── White Card ──────────────────────────────────── */}
-          <Animated.View style={[styles.card, slideStyle]}>
+          {/* Clip container prevents the sliding card from overflowing onto the background */}
+          <View style={{ overflow: "hidden", borderRadius: 24 }}>
+          <Animated.View style={[styles.card, slideStyle, { borderRadius: 24 }]}>
             {/* Step 1: Phone */}
             {displayStep === 1 && (
               <>
@@ -1492,6 +1532,7 @@ export default function OnboardingScreen() {
               </>
             )}
           </Animated.View>
+          </View>{/* end clip container */}
         </ScrollView>
       </KeyboardAvoidingView>
     </View>

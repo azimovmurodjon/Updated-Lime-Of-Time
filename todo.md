@@ -1449,3 +1449,4 @@
 - [x] Client booking page: show only the selected payment method's QR code (not all three)
 - [x] Onboarding: animated swipe-up hint below Continue button
 - [x] Onboarding: auto-advance when phone number is fully entered
+- [x] Onboarding: slide-left/slide-right transitions between all steps
