@@ -1110,7 +1110,8 @@ export default function OnboardingScreen() {
                       value={phone}
                       onChangeText={handlePhoneChange}
                       keyboardType="phone-pad"
-                      returnKeyType="done"
+                      returnKeyType="none"
+                      inputAccessoryViewID="suppress"
                       onSubmitEditing={() => handleBtnPress(handlePhoneNext)}
                       maxLength={selectedCountry.dial === "+1" ? 14 : 15}
                       editable={!loading}
@@ -1227,7 +1228,8 @@ export default function OnboardingScreen() {
                       value={phone}
                       onChangeText={handlePhoneChange}
                       keyboardType="phone-pad"
-                      returnKeyType="done"
+                      returnKeyType="none"
+                      inputAccessoryViewID="suppress"
                       onSubmitEditing={() => handleBtnPress(handleSocialPhoneNext)}
                       maxLength={selectedCountry.dial === "+1" ? 14 : 15}
                       editable={!loading}
