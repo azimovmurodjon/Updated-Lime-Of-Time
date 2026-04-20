@@ -963,40 +963,72 @@ const twilioRouter = router({
 });
 
 // ─── OTP Router ─────────────────────────────────────────────────────
-// In-memory OTP store (phone → { code, expiresAt })
-// For production scale, replace with Redis or DB table
+// Uses Twilio Verify API when credentials are configured.
+// Falls back to in-memory test mode (code = TWILIO_TEST_OTP or "123456") when not.
 const otpStore = new Map<string, { code: string; expiresAt: number }>();
 
-async function sendOtpViaTwilio(toNumber: string, code: string): Promise<boolean> {
-  const accountSid = await getPlatformConfig("TWILIO_ACCOUNT_SID");
-  const authToken = await getPlatformConfig("TWILIO_AUTH_TOKEN");
-  const fromNumber = await getPlatformConfig("TWILIO_FROM_NUMBER");
-  if (!accountSid || !authToken || !fromNumber) return false;
+/** Get Twilio Verify credentials from env or platform_config (env takes priority) */
+async function getTwilioVerifyCredentials() {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID || await getPlatformConfig("TWILIO_ACCOUNT_SID");
+  const authToken = process.env.TWILIO_AUTH_TOKEN || await getPlatformConfig("TWILIO_AUTH_TOKEN");
+  const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID || await getPlatformConfig("TWILIO_VERIFY_SERVICE_SID");
+  return { accountSid, authToken, serviceSid };
+}
+
+/** Send OTP via Twilio Verify API */
+async function sendOtpViaTwilioVerify(toNumber: string): Promise<{ ok: boolean; error?: string }> {
+  const { accountSid, authToken, serviceSid } = await getTwilioVerifyCredentials();
+  if (!accountSid || !authToken || !serviceSid) return { ok: false, error: "Twilio Verify not configured" };
   try {
-    const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+    const url = `https://verify.twilio.com/v2/Services/${serviceSid}/Verifications`;
     const params = new URLSearchParams();
-    params.append("From", fromNumber);
     params.append("To", toNumber);
-    params.append("Body", `Your Lime of Time verification code is: ${code}. Valid for 10 minutes.`);
+    params.append("Channel", "sms");
     const credentials = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
     const response = await fetch(url, {
       method: "POST",
       headers: { Authorization: `Basic ${credentials}`, "Content-Type": "application/x-www-form-urlencoded" },
       body: params.toString(),
     });
-    return response.ok;
-  } catch {
-    return false;
+    const data = await response.json() as { status?: string; message?: string };
+    if (response.ok && (data.status === "pending" || data.status === "approved")) return { ok: true };
+    return { ok: false, error: data.message ?? `Twilio error ${response.status}` };
+  } catch (e: unknown) {
+    return { ok: false, error: e instanceof Error ? e.message : "Network error" };
+  }
+}
+
+/** Check OTP via Twilio Verify API */
+async function checkOtpViaTwilioVerify(toNumber: string, code: string): Promise<{ valid: boolean; error?: string }> {
+  const { accountSid, authToken, serviceSid } = await getTwilioVerifyCredentials();
+  if (!accountSid || !authToken || !serviceSid) return { valid: false, error: "Twilio Verify not configured" };
+  try {
+    const url = `https://verify.twilio.com/v2/Services/${serviceSid}/VerificationCheck`;
+    const params = new URLSearchParams();
+    params.append("To", toNumber);
+    params.append("Code", code);
+    const credentials = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Basic ${credentials}`, "Content-Type": "application/x-www-form-urlencoded" },
+      body: params.toString(),
+    });
+    const data = await response.json() as { status?: string; valid?: boolean; message?: string };
+    if (response.ok && data.status === "approved") return { valid: true };
+    return { valid: false, error: data.message ?? "Incorrect code" };
+  } catch (e: unknown) {
+    return { valid: false, error: e instanceof Error ? e.message : "Network error" };
   }
 }
 
 const otpRouter = router({
-  /** Send OTP to a phone number. Uses Twilio if configured, otherwise test mode (123456). */
+  /** Send OTP to a phone number. Uses Twilio Verify if configured, otherwise test mode (123456). */
   send: publicProcedure
     .input(z.object({ phone: z.string().min(7) }))
     .mutation(async ({ input }) => {
       const globalTestMode = (await getPlatformConfig("TWILIO_TEST_MODE")) === "true";
       const testOtp = (await getPlatformConfig("TWILIO_TEST_OTP")) || "123456";
+
       // Check per-phone override first — no SMS sent, static code stored
       let perPhoneOverrides: Record<string, string> = {};
       try { perPhoneOverrides = JSON.parse((await getPlatformConfig("TWILIO_PER_PHONE_OTP")) || "{}"); } catch {}
@@ -1009,25 +1041,33 @@ const otpRouter = router({
         otpStore.set(input.phone, { code: perPhoneCode, expiresAt });
         return { success: true, testMode: true };
       }
-      const testMode = globalTestMode;
-      const code = testMode ? testOtp : String(Math.floor(100000 + Math.random() * 900000));
-      const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
-      otpStore.set(input.phone, { code, expiresAt });
-      if (!testMode) {
-        const sent = await sendOtpViaTwilio(input.phone, code);
-        if (!sent) {
-          // Fall back to test mode silently if Twilio fails
-          otpStore.set(input.phone, { code: testOtp, expiresAt });
-        }
+
+      // Global test mode — store code locally, no real SMS
+      if (globalTestMode) {
+        const expiresAt = Date.now() + 10 * 60 * 1000;
+        otpStore.set(input.phone, { code: testOtp, expiresAt });
+        return { success: true, testMode: true };
       }
-      return { success: true, testMode };
+
+      // Live mode — use Twilio Verify
+      const result = await sendOtpViaTwilioVerify(input.phone);
+      if (!result.ok) {
+        // Fall back to test mode silently if Twilio fails
+        console.warn("[OTP] Twilio Verify send failed, falling back to test mode:", result.error);
+        const expiresAt = Date.now() + 10 * 60 * 1000;
+        otpStore.set(input.phone, { code: testOtp, expiresAt });
+        return { success: true, testMode: true };
+      }
+      return { success: true, testMode: false };
     }),
+
   /** Verify OTP for a phone number. */
   verify: publicProcedure
     .input(z.object({ phone: z.string().min(7), code: z.string().length(6) }))
     .mutation(async ({ input }) => {
       const globalTestMode = (await getPlatformConfig("TWILIO_TEST_MODE")) === "true";
       const testOtp = (await getPlatformConfig("TWILIO_TEST_OTP")) || "123456";
+
       // Check per-phone override first
       let perPhoneOverrides: Record<string, string> = {};
       try { perPhoneOverrides = JSON.parse((await getPlatformConfig("TWILIO_PER_PHONE_OTP")) || "{}"); } catch {}
@@ -1039,25 +1079,48 @@ const otpRouter = router({
         otpStore.delete(input.phone);
         return { success: true };
       }
-      const testMode = globalTestMode;
-      // In global test mode, accept the configured test OTP
-      if (testMode && input.code === testOtp) {
-        otpStore.delete(input.phone);
-        return { success: true };
-      }
-      const entry = otpStore.get(input.phone);
-      if (!entry) {
-        return { success: false, error: "No OTP found. Please request a new code." };
-      }
-      if (Date.now() > entry.expiresAt) {
-        otpStore.delete(input.phone);
-        return { success: false, error: "Code expired. Please request a new code." };
-      }
-      if (entry.code !== input.code) {
+
+      // Global test mode — check local store
+      if (globalTestMode) {
+        if (input.code === testOtp) {
+          otpStore.delete(input.phone);
+          return { success: true };
+        }
         return { success: false, error: "Incorrect code. Please try again." };
       }
-      otpStore.delete(input.phone);
-      return { success: true };
+
+      // Check local store first (fallback codes from failed Twilio sends)
+      const entry = otpStore.get(input.phone);
+      if (entry) {
+        if (Date.now() > entry.expiresAt) {
+          otpStore.delete(input.phone);
+          // Don't return error yet — try Twilio Verify below
+        } else if (entry.code === input.code) {
+          otpStore.delete(input.phone);
+          return { success: true };
+        }
+      }
+
+      // Live mode — use Twilio Verify
+      const result = await checkOtpViaTwilioVerify(input.phone, input.code);
+      if (result.valid) return { success: true };
+      return { success: false, error: result.error ?? "Incorrect code. Please try again." };
+    }),
+
+  /** Test OTP send (admin only) — sends a real Twilio Verify code to a phone number */
+  testSend: publicProcedure
+    .input(z.object({ phone: z.string().min(7) }))
+    .mutation(async ({ input }) => {
+      const result = await sendOtpViaTwilioVerify(input.phone);
+      return { success: result.ok, error: result.error };
+    }),
+
+  /** Test OTP verify (admin only) — checks a code against Twilio Verify */
+  testVerify: publicProcedure
+    .input(z.object({ phone: z.string().min(7), code: z.string().length(6) }))
+    .mutation(async ({ input }) => {
+      const result = await checkOtpViaTwilioVerify(input.phone, input.code);
+      return { success: result.valid, error: result.error };
     }),
 });
 

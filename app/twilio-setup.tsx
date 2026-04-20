@@ -76,6 +76,16 @@ export default function TwilioSetupScreen() {
   const [testing, setTesting] = useState(false);
 
   const sendSmsMutation = trpc.twilio.sendSms.useMutation();
+  const otpTestSendMutation = trpc.otp.testSend.useMutation();
+  const otpTestVerifyMutation = trpc.otp.testVerify.useMutation();
+
+  // OTP test panel state
+  const [otpPhone, setOtpPhone] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpResult, setOtpResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
 
   const handleSave = () => {
     const sid = accountSid.trim();
@@ -341,6 +351,135 @@ export default function TwilioSetupScreen() {
             />
           </View>
         )}
+
+        {/* OTP Test Panel */}
+        <View style={{
+          backgroundColor: colors.surface,
+          borderRadius: 16,
+          borderWidth: 1,
+          borderColor: colors.border,
+          padding: 16,
+          marginBottom: 20,
+        }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <IconSymbol name="lock.fill" size={18} color={colors.primary} />
+            <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>Test OTP Verification</Text>
+          </View>
+          <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 14, lineHeight: 17 }}>
+            Send a real Twilio Verify OTP to any phone number and confirm it arrives and verifies correctly.
+          </Text>
+
+          <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 6 }}>Phone Number (E.164, e.g. +14124827733)</Text>
+          <TextInput
+            value={otpPhone}
+            onChangeText={(v) => { setOtpPhone(v); setOtpSent(false); setOtpResult(null); setOtpCode(""); }}
+            placeholder="+1XXXXXXXXXX"
+            placeholderTextColor={colors.muted}
+            keyboardType="phone-pad"
+            style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground, marginBottom: 10 }]}
+          />
+
+          <Pressable
+            onPress={async () => {
+              if (!otpPhone.startsWith("+") || otpPhone.replace(/\D/g, "").length < 10) {
+                Alert.alert("Invalid number", "Enter a full E.164 phone number, e.g. +14124827733");
+                return;
+              }
+              setOtpSending(true);
+              setOtpResult(null);
+              try {
+                const res = await otpTestSendMutation.mutateAsync({ phone: otpPhone });
+                if (res.success) {
+                  setOtpSent(true);
+                  setOtpResult({ success: true, message: `OTP sent to ${otpPhone} via Twilio Verify. Check your phone.` });
+                } else {
+                  setOtpResult({ success: false, message: (res as any).error ?? "Failed to send OTP" });
+                }
+              } catch (e: any) {
+                setOtpResult({ success: false, message: e.message ?? "Failed to send OTP" });
+              } finally {
+                setOtpSending(false);
+              }
+            }}
+            style={({ pressed }) => ({
+              backgroundColor: colors.primary,
+              borderRadius: 12,
+              paddingVertical: 12,
+              alignItems: "center",
+              opacity: pressed || otpSending ? 0.7 : 1,
+              marginBottom: 10,
+            })}
+          >
+            <Text style={{ fontSize: 14, fontWeight: "700", color: "#FFF" }}>
+              {otpSending ? "Sending OTP…" : "Send OTP"}
+            </Text>
+          </Pressable>
+
+          {otpSent && (
+            <>
+              <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 6 }}>Enter the 6-digit code you received</Text>
+              <TextInput
+                value={otpCode}
+                onChangeText={(v) => { setOtpCode(v.replace(/\D/g, "").slice(0, 6)); setOtpResult(null); }}
+                placeholder="000000"
+                placeholderTextColor={colors.muted}
+                keyboardType="number-pad"
+                maxLength={6}
+                style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground, marginBottom: 10, letterSpacing: 8, textAlign: "center", fontSize: 20, fontWeight: "700" }]}
+              />
+              <Pressable
+                onPress={async () => {
+                  if (otpCode.length !== 6) {
+                    Alert.alert("Enter code", "Please enter the 6-digit code from your SMS.");
+                    return;
+                  }
+                  setOtpVerifying(true);
+                  setOtpResult(null);
+                  try {
+                    const res = await otpTestVerifyMutation.mutateAsync({ phone: otpPhone, code: otpCode });
+                    if (res.success) {
+                      setOtpResult({ success: true, message: "✅ OTP verified successfully! Twilio Verify is working correctly." });
+                      setOtpSent(false);
+                      setOtpCode("");
+                    } else {
+                      setOtpResult({ success: false, message: (res as any).error ?? "Incorrect code" });
+                    }
+                  } catch (e: any) {
+                    setOtpResult({ success: false, message: e.message ?? "Verification failed" });
+                  } finally {
+                    setOtpVerifying(false);
+                  }
+                }}
+                style={({ pressed }) => ({
+                  backgroundColor: "#22C55E",
+                  borderRadius: 12,
+                  paddingVertical: 12,
+                  alignItems: "center",
+                  opacity: pressed || otpVerifying ? 0.7 : 1,
+                  marginBottom: 10,
+                })}
+              >
+                <Text style={{ fontSize: 14, fontWeight: "700", color: "#FFF" }}>
+                  {otpVerifying ? "Verifying…" : "Verify Code"}
+                </Text>
+              </Pressable>
+            </>
+          )}
+
+          {otpResult && (
+            <View style={{
+              backgroundColor: otpResult.success ? "#22C55E15" : "#EF444415",
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: otpResult.success ? "#22C55E50" : "#EF444450",
+              padding: 12,
+            }}>
+              <Text style={{ fontSize: 13, color: otpResult.success ? "#16A34A" : "#DC2626", fontWeight: "600", lineHeight: 18 }}>
+                {otpResult.message}
+              </Text>
+            </View>
+          )}
+        </View>
 
         {/* Next step link */}
         {isConfigured && (

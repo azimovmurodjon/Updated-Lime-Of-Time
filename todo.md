@@ -1455,3 +1455,5 @@
 - [x] Onboarding analytics: display drop-off data in settings/admin area
 - [x] Fix: Text-outside-Text render error in onboarding ScrollView
 - [x] Fix: Business info step not scrolling on onboarding
+- [x] Wire Twilio Verify OTP into server send/check routes
+- [x] Add OTP test panel to Admin screen
