@@ -1036,6 +1036,28 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
+  // ── Twilio Account Status (trial vs full) ─────────────────────────────
+  app.get("/api/admin/twilio-account-status", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const sid = await getPlatformConfig("TWILIO_ACCOUNT_SID");
+      const token = await getPlatformConfig("TWILIO_AUTH_TOKEN");
+      if (!sid || !token) { res.json({ ok: false, trial: null, message: "Twilio credentials not configured." }); return; }
+      const credentials = Buffer.from(`${sid}:${token}`).toString("base64");
+      const twilioRes = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}.json`, {
+        headers: { Authorization: `Basic ${credentials}` },
+      });
+      if (!twilioRes.ok) { res.json({ ok: false, trial: null, message: `Twilio API error: HTTP ${twilioRes.status}` }); return; }
+      const data = await twilioRes.json() as any;
+      // Twilio trial accounts have type 'Trial'
+      const isTrial = (data.type || "").toLowerCase() === "trial";
+      const friendlyName = data.friendly_name || sid;
+      const status = data.status || "active";
+      res.json({ ok: true, trial: isTrial, friendlyName, status, message: isTrial ? `Trial account — add a payment method to send to unverified numbers.` : `Full account (${status}) — no restrictions.` });
+    } catch (err: any) {
+      res.json({ ok: false, trial: null, message: `Error: ${err?.message || "Unknown error"}` });
+    }
+  });
+
   // ── Test Stripe Connection ────────────────────────────────────────────
   app.post("/api/admin/test-stripe", requireAuth, async (req: Request, res: Response) => {
     try {
@@ -4118,23 +4140,36 @@ function platformConfigPage(
               }).join('');
             })()}
           </div>
-          <div style="margin-top:12px;display:flex;justify-content:flex-end;">
+          <div style="margin-top:12px;display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;align-items:center;">
+            <button type="button" onclick="clearAllPhoneOtpOverrides()"
+              style="background:#ef444420;color:#ef4444;border:1px solid #ef444440;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;">
+              🗑️ Clear All Overrides
+            </button>
             <button type="button" id="savePhoneOtpBtn" onclick="savePhoneOtpOverrides()"
               style="background:var(--primary);color:white;border:none;border-radius:8px;padding:8px 20px;font-size:13px;font-weight:600;cursor:pointer;">
               💾 Save OTP Overrides
             </button>
-            <span id="savePhoneOtpResult" style="margin-left:12px;font-size:13px;line-height:36px;"></span>
+            <span id="savePhoneOtpResult" style="font-size:13px;line-height:36px;"></span>
           </div>
         </div>
 
-        <div style="margin-top:16px;display:flex;align-items:center;gap:12px;">
+         <div style="margin-top:16px;display:flex;align-items:center;gap:12px;">
           <button type="button" id="testTwilioBtn" onclick="testTwilio()"
             style="background:#0a7ea4;color:white;padding:8px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">
             🔌 Test Connection
           </button>
           <span id="twilioTestResult" style="font-size:13px;"></span>
         </div>
-
+        <!-- Twilio Trial Mode Banner -->
+        <div id="twilioTrialBanner" style="display:none;background:#f59e0b15;border:1px solid #f59e0b50;border-radius:8px;padding:12px 16px;margin-top:14px;font-size:13px;">
+          <div style="display:flex;align-items:flex-start;gap:10px;">
+            <span style="font-size:18px;flex-shrink:0;">⚠️</span>
+            <div>
+              <strong style="color:#f59e0b;">Twilio Trial Account Detected</strong>
+              <p style="margin:4px 0 0;color:var(--text-muted);line-height:1.5;">Your Twilio account is in <strong>trial mode</strong>. OTPs can only be sent to <strong>verified phone numbers</strong> (numbers you've manually added in the Twilio Console). To send OTPs to any number, <a href="https://www.twilio.com/console/billing/upgrade" target="_blank" style="color:#0a7ea4;">add a payment method</a> in your Twilio dashboard.</p>
+            </div>
+          </div>
+        </div>
         <!-- OTP Send / Verify Panel -->
         <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:20px;">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
@@ -4168,7 +4203,7 @@ function platformConfigPage(
               📤 Send OTP
             </button>
           </div>
-          <div id="otpVerifyRow" style="display:none;">
+          <div id="otpVerifyRow" style="display:block;">
             <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px;">
               <div style="flex:1;min-width:140px;">
                 <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;color:var(--text-muted);">Enter 6-Digit Code</label>
@@ -4463,6 +4498,47 @@ function platformConfigPage(
       }
     };
 
+    window.clearAllPhoneOtpOverrides = async function clearAllPhoneOtpOverrides() {
+      if (!confirm('Clear all per-phone OTP overrides? This cannot be undone.')) return;
+      var result = document.getElementById('savePhoneOtpResult');
+      try {
+        var res = await fetch('/api/admin/save-phone-otp-overrides', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ overrides: {} })
+        });
+        var data = await res.json();
+        if (data.ok) {
+          // Remove all rows from the UI
+          var rows = document.querySelectorAll('.phone-otp-row');
+          rows.forEach(function(r) { r.remove(); });
+          if (result) { result.textContent = '\u2705 All overrides cleared!'; result.style.color = '#22c55e'; }
+          setTimeout(function() { if (result) result.textContent = ''; }, 3000);
+        } else {
+          if (result) { result.textContent = '\u274c ' + (data.message || 'Error'); result.style.color = '#ef4444'; }
+        }
+      } catch (e) {
+        if (result) { result.textContent = '\u274c Network error'; result.style.color = '#ef4444'; }
+      }
+    };
+
+    // Load Twilio account status (trial vs full) and show banner if trial
+    window.loadTwilioAccountStatus = async function loadTwilioAccountStatus() {
+      try {
+        var res = await fetch('/api/admin/twilio-account-status');
+        var data = await res.json();
+        var banner = document.getElementById('twilioTrialBanner');
+        if (!banner) return;
+        if (data.ok && data.trial === true) {
+          banner.style.display = 'block';
+        } else if (data.ok && data.trial === false) {
+          banner.style.display = 'none';
+        }
+        // If not ok (credentials not set), don't show the banner
+      } catch (e) { /* ignore */ }
+    };
+    loadTwilioAccountStatus();
+
     // Show/hide per-business OTP section when test mode checkbox changes
     var testModeChk = form ? form.querySelector('[name="twilio_test_mode"]') : null;
     if (testModeChk) {
@@ -4493,7 +4569,7 @@ function platformConfigPage(
     }
 
     window.resetOtpPanel = function resetOtpPanel() {
-      document.getElementById('otpVerifyRow').style.display = 'none';
+      // Verify row is always visible — just clear the code input and banner
       document.getElementById('otpPanelResult').textContent = '';
       document.getElementById('otpPanelResult').style.color = '';
       hideOtpBanner();

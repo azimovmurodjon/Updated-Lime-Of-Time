@@ -1490,3 +1490,6 @@
 - [x] Add per-phone test mode override (specific numbers bypass Twilio, others get real OTP)
 - [x] Fix app-side OTP send/verify to respect Test Mode setting from DB
 - [x] Verify all Twilio connections end-to-end
+- [x] Add "Clear All Overrides" button to Phone OTP Overrides table in Admin Panel
+- [x] Add Twilio trial mode detection banner in Admin Panel (checks account type via API, prompts to add payment)
+- [x] Add OTP verify input next to Send OTP panel in Admin Panel for full test loop
