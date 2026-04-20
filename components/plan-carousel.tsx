@@ -276,6 +276,7 @@ export function PlanCarousel({
       style={styles.container}
       showsVerticalScrollIndicator={false}
       nestedScrollEnabled
+      scrollEnabled={!isOnboarding}
     >
       {/* ── Billing Toggle ── */}
       <View

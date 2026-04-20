@@ -1512,3 +1512,8 @@
 - [x] Fix Business Info step: make content scrollable all the way down
 - [x] Add KeyboardAvoidingView offset tuning for Android (prevent keyboard overlapping bottom button)
 - [x] Add inline validation feedback on Business Info fields (red border + error message while typing — already implemented)
+- [x] Fix Business Information onboarding step: full-screen scroll like OTP page, logo visible
+- [x] Fix Subscription onboarding step: full-screen scroll like OTP page, logo visible
+- [x] Keep logo visible on ALL onboarding steps (do not hide it on any step)
+- [x] Add Save & Test combined button for Twilio section in Admin Panel
+- [x] Add Save & Test combined button for Stripe section in Admin Panel

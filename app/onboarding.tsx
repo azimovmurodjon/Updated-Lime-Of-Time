@@ -1114,24 +1114,24 @@ export default function OnboardingScreen() {
       />
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior="padding"
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 24}
         style={{ flex: 1 }}
       >
         <ScrollView
           ref={outerScrollRef}
           contentContainerStyle={{
-            flexGrow: 1,
+            minHeight: height,
             paddingHorizontal: hp,
             paddingTop: 32,
-            paddingBottom: 80,
+            paddingBottom: 100,
           }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           scrollEnabled={true}
         >
           {/* ─── Logo + App Name ─────────────────────────────── */}
-          <Animated.View style={[styles.logoContainer, logoStyle, displayStep !== 1 && displayStep !== 'socialPhone' && displayStep !== 'otp' ? { height: 0, marginBottom: 0, overflow: 'hidden', opacity: 0 } : {}]}>
+          <Animated.View style={[styles.logoContainer, logoStyle]}>
             <View style={styles.logoRing}>
               <Image
                 source={require("@/assets/images/icon.png")}
