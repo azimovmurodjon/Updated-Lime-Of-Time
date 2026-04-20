@@ -5602,6 +5602,12 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
               const mlWrap = document.getElementById('manageLink');
               if (mlWrap) mlWrap.style.display = 'block';
             }
+            // Populate calendar variables so addToCalendar() works after Stripe redirect
+            selectedDate = a.date || '';
+            selectedTime = a.time || '00:00';
+            if (!selectedService && a.serviceName) {
+              selectedService = { name: a.serviceName, duration: a.duration || 60, price: a.totalPrice || '0', localId: '' };
+            }
             // Re-render the step-6 success screen properly
             for (let i = 0; i <= 6; i++) { const el = document.getElementById('step-' + i); if (el) el.style.display = 'none'; }
             document.getElementById('step-indicator').style.display = 'none';

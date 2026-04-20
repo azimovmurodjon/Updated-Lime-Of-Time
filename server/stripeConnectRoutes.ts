@@ -700,4 +700,54 @@ export function registerStripeConnectRoutes(app: Express): void {
       res.status(500).json({ error: err?.message ?? "Failed to fetch payouts" });
     }
   });
+
+  // POST /api/admin/stripe-connect/register-webhook
+  // Auto-registers the webhook endpoint with Stripe and saves the signing secret to DB
+  app.post("/api/admin/stripe-connect/register-webhook", async (req: Request, res: Response) => {
+    try {
+      const stripe = await getStripe();
+      if (!stripe) {
+        res.status(503).json({ error: "Stripe not configured. Add STRIPE_CONNECT_SECRET_KEY in Platform Config first." });
+        return;
+      }
+      const { serverDomain } = req.body as { serverDomain?: string };
+      if (!serverDomain) { res.status(400).json({ error: "serverDomain is required" }); return; }
+      const cleanDomain = serverDomain.replace(/^https?:\/\//, "").replace(/\/$/, "");
+      const webhookUrl = `https://${cleanDomain}/api/stripe-connect/webhook`;
+
+      // Check if webhook already exists for this URL
+      const existing = await stripe.webhookEndpoints.list({ limit: 100 });
+      const alreadyExists = existing.data.find((w) => w.url === webhookUrl);
+      if (alreadyExists) {
+        res.json({ ok: true, message: "Webhook already registered", url: webhookUrl, alreadyExists: true });
+        return;
+      }
+
+      // Create the webhook endpoint
+      const endpoint = await stripe.webhookEndpoints.create({
+        url: webhookUrl,
+        enabled_events: [
+          "checkout.session.completed",
+          "checkout.session.expired",
+          "payment_intent.payment_failed",
+          "account.updated",
+        ],
+        description: "Lime Of Time — booking payment confirmations",
+      });
+
+      // Save the signing secret to platform config
+      const db = await getDb();
+      if (db && endpoint.secret) {
+        const { platformConfig } = await import("../drizzle/schema");
+        await db.update(platformConfig)
+          .set({ configValue: endpoint.secret })
+          .where(eq(platformConfig.configKey, "STRIPE_CONNECT_WEBHOOK_SECRET"));
+      }
+
+      res.json({ ok: true, message: "Webhook registered successfully", url: webhookUrl, secret: endpoint.secret });
+    } catch (err: any) {
+      console.error("[StripeConnect] register-webhook error:", err);
+      res.status(500).json({ error: err?.message ?? "Failed to register webhook" });
+    }
+  });
 }

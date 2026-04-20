@@ -28,6 +28,7 @@ export function registerAdminStripeConnectRoutes(app: Express): void {
       const enabled = allBiz.filter((b: any) => b.stripeConnectEnabled);
       const pending = allBiz.filter((b: any) => b.stripeConnectAccountId && !b.stripeConnectEnabled);
 
+      const serverDomain = `${req.protocol}://${req.get('host')}`;
       res.send(stripeConnectPage({
         businesses: allBiz,
         connected,
@@ -35,6 +36,7 @@ export function registerAdminStripeConnectRoutes(app: Express): void {
         pending,
         platformFee,
         isTestMode,
+        serverDomain,
       }));
     } catch (err) {
       console.error("[Admin] Stripe Connect error:", err);
@@ -97,8 +99,9 @@ function stripeConnectPage(data: {
   pending: any[];
   platformFee: string;
   isTestMode: boolean;
+  serverDomain: string;
 }): string {
-  const { businesses, connected, enabled, pending, platformFee, isTestMode } = data;
+  const { businesses, connected, enabled, pending, platformFee, isTestMode, serverDomain } = data;
 
   const rows = businesses.map((b: any) => {
     const hasAccount = !!b.stripeConnectAccountId;
@@ -237,19 +240,55 @@ function stripeConnectPage(data: {
 
     <!-- Webhook Setup Guide -->
     <div class="card" style="border:1px solid #f59e0b40;background:#f59e0b08;">
-      <h2 style="color:#f59e0b;">⚡ Webhook Setup Required</h2>
-      <p style="font-size:13px;color:#9ca3af;margin-bottom:14px;">To automatically confirm card payments even when clients close the browser, you must register a webhook endpoint in your Stripe Dashboard. Without this, payments may not be marked as paid if the client navigates away before being redirected back.</p>
+      <h2 style="color:#f59e0b;">⚡ Webhook Setup</h2>
+      <p style="font-size:13px;color:#9ca3af;margin-bottom:14px;">Register your webhook endpoint with Stripe so card payments are confirmed automatically — even if the client closes the browser before being redirected back.</p>
       <div style="background:#1a1a2e;border-radius:8px;padding:14px;margin-bottom:14px;font-family:monospace;font-size:12px;color:#a5f3fc;word-break:break-all;">
-        https://YOUR-SERVER-DOMAIN/api/stripe-connect/webhook
+        ${serverDomain}/api/stripe-connect/webhook
       </div>
-      <div style="font-size:13px;color:#9ca3af;line-height:1.8;">
-        <p style="margin-bottom:6px;"><strong style="color:#e4e6eb;">Step 1:</strong> Go to <a href="https://dashboard.stripe.com/webhooks" target="_blank" style="color:#60a5fa;">Stripe Dashboard → Developers → Webhooks</a></p>
-        <p style="margin-bottom:6px;"><strong style="color:#e4e6eb;">Step 2:</strong> Click <strong style="color:#e4e6eb;">Add endpoint</strong> and paste the URL above (replace YOUR-SERVER-DOMAIN with your actual domain)</p>
-        <p style="margin-bottom:6px;"><strong style="color:#e4e6eb;">Step 3:</strong> Under <em>Events to listen to</em>, select: <code style="background:#2a2a3e;padding:2px 6px;border-radius:4px;color:#a5f3fc;">checkout.session.completed</code></p>
-        <p style="margin-bottom:6px;"><strong style="color:#e4e6eb;">Step 4:</strong> Click <strong style="color:#e4e6eb;">Add endpoint</strong>, then reveal and copy the <strong style="color:#e4e6eb;">Signing secret</strong> (starts with <code style="background:#2a2a3e;padding:2px 6px;border-radius:4px;color:#a5f3fc;">whsec_</code>)</p>
-        <p><strong style="color:#e4e6eb;">Step 5:</strong> Go to <a href="/api/admin/config" style="color:#60a5fa;">Platform Config</a> and paste the signing secret into the <strong style="color:#e4e6eb;">STRIPE_CONNECT_WEBHOOK_SECRET</strong> field</p>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+        <button onclick="registerWebhook()" id="registerWebhookBtn"
+          style="background:#f59e0b;color:#1a1a2e;padding:10px 20px;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">
+          🔗 Register Webhook Automatically
+        </button>
+        <span id="webhookRegResult" style="font-size:13px;"></span>
+      </div>
+      <div style="font-size:12px;color:#6b7280;border-top:1px solid #f59e0b20;padding-top:12px;">
+        <strong style="color:#9ca3af;">Manual option:</strong> Go to <a href="https://dashboard.stripe.com/webhooks" target="_blank" style="color:#60a5fa;">Stripe Dashboard → Webhooks</a>, add the URL above, select <code style="background:#2a2a3e;padding:1px 5px;border-radius:3px;color:#a5f3fc;">checkout.session.completed</code> event, then paste the signing secret into <a href="/api/admin/platform-config" style="color:#60a5fa;">Platform Config → STRIPE_CONNECT_WEBHOOK_SECRET</a>.
       </div>
     </div>
+    <script>
+    function registerWebhook() {
+      var btn = document.getElementById('registerWebhookBtn');
+      var result = document.getElementById('webhookRegResult');
+      btn.disabled = true;
+      btn.textContent = 'Registering...';
+      result.textContent = '';
+      fetch('/api/admin/stripe-connect/register-webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ serverDomain: window.location.host })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.ok) {
+          result.style.color = '#4ade80';
+          result.textContent = d.alreadyExists ? '✅ Already registered' : '✅ Registered! Signing secret saved automatically.';
+          btn.textContent = '✅ Done';
+        } else {
+          result.style.color = '#f87171';
+          result.textContent = '❌ ' + (d.error || 'Failed');
+          btn.disabled = false;
+          btn.textContent = '🔗 Register Webhook Automatically';
+        }
+      })
+      .catch(function(e) {
+        result.style.color = '#f87171';
+        result.textContent = '❌ Network error: ' + e.message;
+        btn.disabled = false;
+        btn.textContent = '🔗 Register Webhook Automatically';
+      });
+    }
+    </script>
 
     <!-- How It Works -->
     <div class="card">
