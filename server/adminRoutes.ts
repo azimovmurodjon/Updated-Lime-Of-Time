@@ -4782,6 +4782,8 @@ function platformConfigPage(
         btn.textContent = '🔌 Test Connection';
       }
     }
+    // Auto-run Stripe Test Connection on page load (silent — only shows result if key is set)
+    setTimeout(function() { if (typeof testStripe === 'function') testStripe(); }, 1200);
     </script>
   `);
 }
