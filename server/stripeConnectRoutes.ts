@@ -891,4 +891,39 @@ export function registerStripeConnectRoutes(app: Express): void {
       res.status(500).json({ error: err?.message ?? "Failed to register webhook" });
     }
   });
+
+  // ── 13. Account Balance ────────────────────────────────────────────────────────────────────────────────────
+  // GET /api/stripe-connect/balance?businessOwnerId=123
+  // Returns available and pending balances for the connected account.
+  app.get("/api/stripe-connect/balance", async (req: Request, res: Response) => {
+    try {
+      const businessOwnerId = parseInt(String(req.query.businessOwnerId ?? "0"), 10);
+      if (!businessOwnerId) { res.status(400).json({ error: "businessOwnerId required" }); return; }
+
+      const stripe = await getStripe();
+      if (!stripe) { res.status(503).json({ error: "Stripe not configured" }); return; }
+
+      const owner = await getOwner(businessOwnerId);
+      if (!owner) { res.status(404).json({ error: "Business not found" }); return; }
+      const accountId = (owner as any)?.stripeConnectAccountId as string | null;
+      if (!accountId) { res.status(400).json({ error: "Stripe not connected" }); return; }
+
+      const balance = await stripe.balance.retrieve({}, { stripeAccount: accountId });
+
+      // Sum all available and pending amounts (may be multi-currency)
+      const available = balance.available.map((b) => ({
+        amount: b.amount / 100,
+        currency: b.currency.toUpperCase(),
+      }));
+      const pending = balance.pending.map((b) => ({
+        amount: b.amount / 100,
+        currency: b.currency.toUpperCase(),
+      }));
+
+      res.json({ available, pending });
+    } catch (err: any) {
+      console.error("[StripeConnect] balance error:", err);
+      res.status(500).json({ error: err?.message ?? "Failed to fetch balance" });
+    }
+  });
 }

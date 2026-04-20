@@ -55,6 +55,9 @@ type PayoutData = {
   recentPayouts: PayoutInfo[];
 };
 
+type BalanceEntry = { amount: number; currency: string };
+type StripeBalance = { available: BalanceEntry[]; pending: BalanceEntry[] };
+
 export default function PaymentMethodsScreen() {
   const { state, dispatch, syncToDb } = useStore();
   const colors = useColors();
@@ -76,6 +79,10 @@ export default function PaymentMethodsScreen() {
   // Payout schedule state
   const [payoutData, setPayoutData] = useState<PayoutData | null>(null);
   const [payoutLoading, setPayoutLoading] = useState(false);
+
+  // Balance state
+  const [balanceData, setBalanceData] = useState<StripeBalance | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(false);
 
   // QR code modal state
   type QrMethod = { label: string; handle: string; color: string; qrValue: string };
@@ -155,12 +162,28 @@ export default function PaymentMethodsScreen() {
     }
   }, [businessOwnerId]);
 
-  // Load payout data once Stripe is confirmed active
+  const loadBalanceData = useCallback(async () => {
+    if (!businessOwnerId) return;
+    setBalanceLoading(true);
+    try {
+      const data = await apiCall<StripeBalance>(
+        `/api/stripe-connect/balance?businessOwnerId=${businessOwnerId}`
+      );
+      setBalanceData(data);
+    } catch {
+      setBalanceData(null);
+    } finally {
+      setBalanceLoading(false);
+    }
+  }, [businessOwnerId]);
+
+  // Load payout data and balance once Stripe is confirmed active
   useEffect(() => {
     if (connectStatus?.chargesEnabled) {
       loadPayoutData();
+      loadBalanceData();
     }
-  }, [connectStatus?.chargesEnabled, loadPayoutData]);
+  }, [connectStatus?.chargesEnabled, loadPayoutData, loadBalanceData]);
 
   const handleConnectStripe = useCallback(async () => {
     if (!businessOwnerId) return;
@@ -353,6 +376,48 @@ export default function PaymentMethodsScreen() {
                     <Text style={[styles.stripeNote, { color: "#16a34a" }]}>
                       Your Stripe account is active. Clients can now pay by card on the booking page.
                     </Text>
+
+                    {/* Account Balance Section */}
+                    <View style={[styles.payoutSection, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                      <View style={styles.payoutSectionHeader}>
+                        <Text style={[styles.payoutSectionTitle, { color: colors.foreground }]}>📊 Account Balance</Text>
+                        {balanceLoading && <ActivityIndicator size="small" color="#635bff" />}
+                      </View>
+                      {!balanceLoading && balanceData ? (
+                        <View style={{ flexDirection: "row", gap: 12 }}>
+                          {/* Available */}
+                          <View style={{ flex: 1, backgroundColor: "#f0fdf4", borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#bbf7d0" }}>
+                            <Text style={{ fontSize: 11, color: "#16a34a", fontWeight: "600", marginBottom: 4 }}>AVAILABLE</Text>
+                            {balanceData.available.length > 0 ? (
+                              balanceData.available.map((b, i) => (
+                                <Text key={i} style={{ fontSize: 20, fontWeight: "700", color: "#15803d" }}>
+                                  ${b.amount.toFixed(2)} <Text style={{ fontSize: 12, fontWeight: "400" }}>{b.currency}</Text>
+                                </Text>
+                              ))
+                            ) : (
+                              <Text style={{ fontSize: 18, fontWeight: "700", color: "#15803d" }}>$0.00</Text>
+                            )}
+                            <Text style={{ fontSize: 11, color: "#16a34a", marginTop: 2 }}>Ready to pay out</Text>
+                          </View>
+                          {/* Pending */}
+                          <View style={{ flex: 1, backgroundColor: "#fffbeb", borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#fde68a" }}>
+                            <Text style={{ fontSize: 11, color: "#d97706", fontWeight: "600", marginBottom: 4 }}>PENDING</Text>
+                            {balanceData.pending.length > 0 ? (
+                              balanceData.pending.map((b, i) => (
+                                <Text key={i} style={{ fontSize: 20, fontWeight: "700", color: "#b45309" }}>
+                                  ${b.amount.toFixed(2)} <Text style={{ fontSize: 12, fontWeight: "400" }}>{b.currency}</Text>
+                                </Text>
+                              ))
+                            ) : (
+                              <Text style={{ fontSize: 18, fontWeight: "700", color: "#b45309" }}>$0.00</Text>
+                            )}
+                            <Text style={{ fontSize: 11, color: "#d97706", marginTop: 2 }}>Processing (2-7 days)</Text>
+                          </View>
+                        </View>
+                      ) : !balanceLoading ? (
+                        <Text style={[styles.payoutLabel, { color: colors.muted }]}>Balance unavailable</Text>
+                      ) : null}
+                    </View>
 
                     {/* Payout Schedule Section */}
                     <View style={[styles.payoutSection, { backgroundColor: colors.background, borderColor: colors.border }]}>
