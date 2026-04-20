@@ -1496,3 +1496,10 @@
 - [x] Fix broken regex /^\+[1-9]\d{6,14}$/ in platformConfigPage template literal (was /^+[1-9]d{6,14}$/ in HTML, causing JS syntax error that made all button functions undefined)
 - [x] Add Test Connection auto-run on page load (testTwilio() called 800ms after page ready)
 - [x] Add Stripe test-connection auto-run on page load (same pattern as Twilio testTwilio() auto-run)
+- [x] Fix OTP send: ensure real Twilio SMS is sent when test mode is OFF
+- [x] Fix test mode toggle: changes take effect immediately (invalidate cache on toggle)
+- [x] Fix onboarding OTP screen: auto-fill OTP digits from SMS (SMS OTP autofill / one-time-code)
+- [x] Fix onboarding OTP screen: digit-by-digit input fills all boxes correctly
+- [x] Add Save & Test combined button for Twilio section in Admin Panel
+- [x] Add Save & Test combined button for Stripe section in Admin Panel
+- [x] Add audit log viewer in Admin Panel (filterable table by category/action/date)

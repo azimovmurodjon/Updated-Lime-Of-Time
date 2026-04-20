@@ -1298,21 +1298,105 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Audit Log ─────────────────────────────────────────────────────
-  app.get("/api/admin/audit-log", requireAuth, async (_req: Request, res: Response) => {
+  // ── Audit Log JSON (with optional filters) ───────────────────────────────────
+  app.get("/api/admin/audit-log", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
       if (!dbase) { res.status(500).json({ error: "DB unavailable" }); return; }
-      const logs = await dbase
-        .select()
-        .from(adminAuditLog)
-        .orderBy(sql`createdAt DESC`)
-        .limit(50);
+      const { category, action: actionFilter, date } = req.query as Record<string, string>;
+      let query = dbase.select().from(adminAuditLog).$dynamic();
+      const conditions: any[] = [];
+      if (category) conditions.push(sql`category = ${category}`);
+      if (actionFilter) conditions.push(sql`action LIKE ${'%' + actionFilter + '%'}`);
+      if (date) conditions.push(sql`DATE(createdAt) = ${date}`);
+      if (conditions.length > 0) {
+        const combined = conditions.reduce((a: any, b: any) => sql`${a} AND ${b}`);
+        query = query.where(combined);
+      }
+      const logs = await query.orderBy(sql`createdAt DESC`).limit(200);
       res.json(logs);
     } catch (err) {
       console.error("[Admin] Audit log fetch error:", err);
       res.status(500).json({ error: "Failed to fetch audit log" });
     }
+  });
+
+  // ── Audit Log Page ─────────────────────────────────────────────────────
+  app.get("/api/admin/audit-log-page", requireAuth, async (_req: Request, res: Response) => {
+    res.send(adminLayout("Audit Log", "audit-log", `
+      <div class="page-header">
+        <h2>Audit Log</h2>
+        <span style="font-size:13px;color:var(--text-muted);">All admin actions — config changes, OTP sends, and more</span>
+      </div>
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <label style="font-size:12px;color:var(--text-muted);font-weight:600;">CATEGORY</label>
+            <select id="filterCategory" style="padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text);font-size:13px;min-width:160px;">
+              <option value="">All Categories</option>
+              <option value="platform_config">platform_config</option>
+              <option value="plan_pricing">plan_pricing</option>
+              <option value="subscription_override">subscription_override</option>
+              <option value="expense">expense</option>
+              <option value="otp">otp</option>
+              <option value="system">system</option>
+            </select>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <label style="font-size:12px;color:var(--text-muted);font-weight:600;">ACTION CONTAINS</label>
+            <input id="filterAction" type="text" placeholder="Search action..." style="padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text);font-size:13px;min-width:200px;" />
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <label style="font-size:12px;color:var(--text-muted);font-weight:600;">DATE</label>
+            <input id="filterDate" type="date" style="padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text);font-size:13px;" />
+          </div>
+          <button onclick="loadAuditLogPage()" style="padding:8px 18px;background:var(--primary);color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;height:34px;">Filter</button>
+          <button onclick="clearFilters()" style="padding:8px 14px;background:none;border:1px solid var(--border);border-radius:6px;font-size:13px;cursor:pointer;color:var(--text-muted);height:34px;">Clear</button>
+        </div>
+      </div>
+      <div class="card">
+        <div id="auditLogPageContainer"><div style="color:var(--text-muted);padding:20px;text-align:center;">Loading...</div></div>
+      </div>
+      <script>
+        function loadAuditLogPage() {
+          var cat = document.getElementById('filterCategory').value;
+          var act = document.getElementById('filterAction').value.trim();
+          var dt = document.getElementById('filterDate').value;
+          var params = new URLSearchParams();
+          if (cat) params.set('category', cat);
+          if (act) params.set('action', act);
+          if (dt) params.set('date', dt);
+          var url = '/api/admin/audit-log' + (params.toString() ? '?' + params.toString() : '');
+          var container = document.getElementById('auditLogPageContainer');
+          container.innerHTML = '<div style="color:var(--text-muted);padding:20px;text-align:center;">Loading...</div>';
+          fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(logs) {
+              if (!logs || logs.length === 0) {
+                container.innerHTML = '<div style="color:var(--text-muted);padding:20px;text-align:center;">No log entries found.</div>';
+                return;
+              }
+              var rows = logs.map(function(l) {
+                var dt2 = l.createdAt ? new Date(l.createdAt) : null;
+                var dtStr = dt2 ? dt2.toLocaleDateString() + ' ' + dt2.toLocaleTimeString() : '—';
+                var catBadge = '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:var(--bg-hover);color:var(--text-muted);">' + (l.category || '—') + '</span>';
+                return '<tr><td style="font-size:12px;color:var(--text-muted);white-space:nowrap;">' + dtStr + '</td><td>' + (l.actor || 'admin') + '</td><td>' + catBadge + '</td><td style="max-width:400px;word-break:break-word;">' + (l.action || '—') + '</td><td style="font-size:12px;color:var(--text-muted);max-width:200px;word-break:break-word;">' + (l.details ? '<details><summary style="cursor:pointer;">View</summary><pre style="font-size:11px;margin:4px 0 0;white-space:pre-wrap;">' + l.details + '</pre></details>' : '—') + '</td></tr>';
+              }).join('');
+              container.innerHTML = '<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Date/Time</th><th>Actor</th><th>Category</th><th>Action</th><th>Details</th></tr></thead><tbody>' + rows + '</tbody></table></div><div style="font-size:12px;color:var(--text-muted);margin-top:10px;text-align:right;">' + logs.length + ' entries</div>';
+            })
+            .catch(function() {
+              container.innerHTML = '<div style="color:var(--danger);padding:12px;">Failed to load audit log.</div>';
+            });
+        }
+        function clearFilters() {
+          document.getElementById('filterCategory').value = '';
+          document.getElementById('filterAction').value = '';
+          document.getElementById('filterDate').value = '';
+          loadAuditLogPage();
+        }
+        loadAuditLogPage();
+      </script>
+    `));
   });
 
   // ── Financial / Revenue Analytics ────────────────────────────────────
@@ -1962,6 +2046,7 @@ function sidebarHtml(activePage: string): string {
       ${navItem('/api/admin/platform-config', '🔧', 'Platform Config', a === 'platform-config')}
       ${navItem('/api/admin/settings', '⚙️', 'Settings', a === 'settings')}
       ${navItem('/api/admin/db', '🗄️', 'DB Explorer', a === 'db')}
+      ${navItem('/api/admin/audit-log-page', '📝', 'Audit Log', a === 'audit-log')}
 
       <div style="margin-top:auto;padding-top:20px;border-top:1px solid var(--border);margin-top:20px;">
         <a href="/api/admin/logout" class="nav-item" style="color:var(--danger);">
@@ -4153,10 +4238,14 @@ function platformConfigPage(
           </div>
         </div>
 
-         <div style="margin-top:16px;display:flex;align-items:center;gap:12px;">
+         <div style="margin-top:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <button type="button" id="testTwilioBtn" onclick="testTwilio()"
             style="background:#0a7ea4;color:white;padding:8px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">
             🔌 Test Connection
+          </button>
+          <button type="button" id="saveTwilioBtn" onclick="saveThenTestTwilio()"
+            style="background:#4A7C59;color:white;padding:8px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">
+            💾 Save &amp; Test
           </button>
           <span id="twilioTestResult" style="font-size:13px;"></span>
         </div>
@@ -4251,10 +4340,14 @@ function platformConfigPage(
           <input type="checkbox" name="stripe_test_mode" value="true" ${(cfgMap["STRIPE_TEST_MODE"] === "true") ? "checked" : ""} style="width:16px;height:16px;" />
           <span><strong>Test Mode</strong> — Use Stripe test keys (recommended until launch)</span>
         </label>
-        <div style="margin-top:16px;display:flex;align-items:center;gap:12px;">
+        <div style="margin-top:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <button type="button" id="testStripeBtn" onclick="testStripe()"
             style="background:#635bff;color:white;padding:8px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">
             🔌 Test Connection
+          </button>
+          <button type="button" id="saveStripeBtn" onclick="saveThenTestStripe()"
+            style="background:#4A7C59;color:white;padding:8px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">
+            💾 Save &amp; Test
           </button>
           <span id="stripeTestResult" style="font-size:13px;"></span>
         </div>
@@ -4784,6 +4877,74 @@ function platformConfigPage(
     }
     // Auto-run Stripe Test Connection on page load (silent — only shows result if key is set)
     setTimeout(function() { if (typeof testStripe === 'function') testStripe(); }, 1200);
+
+    // ── Save & Test helpers ─────────────────────────────────────────────────
+    window.saveThenTestTwilio = async function saveThenTestTwilio() {
+      var btn = document.getElementById('saveTwilioBtn');
+      var result = document.getElementById('twilioTestResult');
+      if (!btn || !result) return;
+      btn.disabled = true;
+      btn.textContent = '\u23f3 Saving...';
+      result.textContent = '';
+      // Submit the form via fetch (same endpoint as the form POST)
+      var f = document.querySelector('form[action="/api/admin/platform-config"]');
+      if (!f) { btn.disabled = false; btn.textContent = '\ud83d\udcbe Save & Test'; return; }
+      try {
+        var formData = new FormData(f);
+        var params = new URLSearchParams();
+        formData.forEach(function(v, k) { params.append(k, v.toString()); });
+        var saveRes = await fetch('/api/admin/platform-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: params.toString(),
+          redirect: 'manual'
+        });
+        // After save, run test
+        btn.textContent = '\u23f3 Testing...';
+        await testTwilio();
+        // Mark form as clean by reloading initial values
+        var savePlatformBtn = document.getElementById('savePlatformBtn');
+        if (savePlatformBtn) { savePlatformBtn.disabled = true; savePlatformBtn.style.background = 'var(--border)'; savePlatformBtn.style.color = 'var(--text-muted)'; savePlatformBtn.style.cursor = 'not-allowed'; }
+      } catch (e) {
+        result.textContent = '\u274c Save failed';
+        result.style.color = '#ef4444';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '\ud83d\udcbe Save & Test';
+      }
+    };
+
+    window.saveThenTestStripe = async function saveThenTestStripe() {
+      var btn = document.getElementById('saveStripeBtn');
+      var result = document.getElementById('stripeTestResult');
+      if (!btn || !result) return;
+      btn.disabled = true;
+      btn.textContent = '\u23f3 Saving...';
+      result.textContent = '';
+      var f = document.querySelector('form[action="/api/admin/platform-config"]');
+      if (!f) { btn.disabled = false; btn.textContent = '\ud83d\udcbe Save & Test'; return; }
+      try {
+        var formData = new FormData(f);
+        var params = new URLSearchParams();
+        formData.forEach(function(v, k) { params.append(k, v.toString()); });
+        await fetch('/api/admin/platform-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: params.toString(),
+          redirect: 'manual'
+        });
+        btn.textContent = '\u23f3 Testing...';
+        await testStripe();
+        var savePlatformBtn = document.getElementById('savePlatformBtn');
+        if (savePlatformBtn) { savePlatformBtn.disabled = true; savePlatformBtn.style.background = 'var(--border)'; savePlatformBtn.style.color = 'var(--text-muted)'; savePlatformBtn.style.cursor = 'not-allowed'; }
+      } catch (e) {
+        result.textContent = '\u274c Save failed';
+        result.style.color = '#ef4444';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '\ud83d\udcbe Save & Test';
+      }
+    };
     </script>
   `);
 }

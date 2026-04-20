@@ -409,7 +409,33 @@ export default function OnboardingScreen() {
 
   // ─── 6-box OTP helpers ───────────────────────────────────────────
   const handleOtpDigitChange = (index: number, value: string) => {
-    const digit = value.replace(/[^0-9]/g, "").slice(-1);
+    // Handle paste / SMS autofill of full 6-digit code
+    const digits = value.replace(/[^0-9]/g, "");
+    if (digits.length > 1) {
+      const filled = digits.slice(0, 6).split("");
+      const newDigits = [...otpDigits];
+      for (let j = 0; j < 6; j++) newDigits[j] = filled[j] ?? "";
+      setOtpDigits(newDigits);
+      const combined = newDigits.join("");
+      setOtpValue(combined);
+      setOtpError("");
+      // Animate all filled boxes
+      filled.forEach((d, j) => {
+        if (d) {
+          otpBoxScales[j].value = withSequence(withTiming(1.12, { duration: 60 }), withSpring(1, { damping: 12, stiffness: 200 }));
+          otpBoxBorders[j].value = withTiming(1, { duration: 120 });
+        }
+      });
+      // Focus last filled box
+      const lastIdx = Math.min(filled.length - 1, 5);
+      setTimeout(() => otpRefs.current[lastIdx]?.focus(), 30);
+      // Auto-verify if all 6 filled
+      if (combined.length === 6) {
+        setTimeout(() => handleBtnPress(() => handleOtpVerifyWithCode(combined)), 150);
+      }
+      return;
+    }
+    const digit = digits.slice(-1);
     const newDigits = [...otpDigits];
     newDigits[index] = digit;
     setOtpDigits(newDigits);
@@ -808,8 +834,12 @@ export default function OnboardingScreen() {
     // Send OTP via server (Twilio or test mode 123456)
     const stripped2 = stripPhoneFormat(phone);
     const rawPhone2 = selectedCountry.dial === "+1" ? stripped2 : `${selectedCountry.dial.replace("+", "")}${stripped2}`;
-    sendOtpMut.mutate({ phone: rawPhone2 });
     navigateToStep("otp");
+    try {
+      await sendOtpMut.mutateAsync({ phone: rawPhone2 });
+    } catch (otpErr: any) {
+      setOtpError(otpErr?.message || "Failed to send OTP. Please check your connection and try again.");
+    }
   };
 
   const handleSocialPhoneNext = async () => {
@@ -861,8 +891,8 @@ export default function OnboardingScreen() {
           return prev - 1;
         });
       }, 1000);
-    } catch {
-      // Silently fail — user can try again
+    } catch (err: any) {
+      setOtpError(err?.message || "Failed to resend OTP. Please try again.");
     } finally {
       setOtpResendLoading(false);
     }
@@ -1362,10 +1392,12 @@ export default function OnboardingScreen() {
                           onChangeText={v => handleOtpDigitChange(i, v)}
                           onKeyPress={e => handleOtpKeyPress(i, e)}
                           keyboardType="number-pad"
-                          maxLength={1}
+                          maxLength={i === 0 ? 6 : 1}
                           editable={!loading}
                           selectTextOnFocus
                           caretHidden
+                          textContentType={i === 0 ? "oneTimeCode" : "none"}
+                          autoComplete={i === 0 ? "sms-otp" : "off"}
                         />
                       </Animated.View>
                     ))}

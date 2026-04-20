@@ -1052,11 +1052,9 @@ const otpRouter = router({
       // Live mode — use Twilio Verify
       const result = await sendOtpViaTwilioVerify(input.phone);
       if (!result.ok) {
-        // Fall back to test mode silently if Twilio fails
-        console.warn("[OTP] Twilio Verify send failed, falling back to test mode:", result.error);
-        const expiresAt = Date.now() + 10 * 60 * 1000;
-        otpStore.set(input.phone, { code: testOtp, expiresAt });
-        return { success: true, testMode: true };
+        // Do NOT silently fall back — surface the real Twilio error to the user
+        console.error("[OTP] Twilio Verify send failed:", result.error);
+        throw new Error(result.error || "Failed to send OTP via Twilio. Check your Twilio credentials and account status.");
       }
       return { success: true, testMode: false };
     }),
