@@ -551,11 +551,15 @@ export default function OnboardingScreen() {
   const taglineTranslateY = useSharedValue(12);
   const byLineOpacity = useSharedValue(0);
   const byLineTranslateY = useSharedValue(8);
+  const appNameOpacity = useSharedValue(0);
+  const appNameTranslateY = useSharedValue(16);
 
   useEffect(() => {
     // Staggered entrance
     logoScale.value = withDelay(100, withSpring(1, { damping: 14, stiffness: 120 }));
     logoOpacity.value = withDelay(100, withTiming(1, { duration: 500 }));
+    appNameOpacity.value = withDelay(220, withTiming(1, { duration: 380 }));
+    appNameTranslateY.value = withDelay(220, withTiming(0, { duration: 360, easing: Easing.out(Easing.quad) }));
     titleOpacity.value = withDelay(300, withTiming(1, { duration: 400 }));
     titleTranslateY.value = withDelay(300, withTiming(0, { duration: 400, easing: Easing.out(Easing.quad) }));
     subtitleOpacity.value = withDelay(450, withTiming(1, { duration: 400 }));
@@ -631,6 +635,10 @@ export default function OnboardingScreen() {
   const logoStyle = useAnimatedStyle(() => ({
     transform: [{ scale: logoScale.value }],
     opacity: logoOpacity.value,
+  }));
+  const appNameStyle = useAnimatedStyle(() => ({
+    opacity: appNameOpacity.value,
+    transform: [{ translateY: appNameTranslateY.value }],
   }));
   const taglineStyle = useAnimatedStyle(() => ({
     opacity: taglineOpacity.value,
@@ -1101,7 +1109,7 @@ export default function OnboardingScreen() {
                 resizeMode="contain"
               />
             </View>
-            <Text style={styles.appName}>Lime Of Time</Text>
+            <Animated.Text style={[styles.appName, appNameStyle]}>Lime Of Time</Animated.Text>
             <Animated.Text style={[styles.appTagline, taglineStyle]}>Smart scheduling for your business</Animated.Text>
             {/* Decorative tagline separator — fades in last */}
             <Animated.View style={[{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 }, byLineStyle]}>

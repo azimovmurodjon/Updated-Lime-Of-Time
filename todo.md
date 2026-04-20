@@ -1483,3 +1483,4 @@
 - [x] Change "BY MANUS" to "BY INNOVANCIO" on onboarding/login screen
 - [x] Smart greeting: show "Welcome back!" for returning users, "Get started" for first-time users (using AsyncStorage flag)
 - [x] Add staggered fade-in + slide-up animation to tagline and "by Innovancio" text on onboarding screen load
+- [x] Add separate slide-up fade-in animation to "Lime Of Time" app name to complete staggered entrance sequence
