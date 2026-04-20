@@ -127,6 +127,11 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
+  // Session keep-alive ping
+  app.get("/api/admin/ping", requireAuth, (_req: Request, res: Response) => {
+    res.json({ ok: true, ts: Date.now() });
+  });
+
   // Logout
   app.get("/api/admin/logout", (_req: Request, res: Response) => {
     const sessionId = getSessionFromCookie(_req);
@@ -1953,6 +1958,11 @@ function adminLayout(title: string, activePage: string, content: string): string
       ${content}
     </div>
   </div>
+  <!-- Session keep-alive indicator (hidden by default, shows warning if session expires) -->
+  <span id="sessionPingIndicator"
+    title="Session active"
+    style="display:none;position:fixed;top:8px;right:12px;z-index:9999;font-size:12px;padding:3px 8px;border-radius:12px;background:#ef444420;color:#ef4444;font-weight:600;pointer-events:none;">
+  </span>
   <!-- Back to top button (mobile only) -->
   <button id="backToTopBtn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top"
     style="display:none;position:fixed;bottom:20px;right:16px;z-index:999;background:var(--primary);color:white;border:none;border-radius:50%;width:44px;height:44px;font-size:20px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.25);align-items:center;justify-content:center;">
@@ -2032,6 +2042,31 @@ function adminLayout(title: string, activePage: string, content: string): string
       window.addEventListener('scroll', updateBtn, { passive: true });
       window.addEventListener('resize', updateBtn, { passive: true });
       updateBtn();
+    })();
+
+    // ── Session keep-alive: ping every 10 minutes ──────────────────────
+    (function() {
+      var PING_INTERVAL = 10 * 60 * 1000; // 10 minutes
+      var indicator = document.getElementById('sessionPingIndicator');
+      function ping() {
+        fetch('/api/admin/ping', { method: 'GET', credentials: 'same-origin', redirect: 'manual' })
+          .then(function(r) {
+            if ((r.ok || r.status === 200) && indicator) {
+              // Session alive — keep indicator hidden
+              indicator.style.display = 'none';
+            } else if (r.status === 0 || r.status === 302 || r.status === 401) {
+              // Session expired — show warning banner
+              if (indicator) {
+                indicator.textContent = '\u26a0\ufe0f Session expired — please reload and log in again';
+                indicator.style.display = 'inline-block';
+              }
+            }
+          })
+          .catch(function() { /* network error — ignore silently */ });
+      }
+      setInterval(ping, PING_INTERVAL);
+      // First ping after 1 minute to confirm session is alive on page load
+      setTimeout(ping, 60 * 1000);
     })();
   </script>
 </body>
