@@ -1088,6 +1088,107 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
+  // ── Admin OTP Send (Twilio Verify) ─────────────────────────────────────
+  app.post("/api/admin/otp/send", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const phone = (req.body.phone || "").toString().trim();
+      if (!phone || !/^\+[1-9]\d{6,14}$/.test(phone)) {
+        res.json({ ok: false, message: "Phone must be in E.164 format (e.g. +14155551234)" }); return;
+      }
+      // Read Twilio Verify credentials: env vars first, then platform_config
+      const accountSid = process.env.TWILIO_ACCOUNT_SID || "";
+      const authToken = process.env.TWILIO_AUTH_TOKEN || "";
+      const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID || "";
+      if (!accountSid || !authToken || !serviceSid) {
+        // Try platform_config fallback
+        const dbase = await getDb();
+        if (!dbase) { res.json({ ok: false, message: "Twilio credentials not configured" }); return; }
+        const cfgRows = await dbase.select().from(platformConfig);
+        const cfgMap: Record<string, string> = {};
+        for (const row of cfgRows) cfgMap[row.configKey] = row.configValue || "";
+        const sid2 = cfgMap["TWILIO_ACCOUNT_SID"] || "";
+        const token2 = cfgMap["TWILIO_AUTH_TOKEN"] || "";
+        const svcSid2 = cfgMap["TWILIO_VERIFY_SERVICE_SID"] || "";
+        if (!sid2 || !token2 || !svcSid2) {
+          res.json({ ok: false, message: "Twilio credentials not configured. Please save Account SID, Auth Token, and Verify Service SID in Platform Config." }); return;
+        }
+        const credentials2 = Buffer.from(`${sid2}:${token2}`).toString("base64");
+        const twilioRes2 = await fetch(`https://verify.twilio.com/v2/Services/${svcSid2}/Verifications`, {
+          method: "POST",
+          headers: { Authorization: `Basic ${credentials2}`, "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ To: phone, Channel: "sms" }).toString(),
+        });
+        if (twilioRes2.ok) {
+          const d2 = await twilioRes2.json() as any;
+          res.json({ ok: true, message: `OTP sent (status: ${d2.status})` }); return;
+        } else {
+          const e2 = await twilioRes2.json().catch(() => ({})) as any;
+          res.json({ ok: false, message: e2?.message || `Twilio error ${twilioRes2.status}` }); return;
+        }
+      }
+      const credentials = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+      const twilioRes = await fetch(`https://verify.twilio.com/v2/Services/${serviceSid}/Verifications`, {
+        method: "POST",
+        headers: { Authorization: `Basic ${credentials}`, "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ To: phone, Channel: "sms" }).toString(),
+      });
+      if (twilioRes.ok) {
+        const d = await twilioRes.json() as any;
+        res.json({ ok: true, message: `OTP sent (status: ${d.status})` });
+      } else {
+        const e = await twilioRes.json().catch(() => ({})) as any;
+        res.json({ ok: false, message: e?.message || `Twilio error ${twilioRes.status}` });
+      }
+    } catch (err: any) {
+      console.error("[Admin] OTP send error:", err);
+      res.json({ ok: false, message: err?.message || "Unknown error" });
+    }
+  });
+
+  // ── Admin OTP Verify (Twilio Verify) ─────────────────────────────────────
+  app.post("/api/admin/otp/verify", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const phone = (req.body.phone || "").toString().trim();
+      const code = (req.body.code || "").toString().trim();
+      if (!phone || !code) {
+        res.json({ ok: false, message: "Phone and code are required" }); return;
+      }
+      const accountSid = process.env.TWILIO_ACCOUNT_SID || "";
+      const authToken = process.env.TWILIO_AUTH_TOKEN || "";
+      const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID || "";
+      let sid = accountSid, token = authToken, svcSid = serviceSid;
+      if (!sid || !token || !svcSid) {
+        const dbase = await getDb();
+        if (!dbase) { res.json({ ok: false, message: "Twilio credentials not configured" }); return; }
+        const cfgRows = await dbase.select().from(platformConfig);
+        const cfgMap: Record<string, string> = {};
+        for (const row of cfgRows) cfgMap[row.configKey] = row.configValue || "";
+        sid = cfgMap["TWILIO_ACCOUNT_SID"] || "";
+        token = cfgMap["TWILIO_AUTH_TOKEN"] || "";
+        svcSid = cfgMap["TWILIO_VERIFY_SERVICE_SID"] || "";
+      }
+      if (!sid || !token || !svcSid) {
+        res.json({ ok: false, message: "Twilio credentials not configured" }); return;
+      }
+      const credentials = Buffer.from(`${sid}:${token}`).toString("base64");
+      const twilioRes = await fetch(`https://verify.twilio.com/v2/Services/${svcSid}/VerificationCheck`, {
+        method: "POST",
+        headers: { Authorization: `Basic ${credentials}`, "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ To: phone, Code: code }).toString(),
+      });
+      const d = await twilioRes.json() as any;
+      if (twilioRes.ok && d.status === "approved") {
+        res.json({ ok: true, message: "Code approved" });
+      } else {
+        const msg = d?.message || (d?.status ? `Status: ${d.status}` : `HTTP ${twilioRes.status}`);
+        res.json({ ok: false, message: msg });
+      }
+    } catch (err: any) {
+      console.error("[Admin] OTP verify error:", err);
+      res.json({ ok: false, message: err?.message || "Unknown error" });
+    }
+  });
+
   // ── Audit Log ─────────────────────────────────────────────────────
   app.get("/api/admin/audit-log", requireAuth, async (_req: Request, res: Response) => {
     try {
@@ -1677,8 +1778,19 @@ function adminStyles(): string {
         h2 { font-size: 16px !important; }
       }
 
+      @media (max-width: 480px) {
+        /* Single column on small phones so nothing is cut off */
+        .stats-grid { grid-template-columns: 1fr !important; gap: 8px; }
+        .stat-card .stat-value { font-size: 20px; }
+        /* Stack dashboard two-column sections */
+        .dash-two-col { grid-template-columns: 1fr !important; }
+        /* Stack any inline 2-col grids */
+        [style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+        [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+      }
+
       @media (max-width: 400px) {
-        .stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+        .stats-grid { grid-template-columns: 1fr !important; gap: 8px; }
         .stat-card .stat-value { font-size: 18px; }
         .main { padding: 8px; padding-top: 60px; }
       }
@@ -2021,7 +2133,7 @@ function dashboardPage(data: {
       </div>
     </div>
 
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;" class="dash-two-col">
       <div class="card">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
           <h3 style="margin:0;">Recent Businesses</h3>
@@ -3881,6 +3993,43 @@ function platformConfigPage(
           </button>
           <span id="twilioTestResult" style="font-size:13px;"></span>
         </div>
+
+        <!-- OTP Send / Verify Panel -->
+        <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:20px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+            <span style="font-size:20px;">📲</span>
+            <div>
+              <h3 style="font-size:15px;font-weight:700;margin:0;">Send OTP to Any Number</h3>
+              <p style="font-size:12px;color:var(--text-muted);margin:3px 0 0;">Uses Twilio Verify — sends a real OTP SMS. Enter a phone in E.164 format (e.g. +14155551234).</p>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;">
+            <div style="flex:1;min-width:180px;">
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;color:var(--text-muted);">Phone Number (E.164)</label>
+              <input id="otpSendPhone" type="tel" placeholder="+14155551234"
+                oninput="resetOtpPanel()"
+                style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;box-sizing:border-box;" />
+            </div>
+            <button type="button" id="otpSendBtn" onclick="adminSendOtp()"
+              style="background:#0a7ea4;color:white;padding:9px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;">
+              📤 Send OTP
+            </button>
+          </div>
+          <div id="otpVerifyRow" style="display:none;">
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px;">
+              <div style="flex:1;min-width:140px;">
+                <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;color:var(--text-muted);">Enter 6-Digit Code</label>
+                <input id="otpVerifyCode" type="text" maxlength="6" placeholder="123456"
+                  style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:18px;font-weight:700;letter-spacing:4px;text-align:center;box-sizing:border-box;" />
+              </div>
+              <button type="button" id="otpVerifyBtn" onclick="adminVerifyOtp()"
+                style="background:#059669;color:white;padding:9px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;">
+                ✅ Verify Code
+              </button>
+            </div>
+          </div>
+          <div id="otpPanelResult" style="font-size:13px;min-height:20px;"></div>
+        </div>
       </div>
 
       <!-- Stripe Section -->
@@ -4154,6 +4303,93 @@ function platformConfigPage(
         if (section) section.style.display = testModeChk.checked ? 'block' : 'none';
       });
     }
+
+    // ── Admin OTP Send / Verify ─────────────────────────────────────────────
+    window.resetOtpPanel = function resetOtpPanel() {
+      document.getElementById('otpVerifyRow').style.display = 'none';
+      document.getElementById('otpPanelResult').textContent = '';
+      document.getElementById('otpPanelResult').style.color = '';
+      var codeInput = document.getElementById('otpVerifyCode');
+      if (codeInput) codeInput.value = '';
+    };
+
+    window.adminSendOtp = async function adminSendOtp() {
+      var phone = (document.getElementById('otpSendPhone').value || '').trim();
+      var result = document.getElementById('otpPanelResult');
+      var btn = document.getElementById('otpSendBtn');
+      if (!phone) {
+        result.textContent = '⚠️ Enter a phone number first';
+        result.style.color = '#f59e0b';
+        return;
+      }
+      if (!/^\+[1-9]\d{6,14}$/.test(phone)) {
+        result.textContent = '⚠️ Phone must be in E.164 format (e.g. +14155551234)';
+        result.style.color = '#f59e0b';
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = '⏳ Sending...';
+      result.textContent = '';
+      try {
+        var res = await fetch('/api/admin/otp/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: phone })
+        });
+        var data = await res.json();
+        if (data.ok) {
+          result.textContent = '✅ OTP sent to ' + phone + '. Check your phone and enter the code below.';
+          result.style.color = '#22c55e';
+          document.getElementById('otpVerifyRow').style.display = 'block';
+          document.getElementById('otpVerifyCode').focus();
+        } else {
+          result.textContent = '❌ ' + (data.message || 'Failed to send OTP');
+          result.style.color = '#ef4444';
+        }
+      } catch (e) {
+        result.textContent = '❌ Network error';
+        result.style.color = '#ef4444';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '📤 Send OTP';
+      }
+    };
+
+    window.adminVerifyOtp = async function adminVerifyOtp() {
+      var phone = (document.getElementById('otpSendPhone').value || '').trim();
+      var code = (document.getElementById('otpVerifyCode').value || '').trim();
+      var result = document.getElementById('otpPanelResult');
+      var btn = document.getElementById('otpVerifyBtn');
+      if (!phone || !code) {
+        result.textContent = '⚠️ Enter the 6-digit code you received';
+        result.style.color = '#f59e0b';
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = '⏳ Verifying...';
+      result.textContent = '';
+      try {
+        var res = await fetch('/api/admin/otp/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: phone, code: code })
+        });
+        var data = await res.json();
+        if (data.ok) {
+          result.textContent = '✅ Code verified successfully! OTP system is working correctly.';
+          result.style.color = '#22c55e';
+        } else {
+          result.textContent = '❌ ' + (data.message || 'Invalid or expired code');
+          result.style.color = '#ef4444';
+        }
+      } catch (e) {
+        result.textContent = '❌ Network error';
+        result.style.color = '#ef4444';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '✅ Verify Code';
+      }
+    };
 
     window.testStripe = async function testStripe() {
       var btn = document.getElementById('testStripeBtn');

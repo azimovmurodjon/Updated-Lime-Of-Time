@@ -1464,3 +1464,5 @@
 - [x] Admin Panel: dark/light mode toggle in header with system-theme auto-detection
 - [x] Admin login page: apply system-theme dark mode auto-detection
 - [x] Audit all Admin Panel sections for correct data connections to live app
+- [x] Fix Admin Panel dashboard stat cards grid — single column on mobile phones (< 480px)
+- [x] Add OTP send/verify panel to Admin Panel Twilio section (send OTP to any number, verify code, show result)
