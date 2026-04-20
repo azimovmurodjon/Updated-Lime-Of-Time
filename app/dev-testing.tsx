@@ -1,10 +1,20 @@
 /**
  * Dev Testing Screen
  * ─────────────────────────────────────────────────────────────────────────────
- * Accessible only to the Dev Admin (phone number gated).
+ * Accessible only to the Dev Admin (phone number gated, stored in AsyncStorage).
  * Lets you generate bulk random test data and remove it all in one tap.
+ *
+ * Features:
+ *  - Phone gate with configurable Dev Admin phone (persisted in AsyncStorage)
+ *  - 9 categories: Clients, Appointments, Reviews, Promo Codes, Gift Cards,
+ *    Discounts, Locations, Services, Staff
+ *  - Date range picker for appointment distribution
+ *  - Select All / individual category toggles
+ *  - Seed Presets: built-in + custom (saved to AsyncStorage)
+ *  - Remove All Seed Data (tagged with __dev_seed__)
+ *  - Activity log
  */
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
   Alert,
   Pressable,
@@ -15,12 +25,15 @@ import {
   TextInput,
   View,
   ActivityIndicator,
+  Modal,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
 import { useStore } from "@/lib/store";
+import { SERVICE_COLORS, STAFF_COLORS } from "@/lib/types";
 import type {
   Appointment,
   Client,
@@ -29,49 +42,54 @@ import type {
   Location,
   PromoCode,
   Review,
+  Service,
+  StaffMember,
 } from "@/lib/types";
 
-// ─── Dev-admin phone gate ──────────────────────────────────────────────────
-const DEV_ADMIN_PHONE = "+13059999999"; // change to your real dev phone
+// ─── AsyncStorage key for dev admin phone ─────────────────────────────────
+const STORAGE_KEY_DEV_PHONE = "@dev_admin_phone";
+const STORAGE_KEY_PRESETS = "@dev_seed_presets";
+const DEFAULT_DEV_PHONE = "+13059999999";
 
 // ─── Seed tag — all generated items carry this in their name/notes ─────────
-const SEED_TAG = "__dev_seed__";
+export const SEED_TAG = "__dev_seed__";
 
 // ─── Random helpers ────────────────────────────────────────────────────────
-function uid() {
+export function uid() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
-function pick<T>(arr: T[]): T {
+export function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
-function randInt(min: number, max: number) {
+export function randInt(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
-function padZ(n: number) {
+export function padZ(n: number) {
   return String(n).padStart(2, "0");
 }
-function dateStr(d: Date) {
+export function dateStr(d: Date) {
   return `${d.getFullYear()}-${padZ(d.getMonth() + 1)}-${padZ(d.getDate())}`;
 }
-function isoNow() {
+export function isoNow() {
   return new Date().toISOString();
 }
-/** Random date between fromDate and toDate (inclusive) */
-function randDate(from: Date, to: Date): Date {
+export function randDate(from: Date, to: Date): Date {
   const ms = from.getTime() + Math.random() * (to.getTime() - from.getTime());
   return new Date(ms);
 }
-function randTime() {
+export function randTime() {
   const h = randInt(8, 19);
   const m = pick([0, 15, 30, 45]);
   return `${padZ(h)}:${padZ(m)}`;
 }
 
-const FIRST_NAMES = ["Alex","Jordan","Taylor","Morgan","Casey","Riley","Drew","Quinn","Avery","Blake","Cameron","Dana","Elliot","Finley","Harper","Hayden","Jamie","Jesse","Kendall","Logan","Mackenzie","Mason","Micah","Morgan","Parker","Peyton","Reese","Rowan","Sage","Skyler","Spencer","Sydney","Tatum","Teagan","Tyler","Wren","Zara","Zoe","Liam","Emma","Noah","Olivia","Ava","Sophia","Lucas","Mia","Ethan","Isabella"];
+// ─── Word banks ────────────────────────────────────────────────────────────
+const FIRST_NAMES = ["Alex","Jordan","Taylor","Morgan","Casey","Riley","Drew","Quinn","Avery","Blake","Cameron","Dana","Elliot","Finley","Harper","Hayden","Jamie","Jesse","Kendall","Logan","Mackenzie","Mason","Micah","Parker","Peyton","Reese","Rowan","Sage","Skyler","Spencer","Sydney","Tatum","Teagan","Tyler","Wren","Zara","Zoe","Liam","Emma","Noah","Olivia","Ava","Sophia","Lucas","Mia","Ethan","Isabella"];
 const LAST_NAMES = ["Smith","Johnson","Williams","Brown","Jones","Garcia","Miller","Davis","Martinez","Wilson","Anderson","Taylor","Thomas","Hernandez","Moore","Jackson","Martin","Lee","Perez","Thompson","White","Harris","Sanchez","Clark","Lewis","Robinson","Walker","Young","Allen","King","Wright","Scott","Torres","Nguyen","Hill","Flores","Green","Adams","Nelson","Baker","Hall","Rivera","Campbell","Mitchell","Carter","Roberts"];
 const BIZ_WORDS = ["Glow","Luxe","Elite","Prime","Zen","Nova","Pure","Vivid","Chic","Bold","Serene","Radiant","Spark","Bloom","Craft","Art","Style","Grace","Lush","Vibe"];
 const BIZ_TYPES = ["Studio","Salon","Spa","Lounge","Bar","Lab","Hub","Co","Works","Place","Space","Atelier","Boutique","Suite"];
 const SERVICE_NAMES = ["Haircut","Balayage","Color","Highlights","Blowout","Deep Condition","Keratin","Perm","Trim","Shampoo & Style","Facial","Manicure","Pedicure","Massage","Wax","Brow Shaping","Lash Lift","Spray Tan","Scalp Treatment","Beard Trim"];
+const STAFF_ROLES = ["Stylist","Senior Stylist","Colorist","Esthetician","Nail Tech","Massage Therapist","Receptionist","Manager","Assistant","Barber"];
 const REVIEW_COMMENTS = [
   "Absolutely loved the service! Will definitely come back.",
   "Great experience, very professional and friendly staff.",
@@ -83,11 +101,6 @@ const REVIEW_COMMENTS = [
   "The staff was incredibly knowledgeable and helpful.",
   "Decent service, nothing too special but got the job done.",
   "Outstanding! I always leave feeling great.",
-  "Quick and efficient, exactly what I needed.",
-  "Wonderful atmosphere and skilled professionals.",
-  "I've been coming here for years and never disappointed.",
-  "A bit pricey but worth every penny.",
-  "Friendly team and excellent results every time.",
 ];
 const PROMO_PREFIXES = ["SAVE","DEAL","OFFER","SUMMER","WINTER","SPRING","FALL","VIP","NEW","WELCOME","LOYAL","FLASH","SPECIAL","BONUS","EXTRA"];
 const DISCOUNT_NAMES = ["Happy Hour","Weekend Special","Loyalty Reward","First Visit","Flash Sale","Seasonal Offer","Birthday Discount","Referral Bonus","Early Bird","Last Minute"];
@@ -101,34 +114,26 @@ const GIFT_MESSAGES = [
   "Wishing you all the best on your special occasion.",
   "A little gift to brighten your day!",
   "Enjoy this treat, you deserve it!",
-  "With love and best wishes.",
-  "Celebrating you today and always!",
 ];
 
-function randBusinessName() {
-  return `${pick(BIZ_WORDS)} ${pick(BIZ_TYPES)} ${SEED_TAG}`;
-}
-function randClientName() {
-  return `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`;
-}
-function randPhone() {
-  return `+1305${randInt(100, 999)}${randInt(1000, 9999)}`;
-}
-function randEmail(name: string) {
-  return `${name.toLowerCase().replace(/\s/g, ".")}${randInt(1, 99)}@testmail.dev`;
-}
+function randBusinessName() { return `${pick(BIZ_WORDS)} ${pick(BIZ_TYPES)} ${SEED_TAG}`; }
+function randClientName() { return `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`; }
+function randPhone() { return `+1305${randInt(100, 999)}${randInt(1000, 9999)}`; }
+function randEmail(name: string) { return `${name.toLowerCase().replace(/\s/g, ".")}${randInt(1, 99)}@testmail.dev`; }
 
 // ─── Category config ───────────────────────────────────────────────────────
-type Category =
+export type Category =
   | "clients"
   | "appointments"
   | "reviews"
   | "promoCodes"
   | "giftCards"
   | "discounts"
-  | "locations";
+  | "locations"
+  | "services"
+  | "staff";
 
-const ALL_CATEGORIES: Category[] = [
+export const ALL_CATEGORIES: Category[] = [
   "clients",
   "appointments",
   "reviews",
@@ -136,9 +141,11 @@ const ALL_CATEGORIES: Category[] = [
   "giftCards",
   "discounts",
   "locations",
+  "services",
+  "staff",
 ];
 
-const CATEGORY_LABELS: Record<Category, string> = {
+export const CATEGORY_LABELS: Record<Category, string> = {
   clients: "Clients",
   appointments: "Appointments",
   reviews: "Reviews",
@@ -146,6 +153,8 @@ const CATEGORY_LABELS: Record<Category, string> = {
   giftCards: "Gift Cards",
   discounts: "Discounts",
   locations: "Locations",
+  services: "Services",
+  staff: "Staff Members",
 };
 
 const CATEGORY_ICONS: Record<Category, string> = {
@@ -156,6 +165,8 @@ const CATEGORY_ICONS: Record<Category, string> = {
   giftCards: "gift.fill",
   discounts: "percent",
   locations: "location.fill",
+  services: "wrench.fill",
+  staff: "person.fill",
 };
 
 const CATEGORY_COLORS: Record<Category, string> = {
@@ -166,7 +177,87 @@ const CATEGORY_COLORS: Record<Category, string> = {
   giftCards: "#EC4899",
   discounts: "#EF4444",
   locations: "#8B5CF6",
+  services: "#06B6D4",
+  staff: "#F97316",
 };
+
+// ─── Preset types ──────────────────────────────────────────────────────────
+export interface SeedPreset {
+  id: string;
+  name: string;
+  counts: Record<Category, string>;
+  selected: Record<Category, boolean>;
+  fromDate: string;
+  toDate: string;
+  isBuiltIn?: boolean;
+}
+
+function makeDefaultDates() {
+  const from = new Date();
+  from.setMonth(from.getMonth() - 3);
+  const to = new Date();
+  to.setMonth(to.getMonth() + 2);
+  return { from: dateStr(from), to: dateStr(to) };
+}
+
+const { from: DEFAULT_FROM, to: DEFAULT_TO } = makeDefaultDates();
+
+const ALL_ON: Record<Category, boolean> = {
+  clients: true, appointments: true, reviews: true, promoCodes: true,
+  giftCards: true, discounts: true, locations: true, services: true, staff: true,
+};
+const ALL_OFF: Record<Category, boolean> = {
+  clients: false, appointments: false, reviews: false, promoCodes: false,
+  giftCards: false, discounts: false, locations: false, services: false, staff: false,
+};
+
+export const BUILT_IN_PRESETS: SeedPreset[] = [
+  {
+    id: "smoke",
+    name: "🔬 Smoke Test",
+    isBuiltIn: true,
+    fromDate: DEFAULT_FROM,
+    toDate: DEFAULT_TO,
+    selected: ALL_ON,
+    counts: { clients: "2", appointments: "3", reviews: "2", promoCodes: "1", giftCards: "1", discounts: "1", locations: "1", services: "2", staff: "1" },
+  },
+  {
+    id: "light",
+    name: "💡 Light Load",
+    isBuiltIn: true,
+    fromDate: DEFAULT_FROM,
+    toDate: DEFAULT_TO,
+    selected: { ...ALL_ON, locations: false, services: false, staff: false },
+    counts: { clients: "10", appointments: "20", reviews: "8", promoCodes: "3", giftCards: "3", discounts: "3", locations: "0", services: "0", staff: "0" },
+  },
+  {
+    id: "heavy",
+    name: "🔥 Heavy Load",
+    isBuiltIn: true,
+    fromDate: (() => { const d = new Date(); d.setFullYear(d.getFullYear() - 1); return dateStr(d); })(),
+    toDate: (() => { const d = new Date(); d.setFullYear(d.getFullYear() + 1); return dateStr(d); })(),
+    selected: ALL_ON,
+    counts: { clients: "50", appointments: "100", reviews: "40", promoCodes: "10", giftCards: "10", discounts: "10", locations: "5", services: "10", staff: "8" },
+  },
+  {
+    id: "appts_only",
+    name: "📅 Appointments Only",
+    isBuiltIn: true,
+    fromDate: DEFAULT_FROM,
+    toDate: DEFAULT_TO,
+    selected: { ...ALL_OFF, clients: true, appointments: true },
+    counts: { clients: "15", appointments: "30", reviews: "0", promoCodes: "0", giftCards: "0", discounts: "0", locations: "0", services: "0", staff: "0" },
+  },
+  {
+    id: "full_biz",
+    name: "🏢 Full Business",
+    isBuiltIn: true,
+    fromDate: DEFAULT_FROM,
+    toDate: DEFAULT_TO,
+    selected: ALL_ON,
+    counts: { clients: "20", appointments: "40", reviews: "15", promoCodes: "5", giftCards: "5", discounts: "5", locations: "3", services: "8", staff: "5" },
+  },
+];
 
 // ─── Main Component ────────────────────────────────────────────────────────
 export default function DevTestingScreen() {
@@ -175,39 +266,78 @@ export default function DevTestingScreen() {
   const { state, dispatch } = useStore();
 
   // ── Phone gate ──────────────────────────────────────────────────────────
+  const [devAdminPhone, setDevAdminPhone] = useState(DEFAULT_DEV_PHONE);
   const [phoneInput, setPhoneInput] = useState("");
   const [unlocked, setUnlocked] = useState(false);
   const [phoneError, setPhoneError] = useState("");
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [newPhoneValue, setNewPhoneValue] = useState("");
+
+  // Load saved phone on mount
+  useEffect(() => {
+    AsyncStorage.getItem(STORAGE_KEY_DEV_PHONE).then((v) => {
+      if (v) setDevAdminPhone(v);
+    });
+  }, []);
 
   // ── Config state ────────────────────────────────────────────────────────
   const [counts, setCounts] = useState<Record<Category, string>>({
-    clients: "10",
-    appointments: "20",
-    reviews: "10",
-    promoCodes: "5",
-    giftCards: "5",
-    discounts: "5",
-    locations: "3",
+    clients: "10", appointments: "20", reviews: "10",
+    promoCodes: "5", giftCards: "5", discounts: "5",
+    locations: "3", services: "5", staff: "4",
   });
-  const [selected, setSelected] = useState<Record<Category, boolean>>({
-    clients: true,
-    appointments: true,
-    reviews: true,
-    promoCodes: true,
-    giftCards: true,
-    discounts: true,
-    locations: true,
-  });
-  const [fromDate, setFromDate] = useState(() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 3);
-    return dateStr(d);
-  });
-  const [toDate, setToDate] = useState(() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() + 2);
-    return dateStr(d);
-  });
+  const [selected, setSelected] = useState<Record<Category, boolean>>(ALL_ON);
+  const [fromDate, setFromDate] = useState(DEFAULT_FROM);
+  const [toDate, setToDate] = useState(DEFAULT_TO);
+
+  // ── Preset state ────────────────────────────────────────────────────────
+  const [customPresets, setCustomPresets] = useState<SeedPreset[]>([]);
+  const [showPresets, setShowPresets] = useState(false);
+  const [savingPreset, setSavingPreset] = useState(false);
+  const [newPresetName, setNewPresetName] = useState("");
+
+  const allPresets = useMemo(() => [...BUILT_IN_PRESETS, ...customPresets], [customPresets]);
+
+  useEffect(() => {
+    AsyncStorage.getItem(STORAGE_KEY_PRESETS).then((v) => {
+      if (v) {
+        try { setCustomPresets(JSON.parse(v)); } catch { /* ignore */ }
+      }
+    });
+  }, []);
+
+  const applyPreset = useCallback((preset: SeedPreset) => {
+    setCounts(preset.counts);
+    setSelected(preset.selected);
+    setFromDate(preset.fromDate);
+    setToDate(preset.toDate);
+    setShowPresets(false);
+  }, []);
+
+  const saveCurrentAsPreset = useCallback(async () => {
+    const name = newPresetName.trim();
+    if (!name) { Alert.alert("Name required", "Please enter a preset name."); return; }
+    const preset: SeedPreset = {
+      id: uid(),
+      name,
+      counts,
+      selected,
+      fromDate,
+      toDate,
+    };
+    const updated = [...customPresets, preset];
+    setCustomPresets(updated);
+    await AsyncStorage.setItem(STORAGE_KEY_PRESETS, JSON.stringify(updated));
+    setNewPresetName("");
+    setSavingPreset(false);
+    Alert.alert("Preset Saved", `"${name}" saved successfully.`);
+  }, [newPresetName, counts, selected, fromDate, toDate, customPresets]);
+
+  const deleteCustomPreset = useCallback(async (id: string) => {
+    const updated = customPresets.filter((p) => p.id !== id);
+    setCustomPresets(updated);
+    await AsyncStorage.setItem(STORAGE_KEY_PRESETS, JSON.stringify(updated));
+  }, [customPresets]);
 
   // ── Generation state ────────────────────────────────────────────────────
   const [generating, setGenerating] = useState(false);
@@ -229,43 +359,20 @@ export default function DevTestingScreen() {
   const allSelected = ALL_CATEGORIES.every((c) => selected[c]);
 
   // ── Seed data count helpers ──────────────────────────────────────────────
-  const seedClients = useMemo(
-    () => state.clients.filter((c) => c.notes?.includes(SEED_TAG)),
-    [state.clients]
-  );
-  const seedAppointments = useMemo(
-    () => state.appointments.filter((a) => a.notes?.includes(SEED_TAG)),
-    [state.appointments]
-  );
-  const seedReviews = useMemo(
-    () => state.reviews.filter((r) => r.comment?.includes(SEED_TAG)),
-    [state.reviews]
-  );
-  const seedPromoCodes = useMemo(
-    () => state.promoCodes.filter((p) => p.label?.includes(SEED_TAG)),
-    [state.promoCodes]
-  );
-  const seedGiftCards = useMemo(
-    () => state.giftCards.filter((g) => g.message?.includes(SEED_TAG)),
-    [state.giftCards]
-  );
-  const seedDiscounts = useMemo(
-    () => state.discounts.filter((d) => d.name?.includes(SEED_TAG)),
-    [state.discounts]
-  );
-  const seedLocations = useMemo(
-    () => state.locations.filter((l) => l.name?.includes(SEED_TAG)),
-    [state.locations]
-  );
+  const seedClients = useMemo(() => state.clients.filter((c) => c.notes?.includes(SEED_TAG)), [state.clients]);
+  const seedAppointments = useMemo(() => state.appointments.filter((a) => a.notes?.includes(SEED_TAG)), [state.appointments]);
+  const seedReviews = useMemo(() => state.reviews.filter((r) => r.comment?.includes(SEED_TAG)), [state.reviews]);
+  const seedPromoCodes = useMemo(() => state.promoCodes.filter((p) => p.label?.includes(SEED_TAG)), [state.promoCodes]);
+  const seedGiftCards = useMemo(() => state.giftCards.filter((g) => g.message?.includes(SEED_TAG)), [state.giftCards]);
+  const seedDiscounts = useMemo(() => state.discounts.filter((d) => d.name?.includes(SEED_TAG)), [state.discounts]);
+  const seedLocations = useMemo(() => state.locations.filter((l) => l.name?.includes(SEED_TAG)), [state.locations]);
+  const seedServices = useMemo(() => state.services.filter((s) => s.name?.includes(SEED_TAG)), [state.services]);
+  const seedStaff = useMemo(() => state.staff.filter((s) => s.name?.includes(SEED_TAG)), [state.staff]);
 
   const totalSeedItems =
-    seedClients.length +
-    seedAppointments.length +
-    seedReviews.length +
-    seedPromoCodes.length +
-    seedGiftCards.length +
-    seedDiscounts.length +
-    seedLocations.length;
+    seedClients.length + seedAppointments.length + seedReviews.length +
+    seedPromoCodes.length + seedGiftCards.length + seedDiscounts.length +
+    seedLocations.length + seedServices.length + seedStaff.length;
 
   // ── Generate ─────────────────────────────────────────────────────────────
   const handleGenerate = useCallback(async () => {
@@ -280,8 +387,54 @@ export default function DevTestingScreen() {
     setLog([]);
     addLog("🚀 Starting data generation...");
 
-    // We need at least one service for appointments
-    const services = state.services.length > 0 ? state.services : null;
+    // ── Services ───────────────────────────────────────────────────────────
+    const newServices: Service[] = [];
+    if (selected.services) {
+      const n = Math.max(0, parseInt(counts.services) || 0);
+      for (let i = 0; i < n; i++) {
+        const svc: Service = {
+          id: uid(),
+          name: `${pick(SERVICE_NAMES)} ${SEED_TAG}`,
+          duration: pick([30, 45, 60, 90, 120]),
+          price: randInt(20, 200),
+          color: pick(SERVICE_COLORS),
+          description: `Auto-generated test service ${SEED_TAG}`,
+          category: pick(["Hair", "Nails", "Skin", "Body", "Other"]),
+          locationIds: null,
+          createdAt: isoNow(),
+        };
+        newServices.push(svc);
+        dispatch({ type: "ADD_SERVICE", payload: svc });
+      }
+      addLog(`✅ Created ${n} services`);
+    }
+
+    // ── Staff ──────────────────────────────────────────────────────────────
+    const newStaff: StaffMember[] = [];
+    if (selected.staff) {
+      const n = Math.max(0, parseInt(counts.staff) || 0);
+      const allSvcIds = [...state.services, ...newServices].map((s) => s.id);
+      for (let i = 0; i < n; i++) {
+        const name = randClientName();
+        const member: StaffMember = {
+          id: uid(),
+          name: `${name} ${SEED_TAG}`,
+          phone: randPhone(),
+          email: randEmail(name),
+          role: pick(STAFF_ROLES),
+          color: pick(STAFF_COLORS),
+          serviceIds: allSvcIds.length > 0 ? [pick(allSvcIds)] : null,
+          locationIds: null,
+          workingHours: null,
+          active: true,
+          commissionRate: pick([null, 30, 40, 50]),
+          createdAt: isoNow(),
+        };
+        newStaff.push(member);
+        dispatch({ type: "ADD_STAFF", payload: member });
+      }
+      addLog(`✅ Created ${n} staff members`);
+    }
 
     // ── Locations ──────────────────────────────────────────────────────────
     const newLocations: Location[] = [];
@@ -335,13 +488,14 @@ export default function DevTestingScreen() {
     if (selected.appointments) {
       const n = Math.max(0, parseInt(counts.appointments) || 0);
       const allClients = [...state.clients, ...newClients];
+      const allServices = [...state.services, ...newServices];
       const statuses: Appointment["status"][] = ["pending", "confirmed", "completed", "cancelled"];
       const payMethods: Appointment["paymentMethod"][] = ["cash", "zelle", "venmo", "cashapp", "card", "unpaid"];
       const payStatuses: Appointment["paymentStatus"][] = ["unpaid", "pending_cash", "paid"];
 
       for (let i = 0; i < n; i++) {
         const d = randDate(from, to);
-        const svc = services ? pick(services) : null;
+        const svc = allServices.length > 0 ? pick(allServices) : null;
         const client = allClients.length > 0 ? pick(allClients) : null;
         const status = pick(statuses);
         const appt: Appointment = {
@@ -411,15 +565,15 @@ export default function DevTestingScreen() {
     // ── Gift Cards ─────────────────────────────────────────────────────────
     if (selected.giftCards) {
       const n = Math.max(0, parseInt(counts.giftCards) || 0);
-      const svcIds = state.services.map((s) => s.id);
+      const allSvcIds = [...state.services, ...newServices].map((s) => s.id);
       for (let i = 0; i < n; i++) {
         const value = pick([25, 50, 75, 100, 150, 200]);
         const name = randClientName();
         const gift: GiftCard = {
           id: uid(),
           code: `GIFT${randInt(1000, 9999)}`,
-          serviceLocalId: svcIds.length > 0 ? pick(svcIds) : "svc_placeholder",
-          serviceIds: svcIds.length > 0 ? [pick(svcIds)] : [],
+          serviceLocalId: allSvcIds.length > 0 ? pick(allSvcIds) : "svc_placeholder",
+          serviceIds: allSvcIds.length > 0 ? [pick(allSvcIds)] : [],
           originalValue: value,
           remainingBalance: value,
           recipientName: name,
@@ -467,7 +621,7 @@ export default function DevTestingScreen() {
     }
     Alert.alert(
       "Remove All Seed Data",
-      `This will permanently delete ${totalSeedItems} seeded items (clients, appointments, reviews, promo codes, gift cards, discounts, locations). This cannot be undone.`,
+      `This will permanently delete ${totalSeedItems} seeded items. This cannot be undone.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -477,6 +631,12 @@ export default function DevTestingScreen() {
             setRemoving(true);
             setLog([]);
             addLog("🗑️ Removing all seed data...");
+
+            seedStaff.forEach((s) => dispatch({ type: "DELETE_STAFF", payload: s.id }));
+            addLog(`Removed ${seedStaff.length} staff`);
+
+            seedServices.forEach((s) => dispatch({ type: "DELETE_SERVICE", payload: s.id }));
+            addLog(`Removed ${seedServices.length} services`);
 
             seedClients.forEach((c) => dispatch({ type: "DELETE_CLIENT", payload: c.id }));
             addLog(`Removed ${seedClients.length} clients`);
@@ -505,18 +665,7 @@ export default function DevTestingScreen() {
         },
       ]
     );
-  }, [
-    totalSeedItems,
-    seedClients,
-    seedAppointments,
-    seedReviews,
-    seedPromoCodes,
-    seedGiftCards,
-    seedDiscounts,
-    seedLocations,
-    dispatch,
-    addLog,
-  ]);
+  }, [totalSeedItems, seedClients, seedAppointments, seedReviews, seedPromoCodes, seedGiftCards, seedDiscounts, seedLocations, seedServices, seedStaff, dispatch, addLog]);
 
   // ── Phone gate UI ─────────────────────────────────────────────────────────
   if (!unlocked) {
@@ -542,11 +691,7 @@ export default function DevTestingScreen() {
               returnKeyType="done"
               onSubmitEditing={() => {
                 const normalized = phoneInput.replace(/\s/g, "");
-                if (normalized === DEV_ADMIN_PHONE) {
-                  setUnlocked(true);
-                } else {
-                  setPhoneError("Incorrect phone number.");
-                }
+                if (normalized === devAdminPhone) { setUnlocked(true); } else { setPhoneError("Incorrect phone number."); }
               }}
             />
             {phoneError ? <Text style={{ color: colors.error, fontSize: 12, marginTop: 4 }}>{phoneError}</Text> : null}
@@ -554,11 +699,7 @@ export default function DevTestingScreen() {
               style={({ pressed }) => [styles.gateBtn, { backgroundColor: "#F59E0B", opacity: pressed ? 0.8 : 1 }]}
               onPress={() => {
                 const normalized = phoneInput.replace(/\s/g, "");
-                if (normalized === DEV_ADMIN_PHONE) {
-                  setUnlocked(true);
-                } else {
-                  setPhoneError("Incorrect phone number.");
-                }
+                if (normalized === devAdminPhone) { setUnlocked(true); } else { setPhoneError("Incorrect phone number."); }
               }}
             >
               <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 15 }}>Unlock</Text>
@@ -575,10 +716,8 @@ export default function DevTestingScreen() {
   // ── Main Testing UI ───────────────────────────────────────────────────────
   return (
     <ScreenContainer>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
-      >
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
+
         {/* Header */}
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
@@ -593,6 +732,64 @@ export default function DevTestingScreen() {
           </View>
         </View>
 
+        {/* Dev Admin Phone Settings */}
+        <Text style={[styles.sectionLabel, { color: colors.muted }]}>DEV ADMIN PHONE</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {editingPhone ? (
+            <View>
+              <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 6 }}>New phone number (E.164 format, e.g. +13059999999)</Text>
+              <TextInput
+                style={[styles.dateInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+                value={newPhoneValue}
+                onChangeText={setNewPhoneValue}
+                placeholder="+13059999999"
+                placeholderTextColor={colors.muted}
+                keyboardType="phone-pad"
+                autoCorrect={false}
+                returnKeyType="done"
+              />
+              <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+                <Pressable
+                  style={({ pressed }) => [styles.smallBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1, flex: 1 }]}
+                  onPress={async () => {
+                    const v = newPhoneValue.replace(/\s/g, "");
+                    if (!v.startsWith("+") || v.length < 10) {
+                      Alert.alert("Invalid", "Phone must be in E.164 format, e.g. +13059999999");
+                      return;
+                    }
+                    setDevAdminPhone(v);
+                    await AsyncStorage.setItem(STORAGE_KEY_DEV_PHONE, v);
+                    setEditingPhone(false);
+                    setNewPhoneValue("");
+                    Alert.alert("Saved", `Dev Admin phone updated to ${v}`);
+                  }}
+                >
+                  <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 13 }}>Save</Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [styles.smallBtn, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, opacity: pressed ? 0.8 : 1, flex: 1 }]}
+                  onPress={() => { setEditingPhone(false); setNewPhoneValue(""); }}
+                >
+                  <Text style={{ color: colors.muted, fontWeight: "600", fontSize: 13 }}>Cancel</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground }}>{devAdminPhone}</Text>
+                <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>Phone required to unlock this panel</Text>
+              </View>
+              <Pressable
+                style={({ pressed }) => [styles.smallBtn, { backgroundColor: "#F59E0B20", opacity: pressed ? 0.7 : 1 }]}
+                onPress={() => { setEditingPhone(true); setNewPhoneValue(devAdminPhone); }}
+              >
+                <Text style={{ color: "#F59E0B", fontWeight: "700", fontSize: 12 }}>Change</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+
         {/* Existing seed data summary */}
         {totalSeedItems > 0 && (
           <View style={[styles.summaryCard, { backgroundColor: "#EF444415", borderColor: "#EF444430" }]}>
@@ -600,9 +797,79 @@ export default function DevTestingScreen() {
               ⚠️ {totalSeedItems} seeded items exist in the store
             </Text>
             <Text style={{ fontSize: 11, color: "#EF4444", marginTop: 2, opacity: 0.8 }}>
-              {seedClients.length} clients · {seedAppointments.length} appts · {seedReviews.length} reviews · {seedPromoCodes.length} promos · {seedGiftCards.length} gifts · {seedDiscounts.length} discounts · {seedLocations.length} locations
+              {seedClients.length} clients · {seedAppointments.length} appts · {seedReviews.length} reviews · {seedPromoCodes.length} promos · {seedGiftCards.length} gifts · {seedDiscounts.length} discounts · {seedLocations.length} locations · {seedServices.length} services · {seedStaff.length} staff
             </Text>
           </View>
+        )}
+
+        {/* Presets */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={[styles.sectionLabel, { color: colors.muted }]}>PRESETS</Text>
+          <Pressable
+            onPress={() => setShowPresets(true)}
+            style={({ pressed }) => [styles.selectAllBtn, { backgroundColor: "#8B5CF615", opacity: pressed ? 0.7 : 1 }]}
+          >
+            <Text style={{ fontSize: 11, fontWeight: "700", color: "#8B5CF6" }}>Load Preset</Text>
+          </Pressable>
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
+          <View style={{ flexDirection: "row", gap: 8, paddingBottom: 4 }}>
+            {BUILT_IN_PRESETS.map((p) => (
+              <Pressable
+                key={p.id}
+                onPress={() => applyPreset(p)}
+                style={({ pressed }) => [styles.presetChip, { backgroundColor: "#8B5CF615", borderColor: "#8B5CF640", opacity: pressed ? 0.75 : 1 }]}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "600", color: "#8B5CF6" }}>{p.name}</Text>
+              </Pressable>
+            ))}
+            {customPresets.map((p) => (
+              <Pressable
+                key={p.id}
+                onPress={() => applyPreset(p)}
+                style={({ pressed }) => [styles.presetChip, { backgroundColor: "#06B6D415", borderColor: "#06B6D440", opacity: pressed ? 0.75 : 1 }]}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "600", color: "#06B6D4" }}>{p.name}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </ScrollView>
+
+        {/* Save current as preset */}
+        {savingPreset ? (
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, marginBottom: 12 }]}>
+            <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 6 }}>Preset name</Text>
+            <TextInput
+              style={[styles.dateInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+              value={newPresetName}
+              onChangeText={setNewPresetName}
+              placeholder="e.g. My Custom Load"
+              placeholderTextColor={colors.muted}
+              autoCorrect={false}
+              returnKeyType="done"
+            />
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+              <Pressable
+                style={({ pressed }) => [styles.smallBtn, { backgroundColor: "#06B6D4", opacity: pressed ? 0.8 : 1, flex: 1 }]}
+                onPress={saveCurrentAsPreset}
+              >
+                <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 13 }}>Save Preset</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.smallBtn, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, opacity: pressed ? 0.8 : 1, flex: 1 }]}
+                onPress={() => { setSavingPreset(false); setNewPresetName(""); }}
+              >
+                <Text style={{ color: colors.muted, fontWeight: "600", fontSize: 13 }}>Cancel</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <Pressable
+            onPress={() => setSavingPreset(true)}
+            style={({ pressed }) => [styles.savePresetBtn, { borderColor: "#06B6D440", backgroundColor: "#06B6D410", opacity: pressed ? 0.75 : 1 }]}
+          >
+            <Text style={{ fontSize: 12, fontWeight: "600", color: "#06B6D4" }}>+ Save Current Config as Preset</Text>
+          </Pressable>
         )}
 
         {/* Date Range */}
@@ -674,14 +941,7 @@ export default function DevTestingScreen() {
                 {CATEGORY_LABELS[cat]}
               </Text>
               <TextInput
-                style={[
-                  styles.countInput,
-                  {
-                    backgroundColor: isOn ? colors.background : colors.surface,
-                    borderColor: isOn ? color + "50" : colors.border,
-                    color: isOn ? colors.foreground : colors.muted,
-                  },
-                ]}
+                style={[styles.countInput, { backgroundColor: isOn ? colors.background : colors.surface, borderColor: isOn ? color + "50" : colors.border, color: isOn ? colors.foreground : colors.muted }]}
                 value={counts[cat]}
                 onChangeText={(v) => setCounts((prev) => ({ ...prev, [cat]: v.replace(/[^0-9]/g, "") }))}
                 keyboardType="number-pad"
@@ -697,10 +957,7 @@ export default function DevTestingScreen() {
         <Pressable
           onPress={handleGenerate}
           disabled={generating || removing}
-          style={({ pressed }) => [
-            styles.generateBtn,
-            { backgroundColor: generating ? colors.muted : "#10B981", opacity: pressed ? 0.85 : 1 },
-          ]}
+          style={({ pressed }) => [styles.generateBtn, { backgroundColor: generating ? colors.muted : "#10B981", opacity: pressed ? 0.85 : 1 }]}
         >
           {generating ? (
             <ActivityIndicator color="#FFF" size="small" />
@@ -716,28 +973,14 @@ export default function DevTestingScreen() {
         <Pressable
           onPress={handleRemoveAll}
           disabled={generating || removing || totalSeedItems === 0}
-          style={({ pressed }) => [
-            styles.removeBtn,
-            {
-              backgroundColor: totalSeedItems === 0 ? colors.surface : "#EF444415",
-              borderColor: totalSeedItems === 0 ? colors.border : "#EF444440",
-              opacity: pressed ? 0.75 : totalSeedItems === 0 ? 0.5 : 1,
-            },
-          ]}
+          style={({ pressed }) => [styles.removeBtn, { backgroundColor: totalSeedItems === 0 ? colors.surface : "#EF444415", borderColor: totalSeedItems === 0 ? colors.border : "#EF444440", opacity: pressed ? 0.75 : totalSeedItems === 0 ? 0.5 : 1 }]}
         >
           {removing ? (
             <ActivityIndicator color="#EF4444" size="small" />
           ) : (
             <IconSymbol name="trash.fill" size={18} color={totalSeedItems === 0 ? colors.muted : "#EF4444"} />
           )}
-          <Text
-            style={{
-              fontWeight: "700",
-              fontSize: 15,
-              marginLeft: 8,
-              color: totalSeedItems === 0 ? colors.muted : "#EF4444",
-            }}
-          >
+          <Text style={{ fontWeight: "700", fontSize: 15, marginLeft: 8, color: totalSeedItems === 0 ? colors.muted : "#EF4444" }}>
             {removing ? "Removing..." : `Remove All Seed Data (${totalSeedItems})`}
           </Text>
         </Pressable>
@@ -748,9 +991,7 @@ export default function DevTestingScreen() {
             <Text style={[styles.sectionLabel, { color: colors.muted, marginTop: 20 }]}>ACTIVITY LOG</Text>
             <View style={[styles.logBox, { backgroundColor: "#0D1117", borderColor: "#30363D" }]}>
               {log.map((line, i) => (
-                <Text key={i} style={styles.logLine}>
-                  {line}
-                </Text>
+                <Text key={i} style={styles.logLine}>{line}</Text>
               ))}
             </View>
           </>
@@ -761,11 +1002,62 @@ export default function DevTestingScreen() {
           <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted, marginBottom: 6 }}>ℹ️ HOW IT WORKS</Text>
           <Text style={{ fontSize: 12, color: colors.muted, lineHeight: 18 }}>
             All generated items are tagged with a hidden marker so they can be identified and removed in bulk. Use "Remove All Seed Data" to clean up without affecting real data.{"\n\n"}
-            Appointments require at least one service to exist. Clients are created first and used for appointments/reviews.{"\n\n"}
-            Phone gate: only the registered Dev Admin phone can access this screen.
+            Services and Staff are seeded into the active business. Appointments use seeded or existing services/clients.{"\n\n"}
+            Presets let you save and reload configurations instantly. Built-in presets cannot be deleted.{"\n\n"}
+            Phone gate: only the registered Dev Admin phone can access this screen. Tap "Change" above to update it.
           </Text>
         </View>
       </ScrollView>
+
+      {/* Presets Modal */}
+      <Modal visible={showPresets} transparent animationType="slide" onRequestClose={() => setShowPresets(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}>
+              <Text style={{ fontSize: 17, fontWeight: "800", color: colors.foreground, flex: 1 }}>Load Preset</Text>
+              <Pressable onPress={() => setShowPresets(false)} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
+                <Text style={{ fontSize: 14, color: colors.muted }}>Close</Text>
+              </Pressable>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, marginBottom: 8 }}>BUILT-IN</Text>
+              {BUILT_IN_PRESETS.map((p) => (
+                <Pressable
+                  key={p.id}
+                  onPress={() => applyPreset(p)}
+                  style={({ pressed }) => [styles.presetRow, { backgroundColor: "#8B5CF610", borderColor: "#8B5CF630", opacity: pressed ? 0.75 : 1 }]}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: "600", color: "#8B5CF6", flex: 1 }}>{p.name}</Text>
+                  <Text style={{ fontSize: 11, color: colors.muted }}>
+                    {Object.entries(p.counts).filter(([k]) => p.selected[k as Category]).map(([k, v]) => `${v} ${CATEGORY_LABELS[k as Category]}`).join(" · ")}
+                  </Text>
+                </Pressable>
+              ))}
+              {customPresets.length > 0 && (
+                <>
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, marginTop: 16, marginBottom: 8 }}>CUSTOM</Text>
+                  {customPresets.map((p) => (
+                    <View key={p.id} style={[styles.presetRow, { backgroundColor: "#06B6D410", borderColor: "#06B6D430" }]}>
+                      <Pressable onPress={() => applyPreset(p)} style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, fontWeight: "600", color: "#06B6D4" }}>{p.name}</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => Alert.alert("Delete Preset", `Delete "${p.name}"?`, [
+                          { text: "Cancel", style: "cancel" },
+                          { text: "Delete", style: "destructive", onPress: () => deleteCustomPreset(p.id) },
+                        ])}
+                        style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, paddingLeft: 12 })}
+                      >
+                        <IconSymbol name="trash.fill" size={16} color="#EF4444" />
+                      </Pressable>
+                    </View>
+                  ))}
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -773,26 +1065,32 @@ export default function DevTestingScreen() {
 const styles = StyleSheet.create({
   gateContainer: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
   gateCard: { width: "100%", maxWidth: 360, borderRadius: 20, padding: 24, alignItems: "center", borderWidth: 1 },
-  gateIcon: { width: 64, height: 64, borderRadius: 20, alignItems: "center", justifyContent: "center", marginBottom: 16 },
-  gateTitle: { fontSize: 20, fontWeight: "800", marginBottom: 8 },
-  gateSubtitle: { fontSize: 13, textAlign: "center", lineHeight: 18, marginBottom: 20 },
-  gateInput: { width: "100%", borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, marginBottom: 4 },
-  gateBtn: { width: "100%", paddingVertical: 14, borderRadius: 14, alignItems: "center", marginTop: 12 },
-  header: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
-  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  summaryCard: { borderRadius: 12, padding: 12, borderWidth: 1, marginBottom: 16 },
-  sectionLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 8, marginTop: 4 },
+  gateIcon: { width: 64, height: 64, borderRadius: 32, alignItems: "center", justifyContent: "center", marginBottom: 16 },
+  gateTitle: { fontSize: 22, fontWeight: "800", marginBottom: 8 },
+  gateSubtitle: { fontSize: 13, textAlign: "center", marginBottom: 20, lineHeight: 18 },
+  gateInput: { width: "100%", borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, marginBottom: 4 },
+  gateBtn: { width: "100%", paddingVertical: 14, borderRadius: 12, alignItems: "center", marginTop: 12 },
+  header: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
+  badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  sectionLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5, marginBottom: 8, marginTop: 4 },
   sectionHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8, marginTop: 4 },
-  selectAllBtn: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8 },
-  card: { borderRadius: 14, padding: 14, borderWidth: 1, marginBottom: 16 },
-  dateRow: { flexDirection: "row", alignItems: "flex-end" },
-  dateInput: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 9, fontSize: 14 },
-  categoryRow: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 14, padding: 12, borderWidth: 1, marginBottom: 8 },
+  card: { borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 12 },
+  summaryCard: { borderRadius: 12, borderWidth: 1, padding: 12, marginBottom: 12 },
+  dateRow: { flexDirection: "row" },
+  dateInput: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 9, fontSize: 14 },
+  selectAllBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  categoryRow: { flexDirection: "row", alignItems: "center", borderRadius: 12, borderWidth: 1, padding: 10, marginBottom: 8, gap: 10 },
   catIcon: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  countInput: { width: 60, borderRadius: 10, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 7, fontSize: 15, fontWeight: "700", textAlign: "center" },
-  generateBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: 16, paddingVertical: 16, marginTop: 20, marginBottom: 10 },
-  removeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: 16, paddingVertical: 14, borderWidth: 1, marginBottom: 10 },
-  logBox: { borderRadius: 12, padding: 14, borderWidth: 1, marginBottom: 16 },
-  logLine: { fontSize: 11, color: "#58A6FF", fontFamily: "monospace", lineHeight: 18 },
-  infoCard: { borderRadius: 14, padding: 14, borderWidth: 1, marginTop: 8 },
+  countInput: { width: 56, borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 7, fontSize: 14, textAlign: "center" },
+  generateBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 16, borderRadius: 14, marginTop: 8, marginBottom: 10 },
+  removeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 14, borderRadius: 14, borderWidth: 1, marginBottom: 8 },
+  logBox: { borderRadius: 12, borderWidth: 1, padding: 12, marginBottom: 12 },
+  logLine: { fontSize: 11, color: "#7EE787", fontFamily: "monospace", lineHeight: 18 },
+  infoCard: { borderRadius: 14, borderWidth: 1, padding: 14, marginTop: 8, marginBottom: 20 },
+  smallBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, alignItems: "center" },
+  presetChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
+  savePresetBtn: { borderWidth: 1, borderRadius: 10, paddingVertical: 10, alignItems: "center", marginBottom: 12 },
+  presetRow: { borderRadius: 10, borderWidth: 1, padding: 12, marginBottom: 8 },
+  modalOverlay: { flex: 1, backgroundColor: "#00000080", justifyContent: "flex-end" },
+  modalCard: { borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, padding: 20, maxHeight: "80%" },
 });

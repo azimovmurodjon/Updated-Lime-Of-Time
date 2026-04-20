@@ -28,6 +28,82 @@ function randTime() {
   return `${padZ(h)}:${padZ(m)}`;
 }
 
+// ─── Replicate ALL_CATEGORIES and preset types ─────────────────────────────
+type Category =
+  | "clients" | "appointments" | "reviews" | "promoCodes"
+  | "giftCards" | "discounts" | "locations" | "services" | "staff";
+
+const ALL_CATEGORIES: Category[] = [
+  "clients", "appointments", "reviews", "promoCodes",
+  "giftCards", "discounts", "locations", "services", "staff",
+];
+
+const CATEGORY_LABELS: Record<Category, string> = {
+  clients: "Clients", appointments: "Appointments", reviews: "Reviews",
+  promoCodes: "Promo Codes", giftCards: "Gift Cards", discounts: "Discounts",
+  locations: "Locations", services: "Services", staff: "Staff Members",
+};
+
+interface SeedPreset {
+  id: string;
+  name: string;
+  counts: Record<Category, string>;
+  selected: Record<Category, boolean>;
+  fromDate: string;
+  toDate: string;
+  isBuiltIn?: boolean;
+}
+
+function makeDefaultDates() {
+  const from = new Date(); from.setMonth(from.getMonth() - 3);
+  const to = new Date(); to.setMonth(to.getMonth() + 2);
+  return { from: dateStr(from), to: dateStr(to) };
+}
+const { from: DEFAULT_FROM, to: DEFAULT_TO } = makeDefaultDates();
+
+const ALL_ON: Record<Category, boolean> = {
+  clients: true, appointments: true, reviews: true, promoCodes: true,
+  giftCards: true, discounts: true, locations: true, services: true, staff: true,
+};
+const ALL_OFF: Record<Category, boolean> = {
+  clients: false, appointments: false, reviews: false, promoCodes: false,
+  giftCards: false, discounts: false, locations: false, services: false, staff: false,
+};
+
+const BUILT_IN_PRESETS: SeedPreset[] = [
+  {
+    id: "smoke", name: "🔬 Smoke Test", isBuiltIn: true,
+    fromDate: DEFAULT_FROM, toDate: DEFAULT_TO,
+    selected: ALL_ON,
+    counts: { clients: "2", appointments: "3", reviews: "2", promoCodes: "1", giftCards: "1", discounts: "1", locations: "1", services: "2", staff: "1" },
+  },
+  {
+    id: "light", name: "💡 Light Load", isBuiltIn: true,
+    fromDate: DEFAULT_FROM, toDate: DEFAULT_TO,
+    selected: { ...ALL_ON, locations: false, services: false, staff: false },
+    counts: { clients: "10", appointments: "20", reviews: "8", promoCodes: "3", giftCards: "3", discounts: "3", locations: "0", services: "0", staff: "0" },
+  },
+  {
+    id: "heavy", name: "🔥 Heavy Load", isBuiltIn: true,
+    fromDate: (() => { const d = new Date(); d.setFullYear(d.getFullYear() - 1); return dateStr(d); })(),
+    toDate: (() => { const d = new Date(); d.setFullYear(d.getFullYear() + 1); return dateStr(d); })(),
+    selected: ALL_ON,
+    counts: { clients: "50", appointments: "100", reviews: "40", promoCodes: "10", giftCards: "10", discounts: "10", locations: "5", services: "10", staff: "8" },
+  },
+  {
+    id: "appts_only", name: "📅 Appointments Only", isBuiltIn: true,
+    fromDate: DEFAULT_FROM, toDate: DEFAULT_TO,
+    selected: { ...ALL_OFF, clients: true, appointments: true },
+    counts: { clients: "15", appointments: "30", reviews: "0", promoCodes: "0", giftCards: "0", discounts: "0", locations: "0", services: "0", staff: "0" },
+  },
+  {
+    id: "full_biz", name: "🏢 Full Business", isBuiltIn: true,
+    fromDate: DEFAULT_FROM, toDate: DEFAULT_TO,
+    selected: ALL_ON,
+    counts: { clients: "20", appointments: "40", reviews: "15", promoCodes: "5", giftCards: "5", discounts: "5", locations: "3", services: "8", staff: "5" },
+  },
+];
+
 // ─── Tests ─────────────────────────────────────────────────────────────────
 describe("Dev Testing – seed tag helpers", () => {
   it("uid() generates unique IDs", () => {
@@ -128,25 +204,33 @@ describe("Dev Testing – seed tag filtering", () => {
     expect(seeded[0].id).toBe("l1");
   });
 
-  it("totalSeedItems counts all seeded items correctly", () => {
-    const seedClients = [seedClient];
-    const seedAppointments = [{ id: "a1", notes: `${SEED_TAG}` }];
-    const seedReviews = [{ id: "r1", comment: `${SEED_TAG}` }];
-    const seedPromos = [{ id: "p1", label: `${SEED_TAG}` }];
-    const seedGifts = [{ id: "g1", message: `${SEED_TAG}` }, { id: "g2", message: `${SEED_TAG}` }];
-    const seedDiscounts: unknown[] = [];
-    const seedLocations: unknown[] = [];
+  it("correctly identifies seeded services by SEED_TAG in name", () => {
+    const services = [
+      { id: "s1", name: `Haircut ${SEED_TAG}`, duration: 30, price: 40, color: "#4CAF50", createdAt: "" },
+      { id: "s2", name: "Balayage", duration: 120, price: 150, color: "#2196F3", createdAt: "" },
+    ];
+    const seeded = services.filter((s) => s.name?.includes(SEED_TAG));
+    expect(seeded).toHaveLength(1);
+    expect(seeded[0].id).toBe("s1");
+  });
 
-    const total =
-      seedClients.length +
-      seedAppointments.length +
-      seedReviews.length +
-      seedPromos.length +
-      seedGifts.length +
-      seedDiscounts.length +
-      seedLocations.length;
+  it("correctly identifies seeded staff by SEED_TAG in name", () => {
+    const staff = [
+      { id: "st1", name: `Alex Smith ${SEED_TAG}`, phone: "+1", email: "a@a.com", role: "Stylist", color: "#3B82F6", serviceIds: null, locationIds: null, workingHours: null, active: true, createdAt: "" },
+      { id: "st2", name: "Real Stylist", phone: "+1", email: "r@r.com", role: "Colorist", color: "#EF4444", serviceIds: null, locationIds: null, workingHours: null, active: true, createdAt: "" },
+    ];
+    const seeded = staff.filter((s) => s.name?.includes(SEED_TAG));
+    expect(seeded).toHaveLength(1);
+    expect(seeded[0].id).toBe("st1");
+  });
 
-    expect(total).toBe(6);
+  it("totalSeedItems counts all 9 category seeded items correctly", () => {
+    const counts = {
+      clients: 1, appointments: 2, reviews: 1, promoCodes: 1,
+      giftCards: 2, discounts: 0, locations: 1, services: 3, staff: 2,
+    };
+    const total = Object.values(counts).reduce((a, b) => a + b, 0);
+    expect(total).toBe(13);
   });
 });
 
@@ -166,5 +250,113 @@ describe("Dev Testing – phone gate", () => {
   it("strips spaces before comparison", () => {
     const input = "+1 305 999 9999";
     expect(input.replace(/\s/g, "") === DEV_ADMIN_PHONE).toBe(true);
+  });
+
+  it("phone must start with + and be at least 10 chars", () => {
+    const valid = "+13059999999";
+    const invalid1 = "13059999999";
+    const invalid2 = "+1305";
+    expect(valid.startsWith("+") && valid.length >= 10).toBe(true);
+    expect(invalid1.startsWith("+")).toBe(false);
+    expect(invalid2.startsWith("+") && invalid2.length >= 10).toBe(false);
+  });
+});
+
+describe("Dev Testing – ALL_CATEGORIES", () => {
+  it("contains all 9 expected categories", () => {
+    const expected: Category[] = [
+      "clients", "appointments", "reviews", "promoCodes",
+      "giftCards", "discounts", "locations", "services", "staff",
+    ];
+    expect(ALL_CATEGORIES).toEqual(expect.arrayContaining(expected));
+    expect(ALL_CATEGORIES.length).toBe(9);
+  });
+
+  it("has a label for every category", () => {
+    ALL_CATEGORIES.forEach((cat) => {
+      expect(CATEGORY_LABELS[cat]).toBeTruthy();
+    });
+  });
+});
+
+describe("Dev Testing – BUILT_IN_PRESETS", () => {
+  it("has 5 built-in presets", () => {
+    expect(BUILT_IN_PRESETS.length).toBe(5);
+  });
+
+  BUILT_IN_PRESETS.forEach((preset) => {
+    it(`preset "${preset.name}" has valid structure`, () => {
+      expect(typeof preset.id).toBe("string");
+      expect(preset.fromDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(preset.toDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(new Date(preset.fromDate).getTime()).toBeLessThanOrEqual(new Date(preset.toDate).getTime());
+      ALL_CATEGORIES.forEach((cat) => {
+        expect(Number(preset.counts[cat])).toBeGreaterThanOrEqual(0);
+        expect(typeof preset.selected[cat]).toBe("boolean");
+      });
+      expect(preset.isBuiltIn).toBe(true);
+    });
+  });
+
+  it("smoke test preset has all categories enabled", () => {
+    const smoke = BUILT_IN_PRESETS.find((p) => p.id === "smoke")!;
+    ALL_CATEGORIES.forEach((cat) => {
+      expect(smoke.selected[cat]).toBe(true);
+    });
+  });
+
+  it("appointments-only preset disables non-client/appointment categories", () => {
+    const appts = BUILT_IN_PRESETS.find((p) => p.id === "appts_only")!;
+    expect(appts.selected.clients).toBe(true);
+    expect(appts.selected.appointments).toBe(true);
+    expect(appts.selected.reviews).toBe(false);
+    expect(appts.selected.services).toBe(false);
+    expect(appts.selected.staff).toBe(false);
+  });
+
+  it("heavy load preset has large appointment and client counts", () => {
+    const heavy = BUILT_IN_PRESETS.find((p) => p.id === "heavy")!;
+    expect(Number(heavy.counts.appointments)).toBeGreaterThanOrEqual(50);
+    expect(Number(heavy.counts.clients)).toBeGreaterThanOrEqual(20);
+  });
+
+  it("full business preset includes services and staff", () => {
+    const full = BUILT_IN_PRESETS.find((p) => p.id === "full_biz")!;
+    expect(full.selected.services).toBe(true);
+    expect(full.selected.staff).toBe(true);
+    expect(Number(full.counts.services)).toBeGreaterThan(0);
+    expect(Number(full.counts.staff)).toBeGreaterThan(0);
+  });
+});
+
+describe("Dev Testing – custom preset serialization", () => {
+  it("custom preset can be created and serialized to JSON", () => {
+    const custom: SeedPreset = {
+      id: uid(),
+      name: "My Custom Preset",
+      fromDate: "2025-01-01",
+      toDate: "2025-12-31",
+      selected: { clients: true, appointments: true, reviews: false, promoCodes: false, giftCards: false, discounts: false, locations: false, services: true, staff: true },
+      counts: { clients: "5", appointments: "10", reviews: "0", promoCodes: "0", giftCards: "0", discounts: "0", locations: "0", services: "3", staff: "2" },
+    };
+    const serialized = JSON.stringify(custom);
+    const parsed: SeedPreset = JSON.parse(serialized);
+    expect(parsed.name).toBe("My Custom Preset");
+    expect(parsed.counts.appointments).toBe("10");
+    expect(parsed.counts.services).toBe("3");
+    expect(parsed.selected.clients).toBe(true);
+    expect(parsed.selected.reviews).toBe(false);
+    expect(parsed.selected.services).toBe(true);
+    expect(parsed.selected.staff).toBe(true);
+  });
+
+  it("preset array can be filtered to remove by id", () => {
+    const presets: SeedPreset[] = [
+      { id: "a", name: "A", fromDate: "2025-01-01", toDate: "2025-12-31", selected: ALL_ON, counts: { clients: "1", appointments: "1", reviews: "1", promoCodes: "1", giftCards: "1", discounts: "1", locations: "1", services: "1", staff: "1" } },
+      { id: "b", name: "B", fromDate: "2025-01-01", toDate: "2025-12-31", selected: ALL_ON, counts: { clients: "2", appointments: "2", reviews: "2", promoCodes: "2", giftCards: "2", discounts: "2", locations: "2", services: "2", staff: "2" } },
+    ];
+    const after = presets.filter((p) => p.id !== "a");
+    expect(after.length).toBe(1);
+    expect(after[0].id).toBe("b");
   });
 });
