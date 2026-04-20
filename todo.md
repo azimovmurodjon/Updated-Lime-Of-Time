@@ -1458,3 +1458,5 @@
 - [x] Wire Twilio Verify OTP into server send/check routes
 - [x] Add OTP test panel to Admin screen
 - [x] Fix: back from Business Info loops between OTP and Phone step due to auto-advance firing on pre-filled phone
+- [x] Fix Admin Panel mobile responsiveness (phone screen layout/resolution issues)
+- [x] Extend session duration to 150 days (admin panel cookie + session)

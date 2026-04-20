@@ -112,11 +112,11 @@ export function registerAdminRoutes(app: Express): void {
       const sessionId = generateSessionId();
       sessions.set(sessionId, {
         user: username,
-        expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+        expiresAt: Date.now() + 150 * 24 * 60 * 60 * 1000, // 150 days
       });
       res.setHeader(
         "Set-Cookie",
-        `admin_session=${sessionId}; Path=/api/admin; HttpOnly; SameSite=Lax; Max-Age=86400`
+        `admin_session=${sessionId}; Path=/api/admin; HttpOnly; SameSite=Lax; Max-Age=${150 * 24 * 60 * 60}`
       );
       res.redirect("/api/admin");
     } else {
@@ -1390,10 +1390,94 @@ function adminStyles(): string {
       .btn-delete-sm:hover { background: var(--danger); color: #fff; }
       .delete-form { display: inline; }
 
+      /* ── Mobile hamburger button ── */
+      .mobile-menu-btn {
+        display: none;
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        z-index: 1100;
+        background: var(--primary);
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        width: 42px;
+        height: 42px;
+        font-size: 20px;
+        cursor: pointer;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      }
+      .sidebar-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.45);
+        z-index: 1050;
+      }
+      .sidebar-overlay.open { display: block; }
+
       @media (max-width: 768px) {
-        .sidebar { display: none; }
-        .main { margin-left: 0; padding: 16px; }
-        .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        /* Show hamburger, hide sidebar by default */
+        .mobile-menu-btn { display: flex; }
+        .sidebar {
+          position: fixed;
+          left: -260px;
+          top: 0;
+          height: 100vh;
+          z-index: 1060;
+          transition: left 0.25s ease;
+          overflow-y: auto;
+        }
+        .sidebar.open { left: 0; }
+        .main {
+          margin-left: 0;
+          padding: 12px;
+          padding-top: 64px; /* space for hamburger */
+        }
+        /* Stats: 2 columns on mobile */
+        .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .stat-card { padding: 14px 12px; }
+        .stat-card .stat-value { font-size: 22px; }
+        .stat-card .stat-icon { font-size: 20px; margin-bottom: 6px; }
+        /* Page header */
+        .page-header { flex-direction: column; align-items: flex-start; gap: 4px; }
+        .page-header h2 { font-size: 18px; }
+        /* Tables: horizontal scroll */
+        .card { padding: 12px; overflow-x: auto; }
+        .card h3 { font-size: 14px; margin-bottom: 10px; }
+        table { min-width: 480px; }
+        th, td { padding: 8px 10px; font-size: 12px; }
+        /* Buttons */
+        .btn { padding: 7px 12px; font-size: 13px; }
+        .btn-sm { padding: 4px 8px; font-size: 11px; }
+        /* Search bar */
+        .search-bar { flex-direction: column; gap: 8px; }
+        .search-bar input, .search-bar select { width: 100%; box-sizing: border-box; }
+        /* Filter buttons: wrap */
+        .filter-row { flex-wrap: wrap; gap: 6px; }
+        /* Detail grids */
+        .detail-grid { grid-template-columns: 1fr !important; }
+        /* Chart bars */
+        .chart-bar-label { width: 70px; font-size: 11px; }
+        /* Login card */
+        .login-card { padding: 24px 16px; }
+        /* Pagination */
+        .pagination { flex-wrap: wrap; gap: 4px; }
+        /* Confirm box */
+        .confirm-box { padding: 16px; }
+        /* Breadcrumb */
+        .breadcrumb { font-size: 11px; }
+        /* Reduce heading sizes */
+        h1 { font-size: 18px !important; }
+        h2 { font-size: 16px !important; }
+      }
+
+      @media (max-width: 400px) {
+        .stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+        .stat-card .stat-value { font-size: 18px; }
+        .main { padding: 8px; padding-top: 60px; }
       }
     </style>
   `;
@@ -1470,12 +1554,40 @@ function adminLayout(title: string, activePage: string, content: string): string
   ${adminStyles()}
 </head>
 <body>
+  <!-- Mobile hamburger button -->
+  <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleSidebar()" aria-label="Open menu">☰</button>
+  <!-- Overlay to close sidebar on mobile -->
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
   <div class="layout">
     ${sidebarHtml(activePage)}
     <div class="main">
       ${content}
     </div>
   </div>
+  <script>
+    function toggleSidebar() {
+      const sidebar = document.querySelector('.sidebar');
+      const overlay = document.getElementById('sidebarOverlay');
+      const btn = document.getElementById('mobileMenuBtn');
+      const isOpen = sidebar.classList.toggle('open');
+      overlay.classList.toggle('open', isOpen);
+      btn.textContent = isOpen ? '\u2715' : '\u2630';
+    }
+    function closeSidebar() {
+      const sidebar = document.querySelector('.sidebar');
+      const overlay = document.getElementById('sidebarOverlay');
+      const btn = document.getElementById('mobileMenuBtn');
+      sidebar.classList.remove('open');
+      overlay.classList.remove('open');
+      btn.textContent = '\u2630';
+    }
+    // Close sidebar when a nav link is tapped on mobile
+    document.querySelectorAll('.nav-item').forEach(function(el) {
+      el.addEventListener('click', function() {
+        if (window.innerWidth <= 768) closeSidebar();
+      });
+    });
+  </script>
 </body>
 </html>`;
 }
