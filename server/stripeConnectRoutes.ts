@@ -343,6 +343,128 @@ export function registerStripeConnectRoutes(app: Express): void {
     }
   });
 
+  // ── 6b. Request Payment Link — owner-initiated post-booking card payment ──
+  // POST /api/stripe-connect/request-payment
+  // Body: { businessOwnerId, appointmentLocalId }
+  // Creates a Stripe Checkout session for an existing appointment and returns
+  // the hosted payment URL so the owner can SMS it to the client.
+  app.post("/api/stripe-connect/request-payment", async (req: Request, res: Response) => {
+    try {
+      const { businessOwnerId, appointmentLocalId } = req.body as {
+        businessOwnerId: number;
+        appointmentLocalId: string;
+      };
+
+      if (!businessOwnerId || !appointmentLocalId) {
+        res.status(400).json({ error: "businessOwnerId and appointmentLocalId are required" }); return;
+      }
+
+      const stripe = await getStripe();
+      if (!stripe) { res.status(503).json({ error: "Stripe not configured" }); return; }
+
+      const owner = await getOwner(businessOwnerId);
+      if (!owner) { res.status(404).json({ error: "Business not found" }); return; }
+
+      const accountId = (owner as any)?.stripeConnectAccountId as string | null;
+      if (!accountId) { res.status(400).json({ error: "Business has not connected Stripe yet" }); return; }
+
+      const chargesEnabled = (owner as any)?.stripeConnectEnabled as boolean | null;
+      if (!chargesEnabled) { res.status(400).json({ error: "Stripe account is not yet fully set up. Please complete onboarding." }); return; }
+
+      // Load appointment
+      const db = await getDb();
+      if (!db) { res.status(503).json({ error: "DB unavailable" }); return; }
+
+      const apptRows = await db
+        .select()
+        .from(appointments)
+        .where(and(eq(appointments.localId, appointmentLocalId), eq(appointments.businessOwnerId, businessOwnerId)))
+        .limit(1);
+
+      const appt = apptRows[0];
+      if (!appt) { res.status(404).json({ error: "Appointment not found" }); return; }
+
+      const amount = parseFloat(String(appt.totalPrice ?? appt.price ?? 0));
+      if (!amount || amount <= 0) { res.status(400).json({ error: "Appointment has no charge amount" }); return; }
+
+      // Load client and service names for the checkout page
+      const clientRows = (appt as any).clientLocalId
+        ? await db.select().from(clients).where(and(eq(clients.localId, (appt as any).clientLocalId), eq(clients.businessOwnerId, businessOwnerId))).limit(1)
+        : [];
+      const svcRows = (appt as any).serviceLocalId
+        ? await db.select().from(services).where(and(eq(services.localId, (appt as any).serviceLocalId), eq(services.businessOwnerId, businessOwnerId))).limit(1)
+        : [];
+
+      const clientName = (clientRows[0] as any)?.name || "Client";
+      const serviceName = (svcRows[0] as any)?.name || "Appointment";
+
+      const amountCents = Math.round(amount * 100);
+      const platformFeeCents = Math.round(amountCents * PLATFORM_FEE_PERCENT);
+
+      // Build success URL — reuses the existing appointment-by-session receipt page
+      const origin = `${req.protocol}://${req.get("host")}`;
+      const slug = (owner as any).slug || String(businessOwnerId);
+      const successUrl = `${origin}/api/book/${slug}?payment_success=1&session_id={CHECKOUT_SESSION_ID}`;
+      const cancelUrl = `${origin}/api/book/${slug}`;
+
+      const session = await stripe.checkout.sessions.create(
+        {
+          payment_method_types: ["card"],
+          payment_method_options: { card: { request_three_d_secure: "automatic" } },
+          line_items: [
+            {
+              price_data: {
+                currency: "usd",
+                product_data: {
+                  name: serviceName,
+                  description: `Payment for ${clientName}'s appointment`,
+                },
+                unit_amount: amountCents,
+              },
+              quantity: 1,
+            },
+            ...(platformFeeCents > 0 ? [{
+              price_data: {
+                currency: "usd",
+                product_data: {
+                  name: "Processing Fee",
+                  description: `${(PLATFORM_FEE_PERCENT * 100).toFixed(1)}% card processing fee`,
+                },
+                unit_amount: platformFeeCents,
+              },
+              quantity: 1,
+            }] : []),
+          ],
+          mode: "payment",
+          success_url: successUrl,
+          cancel_url: cancelUrl,
+          metadata: {
+            appointmentLocalId,
+            businessOwnerId: String(businessOwnerId),
+            clientName,
+            paymentRequestedByOwner: "true",
+          },
+          payment_intent_data: {
+            application_fee_amount: platformFeeCents,
+            metadata: { appointmentLocalId, businessOwnerId: String(businessOwnerId) },
+          },
+        } as any,
+        { stripeAccount: accountId }
+      );
+
+      // Store session ID on appointment so webhook can match it
+      await db
+        .update(appointments)
+        .set({ stripeCheckoutSessionId: session.id } as any)
+        .where(and(eq(appointments.localId, appointmentLocalId), eq(appointments.businessOwnerId, businessOwnerId)));
+
+      res.json({ ok: true, url: session.url, sessionId: session.id });
+    } catch (err: any) {
+      console.error("[StripeConnect] request-payment error:", err);
+      res.status(500).json({ error: err?.message ?? "Failed to create payment request" });
+    }
+  });
+
   // ── 7. Webhook: handle payment completion ────────────────────────────────
   // POST /api/stripe-connect/webhook
   app.post(

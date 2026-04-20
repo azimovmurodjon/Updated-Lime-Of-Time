@@ -1540,3 +1540,11 @@
 - [x] Location-first booking flow (step 0 = Location)
 - [x] Persistent location banner on all booking steps
 - [x] Auto-skip location step for single-location businesses
+
+- [x] Add "Request Card Payment" button on appointment detail screen (visible when appointment is unpaid/skip-payment and Stripe is enabled)
+- [x] Create server endpoint POST /api/stripe-connect/request-payment that generates a Stripe Checkout session for a specific appointment
+- [x] Client-facing payment: Stripe-hosted Checkout page; on success redirects to existing booking receipt page (reused)
+- [x] SMS the payment link to the client when owner taps "Request Card Payment" (Twilio server-side or native SMS fallback)
+- [x] Stripe webhook auto-marks appointment as paid (card) and sends push notification to owner when client pays (reused existing webhook)
+- [x] Show "Payment Requested" badge on appointment detail after link is sent (button changes to Resend)
+- [x] Allow owner to resend payment link if client hasn't paid yet

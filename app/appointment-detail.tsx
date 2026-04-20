@@ -82,6 +82,8 @@ export default function AppointmentDetailScreen() {
   const [selectedPayMethod, setSelectedPayMethod] = useState<'cash' | 'zelle' | 'venmo' | 'cashapp'>(
     (appointment?.paymentMethod && appointment.paymentMethod !== 'unpaid' ? appointment.paymentMethod : 'cash') as 'cash' | 'zelle' | 'venmo' | 'cashapp'
   );
+  const [requestingPayment, setRequestingPayment] = useState(false);
+  const [paymentLinkSent, setPaymentLinkSent] = useState(false);
 
 
   // Derived variables — safe with optional chaining (appointment may be null during hydration)
@@ -272,6 +274,49 @@ export default function AppointmentDetailScreen() {
       setRefundAmount("");
     }
   }, [appointment, state.businessOwnerId, dispatch, syncToDb]);
+
+  const handleRequestPayment = useCallback(async () => {
+    if (!appointment || !state.businessOwnerId) return;
+    if (!client?.phone) {
+      Alert.alert("No Phone Number", "This client does not have a phone number on file. Please add one before sending a payment link.");
+      return;
+    }
+    setRequestingPayment(true);
+    try {
+      const result = await apiCall<{ ok: boolean; url: string; sessionId: string }>("/api/stripe-connect/request-payment", {
+        method: "POST",
+        body: JSON.stringify({
+          businessOwnerId: state.businessOwnerId,
+          appointmentLocalId: appointment.id,
+        }),
+      });
+      const paymentUrl = result.url;
+      const serviceName = service ? getServiceDisplayName(service) : "your appointment";
+      const apptDate = formatDateDisplay(appointment.date);
+      const smsBody = `Hi ${client.name}, please complete your payment of $${(appointment.totalPrice ?? 0).toFixed(2)} for ${serviceName} on ${apptDate}.\n\nPay securely by card here:\n${paymentUrl}\n\n— ${biz.businessName}${LIME_OF_TIME_FOOTER}`;
+      // Try server-side Twilio SMS first; fall back to native SMS
+      const smsEnabled = state.settings.twilioEnabled;
+      if (smsEnabled && state.businessOwnerId) {
+        const rawPhone = stripPhoneFormat(client.phone);
+        const toNumber = rawPhone.startsWith('+') ? rawPhone : `+1${rawPhone.replace(/\D/g, '')}`;
+        try {
+          await sendSmsMutation.mutateAsync({ to: toNumber, body: smsBody });
+          setPaymentLinkSent(true);
+          Alert.alert("Payment Link Sent", `A payment link has been sent to ${client.name} via SMS.\n\nThey will be taken to a secure card payment page.`);
+        } catch {
+          openSms(client.phone, smsBody);
+          setPaymentLinkSent(true);
+        }
+      } else {
+        openSms(client.phone, smsBody);
+        setPaymentLinkSent(true);
+      }
+    } catch (err: any) {
+      Alert.alert("Failed", err?.message ?? "Could not create payment link. Please check Stripe is connected.");
+    } finally {
+      setRequestingPayment(false);
+    }
+  }, [appointment, state.businessOwnerId, state.settings.twilioEnabled, client, service, biz.businessName, sendSmsMutation, openSms, dispatch]);
 
   const handleMarkPaid = (confirmationNumber?: string) => {
     // Use the method from the picker if the appointment doesn't have one set
@@ -788,14 +833,38 @@ Would you also like to charge a no-show fee via Stripe?`,
               </View>
             )}
             {appointment.paymentStatus !== 'paid' && (
-              <Pressable
-                onPress={() => setShowPaymentModal(true)}
-                style={({ pressed }) => [{ backgroundColor: colors.success, borderRadius: 12, paddingVertical: 10, alignItems: 'center', opacity: pressed ? 0.8 : 1 }]}
-              >
-                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>
-                  {appointment.paymentMethod === 'cash' ? 'Confirm Cash Received' : 'Mark as Paid'}
-                </Text>
-              </Pressable>
+              <View style={{ gap: 8 }}>
+                <Pressable
+                  onPress={() => setShowPaymentModal(true)}
+                  style={({ pressed }) => [{ backgroundColor: colors.success, borderRadius: 12, paddingVertical: 10, alignItems: 'center', opacity: pressed ? 0.8 : 1 }]}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>
+                    {appointment.paymentMethod === 'cash' ? 'Confirm Cash Received' : 'Mark as Paid'}
+                  </Text>
+                </Pressable>
+                {/* Request Card Payment via Stripe link — only when Stripe is connected and price > 0 */}
+                {!!(state.settings as any).stripeConnectEnabled && (appointment.totalPrice ?? 0) > 0 && (
+                  <Pressable
+                    onPress={handleRequestPayment}
+                    disabled={requestingPayment}
+                    style={({ pressed }) => [{
+                      backgroundColor: '#635BFF',
+                      borderRadius: 12,
+                      paddingVertical: 10,
+                      alignItems: 'center',
+                      flexDirection: 'row',
+                      justifyContent: 'center',
+                      gap: 6,
+                      opacity: (pressed || requestingPayment) ? 0.7 : 1,
+                    }]}
+                  >
+                    <Text style={{ fontSize: 16 }}>{paymentLinkSent ? '✅' : '💳'}</Text>
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>
+                      {requestingPayment ? 'Creating Link…' : paymentLinkSent ? 'Resend Card Payment Link' : 'Request Card Payment'}
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
             )}
             {appointment.paymentStatus === 'paid' && appointment.paymentMethod === 'card' && !appointment.refundedAt && (
               <Pressable
