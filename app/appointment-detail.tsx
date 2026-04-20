@@ -5,7 +5,7 @@ import { useStore, formatTime, formatDateDisplay } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { apiCall } from "@/lib/_core/api";
 import { trpc } from "@/lib/trpc";
 import { usePlanLimitCheck } from "@/hooks/use-plan-limit-check";
@@ -84,6 +84,10 @@ export default function AppointmentDetailScreen() {
   );
   const [requestingPayment, setRequestingPayment] = useState(false);
   const [paymentLinkSent, setPaymentLinkSent] = useState(false);
+  // Track the last Stripe session ID so we can check expiry on Resend
+  const [lastSessionId, setLastSessionId] = useState<string | null>(null);
+  // Track if we've already notified the owner about auto-detected payment
+  const pollingNotifiedRef = useRef(false);
 
 
   // Derived variables — safe with optional chaining (appointment may be null during hydration)
@@ -291,6 +295,8 @@ export default function AppointmentDetailScreen() {
         }),
       });
       const paymentUrl = result.url;
+      // Save the session ID so we can check expiry on Resend
+      setLastSessionId(result.sessionId);
       const serviceName = service ? getServiceDisplayName(service) : "your appointment";
       const apptDate = formatDateDisplay(appointment.date);
       const smsBody = `Hi ${client.name}, please complete your payment of $${(appointment.totalPrice ?? 0).toFixed(2)} for ${serviceName} on ${apptDate}.\n\nPay securely by card here:\n${paymentUrl}\n\n— ${biz.businessName}${LIME_OF_TIME_FOOTER}`;
@@ -317,6 +323,39 @@ export default function AppointmentDetailScreen() {
       setRequestingPayment(false);
     }
   }, [appointment, state.businessOwnerId, state.settings.twilioEnabled, client, service, biz.businessName, sendSmsMutation, openSms, dispatch]);
+
+  // ── Payment status polling — check every 30s if appointment is unpaid ──────
+  useEffect(() => {
+    if (!appointment || appointment.paymentStatus === 'paid' || !state.businessOwnerId) return;
+    // Only poll if Stripe is connected (stripeConnectEnabled flag)
+    if (!(state.settings as any).stripeConnectEnabled) return;
+
+    pollingNotifiedRef.current = false;
+
+    const intervalId = setInterval(async () => {
+      try {
+        const result = await apiCall<{ ok: boolean; paymentStatus: string; paymentMethod: string | null; totalPrice: number }>(
+          `/api/stripe-connect/appointment-payment-status?businessOwnerId=${state.businessOwnerId}&appointmentLocalId=${encodeURIComponent(appointment.id)}`,
+          { method: 'GET' },
+        );
+        if (result.ok && result.paymentStatus === 'paid' && !pollingNotifiedRef.current) {
+          pollingNotifiedRef.current = true;
+          // Update local state so UI reflects payment immediately
+          const updated = {
+            ...appointment,
+            paymentStatus: 'paid' as const,
+            paymentMethod: (result.paymentMethod ?? 'card') as any,
+          };
+          dispatch({ type: 'UPDATE_APPOINTMENT', payload: updated });
+          Alert.alert('✅ Payment Received', `${client?.name ?? 'The client'} has paid $${(appointment.totalPrice ?? 0).toFixed(2)} by card.`);
+        }
+      } catch {
+        // Silently ignore polling errors
+      }
+    }, 30_000);
+
+    return () => clearInterval(intervalId);
+  }, [appointment?.id, appointment?.paymentStatus, state.businessOwnerId, (state.settings as any).stripeConnectEnabled]);
 
   const handleMarkPaid = (confirmationNumber?: string) => {
     // Use the method from the picker if the appointment doesn't have one set
@@ -845,7 +884,30 @@ Would you also like to charge a no-show fee via Stripe?`,
                 {/* Request Card Payment via Stripe link — only when Stripe is connected and price > 0 */}
                 {!!(state.settings as any).stripeConnectEnabled && (appointment.totalPrice ?? 0) > 0 && (
                   <Pressable
-                    onPress={handleRequestPayment}
+                    onPress={async () => {
+                      // On Resend: check if the previous session is still active.
+                      // If expired or missing, create a fresh session automatically.
+                      if (paymentLinkSent && lastSessionId && state.businessOwnerId) {
+                        try {
+                          const status = await apiCall<{ ok: boolean; isActive: boolean; isPaid: boolean }>(
+                            `/api/stripe-connect/session-status?sessionId=${encodeURIComponent(lastSessionId)}&businessOwnerId=${state.businessOwnerId}`,
+                            { method: 'GET' },
+                          );
+                          if (status.isPaid) {
+                            Alert.alert('✅ Already Paid', 'This appointment has already been paid. No need to resend.');
+                            return;
+                          }
+                          if (!status.isActive) {
+                            // Session expired — clear the old ID so handleRequestPayment creates a fresh one
+                            setLastSessionId(null);
+                          }
+                        } catch {
+                          // If check fails, proceed to create a new session
+                          setLastSessionId(null);
+                        }
+                      }
+                      handleRequestPayment();
+                    }}
                     disabled={requestingPayment}
                     style={({ pressed }) => [{
                       backgroundColor: '#635BFF',

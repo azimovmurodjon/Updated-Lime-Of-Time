@@ -465,6 +465,70 @@ export function registerStripeConnectRoutes(app: Express): void {
     }
   });
 
+  // ── 6c. Session Status — check if a Checkout session is still active ──────
+  // GET /api/stripe-connect/session-status?sessionId=cs_xxx&businessOwnerId=1
+  app.get("/api/stripe-connect/session-status", async (req: Request, res: Response) => {
+    try {
+      const { sessionId, businessOwnerId } = req.query as { sessionId: string; businessOwnerId: string };
+      if (!sessionId || !businessOwnerId) {
+        res.status(400).json({ error: "sessionId and businessOwnerId are required" }); return;
+      }
+      const stripe = await getStripe();
+      if (!stripe) { res.status(503).json({ error: "Stripe not configured" }); return; }
+
+      const ownerRow = await db.query.users.findFirst({ where: eq(users.id, parseInt(businessOwnerId)) });
+      if (!ownerRow?.stripeAccountId) { res.status(404).json({ error: "Stripe account not found" }); return; }
+
+      const session = await stripe.checkout.sessions.retrieve(sessionId, {
+        stripeAccount: ownerRow.stripeAccountId,
+      });
+
+      // A session is "usable" if it is open (not expired, not already paid)
+      const isActive = session.status === "open";
+      const isPaid = session.status === "complete" || session.payment_status === "paid";
+      res.json({ ok: true, status: session.status, isActive, isPaid, url: session.url });
+    } catch (err: any) {
+      // Stripe returns a 404-like error if the session doesn't exist on that account
+      console.error("[StripeConnect] session-status error:", err);
+      res.json({ ok: true, status: "expired", isActive: false, isPaid: false, url: null });
+    }
+  });
+
+  // ── 6d. Appointment Payment Status — poll whether an appointment has been paid ──
+  // GET /api/stripe-connect/appointment-payment-status?businessOwnerId=1&appointmentLocalId=abc
+  app.get("/api/stripe-connect/appointment-payment-status", async (req: Request, res: Response) => {
+    try {
+      const { businessOwnerId, appointmentLocalId } = req.query as { businessOwnerId: string; appointmentLocalId: string };
+      if (!businessOwnerId || !appointmentLocalId) {
+        res.status(400).json({ error: "businessOwnerId and appointmentLocalId are required" }); return;
+      }
+      const db = await getDb();
+
+      // Look up the appointment directly by businessOwnerId + localId
+      const apptRows = await db
+        .select()
+        .from(appointments)
+        .where(and(
+          eq(appointments.businessOwnerId, parseInt(businessOwnerId)),
+          eq(appointments.localId, appointmentLocalId),
+        ))
+        .limit(1);
+
+      if (!apptRows.length) { res.status(404).json({ error: "Appointment not found" }); return; }
+
+      const appt = apptRows[0];
+      res.json({
+        ok: true,
+        paymentStatus: appt.paymentStatus ?? 'unpaid',
+        paymentMethod: appt.paymentMethod ?? null,
+        totalPrice: appt.totalPrice ? parseFloat(appt.totalPrice as string) : 0,
+      });
+    } catch (err: any) {
+      console.error("[StripeConnect] appointment-payment-status error:", err);
+      res.status(500).json({ error: err?.message ?? "Failed to check payment status" });
+    }
+  });
+
   // ── 7. Webhook: handle payment completion ────────────────────────────────
   // POST /api/stripe-connect/webhook
   app.post(

@@ -1548,3 +1548,7 @@
 - [x] Stripe webhook auto-marks appointment as paid (card) and sends push notification to owner when client pays (reused existing webhook)
 - [x] Show "Payment Requested" badge on appointment detail after link is sent (button changes to Resend)
 - [x] Allow owner to resend payment link if client hasn't paid yet
+
+- [x] Refund button on appointment detail for card-paid appointments (full + partial refund modal) — already existed
+- [x] Payment link expiry handling: check if Stripe session is expired before Resend; create fresh session if so
+- [x] Payment status polling: auto-refresh unpaid appointment status every 30s while owner is on detail screen
