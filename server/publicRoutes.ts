@@ -1843,6 +1843,26 @@ function baseStyles(): string {
       }
       .step-item.active .step-label { color: var(--accent-dark); font-weight: 700; }
       .step-item.done .step-label { color: var(--accent); }
+      /* Persistent selected-location banner (shown on steps 1–6) */
+      #selectedLocBanner {
+        display: none;
+        align-items: center;
+        gap: 8px;
+        background: var(--accent-bg-light);
+        border: 1px solid var(--accent);
+        border-radius: 10px;
+        padding: 8px 12px;
+        margin-bottom: 12px;
+        font-size: 13px;
+        color: var(--accent-dark);
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      #selectedLocBanner.show { display: flex; }
+      #selectedLocBanner:hover { background: var(--accent-bg); }
+      #selectedLocBanner .loc-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      #selectedLocBanner .loc-change { font-size: 11px; font-weight: 500; color: var(--accent); white-space: nowrap; text-decoration: underline; }
       .closed-banner {
         background: var(--error-bg);
         border: 1px solid var(--error-border);
@@ -3172,6 +3192,12 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       </div>
     </div>
 
+    <!-- Persistent selected-location banner (shown on steps 1–6, hidden on step 0 and success) -->
+    <div id="selectedLocBanner" onclick="goToStep(0)" title="Click to change location">
+      <span>📍</span>
+      <span class="loc-name" id="selectedLocName"></span>
+      <span class="loc-change">Change</span>
+    </div>
     <!-- Business Info Card -->
     <div class="card biz-info" id="biz-card">
       <div style="font-size:16px;font-weight:700;color:var(--text);">${escHtml(owner.businessName)}</div>
@@ -3625,6 +3651,8 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       // Enable the Continue button when a location is selected (unless closed)
       const continueBtn = document.getElementById('locContinueBtn');
       if (continueBtn) { continueBtn.disabled = false; continueBtn.style.opacity = ''; }
+      // Update the persistent location banner (will show once user advances past step 0)
+      updateSelectedLocBanner();
       // Reload services and working days scoped to this location
       loadServices(locId);
       loadWorkingDays(locId).then(() => {
@@ -3964,6 +3992,20 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
 
     var selectedPaymentMethod = null; // 'zelle' | 'venmo' | 'cashapp' | 'cash'
 
+    function updateSelectedLocBanner() {
+      const banner = document.getElementById('selectedLocBanner');
+      const nameEl = document.getElementById('selectedLocName');
+      if (!banner || !nameEl) return;
+      if (selectedLocation && currentStep >= 1 && currentStep <= 6) {
+        const loc = locations.find(function(l) { return l.localId === selectedLocation; });
+        if (loc) {
+          nameEl.textContent = loc.name;
+          banner.classList.add('show');
+          return;
+        }
+      }
+      banner.classList.remove('show');
+    }
     function goToStep(step) {
       if (step === 1 && !selectedLocation) { alert("Please select a location"); return; }
       if (step === 2 && currentStep === 1) {
@@ -3984,6 +4026,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         const item = document.getElementById("step-item-" + i);
         if (item) item.className = "step-item" + (i < step ? " done" : i === step ? " active" : "");
       }
+      updateSelectedLocBanner();
       if (step === 3) renderCalendar();
       if (step === 4) initAddMoreStep();
       if (step === 5) renderPaymentStep();
@@ -5034,6 +5077,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         // Show success with detailed receipt
         for (let i = 0; i <= 7; i++) { const el = document.getElementById("step-" + i); if (el) el.style.display = "none"; }
         document.getElementById("step-indicator").style.display = "none";
+        const locBanner = document.getElementById('selectedLocBanner'); if (locBanner) locBanner.classList.remove('show');
         document.getElementById("step-7").style.display = "block";
         renderSuccessReceipt();
         renderPaymentSection();
@@ -5586,6 +5630,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         // Show a loading state while we fetch the appointment
         for (let i = 0; i <= 7; i++) { const el = document.getElementById('step-' + i); if (el) el.style.display = 'none'; }
         document.getElementById('step-indicator').style.display = 'none';
+        const locBannerL = document.getElementById('selectedLocBanner'); if (locBannerL) locBannerL.classList.remove('show');
         const loadingEl = document.getElementById('step-7');
         if (loadingEl) {
           loadingEl.style.display = 'block';
@@ -5634,6 +5679,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
             // Re-render the step-6 success screen properly
             for (let i = 0; i <= 7; i++) { const el = document.getElementById('step-' + i); if (el) el.style.display = 'none'; }
             document.getElementById('step-indicator').style.display = 'none';
+            const locBannerS = document.getElementById('selectedLocBanner'); if (locBannerS) locBannerS.classList.remove('show');
             document.getElementById('step-7').style.display = 'block';
             // Clear the URL params so a refresh doesn't re-trigger this
             window.history.replaceState({}, '', window.location.pathname);

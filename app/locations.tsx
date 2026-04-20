@@ -8,9 +8,12 @@ import {
   StyleSheet,
   Linking,
   Share,
+  Modal,
+  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
+import QRCode from "react-native-qrcode-svg";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
@@ -30,6 +33,10 @@ export default function LocationsScreen() {
 
   // Track which location just had its link copied (for toast feedback)
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // QR code modal state
+  const [qrLocation, setQrLocation] = useState<Location | null>(null);
+  const [qrCopied, setQrCopied] = useState(false);
 
   // Reopen date picker state: which location is being edited
   const [reopenPickerId, setReopenPickerId] = useState<string | null>(null);
@@ -448,6 +455,22 @@ export default function LocationsScreen() {
               <IconSymbol name="square.and.arrow.up" size={14} color={colors.primary} />
               <Text style={{ fontSize: 12, fontWeight: "600", color: colors.primary }}>Share</Text>
             </Pressable>
+
+            {/* QR Code button */}
+            <Pressable
+              onPress={() => { setQrLocation(item); setQrCopied(false); }}
+              style={({ pressed }) => [
+                styles.linkActionBtn,
+                {
+                  backgroundColor: colors.primary + "12",
+                  borderColor: colors.primary + "30",
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              <IconSymbol name="qrcode" size={14} color={colors.primary} />
+              <Text style={{ fontSize: 12, fontWeight: "600", color: colors.primary }}>QR</Text>
+            </Pressable>
           </View>
         </View>
       </View>
@@ -516,6 +539,119 @@ export default function LocationsScreen() {
           contentContainerStyle={{ paddingBottom: 100 }}
         />
       )}
+
+      {/* ─── Per-Location QR Code Modal ─────────────────────────────── */}
+      <Modal
+        visible={!!qrLocation}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setQrLocation(null)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center", padding: 24 }}
+          onPress={() => setQrLocation(null)}
+        >
+          <View
+            style={[{
+              borderRadius: 24,
+              padding: 24,
+              alignItems: "center",
+              width: "100%",
+              maxWidth: 340,
+              gap: 16,
+            }, { backgroundColor: colors.surface }]}
+            onStartShouldSetResponder={() => true}
+            onTouchEnd={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <View style={{ flexDirection: "row", alignItems: "center", width: "100%", marginBottom: 4 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 18, fontWeight: "800", color: colors.foreground }}>Location QR Code</Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }} numberOfLines={1}>
+                  {qrLocation?.name}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setQrLocation(null)}
+                style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.border, alignItems: "center", justifyContent: "center" }}
+              >
+                <IconSymbol name="xmark.circle.fill" size={18} color={colors.muted} />
+              </Pressable>
+            </View>
+
+            {/* QR Code */}
+            <View style={{
+              width: 220, height: 220, backgroundColor: "#fff", borderRadius: 16,
+              alignItems: "center", justifyContent: "center", padding: 12,
+              shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1, shadowRadius: 8, elevation: 4,
+            }}>
+              {qrLocation && (
+                <QRCode
+                  value={getLocationBookingUrl(qrLocation)}
+                  size={196}
+                  color="#000"
+                  backgroundColor="#fff"
+                />
+              )}
+            </View>
+
+            {/* URL pill */}
+            <View style={[{ borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, width: "100%" }, { backgroundColor: colors.background }]}>
+              <Text style={{ fontSize: 11, color: colors.muted, textAlign: "center" }} numberOfLines={2}>
+                {qrLocation ? getLocationBookingUrl(qrLocation) : ""}
+              </Text>
+            </View>
+
+            {/* Action buttons */}
+            <View style={{ flexDirection: "row", gap: 10, width: "100%" }}>
+              <Pressable
+                onPress={async () => {
+                  if (!qrLocation) return;
+                  await Clipboard.setStringAsync(getLocationBookingUrl(qrLocation));
+                  setQrCopied(true);
+                  setTimeout(() => setQrCopied(false), 2500);
+                }}
+                style={({ pressed }) => [{
+                  flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+                  gap: 6, paddingVertical: 12, borderRadius: 12, opacity: pressed ? 0.8 : 1,
+                }, { backgroundColor: qrCopied ? colors.success + "20" : colors.border }]}
+              >
+                <IconSymbol name={qrCopied ? "checkmark.circle.fill" : "doc.on.doc.fill"} size={16} color={qrCopied ? colors.success : colors.foreground} />
+                <Text style={{ fontSize: 13, fontWeight: "700", color: qrCopied ? colors.success : colors.foreground }}>
+                  {qrCopied ? "Copied!" : "Copy Link"}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={async () => {
+                  if (!qrLocation) return;
+                  const url = getLocationBookingUrl(qrLocation);
+                  const addr = formatFullAddress(qrLocation.address, qrLocation.city, qrLocation.state, qrLocation.zipCode);
+                  const addrLine = addr ? `\n📍 ${addr}` : "";
+                  const phoneLine = qrLocation.phone ? `\n📞 ${formatPhoneNumber(qrLocation.phone)}` : "";
+                  try {
+                    await Share.share({
+                      message: `Book at ${qrLocation.name}!${addrLine}${phoneLine}\n\nSchedule online: ${url}\n\nPowered by Lime Of Time`,
+                      title: `Book at ${qrLocation.name}`,
+                    });
+                  } catch { /* dismissed */ }
+                }}
+                style={({ pressed }) => [{
+                  flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+                  gap: 6, paddingVertical: 12, borderRadius: 12, opacity: pressed ? 0.8 : 1,
+                }, { backgroundColor: colors.primary }]}
+              >
+                <IconSymbol name="paperplane.fill" size={16} color="#fff" />
+                <Text style={{ fontSize: 13, fontWeight: "700", color: "#fff" }}>Share</Text>
+              </Pressable>
+            </View>
+
+            <Text style={{ fontSize: 11, color: colors.muted, textAlign: "center" }}>
+              Scan to book at this specific location
+            </Text>
+          </View>
+        </Pressable>
+      </Modal>
     </ScreenContainer>
   );
 }
