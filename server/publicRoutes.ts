@@ -5152,42 +5152,45 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         const tag = handle.startsWith('@') ? handle.slice(1) : handle;
         return 'https://venmo.com/' + encodeURIComponent(tag) + '?txn=pay&amount=' + chargedPrice.toFixed(2) + '&note=' + encodeURIComponent('Appointment payment');
       }
-      const sectionTitle = isPaylater ? '💰 How to Pay' : '💰 Payment Options';
+      // Determine which method to show — if client selected one, show only that one; otherwise show all
+      const showMethod = (!isPaylater && selectedPaymentMethod) ? selectedPaymentMethod : null;
+      const sectionTitle = isPaylater ? '💰 How to Pay' : '💰 Payment Confirmation';
       const sectionSubtitle = isPaylater
-        ? 'Scan a QR code or tap to send <strong>' + amountStr + '</strong> before your appointment'
-        : 'Scan a QR code or tap to pay <strong>' + amountStr + '</strong>';
+        ? 'Scan the QR code or use the handle below to send <strong>' + amountStr + '</strong> before your appointment'
+        : 'Please send <strong>' + amountStr + '</strong> using the payment method you selected';
       let html = '<div style="border:1.5px solid var(--border);border-radius:14px;padding:16px;background:var(--accent-bg);">';
       html += '<div style="font-weight:700;font-size:15px;color:var(--accent-dark);margin-bottom:4px;">' + sectionTitle + '</div>';
       html += '<div style="font-size:13px;color:var(--accent-dark);margin-bottom:14px;">' + sectionSubtitle + '</div>';
       html += '<div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">';
-      if (methods.zelle) {
+      // Show only the selected method, or all methods if pay-later
+      if (methods.zelle && (!showMethod || showMethod === 'zelle')) {
         const url = zelleUrl(methods.zelle);
-        html += '<div style="flex:1;min-width:130px;max-width:160px;background:#fff;border-radius:12px;padding:12px;border:1px solid #e8ece8;text-align:center;">';
+        html += '<div style="flex:1;min-width:130px;max-width:200px;background:#fff;border-radius:12px;padding:12px;border:2px solid #6d28d9;text-align:center;">';
         html += '<div style="font-weight:700;font-size:13px;color:#6d28d9;margin-bottom:8px;">💜 Zelle</div>';
-        html += '<img src="' + qrUrl(url) + '" alt="Zelle QR" style="width:120px;height:120px;border-radius:8px;" loading="lazy">';
-        html += '<div style="font-size:11px;color:#888;margin-top:6px;word-break:break-all;">' + esc(methods.zelle) + '</div>';
+        html += '<img src="' + qrUrl(url) + '" alt="Zelle QR" style="width:140px;height:140px;border-radius:8px;" loading="lazy">';
+        html += '<div style="font-size:12px;color:#6d28d9;font-weight:600;margin-top:8px;word-break:break-all;">' + esc(methods.zelle) + '</div>';
         html += '</div>';
       }
-      if (methods.cashApp) {
+      if (methods.cashApp && (!showMethod || showMethod === 'cashapp')) {
         const tag = methods.cashApp.startsWith('$') ? methods.cashApp : '$' + methods.cashApp;
         const url = cashAppUrl(methods.cashApp);
-        html += '<div style="flex:1;min-width:130px;max-width:160px;background:#fff;border-radius:12px;padding:12px;border:1px solid #e8ece8;text-align:center;">';
-        html += '<div style="font-weight:700;font-size:13px;color:#00d632;margin-bottom:8px;">💚 Cash App</div>';
+        html += '<div style="flex:1;min-width:130px;max-width:200px;background:#fff;border-radius:12px;padding:12px;border:2px solid #00d632;text-align:center;">';
+        html += '<div style="font-weight:700;font-size:13px;color:#00a827;margin-bottom:8px;">💚 Cash App</div>';
         html += '<a href="' + url + '" target="_blank" style="display:block;">';
-        html += '<img src="' + qrUrl(url) + '" alt="Cash App QR" style="width:120px;height:120px;border-radius:8px;" loading="lazy">';
+        html += '<img src="' + qrUrl(url) + '" alt="Cash App QR" style="width:140px;height:140px;border-radius:8px;" loading="lazy">';
         html += '</a>';
-        html += '<div style="font-size:11px;color:#888;margin-top:6px;">' + esc(tag) + '</div>';
+        html += '<div style="font-size:12px;color:#00a827;font-weight:600;margin-top:8px;">' + esc(tag) + '</div>';
         html += '</div>';
       }
-      if (methods.venmo) {
+      if (methods.venmo && (!showMethod || showMethod === 'venmo')) {
         const tag = methods.venmo.startsWith('@') ? methods.venmo : '@' + methods.venmo;
         const url = venmoUrl(methods.venmo);
-        html += '<div style="flex:1;min-width:130px;max-width:160px;background:#fff;border-radius:12px;padding:12px;border:1px solid #e8ece8;text-align:center;">';
+        html += '<div style="flex:1;min-width:130px;max-width:200px;background:#fff;border-radius:12px;padding:12px;border:2px solid #3d95ce;text-align:center;">';
         html += '<div style="font-weight:700;font-size:13px;color:#3d95ce;margin-bottom:8px;">💙 Venmo</div>';
         html += '<a href="' + url + '" target="_blank" style="display:block;">';
-        html += '<img src="' + qrUrl(url) + '" alt="Venmo QR" style="width:120px;height:120px;border-radius:8px;" loading="lazy">';
+        html += '<img src="' + qrUrl(url) + '" alt="Venmo QR" style="width:140px;height:140px;border-radius:8px;" loading="lazy">';
         html += '</a>';
-        html += '<div style="font-size:11px;color:#888;margin-top:6px;">' + esc(tag) + '</div>';
+        html += '<div style="font-size:12px;color:#3d95ce;font-weight:600;margin-top:8px;">' + esc(tag) + '</div>';
         html += '</div>';
       }
       html += '</div>';
@@ -6262,43 +6265,55 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any,
       const isUpcoming = appt.status === 'confirmed' || appt.status === 'pending';
       const apptPrice = parseFloat(appt.totalPrice || appt.price || '0');
       if (!hasPaymentHandles || !isUpcoming || apptPrice <= 0) return '';
+      // If client already paid via card, don't show manual payment QR
+      if (appt.paymentMethod === 'card') return '';
       const amountStr = '$' + apptPrice.toFixed(2);
+      // Determine which method to show: if client selected a specific method, show only that
+      const clientMethod = appt.paymentMethod; // 'zelle' | 'cashapp' | 'venmo' | 'cash' | null
       function qrUrl(text: string) {
         return 'https://chart.googleapis.com/chart?cht=qr&chs=180x180&choe=UTF-8&chl=' + encodeURIComponent(text);
       }
+      const sectionTitle = clientMethod && clientMethod !== 'cash' ? '💰 Your Payment Method' : '💰 Pay for Your Appointment';
+      const sectionSubtitle = clientMethod && clientMethod !== 'cash'
+        ? 'Scan the QR code below to send <strong>' + escHtml(amountStr) + '</strong>'
+        : 'Scan a QR code or tap to send <strong>' + escHtml(amountStr) + '</strong> before your appointment.';
       let html = '<div style="border:1.5px solid var(--border);border-radius:16px;padding:20px;background:var(--accent-bg);margin-bottom:16px;">';
-      html += '<div style="font-weight:700;font-size:16px;color:var(--accent-dark);margin-bottom:4px;">💰 Pay for Your Appointment</div>';
-      html += '<div style="font-size:13px;color:var(--accent-dark);margin-bottom:16px;">Scan a QR code or tap to send <strong>' + escHtml(amountStr) + '</strong> before your appointment.</div>';
+      html += '<div style="font-weight:700;font-size:16px;color:var(--accent-dark);margin-bottom:4px;">' + sectionTitle + '</div>';
+      html += '<div style="font-size:13px;color:var(--accent-dark);margin-bottom:16px;">' + sectionSubtitle + '</div>';
       html += '<div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">';
-      if (zelleHandle) {
+      // Show only the method the client selected, or all if no specific method chosen
+      const showZelle = zelleHandle && (!clientMethod || clientMethod === 'zelle');
+      const showCashApp = cashAppHandle && (!clientMethod || clientMethod === 'cashapp');
+      const showVenmo = venmoHandle && (!clientMethod || clientMethod === 'venmo');
+      if (showZelle) {
         const url = 'zelle:' + zelleHandle;
-        html += '<div style="flex:1;min-width:130px;max-width:160px;background:#fff;border-radius:12px;padding:12px;border:1px solid #e8ece8;text-align:center;">';
+        html += '<div style="flex:1;min-width:130px;max-width:200px;background:#fff;border-radius:12px;padding:12px;border:2px solid #6d28d9;text-align:center;">';
         html += '<div style="font-weight:700;font-size:13px;color:#6d28d9;margin-bottom:8px;">💜 Zelle</div>';
-        html += '<img src="' + qrUrl(url) + '" alt="Zelle QR" style="width:120px;height:120px;border-radius:8px;" loading="lazy">';
-        html += '<div style="font-size:11px;color:#888;margin-top:6px;word-break:break-all;">' + escHtml(zelleHandle) + '</div>';
+        html += '<img src="' + qrUrl(url) + '" alt="Zelle QR" style="width:140px;height:140px;border-radius:8px;" loading="lazy">';
+        html += '<div style="font-size:12px;color:#6d28d9;font-weight:600;margin-top:8px;word-break:break-all;">' + escHtml(zelleHandle) + '</div>';
         html += '</div>';
       }
-      if (cashAppHandle) {
+      if (showCashApp) {
         const tag = cashAppHandle.startsWith('$') ? cashAppHandle : '$' + cashAppHandle;
         const url = 'https://cash.app/' + encodeURIComponent(tag) + '/' + apptPrice.toFixed(2);
-        html += '<div style="flex:1;min-width:130px;max-width:160px;background:#fff;border-radius:12px;padding:12px;border:1px solid #e8ece8;text-align:center;">';
-        html += '<div style="font-weight:700;font-size:13px;color:#00d632;margin-bottom:8px;">💚 Cash App</div>';
+        html += '<div style="flex:1;min-width:130px;max-width:200px;background:#fff;border-radius:12px;padding:12px;border:2px solid #00d632;text-align:center;">';
+        html += '<div style="font-weight:700;font-size:13px;color:#00a827;margin-bottom:8px;">💚 Cash App</div>';
         html += '<a href="' + url + '" target="_blank" style="display:block;">';
-        html += '<img src="' + qrUrl(url) + '" alt="Cash App QR" style="width:120px;height:120px;border-radius:8px;" loading="lazy">';
+        html += '<img src="' + qrUrl(url) + '" alt="Cash App QR" style="width:140px;height:140px;border-radius:8px;" loading="lazy">';
         html += '</a>';
-        html += '<div style="font-size:11px;color:#888;margin-top:6px;">' + escHtml(tag) + '</div>';
+        html += '<div style="font-size:12px;color:#00a827;font-weight:600;margin-top:8px;">' + escHtml(tag) + '</div>';
         html += '</div>';
       }
-      if (venmoHandle) {
+      if (showVenmo) {
         const tag = venmoHandle.startsWith('@') ? venmoHandle : '@' + venmoHandle;
         const handle = venmoHandle.startsWith('@') ? venmoHandle.slice(1) : venmoHandle;
         const url = 'https://venmo.com/' + encodeURIComponent(handle) + '?txn=pay&amount=' + apptPrice.toFixed(2) + '&note=' + encodeURIComponent('Appointment payment');
-        html += '<div style="flex:1;min-width:130px;max-width:160px;background:#fff;border-radius:12px;padding:12px;border:1px solid #e8ece8;text-align:center;">';
+        html += '<div style="flex:1;min-width:130px;max-width:200px;background:#fff;border-radius:12px;padding:12px;border:2px solid #3d95ce;text-align:center;">';
         html += '<div style="font-weight:700;font-size:13px;color:#3d95ce;margin-bottom:8px;">💙 Venmo</div>';
         html += '<a href="' + url + '" target="_blank" style="display:block;">';
-        html += '<img src="' + qrUrl(url) + '" alt="Venmo QR" style="width:120px;height:120px;border-radius:8px;" loading="lazy">';
+        html += '<img src="' + qrUrl(url) + '" alt="Venmo QR" style="width:140px;height:140px;border-radius:8px;" loading="lazy">';
         html += '</a>';
-        html += '<div style="font-size:11px;color:#888;margin-top:6px;">' + escHtml(tag) + '</div>';
+        html += '<div style="font-size:12px;color:#3d95ce;font-weight:600;margin-top:8px;">' + escHtml(tag) + '</div>';
         html += '</div>';
       }
       html += '</div>';

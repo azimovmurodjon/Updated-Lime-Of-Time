@@ -1,18 +1,13 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Text,
   View,
-  TextInput,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
-  Modal,
-  Pressable,
-  Share,
+  RefreshControl,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
@@ -22,10 +17,6 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { FuturisticBackground } from "@/components/futuristic-background";
 import { apiCall } from "@/lib/_core/api";
 import * as WebBrowser from "expo-web-browser";
-import { getApiBaseUrl } from "@/constants/oauth";
-import QRCode from "react-native-qrcode-svg";
-import ViewShot, { captureRef } from "react-native-view-shot";
-import * as Sharing from "expo-sharing";
 
 type ConnectStatus = {
   connected: boolean;
@@ -39,7 +30,7 @@ type PayoutInfo = {
   id: string;
   amount: number;
   currency: string;
-  arrivalDate: number; // Unix timestamp
+  arrivalDate: number;
   status: string;
   description: string | null;
 };
@@ -59,17 +50,11 @@ type BalanceEntry = { amount: number; currency: string };
 type StripeBalance = { available: BalanceEntry[]; pending: BalanceEntry[] };
 
 export default function PaymentMethodsScreen() {
-  const { state, dispatch, syncToDb } = useStore();
+  const { state } = useStore();
   const colors = useColors();
   const router = useRouter();
   const settings = state.settings;
   const businessOwnerId = state.businessOwnerId;
-
-  const [zelleHandle, setZelleHandle] = useState(settings.zelleHandle ?? "");
-  const [cashAppHandle, setCashAppHandle] = useState(settings.cashAppHandle ?? "");
-  const [venmoHandle, setVenmoHandle] = useState(settings.venmoHandle ?? "");
-  const [paymentNotes, setPaymentNotes] = useState(settings.paymentNotes ?? "");
-  const [saved, setSaved] = useState(false);
 
   // Stripe Connect state
   const [connectStatus, setConnectStatus] = useState<ConnectStatus | null>(null);
@@ -84,50 +69,9 @@ export default function PaymentMethodsScreen() {
   const [balanceData, setBalanceData] = useState<StripeBalance | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
 
-  // QR code modal state
-  type QrMethod = { label: string; handle: string; color: string; qrValue: string };
-  const [qrModal, setQrModal] = useState<QrMethod | null>(null);
-  const qrRef = useRef<ViewShot>(null);
-  const [savingQr, setSavingQr] = useState(false);
+  // Pull-to-refresh state
+  const [refreshing, setRefreshing] = useState(false);
 
-  const saveQrToPhotos = useCallback(async () => {
-    if (!qrRef.current) return;
-    setSavingQr(true);
-    try {
-      const uri = await captureRef(qrRef, { format: "png", quality: 1 });
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (isAvailable) {
-        await Sharing.shareAsync(uri, { mimeType: "image/png", dialogTitle: "Save or Share QR Code" });
-      } else {
-        Alert.alert("Sharing not available", "Cannot share on this device.");
-      }
-    } catch (e: any) {
-      Alert.alert("Error", e?.message ?? "Failed to save QR code");
-    } finally {
-      setSavingQr(false);
-    }
-  }, []);
-
-  const handleSave = useCallback(() => {
-    const action = {
-      type: "UPDATE_SETTINGS" as const,
-      payload: {
-        zelleHandle: zelleHandle.trim(),
-        cashAppHandle: cashAppHandle.trim(),
-        venmoHandle: venmoHandle.trim(),
-        paymentNotes: paymentNotes.trim(),
-      },
-    };
-    dispatch(action);
-    syncToDb(action);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  }, [zelleHandle, cashAppHandle, venmoHandle, paymentNotes, dispatch, syncToDb]);
-
-  const hasAnyMethod =
-    zelleHandle.trim() || cashAppHandle.trim() || venmoHandle.trim();
-
-  // Load Stripe Connect status on mount
   const loadConnectStatus = useCallback(async () => {
     if (!businessOwnerId) return;
     setConnectStatusLoading(true);
@@ -142,10 +86,6 @@ export default function PaymentMethodsScreen() {
       setConnectStatusLoading(false);
     }
   }, [businessOwnerId]);
-
-  useEffect(() => {
-    loadConnectStatus();
-  }, [loadConnectStatus]);
 
   const loadPayoutData = useCallback(async () => {
     if (!businessOwnerId) return;
@@ -177,13 +117,29 @@ export default function PaymentMethodsScreen() {
     }
   }, [businessOwnerId]);
 
-  // Load payout data and balance once Stripe is confirmed active
+  useEffect(() => {
+    loadConnectStatus();
+  }, [loadConnectStatus]);
+
   useEffect(() => {
     if (connectStatus?.chargesEnabled) {
       loadPayoutData();
       loadBalanceData();
     }
   }, [connectStatus?.chargesEnabled, loadPayoutData, loadBalanceData]);
+
+  // Pull-to-refresh handler
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadConnectStatus();
+      if (connectStatus?.chargesEnabled) {
+        await Promise.all([loadPayoutData(), loadBalanceData()]);
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadConnectStatus, loadPayoutData, loadBalanceData, connectStatus?.chargesEnabled]);
 
   const handleConnectStripe = useCallback(async () => {
     if (!businessOwnerId) return;
@@ -195,7 +151,6 @@ export default function PaymentMethodsScreen() {
       });
       if (data.url) {
         await WebBrowser.openBrowserAsync(data.url);
-        // Refresh status after returning from browser
         await loadConnectStatus();
       }
     } catch (err: any) {
@@ -248,7 +203,6 @@ export default function PaymentMethodsScreen() {
     );
   }, [businessOwnerId, loadConnectStatus]);
 
-  // Stripe Connect status badge
   const renderConnectBadge = () => {
     if (!connectStatus) return null;
     if (!connectStatus.stripeConfigured) {
@@ -279,485 +233,335 @@ export default function PaymentMethodsScreen() {
     );
   };
 
+  // Helper: payment method row data
+  const zelleHandle = settings.zelleHandle?.trim() ?? "";
+  const cashAppHandle = settings.cashAppHandle?.trim() ?? "";
+  const venmoHandle = settings.venmoHandle?.trim() ?? "";
+
+  const methods = [
+    {
+      key: "zelle",
+      label: "Zelle",
+      icon: "Z",
+      color: "#6C1D45",
+      handle: zelleHandle,
+      placeholder: "Phone or email",
+      route: "/payment-method-zelle" as const,
+    },
+    {
+      key: "cashapp",
+      label: "Cash App",
+      icon: "$",
+      color: "#00C244",
+      handle: cashAppHandle ? (cashAppHandle.startsWith("$") ? cashAppHandle : `$${cashAppHandle}`) : "",
+      placeholder: "$Cashtag",
+      route: "/payment-method-cashapp" as const,
+    },
+    {
+      key: "venmo",
+      label: "Venmo",
+      icon: "V",
+      color: "#3D95CE",
+      handle: venmoHandle ? (venmoHandle.startsWith("@") ? venmoHandle : `@${venmoHandle}`) : "",
+      placeholder: "@Username",
+      route: "/payment-method-venmo" as const,
+    },
+  ];
+
   return (
     <ScreenContainer>
       <FuturisticBackground />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
+      <ScrollView
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
-        <ScrollView
-          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 100 }}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={styles.backBtn}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <IconSymbol name="chevron.left" size={22} color={colors.primary} />
-            </TouchableOpacity>
-            <Text style={[styles.title, { color: colors.foreground }]}>Payment Methods</Text>
-            <View style={{ width: 36 }} />
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <IconSymbol name="chevron.left" size={22} color={colors.primary} />
+          </TouchableOpacity>
+          <Text style={[styles.title, { color: colors.foreground }]}>Payment Methods</Text>
+          <View style={{ width: 36 }} />
+        </View>
+
+        {/* ── Stripe Connect Section ── */}
+        <View style={[styles.stripeCard, { backgroundColor: "#635bff12", borderColor: "#635bff40" }]}>
+          <View style={styles.stripeHeader}>
+            <View style={styles.stripeTitleRow}>
+              <Text style={styles.stripeIcon}>💳</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.stripeTitle, { color: colors.foreground }]}>Accept Card Payments</Text>
+                <Text style={[styles.stripeSubtitle, { color: colors.muted }]}>
+                  Powered by Stripe Connect · 1.5% platform fee
+                </Text>
+              </View>
+            </View>
+            {connectStatusLoading ? (
+              <ActivityIndicator size="small" color="#635bff" />
+            ) : (
+              renderConnectBadge()
+            )}
           </View>
 
-          {/* ── Stripe Connect Section ── */}
-          <View style={[styles.stripeCard, { backgroundColor: "#635bff12", borderColor: "#635bff40" }]}>
-            <View style={styles.stripeHeader}>
-              <View style={styles.stripeTitleRow}>
-                <Text style={styles.stripeIcon}>💳</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.stripeTitle, { color: colors.foreground }]}>Accept Card Payments</Text>
-                  <Text style={[styles.stripeSubtitle, { color: colors.muted }]}>
-                    Powered by Stripe Connect · 1.5% platform fee
-                  </Text>
-                </View>
-              </View>
-              {connectStatusLoading ? (
-                <ActivityIndicator size="small" color="#635bff" />
-              ) : (
-                renderConnectBadge()
+          {!connectStatusLoading && connectStatus && (
+            <>
+              {!connectStatus.stripeConfigured && (
+                <Text style={[styles.stripeNote, { color: colors.muted }]}>
+                  Stripe is not configured yet. Ask your platform admin to add the Stripe Secret Key in Platform Config.
+                </Text>
               )}
-            </View>
 
-            {!connectStatusLoading && connectStatus && (
-              <>
-                {!connectStatus.stripeConfigured && (
+              {connectStatus.stripeConfigured && !connectStatus.connected && (
+                <>
                   <Text style={[styles.stripeNote, { color: colors.muted }]}>
-                    Stripe is not configured yet. Ask your platform admin to add the Stripe Secret Key in Platform Config.
+                    Connect your Stripe account to let clients pay by card (Visa, Mastercard, Apple Pay, Google Pay) when booking. Funds go directly to your bank.
                   </Text>
-                )}
+                  <TouchableOpacity
+                    style={[styles.stripeBtn, { backgroundColor: "#635bff" }]}
+                    onPress={handleConnectStripe}
+                    disabled={connectLoading}
+                    activeOpacity={0.8}
+                  >
+                    {connectLoading ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.stripeBtnText}>Connect with Stripe →</Text>
+                    )}
+                  </TouchableOpacity>
+                </>
+              )}
 
-                {connectStatus.stripeConfigured && !connectStatus.connected && (
-                  <>
-                    <Text style={[styles.stripeNote, { color: colors.muted }]}>
-                      Connect your Stripe account to let clients pay by card (Visa, Mastercard, Apple Pay, Google Pay) when booking. Funds go directly to your bank.
-                    </Text>
-                    <TouchableOpacity
-                      style={[styles.stripeBtn, { backgroundColor: "#635bff" }]}
-                      onPress={handleConnectStripe}
-                      disabled={connectLoading}
-                      activeOpacity={0.8}
-                    >
-                      {connectLoading ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                      ) : (
-                        <Text style={styles.stripeBtnText}>Connect with Stripe →</Text>
-                      )}
-                    </TouchableOpacity>
-                  </>
-                )}
+              {connectStatus.connected && !connectStatus.chargesEnabled && (
+                <>
+                  <Text style={[styles.stripeNote, { color: "#f59e0b" }]}>
+                    Your Stripe account is connected but not fully verified yet. Complete the onboarding to start accepting card payments.
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.stripeBtn, { backgroundColor: "#f59e0b" }]}
+                    onPress={handleConnectStripe}
+                    disabled={connectLoading}
+                    activeOpacity={0.8}
+                  >
+                    {connectLoading ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.stripeBtnText}>Complete Onboarding →</Text>
+                    )}
+                  </TouchableOpacity>
+                </>
+              )}
 
-                {connectStatus.connected && !connectStatus.chargesEnabled && (
-                  <>
-                    <Text style={[styles.stripeNote, { color: "#f59e0b" }]}>
-                      Your Stripe account is connected but not fully verified yet. Complete the onboarding to start accepting card payments.
-                    </Text>
-                    <TouchableOpacity
-                      style={[styles.stripeBtn, { backgroundColor: "#f59e0b" }]}
-                      onPress={handleConnectStripe}
-                      disabled={connectLoading}
-                      activeOpacity={0.8}
-                    >
-                      {connectLoading ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                      ) : (
-                        <Text style={styles.stripeBtnText}>Complete Onboarding →</Text>
-                      )}
-                    </TouchableOpacity>
-                  </>
-                )}
+              {connectStatus.chargesEnabled && (
+                <>
+                  <Text style={[styles.stripeNote, { color: "#16a34a" }]}>
+                    Your Stripe account is active. Clients can now pay by card on the booking page.
+                  </Text>
 
-                {connectStatus.chargesEnabled && (
-                  <>
-                    <Text style={[styles.stripeNote, { color: "#16a34a" }]}>
-                      Your Stripe account is active. Clients can now pay by card on the booking page.
-                    </Text>
-
-                    {/* Account Balance Section */}
-                    <View style={[styles.payoutSection, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                      <View style={styles.payoutSectionHeader}>
-                        <Text style={[styles.payoutSectionTitle, { color: colors.foreground }]}>📊 Account Balance</Text>
-                        {balanceLoading && <ActivityIndicator size="small" color="#635bff" />}
-                      </View>
-                      {!balanceLoading && balanceData ? (
-                        <View style={{ flexDirection: "row", gap: 12 }}>
-                          {/* Available */}
-                          <View style={{ flex: 1, backgroundColor: "#f0fdf4", borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#bbf7d0" }}>
-                            <Text style={{ fontSize: 11, color: "#16a34a", fontWeight: "600", marginBottom: 4 }}>AVAILABLE</Text>
-                            {balanceData.available.length > 0 ? (
-                              balanceData.available.map((b, i) => (
-                                <Text key={i} style={{ fontSize: 20, fontWeight: "700", color: "#15803d" }}>
-                                  ${b.amount.toFixed(2)} <Text style={{ fontSize: 12, fontWeight: "400" }}>{b.currency}</Text>
-                                </Text>
-                              ))
-                            ) : (
-                              <Text style={{ fontSize: 18, fontWeight: "700", color: "#15803d" }}>$0.00</Text>
-                            )}
-                            <Text style={{ fontSize: 11, color: "#16a34a", marginTop: 2 }}>Ready to pay out</Text>
-                          </View>
-                          {/* Pending */}
-                          <View style={{ flex: 1, backgroundColor: "#fffbeb", borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#fde68a" }}>
-                            <Text style={{ fontSize: 11, color: "#d97706", fontWeight: "600", marginBottom: 4 }}>PENDING</Text>
-                            {balanceData.pending.length > 0 ? (
-                              balanceData.pending.map((b, i) => (
-                                <Text key={i} style={{ fontSize: 20, fontWeight: "700", color: "#b45309" }}>
-                                  ${b.amount.toFixed(2)} <Text style={{ fontSize: 12, fontWeight: "400" }}>{b.currency}</Text>
-                                </Text>
-                              ))
-                            ) : (
-                              <Text style={{ fontSize: 18, fontWeight: "700", color: "#b45309" }}>$0.00</Text>
-                            )}
-                            <Text style={{ fontSize: 11, color: "#d97706", marginTop: 2 }}>Processing (2-7 days)</Text>
-                          </View>
+                  {/* Account Balance Section */}
+                  <View style={[styles.payoutSection, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                    <View style={styles.payoutSectionHeader}>
+                      <Text style={[styles.payoutSectionTitle, { color: colors.foreground }]}>📊 Account Balance</Text>
+                      {balanceLoading && <ActivityIndicator size="small" color="#635bff" />}
+                    </View>
+                    {!balanceLoading && balanceData ? (
+                      <View style={{ flexDirection: "row", gap: 12 }}>
+                        <View style={{ flex: 1, backgroundColor: "#f0fdf4", borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#bbf7d0" }}>
+                          <Text style={{ fontSize: 11, color: "#16a34a", fontWeight: "600", marginBottom: 4 }}>AVAILABLE</Text>
+                          {balanceData.available.length > 0 ? (
+                            balanceData.available.map((b, i) => (
+                              <Text key={i} style={{ fontSize: 20, fontWeight: "700", color: "#15803d" }}>
+                                ${b.amount.toFixed(2)} <Text style={{ fontSize: 12, fontWeight: "400" }}>{b.currency}</Text>
+                              </Text>
+                            ))
+                          ) : (
+                            <Text style={{ fontSize: 18, fontWeight: "700", color: "#15803d" }}>$0.00</Text>
+                          )}
+                          <Text style={{ fontSize: 11, color: "#16a34a", marginTop: 2 }}>Ready to pay out</Text>
                         </View>
-                      ) : !balanceLoading ? (
-                        <Text style={[styles.payoutLabel, { color: colors.muted }]}>Balance unavailable</Text>
-                      ) : null}
+                        <View style={{ flex: 1, backgroundColor: "#fffbeb", borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#fde68a" }}>
+                          <Text style={{ fontSize: 11, color: "#d97706", fontWeight: "600", marginBottom: 4 }}>PENDING</Text>
+                          {balanceData.pending.length > 0 ? (
+                            balanceData.pending.map((b, i) => (
+                              <Text key={i} style={{ fontSize: 20, fontWeight: "700", color: "#b45309" }}>
+                                ${b.amount.toFixed(2)} <Text style={{ fontSize: 12, fontWeight: "400" }}>{b.currency}</Text>
+                              </Text>
+                            ))
+                          ) : (
+                            <Text style={{ fontSize: 18, fontWeight: "700", color: "#b45309" }}>$0.00</Text>
+                          )}
+                          <Text style={{ fontSize: 11, color: "#d97706", marginTop: 2 }}>Processing (2-7 days)</Text>
+                        </View>
+                      </View>
+                    ) : !balanceLoading ? (
+                      <Text style={[styles.payoutLabel, { color: colors.muted }]}>Balance unavailable</Text>
+                    ) : null}
+                  </View>
+
+                  {/* Payout Schedule Section */}
+                  <View style={[styles.payoutSection, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                    <View style={styles.payoutSectionHeader}>
+                      <Text style={[styles.payoutSectionTitle, { color: colors.foreground }]}>💰 Payout Schedule</Text>
+                      {payoutLoading && <ActivityIndicator size="small" color="#635bff" />}
                     </View>
 
-                    {/* Payout Schedule Section */}
-                    <View style={[styles.payoutSection, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                      <View style={styles.payoutSectionHeader}>
-                        <Text style={[styles.payoutSectionTitle, { color: colors.foreground }]}>💰 Payout Schedule</Text>
-                        {payoutLoading && <ActivityIndicator size="small" color="#635bff" />}
-                      </View>
+                    {!payoutLoading && payoutData && (
+                      <>
+                        {payoutData.schedule && (
+                          <View style={styles.payoutRow}>
+                            <Text style={[styles.payoutLabel, { color: colors.muted }]}>Frequency</Text>
+                            <Text style={[styles.payoutValue, { color: colors.foreground }]}>
+                              {payoutData.schedule.interval === "daily" ? "Daily" :
+                               payoutData.schedule.interval === "weekly"
+                                 ? `Weekly (${payoutData.schedule.weeklyAnchor ? payoutData.schedule.weeklyAnchor.charAt(0).toUpperCase() + payoutData.schedule.weeklyAnchor.slice(1) : ""})` :
+                               payoutData.schedule.interval === "monthly"
+                                 ? `Monthly (day ${payoutData.schedule.monthlyAnchor ?? ""})` :
+                               payoutData.schedule.interval === "manual" ? "Manual" :
+                               payoutData.schedule.interval}
+                              {payoutData.schedule.delayDays ? ` · ${payoutData.schedule.delayDays}d delay` : ""}
+                            </Text>
+                          </View>
+                        )}
 
-                      {!payoutLoading && payoutData && (
-                        <>
-                          {/* Schedule interval */}
-                          {payoutData.schedule && (
-                            <View style={styles.payoutRow}>
-                              <Text style={[styles.payoutLabel, { color: colors.muted }]}>Frequency</Text>
-                              <Text style={[styles.payoutValue, { color: colors.foreground }]}>
-                                {payoutData.schedule.interval === "daily" ? "Daily" :
-                                 payoutData.schedule.interval === "weekly"
-                                   ? `Weekly (${payoutData.schedule.weeklyAnchor ? payoutData.schedule.weeklyAnchor.charAt(0).toUpperCase() + payoutData.schedule.weeklyAnchor.slice(1) : ""})` :
-                                 payoutData.schedule.interval === "monthly"
-                                   ? `Monthly (day ${payoutData.schedule.monthlyAnchor ?? ""})` :
-                                 payoutData.schedule.interval === "manual" ? "Manual" :
-                                 payoutData.schedule.interval}
-                                {payoutData.schedule.delayDays ? ` · ${payoutData.schedule.delayDays}d delay` : ""}
+                        {payoutData.nextPayout ? (
+                          <View style={styles.payoutRow}>
+                            <Text style={[styles.payoutLabel, { color: colors.muted }]}>Next Payout</Text>
+                            <View style={{ alignItems: "flex-end" }}>
+                              <Text style={[styles.payoutValue, { color: "#16a34a", fontWeight: "700" }]}>
+                                ${payoutData.nextPayout.amount.toFixed(2)}
+                              </Text>
+                              <Text style={[styles.payoutSub, { color: colors.muted }]}>
+                                {new Date(payoutData.nextPayout.arrivalDate * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                               </Text>
                             </View>
-                          )}
-
-                          {/* Next payout */}
-                          {payoutData.nextPayout ? (
-                            <View style={styles.payoutRow}>
-                              <Text style={[styles.payoutLabel, { color: colors.muted }]}>Next Payout</Text>
-                              <View style={{ alignItems: "flex-end" }}>
-                                <Text style={[styles.payoutValue, { color: "#16a34a", fontWeight: "700" }]}>
-                                  ${payoutData.nextPayout.amount.toFixed(2)}
-                                </Text>
-                                <Text style={[styles.payoutSub, { color: colors.muted }]}>
-                                  {new Date(payoutData.nextPayout.arrivalDate * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                                </Text>
-                              </View>
-                            </View>
-                          ) : (
-                            <Text style={[styles.payoutEmpty, { color: colors.muted }]}>No upcoming payouts</Text>
-                          )}
-
-                          {/* Recent payouts */}
-                          {payoutData.recentPayouts.filter(p => p.status === "paid").length > 0 && (
-                            <>
-                              <Text style={[styles.payoutHistoryLabel, { color: colors.muted }]}>Recent Payouts</Text>
-                              {payoutData.recentPayouts
-                                .filter(p => p.status === "paid")
-                                .slice(0, 3)
-                                .map((p) => (
-                                  <View key={p.id} style={[styles.payoutHistoryRow, { borderTopColor: colors.border }]}>
-                                    <Text style={[styles.payoutHistoryDate, { color: colors.muted }]}>
-                                      {new Date(p.arrivalDate * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                                    </Text>
-                                    <Text style={[styles.payoutHistoryAmount, { color: colors.foreground }]}>
-                                      ${p.amount.toFixed(2)}
-                                    </Text>
-                                  </View>
-                                ))
-                              }
-                            </>
-                          )}
-                        </>
-                      )}
-
-                      {!payoutLoading && !payoutData && (
-                        <Text style={[styles.payoutEmpty, { color: colors.muted }]}>Unable to load payout info</Text>
-                      )}
-                    </View>
-
-                    <View style={styles.stripeActions}>
-                      <TouchableOpacity
-                        style={[styles.stripeBtnSmall, { backgroundColor: "#635bff" }]}
-                        onPress={handleOpenDashboard}
-                        disabled={connectLoading}
-                        activeOpacity={0.8}
-                      >
-                        {connectLoading ? (
-                          <ActivityIndicator size="small" color="#fff" />
+                          </View>
                         ) : (
-                          <Text style={styles.stripeBtnText}>View Stripe Dashboard</Text>
+                          <Text style={[styles.payoutEmpty, { color: colors.muted }]}>No upcoming payouts</Text>
                         )}
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.stripeBtnSmall, { backgroundColor: "#ef444420", borderWidth: 1, borderColor: "#ef4444" }]}
-                        onPress={handleDisconnect}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={[styles.stripeBtnText, { color: "#ef4444" }]}>Disconnect</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </>
-                )}
 
-                <TouchableOpacity
-                  onPress={loadConnectStatus}
-                  style={styles.refreshBtn}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <IconSymbol name="arrow.clockwise" size={13} color={colors.muted} />
-                  <Text style={[styles.refreshText, { color: colors.muted }]}>Refresh status</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
+                        {payoutData.recentPayouts.filter(p => p.status === "paid").length > 0 && (
+                          <>
+                            <Text style={[styles.payoutHistoryLabel, { color: colors.muted }]}>Recent Payouts</Text>
+                            {payoutData.recentPayouts
+                              .filter(p => p.status === "paid")
+                              .slice(0, 3)
+                              .map((p) => (
+                                <View key={p.id} style={[styles.payoutHistoryRow, { borderTopColor: colors.border }]}>
+                                  <Text style={[styles.payoutHistoryDate, { color: colors.muted }]}>
+                                    {new Date(p.arrivalDate * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                                  </Text>
+                                  <Text style={[styles.payoutHistoryAmount, { color: colors.foreground }]}>
+                                    ${p.amount.toFixed(2)}
+                                  </Text>
+                                </View>
+                              ))
+                            }
+                          </>
+                        )}
+                      </>
+                    )}
 
-          {/* Divider */}
-          <View style={[styles.divider, { borderColor: colors.border }]}>
-            <Text style={[styles.dividerText, { color: colors.muted, backgroundColor: colors.background }]}>
-              Manual Payment Handles
-            </Text>
-          </View>
-
-          {/* Info Banner */}
-          <View style={[styles.infoBanner, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <IconSymbol name="info.circle.fill" size={16} color={colors.primary} />
-            <Text style={[styles.infoText, { color: colors.muted }]}>
-              These handles are shown to clients on the booking confirmation page so they know how to pay you.
-            </Text>
-          </View>
-
-          {/* Zelle */}
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={styles.methodHeader}>
-              <View style={[styles.iconBadge, { backgroundColor: "#6C1D45" }]}>
-                <Text style={styles.iconBadgeText}>Z</Text>
-              </View>
-              <Text style={[styles.methodName, { color: colors.foreground }]}>Zelle</Text>
-              {zelleHandle.trim() ? (
-                <TouchableOpacity
-                  style={[styles.qrBtn, { borderColor: "#6C1D45" }]}
-                  onPress={() => setQrModal({ label: "Zelle", handle: zelleHandle.trim(), color: "#6C1D45", qrValue: zelleHandle.trim() })}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.qrBtnText, { color: "#6C1D45" }]}>QR</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-            <Text style={[styles.fieldLabel, { color: colors.muted }]}>Phone number or email</Text>
-            <TextInput
-              style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
-              value={zelleHandle}
-              onChangeText={setZelleHandle}
-              placeholder="e.g. +14125551234 or you@email.com"
-              placeholderTextColor={colors.muted}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              returnKeyType="done"
-            />
-          </View>
-
-          {/* CashApp */}
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={styles.methodHeader}>
-              <View style={[styles.iconBadge, { backgroundColor: "#00C244" }]}>
-                <Text style={styles.iconBadgeText}>$</Text>
-              </View>
-              <Text style={[styles.methodName, { color: colors.foreground }]}>Cash App</Text>
-              {cashAppHandle.trim() ? (
-                <TouchableOpacity
-                  style={[styles.qrBtn, { borderColor: "#00C244" }]}
-                  onPress={() => {
-                    const tag = cashAppHandle.trim().startsWith("$") ? cashAppHandle.trim() : `$${cashAppHandle.trim()}`;
-                    setQrModal({ label: "Cash App", handle: tag, color: "#00C244", qrValue: `https://cash.app/${tag.replace("$", "")}` });
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.qrBtnText, { color: "#00C244" }]}>QR</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-            <Text style={[styles.fieldLabel, { color: colors.muted }]}>$Cashtag</Text>
-            <TextInput
-              style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
-              value={cashAppHandle}
-              onChangeText={setCashAppHandle}
-              placeholder="e.g. $YourCashtag"
-              placeholderTextColor={colors.muted}
-              autoCapitalize="none"
-              returnKeyType="done"
-            />
-          </View>
-
-          {/* Venmo */}
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={styles.methodHeader}>
-              <View style={[styles.iconBadge, { backgroundColor: "#3D95CE" }]}>
-                <Text style={styles.iconBadgeText}>V</Text>
-              </View>
-              <Text style={[styles.methodName, { color: colors.foreground }]}>Venmo</Text>
-              {venmoHandle.trim() ? (
-                <TouchableOpacity
-                  style={[styles.qrBtn, { borderColor: "#3D95CE" }]}
-                  onPress={() => {
-                    const user = venmoHandle.trim().replace(/^@/, "");
-                    setQrModal({ label: "Venmo", handle: `@${user}`, color: "#3D95CE", qrValue: `https://venmo.com/${user}` });
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.qrBtnText, { color: "#3D95CE" }]}>QR</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-            <Text style={[styles.fieldLabel, { color: colors.muted }]}>@Username</Text>
-            <TextInput
-              style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
-              value={venmoHandle}
-              onChangeText={setVenmoHandle}
-              placeholder="e.g. @YourVenmo"
-              placeholderTextColor={colors.muted}
-              autoCapitalize="none"
-              returnKeyType="done"
-            />
-          </View>
-
-          {/* Payment Notes */}
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={styles.methodHeader}>
-              <View style={[styles.iconBadge, { backgroundColor: colors.muted }]}>
-                <Text style={styles.iconBadgeText}>✎</Text>
-              </View>
-              <Text style={[styles.methodName, { color: colors.foreground }]}>Additional Notes</Text>
-            </View>
-            <Text style={[styles.fieldLabel, { color: colors.muted }]}>
-              Optional instructions shown on booking confirmation
-            </Text>
-            <TextInput
-              style={[styles.input, styles.multilineInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
-              value={paymentNotes}
-              onChangeText={setPaymentNotes}
-              placeholder="e.g. Please include your name in the payment note."
-              placeholderTextColor={colors.muted}
-              multiline
-              numberOfLines={3}
-              returnKeyType="done"
-            />
-          </View>
-
-          {/* Preview */}
-          {hasAnyMethod ? (
-            <View style={[styles.previewCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.previewTitle, { color: colors.foreground }]}>Preview on Booking Page</Text>
-              <Text style={[styles.previewSubtitle, { color: colors.muted }]}>
-                Clients will see this after booking:
-              </Text>
-              <View style={styles.previewMethods}>
-                {zelleHandle.trim() ? (
-                  <View style={styles.previewRow}>
-                    <View style={[styles.previewBadge, { backgroundColor: "#6C1D45" }]}>
-                      <Text style={styles.previewBadgeText}>Z</Text>
-                    </View>
-                    <Text style={[styles.previewHandle, { color: colors.foreground }]}>{zelleHandle.trim()}</Text>
+                    {!payoutLoading && !payoutData && (
+                      <Text style={[styles.payoutEmpty, { color: colors.muted }]}>Unable to load payout info</Text>
+                    )}
                   </View>
-                ) : null}
-                {cashAppHandle.trim() ? (
-                  <View style={styles.previewRow}>
-                    <View style={[styles.previewBadge, { backgroundColor: "#00C244" }]}>
-                      <Text style={styles.previewBadgeText}>$</Text>
-                    </View>
-                    <Text style={[styles.previewHandle, { color: colors.foreground }]}>{cashAppHandle.trim()}</Text>
-                  </View>
-                ) : null}
-                {venmoHandle.trim() ? (
-                  <View style={styles.previewRow}>
-                    <View style={[styles.previewBadge, { backgroundColor: "#3D95CE" }]}>
-                      <Text style={styles.previewBadgeText}>V</Text>
-                    </View>
-                    <Text style={[styles.previewHandle, { color: colors.foreground }]}>{venmoHandle.trim()}</Text>
-                  </View>
-                ) : null}
-                {paymentNotes.trim() ? (
-                  <Text style={[styles.previewNotes, { color: colors.muted }]}>{paymentNotes.trim()}</Text>
-                ) : null}
-              </View>
-            </View>
-          ) : null}
 
-          {/* Save Button */}
+                  <View style={styles.stripeActions}>
+                    <TouchableOpacity
+                      style={[styles.stripeBtnSmall, { backgroundColor: "#635bff" }]}
+                      onPress={handleOpenDashboard}
+                      disabled={connectLoading}
+                      activeOpacity={0.8}
+                    >
+                      {connectLoading ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.stripeBtnText}>View Stripe Dashboard</Text>
+                      )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.stripeBtnSmall, { backgroundColor: "#ef444420", borderWidth: 1, borderColor: "#ef4444" }]}
+                      onPress={handleDisconnect}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.stripeBtnText, { color: "#ef4444" }]}>Disconnect</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+
+              <TouchableOpacity
+                onPress={loadConnectStatus}
+                style={styles.refreshBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <IconSymbol name="arrow.clockwise" size={13} color={colors.muted} />
+                <Text style={[styles.refreshText, { color: colors.muted }]}>Refresh status</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+
+        {/* Divider */}
+        <View style={[styles.divider, { borderColor: colors.border }]}>
+          <Text style={[styles.dividerText, { color: colors.muted, backgroundColor: colors.background }]}>
+            Manual Payment Handles
+          </Text>
+        </View>
+
+        {/* Info Banner */}
+        <View style={[styles.infoBanner, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <IconSymbol name="info.circle.fill" size={16} color={colors.primary} />
+          <Text style={[styles.infoText, { color: colors.muted }]}>
+            Tap a payment method to set up your handle and get a shareable QR code for clients.
+          </Text>
+        </View>
+
+        {/* Payment Method Cards */}
+        {methods.map((m) => (
           <TouchableOpacity
-            style={[styles.saveBtn, { backgroundColor: saved ? "#22C55E" : colors.primary }]}
-            onPress={handleSave}
-            activeOpacity={0.8}
+            key={m.key}
+            style={[styles.methodCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => router.push(m.route as any)}
+            activeOpacity={0.75}
           >
-            <Text style={styles.saveBtnText}>
-              {saved ? "✓ Saved!" : "Save Payment Methods"}
-            </Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </KeyboardAvoidingView>
-
-      {/* QR Code Modal */}
-      <Modal visible={!!qrModal} transparent animationType="slide" onRequestClose={() => setQrModal(null)}>
-        <Pressable style={styles.qrModalOverlay} onPress={() => setQrModal(null)}>
-          <Pressable style={[styles.qrModalContent, { backgroundColor: colors.background }]} onPress={() => {}}>
-            {/* Header */}
-            <View style={styles.qrModalHeader}>
-              <Text style={[styles.qrModalTitle, { color: colors.foreground }]}>
-                {qrModal?.label} QR Code
-              </Text>
-              <Pressable onPress={() => setQrModal(null)} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
-                <IconSymbol name="xmark" size={22} color={colors.foreground} />
-              </Pressable>
+            <View style={[styles.methodIconBadge, { backgroundColor: m.color }]}>
+              <Text style={styles.methodIconText}>{m.icon}</Text>
             </View>
-            {qrModal && (
-              <>
-                <Text style={[styles.qrModalSubtitle, { color: colors.muted }]}>
-                  Clients can scan this to send payment to {qrModal.handle}
-                </Text>
-                {/* QR code capture area */}
-                <ViewShot ref={qrRef} style={styles.qrCapture}>
-                  <QRCode value={qrModal.qrValue} size={200} color="#000" backgroundColor="#FFF" />
-                </ViewShot>
-                <Text style={[styles.qrHandleText, { color: colors.muted }]} numberOfLines={2}>
-                  {qrModal.handle}
-                </Text>
-                {/* Action buttons */}
-                <View style={styles.qrActions}>
-                  <Pressable
-                    onPress={saveQrToPhotos}
-                    disabled={savingQr}
-                    style={({ pressed }) => [styles.qrActionBtn, { backgroundColor: qrModal.color, opacity: (pressed || savingQr) ? 0.75 : 1 }]}
-                  >
-                    <IconSymbol name="arrow.down.to.line" size={16} color="#FFF" />
-                    <Text style={styles.qrActionBtnText}>{savingQr ? "Saving..." : "Save / Share"}</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => Share.share({ url: qrModal.qrValue, message: `Pay me via ${qrModal.label}: ${qrModal.handle}` })}
-                    style={({ pressed }) => [styles.qrActionBtn, { backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
-                  >
-                    <IconSymbol name="square.and.arrow.up" size={16} color={colors.foreground} />
-                    <Text style={[styles.qrActionBtnText, { color: colors.foreground }]}>Share Link</Text>
-                  </Pressable>
+            <View style={styles.methodCardBody}>
+              <Text style={[styles.methodCardLabel, { color: colors.foreground }]}>{m.label}</Text>
+              {m.handle ? (
+                <Text style={[styles.methodCardHandle, { color: m.color }]}>{m.handle}</Text>
+              ) : (
+                <Text style={[styles.methodCardPlaceholder, { color: colors.muted }]}>Tap to set up · {m.placeholder}</Text>
+              )}
+            </View>
+            <View style={styles.methodCardRight}>
+              {m.handle ? (
+                <View style={[styles.methodSetBadge, { backgroundColor: m.color + "20", borderColor: m.color + "60" }]}>
+                  <Text style={[styles.methodSetBadgeText, { color: m.color }]}>✓ Set</Text>
                 </View>
-              </>
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+              ) : (
+                <View style={[styles.methodSetBadge, { backgroundColor: colors.border + "40", borderColor: colors.border }]}>
+                  <Text style={[styles.methodSetBadgeText, { color: colors.muted }]}>Not set</Text>
+                </View>
+              )}
+              <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+            </View>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
     </ScreenContainer>
   );
 }
@@ -870,7 +674,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     textTransform: "uppercase",
   },
-  // Existing styles
   infoBanner: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -885,104 +688,57 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
-  card: {
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 16,
-    marginBottom: 12,
-  },
-  methodHeader: {
+  // Method cards
+  methodCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
     marginBottom: 10,
+    gap: 12,
   },
-  iconBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+  methodIconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
   },
-  iconBadgeText: {
+  methodIconText: {
     color: "#fff",
     fontWeight: "800",
-    fontSize: 15,
+    fontSize: 18,
   },
-  methodName: {
+  methodCardBody: {
+    flex: 1,
+    gap: 2,
+  },
+  methodCardLabel: {
     fontSize: 16,
     fontWeight: "600",
   },
-  fieldLabel: {
-    fontSize: 12,
-    marginBottom: 6,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-  },
-  multilineInput: {
-    height: 80,
-    textAlignVertical: "top",
-    paddingTop: 10,
-  },
-  previewCard: {
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 16,
-    marginBottom: 16,
-  },
-  previewTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    marginBottom: 4,
-  },
-  previewSubtitle: {
-    fontSize: 12,
-    marginBottom: 12,
-  },
-  previewMethods: {
-    gap: 10,
-  },
-  previewRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  previewBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  previewBadgeText: {
-    color: "#fff",
-    fontWeight: "800",
+  methodCardHandle: {
     fontSize: 13,
-  },
-  previewHandle: {
-    fontSize: 14,
     fontWeight: "500",
   },
-  previewNotes: {
+  methodCardPlaceholder: {
     fontSize: 13,
-    lineHeight: 18,
-    marginTop: 4,
   },
-  saveBtn: {
-    borderRadius: 14,
-    paddingVertical: 16,
+  methodCardRight: {
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 20,
+    gap: 6,
   },
-  saveBtnText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 16,
+  methodSetBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  methodSetBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
   },
   // Payout section
   payoutSection: {
@@ -1045,79 +801,5 @@ const styles = StyleSheet.create({
   payoutHistoryAmount: {
     fontSize: 13,
     fontWeight: "600",
-  },
-  // QR button on payment method cards
-  qrBtn: {
-    marginLeft: "auto",
-    borderWidth: 1.5,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  qrBtnText: {
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-  },
-  // QR Modal
-  qrModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    justifyContent: "flex-end",
-  },
-  qrModalContent: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: 40,
-    alignItems: "center",
-  },
-  qrModalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    width: "100%",
-    marginBottom: 12,
-  },
-  qrModalTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-  },
-  qrModalSubtitle: {
-    fontSize: 13,
-    textAlign: "center",
-    marginBottom: 20,
-    lineHeight: 18,
-  },
-  qrCapture: {
-    padding: 16,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    marginBottom: 12,
-  },
-  qrHandleText: {
-    fontSize: 13,
-    textAlign: "center",
-    marginBottom: 20,
-    lineHeight: 18,
-  },
-  qrActions: {
-    flexDirection: "row",
-    gap: 10,
-    width: "100%",
-  },
-  qrActionBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 13,
-    borderRadius: 12,
-  },
-  qrActionBtnText: {
-    color: "#FFF",
-    fontWeight: "700",
-    fontSize: 14,
   },
 });
