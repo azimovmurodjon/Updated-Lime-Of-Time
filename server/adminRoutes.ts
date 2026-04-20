@@ -1220,11 +1220,20 @@ export function registerAdminRoutes(app: Express): void {
       if (!sid || !token || !svcSid) {
         res.json({ ok: false, message: "Twilio credentials not configured" }); return;
       }
+      // Normalize to E.164 format required by Twilio
+      const toE164Admin = (p: string): string => {
+        const digits = p.replace(/\D/g, "");
+        if (p.startsWith("+")) return "+" + digits;
+        if (digits.length === 10) return "+1" + digits;
+        if (digits.length === 11 && digits.startsWith("1")) return "+" + digits;
+        return "+" + digits;
+      };
+      const e164Phone = toE164Admin(phone);
       const credentials = Buffer.from(`${sid}:${token}`).toString("base64");
       const twilioRes = await fetch(`https://verify.twilio.com/v2/Services/${svcSid}/VerificationCheck`, {
         method: "POST",
         headers: { Authorization: `Basic ${credentials}`, "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ To: phone, Code: code }).toString(),
+        body: new URLSearchParams({ To: e164Phone, Code: code }).toString(),
       });
       const d = await twilioRes.json() as any;
       if (twilioRes.ok && d.status === "approved") {
@@ -4292,11 +4301,18 @@ function platformConfigPage(
               📤 Send OTP
             </button>
           </div>
-          <div id="otpVerifyRow" style="display:block;">
+          <!-- Verify OTP panel: always visible, works independently of Send OTP -->
+          <div id="otpVerifyRow" style="display:block;border-top:1px dashed var(--border);padding-top:14px;margin-top:4px;">
+            <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:10px;">VERIFY OTP — Enter the code you received via SMS to confirm the full flow works</div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px;">
-              <div style="flex:1;min-width:140px;">
-                <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;color:var(--text-muted);">Enter 6-Digit Code</label>
-                <input id="otpVerifyCode" type="text" maxlength="6" placeholder="123456"
+              <div style="flex:1;min-width:160px;">
+                <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;color:var(--text-muted);">Phone (E.164 or 10-digit)</label>
+                <input id="otpVerifyPhone" type="tel" placeholder="+14155551234 or 4155551234"
+                  style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;box-sizing:border-box;" />
+              </div>
+              <div style="flex:1;min-width:120px;">
+                <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;color:var(--text-muted);">6-Digit Code from SMS</label>
+                <input id="otpVerifyCode" type="text" inputmode="numeric" maxlength="6" placeholder="123456"
                   style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:18px;font-weight:700;letter-spacing:4px;text-align:center;box-sizing:border-box;" />
               </div>
               <button type="button" id="otpVerifyBtn" onclick="adminVerifyOtp()"
@@ -4764,6 +4780,10 @@ function platformConfigPage(
             '✅ <strong>OTP sent successfully</strong> to ' + phone + '.<br>' +
             'A 6-digit code was delivered via SMS. Enter it below to verify the full flow.');
           document.getElementById('otpVerifyRow').style.display = 'block';
+          // Auto-fill the verify phone field with the same number
+          var vpEl = document.getElementById('otpVerifyPhone');
+          if (vpEl && !vpEl.value) vpEl.value = phone;
+          document.getElementById('otpVerifyCode').value = '';
           document.getElementById('otpVerifyCode').focus();
           // Refresh usage counter and log
           setTimeout(loadOtpUsage, 1500);
@@ -4802,11 +4822,20 @@ function platformConfigPage(
     };
 
     window.adminVerifyOtp = async function adminVerifyOtp() {
-      var phone = (document.getElementById('otpSendPhone').value || '').trim();
+      // Use standalone verify phone field; fall back to send phone field if empty
+      var verifyPhoneEl = document.getElementById('otpVerifyPhone');
+      var sendPhoneEl = document.getElementById('otpSendPhone');
+      var phone = ((verifyPhoneEl && verifyPhoneEl.value) || (sendPhoneEl && sendPhoneEl.value) || '').trim();
       var code = (document.getElementById('otpVerifyCode').value || '').trim();
       var btn = document.getElementById('otpVerifyBtn');
-      if (!phone || !code) {
-        showOtpBanner('warning', '⚠️ Enter the 6-digit code you received on your phone.');
+      if (!phone) {
+        showOtpBanner('warning', '⚠️ Enter the phone number you sent the OTP to.');
+        if (verifyPhoneEl) verifyPhoneEl.focus();
+        return;
+      }
+      if (!code || code.length < 6) {
+        showOtpBanner('warning', '⚠️ Enter the 6-digit code you received via SMS.');
+        document.getElementById('otpVerifyCode').focus();
         return;
       }
       btn.disabled = true;
