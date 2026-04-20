@@ -1506,3 +1506,5 @@
 - [x] Fix phone E.164 formatting bug: +1 country code dropped when building rawPhone for Twilio (sends "4124827733" instead of "+14124827733")
 - [x] Test OTP send/verify end-to-end via API (E.164 fix verification)
 - [x] Add Verify OTP test field in Admin Panel Platform Config (verify code without going through the app)
+- [x] Fix onboarding Business Info step: full screen scrolls (not just inside white card), fields visible when keyboard opens
+- [x] Fix onboarding OTP step: fields visible when keyboard opens, proper scroll behavior

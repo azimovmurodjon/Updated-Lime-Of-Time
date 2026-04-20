@@ -1115,6 +1115,7 @@ export default function OnboardingScreen() {
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
         style={{ flex: 1 }}
       >
         <ScrollView
@@ -1123,15 +1124,14 @@ export default function OnboardingScreen() {
             flexGrow: 1,
             paddingHorizontal: hp,
             paddingTop: 32,
-            paddingBottom: 32,
-            justifyContent: "center",
+            paddingBottom: 80,
           }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           scrollEnabled={true}
         >
           {/* ─── Logo + App Name ─────────────────────────────── */}
-          <Animated.View style={[styles.logoContainer, logoStyle]}>
+          <Animated.View style={[styles.logoContainer, logoStyle, displayStep !== 1 && displayStep !== 'socialPhone' ? { height: 0, marginBottom: 0, overflow: 'hidden', opacity: 0 } : {}]}>
             <View style={styles.logoRing}>
               <Image
                 source={require("@/assets/images/icon.png")}
@@ -1497,13 +1497,6 @@ export default function OnboardingScreen() {
                   <Text style={[styles.stepSubtitle, { textAlign: "center" }]}>Setup takes about 2 minutes</Text>
                 </Animated.View>
 
-                <ScrollView
-                  style={{ maxHeight: 340 }}
-                  contentContainerStyle={{ paddingBottom: 8 }}
-                  showsVerticalScrollIndicator={false}
-                  keyboardShouldPersistTaps="handled"
-                  nestedScrollEnabled={true}
-                >
                 <Animated.View style={inputStyle}>
                   {/* Quick-setup intro card */}
                   <View style={styles.bizIntroCard}>
@@ -1617,9 +1610,7 @@ export default function OnboardingScreen() {
                       editable={!loading}
                     />
                   </View>
-                </Animated.View>
-                </ScrollView>
-
+                 </Animated.View>
                 <Animated.View style={btnStyle}>
                   <View style={styles.buttonRow}>
                     <Pressable

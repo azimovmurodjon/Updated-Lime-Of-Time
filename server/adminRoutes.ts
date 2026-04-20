@@ -24,7 +24,7 @@ import {
 } from "../drizzle/schema";
 import { sql, eq, count as drizzleCount } from "drizzle-orm";
 import { ADMIN_LOGO_BASE64 } from "./admin-logo-data";
-import { invalidatePlanCache, invalidateConfigCache } from "./subscription";
+import { invalidatePlanCache, invalidateConfigCache, getPlatformConfig } from "./subscription";
 
 // ─── Admin Auth ─────────────────────────────────────────────────────
 const ADMIN_USER = process.env.ADMIN_USERNAME || "Admin";
