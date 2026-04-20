@@ -83,25 +83,13 @@ export default function AppointmentDetailScreen() {
     (appointment?.paymentMethod && appointment.paymentMethod !== 'unpaid' ? appointment.paymentMethod : 'cash') as 'cash' | 'zelle' | 'venmo' | 'cashapp'
   );
 
-  if (!appointment) {
-    return (
-      <ScreenContainer edges={["top", "bottom", "left", "right"]} className="p-5">
-      <FuturisticBackground />
-        <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
-          <IconSymbol name="arrow.left" size={24} color={colors.foreground} />
-        </Pressable>
-        <View className="flex-1 items-center justify-center">
-          <Text className="text-base text-muted">Appointment not found</Text>
-        </View>
-      </ScreenContainer>
-    );
-  }
 
-  const service = getServiceById(appointment.serviceId);
-  const client = getClientById(appointment.clientId);
-  const assignedStaff = appointment.staffId ? getStaffById(appointment.staffId) : null;
-  const assignedLocation = appointment.locationId ? getLocationById(appointment.locationId) : null;
-  const endTimeStr = formatTime(minutesToTime(timeToMinutes(appointment.time) + appointment.duration));
+  // Derived variables — safe with optional chaining (appointment may be null during hydration)
+  const service = appointment ? getServiceById(appointment.serviceId) : null;
+  const client = appointment ? getClientById(appointment.clientId) : null;
+  const assignedStaff = appointment?.staffId ? getStaffById(appointment.staffId) : null;
+  const assignedLocation = appointment?.locationId ? getLocationById(appointment.locationId) : null;
+  const endTimeStr = appointment ? formatTime(minutesToTime(timeToMinutes(appointment.time) + appointment.duration)) : "";
   const policy = state.settings.cancellationPolicy;
   const biz = state.settings;
   const profile = biz.profile;
@@ -188,6 +176,7 @@ export default function AppointmentDetailScreen() {
   };
 
   const reschedSlots = useMemo(() => {
+    if (!appointment) return [];
     const loc = assignedLocation;
     const wh = (loc?.workingHours && Object.keys(loc.workingHours).length > 0)
       ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
@@ -204,7 +193,7 @@ export default function AppointmentDetailScreen() {
       state.settings.scheduleMode,
       state.settings.bufferTime ?? 0
     );
-  }, [reschedDate, appointment.duration, appointment.id, assignedLocation, state.settings, state.appointments]);
+  }, [reschedDate, appointment, assignedLocation, state.settings, state.appointments]);
 
   const handleReschedule = useCallback(() => {
     if (!reschedTime) return;
@@ -489,6 +478,19 @@ export default function AppointmentDetailScreen() {
     }
   }, [state.businessOwnerId, appointment, service, client]);
 
+  if (!appointment) {
+    return (
+      <ScreenContainer edges={["top", "bottom", "left", "right"]} className="p-5">
+      <FuturisticBackground />
+        <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+          <IconSymbol name="arrow.left" size={24} color={colors.foreground} />
+        </Pressable>
+        <View className="flex-1 items-center justify-center">
+          <Text className="text-base text-muted">Appointment not found</Text>
+        </View>
+      </ScreenContainer>
+    );
+  }
   const handleNoShow = () => {
     if (!isGrowthPlan) {
       Alert.alert("Upgrade Required", "No-Show SMS is available on the Growth plan and above. Upgrade to automatically notify clients when they miss their appointment.", [{ text: "OK" }]);
