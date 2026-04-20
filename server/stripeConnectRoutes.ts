@@ -269,7 +269,13 @@ export function registerStripeConnectRoutes(app: Express): void {
 
       const session = await stripe.checkout.sessions.create(
         {
+          // Accept card, Apple Pay, Google Pay, and Link (Stripe's 1-click checkout)
           payment_method_types: ["card"],
+          payment_method_options: {
+            card: {
+              request_three_d_secure: "automatic",
+            },
+          },
           line_items: [
             {
               price_data: {
@@ -282,6 +288,18 @@ export function registerStripeConnectRoutes(app: Express): void {
               },
               quantity: 1,
             },
+            // Show the platform fee as a separate line so client sees the breakdown
+            ...(platformFeeCents > 0 ? [{
+              price_data: {
+                currency,
+                product_data: {
+                  name: "Processing Fee",
+                  description: `${(PLATFORM_FEE_PERCENT * 100).toFixed(1)}% card processing fee`,
+                },
+                unit_amount: platformFeeCents,
+              },
+              quantity: 1,
+            }] : []),
           ],
           mode: "payment",
           success_url: successUrl,
@@ -298,7 +316,9 @@ export function registerStripeConnectRoutes(app: Express): void {
               businessOwnerId: String(businessOwnerId),
             },
           },
-        },
+          // Apple Pay and Google Pay are automatically shown by Stripe Checkout
+          // when the device/browser supports them — no extra config needed.
+        } as any,
         { stripeAccount: accountId }
       );
 
@@ -373,6 +393,72 @@ export function registerStripeConnectRoutes(app: Express): void {
             }
           } catch (dbErr) {
             console.error("[StripeConnect] DB update error:", dbErr);
+          }
+        }
+      }
+
+      // ── payout.paid — confirm payout has landed ──────────────────────────────
+      if (event.type === "payout.paid") {
+        const payout = event.data.object as Stripe.Payout;
+        const stripeAccountId = (event as any).account as string | undefined;
+
+        if (stripeAccountId) {
+          try {
+            const db = await getDb();
+            if (db) {
+              const owners = await db
+                .select({ id: businessOwners.id, pushToken: (businessOwners as any).expoPushToken })
+                .from(businessOwners)
+                .where(eq((businessOwners as any).stripeConnectAccountId, stripeAccountId))
+                .limit(1);
+
+              if (owners.length > 0 && owners[0].pushToken) {
+                const amountDollars = (payout.amount / 100).toFixed(2);
+                const currency = payout.currency.toUpperCase();
+                await sendExpoPush(owners[0].pushToken, {
+                  title: "✅ Payout Arrived",
+                  body: `$${amountDollars} ${currency} has been deposited to your bank account.`,
+                  data: { type: "general" },
+                  sound: "default",
+                });
+              }
+            }
+          } catch (notifErr) {
+            console.error("[StripeConnect] Payout paid notification error:", notifErr);
+          }
+        }
+      }
+
+      // ── payout.failed — urgent alert when payout fails ───────────────────────
+      if (event.type === "payout.failed") {
+        const payout = event.data.object as Stripe.Payout;
+        const stripeAccountId = (event as any).account as string | undefined;
+
+        if (stripeAccountId) {
+          try {
+            const db = await getDb();
+            if (db) {
+              const owners = await db
+                .select({ id: businessOwners.id, pushToken: (businessOwners as any).expoPushToken })
+                .from(businessOwners)
+                .where(eq((businessOwners as any).stripeConnectAccountId, stripeAccountId))
+                .limit(1);
+
+              if (owners.length > 0 && owners[0].pushToken) {
+                const amountDollars = (payout.amount / 100).toFixed(2);
+                const currency = payout.currency.toUpperCase();
+                const failureMsg = (payout as any).failure_message || "Please check your bank account details in Stripe.";
+                await sendExpoPush(owners[0].pushToken, {
+                  title: "⚠️ Payout Failed",
+                  body: `$${amountDollars} ${currency} payout failed. ${failureMsg}`,
+                  data: { type: "general" },
+                  sound: "default",
+                });
+                console.log(`[StripeConnect] Payout FAILED notification sent to owner ${owners[0].id}: $${amountDollars}`);
+              }
+            }
+          } catch (notifErr) {
+            console.error("[StripeConnect] Payout failed notification error:", notifErr);
           }
         }
       }
@@ -640,6 +726,9 @@ export function registerStripeConnectRoutes(app: Express): void {
       const session = await stripe.checkout.sessions.create(
         {
           payment_method_types: ["card"],
+          payment_method_options: {
+            card: { request_three_d_secure: "automatic" },
+          },
           line_items: [
             {
               price_data: {
@@ -652,6 +741,17 @@ export function registerStripeConnectRoutes(app: Express): void {
               },
               quantity: 1,
             },
+            ...(platformFeeCents > 0 ? [{
+              price_data: {
+                currency,
+                product_data: {
+                  name: "Processing Fee",
+                  description: `${(PLATFORM_FEE_PERCENT * 100).toFixed(1)}% card processing fee`,
+                },
+                unit_amount: platformFeeCents,
+              },
+              quantity: 1,
+            }] : []),
           ],
           mode: "payment",
           success_url: successUrl,
@@ -670,7 +770,8 @@ export function registerStripeConnectRoutes(app: Express): void {
               feeType: "no_show",
             },
           },
-        },
+          // Apple Pay and Google Pay shown automatically by Stripe Checkout
+        } as any,
         { stripeAccount: accountId }
       );
 
