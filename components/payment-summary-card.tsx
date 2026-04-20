@@ -11,6 +11,8 @@ import {
 import Svg, { Circle, G, Path } from "react-native-svg";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { useMemo } from "react";
+import type { Appointment } from "@/lib/types";
 
 const ACCENT = "#00C896";
 
@@ -56,6 +58,8 @@ export interface PaymentSummaryCardProps {
   serviceBreakdown: ServiceBreakdownItem[];
   statusCounts: StatusCounts;
   totalAppointments: number;
+  /** Full appointments array for local timeline filtering in the Status slide */
+  appointments?: Appointment[];
   width: number;
   onPressPaid?: () => void;
   onPressUnpaid?: () => void;
@@ -281,20 +285,47 @@ const STATUS_TIMELINES: { key: StatusTimeline; label: string }[] = [
 function StatusSlide({
   statusCounts,
   total,
+  appointments,
   onPressStatus,
 }: {
   statusCounts: StatusCounts;
   total: number;
+  appointments?: Appointment[];
   onPressStatus?: (status: string) => void;
 }) {
   const colors = useColors();
   const [timeline, setTimeline] = useState<StatusTimeline>("month");
 
+  // Compute filtered counts based on selected timeline
+  const filteredCounts = useMemo((): StatusCounts => {
+    if (!appointments || appointments.length === 0) return statusCounts;
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    let rangeStart = "2000-01-01";
+    if (timeline === "week") {
+      const s = new Date(now);
+      s.setDate(now.getDate() - now.getDay());
+      rangeStart = `${s.getFullYear()}-${pad(s.getMonth() + 1)}-${pad(s.getDate())}`;
+    } else if (timeline === "month") {
+      rangeStart = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
+    }
+    const ranged = appointments.filter((a) => a.date >= rangeStart && a.date <= todayStr);
+    return {
+      completed: ranged.filter((a) => a.status === "completed").length,
+      confirmed: ranged.filter((a) => a.status === "confirmed").length,
+      pending: ranged.filter((a) => a.status === "pending").length,
+      cancelled: ranged.filter((a) => a.status === "cancelled").length,
+    };
+  }, [appointments, timeline, statusCounts]);
+
+  const filteredTotal = filteredCounts.completed + filteredCounts.confirmed + filteredCounts.pending + filteredCounts.cancelled;
+
   const statuses = [
-    { key: "completed", label: "Completed", value: statusCounts.completed, color: ACCENT, icon: "checkmark.circle.fill" as const },
-    { key: "confirmed", label: "Confirmed", value: statusCounts.confirmed, color: colors.primary, icon: "paperplane.fill" as const },
-    { key: "pending", label: "Pending", value: statusCounts.pending, color: "#FF9800", icon: "chevron.right" as const },
-    { key: "cancelled", label: "Cancelled", value: statusCounts.cancelled, color: colors.error, icon: "xmark.circle.fill" as const },
+    { key: "completed", label: "Completed", value: filteredCounts.completed, color: ACCENT, icon: "checkmark.circle.fill" as const },
+    { key: "confirmed", label: "Confirmed", value: filteredCounts.confirmed, color: colors.primary, icon: "paperplane.fill" as const },
+    { key: "pending", label: "Pending", value: filteredCounts.pending, color: "#FF9800", icon: "chevron.right" as const },
+    { key: "cancelled", label: "Cancelled", value: filteredCounts.cancelled, color: colors.error, icon: "xmark.circle.fill" as const },
   ];
 
   return (
@@ -306,7 +337,6 @@ function StatusSlide({
             key={t.key}
             onPress={() => {
               setTimeline(t.key);
-              onPressStatus?.(`timeline:${t.key}`);
             }}
             style={({ pressed }) => ({
               flex: 1,
@@ -327,7 +357,7 @@ function StatusSlide({
       </View>
 
       {statuses.map((item) => {
-        const pct = total > 0 ? item.value / total : 0;
+        const pct = filteredTotal > 0 ? item.value / filteredTotal : 0;
         return (
           <Pressable
             key={item.key}
@@ -374,6 +404,7 @@ export function PaymentSummaryCard({
   serviceBreakdown,
   statusCounts,
   totalAppointments,
+  appointments,
   width,
   onPressPaid,
   onPressUnpaid,
@@ -456,6 +487,7 @@ export function PaymentSummaryCard({
           <StatusSlide
             statusCounts={statusCounts}
             total={totalAppts}
+            appointments={appointments}
             onPressStatus={onPressStatus}
           />
         </View>

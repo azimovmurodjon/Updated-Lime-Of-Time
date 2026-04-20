@@ -1517,3 +1517,6 @@
 - [x] Keep logo visible on ALL onboarding steps (do not hide it on any step)
 - [x] Add Save & Test combined button for Twilio section in Admin Panel
 - [x] Add Save & Test combined button for Stripe section in Admin Panel
+- [ ] Fix Home page Status section: Week/Month/All tabs filter appointment counts correctly
+- [ ] Fix Home page Status section: "View All" navigates to Calendar tab (not a different page)
+- [ ] Fix Home page Status section: clicking a status row (Completed/Confirmed/Pending/Cancelled) navigates to Calendar tab with correct filter

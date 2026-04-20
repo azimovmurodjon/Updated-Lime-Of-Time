@@ -888,6 +888,7 @@ export default function HomeScreen() {
       weeklyDailyData,
       serviceBreakdown,
       statusCounts,
+      filteredAppts,
       topService,
       topCount,
       paidRevenue,
@@ -1991,11 +1992,23 @@ export default function HomeScreen() {
           serviceBreakdown={analytics.serviceBreakdown}
           statusCounts={analytics.statusCounts}
           totalAppointments={analytics.totalAppointments}
+          appointments={analytics.filteredAppts}
           width={contentWidth}
           onPressPaid={() => router.push({ pathname: '/(tabs)/calendar', params: { filter: 'paid' } } as any)}
           onPressUnpaid={() => router.push({ pathname: '/(tabs)/calendar', params: { filter: 'unpaid' } } as any)}
           onPressFullSummary={() => router.push('/payment-summary' as any)}
-          onPressStatus={(status) => router.push({ pathname: '/status-detail', params: { status } } as any)}
+          onPressStatus={(status) => {
+            // Map appointment status keys to calendar filter keys
+            const calendarFilter: Record<string, string> = {
+              completed: 'completed',
+              confirmed: 'upcoming',
+              pending: 'requests',
+              cancelled: 'cancelled',
+              all: 'upcoming',
+            };
+            const filter = calendarFilter[status] ?? 'upcoming';
+            router.push({ pathname: '/(tabs)/calendar', params: { filter } } as any);
+          }}
           onPressMethod={(method) => router.push({ pathname: '/payment-summary', params: { method } } as any)}
         />
 
