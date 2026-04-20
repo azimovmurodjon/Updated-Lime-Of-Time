@@ -166,8 +166,8 @@ async function main() {
     const availableAppts = apptRows.filter((a: any) => !usedApptIds.has(a.localId));
     if (availableAppts.length > 0) {
       const appt = pick(availableAppts);
-      apptLocalId = appt.localId;
-      clientLocalId = appt.clientLocalId;
+      apptLocalId = appt.localId as string;
+      clientLocalId = appt.clientLocalId as string;
       usedApptIds.add(apptLocalId);
     } else {
       // Fallback: unlinked review from a random client

@@ -1508,3 +1508,7 @@
 - [x] Add Verify OTP test field in Admin Panel Platform Config (verify code without going through the app)
 - [x] Fix onboarding Business Info step: full screen scrolls (not just inside white card), fields visible when keyboard opens
 - [x] Fix onboarding OTP step: fields visible when keyboard opens, proper scroll behavior
+- [x] Restore logo on OTP onboarding page (was removed by previous fix)
+- [x] Fix Business Info step: make content scrollable all the way down
+- [x] Add KeyboardAvoidingView offset tuning for Android (prevent keyboard overlapping bottom button)
+- [x] Add inline validation feedback on Business Info fields (red border + error message while typing — already implemented)

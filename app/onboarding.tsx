@@ -1115,7 +1115,7 @@ export default function OnboardingScreen() {
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 24}
         style={{ flex: 1 }}
       >
         <ScrollView
@@ -1131,7 +1131,7 @@ export default function OnboardingScreen() {
           scrollEnabled={true}
         >
           {/* ─── Logo + App Name ─────────────────────────────── */}
-          <Animated.View style={[styles.logoContainer, logoStyle, displayStep !== 1 && displayStep !== 'socialPhone' ? { height: 0, marginBottom: 0, overflow: 'hidden', opacity: 0 } : {}]}>
+          <Animated.View style={[styles.logoContainer, logoStyle, displayStep !== 1 && displayStep !== 'socialPhone' && displayStep !== 'otp' ? { height: 0, marginBottom: 0, overflow: 'hidden', opacity: 0 } : {}]}>
             <View style={styles.logoRing}>
               <Image
                 source={require("@/assets/images/icon.png")}
@@ -1155,8 +1155,8 @@ export default function OnboardingScreen() {
           {/* ─── White Card ──────────────────────────────────── */}
           {/* GestureDetector enables swipe-right to go back on applicable steps */}
           <GestureDetector gesture={swipeGesture}>
-          {/* Clip container prevents the sliding card from overflowing onto the background */}
-          <View style={{ overflow: "hidden", borderRadius: 24 }}>
+          {/* Clip container — no overflow:hidden so tall steps (Business Info) can scroll fully */}
+          <View style={{ borderRadius: 24 }}>
           <Animated.View style={[styles.card, slideStyle, { borderRadius: 24 }]}>
             {/* Step 1: Phone */}
             {displayStep === 1 && (
