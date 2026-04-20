@@ -1420,11 +1420,13 @@ export function registerPublicRoutes(app: Express) {
         and(eq((apptTable as any).stripeCheckoutSessionId, session_id), eq(apptTable.businessOwnerId, owner.id))
       ).limit(1);
       if (!rows.length) {
-        // Webhook may not have fired yet — wait up to 3s and retry
-        await new Promise(r => setTimeout(r, 3000));
-        rows = await dbase.select().from(apptTable).where(
-          and(eq((apptTable as any).stripeCheckoutSessionId, session_id), eq(apptTable.businessOwnerId, owner.id))
-        ).limit(1);
+        // Webhook may not have fired yet — retry up to 3 times with 3s gaps (9s total)
+        for (let attempt = 0; attempt < 3 && !rows.length; attempt++) {
+          await new Promise(r => setTimeout(r, 3000));
+          rows = await dbase.select().from(apptTable).where(
+            and(eq((apptTable as any).stripeCheckoutSessionId, session_id), eq(apptTable.businessOwnerId, owner.id))
+          ).limit(1);
+        }
       }
       if (!rows.length) { res.status(404).json({ error: "Appointment not found for this session" }); return; }
       const appt = rows[0];
@@ -1433,8 +1435,21 @@ export function registerPublicRoutes(app: Express) {
       const clientsList = await db.getClientsByOwner(owner.id);
       const client = (clientsList as any[]).find((c: any) => c.localId === appt.clientLocalId);
       const clientName = client?.name || "Client";
+      const clientEmail = client?.email || "";
       const manageUrl = `/api/manage/${req.params.slug}/${appt.localId}`;
-      res.json({ ok: true, appointment: { localId: appt.localId, clientName, serviceName: svc?.name || appt.serviceLocalId, date: appt.date, time: appt.time, duration: appt.duration, totalPrice: appt.totalPrice, paymentStatus: appt.paymentStatus, paymentMethod: appt.paymentMethod, manageUrl } });
+      // Load location data if appointment has a locationLocalId
+      let locationName = "";
+      let locationAddress = "";
+      if ((appt as any).locationLocalId) {
+        const locationsList = await db.getLocationsByOwner(owner.id);
+        const loc = (locationsList as any[]).find((l: any) => l.localId === (appt as any).locationLocalId);
+        if (loc) {
+          locationName = loc.name || "";
+          const addrParts = [loc.address, loc.city, loc.state, loc.zipCode].filter(Boolean);
+          locationAddress = addrParts.join(", ");
+        }
+      }
+      res.json({ ok: true, appointment: { localId: appt.localId, clientName, clientEmail, serviceName: svc?.name || appt.serviceLocalId, date: appt.date, time: appt.time, duration: appt.duration, totalPrice: appt.totalPrice, paymentStatus: appt.paymentStatus, paymentMethod: appt.paymentMethod, manageUrl, locationName, locationAddress } });
     } catch (err) {
       console.error("[Public] appointment-by-session error:", err);
       res.status(500).json({ error: "Internal server error" });
@@ -5656,11 +5671,15 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
             const eampm = eh >= 12 ? 'PM' : 'AM';
             const eh12 = eh === 0 ? 12 : eh > 12 ? eh - 12 : eh;
             const endStr = eh12 + ':' + String(em).padStart(2,'0') + ' ' + eampm;
+            const locationLine = a.locationName ? '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#666;">Location</span><span style="font-weight:600;text-align:right;max-width:60%;">' + (a.locationAddress ? a.locationName + '<br><span style="font-weight:400;color:#888;font-size:12px;">' + a.locationAddress + '</span>' : a.locationName) + '</span></div>' : '';
             const receiptHtml = '<div style="background:#f0faf0;border:1px solid #c3e6cb;border-radius:12px;padding:16px;text-align:left;margin-bottom:16px;">' +
-              '<div style="font-size:13px;font-weight:600;color:#155724;margin-bottom:10px;">💳 Paid by Card</div>' +
+              '<div style="font-size:13px;font-weight:600;color:#155724;margin-bottom:10px;">✅ Payment Confirmed — Booking Receipt</div>' +
+              '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#666;">Client</span><span style="font-weight:600;">' + a.clientName + '</span></div>' +
               '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#666;">Service</span><span style="font-weight:600;">' + a.serviceName + '</span></div>' +
               '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#666;">Date</span><span style="font-weight:600;">' + dateStr + '</span></div>' +
               '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#666;">Time</span><span style="font-weight:600;">' + timeStr + ' — ' + endStr + '</span></div>' +
+              locationLine +
+              '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#666;">Payment</span><span style="font-weight:600;">💳 Card</span></div>' +
               '<div style="display:flex;justify-content:space-between;padding:8px 0 0;font-size:16px;font-weight:700;border-top:1px solid #c3e6cb;margin-top:4px;"><span>Total Paid</span><span style="color:#155724;">$' + parseFloat(a.totalPrice || '0').toFixed(2) + '</span></div>' +
               '</div>';
             document.getElementById('successReceipt').innerHTML = receiptHtml;
@@ -5684,11 +5703,28 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
             // Clear the URL params so a refresh doesn't re-trigger this
             window.history.replaceState({}, '', window.location.pathname);
           } else {
-            // Appointment not found — show generic success
-            document.getElementById('step-7').innerHTML = '<div style="text-align:center;padding:40px 20px;"><div style="font-size:64px;margin-bottom:16px;">✅</div><h2 style="color:#2d5a27;">Payment Successful!</h2><p style="color:#666;">Your appointment has been confirmed and payment received.</p></div>';
+            // Appointment not found — render the full success screen using booking context
+            renderSuccessReceipt();
+            for (let i = 0; i <= 6; i++) { const el = document.getElementById('step-' + i); if (el) el.style.display = 'none'; }
+            document.getElementById('step-indicator').style.display = 'none';
+            const locBannerF = document.getElementById('selectedLocBanner'); if (locBannerF) locBannerF.classList.remove('show');
+            document.getElementById('step-7').style.display = 'block';
+            // Override the receipt to show card payment badge
+            const receiptEl = document.getElementById('successReceipt');
+            if (receiptEl && selectedService) {
+              const cardBadge = '<div style="display:inline-flex;align-items:center;gap:6px;background:#f0faf0;border:1px solid #c3e6cb;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600;color:#155724;margin-bottom:12px;">💳 Paid by Card</div>';
+              receiptEl.innerHTML = cardBadge + receiptEl.innerHTML;
+            }
+            window.history.replaceState({}, '', window.location.pathname);
           }
         } catch(e) {
-          document.getElementById('step-7').innerHTML = '<div style="text-align:center;padding:40px 20px;"><div style="font-size:64px;margin-bottom:16px;">✅</div><h2 style="color:#2d5a27;">Payment Successful!</h2><p style="color:#666;">Your appointment has been confirmed and payment received.</p></div>';
+          // On error — render the full success screen using booking context
+          renderSuccessReceipt();
+          for (let i = 0; i <= 6; i++) { const el = document.getElementById('step-' + i); if (el) el.style.display = 'none'; }
+          document.getElementById('step-indicator').style.display = 'none';
+          const locBannerE = document.getElementById('selectedLocBanner'); if (locBannerE) locBannerE.classList.remove('show');
+          document.getElementById('step-7').style.display = 'block';
+          window.history.replaceState({}, '', window.location.pathname);
         }
       } else if (paymentParam === 'cancelled') {
         // Payment was cancelled — show a message and let them retry

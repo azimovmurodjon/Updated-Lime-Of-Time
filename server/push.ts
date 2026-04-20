@@ -332,6 +332,47 @@ export async function notifyAutoComplete(
   });
 }
 
+/**
+ * Card payment received via Stripe checkout.
+ * Tapping navigates directly to the appointment detail screen.
+ */
+export async function notifyCardPayment(
+  expoPushToken: string,
+  businessName: string,
+  clientName: string,
+  serviceName: string,
+  date: string,
+  time: string,
+  appointmentId: string,
+  totalPrice: string | number,
+  opts?: {
+    duration?: number;
+    locationName?: string;
+    clientPhone?: string;
+  }
+): Promise<boolean> {
+  const endTime = opts?.duration ? computeEndTime(time, opts.duration) : null;
+  const timeRange = endTime ? `${fmt12(time)} – ${fmt12(endTime)}` : fmt12(time);
+  const amount = typeof totalPrice === "number" ? totalPrice.toFixed(2) : parseFloat(String(totalPrice || "0")).toFixed(2);
+  const lines = [
+    `A card payment of $${amount} has been received.`,
+    ``,
+    `👤 Client: ${clientName}${opts?.clientPhone ? ` · ${fmtPhone(opts.clientPhone)}` : ""}`,
+    `💈 Service: ${serviceName}${opts?.duration ? ` (${opts.duration} min)` : ""}`,
+    `📅 Date: ${date}`,
+    `⏰ Time: ${timeRange}`,
+    opts?.locationName ? `📍 Location: ${opts.locationName}` : null,
+    ``,
+    `Appointment is confirmed and fully paid. Tap to view details.`,
+  ].filter((l) => l !== null).join("\n");
+  return sendExpoPush(expoPushToken, {
+    title: `💳 Card Payment Received — ${businessName}`,
+    body: lines,
+    data: { type: "payment_received", appointmentId, filter: "confirmed" },
+    channelId: "appointments",
+  });
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
 /** Format "HH:MM" → "h:MM AM/PM" */

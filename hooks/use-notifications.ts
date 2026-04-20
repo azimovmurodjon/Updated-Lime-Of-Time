@@ -354,6 +354,24 @@ export function useNotifications() {
       }
     });
 
+    // ── Foreground notification listener: auto-update payment status ────────
+    // When a payment_received notification arrives while the app is open,
+    // silently update the appointment's paymentStatus to "paid" in local state.
+    const foregroundSubscription = Notifications.addNotificationReceivedListener((notification) => {
+      const data = notification.request.content.data as NotificationData;
+      if (data?.type === "payment_received" && data?.appointmentId) {
+        const apptId = data.appointmentId;
+        const appt = state.appointments.find((a) => a.id === apptId);
+        if (appt && appt.paymentStatus !== "paid") {
+          const updatedAppt = { ...appt, paymentStatus: "paid" as const, paymentMethod: "card" as const };
+          const updateAction = { type: "UPDATE_APPOINTMENT" as const, payload: updatedAppt };
+          dispatch(updateAction);
+          syncToDb(updateAction);
+          logger.log("[Notifications] Auto-marked appointment as paid from card payment:", apptId);
+        }
+      }
+    });
+
     // Handle cold-start: check if app was opened from a notification
     const checkInitialNotification = async () => {
       try {
@@ -372,6 +390,7 @@ export function useNotifications() {
 
     return () => {
       responseSubscription.remove();
+      foregroundSubscription.remove();
       listenerSetupRef.current = false;
     };
   }, [handleNotificationNavigation]);

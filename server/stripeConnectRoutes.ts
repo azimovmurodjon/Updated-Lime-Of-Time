@@ -12,7 +12,7 @@ import { getDb } from "./db";
 import { businessOwners, appointments, clients, services } from "../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 import { getPlatformConfig } from "./subscription";
-import { sendExpoPush } from "./push";
+import { sendExpoPush, notifyCardPayment } from "./push";
 const PLATFORM_FEE_PERCENT = 0.015; // 1.5%%
 
 // ── Stripe client factory (reads key from DB config) ─────────────────────────
@@ -389,14 +389,46 @@ export function registerStripeConnectRoutes(app: Express): void {
                     eq(appointments.businessOwnerId, businessOwnerId)
                   )
                 );
-              console.log(`[StripeConnect] Appointment ${appointmentLocalId} marked paid via card`);
+               console.log(`[StripeConnect] Appointment ${appointmentLocalId} marked paid via card`);
+              // Send push notification to app so it auto-updates the appointment status
+              try {
+                const db2 = await getDb();
+                if (db2) {
+                  const ownerRows = await db2.select().from(businessOwners).where(eq(businessOwners.id, businessOwnerId)).limit(1);
+                  const owner = ownerRows[0];
+                  const pushToken = (owner as any)?.expoPushToken;
+                  if (pushToken) {
+                    const apptRows = await db2.select().from(appointments).where(and(eq(appointments.localId, appointmentLocalId), eq(appointments.businessOwnerId, businessOwnerId))).limit(1);
+                    const appt = apptRows[0];
+                    if (appt) {
+                      // Load client and service names
+                      const clientRows = appt.clientLocalId ? await db2.select().from(clients).where(and(eq(clients.localId, appt.clientLocalId), eq(clients.businessOwnerId, businessOwnerId))).limit(1) : [];
+                      const svcRows = appt.serviceLocalId ? await db2.select().from(services).where(and(eq(services.localId, appt.serviceLocalId), eq(services.businessOwnerId, businessOwnerId))).limit(1) : [];
+                      const clientName = (clientRows[0] as any)?.name || "Client";
+                      const serviceName = (svcRows[0] as any)?.name || "Service";
+                      await notifyCardPayment(
+                        pushToken,
+                        owner.businessName || "Your Business",
+                        clientName,
+                        serviceName,
+                        appt.date || "",
+                        appt.time || "00:00",
+                        appointmentLocalId,
+                        appt.totalPrice || 0,
+                        { duration: appt.duration || undefined }
+                      );
+                    }
+                  }
+                }
+              } catch (notifErr) {
+                console.error("[StripeConnect] Card payment notification error:", notifErr);
+              }
             }
           } catch (dbErr) {
             console.error("[StripeConnect] DB update error:", dbErr);
           }
         }
       }
-
       // ── payout.paid — confirm payout has landed ──────────────────────────────
       if (event.type === "payout.paid") {
         const payout = event.data.object as Stripe.Payout;
