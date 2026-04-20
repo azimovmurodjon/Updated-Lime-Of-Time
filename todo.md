@@ -1466,3 +1466,6 @@
 - [x] Audit all Admin Panel sections for correct data connections to live app
 - [x] Fix Admin Panel dashboard stat cards grid — single column on mobile phones (< 480px)
 - [x] Add OTP send/verify panel to Admin Panel Twilio section (send OTP to any number, verify code, show result)
+- [x] Add OTP usage counter (Twilio usage records API) to Admin Panel Twilio section
+- [x] Improve OTP send/verify feedback messaging — clear success/failure status with details
+- [x] Add mobile back-to-top button (bottom-fixed) to Admin Panel for long pages

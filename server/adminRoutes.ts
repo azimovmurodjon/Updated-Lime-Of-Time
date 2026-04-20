@@ -1189,6 +1189,48 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
+  // ── Admin OTP Usage Counter (Twilio Usage Records) ───────────────────────
+  app.get("/api/admin/otp/usage", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      let sid = process.env.TWILIO_ACCOUNT_SID || "";
+      let token = process.env.TWILIO_AUTH_TOKEN || "";
+      if (!sid || !token) {
+        const dbase = await getDb();
+        if (dbase) {
+          const cfgRows = await dbase.select().from(platformConfig);
+          const cfgMap: Record<string, string> = {};
+          for (const row of cfgRows) cfgMap[row.configKey] = row.configValue || "";
+          sid = cfgMap["TWILIO_ACCOUNT_SID"] || "";
+          token = cfgMap["TWILIO_AUTH_TOKEN"] || "";
+        }
+      }
+      if (!sid || !token) {
+        res.json({ ok: false, message: "Twilio credentials not configured", count: null }); return;
+      }
+      // Fetch Twilio Verify usage for current month
+      const now = new Date();
+      const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+      const endDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const credentials = Buffer.from(`${sid}:${token}`).toString("base64");
+      // Twilio Usage Records API — category: verify-authentications
+      const url = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Usage/Records.json?Category=verify-authentications&StartDate=${startDate}&EndDate=${endDate}`;
+      const twilioRes = await fetch(url, { headers: { Authorization: `Basic ${credentials}` } });
+      if (twilioRes.ok) {
+        const data = await twilioRes.json() as any;
+        const record = data?.usage_records?.[0];
+        const count = record ? parseInt(record.count || "0", 10) : 0;
+        const cost = record ? parseFloat(record.price || "0") : 0;
+        res.json({ ok: true, count, cost: Math.abs(cost).toFixed(4), month: now.toLocaleString("en-US", { month: "long", year: "numeric" }) });
+      } else {
+        const errData = await twilioRes.json().catch(() => ({})) as any;
+        res.json({ ok: false, message: errData?.message || `Twilio error ${twilioRes.status}`, count: null });
+      }
+    } catch (err: any) {
+      console.error("[Admin] OTP usage error:", err);
+      res.json({ ok: false, message: err?.message || "Unknown error", count: null });
+    }
+  });
+
   // ── Audit Log ─────────────────────────────────────────────────────
   app.get("/api/admin/audit-log", requireAuth, async (_req: Request, res: Response) => {
     try {
@@ -1880,10 +1922,15 @@ function adminLayout(title: string, activePage: string, content: string): string
   <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
   <div class="layout">
     ${sidebarHtml(activePage)}
-    <div class="main">
+    <div class="main" id="mainContent">
       ${content}
     </div>
   </div>
+  <!-- Back to top button (mobile only) -->
+  <button id="backToTopBtn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top"
+    style="display:none;position:fixed;bottom:20px;right:16px;z-index:999;background:var(--primary);color:white;border:none;border-radius:50%;width:44px;height:44px;font-size:20px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.25);align-items:center;justify-content:center;">
+    ↑
+  </button>
   <script>
     function toggleSidebar() {
       const sidebar = document.querySelector('.sidebar');
@@ -1941,6 +1988,24 @@ function adminLayout(title: string, activePage: string, content: string): string
         }
       });
     }
+
+    // ── Back to top button (mobile only) ─────────────────────────────────
+    (function() {
+      var btn = document.getElementById('backToTopBtn');
+      if (!btn) return;
+      function updateBtn() {
+        var scrollY = window.scrollY || document.documentElement.scrollTop;
+        var isMobile = window.innerWidth <= 768;
+        if (isMobile && scrollY > 300) {
+          btn.style.display = 'flex';
+        } else {
+          btn.style.display = 'none';
+        }
+      }
+      window.addEventListener('scroll', updateBtn, { passive: true });
+      window.addEventListener('resize', updateBtn, { passive: true });
+      updateBtn();
+    })();
   </script>
 </body>
 </html>`;
@@ -3996,13 +4061,25 @@ function platformConfigPage(
 
         <!-- OTP Send / Verify Panel -->
         <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:20px;">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
-            <span style="font-size:20px;">📲</span>
-            <div>
-              <h3 style="font-size:15px;font-weight:700;margin:0;">Send OTP to Any Number</h3>
-              <p style="font-size:12px;color:var(--text-muted);margin:3px 0 0;">Uses Twilio Verify — sends a real OTP SMS. Enter a phone in E.164 format (e.g. +14155551234).</p>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:20px;">📲</span>
+              <div>
+                <h3 style="font-size:15px;font-weight:700;margin:0;">Send OTP to Any Number</h3>
+                <p style="font-size:12px;color:var(--text-muted);margin:3px 0 0;">Uses Twilio Verify — sends a real SMS. Enter phone in E.164 format (e.g. +14155551234).</p>
+              </div>
+            </div>
+            <!-- Usage counter badge -->
+            <div id="otpUsageBadge" style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px 14px;font-size:12px;cursor:pointer;white-space:nowrap;" onclick="loadOtpUsage()" title="Click to refresh">
+              <span style="color:var(--text-muted);">OTPs this month:</span> <span id="otpUsageCount" style="font-weight:700;color:var(--primary);">...</span>
+              <span id="otpUsageCost" style="color:var(--text-muted);margin-left:6px;"></span>
+              <span style="font-size:10px;color:var(--text-muted);margin-left:4px;">&#8635;</span>
             </div>
           </div>
+
+          <!-- Status banner: shown after send/verify actions -->
+          <div id="otpStatusBanner" style="display:none;border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:13px;font-weight:500;line-height:1.5;"></div>
+
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;">
             <div style="flex:1;min-width:180px;">
               <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;color:var(--text-muted);">Phone Number (E.164)</label>
@@ -4304,32 +4381,73 @@ function platformConfigPage(
       });
     }
 
-    // ── Admin OTP Send / Verify ─────────────────────────────────────────────
+    // ── Admin OTP Send / Verify / Usage ────────────────────────────────────────
+
+    // Helper: show a coloured banner above the send row
+    function showOtpBanner(type, html) {
+      var banner = document.getElementById('otpStatusBanner');
+      if (!banner) return;
+      var styles = {
+        success: 'background:#05996915;border:1px solid #05996940;color:#059669;',
+        error:   'background:#ef444415;border:1px solid #ef444440;color:#ef4444;',
+        warning: 'background:#f59e0b15;border:1px solid #f59e0b40;color:#b45309;',
+        info:    'background:#0a7ea415;border:1px solid #0a7ea440;color:#0a7ea4;'
+      };
+      banner.style.cssText = 'display:block;border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:13px;font-weight:500;line-height:1.5;' + (styles[type] || styles.info);
+      banner.innerHTML = html;
+    }
+    function hideOtpBanner() {
+      var banner = document.getElementById('otpStatusBanner');
+      if (banner) { banner.style.display = 'none'; banner.innerHTML = ''; }
+    }
+
     window.resetOtpPanel = function resetOtpPanel() {
       document.getElementById('otpVerifyRow').style.display = 'none';
       document.getElementById('otpPanelResult').textContent = '';
       document.getElementById('otpPanelResult').style.color = '';
+      hideOtpBanner();
       var codeInput = document.getElementById('otpVerifyCode');
       if (codeInput) codeInput.value = '';
     };
 
+    // Load OTP usage counter from Twilio
+    window.loadOtpUsage = async function loadOtpUsage() {
+      var countEl = document.getElementById('otpUsageCount');
+      var costEl = document.getElementById('otpUsageCost');
+      if (countEl) countEl.textContent = '⏳';
+      if (costEl) costEl.textContent = '';
+      try {
+        var res = await fetch('/api/admin/otp/usage');
+        var data = await res.json();
+        if (data.ok) {
+          if (countEl) countEl.textContent = data.count;
+          if (costEl) costEl.textContent = data.cost > 0 ? '($' + data.cost + ')' : '';
+        } else {
+          if (countEl) countEl.textContent = 'N/A';
+          if (costEl) costEl.textContent = '';
+        }
+      } catch (e) {
+        if (countEl) countEl.textContent = 'N/A';
+      }
+    };
+    // Auto-load on page ready
+    loadOtpUsage();
+
     window.adminSendOtp = async function adminSendOtp() {
       var phone = (document.getElementById('otpSendPhone').value || '').trim();
-      var result = document.getElementById('otpPanelResult');
       var btn = document.getElementById('otpSendBtn');
+      hideOtpBanner();
       if (!phone) {
-        result.textContent = '⚠️ Enter a phone number first';
-        result.style.color = '#f59e0b';
+        showOtpBanner('warning', '⚠️ Please enter a phone number first.');
         return;
       }
       if (!/^\+[1-9]\d{6,14}$/.test(phone)) {
-        result.textContent = '⚠️ Phone must be in E.164 format (e.g. +14155551234)';
-        result.style.color = '#f59e0b';
+        showOtpBanner('warning', '⚠️ Phone must be in E.164 format, e.g. <strong>+14155551234</strong> (country code + number, no spaces).');
         return;
       }
       btn.disabled = true;
       btn.textContent = '⏳ Sending...';
-      result.textContent = '';
+      showOtpBanner('info', '⏳ Sending OTP to <strong>' + phone + '</strong> via Twilio Verify…');
       try {
         var res = await fetch('/api/admin/otp/send', {
           method: 'POST',
@@ -4338,17 +4456,21 @@ function platformConfigPage(
         });
         var data = await res.json();
         if (data.ok) {
-          result.textContent = '✅ OTP sent to ' + phone + '. Check your phone and enter the code below.';
-          result.style.color = '#22c55e';
+          showOtpBanner('success',
+            '✅ <strong>OTP sent successfully</strong> to ' + phone + '.<br>' +
+            'A 6-digit code was delivered via SMS. Enter it below to verify the full flow.');
           document.getElementById('otpVerifyRow').style.display = 'block';
           document.getElementById('otpVerifyCode').focus();
+          // Refresh usage counter
+          setTimeout(loadOtpUsage, 1500);
         } else {
-          result.textContent = '❌ ' + (data.message || 'Failed to send OTP');
-          result.style.color = '#ef4444';
+          showOtpBanner('error',
+            '❌ <strong>Failed to send OTP.</strong><br>' +
+            '<span style="font-weight:400;">' + (data.message || 'Unknown error from Twilio.') + '</span><br>' +
+            '<span style="font-size:12px;opacity:0.8;">Check that Account SID, Auth Token, and Verify Service SID are saved correctly above.</span>');
         }
       } catch (e) {
-        result.textContent = '❌ Network error';
-        result.style.color = '#ef4444';
+        showOtpBanner('error', '❌ <strong>Network error</strong> — could not reach the server. Please try again.');
       } finally {
         btn.disabled = false;
         btn.textContent = '📤 Send OTP';
@@ -4358,16 +4480,14 @@ function platformConfigPage(
     window.adminVerifyOtp = async function adminVerifyOtp() {
       var phone = (document.getElementById('otpSendPhone').value || '').trim();
       var code = (document.getElementById('otpVerifyCode').value || '').trim();
-      var result = document.getElementById('otpPanelResult');
       var btn = document.getElementById('otpVerifyBtn');
       if (!phone || !code) {
-        result.textContent = '⚠️ Enter the 6-digit code you received';
-        result.style.color = '#f59e0b';
+        showOtpBanner('warning', '⚠️ Enter the 6-digit code you received on your phone.');
         return;
       }
       btn.disabled = true;
       btn.textContent = '⏳ Verifying...';
-      result.textContent = '';
+      showOtpBanner('info', '⏳ Verifying code with Twilio…');
       try {
         var res = await fetch('/api/admin/otp/verify', {
           method: 'POST',
@@ -4376,15 +4496,18 @@ function platformConfigPage(
         });
         var data = await res.json();
         if (data.ok) {
-          result.textContent = '✅ Code verified successfully! OTP system is working correctly.';
-          result.style.color = '#22c55e';
+          showOtpBanner('success',
+            '✅ <strong>Code verified!</strong> The OTP system is working end-to-end correctly.<br>' +
+            '<span style="font-weight:400;">Twilio Verify confirmed the code for ' + phone + '.</span>');
+          document.getElementById('otpVerifyRow').style.display = 'none';
         } else {
-          result.textContent = '❌ ' + (data.message || 'Invalid or expired code');
-          result.style.color = '#ef4444';
+          showOtpBanner('error',
+            '❌ <strong>Verification failed.</strong><br>' +
+            '<span style="font-weight:400;">' + (data.message || 'Invalid or expired code.') + '</span><br>' +
+            '<span style="font-size:12px;opacity:0.8;">Codes expire after 10 minutes. Try sending a new OTP.</span>');
         }
       } catch (e) {
-        result.textContent = '❌ Network error';
-        result.style.color = '#ef4444';
+        showOtpBanner('error', '❌ <strong>Network error</strong> — could not reach the server.');
       } finally {
         btn.disabled = false;
         btn.textContent = '✅ Verify Code';
