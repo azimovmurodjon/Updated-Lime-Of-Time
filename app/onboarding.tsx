@@ -55,6 +55,7 @@ import Animated, {
   runOnJS,
 } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import * as Haptics from "expo-haptics";
 import { CountryCodePicker, DEFAULT_COUNTRY, type Country } from "@/components/country-code-picker";
 import { PlanCarousel } from "@/components/plan-carousel";
@@ -603,6 +604,38 @@ export default function OnboardingScreen() {
     opacity: slideOpacity.value,
   }));
 
+  // ─── Back navigation helper ───────────────────────────────────────
+  const handleGoBack = useCallback(() => {
+    const backMap: Partial<Record<Step, Step>> = {
+      otp: 1,
+      socialPhone: 1,
+      2: 1,
+      subscription: 2,
+    };
+    const target = backMap[displayStep];
+    if (!target || loading) return;
+    if (displayStep === "otp") {
+      setOtpValue("");
+      setOtpError("");
+      setOtpDigits(["","","","","",""]);
+    }
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    navigateToStep(target);
+  }, [displayStep, loading, navigateToStep]);
+
+  // ─── Swipe-right pan gesture (back navigation) ────────────────────
+  const swipeGesture = Gesture.Pan()
+    .runOnJS(true)
+    .minDistance(10)
+    .onEnd((e) => {
+      // Only trigger if swiping right with enough velocity or distance
+      const canGoBack = displayStep === "otp" || displayStep === "socialPhone" || displayStep === 2;
+      if (!canGoBack) return;
+      if (e.translationX > 60 && Math.abs(e.translationY) < 80) {
+        handleGoBack();
+      }
+    });
+
   // ─── Auto-advance when phone is fully entered ──────────────────────
   const autoAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -1008,6 +1041,8 @@ export default function OnboardingScreen() {
           <ProgressDots step={displayStep} />
 
           {/* ─── White Card ──────────────────────────────────── */}
+          {/* GestureDetector enables swipe-right to go back on applicable steps */}
+          <GestureDetector gesture={swipeGesture}>
           {/* Clip container prevents the sliding card from overflowing onto the background */}
           <View style={{ overflow: "hidden", borderRadius: 24 }}>
           <Animated.View style={[styles.card, slideStyle, { borderRadius: 24 }]}>
@@ -1114,6 +1149,22 @@ export default function OnboardingScreen() {
             {/* Step socialPhone: Phone collection for new social login users */}
             {displayStep === "socialPhone" && (
               <>
+                {/* ─── Back Chevron Header ─── */}
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+                  <Pressable
+                    onPress={handleGoBack}
+                    disabled={loading}
+                    style={({ pressed }) => ({
+                      opacity: pressed ? 0.5 : 1,
+                      padding: 4,
+                      marginRight: 4,
+                    })}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Text style={{ fontSize: 22, color: "#4A7C59", fontWeight: "600" }}>‹</Text>
+                  </Pressable>
+                  <Text style={{ fontSize: 13, color: "#4A7C59", fontWeight: "600" }}>Back</Text>
+                </View>
                 <Animated.View style={titleStyle}>
                   <Text style={styles.stepTitle}>One more step!</Text>
                   <Text style={styles.stepSubtitle}>
@@ -1178,6 +1229,22 @@ export default function OnboardingScreen() {
             {/* Step OTP: Verification — 6-box animated input */}
             {displayStep === "otp" && (
               <>
+                {/* ─── Back Chevron Header ─── */}
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+                  <Pressable
+                    onPress={handleGoBack}
+                    disabled={loading}
+                    style={({ pressed }) => ({
+                      opacity: pressed ? 0.5 : 1,
+                      padding: 4,
+                      marginRight: 4,
+                    })}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Text style={{ fontSize: 22, color: "#4A7C59", fontWeight: "600" }}>‹</Text>
+                  </Pressable>
+                  <Text style={{ fontSize: 13, color: "#4A7C59", fontWeight: "600" }}>Back</Text>
+                </View>
                 <Animated.View style={[titleStyle, { alignItems: "center" }]}>
                   {/* Lock icon with green glow */}
                   <View style={styles.otpIconWrap}>
@@ -1287,6 +1354,22 @@ export default function OnboardingScreen() {
             {/* Step 2: Business Info */}
             {displayStep === 2 && (
               <>
+                {/* ─── Back Chevron Header ─── */}
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+                  <Pressable
+                    onPress={handleGoBack}
+                    disabled={loading}
+                    style={({ pressed }) => ({
+                      opacity: pressed ? 0.5 : 1,
+                      padding: 4,
+                      marginRight: 4,
+                    })}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Text style={{ fontSize: 22, color: "#4A7C59", fontWeight: "600" }}>‹</Text>
+                  </Pressable>
+                  <Text style={{ fontSize: 13, color: "#4A7C59", fontWeight: "600" }}>Back</Text>
+                </View>
                 <Animated.View style={[titleStyle, { alignItems: "center" }]}>
                   {/* Business icon badge */}
                   <View style={styles.bizIconWrap}>
@@ -1533,6 +1616,7 @@ export default function OnboardingScreen() {
             )}
           </Animated.View>
           </View>{/* end clip container */}
+          </GestureDetector>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>

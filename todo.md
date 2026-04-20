@@ -1450,3 +1450,4 @@
 - [x] Onboarding: animated swipe-up hint below Continue button
 - [x] Onboarding: auto-advance when phone number is fully entered
 - [x] Onboarding: slide-left/slide-right transitions between all steps
+- [x] Onboarding: back chevron + swipe-right gesture on OTP, business info, social phone steps
