@@ -1552,3 +1552,8 @@
 - [x] Refund button on appointment detail for card-paid appointments (full + partial refund modal) — already existed
 - [x] Payment link expiry handling: check if Stripe session is expired before Resend; create fresh session if so
 - [x] Payment status polling: auto-refresh unpaid appointment status every 30s while owner is on detail screen
+
+- [x] Audit 1.5% platform fee (application_fee_amount) on all Stripe Checkout sessions
+- [x] Fix hardcoded fee — now reads from DB config key STRIPE_PLATFORM_FEE_PERCENT (admin-configurable)
+- [x] Fix session-status endpoint — was using wrong field name (stripeAccountId vs stripeConnectAccountId)
+- [x] Add fee logging to all three checkout flows (create-checkout, request-payment, no-show-fee)

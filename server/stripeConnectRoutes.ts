@@ -13,7 +13,27 @@ import { businessOwners, appointments, clients, services } from "../drizzle/sche
 import { eq, and } from "drizzle-orm";
 import { getPlatformConfig } from "./subscription";
 import { sendExpoPush, notifyCardPayment } from "./push";
-const PLATFORM_FEE_PERCENT = 0.015; // 1.5%%
+const DEFAULT_PLATFORM_FEE_PERCENT = 0.015; // 1.5% fallback
+
+/**
+ * Returns the current platform fee as a decimal (e.g. 0.015 for 1.5%).
+ * Reads from DB config key STRIPE_PLATFORM_FEE_PERCENT (set in admin dashboard).
+ * Falls back to 1.5% if not configured.
+ */
+async function getPlatformFeePercent(): Promise<number> {
+  try {
+    const raw = await getPlatformConfig("STRIPE_PLATFORM_FEE_PERCENT");
+    if (raw) {
+      const parsed = parseFloat(raw);
+      if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) {
+        return parsed / 100; // stored as percentage (e.g. "1.5"), convert to decimal
+      }
+    }
+  } catch {
+    // fall through to default
+  }
+  return DEFAULT_PLATFORM_FEE_PERCENT;
+}
 
 // ── Stripe client factory (reads key from DB config) ─────────────────────────
 async function getStripe(): Promise<Stripe | null> {
@@ -265,7 +285,9 @@ export function registerStripeConnectRoutes(app: Express): void {
       if (!chargesEnabled) { res.status(400).json({ error: "Stripe account is not yet fully set up. Please complete onboarding." }); return; }
 
       const amountCents = Math.round(amount * 100);
-      const platformFeeCents = Math.round(amountCents * PLATFORM_FEE_PERCENT);
+      const feePercent = await getPlatformFeePercent();
+      const platformFeeCents = Math.round(amountCents * feePercent);
+      console.log(`[StripeConnect] create-checkout: amount=$${amount} feePercent=${(feePercent*100).toFixed(2)}% feeCents=${platformFeeCents} accountId=${accountId}`);
 
       const session = await stripe.checkout.sessions.create(
         {
@@ -294,7 +316,7 @@ export function registerStripeConnectRoutes(app: Express): void {
                 currency,
                 product_data: {
                   name: "Processing Fee",
-                  description: `${(PLATFORM_FEE_PERCENT * 100).toFixed(1)}% card processing fee`,
+                  description: `${(feePercent * 100).toFixed(1)}% card processing fee`,
                 },
                 unit_amount: platformFeeCents,
               },
@@ -399,7 +421,9 @@ export function registerStripeConnectRoutes(app: Express): void {
       const serviceName = (svcRows[0] as any)?.name || "Appointment";
 
       const amountCents = Math.round(amount * 100);
-      const platformFeeCents = Math.round(amountCents * PLATFORM_FEE_PERCENT);
+      const feePercent = await getPlatformFeePercent();
+      const platformFeeCents = Math.round(amountCents * feePercent);
+      console.log(`[StripeConnect] request-payment: amount=$${amount} feePercent=${(feePercent*100).toFixed(2)}% feeCents=${platformFeeCents} accountId=${accountId}`);
 
       // Build success URL — reuses the existing appointment-by-session receipt page
       const origin = `${req.protocol}://${req.get("host")}`;
@@ -428,7 +452,7 @@ export function registerStripeConnectRoutes(app: Express): void {
                 currency: "usd",
                 product_data: {
                   name: "Processing Fee",
-                  description: `${(PLATFORM_FEE_PERCENT * 100).toFixed(1)}% card processing fee`,
+                  description: `${(feePercent * 100).toFixed(1)}% card processing fee`,
                 },
                 unit_amount: platformFeeCents,
               },
@@ -476,12 +500,14 @@ export function registerStripeConnectRoutes(app: Express): void {
       const stripe = await getStripe();
       if (!stripe) { res.status(503).json({ error: "Stripe not configured" }); return; }
 
-      const ownerRow = await db.query.users.findFirst({ where: eq(users.id, parseInt(businessOwnerId)) });
-      if (!ownerRow?.stripeAccountId) { res.status(404).json({ error: "Stripe account not found" }); return; }
+      const db = await getDb();
+      if (!db) { res.status(503).json({ error: "DB unavailable" }); return; }
+      const ownerRows = await db.select().from(businessOwners).where(eq(businessOwners.id, parseInt(businessOwnerId))).limit(1);
+      const ownerRow = ownerRows[0];
+      const accountId = (ownerRow as any)?.stripeConnectAccountId as string | null;
+      if (!accountId) { res.status(404).json({ error: "Stripe account not found" }); return; }
 
-      const session = await stripe.checkout.sessions.retrieve(sessionId, {
-        stripeAccount: ownerRow.stripeAccountId,
-      });
+      const session = await stripe.checkout.sessions.retrieve(sessionId, {}, { stripeAccount: accountId });
 
       // A session is "usable" if it is open (not expired, not already paid)
       const isActive = session.status === "open";
@@ -741,7 +767,8 @@ export function registerStripeConnectRoutes(app: Express): void {
         .from(businessOwners)
         .orderBy(businessOwners.businessName);
 
-      res.json({ accounts: owners, platformFeePercent: PLATFORM_FEE_PERCENT * 100 });
+      const feePercent = await getPlatformFeePercent();
+      res.json({ accounts: owners, platformFeePercent: feePercent * 100 });
     } catch (err: any) {
       res.status(500).json({ error: err?.message });
     }
@@ -939,7 +966,9 @@ export function registerStripeConnectRoutes(app: Express): void {
       if (!chargesEnabled) { res.status(400).json({ error: "Stripe account is not yet fully set up" }); return; }
 
       const amountCents = Math.round(amount * 100);
-      const platformFeeCents = Math.round(amountCents * PLATFORM_FEE_PERCENT);
+      const feePercent = await getPlatformFeePercent();
+      const platformFeeCents = Math.round(amountCents * feePercent);
+      console.log(`[StripeConnect] no-show-fee: amount=$${amount} feePercent=${(feePercent*100).toFixed(2)}% feeCents=${platformFeeCents} accountId=${accountId}`);
 
       const session = await stripe.checkout.sessions.create(
         {
@@ -964,7 +993,7 @@ export function registerStripeConnectRoutes(app: Express): void {
                 currency,
                 product_data: {
                   name: "Processing Fee",
-                  description: `${(PLATFORM_FEE_PERCENT * 100).toFixed(1)}% card processing fee`,
+                  description: `${(feePercent * 100).toFixed(1)}% card processing fee`,
                 },
                 unit_amount: platformFeeCents,
               },
