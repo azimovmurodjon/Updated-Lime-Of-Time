@@ -4538,6 +4538,8 @@ function platformConfigPage(
       } catch (e) { /* ignore */ }
     };
     loadTwilioAccountStatus();
+    // Auto-run Test Connection on page load (silent — only shows result if credentials are set)
+    setTimeout(function() { if (typeof testTwilio === 'function') testTwilio(); }, 800);
 
     // Show/hide per-business OTP section when test mode checkbox changes
     var testModeChk = form ? form.querySelector('[name="twilio_test_mode"]') : null;
@@ -4650,7 +4652,7 @@ function platformConfigPage(
         showOtpBanner('warning', '⚠️ Please enter a phone number first.');
         return;
       }
-      if (!/^\+[1-9]\d{6,14}$/.test(phone)) {
+      if (!/^\\+[1-9]\\d{6,14}$/.test(phone)) {
         showOtpBanner('warning', '⚠️ Phone must be in E.164 format, e.g. <strong>+14155551234</strong> (country code + number, no spaces).');
         return;
       }
