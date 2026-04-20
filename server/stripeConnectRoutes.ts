@@ -12,8 +12,8 @@ import { getDb } from "./db";
 import { businessOwners, appointments, clients, services } from "../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 import { getPlatformConfig } from "./subscription";
-
-const PLATFORM_FEE_PERCENT = 0.015; // 1.5%
+import { sendExpoPush } from "./push";
+const PLATFORM_FEE_PERCENT = 0.015; // 1.5%%
 
 // ── Stripe client factory (reads key from DB config) ─────────────────────────
 async function getStripe(): Promise<Stripe | null> {
@@ -377,6 +377,43 @@ export function registerStripeConnectRoutes(app: Express): void {
         }
       }
 
+      // ── payout.created — notify business owner when Stripe initiates a payout ──
+      if (event.type === "payout.created") {
+        const payout = event.data.object as Stripe.Payout;
+        const stripeAccountId = (event as any).account as string | undefined;
+
+        if (stripeAccountId) {
+          try {
+            const db = await getDb();
+            if (db) {
+              // Find the business owner by their Stripe Connect account ID
+              const owners = await db
+                .select({ id: businessOwners.id, pushToken: (businessOwners as any).expoPushToken })
+                .from(businessOwners)
+                .where(eq((businessOwners as any).stripeConnectAccountId, stripeAccountId))
+                .limit(1);
+
+              if (owners.length > 0 && owners[0].pushToken) {
+                const amountDollars = (payout.amount / 100).toFixed(2);
+                const currency = payout.currency.toUpperCase();
+                const arrivalDate = new Date(payout.arrival_date * 1000).toLocaleDateString("en-US", {
+                  weekday: "short", month: "short", day: "numeric"
+                });
+                await sendExpoPush(owners[0].pushToken, {
+                  title: "💸 Payout Initiated",
+                  body: `$${amountDollars} ${currency} is on its way — expected to arrive ${arrivalDate}.`,
+                  data: { type: "general" },
+                  sound: "default",
+                });
+                console.log(`[StripeConnect] Payout notification sent to owner ${owners[0].id}: $${amountDollars} arriving ${arrivalDate}`);
+              }
+            }
+          } catch (notifErr) {
+            console.error("[StripeConnect] Payout notification error:", notifErr);
+          }
+        }
+      }
+
       res.json({ received: true });
     }
   );
@@ -731,6 +768,9 @@ export function registerStripeConnectRoutes(app: Express): void {
           "checkout.session.expired",
           "payment_intent.payment_failed",
           "account.updated",
+          "payout.created",
+          "payout.paid",
+          "payout.failed",
         ],
         description: "Lime Of Time — booking payment confirmations",
       });

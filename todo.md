@@ -1441,3 +1441,4 @@
 - [ ] Appointment detail: show card payment badge when paymentMethod === "card"
 - [ ] Calendar: add "Card" chip to payment method filter chips
 - [ ] Payment Summary: add Card to method breakdown
+- [ ] Stripe payout push notification — notify business owner when payout is initiated with amount and arrival date
