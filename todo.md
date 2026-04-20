@@ -1557,3 +1557,8 @@
 - [x] Fix hardcoded fee — now reads from DB config key STRIPE_PLATFORM_FEE_PERCENT (admin-configurable)
 - [x] Fix session-status endpoint — was using wrong field name (stripeAccountId vs stripeConnectAccountId)
 - [x] Add fee logging to all three checkout flows (create-checkout, request-payment, no-show-fee)
+
+- [x] Add card fee disclosure notice on public booking page (before payment step and on Stripe checkout)
+- [x] Add "Test Fee" button in admin Stripe Connect dashboard
+- [x] Add fee revenue dashboard in admin panel (stripe.applicationFees.list() by month)
+- [x] Fix seed-reviews.ts TypeScript null check error

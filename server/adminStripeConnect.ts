@@ -71,6 +71,85 @@ export function registerAdminStripeConnectRoutes(app: Express): void {
     }
   });
 
+  // ── Test Fee: create a $1.00 test checkout session to verify fee flow ─
+  app.post("/api/admin/stripe-connect/test-fee", async (req: Request, res: Response) => {
+    if (!requireAdminAuth(req, res)) return;
+    try {
+      const { businessOwnerId } = req.body;
+      if (!businessOwnerId) { res.status(400).json({ error: "businessOwnerId required" }); return; }
+      const dbase = await getDb();
+      if (!dbase) { res.status(503).json({ error: "DB unavailable" }); return; }
+      const { eq } = await import("drizzle-orm");
+      const rows = await dbase.select().from(businessOwners).where(eq(businessOwners.id, parseInt(businessOwnerId))).limit(1);
+      const biz = rows[0];
+      const accountId = (biz as any)?.stripeConnectAccountId as string | null;
+      if (!accountId) { res.status(400).json({ error: "Business has no Stripe account connected" }); return; }
+      const stripeKey = await getPlatformConfig("STRIPE_SECRET_KEY");
+      if (!stripeKey) { res.status(503).json({ error: "Stripe not configured — set STRIPE_SECRET_KEY in Platform Config" }); return; }
+      const Stripe = (await import("stripe")).default;
+      const stripe = new Stripe(stripeKey, { apiVersion: "2024-06-20" as any });
+      const rawFee = await getPlatformConfig("STRIPE_PLATFORM_FEE_PERCENT");
+      const feePercent = rawFee ? parseFloat(rawFee) : 1.5;
+      const amountCents = 100; // $1.00 test charge
+      const feeCents = Math.round(amountCents * feePercent / 100);
+      const origin = `${req.protocol}://${req.get("host")}`;
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: [{
+          price_data: {
+            currency: "usd",
+            product_data: { name: "Platform Fee Test — $1.00", description: `Verifying ${feePercent}% fee (${feeCents}¢) flows to platform account` },
+            unit_amount: amountCents,
+          },
+          quantity: 1,
+        }],
+        mode: "payment",
+        success_url: `${origin}/api/admin/stripe-connect?test_fee=success`,
+        cancel_url: `${origin}/api/admin/stripe-connect?test_fee=cancelled`,
+        payment_intent_data: {
+          application_fee_amount: feeCents,
+          description: `[ADMIN TEST] Platform fee verification — ${feePercent}%`,
+        },
+      }, { stripeAccount: accountId });
+      res.json({ ok: true, url: session.url, feeCents, feePercent, amountCents });
+    } catch (err: any) {
+      console.error("[Admin] Test fee error:", err);
+      res.status(500).json({ error: err?.message || "Test fee failed" });
+    }
+  });
+
+  // ── Fee Revenue Dashboard: list application fees by month ─────────────
+  app.get("/api/admin/stripe-connect/fee-revenue", async (req: Request, res: Response) => {
+    if (!requireAdminAuth(req, res)) return;
+    try {
+      const stripeKey = await getPlatformConfig("STRIPE_SECRET_KEY");
+      if (!stripeKey) { res.status(503).json({ error: "Stripe not configured" }); return; }
+      const Stripe = (await import("stripe")).default;
+      const stripe = new Stripe(stripeKey, { apiVersion: "2024-06-20" as any });
+      // Fetch up to 100 most recent application fees
+      const fees = await stripe.applicationFees.list({ limit: 100 });
+      // Group by month
+      const byMonth: Record<string, { count: number; totalCents: number }> = {};
+      for (const fee of fees.data) {
+        const d = new Date(fee.created * 1000);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        if (!byMonth[key]) byMonth[key] = { count: 0, totalCents: 0 };
+        byMonth[key].count++;
+        byMonth[key].totalCents += fee.amount;
+      }
+      const months = Object.entries(byMonth).sort((a, b) => b[0].localeCompare(a[0])).map(([month, v]) => ({
+        month,
+        count: v.count,
+        totalDollars: (v.totalCents / 100).toFixed(2),
+      }));
+      const totalAllTime = fees.data.reduce((s, f) => s + f.amount, 0);
+      res.json({ ok: true, months, totalAllTimeDollars: (totalAllTime / 100).toFixed(2), hasMore: fees.has_more });
+    } catch (err: any) {
+      console.error("[Admin] Fee revenue error:", err);
+      res.status(500).json({ error: err?.message || "Failed to fetch fee revenue" });
+    }
+  });
+
   // ── Disconnect a business from Stripe Connect ───────────────────────
   app.post("/api/admin/stripe-connect/:id/disconnect", async (req: Request, res: Response) => {
     if (!requireAdminAuth(req, res)) return;
@@ -238,6 +317,28 @@ function stripeConnectPage(data: {
       </table>
     </div>
 
+    <!-- Test Fee Button -->
+    <div class="card" id="testFeeCard" style="border:1px solid #7c3aed40;background:#7c3aed08;">
+      <h2 style="color:#a78bfa;">🧪 Test Platform Fee Flow</h2>
+      <p style="font-size:13px;color:#9ca3af;margin-bottom:14px;">Create a real $1.00 Stripe Checkout session against a connected business account to verify the <strong style="color:#e4e6eb;">${platformFee}% application fee</strong> is correctly flowing to your platform account. Use Stripe test cards (e.g. <code style="background:#2a2a3e;padding:1px 5px;border-radius:3px;color:#a5f3fc;">4242 4242 4242 4242</code>) in test mode.</p>
+      ${enabled.length === 0 ? '<p style="color:#f87171;font-size:13px;">⚠️ No active Stripe accounts found. Connect at least one business first.</p>' : `
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <select id="testFeeSelect" style="background:#111827;border:1px solid #374151;color:#e4e6eb;padding:8px 12px;border-radius:8px;font-size:14px;">
+          ${enabled.map((b: any) => `<option value="${b.id}">${escHtml(b.businessName || 'Unnamed')}</option>`).join('')}
+        </select>
+        <button onclick="runTestFee()" id="testFeeBtn" style="background:#7c3aed;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-size:14px;cursor:pointer;">🧪 Run Test ($1.00)</button>
+        <span id="testFeeResult" style="font-size:13px;"></span>
+      </div>`}
+    </div>
+
+    <!-- Fee Revenue Dashboard -->
+    <div class="card" id="feeRevenueCard">
+      <h2>💵 Platform Fee Revenue</h2>
+      <p style="font-size:13px;color:#9ca3af;margin-bottom:14px;">Application fees collected from all connected business accounts, grouped by month. <span id="feeRevTotal" style="color:#4ade80;"></span></p>
+      <div id="feeRevContent" style="font-size:13px;color:#9ca3af;">Loading...</div>
+      <button onclick="loadFeeRevenue()" style="margin-top:12px;background:#1f2937;color:#9ca3af;border:1px solid #374151;padding:6px 14px;border-radius:8px;font-size:12px;cursor:pointer;">🔄 Refresh</button>
+    </div>
+
     <!-- Webhook Setup Guide -->
     <div class="card" style="border:1px solid #f59e0b40;background:#f59e0b08;">
       <h2 style="color:#f59e0b;">⚡ Webhook Setup</h2>
@@ -257,6 +358,65 @@ function stripeConnectPage(data: {
       </div>
     </div>
     <script>
+    function runTestFee() {
+      var btn = document.getElementById('testFeeBtn');
+      var result = document.getElementById('testFeeResult');
+      var select = document.getElementById('testFeeSelect');
+      if (!select) return;
+      btn.disabled = true;
+      btn.textContent = 'Creating session...';
+      result.textContent = '';
+      fetch('/api/admin/stripe-connect/test-fee', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessOwnerId: select.value })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.ok && d.url) {
+          result.style.color = '#4ade80';
+          result.innerHTML = '✅ Session created! Fee: <strong>' + d.feePercent + '% = ' + d.feeCents + '¢</strong>. <a href="' + d.url + '" target="_blank" style="color:#60a5fa;">Open Checkout →</a>';
+          btn.textContent = '🧪 Run Test ($1.00)';
+          btn.disabled = false;
+        } else {
+          result.style.color = '#f87171';
+          result.textContent = '❌ ' + (d.error || 'Failed');
+          btn.textContent = '🧪 Run Test ($1.00)';
+          btn.disabled = false;
+        }
+      })
+      .catch(function(e) {
+        result.style.color = '#f87171';
+        result.textContent = '❌ Network error: ' + e.message;
+        btn.textContent = '🧪 Run Test ($1.00)';
+        btn.disabled = false;
+      });
+    }
+
+    function loadFeeRevenue() {
+      var content = document.getElementById('feeRevContent');
+      var total = document.getElementById('feeRevTotal');
+      content.textContent = 'Loading...';
+      fetch('/api/admin/stripe-connect/fee-revenue')
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (!d.ok) { content.innerHTML = '<span style="color:#f87171;">❌ ' + (d.error || 'Failed') + '</span>'; return; }
+        total.textContent = 'All-time total: $' + d.totalAllTimeDollars + (d.hasMore ? ' (showing last 100)' : '');
+        if (!d.months.length) { content.innerHTML = '<span style="color:#6b7280;">No application fees recorded yet.</span>'; return; }
+        var html = '<table style="width:100%;border-collapse:collapse;">';
+        html += '<thead><tr><th style="text-align:left;padding:6px 10px;font-size:11px;color:#6b7280;border-bottom:1px solid #1f2937;">Month</th><th style="text-align:right;padding:6px 10px;font-size:11px;color:#6b7280;border-bottom:1px solid #1f2937;">Transactions</th><th style="text-align:right;padding:6px 10px;font-size:11px;color:#6b7280;border-bottom:1px solid #1f2937;">Revenue</th></tr></thead><tbody>';
+        d.months.forEach(function(m) {
+          html += '<tr style="border-bottom:1px solid #1f2937;"><td style="padding:8px 10px;color:#e4e6eb;">' + m.month + '</td><td style="padding:8px 10px;text-align:right;color:#9ca3af;">' + m.count + '</td><td style="padding:8px 10px;text-align:right;color:#4ade80;font-weight:600;">$' + m.totalDollars + '</td></tr>';
+        });
+        html += '</tbody></table>';
+        content.innerHTML = html;
+      })
+      .catch(function(e) { content.innerHTML = '<span style="color:#f87171;">❌ Network error: ' + e.message + '</span>'; });
+    }
+
+    // Auto-load fee revenue on page load
+    window.addEventListener('DOMContentLoaded', function() { loadFeeRevenue(); });
+
     function registerWebhook() {
       var btn = document.getElementById('registerWebhookBtn');
       var result = document.getElementById('webhookRegResult');

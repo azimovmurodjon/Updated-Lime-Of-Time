@@ -1505,7 +1505,9 @@ export function registerPublicRoutes(app: Express) {
       const locationId = (req.query.location as string) || null;
       // Pre-fetch locations to get the full address for the initial HTML render
       const locs = await db.getLocationsByOwner(owner.id);
-      res.send(bookingPage(req.params.slug, owner, locationId, locs));
+      const rawFee = await getPlatformConfig("STRIPE_PLATFORM_FEE_PERCENT");
+      const feePercent = rawFee ? parseFloat(rawFee) : 1.5;
+      res.send(bookingPage(req.params.slug, owner, locationId, locs, feePercent));
     } catch (err) {
       console.error("[Public] Error serving booking page:", err);
       res.status(500).send(errorPage());
@@ -1522,7 +1524,9 @@ export function registerPublicRoutes(app: Express) {
       }
       // Pre-fetch locations to get the full address for the initial HTML render
       const locs = await db.getLocationsByOwner(owner.id);
-      res.send(bookingPage(req.params.slug, owner, req.params.locationId, locs));
+      const rawFee2 = await getPlatformConfig("STRIPE_PLATFORM_FEE_PERCENT");
+      const feePercent2 = rawFee2 ? parseFloat(rawFee2) : 1.5;
+      res.send(bookingPage(req.params.slug, owner, req.params.locationId, locs, feePercent2));
     } catch (err) {
       console.error("[Public] Error serving booking page:", err);
       res.status(500).send(errorPage());
@@ -3128,7 +3132,7 @@ function errorPage(): string {
 </html>`;
 }
 
-function bookingPage(slug: string, owner: any, preselectedLocationId?: string | null, prefetchedLocations?: any[]): string {
+function bookingPage(slug: string, owner: any, preselectedLocationId?: string | null, prefetchedLocations?: any[], platformFeePercent: number = 1.5): string {
   // Compute the initial full address for server-side rendering
   // Use preselected location if provided, or the only active location if there's just one
   const activeLocs = (prefetchedLocations || []).filter((l: any) => l.active !== false);
@@ -3483,7 +3487,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     const WEEKLY_DAYS = ${JSON.stringify(whJson)};
     const DAYS_MAP = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
     const CANCEL_POLICY = ${JSON.stringify(owner.cancellationPolicy || { enabled: false, hoursBeforeAppointment: 2, feePercentage: 50 })};
-    const PAYMENT_METHODS = ${JSON.stringify({ zelle: (owner as any).zelleHandle || null, cashApp: (owner as any).cashAppHandle || null, venmo: (owner as any).venmoHandle || null, stripeEnabled: !!(owner as any).stripeConnectEnabled, businessOwnerId: owner.id })};
+    const PAYMENT_METHODS = ${JSON.stringify({ zelle: (owner as any).zelleHandle || null, cashApp: (owner as any).cashAppHandle || null, venmo: (owner as any).venmoHandle || null, stripeEnabled: !!(owner as any).stripeConnectEnabled, businessOwnerId: owner.id, platformFeePercent })};
     let services = [];
     let products = [];
     let discounts = [];
@@ -4058,7 +4062,8 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       if (methods.zelle) opts.push({ id: 'zelle', label: '💜 Zelle', sub: methods.zelle, color: '#6d28d9' });
       if (methods.cashApp) opts.push({ id: 'cashapp', label: '💚 Cash App', sub: methods.cashApp.startsWith('$') ? methods.cashApp : '$' + methods.cashApp, color: '#00d632' });
       if (methods.venmo) opts.push({ id: 'venmo', label: '💙 Venmo', sub: methods.venmo.startsWith('@') ? methods.venmo : '@' + methods.venmo, color: '#3d95ce' });
-      if (methods.stripeEnabled && chargedPrice > 0) opts.push({ id: 'card', label: '💳 Pay by Card', sub: 'Visa, Mastercard, Apple Pay, Google Pay — secure checkout via Stripe', color: '#635bff' });
+      const feeLabel = methods.platformFeePercent ? methods.platformFeePercent.toFixed(1) + '%' : '1.5%';
+      if (methods.stripeEnabled && chargedPrice > 0) opts.push({ id: 'card', label: '💳 Pay by Card', sub: 'Visa, Mastercard, Apple Pay, Google Pay — secure checkout via Stripe. A ' + feeLabel + ' platform processing fee will be added at checkout.', color: '#635bff' });
       opts.push({ id: 'cash', label: '💵 Cash', sub: 'Pay in person at the time of your appointment', color: '#888' });
       opts.push({ id: 'later', label: '⏭️ Skip for now', sub: "I'll decide later — you can discuss payment when you arrive", color: '#94a3b8' });
       opts.forEach(function(opt) {
@@ -4916,6 +4921,17 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         breakdownHtml += '<div style="background:var(--accent-bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-top:8px;font-size:12px;color:var(--accent-dark);text-align:center;">You save <strong>$' + totalSaved.toFixed(2) + '</strong> on this booking!</div>';
       }
 
+      // Card fee disclosure notice
+      let cardFeeHtml = '';
+      if (selectedPaymentMethod === 'card' && PAYMENT_METHODS.stripeEnabled && chargedPrice > 0) {
+        const feeP = PAYMENT_METHODS.platformFeePercent || 1.5;
+        const feeCents = Math.round(chargedPrice * feeP / 100 * 100) / 100;
+        cardFeeHtml = '<div style="background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px;padding:10px 12px;margin-top:10px;font-size:12px;color:#4c1d95;">' +
+          '<strong>💳 Card Payment Notice:</strong> A <strong>' + feeP.toFixed(1) + '% platform processing fee</strong> (~$' + feeCents.toFixed(2) + ') will be added at checkout. ' +
+          'This fee is charged by the payment platform (Stripe) and is separate from your service total. ' +
+          'You will see the exact breakdown on the Stripe payment page before confirming.</div>';
+      }
+
       // Cancellation policy notice
       let cancelHtml = '';
       if (CANCEL_POLICY && CANCEL_POLICY.enabled) {
@@ -4943,6 +4959,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         '<div class="confirm-row"><span class="confirm-label">Duration</span><span class="confirm-value">' + totalDur + ' min</span></div>' +
         locationHtml +
         breakdownHtml +
+        cardFeeHtml +
         '<div class="confirm-row"><span class="confirm-label">Name</span><span class="confirm-value">' + esc(document.getElementById("clientName").value) + '</span></div>' +
         cancelHtml;
 

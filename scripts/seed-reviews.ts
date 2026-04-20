@@ -168,7 +168,7 @@ async function main() {
       const appt = pick(availableAppts) as any;
       apptLocalId = appt.localId as string;
       clientLocalId = appt.clientLocalId as string;
-      usedApptIds.add(apptLocalId ?? "");
+      usedApptIds.add(apptLocalId as string);
     } else {
       // Fallback: unlinked review from a random client
       clientLocalId = pick(allClientIds);
