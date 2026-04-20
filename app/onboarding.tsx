@@ -547,6 +547,10 @@ export default function OnboardingScreen() {
   const btnScale = useSharedValue(1);
   const btnOpacity = useSharedValue(0);
   const gradientShift = useSharedValue(0);
+  const taglineOpacity = useSharedValue(0);
+  const taglineTranslateY = useSharedValue(12);
+  const byLineOpacity = useSharedValue(0);
+  const byLineTranslateY = useSharedValue(8);
 
   useEffect(() => {
     // Staggered entrance
@@ -556,6 +560,10 @@ export default function OnboardingScreen() {
     titleTranslateY.value = withDelay(300, withTiming(0, { duration: 400, easing: Easing.out(Easing.quad) }));
     subtitleOpacity.value = withDelay(450, withTiming(1, { duration: 400 }));
     subtitleTranslateY.value = withDelay(450, withTiming(0, { duration: 400, easing: Easing.out(Easing.quad) }));
+    taglineOpacity.value = withDelay(520, withTiming(1, { duration: 450 }));
+    taglineTranslateY.value = withDelay(520, withTiming(0, { duration: 400, easing: Easing.out(Easing.quad) }));
+    byLineOpacity.value = withDelay(680, withTiming(1, { duration: 450 }));
+    byLineTranslateY.value = withDelay(680, withTiming(0, { duration: 400, easing: Easing.out(Easing.quad) }));
     inputOpacity.value = withDelay(600, withTiming(1, { duration: 400 }));
     inputTranslateY.value = withDelay(600, withTiming(0, { duration: 400, easing: Easing.out(Easing.quad) }));
     btnOpacity.value = withDelay(750, withTiming(1, { duration: 400 }));
@@ -623,6 +631,14 @@ export default function OnboardingScreen() {
   const logoStyle = useAnimatedStyle(() => ({
     transform: [{ scale: logoScale.value }],
     opacity: logoOpacity.value,
+  }));
+  const taglineStyle = useAnimatedStyle(() => ({
+    opacity: taglineOpacity.value,
+    transform: [{ translateY: taglineTranslateY.value }],
+  }));
+  const byLineStyle = useAnimatedStyle(() => ({
+    opacity: byLineOpacity.value,
+    transform: [{ translateY: byLineTranslateY.value }],
   }));
   const titleStyle = useAnimatedStyle(() => ({
     opacity: titleOpacity.value,
@@ -1086,13 +1102,13 @@ export default function OnboardingScreen() {
               />
             </View>
             <Text style={styles.appName}>Lime Of Time</Text>
-            <Text style={styles.appTagline}>Smart scheduling for your business</Text>
-            {/* Decorative tagline separator */}
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 }}>
+            <Animated.Text style={[styles.appTagline, taglineStyle]}>Smart scheduling for your business</Animated.Text>
+            {/* Decorative tagline separator — fades in last */}
+            <Animated.View style={[{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 }, byLineStyle]}>
               <View style={{ width: 24, height: 1, backgroundColor: "rgba(255,255,255,0.3)" }} />
               <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", letterSpacing: 1.5, textTransform: "uppercase" }}>by Innovancio</Text>
               <View style={{ width: 24, height: 1, backgroundColor: "rgba(255,255,255,0.3)" }} />
-            </View>
+            </Animated.View>
           </Animated.View>
 
           {/* ─── Progress Dots ──────────────────────────────────── */}
