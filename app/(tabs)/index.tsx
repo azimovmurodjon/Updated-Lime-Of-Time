@@ -564,13 +564,11 @@ export default function HomeScreen() {
     const slug = state.settings.customSlug || state.settings.businessName.replace(/\s+/g, "-").toLowerCase();
     return `${PUBLIC_BOOKING_URL}/book/${slug}`;
   }, [state.settings]);
-  // URL used inside the QR modal — includes location param when a specific location is selected
+  // URL used inside the QR modal — always base URL (client selects location as first step)
   const qrBookingUrl = useMemo(() => {
     const slug = state.settings.customSlug || state.settings.businessName.replace(/\s+/g, "-").toLowerCase();
-    const base = `${PUBLIC_BOOKING_URL}/book/${slug}`;
-    if (qrSelectedLocationId) return `${base}?location=${encodeURIComponent(qrSelectedLocationId)}`;
-    return base;
-  }, [state.settings, qrSelectedLocationId]);
+    return `${PUBLIC_BOOKING_URL}/book/${slug}`;
+  }, [state.settings]);
   // Use the store's location-aware filter (single source of truth)
   const filterByLocation = filterAppointmentsByLocation;
 
@@ -1241,8 +1239,8 @@ export default function HomeScreen() {
 
   const doShareForLocation = useCallback(async (loc: typeof activeLocation) => {
     const slug = state.settings.customSlug || state.settings.businessName.replace(/\s+/g, "-").toLowerCase();
-    const locationParam = loc ? `?location=${encodeURIComponent(loc.id)}` : "";
-    const url = `${PUBLIC_BOOKING_URL}/book/${slug}${locationParam}`;
+    // Always use base URL — client selects location as the first step in the booking flow
+    const url = `${PUBLIC_BOOKING_URL}/book/${slug}`;
     const profile = state.settings.profile;
     // Use full address (street + city + state + zip) for the share message
     const displayAddress = loc
@@ -1276,18 +1274,9 @@ export default function HomeScreen() {
   }, [state.settings, activeLocation]);
 
   const handleShareBookingLink = useCallback(() => {
-    const allLocations = state.locations.filter((l) => l.active);
-    if (allLocations.length > 1) {
-      // Multiple locations — show picker
-      setShowSharePicker(true);
-    } else if (allLocations.length === 1) {
-      // Single location — always share with that location's ID so the booking page pre-selects it
-      doShareForLocation(allLocations[0]);
-    } else {
-      // No locations configured — share business link without location param
-      doShareForLocation(null);
-    }
-  }, [state.locations, activeLocation, doShareForLocation]);
+    // Always share the base booking URL — client selects location as the first step
+    doShareForLocation(null);
+  }, [doShareForLocation]);
 
   const handlePickLogo = useCallback(async () => {
     if (Platform.OS === "web") {
@@ -2295,33 +2284,25 @@ export default function HomeScreen() {
               Share Booking Link
             </Text>
             <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 16 }}>
-              Choose a location to share
+              Clients will choose their location when booking
             </Text>
-            {state.locations.filter((l) => l.active).map((loc) => {
-              const addr = formatFullAddress(loc.address, loc.city, loc.state, loc.zipCode);
-              return (
-                <Pressable
-                  key={loc.id}
-                  onPress={() => {
-                    setShowSharePicker(false);
-                    doShareForLocation(loc);
-                  }}
-                  style={({ pressed }) => [
-                    styles.shareLocRow,
-                    { borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
-                  ]}
-                >
-                  <View style={[styles.shareLocDot, { backgroundColor: colors.primary }]} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{loc.name}</Text>
-                    {!!addr && (
-                      <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }} numberOfLines={1}>{addr}</Text>
-                    )}
-                  </View>
-                  <IconSymbol name="paperplane.fill" size={16} color={colors.primary} />
-                </Pressable>
-              );
-            })}
+            <Pressable
+              onPress={() => {
+                setShowSharePicker(false);
+                doShareForLocation(null);
+              }}
+              style={({ pressed }) => [
+                styles.shareLocRow,
+                { borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+              ]}
+            >
+              <View style={[styles.shareLocDot, { backgroundColor: colors.primary }]} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Share Booking Link</Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Clients select location as first step</Text>
+              </View>
+              <IconSymbol name="paperplane.fill" size={16} color={colors.primary} />
+            </Pressable>
             <Pressable
               onPress={() => setShowSharePicker(false)}
               style={({ pressed }) => [
@@ -2367,48 +2348,7 @@ export default function HomeScreen() {
               </Pressable>
             </View>
 
-            {/* Per-location picker — only shown when multiple locations exist */}
-            {state.locations.filter((l) => l.active).length > 1 && (
-              <View style={{ width: "100%" }}>
-                <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 6 }}>Select location for QR code</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View style={{ flexDirection: "row", gap: 6 }}>
-                    <Pressable
-                      onPress={() => setQrSelectedLocationId(null)}
-                      style={({ pressed }) => ({
-                        paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, borderWidth: 1.5,
-                        backgroundColor: qrSelectedLocationId === null ? colors.primary + "18" : colors.background,
-                        borderColor: qrSelectedLocationId === null ? colors.primary : colors.border,
-                        opacity: pressed ? 0.7 : 1,
-                      })}
-                    >
-                      <Text style={{ fontSize: 12, fontWeight: "700", color: qrSelectedLocationId === null ? colors.primary : colors.muted }}>All Locations</Text>
-                    </Pressable>
-                    {state.locations.filter((l) => l.active).map((loc) => (
-                      <Pressable
-                        key={loc.id}
-                        onPress={() => setQrSelectedLocationId(loc.id)}
-                        style={({ pressed }) => ({
-                          paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, borderWidth: 1.5,
-                          backgroundColor: qrSelectedLocationId === loc.id ? colors.primary + "18" : colors.background,
-                          borderColor: qrSelectedLocationId === loc.id ? colors.primary : colors.border,
-                          opacity: pressed ? 0.7 : 1,
-                        })}
-                      >
-                        <Text style={{ fontSize: 12, fontWeight: "700", color: qrSelectedLocationId === loc.id ? colors.primary : colors.muted }}>{loc.name}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                </ScrollView>
-                {qrSelectedLocationId && (() => {
-                  const selLoc = state.locations.find((l) => l.id === qrSelectedLocationId);
-                  const addr = selLoc ? formatFullAddress(selLoc.address, selLoc.city, selLoc.state, selLoc.zipCode) : null;
-                  return addr ? <Text style={{ fontSize: 11, color: colors.muted, marginTop: 4 }} numberOfLines={1}>📍 {addr}</Text> : null;
-                })()}
-              </View>
-            )}
-
-            {/* Large QR Code — unique per selected location */}
+            {/* Large QR Code — always uses base booking URL (client selects location as first step) */}
             <View style={{
               width: 220, height: 220, backgroundColor: "#fff", borderRadius: 16,
               alignItems: "center", justifyContent: "center", padding: 12,
@@ -2443,11 +2383,8 @@ export default function HomeScreen() {
               </Pressable>
               <Pressable
                 onPress={async () => {
-                  const selectedLoc = qrSelectedLocationId
-                    ? state.locations.find((l) => l.id === qrSelectedLocationId) ?? null
-                    : null;
-                  // Share directly — do NOT close the modal first (iOS setTimeout approach fails silently)
-                  await doShareForLocation(selectedLoc);
+                  // Share base booking URL — client selects location as first step
+                  await doShareForLocation(null);
                   setShowQrModal(false);
                 }}
                 style={({ pressed }) => [{

@@ -1798,9 +1798,9 @@ function baseStyles(): string {
       .step-item:not(:last-child)::after {
         content: '';
         position: absolute;
-        top: 13px;
-        left: calc(50% + 14px);
-        right: calc(-50% + 14px);
+        top: 11px;
+        left: calc(50% + 12px);
+        right: calc(-50% + 12px);
         height: 2px;
         background: var(--border);
         transition: background 0.3s;
@@ -1810,12 +1810,12 @@ function baseStyles(): string {
         background: var(--accent);
       }
       .step-dot {
-        width: 26px; height: 26px;
+        width: 22px; height: 22px;
         border-radius: 50%;
         background: var(--bg-card);
         border: 2px solid var(--border);
         display: flex; align-items: center; justify-content: center;
-        font-size: 11px; font-weight: 700;
+        font-size: 10px; font-weight: 700;
         color: var(--text-hint);
         transition: all 0.25s;
         position: relative; z-index: 1;
@@ -1833,7 +1833,7 @@ function baseStyles(): string {
         color: #fff;
       }
       .step-label {
-        font-size: 9px;
+        font-size: 8px;
         font-weight: 500;
         color: var(--text-hint);
         text-align: center;
@@ -3144,26 +3144,30 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     <div id="step-indicator" class="step-indicator" role="navigation" aria-label="Booking steps">
       <div class="step-item active" id="step-item-0">
         <div class="step-dot active" id="dot-0">1</div>
-        <span class="step-label">Info</span>
+        <span class="step-label">Location</span>
       </div>
       <div class="step-item" id="step-item-1">
         <div class="step-dot" id="dot-1">2</div>
-        <span class="step-label">Service</span>
+        <span class="step-label">Info</span>
       </div>
       <div class="step-item" id="step-item-2">
         <div class="step-dot" id="dot-2">3</div>
-        <span class="step-label">Date</span>
+        <span class="step-label">Service</span>
       </div>
       <div class="step-item" id="step-item-3">
         <div class="step-dot" id="dot-3">4</div>
-        <span class="step-label">Extras</span>
+        <span class="step-label">Date</span>
       </div>
       <div class="step-item" id="step-item-4">
         <div class="step-dot" id="dot-4">5</div>
-        <span class="step-label">Payment</span>
+        <span class="step-label">Extras</span>
       </div>
       <div class="step-item" id="step-item-5">
         <div class="step-dot" id="dot-5">6</div>
+        <span class="step-label">Payment</span>
+      </div>
+      <div class="step-item" id="step-item-6">
+        <div class="step-dot" id="dot-6">7</div>
         <span class="step-label">Confirm</span>
       </div>
     </div>
@@ -3185,8 +3189,17 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       <div class="lc-msg" id="topLocClosedMsg">This location is temporarily closed and not accepting bookings at this time. Please check back later.</div>
     </div>
 
-    <!-- Step 0: Client Info -->
+    <!-- Step 0: Location Selection -->
     <div id="step-0" class="card" ${owner.temporaryClosed ? 'style="display:none"' : 'style=""'}>
+      <h2>Select a Location</h2>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">Choose a location to book your appointment.</p>
+      <div id="locationSelectorStep0"></div>
+      <div style="margin-top:16px;">
+        <button class="btn btn-primary" id="locContinueBtn" onclick="goToStep(1)" style="width:100%" ${!preselectedLocationId ? 'disabled style="width:100%;opacity:0.5"' : 'style="width:100%"'}>Continue</button>
+      </div>
+    </div>
+    <!-- Step 1: Client Info -->
+    <div id="step-1" class="card" style="display:none">
       <h2>Your Information</h2>
       <div class="input-group">
         <label>Name *</label>
@@ -3208,12 +3221,14 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         </div>
         <div id="giftMsg" style="font-size:12px;margin-top:4px;"></div>
       </div>
-      <button class="btn btn-primary" onclick="goToStep(1)">Continue</button>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button class="btn btn-secondary" onclick="goToStep(0)" style="flex:1">Back</button>
+        <button class="btn btn-primary" onclick="goToStep(2)" style="flex:1">Continue</button>
+      </div>
     </div>
 
     <!-- Step 1: Select Service -->
-    <div id="step-1" class="card" style="display:none">
-      <div id="locationSelector" style="display:none;"></div>
+    <div id="step-2" class="card" style="display:none">
       <h2>Select a Service</h2>
       <!-- Search bar -->
       <div style="margin-bottom:12px;">
@@ -3238,8 +3253,8 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         <div id="staffList" class="service-list"></div>
       </div>
       <div style="display:flex;gap:8px;margin-top:16px;">
-        <button class="btn btn-secondary" onclick="goToStep(0)" style="flex:1">Back</button>
-        <button class="btn btn-primary" onclick="goToStep(2)" id="btnToDate" disabled style="flex:1">Continue</button>
+        <button class="btn btn-secondary" onclick="goToStep(1)" style="flex:1">Back</button>
+        <button class="btn btn-primary" onclick="goToStep(3)" id="btnToDate" disabled style="flex:1">Continue</button>
       </div>
     </div>
     <!-- Service primary detail overlay -->
@@ -3248,7 +3263,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     </div>
 
     <!-- Step 2: Select Date & Time (Monthly Calendar) -->
-    <div id="step-2" class="card" style="display:none">
+    <div id="step-3" class="card" style="display:none">
       <h2>Select Date & Time</h2>
       <div id="locClosedBanner" class="loc-closed-banner">
         <div class="lc-title">&#9888;&#65039; Location Temporarily Closed</div>
@@ -3272,13 +3287,13 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       </div>
       <div id="discountInfo" style="display:none;margin-top:12px;"></div>
       <div style="display:flex;gap:8px;margin-top:16px;">
-        <button class="btn btn-secondary" onclick="goToStep(1)" style="flex:1">Back</button>
-        <button class="btn btn-primary" onclick="goToStep(3)" id="btnToConfirm" disabled style="flex:1">Continue</button>
+        <button class="btn btn-secondary" onclick="goToStep(2)" style="flex:1">Back</button>
+        <button class="btn btn-primary" onclick="goToStep(4)" id="btnToConfirm" disabled style="flex:1">Continue</button>
       </div>
     </div>
 
     <!-- Step 3: Add More Services/Products -->
-    <div id="step-3" class="card" style="display:none">
+    <div id="step-4" class="card" style="display:none">
       <h2>Add More (Optional)</h2>
       <p style="font-size:13px;color:#888;margin-bottom:12px;">Add extra services or products to your booking.</p>
       <div id="cartSummary" class="cart-items"></div>
@@ -3305,8 +3320,8 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       </div>
       <div id="cartTotal" class="cart-total" style="display:none"></div>
       <div style="display:flex;gap:8px;margin-top:16px;">
-        <button class="btn btn-secondary" onclick="goToStep(2)" style="flex:1">Back</button>
-        <button class="btn btn-primary" onclick="goToStep(4)" style="flex:1">Continue to Payment</button>
+        <button class="btn btn-secondary" onclick="goToStep(3)" style="flex:1">Back</button>
+        <button class="btn btn-primary" onclick="goToStep(5)" style="flex:1">Continue to Payment</button>
       </div>
     </div>
     <!-- Item detail bottom sheet (shared for services + products) -->
@@ -3318,18 +3333,18 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     </div>
 
     <!-- Step 4: Payment -->
-    <div id="step-4" class="card" style="display:none">
+    <div id="step-5" class="card" style="display:none">
       <h2>Payment Method</h2>
       <p style="font-size:13px;color:#888;margin-bottom:16px;">Choose how you'd like to pay, or skip and decide later.</p>
       <div id="paymentMethodList"></div>
       <div style="display:flex;gap:8px;margin-top:20px;">
-        <button class="btn btn-secondary" onclick="goToStep(3)" style="flex:1">Back</button>
+        <button class="btn btn-secondary" onclick="goToStep(4)" style="flex:1">Back</button>
         <button class="btn btn-primary" onclick="goToPaymentConfirm()" style="flex:1">Continue to Confirm</button>
       </div>
     </div>
 
     <!-- Step 5: Confirm -->
-    <div id="step-5" class="card" style="display:none">
+    <div id="step-6" class="card" style="display:none">
       <h2>Confirm Booking</h2>
       <div id="confirmDetails"></div>
       <div id="selectedPaymentSummary" style="margin:12px 0;"></div>
@@ -3346,7 +3361,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         <textarea id="bookingNotes" placeholder="Any special requests..."></textarea>
       </div>
       <div style="margin-top:12px;">
-        <button class="btn btn-secondary" onclick="goToStep(3)" style="width:100%;margin-bottom:8px;font-size:13px;">+ Add More Services / Products</button>
+        <button class="btn btn-secondary" onclick="goToStep(4)" style="width:100%;margin-bottom:8px;font-size:13px;">+ Add More Services / Products</button>
       </div>
       <div class="consent-row">
         <input type="checkbox" id="consentCheck" aria-label="I agree to the Terms and Privacy Policy">
@@ -3354,13 +3369,13 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       </div>
       <div id="bookError" class="error-msg" style="display:none"></div>
       <div style="display:flex;gap:8px;margin-top:12px;">
-        <button class="btn btn-secondary" onclick="goToStep(4)" style="flex:1">Back</button>
+        <button class="btn btn-secondary" onclick="goToStep(5)" style="flex:1">Back</button>
         <button class="btn btn-primary" onclick="submitBooking()" id="btnSubmit" style="flex:1">Confirm Booking</button>
       </div>
     </div>
 
     <!-- Step 6: Success -->
-    <div id="step-6" class="card" style="display:none;text-align:center;">
+    <div id="step-7" class="card" style="display:none;text-align:center;">
       <div class="success-icon">✓</div>
       <h2 style="font-size:20px;margin-bottom:8px;">Booking Submitted!</h2>
       <p style="color:#666;font-size:14px;margin-bottom:16px;">Your appointment request has been sent to ${escHtml(owner.businessName)}. They will confirm your booking shortly.</p>
@@ -3534,11 +3549,11 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     }
 
     function renderLocationSelector() {
-      if (locations.length <= 1) return;
-      var container = document.getElementById('locationSelector');
+      // Render into the new step-0 location selector
+      var container = document.getElementById('locationSelectorStep0');
       if (!container) return;
       container.style.display = 'block';
-      var html = '<div style="margin-bottom:16px;"><h3 style="font-size:16px;font-weight:600;margin-bottom:8px;">Select Location</h3>';
+      var html = '<div style="margin-bottom:16px;">';
       locations.forEach(function(loc) {
         var isSelected = selectedLocation === loc.localId;
         var borderColor = isSelected ? 'var(--accent)' : 'var(--border)';
@@ -3607,11 +3622,14 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       updateBizAddressCard();
       // Check if the newly selected location is temporarily closed
       checkTopLevelLocClosed();
+      // Enable the Continue button when a location is selected (unless closed)
+      const continueBtn = document.getElementById('locContinueBtn');
+      if (continueBtn) { continueBtn.disabled = false; continueBtn.style.opacity = ''; }
       // Reload services and working days scoped to this location
       loadServices(locId);
       loadWorkingDays(locId).then(() => {
         // Re-render calendar with updated working days if already on date step
-        if (currentStep === 2) renderCalendar();
+        if (currentStep === 3) renderCalendar();
       });
       // If a service is already selected, re-render staff filtered by new location
       if (selectedService) {
@@ -3947,35 +3965,31 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     var selectedPaymentMethod = null; // 'zelle' | 'venmo' | 'cashapp' | 'cash'
 
     function goToStep(step) {
-      if (step === 1 && currentStep === 0) {
+      if (step === 1 && !selectedLocation) { alert("Please select a location"); return; }
+      if (step === 2 && currentStep === 1) {
         const name = document.getElementById("clientName").value.trim();
         if (!name) { alert("Please enter your name"); return; }
       }
-      if (step === 2 && !selectedService) { alert("Please select a service"); return; }
-      if (step === 3 && (!selectedDate || !selectedTime)) { alert("Please select a date and time"); return; }
-
-      for (let i = 0; i <= 6; i++) {
+      if (step === 3 && !selectedService) { alert("Please select a service"); return; }
+      if (step === 4 && (!selectedDate || !selectedTime)) { alert("Please select a date and time"); return; }
+      for (let i = 0; i <= 7; i++) {
         const el = document.getElementById("step-" + i);
         if (el) el.style.display = "none";
       }
       document.getElementById("step-" + step).style.display = "block";
       currentStep = step;
-
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < 7; i++) {
         const dot = document.getElementById("dot-" + i);
         if (dot) dot.className = "step-dot" + (i < step ? " done" : i === step ? " active" : "");
         const item = document.getElementById("step-item-" + i);
         if (item) item.className = "step-item" + (i < step ? " done" : i === step ? " active" : "");
       }
-
-      if (step === 2) renderCalendar();
-      if (step === 3) initAddMoreStep();
-      if (step === 4) renderPaymentStep();
-      if (step === 5) renderConfirmation();
-
+      if (step === 3) renderCalendar();
+      if (step === 4) initAddMoreStep();
+      if (step === 5) renderPaymentStep();
+      if (step === 6) renderConfirmation();
       window.scrollTo(0, 0);
     }
-
     function renderPaymentStep() {
       const methods = PAYMENT_METHODS;
       const chargedPrice = getChargedPrice();
@@ -4012,7 +4026,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       if (!selectedPaymentMethod) {
         selectedPaymentMethod = 'later';
       }
-      goToStep(5);
+      goToStep(6);
     }
 
     // ── Monthly Calendar ──
@@ -5018,9 +5032,9 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
           return;
         }
         // Show success with detailed receipt
-        for (let i = 0; i <= 6; i++) { const el = document.getElementById("step-" + i); if (el) el.style.display = "none"; }
+        for (let i = 0; i <= 7; i++) { const el = document.getElementById("step-" + i); if (el) el.style.display = "none"; }
         document.getElementById("step-indicator").style.display = "none";
-        document.getElementById("step-6").style.display = "block";
+        document.getElementById("step-7").style.display = "block";
         renderSuccessReceipt();
         renderPaymentSection();
         // Show manage link
@@ -5477,7 +5491,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       const name = document.getElementById("clientName").value.trim();
       const phone = document.getElementById("clientPhone").value.trim();
       const email = document.getElementById("clientEmail").value.trim();
-      if (!name) { alert("Please enter your name first (Step 1)"); return; }
+      if (!name) { alert("Please enter your name first (Step 2 - Your Information)"); return; }
       if (!selectedService) { alert("Please select a service first"); return; }
       if (!selectedDate) { alert("Please select a date first"); return; }
       const msgEl = document.getElementById("waitlistMsg");
@@ -5517,6 +5531,12 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       // Use preselected location for initial data load if available
       loadServices(selectedLocation);
       loadWorkingDays(selectedLocation);
+      // Auto-advance past location step if location is already determined
+      // (preselected via URL param, or only one location exists)
+      if (selectedLocation && !${JSON.stringify(!!owner.temporaryClosed)}) {
+        // Small delay to let the page render first
+        setTimeout(() => goToStep(1), 50);
+      }
     });
 
     function checkTopLevelLocClosed() {
@@ -5530,7 +5550,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       }
       const banner = document.getElementById('topLocClosedBanner');
       const msgEl = document.getElementById('topLocClosedMsg');
-      const step0 = document.getElementById('step-0');
+      const continueBtn = document.getElementById('locContinueBtn');
       if (!banner || !msgEl) return;
       if (locToCheck && locToCheck.temporarilyClosed) {
         const reopenOn = locToCheck.reopenOn || null;
@@ -5544,12 +5564,12 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         }
         msgEl.textContent = msg;
         banner.classList.add('show');
-        // Hide step-0 so clients cannot start booking
-        if (step0) step0.style.display = 'none';
+        // Disable the Continue button on location step
+        if (continueBtn) { continueBtn.disabled = true; continueBtn.style.opacity = '0.5'; }
       } else {
         banner.classList.remove('show');
-        // Only show step-0 if the business itself is not closed
-        if (step0 && !${JSON.stringify(!!owner.temporaryClosed)}) step0.style.display = '';
+        // Re-enable the Continue button
+        if (continueBtn) { continueBtn.disabled = false; continueBtn.style.opacity = ''; }
       }
     }
     loadProducts();
@@ -5564,9 +5584,9 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       const sessionId = params.get('session_id');
       if (paymentParam === 'success' && sessionId) {
         // Show a loading state while we fetch the appointment
-        for (let i = 0; i <= 6; i++) { const el = document.getElementById('step-' + i); if (el) el.style.display = 'none'; }
+        for (let i = 0; i <= 7; i++) { const el = document.getElementById('step-' + i); if (el) el.style.display = 'none'; }
         document.getElementById('step-indicator').style.display = 'none';
-        const loadingEl = document.getElementById('step-6');
+        const loadingEl = document.getElementById('step-7');
         if (loadingEl) {
           loadingEl.style.display = 'block';
           loadingEl.innerHTML = '<div style="text-align:center;padding:40px 20px;"><div style="font-size:48px;margin-bottom:16px;">⏳</div><p style="color:#666;">Confirming your payment...</p></div>';
@@ -5612,21 +5632,21 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
               selectedService = { name: a.serviceName, duration: a.duration || 60, price: a.totalPrice || '0', localId: '' };
             }
             // Re-render the step-6 success screen properly
-            for (let i = 0; i <= 6; i++) { const el = document.getElementById('step-' + i); if (el) el.style.display = 'none'; }
+            for (let i = 0; i <= 7; i++) { const el = document.getElementById('step-' + i); if (el) el.style.display = 'none'; }
             document.getElementById('step-indicator').style.display = 'none';
-            document.getElementById('step-6').style.display = 'block';
+            document.getElementById('step-7').style.display = 'block';
             // Clear the URL params so a refresh doesn't re-trigger this
             window.history.replaceState({}, '', window.location.pathname);
           } else {
             // Appointment not found — show generic success
-            document.getElementById('step-6').innerHTML = '<div style="text-align:center;padding:40px 20px;"><div style="font-size:64px;margin-bottom:16px;">✅</div><h2 style="color:#2d5a27;">Payment Successful!</h2><p style="color:#666;">Your appointment has been confirmed and payment received.</p></div>';
+            document.getElementById('step-7').innerHTML = '<div style="text-align:center;padding:40px 20px;"><div style="font-size:64px;margin-bottom:16px;">✅</div><h2 style="color:#2d5a27;">Payment Successful!</h2><p style="color:#666;">Your appointment has been confirmed and payment received.</p></div>';
           }
         } catch(e) {
-          document.getElementById('step-6').innerHTML = '<div style="text-align:center;padding:40px 20px;"><div style="font-size:64px;margin-bottom:16px;">✅</div><h2 style="color:#2d5a27;">Payment Successful!</h2><p style="color:#666;">Your appointment has been confirmed and payment received.</p></div>';
+          document.getElementById('step-7').innerHTML = '<div style="text-align:center;padding:40px 20px;"><div style="font-size:64px;margin-bottom:16px;">✅</div><h2 style="color:#2d5a27;">Payment Successful!</h2><p style="color:#666;">Your appointment has been confirmed and payment received.</p></div>';
         }
       } else if (paymentParam === 'cancelled') {
         // Payment was cancelled — show a message and let them retry
-        const errEl = document.getElementById('bookingError');
+        const errEl = document.getElementById('bookError');
         if (errEl) {
           errEl.textContent = 'Payment was cancelled. Please try again or choose a different payment method.';
           errEl.style.display = 'block';
