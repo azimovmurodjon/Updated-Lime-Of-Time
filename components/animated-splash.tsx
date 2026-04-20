@@ -176,39 +176,52 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
       ]),
     ]).start();
 
-    // Exit: logo pulse-scale → content slides up + screen fades out → app content revealed
+    // Exit: logo pulse → scale up → fade out → reveal onboarding
     const timer = setTimeout(() => {
+      // Haptic on launch
+      if (Platform.OS !== "web") {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      }
       Animated.sequence([
-        // 1. Logo pulses up slightly (feels like it's launching the app)
+        // 1. Logo breathes in (subtle pull-back)
         Animated.timing(logoScale, {
-          toValue: 1.12,
-          duration: 160,
-          easing: Easing.out(Easing.quad),
+          toValue: 0.92,
+          duration: 120,
+          easing: Easing.in(Easing.quad),
           useNativeDriver: true,
         }),
-        // 2. Simultaneously slide content up and fade the whole splash out
+        // 2. Logo launches forward — big pulse
+        Animated.timing(logoScale, {
+          toValue: 1.22,
+          duration: 220,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        // 3. Simultaneously: content slides up + whole screen fades out
         Animated.parallel([
+          Animated.timing(logoScale, {
+            toValue: 2.8,
+            duration: 480,
+            easing: Easing.in(Easing.cubic),
+            useNativeDriver: true,
+          }),
           Animated.timing(contentTranslateY, {
-            toValue: -height * 0.10,
-            duration: 400,
+            toValue: -height * 0.08,
+            duration: 480,
             easing: Easing.in(Easing.cubic),
             useNativeDriver: true,
           }),
           Animated.timing(screenOpacity, {
             toValue: 0,
-            duration: 400,
+            duration: 480,
             easing: Easing.in(Easing.cubic),
             useNativeDriver: true,
           }),
         ]),
       ]).start(() => {
-        // Subtle haptic on splash exit — only on native (no-op on web)
-        if (Platform.OS !== "web") {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-        }
         onFinish();
       });
-    }, 1500);
+    }, 1800);
 
     return () => clearTimeout(timer);
   }, []);

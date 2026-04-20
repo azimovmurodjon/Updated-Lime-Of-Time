@@ -1484,3 +1484,4 @@
 - [x] Smart greeting: show "Welcome back!" for returning users, "Get started" for first-time users (using AsyncStorage flag)
 - [x] Add staggered fade-in + slide-up animation to tagline and "by Innovancio" text on onboarding screen load
 - [x] Add separate slide-up fade-in animation to "Lime Of Time" app name to complete staggered entrance sequence
+- [x] Add splash screen logo pulse/scale animation and fade transition before dismissing to onboarding screen
