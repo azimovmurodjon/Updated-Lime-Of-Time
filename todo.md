@@ -1460,3 +1460,5 @@
 - [x] Fix: back from Business Info loops between OTP and Phone step due to auto-advance firing on pre-filled phone
 - [x] Fix Admin Panel mobile responsiveness (phone screen layout/resolution issues)
 - [x] Extend session duration to 150 days (admin panel cookie + session)
+- [x] Audit and verify OTP send/verify flow end-to-end with Twilio Verify
+- [x] Admin Panel: dark/light mode toggle in header with system-theme auto-detection

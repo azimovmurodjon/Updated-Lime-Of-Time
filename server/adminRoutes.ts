@@ -1285,6 +1285,32 @@ function adminStyles(): string {
         --success: #22c55e;
         --info: #3b82f6;
       }
+      :root[data-theme="light"] {
+        --bg: #f5f7fa;
+        --bg-card: #ffffff;
+        --bg-hover: #f0f2f5;
+        --border: #e2e6ea;
+        --text: #1a1d27;
+        --text-muted: #6b7280;
+        --primary: #4a8c3f;
+        --primary-hover: #3d7534;
+        --danger: #dc2626;
+        --warning: #d97706;
+        --success: #16a34a;
+        --info: #2563eb;
+      }
+      .theme-toggle-btn {
+        background: var(--bg-hover);
+        border: 1px solid var(--border);
+        color: var(--text-muted);
+        border-radius: 8px;
+        padding: 5px 10px;
+        font-size: 16px;
+        cursor: pointer;
+        transition: all 0.15s;
+        line-height: 1;
+      }
+      .theme-toggle-btn:hover { color: var(--text); border-color: var(--primary); }
       * { margin: 0; padding: 0; box-sizing: border-box; }
       body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
       a { color: var(--primary); text-decoration: none; }
@@ -1496,12 +1522,15 @@ function sidebarHtml(activePage: string): string {
   return `
     <div class="sidebar">
       <div class="sidebar-logo">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <img src="${ADMIN_LOGO_BASE64}" alt="Lime Of Time" style="width:36px;height:36px;border-radius:8px;" />
-          <div>
-            <h1 style="font-size:16px;">Lime Of Time</h1>
-            <p style="font-size:11px;color:var(--text-muted);margin-top:2px;">Admin Dashboard</p>
+        <div style="display:flex;align-items:center;gap:10px;justify-content:space-between;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <img src="${ADMIN_LOGO_BASE64}" alt="Lime Of Time" style="width:36px;height:36px;border-radius:8px;" />
+            <div>
+              <h1 style="font-size:16px;">Lime Of Time</h1>
+              <p style="font-size:11px;color:var(--text-muted);margin-top:2px;">Admin Dashboard</p>
+            </div>
           </div>
+          <button class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleTheme()" title="Toggle dark/light mode">🌙</button>
         </div>
       </div>
 
@@ -1587,6 +1616,40 @@ function adminLayout(title: string, activePage: string, content: string): string
         if (window.innerWidth <= 768) closeSidebar();
       });
     });
+
+    // ── Theme toggle ──────────────────────────────────────────────────
+    (function() {
+      var saved = localStorage.getItem('admin_theme');
+      var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var theme = saved || (prefersDark ? 'dark' : 'light');
+      applyTheme(theme);
+    })();
+
+    function applyTheme(theme) {
+      var btn = document.getElementById('themeToggleBtn');
+      if (theme === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+        if (btn) btn.textContent = '\u2600\uFE0F'; // ☀️
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+        if (btn) btn.textContent = '\uD83C\uDF19'; // 🌙
+      }
+      localStorage.setItem('admin_theme', theme);
+    }
+
+    function toggleTheme() {
+      var current = document.documentElement.getAttribute('data-theme');
+      applyTheme(current === 'light' ? 'dark' : 'light');
+    }
+
+    // Auto-follow system theme changes
+    if (window.matchMedia) {
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+        if (!localStorage.getItem('admin_theme')) {
+          applyTheme(e.matches ? 'dark' : 'light');
+        }
+      });
+    }
   </script>
 </body>
 </html>`;
