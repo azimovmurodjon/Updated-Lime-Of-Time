@@ -248,6 +248,29 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
+  // ── Update Social & Payment Accounts ─────────────────────────────
+  app.post("/api/admin/businesses/:id/social", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { instagramHandle, facebookHandle, tiktokHandle, zelleHandle, cashAppHandle, venmoHandle } = req.body;
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).json({ error: "DB unavailable" }); return; }
+      await dbase.update(businessOwners).set({
+        instagramHandle: instagramHandle || null,
+        facebookHandle: facebookHandle || null,
+        tiktokHandle: tiktokHandle || null,
+        zelleHandle: zelleHandle || null,
+        cashAppHandle: cashAppHandle || null,
+        venmoHandle: venmoHandle || null,
+      }).where(eq(businessOwners.id, id));
+      await writeAuditLog("admin", "business", "update_social_accounts", { businessId: id });
+      res.json({ ok: true });
+    } catch (err: any) {
+      console.error("[Admin] Update social accounts error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // ── Delete Business ───────────────────────────────────────────────
   app.post("/api/admin/businesses/:id/delete", requireAuth, async (req: Request, res: Response) => {
     try {
@@ -1901,157 +1924,428 @@ export function registerAdminRoutes(app: Express): void {
       const randInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
       const randDate = (from: Date, to: Date) => new Date(from.getTime() + Math.random() * (to.getTime() - from.getTime()));
       const dateStr = (d: Date) => `${d.getFullYear()}-${padZ(d.getMonth() + 1)}-${padZ(d.getDate())}`;
-      const randTime = () => `${padZ(randInt(8, 19))}:${padZ([0, 15, 30, 45][Math.floor(Math.random() * 4)])}`;
+      const randTime = () => { const h = randInt(8,19); const m = [0,15,30,45][randInt(0,3)]; return `${padZ(h)}:${padZ(m)}`; };
       const from = fromDate ? new Date(fromDate) : new Date(Date.now() - 90 * 86400000);
       const to = toDate ? new Date(toDate) : new Date(Date.now() + 60 * 86400000);
-      const FIRST_NAMES = ["Alex","Jordan","Taylor","Morgan","Casey","Riley","Avery","Quinn","Peyton","Drew","Skyler","Reese","Cameron","Hayden","Blake","Logan","Kendall","Dakota","Sage","River"];
-      const LAST_NAMES = ["Smith","Johnson","Williams","Brown","Jones","Garcia","Miller","Davis","Wilson","Moore","Taylor","Anderson","Thomas","Jackson","White","Harris","Martin","Thompson","Lee","Walker"];
-      const SERVICES = ["Haircut","Balayage","Color","Highlights","Blowout","Keratin","Trim","Toner","Perm","Gloss"];
-      const ROLES = ["Stylist","Colorist","Manager","Assistant","Senior Stylist","Junior Stylist"];
-      const COLORS = ["#3B82F6","#EF4444","#10B981","#F59E0B","#8B5CF6","#EC4899","#14B8A6","#F97316"];
-      const CITIES = ["Miami","New York","Los Angeles","Chicago","Houston","Phoenix","Philadelphia","San Antonio","Dallas","San Diego"];
-      const REVIEW_COMMENTS = ["Great service!","Very professional.","Love the results!","Will come back.","Amazing experience.","Highly recommend.","Exceeded expectations.","Fantastic job!","Very satisfied.","Best in town."];
-      const PROMO_LABELS = ["Summer Sale","New Client","Referral Bonus","Holiday Special","Birthday Offer","Loyalty Reward","Flash Sale","Weekend Deal","VIP Access","First Visit"];
-      const DISCOUNT_NAMES = ["Happy Hour","Early Bird","Late Night","Weekend Special","Senior Discount","Student Deal","Member Perk","Seasonal Offer"];
-      const LOCATION_NAMES = ["Main Branch","Downtown Studio","Uptown Salon","West Side","East End","North Location","South Studio","Central Hub"];
-      const GIFT_MSGS = ["Happy Birthday!","Congratulations!","You deserve it!","With love!","Enjoy your day!","A special treat!","Just for you!","Thinking of you!"];
       const pick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+      // ── Hyper-realistic data pools ──────────────────────────────────────
+      const FIRST_NAMES_F = ["Sophia","Isabella","Olivia","Emma","Ava","Mia","Charlotte","Amelia","Harper","Evelyn","Abigail","Emily","Elizabeth","Sofia","Madison","Avery","Ella","Scarlett","Grace","Chloe","Victoria","Riley","Aria","Lily","Aubrey","Zoey","Penelope","Lillian","Addison","Layla","Natalie","Camila","Hannah","Brooklyn","Zoe","Nora","Leah","Savannah","Audrey","Claire"];
+      const FIRST_NAMES_M = ["Liam","Noah","William","James","Oliver","Benjamin","Elijah","Lucas","Mason","Logan","Alexander","Ethan","Jacob","Michael","Daniel","Henry","Jackson","Sebastian","Aiden","Matthew","Samuel","David","Joseph","Carter","Owen","Wyatt","John","Jack","Luke","Jayden","Dylan","Grayson","Levi","Isaac","Gabriel","Julian","Mateo","Anthony","Jaxon","Lincoln"];
+      const FIRST_NAMES = [...FIRST_NAMES_F, ...FIRST_NAMES_M];
+      const LAST_NAMES = ["Smith","Johnson","Williams","Brown","Jones","Garcia","Miller","Davis","Rodriguez","Martinez","Hernandez","Lopez","Gonzalez","Wilson","Anderson","Thomas","Taylor","Moore","Jackson","Martin","Lee","Perez","Thompson","White","Harris","Sanchez","Clark","Ramirez","Lewis","Robinson","Walker","Young","Allen","King","Wright","Scott","Torres","Nguyen","Hill","Flores","Green","Adams","Nelson","Baker","Hall","Rivera","Campbell","Mitchell","Carter","Roberts"];
+      // Real US city/state/ZIP combos
+      const CITY_STATE_ZIP: Array<{city:string;state:string;zip:string}> = [
+        {city:"Miami",state:"FL",zip:"33101"},{city:"Miami Beach",state:"FL",zip:"33139"},{city:"Coral Gables",state:"FL",zip:"33134"},{city:"Hialeah",state:"FL",zip:"33010"},{city:"Fort Lauderdale",state:"FL",zip:"33301"},
+        {city:"Boca Raton",state:"FL",zip:"33431"},{city:"West Palm Beach",state:"FL",zip:"33401"},{city:"Orlando",state:"FL",zip:"32801"},{city:"Tampa",state:"FL",zip:"33601"},{city:"Jacksonville",state:"FL",zip:"32099"},
+        {city:"New York",state:"NY",zip:"10001"},{city:"Brooklyn",state:"NY",zip:"11201"},{city:"Los Angeles",state:"CA",zip:"90001"},{city:"Chicago",state:"IL",zip:"60601"},{city:"Houston",state:"TX",zip:"77001"},
+        {city:"Phoenix",state:"AZ",zip:"85001"},{city:"Philadelphia",state:"PA",zip:"19101"},{city:"San Antonio",state:"TX",zip:"78201"},{city:"Dallas",state:"TX",zip:"75201"},{city:"San Diego",state:"CA",zip:"92101"},
+        {city:"Atlanta",state:"GA",zip:"30301"},{city:"Denver",state:"CO",zip:"80201"},{city:"Nashville",state:"TN",zip:"37201"},{city:"Charlotte",state:"NC",zip:"28201"},{city:"Seattle",state:"WA",zip:"98101"},
+      ];
+      // Real street name components
+      const STREET_NAMES = ["Oak","Maple","Cedar","Pine","Elm","Washington","Lincoln","Jefferson","Madison","Monroe","Sunset","Sunrise","Riverside","Lakewood","Highland","Greenfield","Fairview","Hillcrest","Meadowbrook","Parkview","Willow","Magnolia","Peachtree","Coral","Brickell","Collins","Ocean","Bay","Harbor","Palm"];
+      const STREET_TYPES = ["St","Ave","Blvd","Dr","Ln","Ct","Pl","Way","Rd","Terrace"];
+      const randAddress = () => `${randInt(100,9999)} ${pick(STREET_NAMES)} ${pick(STREET_TYPES)}`;
+      // Realistic service names for beauty/wellness
+      const SERVICE_CATALOG: Array<{name:string;minPrice:number;maxPrice:number;minDur:number;maxDur:number;category:string}> = [
+        {name:"Women's Haircut & Style",minPrice:45,maxPrice:95,minDur:45,maxDur:75,category:"Hair"},
+        {name:"Men's Haircut",minPrice:25,maxPrice:55,minDur:30,maxDur:45,category:"Hair"},
+        {name:"Full Balayage",minPrice:150,maxPrice:280,minDur:120,maxDur:180,category:"Color"},
+        {name:"Highlights",minPrice:90,maxPrice:180,minDur:90,maxDur:150,category:"Color"},
+        {name:"Single Process Color",minPrice:65,maxPrice:120,minDur:60,maxDur:90,category:"Color"},
+        {name:"Blowout",minPrice:35,maxPrice:75,minDur:30,maxDur:60,category:"Styling"},
+        {name:"Keratin Treatment",minPrice:200,maxPrice:400,minDur:120,maxDur:180,category:"Treatment"},
+        {name:"Deep Conditioning",minPrice:30,maxPrice:60,minDur:30,maxDur:45,category:"Treatment"},
+        {name:"Brazilian Blowout",minPrice:180,maxPrice:350,minDur:90,maxDur:150,category:"Treatment"},
+        {name:"Perm",minPrice:80,maxPrice:160,minDur:90,maxDur:150,category:"Hair"},
+        {name:"Manicure",minPrice:20,maxPrice:45,minDur:30,maxDur:45,category:"Nails"},
+        {name:"Pedicure",minPrice:35,maxPrice:65,minDur:45,maxDur:60,category:"Nails"},
+        {name:"Gel Manicure",minPrice:35,maxPrice:65,minDur:45,maxDur:60,category:"Nails"},
+        {name:"Acrylic Full Set",minPrice:45,maxPrice:85,minDur:60,maxDur:90,category:"Nails"},
+        {name:"Eyebrow Shaping",minPrice:15,maxPrice:35,minDur:15,maxDur:30,category:"Brows"},
+        {name:"Eyelash Extensions",minPrice:80,maxPrice:180,minDur:90,maxDur:120,category:"Lashes"},
+        {name:"Facial",minPrice:60,maxPrice:130,minDur:60,maxDur:90,category:"Skin"},
+        {name:"Waxing - Full Leg",minPrice:50,maxPrice:90,minDur:45,maxDur:60,category:"Waxing"},
+        {name:"Massage - 60 min",minPrice:70,maxPrice:130,minDur:60,maxDur:60,category:"Wellness"},
+        {name:"Toner & Gloss",minPrice:40,maxPrice:80,minDur:30,maxDur:45,category:"Color"},
+      ];
+      const ROLES = ["Senior Stylist","Colorist","Nail Technician","Esthetician","Massage Therapist","Stylist","Junior Stylist","Salon Manager","Receptionist","Brow Artist"];
+      const COLORS = ["#3B82F6","#EF4444","#10B981","#F59E0B","#8B5CF6","#EC4899","#14B8A6","#F97316","#6366F1","#84CC16","#06B6D4","#D946EF"];
+      // Realistic review comments with varied sentiment
+      const REVIEW_COMMENTS_5 = [
+        "Absolutely love my hair! {name} did an incredible job with my balayage — exactly what I wanted.",
+        "Best salon experience I've had in years. The attention to detail is unmatched.",
+        "I've been coming here for 3 years and never disappointed. Highly recommend!",
+        "My highlights turned out perfect. Everyone keeps asking who does my hair!",
+        "Professional, friendly, and talented. {name} listened to everything I asked for.",
+        "The atmosphere is so relaxing and the results are always stunning.",
+        "Walked in with damaged hair, walked out with a completely transformed look!",
+      ];
+      const REVIEW_COMMENTS_4 = [
+        "Great experience overall. The color came out slightly darker than expected but still looks good.",
+        "Really happy with my cut. The wait was a bit long but worth it.",
+        "Professional service and good results. Will definitely return.",
+        "Nice salon, friendly staff. My blowout lasted 3 days!",
+        "Good work, just took a little longer than the quoted time.",
+      ];
+      const REVIEW_COMMENTS_3 = [
+        "Decent service. The result was okay but not exactly what I described.",
+        "Average experience. Nothing bad, nothing exceptional.",
+        "The stylist was nice but I had to come back for a touch-up.",
+      ];
+      // Realistic promo codes
+      const PROMO_CODE_TEMPLATES = [
+        {code:"WELCOME{N}",label:"New Client Welcome",pct:15},
+        {code:"SUMMER{Y}",label:"Summer Special",pct:20},
+        {code:"BDAY{N}",label:"Birthday Discount",pct:25},
+        {code:"REFER{N}",label:"Referral Reward",pct:10},
+        {code:"HOLIDAY{Y}",label:"Holiday Season",pct:20},
+        {code:"LOYAL{N}",label:"Loyalty Reward",pct:15},
+        {code:"FLASH{N}",label:"Flash Sale",pct:30},
+        {code:"VIP{N}",label:"VIP Member",pct:20},
+        {code:"FIRSTVISIT",label:"First Visit",pct:10},
+        {code:"SPRING{Y}",label:"Spring Refresh",pct:15},
+        {code:"FALL{Y}",label:"Fall Special",pct:15},
+        {code:"NEWYR{Y}",label:"New Year New You",pct:20},
+      ];
+      // Realistic discount names
+      const DISCOUNT_CATALOG = [
+        {name:"Happy Hour (2–5 PM)",startH:14,endH:17,pct:15},
+        {name:"Early Bird Special",startH:8,endH:10,pct:20},
+        {name:"Lunch Break Deal",startH:11,endH:13,pct:10},
+        {name:"Late Evening Discount",startH:18,endH:20,pct:25},
+        {name:"Monday Madness",startH:9,endH:17,pct:20},
+        {name:"Weekend Warrior",startH:10,endH:18,pct:15},
+        {name:"Senior Tuesday",startH:9,endH:15,pct:30},
+        {name:"Student Wednesday",startH:12,endH:18,pct:20},
+      ];
+      // Realistic location names for salons
+      const LOCATION_NAME_TEMPLATES = [
+        "Main Salon","Downtown Studio","Uptown Location","Beach Location","Mall Kiosk",
+        "Brickell Studio","Wynwood Salon","Coral Gables Suite","South Beach Studio","North Miami Location",
+        "Aventura Salon","Doral Studio","Kendall Location","Coconut Grove Suite","Design District Studio",
+      ];
+      // Realistic gift card messages
+      const GIFT_MSGS = [
+        "Happy Birthday! Treat yourself to something special 🎂",
+        "Congratulations on your promotion! You deserve it!",
+        "Happy Anniversary! Enjoy a day of pampering 💕",
+        "Just because you're amazing — enjoy!",
+        "Get well soon! A little treat to brighten your day.",
+        "Thank you for everything. You're the best!",
+        "Merry Christmas! Wishing you a beautiful holiday 🎄",
+        "Happy Mother's Day! You deserve to be pampered 💐",
+      ];
+      // Realistic product catalog
+      const PRODUCT_CATALOG: Array<{name:string;brand:string;category:string;minPrice:number;maxPrice:number}> = [
+        {name:"Moisture Repair Shampoo",brand:"Olaplex",category:"Hair Care",minPrice:28,maxPrice:32},
+        {name:"Bond Maintenance Conditioner",brand:"Olaplex",category:"Hair Care",minPrice:28,maxPrice:32},
+        {name:"Hair Perfector No.3",brand:"Olaplex",category:"Treatment",minPrice:28,maxPrice:30},
+        {name:"All Soft Shampoo",brand:"Redken",category:"Hair Care",minPrice:22,maxPrice:26},
+        {name:"Color Extend Magnetics",brand:"Redken",category:"Hair Care",minPrice:24,maxPrice:28},
+        {name:"Argan Oil Treatment",brand:"Moroccanoil",category:"Treatment",minPrice:34,maxPrice:46},
+        {name:"Hydrating Styling Cream",brand:"Moroccanoil",category:"Styling",minPrice:30,maxPrice:36},
+        {name:"Invigo Nutri-Enrich Shampoo",brand:"Wella",category:"Hair Care",minPrice:18,maxPrice:24},
+        {name:"Fusio-Dose Concentré",brand:"Kérastase",category:"Treatment",minPrice:38,maxPrice:52},
+        {name:"Discipline Bain Fluidealiste",brand:"Kérastase",category:"Hair Care",minPrice:36,maxPrice:44},
+        {name:"Mitch Clean Cut Styling Cream",brand:"Paul Mitchell",category:"Styling",minPrice:16,maxPrice:22},
+        {name:"Tea Tree Special Shampoo",brand:"Paul Mitchell",category:"Hair Care",minPrice:14,maxPrice:20},
+        {name:"Brilliant Gloss Finishing Spray",brand:"Aveda",category:"Styling",minPrice:26,maxPrice:32},
+        {name:"Nail Envy Strengthener",brand:"OPI",category:"Nail Care",minPrice:16,maxPrice:20},
+        {name:"SolarOil Nail & Cuticle Care",brand:"CND",category:"Nail Care",minPrice:8,maxPrice:12},
+        {name:"Brightening Face Serum",brand:"Dermalogica",category:"Skin Care",minPrice:58,maxPrice:72},
+        {name:"Hydra-Essentiel Moisturizer",brand:"Clarins",category:"Skin Care",minPrice:42,maxPrice:56},
+        {name:"Volumizing Mousse",brand:"Redken",category:"Styling",minPrice:18,maxPrice:24},
+        {name:"Leave-In Conditioning Spray",brand:"It's a 10",category:"Treatment",minPrice:18,maxPrice:22},
+        {name:"Scalp Detox Treatment",brand:"Aveda",category:"Treatment",minPrice:28,maxPrice:36},
+      ];
+      // Realistic waitlist notes
+      const WAITLIST_NOTES = [
+        "Flexible on timing, prefers mornings",
+        "Available weekdays only",
+        "Afternoons work best for me",
+        "ASAP please — wedding coming up!",
+        "Weekends only",
+        "Any day works, just need 24h notice",
+        "Prefer same stylist as last time",
+        "Allergic to certain dyes — please note",
+        "First time client, referred by a friend",
+        "Flexible — just let me know what's available",
+      ];
+      // Phone area codes by region
+      const AREA_CODES = ["305","786","954","561","407","813","212","718","310","312","713","602","215","210","214","619","404","720","615","704"];
+      const randPhone = () => `+1${pick(AREA_CODES)}${randInt(100,999)}${randInt(1000,9999)}`;
+      const randBirthday = () => { const y = randInt(1965,2002); const m = randInt(1,12); const d = randInt(1,28); return `${y}-${padZ(m)}-${padZ(d)}`; };
       const summary: Record<string, number> = {};
-      // Seed clients
-      const clientCount = Number(categories.clients || 0);
-      const createdClientIds: string[] = [];
-      if (clientCount > 0) {
-        for (let i = 0; i < clientCount; i++) {
-          const localId = uid();
-          const name = `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`;
-          const phone = `+1305${String(randInt(1000000, 9999999))}`;
-          await dbase.insert(clients).values({ businessOwnerId: businessId, localId, name, phone, email: `${localId.slice(0,6)}@test.dev`, notes: `Test client ${SEED_TAG}` });
-          createdClientIds.push(localId);
-        }
-        summary.clients = clientCount;
-      }
-      // Seed services
+      const now = new Date();
+      // Seed services FIRST (other entities reference them)
       const serviceCount = Number(categories.services || 0);
       const createdServiceIds: string[] = [];
+      const createdServicePrices: Record<string, number> = {};
+      const createdServiceDurations: Record<string, number> = {};
       if (serviceCount > 0) {
+        const shuffled = [...SERVICE_CATALOG].sort(() => Math.random() - 0.5);
         for (let i = 0; i < serviceCount; i++) {
           const localId = uid();
-          const name = `${pick(SERVICES)} ${SEED_TAG}`;
-          const price = String(randInt(30, 200));
-          const duration = [30, 45, 60, 90, 120][randInt(0, 4)];
-          await dbase.insert(services).values({ businessOwnerId: businessId, localId, name, price, duration, color: pick(COLORS) });
+          const svc = shuffled[i % shuffled.length];
+          const price = randInt(svc.minPrice, svc.maxPrice);
+          const duration = randInt(svc.minDur, svc.maxDur);
+          const name = `${svc.name} ${SEED_TAG}`;
+          await dbase.insert(services).values({ businessOwnerId: businessId, localId, name, price: String(price), duration, color: pick(COLORS), category: svc.category });
           createdServiceIds.push(localId);
+          createdServicePrices[localId] = price;
+          createdServiceDurations[localId] = duration;
         }
         summary.services = serviceCount;
       }
-      // Seed staff
+      // Seed locations (multi-location spread)
+      const locationCount = Number(categories.locations || 0);
+      const createdLocationIds: string[] = [];
+      if (locationCount > 0) {
+        const usedLocNames = new Set<string>();
+        const locNamePool = [...LOCATION_NAME_TEMPLATES].sort(() => Math.random() - 0.5);
+        for (let i = 0; i < locationCount; i++) {
+          const localId = uid();
+          const csz = pick(CITY_STATE_ZIP);
+          let locName = locNamePool[i % locNamePool.length];
+          if (usedLocNames.has(locName)) locName = `${locName} ${i + 1}`;
+          usedLocNames.add(locName);
+          const phone = randPhone();
+          const email = `${locName.toLowerCase().replace(/[^a-z0-9]/g,'.')}@salon.com`;
+          await dbase.insert(locations).values({
+            businessOwnerId: businessId, localId,
+            name: `${locName} ${SEED_TAG}`,
+            address: randAddress(),
+            city: csz.city, state: csz.state, zipCode: csz.zip,
+            phone, email, active: true, isDefault: i === 0,
+          });
+          createdLocationIds.push(localId);
+        }
+        summary.locations = locationCount;
+      }
+      // Seed staff (linked to services)
       const staffCount = Number(categories.staff || 0);
+      const createdStaffIds: string[] = [];
       if (staffCount > 0) {
         for (let i = 0; i < staffCount; i++) {
           const localId = uid();
-          const name = `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)} ${SEED_TAG}`;
-          await dbase.insert(staffMembers).values({ businessOwnerId: businessId, localId, name, role: pick(ROLES), color: pick(COLORS), active: true, commissionRate: randInt(10, 40) });
+          const firstName = pick(FIRST_NAMES);
+          const lastName = pick(LAST_NAMES);
+          const role = pick(ROLES);
+          const email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@salon.com`;
+          const phone = randPhone();
+          const assignedServices = createdServiceIds.length > 0
+            ? createdServiceIds.filter(() => Math.random() > 0.4)
+            : [];
+          await dbase.insert(staffMembers).values({
+            businessOwnerId: businessId, localId,
+            name: `${firstName} ${lastName} ${SEED_TAG}`,
+            role, email, phone,
+            color: pick(COLORS), active: true,
+            commissionRate: pick([10,15,20,25,30,35,40]),
+            serviceLocalIds: JSON.stringify(assignedServices),
+          });
+          createdStaffIds.push(localId);
         }
         summary.staff = staffCount;
       }
-      // Seed appointments
+      // Seed clients (realistic names, phones, birthdays, addresses)
+      const clientCount = Number(categories.clients || 0);
+      const createdClientIds: string[] = [];
+      const createdClientNames: string[] = [];
+      if (clientCount > 0) {
+        for (let i = 0; i < clientCount; i++) {
+          const localId = uid();
+          const firstName = pick(FIRST_NAMES);
+          const lastName = pick(LAST_NAMES);
+          const name = `${firstName} ${lastName}`;
+          const phone = randPhone();
+          const email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}${randInt(1,99)}@gmail.com`;
+          const birthday = randBirthday();
+          const csz = pick(CITY_STATE_ZIP);
+          const address = `${randAddress()}, ${csz.city}, ${csz.state} ${csz.zip}`;
+          const visitCount = randInt(1, 24);
+          const lastVisit = dateStr(randDate(new Date(now.getTime() - 365 * 86400000), now));
+          await dbase.insert(clients).values({
+            businessOwnerId: businessId, localId, name, phone, email, birthday, address,
+            notes: `Total visits: ${visitCount}. Last visit: ${lastVisit}. ${SEED_TAG}`,
+          });
+          createdClientIds.push(localId);
+          createdClientNames.push(name);
+        }
+        summary.clients = clientCount;
+      }
+      // Seed appointments (spread across multiple days and locations)
       const apptCount = Number(categories.appointments || 0);
       if (apptCount > 0) {
         const STATUSES: Array<"pending"|"confirmed"|"completed"|"cancelled"> = ["pending","confirmed","completed","cancelled"];
-        const PAYMENT_METHODS: Array<"cash"|"card"|"zelle"|"venmo"|"cashapp"|"unpaid"> = ["cash","card","zelle","venmo","cashapp","unpaid"];
+        // Weight: more completed (past) and confirmed (future), fewer cancelled
+        const STATUS_WEIGHTS = ["pending","confirmed","confirmed","completed","completed","completed","cancelled"];
+        const PAYMENT_METHODS: Array<"cash"|"card"|"zelle"|"venmo"|"cashapp"|"unpaid"> = ["cash","card","card","zelle","venmo","cashapp","unpaid"];
+        const APPT_NOTES = [
+          "Client prefers minimal product use.",
+          "First-time client — consultation needed.",
+          "Allergic to ammonia-based dyes.",
+          "Wants to go 2 shades lighter.",
+          "Regular client, knows what she wants.",
+          "Referred by a friend, first visit.",
+          "Celebrating birthday this week!",
+          "Prefers quiet environment.",
+          "Has a wedding on Saturday.",
+          "",
+        ];
         for (let i = 0; i < apptCount; i++) {
           const localId = uid();
           const clientLocalId = createdClientIds.length > 0 ? pick(createdClientIds) : uid();
           const serviceLocalId = createdServiceIds.length > 0 ? pick(createdServiceIds) : uid();
+          const locationLocalId = createdLocationIds.length > 0 ? pick(createdLocationIds) : undefined;
+          const staffLocalId = createdStaffIds.length > 0 ? pick(createdStaffIds) : undefined;
           const d = randDate(from, to);
-          const status = pick(STATUSES);
-          await dbase.insert(appointments).values({ businessOwnerId: businessId, localId, serviceLocalId, clientLocalId, date: dateStr(d), time: randTime(), duration: [30,45,60,90][randInt(0,3)], status, notes: `Test appointment ${SEED_TAG}`, totalPrice: String(randInt(30, 200)), paymentMethod: pick(PAYMENT_METHODS) });
+          const isPast = d < now;
+          // Past appointments lean toward completed, future toward confirmed
+          const status = isPast
+            ? pick(["completed","completed","completed","cancelled","pending"] as const)
+            : pick(["confirmed","confirmed","pending","cancelled"] as const);
+          const svcPrice = createdServicePrices[serviceLocalId] ?? randInt(30, 200);
+          const svcDur = createdServiceDurations[serviceLocalId] ?? pick([30,45,60,90]);
+          const paid = status === "completed" ? pick(["cash","card","card","zelle","venmo","cashapp"]) : "unpaid";
+          const note = pick(APPT_NOTES);
+          await dbase.insert(appointments).values({
+            businessOwnerId: businessId, localId, serviceLocalId, clientLocalId,
+            ...(locationLocalId ? { locationLocalId } : {}),
+            ...(staffLocalId ? { staffLocalId } : {}),
+            date: dateStr(d), time: randTime(), duration: svcDur, status,
+            notes: note ? `${note} ${SEED_TAG}` : `${SEED_TAG}`,
+            totalPrice: String(svcPrice),
+            paymentMethod: paid as any,
+          });
         }
         summary.appointments = apptCount;
       }
-      // Seed reviews
+      // Seed reviews (realistic comments with star-appropriate text)
       const reviewCount = Number(categories.reviews || 0);
       if (reviewCount > 0) {
         for (let i = 0; i < reviewCount; i++) {
           const localId = uid();
           const clientLocalId = createdClientIds.length > 0 ? pick(createdClientIds) : uid();
-          await dbase.insert(reviews).values({ businessOwnerId: businessId, localId, clientLocalId, rating: randInt(3, 5), comment: `${pick(REVIEW_COMMENTS)} ${SEED_TAG}` });
+          const clientName = createdClientNames.length > 0 ? pick(createdClientNames) : `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`;
+          // Realistic rating distribution: mostly 4-5 stars
+          const rating = pick([5,5,5,5,4,4,4,3,3,2]);
+          const commentPool = rating === 5 ? REVIEW_COMMENTS_5 : rating === 4 ? REVIEW_COMMENTS_4 : REVIEW_COMMENTS_3;
+          const staffName = createdStaffIds.length > 0 ? `${pick(FIRST_NAMES)}` : "the team";
+          const comment = pick(commentPool).replace("{name}", staffName) + ` ${SEED_TAG}`;
+          const reviewDate = dateStr(randDate(new Date(now.getTime() - 180 * 86400000), now));
+          await dbase.insert(reviews).values({ businessOwnerId: businessId, localId, clientLocalId, clientName, rating, comment, date: reviewDate });
         }
         summary.reviews = reviewCount;
       }
-      // Seed promo codes
+      // Seed promo codes (realistic codes with expiry dates)
       const promoCount = Number(categories.promoCodes || 0);
       if (promoCount > 0) {
+        const usedCodes = new Set<string>();
+        const shuffledPromos = [...PROMO_CODE_TEMPLATES].sort(() => Math.random() - 0.5);
         for (let i = 0; i < promoCount; i++) {
           const localId = uid();
-          const code = `SEED${uid().slice(0,6).toUpperCase()}`;
-          await dbase.insert(promoCodes).values({ businessOwnerId: businessId, localId, code, label: `${pick(PROMO_LABELS)} ${SEED_TAG}`, percentage: randInt(5, 40), active: true, usedCount: 0 });
+          const tmpl = shuffledPromos[i % shuffledPromos.length];
+          const year = now.getFullYear();
+          const num = randInt(10, 99);
+          let code = tmpl.code.replace('{N}', String(num)).replace('{Y}', String(year));
+          let attempt = 0;
+          while (usedCodes.has(code) && attempt < 10) { code = code.replace(/\d+$/, '') + randInt(10,99); attempt++; }
+          usedCodes.add(code);
+          const expiry = new Date(now); expiry.setMonth(expiry.getMonth() + randInt(1, 12));
+          await dbase.insert(promoCodes).values({
+            businessOwnerId: businessId, localId, code,
+            label: `${tmpl.label} ${SEED_TAG}`,
+            percentage: tmpl.pct,
+            active: Math.random() > 0.2,
+            usedCount: randInt(0, 50),
+            expiryDate: expiry.toISOString().slice(0, 10),
+          });
         }
         summary.promoCodes = promoCount;
       }
-      // Seed discounts
+      // Seed discounts (realistic time-based discounts)
       const discountCount = Number(categories.discounts || 0);
       if (discountCount > 0) {
+        const shuffledDiscounts = [...DISCOUNT_CATALOG].sort(() => Math.random() - 0.5);
         for (let i = 0; i < discountCount; i++) {
           const localId = uid();
-          const startH = randInt(8, 14);
-          const endH = startH + randInt(2, 4);
-          await dbase.insert(discounts).values({ businessOwnerId: businessId, localId, name: `${pick(DISCOUNT_NAMES)} ${SEED_TAG}`, percentage: randInt(5, 30), startTime: `${padZ(startH)}:00`, endTime: `${padZ(endH)}:00`, active: true });
+          const disc = shuffledDiscounts[i % shuffledDiscounts.length];
+          await dbase.insert(discounts).values({
+            businessOwnerId: businessId, localId,
+            name: `${disc.name} ${SEED_TAG}`,
+            percentage: disc.pct,
+            startTime: `${padZ(disc.startH)}:00`,
+            endTime: `${padZ(disc.endH)}:00`,
+            active: Math.random() > 0.15,
+          });
         }
         summary.discounts = discountCount;
       }
-      // Seed gift cards
+      // Seed gift cards (realistic values and messages)
       const giftCount = Number(categories.giftCards || 0);
       if (giftCount > 0) {
-        const serviceLocalId = createdServiceIds.length > 0 ? createdServiceIds[0] : uid();
+        const GC_VALUES = [25, 30, 40, 50, 60, 75, 100, 125, 150, 200];
         for (let i = 0; i < giftCount; i++) {
           const localId = uid();
-          const code = `GC${uid().slice(0,8).toUpperCase()}`;
-          const val = String(randInt(25, 200));
-          await dbase.insert(giftCards).values({ businessOwnerId: businessId, localId, code, serviceLocalId, recipientName: `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`, message: `${pick(GIFT_MSGS)} ${SEED_TAG}`, redeemed: false });
+          const code = `GC-${randInt(1000,9999)}-${uid().slice(0,4).toUpperCase()}`;
+          const recipientFirst = pick(FIRST_NAMES);
+          const recipientLast = pick(LAST_NAMES);
+          const val = String(pick(GC_VALUES));
+          const serviceLocalId = createdServiceIds.length > 0 ? pick(createdServiceIds) : uid();
+          const isRedeemed = Math.random() < 0.3;
+          await dbase.insert(giftCards).values({
+            businessOwnerId: businessId, localId, code, serviceLocalId,
+            recipientName: `${recipientFirst} ${recipientLast}`,
+            senderName: `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`,
+            message: `${pick(GIFT_MSGS)} ${SEED_TAG}`,
+            value: val,
+            redeemed: isRedeemed,
+            redeemedDate: isRedeemed ? dateStr(randDate(new Date(now.getTime() - 90 * 86400000), now)) : null,
+          });
         }
         summary.giftCards = giftCount;
       }
-      // Seed locations
-      const locationCount = Number(categories.locations || 0);
-      if (locationCount > 0) {
-        for (let i = 0; i < locationCount; i++) {
-          const localId = uid();
-          const city = pick(CITIES);
-          await dbase.insert(locations).values({ businessOwnerId: businessId, localId, name: `${pick(LOCATION_NAMES)} ${SEED_TAG}`, address: `${randInt(100,9999)} ${pick(LAST_NAMES)} St`, city, state: "FL", zipCode: String(randInt(10000,99999)), active: true, isDefault: false });
-        }
-        summary.locations = locationCount;
-      }
-
-      // Seed products
+      // Seed products (from realistic product catalog)
       const productCount = Number(categories.products || 0);
-      const PRODUCT_NAMES = ["Hydrating Shampoo","Repair Conditioner","Styling Gel","Hair Serum","Scalp Treatment","Color Protect Spray","Volumizing Mousse","Keratin Mask","Argan Oil","Leave-In Conditioner","Nail Polish","Cuticle Oil","Hand Cream","Exfoliating Scrub","Brightening Serum"];
-      const PRODUCT_BRANDS = ["Olaplex","Redken","Wella","Moroccanoil","Kerastase","Paul Mitchell","Aveda","OPI","CND","Essie"];
-      const PRODUCT_CATEGORIES = ["Hair Care","Nail Care","Skin Care","Styling","Treatment","Tools"];
       const createdProductIds: string[] = [];
       if (productCount > 0) {
+        const shuffledProducts = [...PRODUCT_CATALOG].sort(() => Math.random() - 0.5);
         for (let i = 0; i < productCount; i++) {
           const localId = uid();
           createdProductIds.push(localId);
-          const price = (randInt(8, 80) + 0.99).toFixed(2);
+          const prod = shuffledProducts[i % shuffledProducts.length];
+          const price = (randInt(prod.minPrice, prod.maxPrice) - 0.01).toFixed(2);
+          const stock = randInt(0, 50);
           await dbase.insert(products).values({
-            businessOwnerId: businessId,
-            localId,
-            name: `${pick(PRODUCT_NAMES)} ${SEED_TAG}`,
+            businessOwnerId: businessId, localId,
+            name: `${prod.name} ${SEED_TAG}`,
             price,
-            description: `Premium ${pick(PRODUCT_CATEGORIES).toLowerCase()} product for professional use.`,
-            brand: pick(PRODUCT_BRANDS),
-            available: true,
+            description: `${prod.brand} ${prod.name} — professional-grade ${prod.category.toLowerCase()} product. Recommended for salon use and retail.`,
+            brand: prod.brand,
+            category: prod.category,
+            stock,
+            available: stock > 0,
           });
         }
         summary.products = productCount;
       }
-
       // Seed waitlist entries (linked to real or seeded services)
       const waitlistCount = Number(categories.waitlist || 0);
       const allSvcForWaitlist = createdServiceIds.length > 0 ? createdServiceIds : (await dbase.select({ localId: services.localId }).from(services).where(sql`businessOwnerId = ${businessId}`)).map((s: any) => s.localId);
       if (waitlistCount > 0) {
-        const WAITLIST_NOTES = ["Flexible on time","Prefers morning slots","Afternoon only","ASAP please","Weekends preferred","Any day works"];
+        const WAITLIST_NOTES = [
+          "Flexible on timing, any slot works.",
+          "Prefers morning appointments before 11am.",
+          "Afternoon only — works mornings.",
+          "ASAP please, event coming up this weekend.",
+          "Weekends preferred, hard to get away weekdays.",
+          "Any day works, just need 24h notice.",
+          "Prefer same stylist as last time.",
+          "First time on waitlist — very excited!",
+          "Referred by a friend, flexible schedule.",
+          "Has a tight schedule, please confirm ASAP.",
+        ];
         for (let i = 0; i < waitlistCount; i++) {
           const firstName = pick(FIRST_NAMES);
           const lastName = pick(LAST_NAMES);
@@ -2060,17 +2354,16 @@ export function registerAdminRoutes(app: Express): void {
           await dbase.insert(waitlist).values({
             businessOwnerId: businessId,
             clientName: `${firstName} ${lastName} ${SEED_TAG}`,
-            clientPhone: `+1${randInt(200,999)}${randInt(100,999)}${randInt(1000,9999)}`,
-            clientEmail: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.com`,
+            clientPhone: randPhone(),
+            clientEmail: `${firstName.toLowerCase()}.${lastName.toLowerCase()}${randInt(1,99)}@gmail.com`,
             serviceLocalId: svcLocalId,
             preferredDate: d.toISOString().slice(0,10),
-            status: pick(["waiting","waiting","notified","booked"]) as any,
+            status: pick(['waiting','waiting','waiting','notified','booked']) as any,
             notes: `${pick(WAITLIST_NOTES)} ${SEED_TAG}`,
           });
         }
         summary.waitlist = waitlistCount;
       }
-
       // Seed custom schedule days (date overrides)
       const scheduleCount = Number(categories.customSchedule || 0);
       if (scheduleCount > 0) {
@@ -3149,7 +3442,87 @@ function businessDetailPage(data: any): string {
         <div class="detail-item"><div class="detail-label">Locations</div><div class="detail-value">${(data.locations || []).length}</div></div>
       </div>
     </div>
-
+    <!-- Social & Payment Accounts Card -->
+    <div class="card" style="margin-bottom:24px;">
+      <h3>&#128247; Social &amp; Payment Accounts</h3>
+      <p style="color:var(--muted);font-size:13px;margin:0 0 16px;">These handles are displayed to clients on booking confirmations and the booking page.</p>
+      <form id="socialForm">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;">
+          <div class="form-group" style="margin:0;">
+            <label>&#128248; Instagram Handle</label>
+            <input type="text" name="instagramHandle" value="${escHtml(o.instagramHandle || '')}" placeholder="@yoursalon" class="form-control" style="margin-top:4px;">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label>&#128216; Facebook Page</label>
+            <input type="text" name="facebookHandle" value="${escHtml(o.facebookHandle || '')}" placeholder="facebook.com/yoursalon" class="form-control" style="margin-top:4px;">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label>&#127925; TikTok Handle</label>
+            <input type="text" name="tiktokHandle" value="${escHtml(o.tiktokHandle || '')}" placeholder="@yoursalon" class="form-control" style="margin-top:4px;">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label>&#128154; Zelle (phone or email)</label>
+            <input type="text" name="zelleHandle" value="${escHtml(o.zelleHandle || '')}" placeholder="+1 (555) 000-0000" class="form-control" style="margin-top:4px;">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label>&#128184; Cash App</label>
+            <input type="text" name="cashAppHandle" value="${escHtml(o.cashAppHandle || '')}" placeholder="$yoursalon" class="form-control" style="margin-top:4px;">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label>&#128153; Venmo</label>
+            <input type="text" name="venmoHandle" value="${escHtml(o.venmoHandle || '')}" placeholder="@yoursalon" class="form-control" style="margin-top:4px;">
+          </div>
+        </div>
+        <div style="margin-top:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <button type="submit" class="btn btn-primary btn-sm">&#128190; Save Accounts</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="autoFillSocial()">&#127922; Auto-Generate Handles</button>
+          <span id="socialSaveMsg" style="font-size:13px;color:var(--success);display:none;">&#10003; Saved!</span>
+          <span id="socialErrMsg" style="font-size:13px;color:var(--danger);display:none;"></span>
+        </div>
+      </form>
+    </div>
+    <script>
+    (function() {
+      const slug = '${slug}'.toLowerCase().replace(/[^a-z0-9]/g,'');
+      function autoFillSocial() {
+        const suffixes = ['salon','studio','beauty','spa','glam','style','lounge','nails'];
+        const suf = suffixes[Math.floor(Math.random()*suffixes.length)];
+        const handle = slug + suf;
+        document.querySelector('[name=instagramHandle]').value = '@' + handle;
+        document.querySelector('[name=facebookHandle]').value = handle + 'official';
+        document.querySelector('[name=tiktokHandle]').value = '@' + handle;
+        const phone = '${escHtml(o.phone || '')}';
+        document.querySelector('[name=zelleHandle]').value = phone || ('+1' + (Math.floor(Math.random()*8000000000)+2000000000));
+        document.querySelector('[name=cashAppHandle]').value = '$' + handle;
+        document.querySelector('[name=venmoHandle]').value = '@' + handle;
+      }
+      window.autoFillSocial = autoFillSocial;
+      document.getElementById('socialForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const body = {};
+        fd.forEach((v,k) => body[k]=v);
+        try {
+          const r = await fetch('/api/admin/businesses/${o.id}/social', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+          if (r.ok) {
+            const m = document.getElementById('socialSaveMsg');
+            m.style.display='inline';
+            setTimeout(()=>m.style.display='none',2500);
+          } else {
+            const em = document.getElementById('socialErrMsg');
+            em.textContent = 'Save failed: ' + r.status;
+            em.style.display='inline';
+            setTimeout(()=>em.style.display='none',3000);
+          }
+        } catch(err) {
+          const em = document.getElementById('socialErrMsg');
+          em.textContent = 'Network error';
+          em.style.display='inline';
+          setTimeout(()=>em.style.display='none',3000);
+        }
+      });
+    })();
+    </script>
     ${data.services.length > 0 ? `
     <div class="card">
       <h3>Services (${data.services.length})</h3>
@@ -6115,6 +6488,19 @@ function devTestingPage(bizOptions: string): string {
           </div>
         </div>
 
+        <!-- Lock toggle -->
+        <div class="card" style="margin-bottom:16px;border:1px solid var(--border);">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <div>
+              <div style="font-size:14px;font-weight:700;">🔒 Lock Seed Data from Removal</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">When enabled, the Remove All button will be disabled for this batch. Unlock to clean up.</div>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;">
+              <input type="checkbox" id="lockToggle" style="width:18px;height:18px;cursor:pointer;">
+              <span id="lockLabel" style="font-size:13px;font-weight:600;color:var(--text-muted);">Unlocked</span>
+            </label>
+          </div>
+        </div>
         <!-- Generate button -->
         <div class="card" style="margin-bottom:20px;">
           <button id="generateBtn" onclick="runGenerate()" style="width:100%;padding:14px;background:var(--primary);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .15s;">
@@ -6217,7 +6603,7 @@ function devTestingPage(bizOptions: string): string {
           const r = await fetch('/api/admin/dev-testing/seed', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ businessId: parseInt(bizId), fromDate, toDate, categories })
+            body: JSON.stringify({ businessId: parseInt(bizId), from: fromDate, to: toDate, locked: document.getElementById('lockToggle').checked, categories })
           });
           const data = await r.json();
           if (data.ok) {
@@ -6238,6 +6624,7 @@ function devTestingPage(bizOptions: string): string {
       async function runCleanup() {
         const bizId = document.getElementById('bizSelect').value;
         if (!bizId) { alert('Please select a business first.'); return; }
+        if (document.getElementById('lockToggle').checked) { alert('Seed data is locked. Uncheck the Lock toggle first to enable removal.'); return; }
         if (!confirm('Remove ALL seed data for this business? This cannot be undone.')) return;
         const btn = document.getElementById('cleanupBtn');
         btn.disabled = true; btn.textContent = 'Removing...';
@@ -6271,6 +6658,21 @@ function devTestingPage(bizOptions: string): string {
         document.getElementById('fromDate').value = past.toISOString().slice(0,10);
         document.getElementById('toDate').value = future.toISOString().slice(0,10);
         document.getElementById('bizSelect').addEventListener('change', checkSeedCount);
+        document.getElementById('lockToggle').addEventListener('change', function() {
+          const lbl = document.getElementById('lockLabel');
+          const cleanupBtn = document.getElementById('cleanupBtn');
+          if (this.checked) {
+            lbl.textContent = 'Locked 🔒';
+            lbl.style.color = 'var(--warning)';
+            cleanupBtn.style.opacity = '0.4';
+            cleanupBtn.title = 'Unlock seed data first';
+          } else {
+            lbl.textContent = 'Unlocked';
+            lbl.style.color = 'var(--text-muted)';
+            cleanupBtn.style.opacity = '1';
+            cleanupBtn.title = '';
+          }
+        });
         checkSeedCount();
       })();
     </script>
