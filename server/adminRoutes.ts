@@ -1744,6 +1744,234 @@ export function registerAdminRoutes(app: Express): void {
       res.status(500).send(errorPage("Failed to load waitlist"));
     }
   });
+
+  // ─── Dev Testing Panel ────────────────────────────────────────────────────
+  app.get("/api/admin/dev-testing", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
+      const allBiz = await dbase.select({ id: businessOwners.id, name: businessOwners.businessName, phone: businessOwners.phone }).from(businessOwners);
+      const bizOptions = allBiz.map((b: any) => `<option value="${b.id}">${escHtml(b.name || String(b.id))} (${escHtml(b.phone || '')})</option>`).join('');
+      res.send(adminLayout("Dev Testing Panel", "dev-testing", devTestingPage(bizOptions)));
+    } catch (err) {
+      console.error("[Admin] Dev Testing Panel error:", err);
+      res.status(500).send(errorPage("Failed to load Dev Testing Panel"));
+    }
+  });
+
+  app.post("/api/admin/dev-testing/seed", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.json({ ok: false, error: "DB unavailable" }); return; }
+      const { businessId, fromDate, toDate, categories } = req.body as {
+        businessId: number;
+        fromDate: string;
+        toDate: string;
+        categories: Record<string, number>;
+      };
+      if (!businessId) { res.json({ ok: false, error: "businessId required" }); return; }
+      const SEED_TAG = "__dev_seed__";
+      const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+      const padZ = (n: number) => String(n).padStart(2, "0");
+      const randInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+      const randDate = (from: Date, to: Date) => new Date(from.getTime() + Math.random() * (to.getTime() - from.getTime()));
+      const dateStr = (d: Date) => `${d.getFullYear()}-${padZ(d.getMonth() + 1)}-${padZ(d.getDate())}`;
+      const randTime = () => `${padZ(randInt(8, 19))}:${padZ([0, 15, 30, 45][Math.floor(Math.random() * 4)])}`;
+      const from = fromDate ? new Date(fromDate) : new Date(Date.now() - 90 * 86400000);
+      const to = toDate ? new Date(toDate) : new Date(Date.now() + 60 * 86400000);
+      const FIRST_NAMES = ["Alex","Jordan","Taylor","Morgan","Casey","Riley","Avery","Quinn","Peyton","Drew","Skyler","Reese","Cameron","Hayden","Blake","Logan","Kendall","Dakota","Sage","River"];
+      const LAST_NAMES = ["Smith","Johnson","Williams","Brown","Jones","Garcia","Miller","Davis","Wilson","Moore","Taylor","Anderson","Thomas","Jackson","White","Harris","Martin","Thompson","Lee","Walker"];
+      const SERVICES = ["Haircut","Balayage","Color","Highlights","Blowout","Keratin","Trim","Toner","Perm","Gloss"];
+      const ROLES = ["Stylist","Colorist","Manager","Assistant","Senior Stylist","Junior Stylist"];
+      const COLORS = ["#3B82F6","#EF4444","#10B981","#F59E0B","#8B5CF6","#EC4899","#14B8A6","#F97316"];
+      const CITIES = ["Miami","New York","Los Angeles","Chicago","Houston","Phoenix","Philadelphia","San Antonio","Dallas","San Diego"];
+      const REVIEW_COMMENTS = ["Great service!","Very professional.","Love the results!","Will come back.","Amazing experience.","Highly recommend.","Exceeded expectations.","Fantastic job!","Very satisfied.","Best in town."];
+      const PROMO_LABELS = ["Summer Sale","New Client","Referral Bonus","Holiday Special","Birthday Offer","Loyalty Reward","Flash Sale","Weekend Deal","VIP Access","First Visit"];
+      const DISCOUNT_NAMES = ["Happy Hour","Early Bird","Late Night","Weekend Special","Senior Discount","Student Deal","Member Perk","Seasonal Offer"];
+      const LOCATION_NAMES = ["Main Branch","Downtown Studio","Uptown Salon","West Side","East End","North Location","South Studio","Central Hub"];
+      const GIFT_MSGS = ["Happy Birthday!","Congratulations!","You deserve it!","With love!","Enjoy your day!","A special treat!","Just for you!","Thinking of you!"];
+      const pick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+      const summary: Record<string, number> = {};
+      // Seed clients
+      const clientCount = Number(categories.clients || 0);
+      const createdClientIds: string[] = [];
+      if (clientCount > 0) {
+        for (let i = 0; i < clientCount; i++) {
+          const localId = uid();
+          const name = `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`;
+          const phone = `+1305${String(randInt(1000000, 9999999))}`;
+          await dbase.insert(clients).values({ businessOwnerId: businessId, localId, name, phone, email: `${localId.slice(0,6)}@test.dev`, notes: `Test client ${SEED_TAG}` });
+          createdClientIds.push(localId);
+        }
+        summary.clients = clientCount;
+      }
+      // Seed services
+      const serviceCount = Number(categories.services || 0);
+      const createdServiceIds: string[] = [];
+      if (serviceCount > 0) {
+        for (let i = 0; i < serviceCount; i++) {
+          const localId = uid();
+          const name = `${pick(SERVICES)} ${SEED_TAG}`;
+          const price = String(randInt(30, 200));
+          const duration = [30, 45, 60, 90, 120][randInt(0, 4)];
+          await dbase.insert(services).values({ businessOwnerId: businessId, localId, name, price, duration, color: pick(COLORS) });
+          createdServiceIds.push(localId);
+        }
+        summary.services = serviceCount;
+      }
+      // Seed staff
+      const staffCount = Number(categories.staff || 0);
+      if (staffCount > 0) {
+        for (let i = 0; i < staffCount; i++) {
+          const localId = uid();
+          const name = `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)} ${SEED_TAG}`;
+          await dbase.insert(staffMembers).values({ businessOwnerId: businessId, localId, name, role: pick(ROLES), color: pick(COLORS), active: true, commissionRate: randInt(10, 40) });
+        }
+        summary.staff = staffCount;
+      }
+      // Seed appointments
+      const apptCount = Number(categories.appointments || 0);
+      if (apptCount > 0) {
+        const STATUSES: Array<"pending"|"confirmed"|"completed"|"cancelled"> = ["pending","confirmed","completed","cancelled"];
+        const PAYMENT_METHODS: Array<"cash"|"card"|"zelle"|"venmo"|"cashapp"|"unpaid"> = ["cash","card","zelle","venmo","cashapp","unpaid"];
+        for (let i = 0; i < apptCount; i++) {
+          const localId = uid();
+          const clientLocalId = createdClientIds.length > 0 ? pick(createdClientIds) : uid();
+          const serviceLocalId = createdServiceIds.length > 0 ? pick(createdServiceIds) : uid();
+          const d = randDate(from, to);
+          const status = pick(STATUSES);
+          await dbase.insert(appointments).values({ businessOwnerId: businessId, localId, serviceLocalId, clientLocalId, date: dateStr(d), time: randTime(), duration: [30,45,60,90][randInt(0,3)], status, notes: `Test appointment ${SEED_TAG}`, totalPrice: String(randInt(30, 200)), paymentMethod: pick(PAYMENT_METHODS) });
+        }
+        summary.appointments = apptCount;
+      }
+      // Seed reviews
+      const reviewCount = Number(categories.reviews || 0);
+      if (reviewCount > 0) {
+        for (let i = 0; i < reviewCount; i++) {
+          const localId = uid();
+          const clientLocalId = createdClientIds.length > 0 ? pick(createdClientIds) : uid();
+          await dbase.insert(reviews).values({ businessOwnerId: businessId, localId, clientLocalId, rating: randInt(3, 5), comment: `${pick(REVIEW_COMMENTS)} ${SEED_TAG}` });
+        }
+        summary.reviews = reviewCount;
+      }
+      // Seed promo codes
+      const promoCount = Number(categories.promoCodes || 0);
+      if (promoCount > 0) {
+        for (let i = 0; i < promoCount; i++) {
+          const localId = uid();
+          const code = `SEED${uid().slice(0,6).toUpperCase()}`;
+          await dbase.insert(promoCodes).values({ businessOwnerId: businessId, localId, code, label: `${pick(PROMO_LABELS)} ${SEED_TAG}`, percentage: randInt(5, 40), active: true, usedCount: 0 });
+        }
+        summary.promoCodes = promoCount;
+      }
+      // Seed discounts
+      const discountCount = Number(categories.discounts || 0);
+      if (discountCount > 0) {
+        for (let i = 0; i < discountCount; i++) {
+          const localId = uid();
+          const startH = randInt(8, 14);
+          const endH = startH + randInt(2, 4);
+          await dbase.insert(discounts).values({ businessOwnerId: businessId, localId, name: `${pick(DISCOUNT_NAMES)} ${SEED_TAG}`, percentage: randInt(5, 30), startTime: `${padZ(startH)}:00`, endTime: `${padZ(endH)}:00`, active: true });
+        }
+        summary.discounts = discountCount;
+      }
+      // Seed gift cards
+      const giftCount = Number(categories.giftCards || 0);
+      if (giftCount > 0) {
+        const serviceLocalId = createdServiceIds.length > 0 ? createdServiceIds[0] : uid();
+        for (let i = 0; i < giftCount; i++) {
+          const localId = uid();
+          const code = `GC${uid().slice(0,8).toUpperCase()}`;
+          const val = String(randInt(25, 200));
+          await dbase.insert(giftCards).values({ businessOwnerId: businessId, localId, code, serviceLocalId, recipientName: `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`, message: `${pick(GIFT_MSGS)} ${SEED_TAG}`, redeemed: false });
+        }
+        summary.giftCards = giftCount;
+      }
+      // Seed locations
+      const locationCount = Number(categories.locations || 0);
+      if (locationCount > 0) {
+        for (let i = 0; i < locationCount; i++) {
+          const localId = uid();
+          const city = pick(CITIES);
+          await dbase.insert(locations).values({ businessOwnerId: businessId, localId, name: `${pick(LOCATION_NAMES)} ${SEED_TAG}`, address: `${randInt(100,9999)} ${pick(LAST_NAMES)} St`, city, state: "FL", zipCode: String(randInt(10000,99999)), active: true, isDefault: false });
+        }
+        summary.locations = locationCount;
+      }
+      res.json({ ok: true, summary });
+    } catch (err: any) {
+      console.error("[Admin] Dev Testing seed error:", err);
+      res.json({ ok: false, error: String(err?.message || err) });
+    }
+  });
+
+  app.post("/api/admin/dev-testing/cleanup", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.json({ ok: false, error: "DB unavailable" }); return; }
+      const { businessId } = req.body as { businessId: number };
+      if (!businessId) { res.json({ ok: false, error: "businessId required" }); return; }
+      const SEED_TAG = "__dev_seed__";
+      const { like } = await import("drizzle-orm");
+      const seedLike = `%${SEED_TAG}%`;
+      // Delete seeded items by SEED_TAG marker in their text fields
+      const [delClients] = await dbase.delete(clients).where(sql`businessOwnerId = ${businessId} AND notes LIKE ${seedLike}`);
+      const [delAppts] = await dbase.delete(appointments).where(sql`businessOwnerId = ${businessId} AND notes LIKE ${seedLike}`);
+      const [delReviews] = await dbase.delete(reviews).where(sql`businessOwnerId = ${businessId} AND comment LIKE ${seedLike}`);
+      const [delPromos] = await dbase.delete(promoCodes).where(sql`businessOwnerId = ${businessId} AND label LIKE ${seedLike}`);
+      const [delDiscounts] = await dbase.delete(discounts).where(sql`businessOwnerId = ${businessId} AND name LIKE ${seedLike}`);
+      const [delGifts] = await dbase.delete(giftCards).where(sql`businessOwnerId = ${businessId} AND message LIKE ${seedLike}`);
+      const [delLocations] = await dbase.delete(locations).where(sql`businessOwnerId = ${businessId} AND name LIKE ${seedLike}`);
+      const [delServices] = await dbase.delete(services).where(sql`businessOwnerId = ${businessId} AND name LIKE ${seedLike}`);
+      const [delStaff] = await dbase.delete(staffMembers).where(sql`businessOwnerId = ${businessId} AND name LIKE ${seedLike}`);
+      const removed = {
+        clients: (delClients as any)?.affectedRows ?? 0,
+        appointments: (delAppts as any)?.affectedRows ?? 0,
+        reviews: (delReviews as any)?.affectedRows ?? 0,
+        promoCodes: (delPromos as any)?.affectedRows ?? 0,
+        discounts: (delDiscounts as any)?.affectedRows ?? 0,
+        giftCards: (delGifts as any)?.affectedRows ?? 0,
+        locations: (delLocations as any)?.affectedRows ?? 0,
+        services: (delServices as any)?.affectedRows ?? 0,
+        staff: (delStaff as any)?.affectedRows ?? 0,
+      };
+      const total = Object.values(removed).reduce((a: number, b: number) => a + b, 0);
+      res.json({ ok: true, removed, total });
+    } catch (err: any) {
+      console.error("[Admin] Dev Testing cleanup error:", err);
+      res.json({ ok: false, error: String(err?.message || err) });
+    }
+  });
+
+  app.get("/api/admin/dev-testing/count", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.json({ ok: false, error: "DB unavailable" }); return; }
+      const bizId = Number(req.query.businessId);
+      if (!bizId) { res.json({ ok: false, error: "businessId required" }); return; }
+      const SEED_TAG = "__dev_seed__";
+      const seedLike = `%${SEED_TAG}%`;
+      const countOf = async (table: any, col: any) => {
+        const rows = await dbase.select({ n: drizzleCount() }).from(table).where(sql`businessOwnerId = ${bizId} AND ${col} LIKE ${seedLike}`);
+        return rows[0]?.n ?? 0;
+      };
+      const counts = {
+        clients: await countOf(clients, sql`notes`),
+        appointments: await countOf(appointments, sql`notes`),
+        reviews: await countOf(reviews, sql`comment`),
+        promoCodes: await countOf(promoCodes, sql`label`),
+        discounts: await countOf(discounts, sql`name`),
+        giftCards: await countOf(giftCards, sql`message`),
+        locations: await countOf(locations, sql`name`),
+        services: await countOf(services, sql`name`),
+        staff: await countOf(staffMembers, sql`name`),
+      };
+      const total = Object.values(counts).reduce((a: number, b: number) => a + b, 0);
+      res.json({ ok: true, counts, total });
+    } catch (err: any) {
+      res.json({ ok: false, error: String(err?.message || err) });
+    }
+  });
+
 }
 
 // ─── HTML Templates ─────────────────────────────────────────────────
@@ -2056,6 +2284,7 @@ function sidebarHtml(activePage: string): string {
       ${navItem('/api/admin/settings', '⚙️', 'Settings', a === 'settings')}
       ${navItem('/api/admin/db', '🗄️', 'DB Explorer', a === 'db')}
       ${navItem('/api/admin/audit-log-page', '📝', 'Audit Log', a === 'audit-log')}
+      ${navItem('/api/admin/dev-testing', '🧪', 'Dev Testing Panel', a === 'dev-testing')}
 
       <div style="margin-top:auto;padding-top:20px;border-top:1px solid var(--border);margin-top:20px;">
         <a href="/api/admin/logout" class="nav-item" style="color:var(--danger);">
@@ -5509,4 +5738,254 @@ function financialPage(data: {
       }
     </script>
   `);
+}
+
+// ─── Dev Testing Page ─────────────────────────────────────────────────────────
+function devTestingPage(bizOptions: string): string {
+  return `
+    <div class="page-header">
+      <h2>🧪 Dev Testing Panel</h2>
+      <span style="font-size:13px;color:var(--text-muted);">Generate and remove bulk test data for any business</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+      <!-- Left: Config -->
+      <div>
+        <div class="card" style="margin-bottom:20px;">
+          <h3 style="font-size:15px;font-weight:700;margin-bottom:16px;">⚙️ Configuration</h3>
+          <div style="margin-bottom:14px;">
+            <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Target Business</label>
+            <select id="bizSelect" style="width:100%;padding:8px 12px;background:var(--bg-hover);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;">
+              ${bizOptions || '<option value="">No businesses found</option>'}
+            </select>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+            <div>
+              <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">From Date</label>
+              <input type="date" id="fromDate" style="width:100%;padding:8px 12px;background:var(--bg-hover);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;" />
+            </div>
+            <div>
+              <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">To Date</label>
+              <input type="date" id="toDate" style="width:100%;padding:8px 12px;background:var(--bg-hover);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;" />
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:20px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+            <h3 style="font-size:15px;font-weight:700;">📦 Categories</h3>
+            <div style="display:flex;gap:8px;">
+              <button onclick="selectAll()" style="padding:4px 10px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;">Select All</button>
+              <button onclick="deselectAll()" style="padding:4px 10px;background:var(--bg-hover);color:var(--text-muted);border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer;">Deselect All</button>
+            </div>
+          </div>
+          <div id="categoriesGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            ${[
+              {key:'clients', label:'👤 Clients', default:5},
+              {key:'appointments', label:'📅 Appointments', default:10},
+              {key:'reviews', label:'⭐ Reviews', default:5},
+              {key:'promoCodes', label:'🎟️ Promo Codes', default:3},
+              {key:'giftCards', label:'🎁 Gift Cards', default:3},
+              {key:'discounts', label:'💰 Discounts', default:3},
+              {key:'locations', label:'📍 Locations', default:2},
+              {key:'services', label:'✂️ Services', default:3},
+              {key:'staff', label:'👥 Staff', default:2},
+            ].map(c => `
+              <div style="background:var(--bg-hover);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                  <input type="checkbox" id="chk_${c.key}" checked style="width:16px;height:16px;cursor:pointer;accent-color:var(--primary);" />
+                  <label for="chk_${c.key}" style="font-size:13px;font-weight:600;cursor:pointer;">${c.label}</label>
+                </div>
+                <input type="number" id="cnt_${c.key}" value="${c.default}" min="1" max="500" style="width:100%;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;" />
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Presets -->
+        <div class="card">
+          <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;">⚡ Quick Presets</h3>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <button onclick="applyPreset('smoke')" style="padding:6px 14px;background:var(--bg-hover);border:1px solid var(--border);border-radius:20px;color:var(--text);font-size:12px;cursor:pointer;">🔥 Smoke Test</button>
+            <button onclick="applyPreset('light')" style="padding:6px 14px;background:var(--bg-hover);border:1px solid var(--border);border-radius:20px;color:var(--text);font-size:12px;cursor:pointer;">🌱 Light Load</button>
+            <button onclick="applyPreset('heavy')" style="padding:6px 14px;background:var(--bg-hover);border:1px solid var(--border);border-radius:20px;color:var(--text);font-size:12px;cursor:pointer;">🏋️ Heavy Load</button>
+            <button onclick="applyPreset('appts')" style="padding:6px 14px;background:var(--bg-hover);border:1px solid var(--border);border-radius:20px;color:var(--text);font-size:12px;cursor:pointer;">📅 Appts Only</button>
+            <button onclick="applyPreset('full')" style="padding:6px 14px;background:var(--bg-hover);border:1px solid var(--border);border-radius:20px;color:var(--text);font-size:12px;cursor:pointer;">🏢 Full Business</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Actions + Log -->
+      <div>
+        <!-- Seed count banner -->
+        <div id="seedBanner" class="card" style="margin-bottom:20px;border:1px solid var(--warning);background:rgba(245,158,11,0.08);display:none;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <div style="font-size:14px;font-weight:700;color:var(--warning);">⚠️ Seed Data Present</div>
+              <div id="seedBannerDetail" style="font-size:12px;color:var(--text-muted);margin-top:4px;"></div>
+            </div>
+            <button id="cleanupBtn" onclick="runCleanup()" style="padding:8px 16px;background:var(--danger);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">🗑️ Remove All Seed Data</button>
+          </div>
+        </div>
+
+        <!-- Generate button -->
+        <div class="card" style="margin-bottom:20px;">
+          <button id="generateBtn" onclick="runGenerate()" style="width:100%;padding:14px;background:var(--primary);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .15s;">
+            🚀 Generate Test Data
+          </button>
+          <div id="generateProgress" style="display:none;margin-top:12px;text-align:center;color:var(--text-muted);font-size:13px;">Generating...</div>
+        </div>
+
+        <!-- Activity log -->
+        <div class="card">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <h3 style="font-size:15px;font-weight:700;">📋 Activity Log</h3>
+            <button onclick="document.getElementById('activityLog').innerHTML=''" style="padding:3px 10px;background:var(--bg-hover);border:1px solid var(--border);border-radius:6px;color:var(--text-muted);font-size:11px;cursor:pointer;">Clear</button>
+          </div>
+          <div id="activityLog" style="max-height:400px;overflow-y:auto;font-family:monospace;font-size:12px;color:var(--text-muted);"></div>
+          <div id="emptyLog" style="text-align:center;color:var(--text-muted);font-size:13px;padding:20px 0;">No activity yet</div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const CATEGORIES = ['clients','appointments','reviews','promoCodes','giftCards','discounts','locations','services','staff'];
+      const PRESETS = {
+        smoke:  { clients:2, appointments:3, reviews:2, promoCodes:1, giftCards:1, discounts:1, locations:1, services:2, staff:1 },
+        light:  { clients:5, appointments:10, reviews:5, promoCodes:3, giftCards:3, discounts:3, locations:2, services:3, staff:2 },
+        heavy:  { clients:20, appointments:50, reviews:15, promoCodes:10, giftCards:10, discounts:8, locations:5, services:8, staff:5 },
+        appts:  { clients:5, appointments:30, reviews:0, promoCodes:0, giftCards:0, discounts:0, locations:0, services:3, staff:0 },
+        full:   { clients:10, appointments:20, reviews:10, promoCodes:5, giftCards:5, discounts:5, locations:3, services:5, staff:4 },
+      };
+
+      function selectAll() {
+        CATEGORIES.forEach(k => { document.getElementById('chk_'+k).checked = true; });
+      }
+      function deselectAll() {
+        CATEGORIES.forEach(k => { document.getElementById('chk_'+k).checked = false; });
+      }
+      function applyPreset(name) {
+        const p = PRESETS[name];
+        if (!p) return;
+        CATEGORIES.forEach(k => {
+          const cnt = p[k] || 0;
+          document.getElementById('chk_'+k).checked = cnt > 0;
+          document.getElementById('cnt_'+k).value = cnt > 0 ? cnt : 1;
+        });
+        // Set sensible date range
+        const now = new Date();
+        const past = new Date(now); past.setDate(past.getDate() - 90);
+        const future = new Date(now); future.setDate(future.getDate() + 60);
+        document.getElementById('fromDate').value = past.toISOString().slice(0,10);
+        document.getElementById('toDate').value = future.toISOString().slice(0,10);
+        log('⚡ Applied preset: ' + name);
+      }
+
+      function log(msg) {
+        const el = document.getElementById('activityLog');
+        const empty = document.getElementById('emptyLog');
+        if (empty) empty.style.display = 'none';
+        const ts = new Date().toLocaleTimeString();
+        el.innerHTML += '<div style="padding:3px 0;border-bottom:1px solid var(--border);">[' + ts + '] ' + msg + '</div>';
+        el.scrollTop = el.scrollHeight;
+      }
+
+      async function checkSeedCount() {
+        const bizId = document.getElementById('bizSelect').value;
+        if (!bizId) return;
+        try {
+          const r = await fetch('/api/admin/dev-testing/count?businessId=' + bizId);
+          const data = await r.json();
+          const banner = document.getElementById('seedBanner');
+          const detail = document.getElementById('seedBannerDetail');
+          if (data.ok && data.total > 0) {
+            banner.style.display = 'block';
+            const parts = Object.entries(data.counts).filter(([,v]) => v > 0).map(([k,v]) => v + ' ' + k).join(', ');
+            detail.textContent = data.total + ' seeded records: ' + parts;
+          } else {
+            banner.style.display = 'none';
+          }
+        } catch(e) { /* ignore */ }
+      }
+
+      async function runGenerate() {
+        const bizId = document.getElementById('bizSelect').value;
+        if (!bizId) { alert('Please select a business first.'); return; }
+        const fromDate = document.getElementById('fromDate').value;
+        const toDate = document.getElementById('toDate').value;
+        if (!fromDate || !toDate) { alert('Please set both From and To dates.'); return; }
+        const categories = {};
+        CATEGORIES.forEach(k => {
+          if (document.getElementById('chk_'+k).checked) {
+            categories[k] = parseInt(document.getElementById('cnt_'+k).value) || 1;
+          }
+        });
+        if (Object.keys(categories).length === 0) { alert('Please select at least one category.'); return; }
+        const btn = document.getElementById('generateBtn');
+        const prog = document.getElementById('generateProgress');
+        btn.disabled = true; btn.style.opacity = '0.6';
+        prog.style.display = 'block';
+        log('🚀 Generating: ' + JSON.stringify(categories));
+        try {
+          const r = await fetch('/api/admin/dev-testing/seed', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ businessId: parseInt(bizId), fromDate, toDate, categories })
+          });
+          const data = await r.json();
+          if (data.ok) {
+            const parts = Object.entries(data.summary).map(([k,v]) => v + ' ' + k).join(', ');
+            log('✅ Generated: ' + parts);
+            checkSeedCount();
+          } else {
+            log('❌ Error: ' + data.error);
+          }
+        } catch(e) {
+          log('❌ Network error: ' + e.message);
+        } finally {
+          btn.disabled = false; btn.style.opacity = '1';
+          prog.style.display = 'none';
+        }
+      }
+
+      async function runCleanup() {
+        const bizId = document.getElementById('bizSelect').value;
+        if (!bizId) { alert('Please select a business first.'); return; }
+        if (!confirm('Remove ALL seed data for this business? This cannot be undone.')) return;
+        const btn = document.getElementById('cleanupBtn');
+        btn.disabled = true; btn.textContent = 'Removing...';
+        log('🗑️ Removing all seed data...');
+        try {
+          const r = await fetch('/api/admin/dev-testing/cleanup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ businessId: parseInt(bizId) })
+          });
+          const data = await r.json();
+          if (data.ok) {
+            const parts = Object.entries(data.removed).filter(([,v]) => v > 0).map(([k,v]) => v + ' ' + k).join(', ');
+            log('✅ Removed ' + data.total + ' records: ' + (parts || 'none'));
+            checkSeedCount();
+          } else {
+            log('❌ Error: ' + data.error);
+          }
+        } catch(e) {
+          log('❌ Network error: ' + e.message);
+        } finally {
+          btn.disabled = false; btn.textContent = '🗑️ Remove All Seed Data';
+        }
+      }
+
+      // Init
+      (function() {
+        const now = new Date();
+        const past = new Date(now); past.setDate(past.getDate() - 90);
+        const future = new Date(now); future.setDate(future.getDate() + 60);
+        document.getElementById('fromDate').value = past.toISOString().slice(0,10);
+        document.getElementById('toDate').value = future.toISOString().slice(0,10);
+        document.getElementById('bizSelect').addEventListener('change', checkSeedCount);
+        checkSeedCount();
+      })();
+    </script>
+  `;
 }
