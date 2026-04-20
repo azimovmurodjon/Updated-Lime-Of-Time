@@ -1475,3 +1475,5 @@
 - [x] Add OTP log table HTML below the send panel in Platform Config page
 - [x] Add 30-second resend cooldown on Send OTP button after successful send
 - [x] Add missing Twilio Verify Service SID input field to Platform Config page (was causing OTP send to fail)
+- [x] Fix testTwilio() and testStripe() JS crash — used outer `form` variable that could be null; now uses document.querySelector directly with null guard
+- [x] Fix Send OTP button staying disabled after a failed send — re-enable button in the error branch

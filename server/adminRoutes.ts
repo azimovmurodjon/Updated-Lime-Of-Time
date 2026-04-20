@@ -4287,8 +4287,12 @@ function platformConfigPage(
     window.testTwilio = async function testTwilio() {
       var btn = document.getElementById('testTwilioBtn');
       var result = document.getElementById('twilioTestResult');
-      var sid = form.querySelector('[name="twilio_account_sid"]').value.trim();
-      var token = form.querySelector('[name="twilio_auth_token"]').value.trim();
+      var f = document.querySelector('form[action="/api/admin/platform-config"]');
+      if (!f || !btn || !result) return;
+      var sidEl = f.querySelector('[name="twilio_account_sid"]');
+      var tokenEl = f.querySelector('[name="twilio_auth_token"]');
+      var sid = sidEl ? sidEl.value.trim() : '';
+      var token = tokenEl ? tokenEl.value.trim() : '';
       if (!sid || !token) {
         result.textContent = '⚠️ Enter Account SID and Auth Token first';
         result.style.color = '#f59e0b';
@@ -4564,6 +4568,9 @@ function platformConfigPage(
             '❌ <strong>Failed to send OTP.</strong><br>' +
             '<span style="font-weight:400;">' + (data.message || 'Unknown error from Twilio.') + '</span><br>' +
             '<span style="font-size:12px;opacity:0.8;">Check that Account SID, Auth Token, and Verify Service SID are saved correctly above.</span>');
+          // Re-enable button on failure (no cooldown — let them retry immediately)
+          btn.disabled = false;
+          btn.textContent = '📤 Send OTP';
           // Also refresh log so failure row appears
           setTimeout(loadOtpLog, 1500);
         }
@@ -4615,7 +4622,10 @@ function platformConfigPage(
     window.testStripe = async function testStripe() {
       var btn = document.getElementById('testStripeBtn');
       var result = document.getElementById('stripeTestResult');
-      var key = form.querySelector('[name="stripe_secret_key"]').value.trim();
+      var f2 = document.querySelector('form[action="/api/admin/platform-config"]');
+      if (!f2 || !btn || !result) return;
+      var keyEl = f2.querySelector('[name="stripe_secret_key"]');
+      var key = keyEl ? keyEl.value.trim() : '';
       if (!key) {
         result.textContent = '⚠️ Enter Stripe Secret Key first';
         result.style.color = '#f59e0b';
