@@ -1503,3 +1503,4 @@
 - [x] Add Save & Test combined button for Twilio section in Admin Panel
 - [x] Add Save & Test combined button for Stripe section in Admin Panel
 - [x] Add audit log viewer in Admin Panel (filterable table by category/action/date)
+- [x] Fix phone E.164 formatting bug: +1 country code dropped when building rawPhone for Twilio (sends "4124827733" instead of "+14124827733")

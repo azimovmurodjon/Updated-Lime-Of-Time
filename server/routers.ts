@@ -1050,7 +1050,16 @@ const otpRouter = router({
       }
 
       // Live mode — use Twilio Verify
-      const result = await sendOtpViaTwilioVerify(input.phone);
+      // Normalize to E.164 format required by Twilio (+14124827733)
+      const toE164 = (phone: string): string => {
+        const digits = phone.replace(/\D/g, "");
+        if (phone.startsWith("+")) return "+" + digits; // already has country code
+        if (digits.length === 10) return "+1" + digits; // US 10-digit
+        if (digits.length === 11 && digits.startsWith("1")) return "+" + digits; // US with leading 1
+        return "+" + digits; // best effort for international
+      };
+      const e164Phone = toE164(input.phone);
+      const result = await sendOtpViaTwilioVerify(e164Phone);
       if (!result.ok) {
         // Do NOT silently fall back — surface the real Twilio error to the user
         console.error("[OTP] Twilio Verify send failed:", result.error);
@@ -1100,7 +1109,16 @@ const otpRouter = router({
       }
 
       // Live mode — use Twilio Verify
-      const result = await checkOtpViaTwilioVerify(input.phone, input.code);
+      // Normalize to E.164 format required by Twilio
+      const toE164v = (phone: string): string => {
+        const digits = phone.replace(/\D/g, "");
+        if (phone.startsWith("+")) return "+" + digits;
+        if (digits.length === 10) return "+1" + digits;
+        if (digits.length === 11 && digits.startsWith("1")) return "+" + digits;
+        return "+" + digits;
+      };
+      const e164PhoneV = toE164v(input.phone);
+      const result = await checkOtpViaTwilioVerify(e164PhoneV, input.code);
       if (result.valid) return { success: true };
       return { success: false, error: result.error ?? "Incorrect code. Please try again." };
     }),
