@@ -1058,17 +1058,14 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Test Stripe Connection ────────────────────────────────────────────
+  // ── Test Stripe Connection (simple balance check) ────────────────────────
   app.post("/api/admin/test-stripe", requireAuth, async (req: Request, res: Response) => {
     try {
       const secretKey = (req.body.secretKey || "").toString().trim();
-      if (!secretKey) {
-        res.json({ ok: false, message: "Stripe Secret Key is required." }); return;
-      }
+      if (!secretKey) { res.json({ ok: false, message: "Stripe Secret Key is required." }); return; }
       if (!/^sk_(live|test)_[a-zA-Z0-9]{10,}$/.test(secretKey)) {
         res.json({ ok: false, message: "Invalid Stripe key format (must start with sk_live_ or sk_test_)." }); return;
       }
-      // Call Stripe balance endpoint — lightweight and doesn't modify anything
       const stripeRes = await fetch("https://api.stripe.com/v1/balance", {
         headers: { Authorization: `Bearer ${secretKey}` },
       });
@@ -1088,6 +1085,134 @@ export function registerAdminRoutes(app: Express): void {
       }
     } catch (err: any) {
       res.json({ ok: false, message: `Error: ${err?.message || "Unknown error"}` });
+    }
+  });
+
+  // ── Full Stripe Transaction Suite (test mode only) ────────────────────────
+  app.post("/api/admin/test-stripe-suite", requireAuth, async (req: Request, res: Response) => {
+    const steps: { step: string; ok: boolean; detail: string }[] = [];
+    const secretKey = (req.body.secretKey || "").toString().trim();
+
+    if (!secretKey) {
+      res.json({ ok: false, steps: [], error: "Stripe Secret Key is required." }); return;
+    }
+    if (!secretKey.startsWith("sk_test_")) {
+      res.json({ ok: false, steps: [], error: "Full transaction suite requires a TEST key (sk_test_...). Switch to Test Mode first." }); return;
+    }
+
+    const stripe = async (path: string, method = "GET", body?: Record<string, string>) => {
+      const opts: RequestInit = {
+        method,
+        headers: {
+          Authorization: `Bearer ${secretKey}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+      };
+      if (body) opts.body = new URLSearchParams(body).toString();
+      const r = await fetch(`https://api.stripe.com/v1${path}`, opts);
+      const json = await r.json() as any;
+      return { ok: r.ok, status: r.status, data: json };
+    };
+
+    let customerId = "";
+    let paymentIntentId = "";
+    let chargeId = "";
+
+    try {
+      // Step 1: Check balance / verify credentials
+      const balRes = await stripe("/balance");
+      if (balRes.ok) {
+        const avail = balRes.data.available?.[0];
+        const bal = avail ? `${(avail.amount / 100).toFixed(2)} ${avail.currency.toUpperCase()}` : "retrieved";
+        steps.push({ step: "1. Verify credentials & balance", ok: true, detail: `Balance: ${bal}` });
+      } else {
+        steps.push({ step: "1. Verify credentials & balance", ok: false, detail: balRes.data?.error?.message || `HTTP ${balRes.status}` });
+        res.json({ ok: false, steps }); return;
+      }
+
+      // Step 2: Create a test customer
+      const custRes = await stripe("/customers", "POST", {
+        name: "Stripe Suite Test Customer",
+        email: "stripe-suite-test@example.com",
+        description: "Auto-created by admin suite test — safe to delete",
+      });
+      if (custRes.ok) {
+        customerId = custRes.data.id;
+        steps.push({ step: "2. Create test customer", ok: true, detail: `Customer ID: ${customerId}` });
+      } else {
+        steps.push({ step: "2. Create test customer", ok: false, detail: custRes.data?.error?.message || `HTTP ${custRes.status}` });
+        res.json({ ok: false, steps }); return;
+      }
+
+      // Step 3: Create a PaymentIntent ($1.00 USD)
+      const piRes = await stripe("/payment_intents", "POST", {
+        amount: "100",
+        currency: "usd",
+        customer: customerId,
+        payment_method_types: "card",
+        description: "Admin suite test charge — auto-refunded",
+        metadata: "suite_test=true",
+      });
+      if (piRes.ok) {
+        paymentIntentId = piRes.data.id;
+        steps.push({ step: "3. Create PaymentIntent ($1.00)", ok: true, detail: `PI ID: ${paymentIntentId}, status: ${piRes.data.status}` });
+      } else {
+        steps.push({ step: "3. Create PaymentIntent ($1.00)", ok: false, detail: piRes.data?.error?.message || `HTTP ${piRes.status}` });
+        res.json({ ok: false, steps }); return;
+      }
+
+      // Step 4: Confirm with Stripe test card pm_card_visa
+      const confirmRes = await stripe(`/payment_intents/${paymentIntentId}/confirm`, "POST", {
+        payment_method: "pm_card_visa",
+        return_url: "https://example.com/return",
+      });
+      if (confirmRes.ok && (confirmRes.data.status === "succeeded" || confirmRes.data.status === "requires_capture")) {
+        chargeId = confirmRes.data.latest_charge || "";
+        steps.push({ step: "4. Confirm payment (test card visa)", ok: true, detail: `Status: ${confirmRes.data.status}, Charge: ${chargeId || "pending"}` });
+      } else {
+        const detail = confirmRes.data?.error?.message || confirmRes.data?.last_payment_error?.message || `Status: ${confirmRes.data?.status || confirmRes.status}`;
+        steps.push({ step: "4. Confirm payment (test card visa)", ok: false, detail });
+        // Still try to refund/cleanup even if confirm failed
+      }
+
+      // Step 5: Create a refund (if we have a charge)
+      if (chargeId) {
+        const refRes = await stripe("/refunds", "POST", { charge: chargeId });
+        if (refRes.ok) {
+          steps.push({ step: "5. Refund charge", ok: true, detail: `Refund ID: ${refRes.data.id}, status: ${refRes.data.status}` });
+        } else {
+          steps.push({ step: "5. Refund charge", ok: false, detail: refRes.data?.error?.message || `HTTP ${refRes.status}` });
+        }
+      } else {
+        steps.push({ step: "5. Refund charge", ok: false, detail: "Skipped — no charge ID (confirm step did not produce a charge)" });
+      }
+
+      // Step 6: Cancel the PaymentIntent if not succeeded (cleanup)
+      const piStatusRes = await stripe(`/payment_intents/${paymentIntentId}`);
+      const piStatus = piStatusRes.data?.status || "";
+      if (piStatus !== "succeeded" && piStatus !== "canceled") {
+        const cancelRes = await stripe(`/payment_intents/${paymentIntentId}/cancel`, "POST");
+        steps.push({ step: "6. Cancel/cleanup PaymentIntent", ok: cancelRes.ok, detail: cancelRes.ok ? `Canceled (was: ${piStatus})` : cancelRes.data?.error?.message || `HTTP ${cancelRes.status}` });
+      } else {
+        steps.push({ step: "6. Cancel/cleanup PaymentIntent", ok: true, detail: `No cancel needed (status: ${piStatus})` });
+      }
+
+      // Step 7: Delete the test customer
+      const delRes = await stripe(`/customers/${customerId}`, "DELETE");
+      if (delRes.ok && delRes.data.deleted) {
+        steps.push({ step: "7. Delete test customer", ok: true, detail: `Customer ${customerId} deleted` });
+      } else {
+        steps.push({ step: "7. Delete test customer", ok: false, detail: delRes.data?.error?.message || `HTTP ${delRes.status}` });
+      }
+
+      const allOk = steps.every(s => s.ok);
+      res.json({ ok: allOk, steps });
+    } catch (err: any) {
+      // Best-effort cleanup on unexpected error
+      if (customerId) {
+        try { await stripe(`/customers/${customerId}`, "DELETE"); } catch {}
+      }
+      res.json({ ok: false, steps, error: err?.message || "Unknown error" });
     }
   });
 
@@ -4594,8 +4719,13 @@ function platformConfigPage(
             style="background:#4A7C59;color:white;padding:8px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">
             💾 Save &amp; Test
           </button>
+          <button type="button" id="stripeFullSuiteBtn" onclick="runStripeSuite()"
+            style="background:#0f172a;color:#a78bfa;border:1px solid #7c3aed;padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">
+            🧪 Run Full Transaction Suite
+          </button>
           <span id="stripeTestResult" style="font-size:13px;"></span>
         </div>
+        <div id="stripeSuiteLog" style="display:none;margin-top:14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;max-height:260px;overflow-y:auto;"></div>
       </div>
 
       <button id="savePlatformBtn" type="submit" disabled style="background:var(--border);color:var(--text-muted);padding:12px 28px;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:not-allowed;width:100%;transition:background 0.2s,color 0.2s;">
@@ -5135,6 +5265,71 @@ function platformConfigPage(
     }
     // Auto-run Stripe Test Connection on page load (silent — only shows result if key is set)
     setTimeout(function() { if (typeof testStripe === 'function') testStripe(); }, 1200);
+
+    // ── Full Stripe Transaction Suite ─────────────────────────────────────────────────
+    window.runStripeSuite = async function runStripeSuite() {
+      var btn = document.getElementById('stripeFullSuiteBtn');
+      var logEl = document.getElementById('stripeSuiteLog');
+      var resultEl = document.getElementById('stripeTestResult');
+      var f2 = document.querySelector('form[action="/api/admin/platform-config"]');
+      if (!btn || !logEl || !f2) return;
+      var keyEl = f2.querySelector('[name="stripe_secret_key"]');
+      var key = keyEl ? keyEl.value.trim() : '';
+      if (!key) {
+        resultEl.textContent = '⚠️ Enter Stripe Secret Key first';
+        resultEl.style.color = '#f59e0b';
+        return;
+      }
+      if (!key.startsWith('sk_test_')) {
+        resultEl.textContent = '❌ Suite requires a sk_test_ key. Switch to Test Mode.';
+        resultEl.style.color = '#ef4444';
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = '⏳ Running suite...';
+      resultEl.textContent = '';
+      logEl.style.display = 'block';
+      logEl.innerHTML = '<div style="color:#a78bfa;font-weight:700;margin-bottom:8px;">Stripe Transaction Suite — ' + new Date().toLocaleTimeString() + '</div>';
+
+      function logStep(step, ok, detail) {
+        var color = ok ? '#22c55e' : '#ef4444';
+        var icon = ok ? '✅' : '❌';
+        logEl.innerHTML += '<div style="padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.06);">' +
+          '<span style="color:' + color + ';">' + icon + ' ' + step + '</span>' +
+          (detail ? '<span style="color:#94a3b8;"> — ' + detail + '</span>' : '') + '</div>';
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      try {
+        var res = await fetch('/api/admin/test-stripe-suite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ secretKey: key })
+        });
+        var data = await res.json();
+        if (data.error) {
+          logEl.innerHTML += '<div style="color:#ef4444;margin-top:8px;">❌ ' + data.error + '</div>';
+          resultEl.textContent = '❌ ' + data.error;
+          resultEl.style.color = '#ef4444';
+        } else {
+          (data.steps || []).forEach(function(s) { logStep(s.step, s.ok, s.detail); });
+          var passed = (data.steps || []).filter(function(s) { return s.ok; }).length;
+          var total = (data.steps || []).length;
+          var summary = passed + '/' + total + ' steps passed';
+          logEl.innerHTML += '<div style="margin-top:10px;font-weight:700;color:' + (data.ok ? '#22c55e' : '#f59e0b') + ';">' +
+            (data.ok ? '✅ All tests passed — ' : '⚠️ Partial pass — ') + summary + '</div>';
+          resultEl.textContent = (data.ok ? '✅ Suite passed (' : '⚠️ Suite partial (') + summary + ')';
+          resultEl.style.color = data.ok ? '#22c55e' : '#f59e0b';
+        }
+      } catch (e) {
+        logEl.innerHTML += '<div style="color:#ef4444;">❌ Network error: ' + e.message + '</div>';
+        resultEl.textContent = '❌ Network error';
+        resultEl.style.color = '#ef4444';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🧪 Run Full Transaction Suite';
+      }
+    };
 
     // ── Save & Test helpers ─────────────────────────────────────────────────
     window.saveThenTestTwilio = async function saveThenTestTwilio() {

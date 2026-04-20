@@ -165,10 +165,10 @@ async function main() {
     // Try to link to a unique completed appointment
     const availableAppts = apptRows.filter((a: any) => !usedApptIds.has(a.localId));
     if (availableAppts.length > 0) {
-      const appt = pick(availableAppts);
+      const appt = pick(availableAppts) as any;
       apptLocalId = appt.localId as string;
       clientLocalId = appt.clientLocalId as string;
-      usedApptIds.add(apptLocalId);
+      usedApptIds.add(apptLocalId ?? "");
     } else {
       // Fallback: unlinked review from a random client
       clientLocalId = pick(allClientIds);
