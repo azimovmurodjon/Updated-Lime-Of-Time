@@ -570,8 +570,22 @@ export const adminAuditLog = mysqlTable("admin_audit_log", {
 });
 export type AdminAuditLog = typeof adminAuditLog.$inferSelect;
 export type InsertAdminAuditLog = typeof adminAuditLog.$inferInsert;
-
-// ─── Promo / Referral Codes ────────────────────────────────────────
+// ─── OTP Send Log ─────────────────────────────────────────────────────
+export const otpSendLog = mysqlTable("otp_send_log", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Phone number the OTP was sent to (E.164) */
+  phone: varchar("phone", { length: 30 }).notNull(),
+  /** 'sent' | 'failed' */
+  status: varchar("status", { length: 20 }).notNull().default("sent"),
+  /** Twilio error message if status is 'failed' */
+  errorMessage: text("errorMessage"),
+  /** 'admin_panel' | 'app' */
+  source: varchar("source", { length: 30 }).notNull().default("admin_panel"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type OtpSendLog = typeof otpSendLog.$inferSelect;
+export type InsertOtpSendLog = typeof otpSendLog.$inferInsert;
+// ─── Promo / Referral Codess ────────────────────────────────────────
 export const promoCodes = mysqlTable("promo_codes", {
   id: int("id").autoincrement().primaryKey(),
   /** Foreign key to business_owners */

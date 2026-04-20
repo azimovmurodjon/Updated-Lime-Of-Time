@@ -288,6 +288,13 @@
       "when": 1776635428898,
       "tag": "0040_skinny_lizard",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "5",
+      "when": 1776658508301,
+      "tag": "0041_mighty_sleepwalker",
+      "breakpoints": true
     }
   ]
 }

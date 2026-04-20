@@ -18,6 +18,7 @@ import {
   platformConfig,
   adminExpenses,
   adminAuditLog,
+  otpSendLog,
   promoCodes,
   waitlist,
 } from "../drizzle/schema";
@@ -1120,10 +1121,15 @@ export function registerAdminRoutes(app: Express): void {
         });
         if (twilioRes2.ok) {
           const d2 = await twilioRes2.json() as any;
+          // Write success log entry
+          try { const dbase2 = await getDb(); if (dbase2) await dbase2.insert(otpSendLog).values({ phone, status: "sent", source: "admin_panel" }); } catch {}
           res.json({ ok: true, message: `OTP sent (status: ${d2.status})` }); return;
         } else {
           const e2 = await twilioRes2.json().catch(() => ({})) as any;
-          res.json({ ok: false, message: e2?.message || `Twilio error ${twilioRes2.status}` }); return;
+          const errMsg2 = e2?.message || `Twilio error ${twilioRes2.status}`;
+          // Write failure log entry
+          try { const dbase2 = await getDb(); if (dbase2) await dbase2.insert(otpSendLog).values({ phone, status: "failed", errorMessage: errMsg2, source: "admin_panel" }); } catch {}
+          res.json({ ok: false, message: errMsg2 }); return;
         }
       }
       const credentials = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
@@ -1134,10 +1140,13 @@ export function registerAdminRoutes(app: Express): void {
       });
       if (twilioRes.ok) {
         const d = await twilioRes.json() as any;
+        try { const dbase = await getDb(); if (dbase) await dbase.insert(otpSendLog).values({ phone, status: "sent", source: "admin_panel" }); } catch {}
         res.json({ ok: true, message: `OTP sent (status: ${d.status})` });
       } else {
         const e = await twilioRes.json().catch(() => ({})) as any;
-        res.json({ ok: false, message: e?.message || `Twilio error ${twilioRes.status}` });
+        const errMsg = e?.message || `Twilio error ${twilioRes.status}`;
+        try { const dbase = await getDb(); if (dbase) await dbase.insert(otpSendLog).values({ phone, status: "failed", errorMessage: errMsg, source: "admin_panel" }); } catch {}
+        res.json({ ok: false, message: errMsg });
       }
     } catch (err: any) {
       console.error("[Admin] OTP send error:", err);
@@ -1186,6 +1195,23 @@ export function registerAdminRoutes(app: Express): void {
     } catch (err: any) {
       console.error("[Admin] OTP verify error:", err);
       res.json({ ok: false, message: err?.message || "Unknown error" });
+    }
+  });
+
+  // ── Admin OTP Log (last 10 sends) ───────────────────────────────────
+  app.get("/api/admin/otp/log", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.json({ ok: true, entries: [] }); return; }
+      const rows = await dbase
+        .select()
+        .from(otpSendLog)
+        .orderBy(sql`createdAt DESC`)
+        .limit(10);
+      res.json({ ok: true, entries: rows });
+    } catch (err: any) {
+      console.error("[Admin] OTP log error:", err);
+      res.json({ ok: false, entries: [], message: err?.message });
     }
   });
 
@@ -4106,6 +4132,17 @@ function platformConfigPage(
             </div>
           </div>
           <div id="otpPanelResult" style="font-size:13px;min-height:20px;"></div>
+
+          <!-- OTP Send History Table -->
+          <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+              <h4 style="font-size:13px;font-weight:700;margin:0;color:var(--text-muted);">&#128221; Recent Send History (last 10)</h4>
+              <button type="button" onclick="loadOtpLog()" style="background:none;border:none;color:var(--primary);font-size:12px;cursor:pointer;padding:0;">&#8635; Refresh</button>
+            </div>
+            <div id="otpLogContainer">
+              <div style="text-align:center;padding:16px;color:var(--text-muted);font-size:12px;">Loading…</div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -4433,6 +4470,48 @@ function platformConfigPage(
     // Auto-load on page ready
     loadOtpUsage();
 
+    // Load OTP send history log
+    window.loadOtpLog = async function loadOtpLog() {
+      var container = document.getElementById('otpLogContainer');
+      if (!container) return;
+      container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:12px;">Loading…</div>';
+      try {
+        var res = await fetch('/api/admin/otp/log');
+        var data = await res.json();
+        if (!data.ok || !data.entries || data.entries.length === 0) {
+          container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:12px;">No OTP sends recorded yet.</div>';
+          return;
+        }
+        var rows = data.entries.map(function(e) {
+          var d = new Date(e.createdAt);
+          var timeStr = d.toLocaleString();
+          var statusBadge = e.status === 'sent'
+            ? '<span style="background:#05996920;color:#059669;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;">Sent</span>'
+            : '<span style="background:#ef444420;color:#ef4444;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;">Failed</span>';
+          var errCell = e.errorMessage
+            ? '<span style="font-size:11px;color:#ef4444;">' + e.errorMessage.substring(0, 60) + (e.errorMessage.length > 60 ? '…' : '') + '</span>'
+            : '<span style="color:var(--text-muted);font-size:11px;">—</span>';
+          return '<tr style="border-bottom:1px solid var(--border);">'
+            + '<td style="padding:8px 10px;font-size:13px;font-family:monospace;">' + e.phone + '</td>'
+            + '<td style="padding:8px 10px;font-size:12px;color:var(--text-muted);white-space:nowrap;">' + timeStr + '</td>'
+            + '<td style="padding:8px 10px;">' + statusBadge + '</td>'
+            + '<td style="padding:8px 10px;">' + errCell + '</td>'
+            + '</tr>';
+        }).join('');
+        container.innerHTML = '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">'
+          + '<thead><tr style="border-bottom:2px solid var(--border);">'
+          + '<th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;">Phone</th>'
+          + '<th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;">Time</th>'
+          + '<th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;">Status</th>'
+          + '<th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;">Error</th>'
+          + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+      } catch (e) {
+        container.innerHTML = '<div style="text-align:center;padding:16px;color:#ef4444;font-size:12px;">Failed to load log.</div>';
+      }
+    };
+    // Auto-load log on page ready
+    loadOtpLog();
+
     window.adminSendOtp = async function adminSendOtp() {
       var phone = (document.getElementById('otpSendPhone').value || '').trim();
       var btn = document.getElementById('otpSendBtn');
@@ -4461,17 +4540,34 @@ function platformConfigPage(
             'A 6-digit code was delivered via SMS. Enter it below to verify the full flow.');
           document.getElementById('otpVerifyRow').style.display = 'block';
           document.getElementById('otpVerifyCode').focus();
-          // Refresh usage counter
+          // Refresh usage counter and log
           setTimeout(loadOtpUsage, 1500);
+          setTimeout(loadOtpLog, 1500);
+          // 30-second resend cooldown
+          var countdown = 30;
+          btn.disabled = true;
+          btn.textContent = '⏳ Resend in ' + countdown + 's';
+          var cooldownTimer = setInterval(function() {
+            countdown--;
+            if (countdown <= 0) {
+              clearInterval(cooldownTimer);
+              btn.disabled = false;
+              btn.textContent = '📤 Send OTP';
+            } else {
+              btn.textContent = '⏳ Resend in ' + countdown + 's';
+            }
+          }, 1000);
         } else {
           showOtpBanner('error',
             '❌ <strong>Failed to send OTP.</strong><br>' +
             '<span style="font-weight:400;">' + (data.message || 'Unknown error from Twilio.') + '</span><br>' +
             '<span style="font-size:12px;opacity:0.8;">Check that Account SID, Auth Token, and Verify Service SID are saved correctly above.</span>');
+          // Also refresh log so failure row appears
+          setTimeout(loadOtpLog, 1500);
         }
       } catch (e) {
         showOtpBanner('error', '❌ <strong>Network error</strong> — could not reach the server. Please try again.');
-      } finally {
+        // Re-enable button on network error (no cooldown)
         btn.disabled = false;
         btn.textContent = '📤 Send OTP';
       }

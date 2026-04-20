@@ -1469,3 +1469,8 @@
 - [x] Add OTP usage counter (Twilio usage records API) to Admin Panel Twilio section
 - [x] Improve OTP send/verify feedback messaging — clear success/failure status with details
 - [x] Add mobile back-to-top button (bottom-fixed) to Admin Panel for long pages
+- [x] Add otp_send_log DB table and migration to store OTP send history
+- [x] Add GET /api/admin/otp/log route returning last 10 OTP send log entries
+- [x] Update OTP send route to write log entry (phone, status, error) on each send attempt
+- [x] Add OTP log table HTML below the send panel in Platform Config page
+- [x] Add 30-second resend cooldown on Send OTP button after successful send
