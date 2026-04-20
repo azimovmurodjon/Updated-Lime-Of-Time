@@ -1442,6 +1442,8 @@
 - [ ] Calendar: add "Card" chip to payment method filter chips
 - [ ] Payment Summary: add Card to method breakdown
 - [ ] Stripe payout push notification — notify business owner when payout is initiated with amount and arrival date
+- [x] Remove Next keyboard button on onboarding phone number screen (change to Done)
+- [x] Restore logo image on animated splash screen
 - [x] Pull-to-refresh on Payment Methods screen (refresh balance + payout data)
 - [x] Separate detail pages for Zelle, Cash App, Venmo (description, input field, live QR preview, save button)
 - [x] Client booking page: show only the selected payment method's QR code (not all three)

@@ -939,7 +939,7 @@ export default function OnboardingScreen() {
                       value={phone}
                       onChangeText={handlePhoneChange}
                       keyboardType="phone-pad"
-                      returnKeyType="next"
+                      returnKeyType="done"
                       onSubmitEditing={() => handleBtnPress(handlePhoneNext)}
                       maxLength={selectedCountry.dial === "+1" ? 14 : 15}
                       editable={!loading}
@@ -1037,7 +1037,7 @@ export default function OnboardingScreen() {
                       value={phone}
                       onChangeText={handlePhoneChange}
                       keyboardType="phone-pad"
-                      returnKeyType="next"
+                      returnKeyType="done"
                       onSubmitEditing={() => handleBtnPress(handleSocialPhoneNext)}
                       maxLength={selectedCountry.dial === "+1" ? 14 : 15}
                       editable={!loading}

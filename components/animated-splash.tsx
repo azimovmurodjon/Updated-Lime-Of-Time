@@ -17,6 +17,7 @@ import {
   Animated,
   Dimensions,
   Easing,
+  Image,
   Platform,
   StyleSheet,
   Text,
@@ -287,8 +288,14 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
             },
           ]}
         >
-          {/* Glass circle — logo removed, animation only */}
-          <View style={[styles.glassCircle, { width: CIRCLE_SIZE, height: CIRCLE_SIZE, borderRadius: CIRCLE_SIZE / 2 }]} />
+          {/* Glass circle with logo */}
+          <View style={[styles.glassCircle, { width: CIRCLE_SIZE, height: CIRCLE_SIZE, borderRadius: CIRCLE_SIZE / 2 }]}>
+            <Image
+              source={require("../assets/images/icon.png")}
+              style={{ width: LOGO_SIZE, height: LOGO_SIZE, borderRadius: LOGO_SIZE * 0.22 }}
+              resizeMode="contain"
+            />
+          </View>
         </Animated.View>
 
         {/* Progress bar — scaleX grows from left via translateX offset trick */}
