@@ -37,13 +37,18 @@ import { SERVICE_COLORS, STAFF_COLORS } from "@/lib/types";
 import type {
   Appointment,
   Client,
+  CustomScheduleDay,
   Discount,
   GiftCard,
   Location,
+  NoteTemplate,
   PromoCode,
+  Product,
   Review,
   Service,
+  ServicePackage,
   StaffMember,
+  WaitlistEntry,
 } from "@/lib/types";
 
 // ─── AsyncStorage key for dev admin phone ─────────────────────────────────
@@ -131,7 +136,12 @@ export type Category =
   | "discounts"
   | "locations"
   | "services"
-  | "staff";
+  | "staff"
+  | "products"
+  | "packages"
+  | "waitlist"
+  | "noteTemplates"
+  | "customSchedule";
 
 export const ALL_CATEGORIES: Category[] = [
   "clients",
@@ -143,6 +153,11 @@ export const ALL_CATEGORIES: Category[] = [
   "locations",
   "services",
   "staff",
+  "products",
+  "packages",
+  "waitlist",
+  "noteTemplates",
+  "customSchedule",
 ];
 
 export const CATEGORY_LABELS: Record<Category, string> = {
@@ -155,6 +170,11 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   locations: "Locations",
   services: "Services",
   staff: "Staff Members",
+  products: "Products",
+  packages: "Service Packages",
+  waitlist: "Waitlist Entries",
+  noteTemplates: "Note Templates",
+  customSchedule: "Schedule Overrides",
 };
 
 const CATEGORY_ICONS: Record<Category, string> = {
@@ -167,6 +187,11 @@ const CATEGORY_ICONS: Record<Category, string> = {
   locations: "location.fill",
   services: "wrench.fill",
   staff: "person.fill",
+  products: "tag.fill",
+  packages: "gift.fill",
+  waitlist: "calendar",
+  noteTemplates: "paperplane.fill",
+  customSchedule: "calendar",
 };
 
 const CATEGORY_COLORS: Record<Category, string> = {
@@ -179,6 +204,11 @@ const CATEGORY_COLORS: Record<Category, string> = {
   locations: "#8B5CF6",
   services: "#06B6D4",
   staff: "#F97316",
+  products: "#84CC16",
+  packages: "#A855F7",
+  waitlist: "#14B8A6",
+  noteTemplates: "#F472B6",
+  customSchedule: "#FB923C",
 };
 
 // ─── Preset types ──────────────────────────────────────────────────────────
@@ -205,10 +235,12 @@ const { from: DEFAULT_FROM, to: DEFAULT_TO } = makeDefaultDates();
 const ALL_ON: Record<Category, boolean> = {
   clients: true, appointments: true, reviews: true, promoCodes: true,
   giftCards: true, discounts: true, locations: true, services: true, staff: true,
+  products: true, packages: true, waitlist: true, noteTemplates: true, customSchedule: true,
 };
 const ALL_OFF: Record<Category, boolean> = {
   clients: false, appointments: false, reviews: false, promoCodes: false,
   giftCards: false, discounts: false, locations: false, services: false, staff: false,
+  products: false, packages: false, waitlist: false, noteTemplates: false, customSchedule: false,
 };
 
 export const BUILT_IN_PRESETS: SeedPreset[] = [
@@ -219,7 +251,7 @@ export const BUILT_IN_PRESETS: SeedPreset[] = [
     fromDate: DEFAULT_FROM,
     toDate: DEFAULT_TO,
     selected: ALL_ON,
-    counts: { clients: "2", appointments: "3", reviews: "2", promoCodes: "1", giftCards: "1", discounts: "1", locations: "1", services: "2", staff: "1" },
+    counts: { clients: "2", appointments: "3", reviews: "2", promoCodes: "1", giftCards: "1", discounts: "1", locations: "1", services: "2", staff: "1", products: "2", packages: "1", waitlist: "2", noteTemplates: "2", customSchedule: "2" },
   },
   {
     id: "light",
@@ -228,7 +260,7 @@ export const BUILT_IN_PRESETS: SeedPreset[] = [
     fromDate: DEFAULT_FROM,
     toDate: DEFAULT_TO,
     selected: { ...ALL_ON, locations: false, services: false, staff: false },
-    counts: { clients: "10", appointments: "20", reviews: "8", promoCodes: "3", giftCards: "3", discounts: "3", locations: "0", services: "0", staff: "0" },
+    counts: { clients: "10", appointments: "20", reviews: "8", promoCodes: "3", giftCards: "3", discounts: "3", locations: "0", services: "0", staff: "0", products: "5", packages: "2", waitlist: "5", noteTemplates: "3", customSchedule: "0" },
   },
   {
     id: "heavy",
@@ -237,7 +269,7 @@ export const BUILT_IN_PRESETS: SeedPreset[] = [
     fromDate: (() => { const d = new Date(); d.setFullYear(d.getFullYear() - 1); return dateStr(d); })(),
     toDate: (() => { const d = new Date(); d.setFullYear(d.getFullYear() + 1); return dateStr(d); })(),
     selected: ALL_ON,
-    counts: { clients: "50", appointments: "100", reviews: "40", promoCodes: "10", giftCards: "10", discounts: "10", locations: "5", services: "10", staff: "8" },
+    counts: { clients: "50", appointments: "100", reviews: "40", promoCodes: "10", giftCards: "10", discounts: "10", locations: "5", services: "10", staff: "8", products: "20", packages: "8", waitlist: "15", noteTemplates: "10", customSchedule: "14" },
   },
   {
     id: "appts_only",
@@ -246,7 +278,7 @@ export const BUILT_IN_PRESETS: SeedPreset[] = [
     fromDate: DEFAULT_FROM,
     toDate: DEFAULT_TO,
     selected: { ...ALL_OFF, clients: true, appointments: true },
-    counts: { clients: "15", appointments: "30", reviews: "0", promoCodes: "0", giftCards: "0", discounts: "0", locations: "0", services: "0", staff: "0" },
+    counts: { clients: "15", appointments: "30", reviews: "0", promoCodes: "0", giftCards: "0", discounts: "0", locations: "0", services: "0", staff: "0", products: "0", packages: "0", waitlist: "8", noteTemplates: "0", customSchedule: "0" },
   },
   {
     id: "full_biz",
@@ -255,7 +287,7 @@ export const BUILT_IN_PRESETS: SeedPreset[] = [
     fromDate: DEFAULT_FROM,
     toDate: DEFAULT_TO,
     selected: ALL_ON,
-    counts: { clients: "20", appointments: "40", reviews: "15", promoCodes: "5", giftCards: "5", discounts: "5", locations: "3", services: "8", staff: "5" },
+    counts: { clients: "20", appointments: "40", reviews: "15", promoCodes: "5", giftCards: "5", discounts: "5", locations: "3", services: "8", staff: "5", products: "10", packages: "4", waitlist: "8", noteTemplates: "5", customSchedule: "7" },
   },
 ];
 
@@ -285,6 +317,8 @@ export default function DevTestingScreen() {
     clients: "10", appointments: "20", reviews: "10",
     promoCodes: "5", giftCards: "5", discounts: "5",
     locations: "3", services: "5", staff: "4",
+    products: "5", packages: "3", waitlist: "5",
+    noteTemplates: "4", customSchedule: "5",
   });
   const [selected, setSelected] = useState<Record<Category, boolean>>(ALL_ON);
   const [fromDate, setFromDate] = useState(DEFAULT_FROM);
@@ -368,11 +402,18 @@ export default function DevTestingScreen() {
   const seedLocations = useMemo(() => state.locations.filter((l) => l.name?.includes(SEED_TAG)), [state.locations]);
   const seedServices = useMemo(() => state.services.filter((s) => s.name?.includes(SEED_TAG)), [state.services]);
   const seedStaff = useMemo(() => state.staff.filter((s) => s.name?.includes(SEED_TAG)), [state.staff]);
+  const seedProducts = useMemo(() => (state.products ?? []).filter((p) => p.description?.includes(SEED_TAG)), [state.products]);
+  const seedPackages = useMemo(() => (state.packages ?? []).filter((p) => p.description?.includes(SEED_TAG)), [state.packages]);
+  const seedWaitlist = useMemo(() => (state.waitlist ?? []).filter((w) => w.clientName?.includes(SEED_TAG)), [state.waitlist]);
+  const seedNoteTemplates = useMemo(() => (state.noteTemplates ?? []).filter((n) => n.body?.includes(SEED_TAG)), [state.noteTemplates]);
+  const seedCustomSchedule = useMemo(() => (state.customSchedule ?? []).filter((cs) => cs.date?.startsWith("__seed")), [state.customSchedule]);
 
   const totalSeedItems =
     seedClients.length + seedAppointments.length + seedReviews.length +
     seedPromoCodes.length + seedGiftCards.length + seedDiscounts.length +
-    seedLocations.length + seedServices.length + seedStaff.length;
+    seedLocations.length + seedServices.length + seedStaff.length +
+    seedProducts.length + seedPackages.length + seedWaitlist.length +
+    seedNoteTemplates.length + seedCustomSchedule.length;
 
   // ── Generate ─────────────────────────────────────────────────────────────
   const handleGenerate = useCallback(async () => {
@@ -609,6 +650,122 @@ export default function DevTestingScreen() {
       addLog(`✅ Created ${n} discounts`);
     }
 
+    // ── Products ───────────────────────────────────────────────────────────
+    if (selected.products) {
+      const n = Math.max(0, parseInt(counts.products) || 0);
+      const PRODUCT_NAMES = ["Argan Oil", "Keratin Mask", "Color Protect Shampoo", "Deep Conditioner", "Scalp Serum", "Nail Polish", "Cuticle Oil", "Gel Top Coat", "Tanning Lotion", "Exfoliating Scrub", "Hydrating Mist", "Vitamin C Serum"];
+      const PRODUCT_BRANDS = ["Olaplex", "Redken", "Wella", "L'Oreal", "Moroccanoil", "OPI", "CND", "Essie"];
+      const PRODUCT_CATEGORIES = ["Hair Care", "Nail Care", "Skin Care", "Body Care", "Tools"];
+      for (let i = 0; i < n; i++) {
+        const product: Product = {
+          id: uid(),
+          name: `${pick(PRODUCT_NAMES)} ${SEED_TAG}`,
+          price: randInt(10, 120),
+          description: `Auto-generated test product ${SEED_TAG}`,
+          brand: pick(PRODUCT_BRANDS),
+          category: pick(PRODUCT_CATEGORIES),
+          available: true,
+          createdAt: isoNow(),
+        };
+        dispatch({ type: "ADD_PRODUCT", payload: product });
+      }
+      addLog(`✅ Created ${n} products`);
+    }
+
+    // ── Service Packages ───────────────────────────────────────────────────
+    const newPackages: ServicePackage[] = [];
+    if (selected.packages) {
+      const n = Math.max(0, parseInt(counts.packages) || 0);
+      const allSvcIds = [...state.services, ...newServices].map((s) => s.id);
+      const PACKAGE_NAMES = ["Glow & Go Bundle", "Full Glam Package", "Relaxation Set", "Bridal Package", "Monthly Refresh", "VIP Treatment", "Express Combo"];
+      for (let i = 0; i < n; i++) {
+        const svcSubset = allSvcIds.length >= 2 ? [pick(allSvcIds), pick(allSvcIds)].filter((v, idx, arr) => arr.indexOf(v) === idx) : allSvcIds.slice(0, 1);
+        const pkg: ServicePackage = {
+          id: uid(),
+          name: `${pick(PACKAGE_NAMES)} ${SEED_TAG}`,
+          description: `Auto-generated test package ${SEED_TAG}`,
+          serviceIds: svcSubset,
+          price: randInt(50, 350),
+          sessions: pick([null, 3, 5, 10]),
+          active: true,
+          expiryDays: pick([null, 30, 60, 90]),
+          createdAt: isoNow(),
+        };
+        newPackages.push(pkg);
+        dispatch({ type: "ADD_PACKAGE", payload: pkg });
+      }
+      addLog(`✅ Created ${n} service packages`);
+    }
+
+    // ── Waitlist Entries ───────────────────────────────────────────────────
+    if (selected.waitlist) {
+      const n = Math.max(0, parseInt(counts.waitlist) || 0);
+      const allSvcIds = [...state.services, ...newServices].map((s) => s.id);
+      const allLocIds = [...state.locations, ...newLocations].map((l) => l.id);
+      const allStaffIds = [...state.staff, ...newStaff].map((s) => s.id);
+      for (let i = 0; i < n; i++) {
+        const name = `${randClientName()} ${SEED_TAG}`;
+        const entry: WaitlistEntry = {
+          id: uid(),
+          clientName: name,
+          clientPhone: randPhone(),
+          serviceId: allSvcIds.length > 0 ? pick(allSvcIds) : "svc_placeholder",
+          date: dateStr(randDate(from, to)),
+          time: randTime(),
+          locationId: allLocIds.length > 0 ? pick(allLocIds) : undefined,
+          staffId: allStaffIds.length > 0 ? pick(allStaffIds) : undefined,
+          createdAt: isoNow(),
+          notified: false,
+        };
+        dispatch({ type: "ADD_WAITLIST_ENTRY", payload: entry });
+      }
+      addLog(`✅ Created ${n} waitlist entries`);
+    }
+
+    // ── Note Templates ─────────────────────────────────────────────────────
+    if (selected.noteTemplates) {
+      const n = Math.max(0, parseInt(counts.noteTemplates) || 0);
+      const NOTE_TITLES = ["Prefers no heat", "Sensitive scalp", "Allergic to bleach", "Prefers morning slots", "VIP client", "Bring own products", "Needs extra time", "Prefers female staff"];
+      const NOTE_BODIES = ["Client prefers no heat styling tools during service.", "Sensitive scalp — use gentle products only.", "Allergic to bleach and strong chemicals.", "Prefers early morning appointments before 10am.", "VIP client — priority scheduling.", "Client brings their own preferred products.", "Needs 15 extra minutes for consultation.", "Prefers female staff members only."];
+      for (let i = 0; i < n; i++) {
+        const idx = randInt(0, NOTE_TITLES.length - 1);
+        const tmpl: NoteTemplate = {
+          id: uid(),
+          title: `${NOTE_TITLES[idx]} ${SEED_TAG}`,
+          body: `${NOTE_BODIES[idx]} ${SEED_TAG}`,
+          createdAt: isoNow(),
+        };
+        dispatch({ type: "ADD_NOTE_TEMPLATE", payload: tmpl });
+      }
+      addLog(`✅ Created ${n} note templates`);
+    }
+
+    // ── Custom Schedule Overrides ──────────────────────────────────────────
+    if (selected.customSchedule) {
+      const n = Math.max(0, parseInt(counts.customSchedule) || 0);
+      const usedDates = new Set<string>();
+      let attempts = 0;
+      let created = 0;
+      while (created < n && attempts < n * 5) {
+        attempts++;
+        const d = randDate(from, to);
+        const ds = dateStr(d);
+        if (usedDates.has(ds)) continue;
+        usedDates.add(ds);
+        const isOpen = Math.random() > 0.3;
+        const cs: CustomScheduleDay = {
+          date: ds,
+          isOpen,
+          startTime: isOpen ? pick(["08:00", "09:00", "10:00"]) : undefined,
+          endTime: isOpen ? pick(["17:00", "18:00", "19:00", "20:00"]) : undefined,
+          locationId: null,
+        };
+        dispatch({ type: "SET_CUSTOM_SCHEDULE", payload: cs });
+        created++;
+      }
+      addLog(`✅ Created ${created} schedule overrides`);
+    }
+
     addLog("🎉 Generation complete!");
     setGenerating(false);
   }, [selected, counts, fromDate, toDate, state, dispatch, addLog]);
@@ -659,13 +816,28 @@ export default function DevTestingScreen() {
             seedLocations.forEach((l) => dispatch({ type: "DELETE_LOCATION", payload: l.id }));
             addLog(`Removed ${seedLocations.length} locations`);
 
+            seedProducts.forEach((p) => dispatch({ type: "DELETE_PRODUCT", payload: p.id }));
+            addLog(`Removed ${seedProducts.length} products`);
+
+            seedPackages.forEach((p) => dispatch({ type: "DELETE_PACKAGE", payload: p.id }));
+            addLog(`Removed ${seedPackages.length} packages`);
+
+            seedWaitlist.forEach((w) => dispatch({ type: "DELETE_WAITLIST_ENTRY", payload: w.id }));
+            addLog(`Removed ${seedWaitlist.length} waitlist entries`);
+
+            seedNoteTemplates.forEach((n) => dispatch({ type: "DELETE_NOTE_TEMPLATE", payload: n.id }));
+            addLog(`Removed ${seedNoteTemplates.length} note templates`);
+
+            seedCustomSchedule.forEach((cs) => dispatch({ type: "DELETE_CUSTOM_SCHEDULE", payload: cs.date }));
+            addLog(`Removed ${seedCustomSchedule.length} schedule overrides`);
+
             addLog("✅ All seed data removed.");
             setRemoving(false);
           },
         },
       ]
     );
-  }, [totalSeedItems, seedClients, seedAppointments, seedReviews, seedPromoCodes, seedGiftCards, seedDiscounts, seedLocations, seedServices, seedStaff, dispatch, addLog]);
+  }, [totalSeedItems, seedClients, seedAppointments, seedReviews, seedPromoCodes, seedGiftCards, seedDiscounts, seedLocations, seedServices, seedStaff, seedProducts, seedPackages, seedWaitlist, seedNoteTemplates, seedCustomSchedule, dispatch, addLog]);
 
   // ── Phone gate UI ─────────────────────────────────────────────────────────
   if (!unlocked) {
@@ -797,7 +969,7 @@ export default function DevTestingScreen() {
               ⚠️ {totalSeedItems} seeded items exist in the store
             </Text>
             <Text style={{ fontSize: 11, color: "#EF4444", marginTop: 2, opacity: 0.8 }}>
-              {seedClients.length} clients · {seedAppointments.length} appts · {seedReviews.length} reviews · {seedPromoCodes.length} promos · {seedGiftCards.length} gifts · {seedDiscounts.length} discounts · {seedLocations.length} locations · {seedServices.length} services · {seedStaff.length} staff
+              {seedClients.length} clients · {seedAppointments.length} appts · {seedReviews.length} reviews · {seedPromoCodes.length} promos · {seedGiftCards.length} gifts · {seedDiscounts.length} discounts · {seedLocations.length} locations · {seedServices.length} services · {seedStaff.length} staff · {seedProducts.length} products · {seedPackages.length} packages · {seedWaitlist.length} waitlist · {seedNoteTemplates.length} notes · {seedCustomSchedule.length} schedule
             </Text>
           </View>
         )}

@@ -2022,6 +2022,82 @@ export function registerAdminRoutes(app: Express): void {
         }
         summary.locations = locationCount;
       }
+
+      // Seed products
+      const productCount = Number(categories.products || 0);
+      const PRODUCT_NAMES = ["Hydrating Shampoo","Repair Conditioner","Styling Gel","Hair Serum","Scalp Treatment","Color Protect Spray","Volumizing Mousse","Keratin Mask","Argan Oil","Leave-In Conditioner","Nail Polish","Cuticle Oil","Hand Cream","Exfoliating Scrub","Brightening Serum"];
+      const PRODUCT_BRANDS = ["Olaplex","Redken","Wella","Moroccanoil","Kerastase","Paul Mitchell","Aveda","OPI","CND","Essie"];
+      const PRODUCT_CATEGORIES = ["Hair Care","Nail Care","Skin Care","Styling","Treatment","Tools"];
+      const createdProductIds: string[] = [];
+      if (productCount > 0) {
+        for (let i = 0; i < productCount; i++) {
+          const localId = uid();
+          createdProductIds.push(localId);
+          const price = (randInt(8, 80) + 0.99).toFixed(2);
+          await dbase.insert(products).values({
+            businessOwnerId: businessId,
+            localId,
+            name: `${pick(PRODUCT_NAMES)} ${SEED_TAG}`,
+            price,
+            description: `Premium ${pick(PRODUCT_CATEGORIES).toLowerCase()} product for professional use.`,
+            brand: pick(PRODUCT_BRANDS),
+            available: true,
+          });
+        }
+        summary.products = productCount;
+      }
+
+      // Seed waitlist entries (linked to real or seeded services)
+      const waitlistCount = Number(categories.waitlist || 0);
+      const allSvcForWaitlist = createdServiceIds.length > 0 ? createdServiceIds : (await dbase.select({ localId: services.localId }).from(services).where(sql`businessOwnerId = ${businessId}`)).map((s: any) => s.localId);
+      if (waitlistCount > 0) {
+        const WAITLIST_NOTES = ["Flexible on time","Prefers morning slots","Afternoon only","ASAP please","Weekends preferred","Any day works"];
+        for (let i = 0; i < waitlistCount; i++) {
+          const firstName = pick(FIRST_NAMES);
+          const lastName = pick(LAST_NAMES);
+          const d = randDate(from, to);
+          const svcLocalId = allSvcForWaitlist.length > 0 ? pick(allSvcForWaitlist) : `svc_seed_${uid()}`;
+          await dbase.insert(waitlist).values({
+            businessOwnerId: businessId,
+            clientName: `${firstName} ${lastName} ${SEED_TAG}`,
+            clientPhone: `+1${randInt(200,999)}${randInt(100,999)}${randInt(1000,9999)}`,
+            clientEmail: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.com`,
+            serviceLocalId: svcLocalId,
+            preferredDate: d.toISOString().slice(0,10),
+            status: pick(["waiting","waiting","notified","booked"]) as any,
+            notes: `${pick(WAITLIST_NOTES)} ${SEED_TAG}`,
+          });
+        }
+        summary.waitlist = waitlistCount;
+      }
+
+      // Seed custom schedule days (date overrides)
+      const scheduleCount = Number(categories.customSchedule || 0);
+      if (scheduleCount > 0) {
+        const usedDates = new Set<string>();
+        let added = 0;
+        let attempts = 0;
+        while (added < scheduleCount && attempts < scheduleCount * 5) {
+          attempts++;
+          const d = randDate(from, to);
+          const dateKey = d.toISOString().slice(0,10);
+          if (usedDates.has(dateKey)) continue;
+          usedDates.add(dateKey);
+          const isClosed = Math.random() < 0.3;
+          const startH = randInt(7, 11);
+          const endH = startH + randInt(4, 10);
+          await dbase.insert(customSchedule).values({
+            businessOwnerId: businessId,
+            date: dateKey,
+            isOpen: !isClosed,
+            startTime: isClosed ? null : `${padZ(startH)}:00`,
+            endTime: isClosed ? null : `${padZ(endH)}:00`,
+          }).onDuplicateKeyUpdate({ set: { isOpen: !isClosed, startTime: isClosed ? null : `${padZ(startH)}:00`, endTime: isClosed ? null : `${padZ(endH)}:00` } });
+          added++;
+        }
+        summary.customSchedule = added;
+      }
+
       res.json({ ok: true, summary });
     } catch (err: any) {
       console.error("[Admin] Dev Testing seed error:", err);
@@ -2048,6 +2124,9 @@ export function registerAdminRoutes(app: Express): void {
       const [delLocations] = await dbase.delete(locations).where(sql`businessOwnerId = ${businessId} AND name LIKE ${seedLike}`);
       const [delServices] = await dbase.delete(services).where(sql`businessOwnerId = ${businessId} AND name LIKE ${seedLike}`);
       const [delStaff] = await dbase.delete(staffMembers).where(sql`businessOwnerId = ${businessId} AND name LIKE ${seedLike}`);
+      const [delProducts] = await dbase.delete(products).where(sql`businessOwnerId = ${businessId} AND name LIKE ${seedLike}`);
+      const [delWaitlist] = await dbase.delete(waitlist).where(sql`businessOwnerId = ${businessId} AND clientName LIKE ${seedLike}`);
+      const [delSchedule] = await dbase.delete(customSchedule).where(sql`businessOwnerId = ${businessId}`);
       const removed = {
         clients: (delClients as any)?.affectedRows ?? 0,
         appointments: (delAppts as any)?.affectedRows ?? 0,
@@ -2058,6 +2137,9 @@ export function registerAdminRoutes(app: Express): void {
         locations: (delLocations as any)?.affectedRows ?? 0,
         services: (delServices as any)?.affectedRows ?? 0,
         staff: (delStaff as any)?.affectedRows ?? 0,
+        products: (delProducts as any)?.affectedRows ?? 0,
+        waitlist: (delWaitlist as any)?.affectedRows ?? 0,
+        customSchedule: (delSchedule as any)?.affectedRows ?? 0,
       };
       const total = Object.values(removed).reduce((a: number, b: number) => a + b, 0);
       res.json({ ok: true, removed, total });
@@ -2079,6 +2161,10 @@ export function registerAdminRoutes(app: Express): void {
         const rows = await dbase.select({ n: drizzleCount() }).from(table).where(sql`businessOwnerId = ${bizId} AND ${col} LIKE ${seedLike}`);
         return rows[0]?.n ?? 0;
       };
+      const countSchedule = async () => {
+        const rows = await dbase.select({ n: drizzleCount() }).from(customSchedule).where(sql`businessOwnerId = ${bizId}`);
+        return rows[0]?.n ?? 0;
+      };
       const counts = {
         clients: await countOf(clients, sql`notes`),
         appointments: await countOf(appointments, sql`notes`),
@@ -2089,6 +2175,9 @@ export function registerAdminRoutes(app: Express): void {
         locations: await countOf(locations, sql`name`),
         services: await countOf(services, sql`name`),
         staff: await countOf(staffMembers, sql`name`),
+        products: await countOf(products, sql`name`),
+        waitlist: await countOf(waitlist, sql`clientName`),
+        customSchedule: await countSchedule(),
       };
       const total = Object.values(counts).reduce((a: number, b: number) => a + b, 0);
       res.json({ ok: true, counts, total });
@@ -5985,6 +6074,9 @@ function devTestingPage(bizOptions: string): string {
               {key:'locations', label:'📍 Locations', default:2},
               {key:'services', label:'✂️ Services', default:3},
               {key:'staff', label:'👥 Staff', default:2},
+              {key:'products', label:'📦 Products', default:5},
+              {key:'waitlist', label:'⏳ Waitlist', default:3},
+              {key:'customSchedule', label:'🗓️ Schedule Overrides', default:5},
             ].map(c => `
               <div style="background:var(--bg-hover);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
@@ -6044,13 +6136,13 @@ function devTestingPage(bizOptions: string): string {
     </div>
 
     <script>
-      const CATEGORIES = ['clients','appointments','reviews','promoCodes','giftCards','discounts','locations','services','staff'];
+      const CATEGORIES = ['clients','appointments','reviews','promoCodes','giftCards','discounts','locations','services','staff','products','waitlist','customSchedule'];
       const PRESETS = {
-        smoke:  { clients:2, appointments:3, reviews:2, promoCodes:1, giftCards:1, discounts:1, locations:1, services:2, staff:1 },
-        light:  { clients:5, appointments:10, reviews:5, promoCodes:3, giftCards:3, discounts:3, locations:2, services:3, staff:2 },
-        heavy:  { clients:20, appointments:50, reviews:15, promoCodes:10, giftCards:10, discounts:8, locations:5, services:8, staff:5 },
-        appts:  { clients:5, appointments:30, reviews:0, promoCodes:0, giftCards:0, discounts:0, locations:0, services:3, staff:0 },
-        full:   { clients:10, appointments:20, reviews:10, promoCodes:5, giftCards:5, discounts:5, locations:3, services:5, staff:4 },
+        smoke:  { clients:2, appointments:3, reviews:2, promoCodes:1, giftCards:1, discounts:1, locations:1, services:2, staff:1, products:2, waitlist:1, customSchedule:2 },
+        light:  { clients:5, appointments:10, reviews:5, promoCodes:3, giftCards:3, discounts:3, locations:2, services:3, staff:2, products:4, waitlist:3, customSchedule:5 },
+        heavy:  { clients:20, appointments:50, reviews:15, promoCodes:10, giftCards:10, discounts:8, locations:5, services:8, staff:5, products:15, waitlist:10, customSchedule:14 },
+        appts:  { clients:5, appointments:30, reviews:0, promoCodes:0, giftCards:0, discounts:0, locations:0, services:3, staff:0, products:0, waitlist:5, customSchedule:0 },
+        full:   { clients:10, appointments:20, reviews:10, promoCodes:5, giftCards:5, discounts:5, locations:3, services:5, staff:4, products:8, waitlist:5, customSchedule:7 },
       };
 
       function selectAll() {
