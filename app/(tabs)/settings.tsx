@@ -49,6 +49,7 @@ export default function SettingsScreen() {
   const { hasMultipleLocations, activeLocation } = useActiveLocation();
 
   const [activeTab, setActiveTab] = useState<TabKey>("business");
+  const [devTapCount, setDevTapCount] = useState(0);
 
   // Business Name editing
   const [editingName, setEditingName] = useState(false);
@@ -574,13 +575,35 @@ export default function SettingsScreen() {
         <IconSymbol name="chevron.right" size={16} color={colors.error + "60"} />
       </Pressable>
 
+      {/* Dev Testing Entry (hidden — tap version box 5 times) */}
+      {devTapCount >= 5 && (
+        <Pressable
+          onPress={() => router.push("/dev-testing" as any)}
+          style={({ pressed }) => [styles.navCard, { backgroundColor: "#F59E0B10", borderColor: "#F59E0B30", opacity: pressed ? 0.75 : 1, marginBottom: 10 }]}
+        >
+          <View style={[styles.navIcon, { backgroundColor: "#F59E0B20" }]}>
+            <IconSymbol name="wrench.fill" size={22} color="#F59E0B" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 15, fontWeight: "600", color: "#F59E0B" }}>Dev Testing Panel</Text>
+            <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Seed & cleanup test data</Text>
+          </View>
+          <IconSymbol name="chevron.right" size={16} color="#F59E0B60" />
+        </Pressable>
+      )}
+
       {/* App Info — version box at the bottom */}
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, alignItems: "center", paddingVertical: 24, marginTop: 16, marginBottom: 8 }]}>
+      <Pressable
+        onPress={() => setDevTapCount((n) => n + 1)}
+        style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+      >
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: devTapCount >= 3 && devTapCount < 5 ? "#F59E0B40" : colors.border, alignItems: "center", paddingVertical: 24, marginTop: 16, marginBottom: 8 }]}>
         <Image source={require("@/assets/images/icon.png")} style={{ width: 56, height: 56, borderRadius: 14, marginBottom: 8 }} resizeMode="contain" />
         <Text style={{ fontSize: 16, fontWeight: "700", color: colors.primary }}>Lime Of Time</Text>
         <Text style={{ fontSize: 12, color: colors.muted, marginTop: 3 }}>Version 1.0.0</Text>
         <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>Smart Scheduling for Small Business</Text>
       </View>
+      </Pressable>
     </>
   );
 
