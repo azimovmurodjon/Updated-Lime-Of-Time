@@ -66,6 +66,45 @@ import { getApiBaseUrl } from "@/constants/oauth";
 
 type Step = 1 | "otp" | 2 | "subscription" | 3 | "socialPhone";
 
+// ─── Swipe Up Hint ────────────────────────────────────────────────
+function SwipeUpHint({ visible }: { visible: boolean }) {
+  const translateY = useSharedValue(0);
+  const opacity = useSharedValue(0);
+
+  useEffect(() => {
+    if (visible) {
+      // Fade in
+      opacity.value = withTiming(1, { duration: 350 });
+      // Looping upward bounce
+      translateY.value = withRepeat(
+        withSequence(
+          withTiming(-8, { duration: 500, easing: Easing.inOut(Easing.sin) }),
+          withTiming(0, { duration: 500, easing: Easing.inOut(Easing.sin) }),
+        ),
+        -1,
+        false,
+      );
+    } else {
+      opacity.value = withTiming(0, { duration: 200 });
+      translateY.value = 0;
+    }
+  }, [visible]);
+
+  const style = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  return (
+    <Animated.View style={[{ alignItems: "center", marginTop: 14, gap: 4 }, style]}>
+      <Text style={{ fontSize: 18, color: "#4A7C59" }}>↑</Text>
+      <Text style={{ fontSize: 12, color: "#4A7C59", fontWeight: "600", letterSpacing: 0.4 }}>
+        Tap Continue to proceed
+      </Text>
+    </Animated.View>
+  );
+}
+
 // ─── Floating Particle ─────────────────────────────────────────────
 function FloatingParticle({
   x,
@@ -503,6 +542,30 @@ export default function OnboardingScreen() {
     transform: [{ translateX: slideX.value }],
     opacity: slideOpacity.value,
   }));
+
+  // ─── Auto-advance when phone is fully entered ──────────────────────
+  const autoAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (displayStep !== 1 || loading) return;
+    const stripped = stripPhoneFormat(phone);
+    const isUS = selectedCountry.dial === "+1";
+    const targetLen = isUS ? 10 : 8; // US: 10 digits, international: ≥8 digits
+    const isComplete = isUS ? stripped.length === targetLen : stripped.length >= targetLen;
+    if (isComplete) {
+      // Small delay so the user sees the last digit before advancing
+      autoAdvanceRef.current = setTimeout(() => {
+        handleBtnPress(handlePhoneNext);
+      }, 400);
+    } else {
+      if (autoAdvanceRef.current) {
+        clearTimeout(autoAdvanceRef.current);
+        autoAdvanceRef.current = null;
+      }
+    }
+    return () => {
+      if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
+    };
+  }, [phone, displayStep, selectedCountry, loading]);
 
   const handlePhoneChange = (text: string) => {
     setPhone(formatPhoneNumber(text));
@@ -967,6 +1030,9 @@ export default function OnboardingScreen() {
                       <Text style={styles.primaryBtnText}>Continue</Text>
                     )}
                   </Pressable>
+
+                  {/* ─── Swipe Up Hint ──────────────────────── */}
+                  <SwipeUpHint visible={!loading && stripPhoneFormat(phone).length === (selectedCountry.dial === "+1" ? 10 : 8)} />
 
                   {/* ─── Social Login Divider ─────────────────── */}
                   <View style={styles.dividerRow}>

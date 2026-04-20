@@ -1447,3 +1447,5 @@
 - [x] Pull-to-refresh on Payment Methods screen (refresh balance + payout data)
 - [x] Separate detail pages for Zelle, Cash App, Venmo (description, input field, live QR preview, save button)
 - [x] Client booking page: show only the selected payment method's QR code (not all three)
+- [x] Onboarding: animated swipe-up hint below Continue button
+- [x] Onboarding: auto-advance when phone number is fully entered
