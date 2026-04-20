@@ -1070,7 +1070,9 @@ export default function OnboardingScreen() {
               <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", letterSpacing: 1.5, textTransform: "uppercase" }}>by Manus</Text>
               <View style={{ width: 24, height: 1, backgroundColor: "rgba(255,255,255,0.3)" }} />
             </View>
-          </Animated.View>          {/* ─── Progress Dots ──────────────────────────────────── */}
+          </Animated.View>
+
+          {/* ─── Progress Dots ──────────────────────────────────── */}
           <ProgressDots step={displayStep} />
 
           {/* ─── White Card ──────────────────────────────────── */}
@@ -1414,6 +1416,13 @@ export default function OnboardingScreen() {
                   <Text style={[styles.stepSubtitle, { textAlign: "center" }]}>Setup takes about 2 minutes</Text>
                 </Animated.View>
 
+                <ScrollView
+                  style={{ maxHeight: 340 }}
+                  contentContainerStyle={{ paddingBottom: 8 }}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  nestedScrollEnabled={true}
+                >
                 <Animated.View style={inputStyle}>
                   {/* Quick-setup intro card */}
                   <View style={styles.bizIntroCard}>
@@ -1528,6 +1537,7 @@ export default function OnboardingScreen() {
                     />
                   </View>
                 </Animated.View>
+                </ScrollView>
 
                 <Animated.View style={btnStyle}>
                   <View style={styles.buttonRow}>

@@ -1453,3 +1453,5 @@
 - [x] Onboarding: back chevron + swipe-right gesture on OTP, business info, social phone steps
 - [x] Onboarding analytics: track highest step reached in AsyncStorage with timestamp
 - [x] Onboarding analytics: display drop-off data in settings/admin area
+- [x] Fix: Text-outside-Text render error in onboarding ScrollView
+- [x] Fix: Business info step not scrolling on onboarding
