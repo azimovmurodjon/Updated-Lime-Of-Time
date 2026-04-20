@@ -275,8 +275,9 @@ function ServiceSlide({
 }
 
 // ─── Status Slide ─────────────────────────────────────────────────────────────
-type StatusTimeline = "week" | "month" | "all";
+type StatusTimeline = "today" | "week" | "month" | "all";
 const STATUS_TIMELINES: { key: StatusTimeline; label: string }[] = [
+  { key: "today", label: "Today" },
   { key: "week", label: "Week" },
   { key: "month", label: "Month" },
   { key: "all", label: "All" },
@@ -303,14 +304,18 @@ function StatusSlide({
     const pad = (n: number) => String(n).padStart(2, "0");
     const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
     let rangeStart = "2000-01-01";
-    if (timeline === "week") {
+    let rangeEnd = todayStr;
+    if (timeline === "today") {
+      rangeStart = todayStr;
+      rangeEnd = todayStr;
+    } else if (timeline === "week") {
       const s = new Date(now);
       s.setDate(now.getDate() - now.getDay());
       rangeStart = `${s.getFullYear()}-${pad(s.getMonth() + 1)}-${pad(s.getDate())}`;
     } else if (timeline === "month") {
       rangeStart = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
     }
-    const ranged = appointments.filter((a) => a.date >= rangeStart && a.date <= todayStr);
+    const ranged = appointments.filter((a) => a.date >= rangeStart && a.date <= rangeEnd);
     return {
       completed: ranged.filter((a) => a.status === "completed").length,
       confirmed: ranged.filter((a) => a.status === "confirmed").length,
@@ -318,6 +323,26 @@ function StatusSlide({
       cancelled: ranged.filter((a) => a.status === "cancelled").length,
     };
   }, [appointments, timeline, statusCounts]);
+
+  // Per-tab total counts for badges
+  const tabCounts = useMemo((): Record<StatusTimeline, number> => {
+    if (!appointments || appointments.length === 0) return { today: 0, week: 0, month: 0, all: 0 };
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - now.getDay());
+    const weekStartStr = `${weekStart.getFullYear()}-${pad(weekStart.getMonth() + 1)}-${pad(weekStart.getDate())}`;
+    const monthStartStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
+    const count = (start: string, end: string) =>
+      appointments.filter((a) => a.date >= start && a.date <= end).length;
+    return {
+      today: count(todayStr, todayStr),
+      week: count(weekStartStr, todayStr),
+      month: count(monthStartStr, todayStr),
+      all: appointments.length,
+    };
+  }, [appointments]);
 
   const filteredTotal = filteredCounts.completed + filteredCounts.confirmed + filteredCounts.pending + filteredCounts.cancelled;
 
@@ -341,16 +366,20 @@ function StatusSlide({
             style={({ pressed }) => ({
               flex: 1,
               alignItems: "center",
-              paddingVertical: 5,
+              paddingVertical: 6,
               borderRadius: 8,
               backgroundColor: timeline === t.key ? ACCENT + "20" : colors.border + "50",
               borderWidth: 1,
               borderColor: timeline === t.key ? ACCENT : "transparent",
               opacity: pressed ? 0.7 : 1,
+              gap: 1,
             })}
           >
             <Text style={{ fontSize: 12, fontWeight: "700", color: timeline === t.key ? ACCENT : colors.muted }}>
               {t.label}
+            </Text>
+            <Text style={{ fontSize: 10, fontWeight: "600", color: timeline === t.key ? ACCENT : colors.muted, opacity: 0.8 }}>
+              {tabCounts[t.key]}
             </Text>
           </Pressable>
         ))}

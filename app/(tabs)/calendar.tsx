@@ -44,6 +44,7 @@ type CalendarView = "month" | "day" | "week";
 
 const FILTERS = [
   { key: "upcoming", label: "Upcoming" },
+  { key: "confirmed", label: "Confirmed" },
   { key: "unpaid", label: "Unpaid" },
   { key: "requests", label: "Requests" },
   { key: "completed", label: "Completed" },
@@ -649,6 +650,9 @@ export default function CalendarScreen() {
       case "requests":
         return base.filter((a) => a.status === "pending")
           .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+      case "confirmed":
+        return base.filter((a) => a.status === "confirmed")
+          .sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
       case "cancelled":
         return base.filter((a) => a.status === "cancelled")
           .sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
@@ -856,9 +860,10 @@ export default function CalendarScreen() {
 
   const filterColors: Record<FilterKey, string> = {
     upcoming: colors.success,
+    confirmed: colors.primary,
     unpaid: "#EF4444",
     requests: "#FF9800",
-    completed: colors.primary,
+    completed: "#00C896",
     paid: "#22C55E",
     cancelled: "#9CA3AF",
   };
@@ -1268,6 +1273,7 @@ export default function CalendarScreen() {
             const isActive = activeFilter === f.key;
             const count =
               f.key === "upcoming" ? locationAppointments.filter((a) => a.status === "confirmed" && a.date > todayStr).length
+              : f.key === "confirmed" ? locationAppointments.filter((a) => a.status === "confirmed").length
               : f.key === "unpaid" ? locationAppointments.filter((a) => a.status !== "cancelled" && a.paymentStatus !== "paid").length
               : f.key === "paid" ? locationAppointments.filter((a) => a.paymentStatus === "paid").length
               : f.key === "requests" ? locationAppointments.filter((a) => a.status === "pending").length

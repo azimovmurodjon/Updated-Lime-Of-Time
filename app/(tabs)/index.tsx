@@ -2001,7 +2001,7 @@ export default function HomeScreen() {
             // Map appointment status keys to calendar filter keys
             const calendarFilter: Record<string, string> = {
               completed: 'completed',
-              confirmed: 'upcoming',
+              confirmed: 'confirmed',
               pending: 'requests',
               cancelled: 'cancelled',
               all: 'upcoming',
