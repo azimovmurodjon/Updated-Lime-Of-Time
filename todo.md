@@ -1462,3 +1462,5 @@
 - [x] Extend session duration to 150 days (admin panel cookie + session)
 - [x] Audit and verify OTP send/verify flow end-to-end with Twilio Verify
 - [x] Admin Panel: dark/light mode toggle in header with system-theme auto-detection
+- [x] Admin login page: apply system-theme dark mode auto-detection
+- [x] Audit all Admin Panel sections for correct data connections to live app

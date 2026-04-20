@@ -18,6 +18,8 @@ import {
   platformConfig,
   adminExpenses,
   adminAuditLog,
+  promoCodes,
+  waitlist,
 } from "../drizzle/schema";
 import { sql, eq, count as drizzleCount } from "drizzle-orm";
 import { ADMIN_LOGO_BASE64 } from "./admin-logo-data";
@@ -1264,6 +1266,181 @@ export function registerAdminRoutes(app: Express): void {
       res.status(500).send(errorPage("Failed to load financial data"));
     }
   });
+
+  // ── Stripe Connect Admin Page ─────────────────────────────────────────
+  app.get("/api/admin/stripe-connect", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
+
+      const allBiz = await dbase.select().from(businessOwners).orderBy(sql`${businessOwners.createdAt} DESC`);
+
+      const rows = allBiz.map((b: any) => ({
+        id: b.id,
+        businessName: b.businessName || b.name || "—",
+        ownerName: b.ownerName || "—",
+        email: b.email || "—",
+        phone: b.phone || "—",
+        stripeConnectAccountId: b.stripeConnectAccountId || null,
+        stripeConnectEnabled: b.stripeConnectEnabled || false,
+        stripeConnectOnboardingComplete: b.stripeConnectOnboardingComplete || false,
+      }));
+
+      const connected = rows.filter((r: any) => r.stripeConnectAccountId).length;
+      const enabled = rows.filter((r: any) => r.stripeConnectEnabled).length;
+
+      res.send(adminLayout("Stripe Connect", "stripe-connect", `
+        <div class="page-header">
+          <h2>Stripe Connect Accounts</h2>
+          <span style="font-size:13px;color:var(--text-muted);">${connected} connected · ${enabled} charges enabled</span>
+        </div>
+
+        <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:24px;">
+          <div class="stat-card"><div class="stat-value">${rows.length}</div><div class="stat-label">Total Businesses</div></div>
+          <div class="stat-card"><div class="stat-value">${connected}</div><div class="stat-label">Stripe Connected</div></div>
+          <div class="stat-card"><div class="stat-value">${enabled}</div><div class="stat-label">Charges Enabled</div></div>
+          <div class="stat-card"><div class="stat-value">${rows.length - connected}</div><div class="stat-label">Not Connected</div></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+            <h3>Business Stripe Accounts</h3>
+            <input id="scSearch" type="text" placeholder="Search businesses..." oninput="filterSC()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--input-bg);color:var(--text-primary);font-size:13px;width:220px;">
+          </div>
+          <div style="overflow-x:auto;">
+            <table class="data-table">
+              <thead><tr>
+                <th>Business</th>
+                <th>Owner</th>
+                <th>Stripe Account ID</th>
+                <th>Status</th>
+                <th>Charges</th>
+                <th>Actions</th>
+              </tr></thead>
+              <tbody id="scTbody">
+                ${rows.map((r: any) => `
+                  <tr class="sc-row" data-name="${(r.businessName + ' ' + r.ownerName).toLowerCase()}">
+                    <td><strong>${r.businessName}</strong><br><span style="font-size:11px;color:var(--text-muted);">${r.email}</span></td>
+                    <td>${r.ownerName}</td>
+                    <td style="font-family:monospace;font-size:12px;">${r.stripeConnectAccountId ? `<span style="color:var(--success);">${r.stripeConnectAccountId}</span>` : '<span style="color:var(--text-muted);">Not connected</span>'}</td>
+                    <td>${r.stripeConnectOnboardingComplete ? '<span class="badge badge-success">Complete</span>' : r.stripeConnectAccountId ? '<span class="badge badge-warning">Pending</span>' : '<span class="badge badge-error">None</span>'}</td>
+                    <td>${r.stripeConnectEnabled ? '<span class="badge badge-success">Enabled</span>' : '<span class="badge badge-error">Disabled</span>'}</td>
+                    <td>
+                      ${r.stripeConnectAccountId ? `
+                        <form method="POST" action="/api/admin/stripe-connect/disconnect" style="display:inline;" onsubmit="return confirm('Disconnect Stripe from ${r.businessName}?')">
+                          <input type="hidden" name="businessOwnerId" value="${r.id}">
+                          <button type="submit" class="btn btn-sm" style="background:var(--error);color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px;">Disconnect</button>
+                        </form>
+                      ` : '<span style="color:var(--text-muted);font-size:12px;">—</span>'}
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <script>
+          function filterSC() {
+            const q = document.getElementById('scSearch').value.toLowerCase();
+            document.querySelectorAll('#scTbody .sc-row').forEach(row => {
+              const name = row.getAttribute('data-name') || '';
+              row.style.display = (!q || name.includes(q)) ? '' : 'none';
+            });
+          }
+        </script>
+      `));
+    } catch (err) {
+      console.error("[Admin] Stripe Connect page error:", err);
+      res.status(500).send(errorPage("Failed to load Stripe Connect data"));
+    }
+  });
+
+  // ── Promo Codes Admin Page ────────────────────────────────────────────
+  app.get("/api/admin/promo-codes", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
+
+      const allPromos = await (dbase as any).select().from(promoCodes).catch(() => [] as any[]);
+      const allBiz = await dbase.select().from(businessOwners);
+      const bizMap: Record<number, string> = {};
+      allBiz.forEach((b: any) => { bizMap[b.id] = b.businessName || b.name || String(b.id); });
+
+      res.send(adminLayout("Promo Codes", "promo-codes", `
+        <div class="page-header">
+          <h2>Promo Codes</h2>
+          <span style="font-size:13px;color:var(--text-muted);">${allPromos.length} total codes</span>
+        </div>
+        <div class="card">
+          <div style="overflow-x:auto;">
+            <table class="data-table">
+              <thead><tr><th>Code</th><th>Business</th><th>Type</th><th>Value</th><th>Uses</th><th>Max Uses</th><th>Expires</th><th>Active</th></tr></thead>
+              <tbody>
+                ${allPromos.length === 0 ? '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);">No promo codes yet</td></tr>' : allPromos.map((p: any) => `
+                  <tr>
+                    <td><strong style="font-family:monospace;">${p.code || '—'}</strong></td>
+                    <td>${bizMap[p.businessOwnerId] || p.businessOwnerId || '—'}</td>
+                    <td>${p.discountType || '—'}</td>
+                    <td>${p.discountType === 'percentage' ? (p.discountValue || 0) + '%' : '$' + (p.discountValue || 0)}</td>
+                    <td>${p.usedCount ?? 0}</td>
+                    <td>${p.maxUses ?? '∞'}</td>
+                    <td>${p.expiresAt ? new Date(p.expiresAt).toLocaleDateString() : '—'}</td>
+                    <td>${p.isActive ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-error">Inactive</span>'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `));
+    } catch (err) {
+      console.error("[Admin] Promo codes error:", err);
+      res.status(500).send(errorPage("Failed to load promo codes"));
+    }
+  });
+
+  // ── Waitlist Admin Page ───────────────────────────────────────────────
+  app.get("/api/admin/waitlist", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).send(errorPage("DB unavailable")); return; }
+
+      const allWaitlist = await (dbase as any).select().from(waitlist).catch(() => [] as any[]);
+      const allBiz = await dbase.select().from(businessOwners);
+      const bizMap: Record<number, string> = {};
+      allBiz.forEach((b: any) => { bizMap[b.id] = b.businessName || b.name || String(b.id); });
+
+      res.send(adminLayout("Waitlist", "waitlist", `
+        <div class="page-header">
+          <h2>Waitlist Entries</h2>
+          <span style="font-size:13px;color:var(--text-muted);">${allWaitlist.length} total entries</span>
+        </div>
+        <div class="card">
+          <div style="overflow-x:auto;">
+            <table class="data-table">
+              <thead><tr><th>Client</th><th>Business</th><th>Service</th><th>Requested Date</th><th>Status</th><th>Created</th></tr></thead>
+              <tbody>
+                ${allWaitlist.length === 0 ? '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">No waitlist entries yet</td></tr>' : allWaitlist.map((w: any) => `
+                  <tr>
+                    <td>${w.clientName || w.clientId || '—'}</td>
+                    <td>${bizMap[w.businessOwnerId] || w.businessOwnerId || '—'}</td>
+                    <td>${w.serviceName || w.serviceId || '—'}</td>
+                    <td>${w.requestedDate ? new Date(w.requestedDate).toLocaleDateString() : '—'}</td>
+                    <td>${w.status ? `<span class="badge badge-${w.status === 'pending' ? 'warning' : w.status === 'booked' ? 'success' : 'error'}">${w.status}</span>` : '—'}</td>
+                    <td>${w.createdAt ? new Date(w.createdAt).toLocaleDateString() : '—'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `));
+    } catch (err) {
+      console.error("[Admin] Waitlist error:", err);
+      res.status(500).send(errorPage("Failed to load waitlist"));
+    }
+  });
 }
 
 // ─── HTML Templates ─────────────────────────────────────────────────
@@ -1557,6 +1734,8 @@ function sidebarHtml(activePage: string): string {
       ${navItem('/api/admin/subscriptions', '💳', 'Subscriptions', a === 'subscriptions')}
       ${navItem('/api/admin/plans', '📋', 'Plan Pricing', a === 'plans')}
       ${navItem('/api/admin/stripe-connect', '💳', 'Stripe Connect', a === 'stripe-connect')}
+      ${navItem('/api/admin/promo-codes', '🎟️', 'Promo Codes', a === 'promo-codes')}
+      ${navItem('/api/admin/waitlist', '⏳', 'Waitlist', a === 'waitlist')}
 
       ${navSection('SYSTEM')}
       ${navItem('/api/admin/platform-config', '🔧', 'Platform Config', a === 'platform-config')}
@@ -1667,6 +1846,16 @@ function loginPage(error?: string): string {
   ${adminStyles()}
 </head>
 <body>
+  <script>
+    (function() {
+      var saved = localStorage.getItem('admin_theme');
+      var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var theme = saved || (prefersDark ? 'dark' : 'light');
+      if (theme === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+      }
+    })();
+  </script>
   <div class="login-container">
     <div class="login-card">
       <div style="text-align:center;margin-bottom:8px;"><img src="${ADMIN_LOGO_BASE64}" alt="Lime Of Time" style="width:64px;height:64px;border-radius:12px;" /></div>
