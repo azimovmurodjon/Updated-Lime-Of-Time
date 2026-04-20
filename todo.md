@@ -1451,3 +1451,5 @@
 - [x] Onboarding: auto-advance when phone number is fully entered
 - [x] Onboarding: slide-left/slide-right transitions between all steps
 - [x] Onboarding: back chevron + swipe-right gesture on OTP, business info, social phone steps
+- [x] Onboarding analytics: track highest step reached in AsyncStorage with timestamp
+- [x] Onboarding analytics: display drop-off data in settings/admin area

@@ -203,6 +203,7 @@ export default function SettingsScreen() {
     { title: "Category Management",subtitle: "Manage service and product categories", icon: "tag.fill" as const, route: "/category-management" as const, color: "#10B981" },
     { title: "Export Data",       subtitle: "PDF reports for clients, appointments, revenue", icon: "square.and.arrow.up.fill" as const, route: "/data-export" as const, color: colors.primary },
     { title: "Usage Guide",        subtitle: "How to use every feature in the app", icon: "book.fill" as const, route: "/usage-guide" as const, color: "#0EA5E9" },
+    { title: "Onboarding Analytics", subtitle: "See where new users drop off during sign-up", icon: "chart.line.uptrend.xyaxis" as const, route: "/onboarding-analytics" as const, color: "#14B8A6" },
   ];
 
   // ── Tab content renderers ───────────────────────────────────────────────────

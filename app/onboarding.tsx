@@ -311,6 +311,39 @@ export default function OnboardingScreen() {
 
     prevStepRef.current = nextStep;
     setStep(nextStep);
+
+    // ─── Onboarding Analytics: track highest step reached ───────────────────────────
+    const STEP_LABELS: Record<string, string> = {
+      "1": "Phone Entry",
+      socialPhone: "Social Phone",
+      otp: "OTP Verification",
+      "2": "Business Info",
+      subscription: "Plan Selection",
+      "3": "Biometric / Complete",
+    };
+    const nextIdx = STEP_ORDER.indexOf(nextStep);
+    AsyncStorage.getItem("onboarding_analytics").then((raw) => {
+      const data = raw ? JSON.parse(raw) : { sessions: [] };
+      const now = new Date().toISOString();
+      // Find or create a session started today
+      const todayKey = now.slice(0, 10);
+      let session = data.sessions.find((s: any) => s.date === todayKey);
+      if (!session) {
+        session = { date: todayKey, steps: [], highestIdx: -1, completed: false };
+        data.sessions.push(session);
+      }
+      if (nextIdx > session.highestIdx) {
+        session.highestIdx = nextIdx;
+        session.highestStep = String(nextStep);
+        session.highestStepLabel = STEP_LABELS[String(nextStep)] ?? String(nextStep);
+      }
+      if (nextStep === 3) session.completed = true;
+      // Record each step visit with timestamp
+      session.steps.push({ step: String(nextStep), label: STEP_LABELS[String(nextStep)] ?? String(nextStep), at: now });
+      // Keep only last 30 days of sessions
+      if (data.sessions.length > 30) data.sessions = data.sessions.slice(-30);
+      AsyncStorage.setItem("onboarding_analytics", JSON.stringify(data));
+    }).catch(() => {});
   }, [width]);
   const { biometricAvailable, biometricType, toggleBiometric } = useAppLockContext();
   const [selectedCountry, setSelectedCountry] = useState<Country>(DEFAULT_COUNTRY);
