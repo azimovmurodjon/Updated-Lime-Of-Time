@@ -1478,3 +1478,7 @@
 - [x] Fix testTwilio() and testStripe() JS crash — used outer `form` variable that could be null; now uses document.querySelector directly with null guard
 - [x] Fix Send OTP button staying disabled after a failed send — re-enable button in the error branch
 - [x] Add session keep-alive ping every 10 minutes on all admin pages to prevent silent session expiry
+- [x] Fix login screen: remove empty gap between Continue button and "or continue with" divider
+- [x] Fix login screen: center form content vertically on screen
+- [x] Change "BY MANUS" to "BY INNOVANCIO" on onboarding/login screen
+- [x] Smart greeting: show "Welcome back!" for returning users, "Get started" for first-time users (using AsyncStorage flag)

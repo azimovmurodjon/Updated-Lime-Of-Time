@@ -270,6 +270,15 @@ export default function OnboardingScreen() {
   const [displayStep, setDisplayStep] = useState<Step>(isSocialFlow ? "socialPhone" : 1);
   // Increment to force PlanCarousel remount (resets inner scroll to top) each time subscription step is shown
   const [planCarouselKey, setPlanCarouselKey] = useState(0);
+  // Track whether this user has opened the app before (for smart greeting)
+  const [isReturningUser, setIsReturningUser] = useState<boolean | null>(null);
+  useEffect(() => {
+    AsyncStorage.getItem("@lot_has_visited").then((val) => {
+      setIsReturningUser(val === "true");
+      // Mark as visited for future opens
+      AsyncStorage.setItem("@lot_has_visited", "true");
+    }).catch(() => setIsReturningUser(false));
+  }, []);
   const slideX = useSharedValue(0);
   const slideOpacity = useSharedValue(1);
 
@@ -1059,8 +1068,9 @@ export default function OnboardingScreen() {
           contentContainerStyle={{
             flexGrow: 1,
             paddingHorizontal: hp,
-            paddingTop: 60,
-            paddingBottom: 40,
+            paddingTop: 32,
+            paddingBottom: 32,
+            justifyContent: "center",
           }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -1080,7 +1090,7 @@ export default function OnboardingScreen() {
             {/* Decorative tagline separator */}
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 }}>
               <View style={{ width: 24, height: 1, backgroundColor: "rgba(255,255,255,0.3)" }} />
-              <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", letterSpacing: 1.5, textTransform: "uppercase" }}>by Manus</Text>
+              <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", letterSpacing: 1.5, textTransform: "uppercase" }}>by Innovancio</Text>
               <View style={{ width: 24, height: 1, backgroundColor: "rgba(255,255,255,0.3)" }} />
             </View>
           </Animated.View>
@@ -1098,9 +1108,9 @@ export default function OnboardingScreen() {
             {displayStep === 1 && (
               <>
                 <Animated.View style={titleStyle}>
-                  <Text style={styles.stepTitle}>Welcome back!</Text>
+                  <Text style={styles.stepTitle}>{isReturningUser ? "Welcome back!" : "Get started"}</Text>
                   <Text style={styles.stepSubtitle}>
-                    Enter your phone number to continue
+                    {isReturningUser ? "Enter your phone number to continue" : "Enter your phone number to begin"}
                   </Text>
                 </Animated.View>
 
@@ -1155,8 +1165,10 @@ export default function OnboardingScreen() {
                     )}
                   </Pressable>
 
-                  {/* ─── Swipe Up Hint ──────────────────────── */}
-                  <SwipeUpHint visible={!loading && stripPhoneFormat(phone).length === (selectedCountry.dial === "+1" ? 10 : 8)} />
+                  {/* ─── Swipe Up Hint (only shown when phone is fully entered) ─── */}
+                  {!loading && stripPhoneFormat(phone).length === (selectedCountry.dial === "+1" ? 10 : 8) && (
+                    <SwipeUpHint visible={true} />
+                  )}
 
                   {/* ─── Social Login Divider ─────────────────── */}
                   <View style={styles.dividerRow}>
