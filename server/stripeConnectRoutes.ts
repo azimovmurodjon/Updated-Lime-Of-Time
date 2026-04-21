@@ -425,10 +425,13 @@ export function registerStripeConnectRoutes(app: Express): void {
       const platformFeeCents = Math.round(amountCents * feePercent);
       console.log(`[StripeConnect] request-payment: amount=$${amount} feePercent=${(feePercent*100).toFixed(2)}% feeCents=${platformFeeCents} accountId=${accountId}`);
 
-      // Build success URL — reuses the existing appointment-by-session receipt page
+      // Build success URL — dedicated receipt page (no booking form flash)
+      // Use customSlug if set, otherwise derive from businessName (same logic as getBusinessOwnerBySlug)
       const origin = `${req.protocol}://${req.get("host")}`;
-      const slug = (owner as any).slug || String(businessOwnerId);
-      const successUrl = `${origin}/api/book/${slug}?payment_success=1&session_id={CHECKOUT_SESSION_ID}`;
+      const slug = (owner as any).customSlug || (owner.businessName ? owner.businessName.toLowerCase().replace(/\s+/g, "-") : String(businessOwnerId));
+      // Point to the dedicated /api/payment-receipt/:slug page so client sees a clean receipt
+      // without the booking form. The receipt page fetches appointment-by-session internally.
+      const successUrl = `${origin}/api/payment-receipt/${slug}?session_id={CHECKOUT_SESSION_ID}`;
       const cancelUrl = `${origin}/api/book/${slug}`;
 
       const session = await stripe.checkout.sessions.create(

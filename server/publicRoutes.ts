@@ -1561,6 +1561,130 @@ export function registerPublicRoutes(app: Express) {
   app.get("/api/home", (_req: Request, res: Response) => {
     res.send(homePage());
   });
+
+  // ── Payment Receipt Page (owner-initiated card payment success) ──────────────
+  // GET /api/payment-receipt/:slug?session_id=cs_xxx
+  // Dedicated clean receipt page shown after owner sends a payment link to client.
+  // No booking form — just the receipt and a "Done" button.
+  app.get("/api/payment-receipt/:slug", async (req: Request, res: Response) => {
+    try {
+      const { session_id } = req.query as { session_id?: string };
+      const owner = await db.getBusinessOwnerBySlug(req.params.slug);
+      if (!owner) { res.status(404).send(notFoundPage("Business not found")); return; }
+      const bizName = escHtml(owner.businessName);
+      const logoUri = (owner as any).businessLogoUri || "";
+      const logoTag = logoUri ? `<img src="${escHtml(logoUri)}" alt="${bizName}" style="width:64px;height:64px;border-radius:16px;object-fit:cover;border:2px solid var(--border);margin-bottom:12px;">` : "";
+      res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Payment Receipt — ${bizName}</title>
+  ${baseStyles()}
+</head>
+<body>
+<div class="container" style="max-width:480px;margin:0 auto;padding:20px 16px;">
+  <div style="text-align:center;padding:28px 0 20px;">
+    ${logoTag}
+    <h1 style="font-size:22px;font-weight:800;color:var(--accent-dark);margin-bottom:4px;">${bizName}</h1>
+    <div style="font-size:12px;color:var(--text-muted);">Payment Receipt</div>
+  </div>
+  <div class="card" id="receiptCard" style="text-align:center;">
+    <div id="loadingState">
+      <div style="font-size:48px;margin-bottom:16px;">⏳</div>
+      <p style="color:var(--text-secondary);">Confirming your payment...</p>
+    </div>
+    <div id="successState" style="display:none;">
+      <div style="font-size:56px;margin-bottom:12px;">✅</div>
+      <h2 style="font-size:20px;font-weight:700;margin-bottom:6px;">Payment Confirmed!</h2>
+      <p style="font-size:14px;color:var(--text-secondary);margin-bottom:20px;">Thank you — your payment has been received.</p>
+      <div id="receiptDetails" style="text-align:left;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:20px;"></div>
+      <div id="manageLink" style="margin-bottom:16px;display:none;">
+        <a id="manageLinkHref" href="#" style="color:var(--accent);font-size:14px;text-decoration:none;font-weight:600;">Manage or Cancel This Appointment →</a>
+      </div>
+      <button onclick="window.close()" style="width:100%;padding:14px;background:var(--accent);color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;">Done</button>
+    </div>
+    <div id="errorState" style="display:none;">
+      <div style="font-size:48px;margin-bottom:16px;">⚠️</div>
+      <h2 style="font-size:18px;font-weight:700;margin-bottom:8px;">Payment Received</h2>
+      <p style="font-size:14px;color:var(--text-secondary);margin-bottom:20px;">Your payment was processed. If you need a receipt, please contact ${bizName}.</p>
+      <button onclick="window.close()" style="width:100%;padding:14px;background:var(--accent);color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;">Done</button>
+    </div>
+  </div>
+  <div style="text-align:center;padding:16px 0;">
+    <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/jHoNjHdLsUGgpFhz.png" alt="Lime Of Time" style="width:24px;height:24px;border-radius:6px;vertical-align:middle;margin-right:6px;">
+    <span style="font-size:12px;color:var(--text-muted);">Powered by Lime Of Time</span>
+  </div>
+</div>
+<script>
+  const SESSION_ID = ${JSON.stringify(session_id || "")};
+  const SLUG = ${JSON.stringify(req.params.slug)};
+  const API = window.location.origin + "/api/public/business/" + SLUG;
+
+  async function loadReceipt() {
+    if (!SESSION_ID) { showError(); return; }
+    try {
+      const res = await fetch(API + '/appointment-by-session?session_id=' + encodeURIComponent(SESSION_ID));
+      const data = await res.json();
+      if (data.ok && data.appointment) {
+        renderReceipt(data.appointment);
+      } else {
+        showError();
+      }
+    } catch(e) {
+      showError();
+    }
+  }
+
+  function renderReceipt(a) {
+    const [yr, mo, dy] = (a.date || '').split('-').map(Number);
+    const dateObj = new Date(yr, mo - 1, dy);
+    const dateStr = dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    const [hh, mm] = (a.time || '00:00').split(':').map(Number);
+    const ampm = hh >= 12 ? 'PM' : 'AM';
+    const h12 = hh === 0 ? 12 : hh > 12 ? hh - 12 : hh;
+    const timeStr = h12 + ':' + String(mm).padStart(2,'0') + ' ' + ampm;
+    const endMin = hh * 60 + mm + (a.duration || 60);
+    const eh = Math.floor(endMin / 60), em = endMin % 60;
+    const eampm = eh >= 12 ? 'PM' : 'AM';
+    const eh12 = eh === 0 ? 12 : eh > 12 ? eh - 12 : eh;
+    const endStr = eh12 + ':' + String(em).padStart(2,'0') + ' ' + eampm;
+    const locationLine = a.locationName ? '<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14px;border-bottom:1px solid var(--border);"><span style="color:var(--text-secondary);">Location</span><span style="font-weight:600;text-align:right;max-width:60%;">' + (a.locationAddress ? a.locationName + '<br><span style="font-weight:400;color:var(--text-muted);font-size:12px;">' + a.locationAddress + '</span>' : a.locationName) + '</span></div>' : '';
+    const rows = [
+      { label: 'Client', value: a.clientName },
+      { label: 'Service', value: a.serviceName },
+      { label: 'Date', value: dateStr },
+      { label: 'Time', value: timeStr + ' — ' + endStr },
+    ];
+    let html = rows.map(r => '<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14px;border-bottom:1px solid var(--border);"><span style="color:var(--text-secondary);">' + r.label + '</span><span style="font-weight:600;">' + r.value + '</span></div>').join('');
+    html += locationLine;
+    html += '<div style="display:flex;justify-content:space-between;padding:8px 0 0;font-size:16px;font-weight:700;"><span>Total Paid</span><span style="color:var(--accent);">$' + parseFloat(a.totalPrice || '0').toFixed(2) + '</span></div>';
+    html += '<div style="margin-top:8px;font-size:13px;color:var(--text-secondary);">💳 Paid by Card</div>';
+    document.getElementById('receiptDetails').innerHTML = html;
+    if (a.manageUrl) {
+      const ml = document.getElementById('manageLinkHref');
+      if (ml) ml.href = a.manageUrl;
+      const mlWrap = document.getElementById('manageLink');
+      if (mlWrap) mlWrap.style.display = 'block';
+    }
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('successState').style.display = 'block';
+  }
+
+  function showError() {
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('errorState').style.display = 'block';
+  }
+
+  loadReceipt();
+</script>
+</body>
+</html>`);
+    } catch (err) {
+      console.error("[Public] Error serving payment receipt page:", err);
+      res.status(500).send(errorPage());
+    }
+  });
 }
 
 // ─── HTML Templates ─────────────────────────────────────────────────

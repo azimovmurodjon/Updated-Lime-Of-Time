@@ -1584,3 +1584,7 @@
 - [x] Calendar: grey out and disable all days when no location is configured (appear as non-working days)
 
 - [x] Calendar: disable Workday panel (greyed out, non-interactive) when no location is configured
+- [x] Verified no-location amber banner on Home screen (already present in index.tsx)
+- [x] Fixed card payment redirect bug: request-payment endpoint was using owner.slug (undefined) — now uses customSlug || businessName-derived slug
+- [x] Fixed card payment redirect bug: success URL was using wrong query param payment_success=1 — now uses dedicated /api/payment-receipt/:slug?session_id= page
+- [x] Added dedicated /api/payment-receipt/:slug page for owner-initiated card payment receipts — clean receipt page with no booking form flash
