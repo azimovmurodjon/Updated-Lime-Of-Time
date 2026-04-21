@@ -1169,23 +1169,26 @@ export default function CalendarScreen() {
           const statuses = dayStatuses[dateStr];
           // Red tint for future days when location is temporarily closed
           const isTemporarilyClosed = !!activeLocation?.temporarilyClosed && !isPast;
+          const noLocation = state.locations.length === 0;
 
           return (
             <Pressable
               key={dateStr}
-              onPress={() => setSelectedDate(dateStr)}
+              onPress={() => !noLocation && setSelectedDate(dateStr)}
               style={({ pressed }) => [
                 styles.dayCell,
                 {
                   width: cellSize,
                   height: cellSize,
-                  backgroundColor: isSelected
+                  backgroundColor: noLocation
+                    ? "transparent"
+                    : isSelected
                     ? (isTemporarilyClosed ? colors.error : colors.primary)
                     : isTemporarilyClosed && !isPast
                     ? colors.error + "18"
                     : "transparent",
                   borderRadius: cellSize / 2,
-                  opacity: isPast ? 0.3 : pressed ? 0.7 : 1,
+                  opacity: noLocation ? 0.3 : isPast ? 0.3 : pressed ? 0.7 : 1,
                 },
               ]}
             >
@@ -1193,7 +1196,9 @@ export default function CalendarScreen() {
                 style={{
                   fontSize: 15,
                   fontWeight: isToday || isSelected ? "700" : "400",
-                  color: isSelected
+                  color: noLocation
+                    ? colors.muted
+                    : isSelected
                     ? "#FFF"
                     : isTemporarilyClosed
                     ? colors.error
@@ -1202,7 +1207,7 @@ export default function CalendarScreen() {
                     : !isAvailable
                     ? colors.muted
                     : colors.foreground,
-                  textDecorationLine: (isTemporarilyClosed || (!isAvailable && !isPast)) ? "line-through" : "none",
+                  textDecorationLine: noLocation ? "line-through" : (isTemporarilyClosed || (!isAvailable && !isPast)) ? "line-through" : "none",
                 }}
               >
                 {day}
@@ -1614,35 +1619,36 @@ export default function CalendarScreen() {
             const isSelected = dateStr === selectedDate;
             const isPast = isDateInPast(dateStr);
             const available = isDayAvailable(dateStr);
+            const noLoc = state.locations.length === 0;
             return (
               <Pressable
                 key={dateStr}
-                onPress={() => !isPast && setSelectedDate(dateStr)}
+                onPress={() => !isPast && !noLoc && setSelectedDate(dateStr)}
                 style={({ pressed }) => ({
                   alignItems: "center",
                   paddingVertical: 8,
                   paddingHorizontal: 10,
                   borderRadius: 14,
                   borderWidth: 1.5,
-                  borderColor: isSelected ? colors.primary : isToday ? colors.primary + "40" : colors.border,
-                  backgroundColor: isSelected ? colors.primary + "12" : "transparent",
-                  opacity: isPast ? 0.35 : pressed ? 0.7 : 1,
+                  borderColor: noLoc ? colors.border + "40" : isSelected ? colors.primary : isToday ? colors.primary + "40" : colors.border,
+                  backgroundColor: noLoc ? "transparent" : isSelected ? colors.primary + "12" : "transparent",
+                  opacity: noLoc ? 0.3 : isPast ? 0.35 : pressed ? 0.7 : 1,
                   minWidth: 52,
                 })}
               >
-                <Text style={{ fontSize: 11, fontWeight: "600", color: isToday ? colors.primary : colors.muted }}>
+                <Text style={{ fontSize: 11, fontWeight: "600", color: noLoc ? colors.muted : isToday ? colors.primary : colors.muted }}>
                   {DAY_SHORT[d.getDay()]}
                 </Text>
                 <View style={{
                   width: 30, height: 30, borderRadius: 15, marginTop: 2,
-                  backgroundColor: isSelected ? colors.primary : "transparent",
+                  backgroundColor: noLoc ? "transparent" : isSelected ? colors.primary : "transparent",
                   alignItems: "center", justifyContent: "center",
                 }}>
-                  <Text style={{ fontSize: 15, fontWeight: "700", color: isSelected ? "#FFF" : isToday ? colors.primary : colors.foreground }}>
+                  <Text style={{ fontSize: 15, fontWeight: "700", color: noLoc ? colors.muted : isSelected ? "#FFF" : isToday ? colors.primary : colors.foreground, textDecorationLine: noLoc ? "line-through" : "none" }}>
                     {d.getDate()}
                   </Text>
                 </View>
-                {!available && !isPast && (
+                {!noLoc && !available && !isPast && (
                   <Text style={{ fontSize: 8, color: colors.error, marginTop: 2 }}>Closed</Text>
                 )}
               </Pressable>

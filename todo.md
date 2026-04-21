@@ -1580,3 +1580,5 @@
 - [x] Calendar: block booking and show setup banner with deep link to Add Location when no location is configured
 
 - [x] Home screen: show no-location amber banner when no location is configured, deep link to /locations
+
+- [x] Calendar: grey out and disable all days when no location is configured (appear as non-working days)
