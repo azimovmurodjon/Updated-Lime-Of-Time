@@ -45,8 +45,11 @@ function RootLayout() {
   const router = useRouter();
 
   const onLayoutRootView = useCallback(async () => {
-    // Hide the native splash immediately — we use our own animated splash instead
-    await SplashScreen.hideAsync();
+    // Hide the native splash immediately — we use our own animated splash instead.
+    // Wrapped in try-catch: on iOS, if the splash view controller is already gone
+    // (e.g., hot-reload or re-navigation), hideAsync throws "No native splash screen
+    // registered" which is harmless but shows as a console error.
+    try { await SplashScreen.hideAsync(); } catch { /* already hidden — safe to ignore */ }
   }, []);
 
   const initialInsets = initialWindowMetrics?.insets ?? DEFAULT_WEB_INSETS;

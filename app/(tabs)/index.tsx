@@ -2313,6 +2313,16 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
+        {/* ─── Schedule Card (Today + Upcoming) ─────────────────────── */}
+        <ScheduleCard
+          todayAppts={todayAppts}
+          upcomingAppointments={upcomingAppointments}
+          selectedLocationFilter={selectedLocationFilter}
+          getServiceById={getServiceById}
+          getClientById={getClientById}
+          staff={state.staff}
+          locations={state.locations}
+        />
         {/* ─── Client App Card ─────────────────────────────────────── */}
         <View style={{
           marginTop: 24,
@@ -2408,17 +2418,6 @@ export default function HomeScreen() {
             </Pressable>
           </View>
         </View>
-
-        {/* ─── Schedule Card (Today + Upcoming) ─────────────────────── */}
-        <ScheduleCard
-          todayAppts={todayAppts}
-          upcomingAppointments={upcomingAppointments}
-          selectedLocationFilter={selectedLocationFilter}
-          getServiceById={getServiceById}
-          getClientById={getClientById}
-          staff={state.staff}
-          locations={state.locations}
-        />
       </ScrollView>
 
       {/* FAB */}

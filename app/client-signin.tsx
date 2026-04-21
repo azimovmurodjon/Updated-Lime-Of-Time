@@ -283,8 +283,25 @@ export default function ClientSignInScreen() {
               <>
                 <Text style={styles.cardTitle}>Welcome!</Text>
                 <Text style={styles.cardSubtitle}>
-                  Sign in to book appointments, manage your schedule, and discover new services.
+                  Sign in with your phone number to book appointments and discover services.
                 </Text>
+                {/* Primary: Phone Number */}
+                <OAuthButton
+                  label="Continue with Phone Number"
+                  icon={<Text style={{ fontSize: 18 }}>📱</Text>}
+                  bgColor="#1A3A28"
+                  textColor="#FFFFFF"
+                  disabled={oauthLoading !== null}
+                  delay={500}
+                  onPress={() => setStep("phone")}
+                />
+                {/* Divider */}
+                <View style={styles.dividerRow}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>or continue with</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+                {/* Social options */}
                 <View style={styles.buttons}>
                   <OAuthButton
                     label="Continue with Apple"
@@ -317,16 +334,6 @@ export default function ClientSignInScreen() {
                     disabled={oauthLoading !== null}
                     delay={800}
                     onPress={() => handleOAuth("microsoft")}
-                  />
-                  <OAuthButton
-                    label="Continue with Phone"
-                    icon={<Text style={{ fontSize: 18 }}>📱</Text>}
-                    bgColor="#F0FFF4"
-                    textColor="#1A3A28"
-                    borderColor="#C6E8D1"
-                    disabled={oauthLoading !== null}
-                    delay={900}
-                    onPress={() => setStep("phone")}
                   />
                 </View>
                 <View style={styles.dividerRow}>

@@ -290,6 +290,10 @@ export default function OnboardingScreen() {
     return idx === -1 ? 0 : idx;
   };
 
+  const scrollToTop = useCallback(() => {
+    outerScrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, []);
+
   const navigateToStep = useCallback((nextStep: Step) => {
     const direction = stepIndex(nextStep) >= stepIndex(prevStepRef.current) ? 1 : -1;
     // Use real screen width for a full off-screen slide
@@ -303,7 +307,9 @@ export default function OnboardingScreen() {
       { duration: SLIDE_OUT_DURATION, easing: Easing.in(Easing.cubic) },
       () => {
         // Swap content instantly while card is off-screen
+        // Reset scroll so logo doesn't jump during transition
         runOnJS(setDisplayStep)(nextStep);
+        runOnJS(scrollToTop)();
         // Position new card off-screen on the opposite side
         slideX.value = direction * W;
         // Phase 2: slide new card in from the side

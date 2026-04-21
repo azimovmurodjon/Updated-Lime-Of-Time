@@ -959,6 +959,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           try {
             // Try to load from database
             const fullData = await trpcUtils.business.getFullData.fetch({ id: ownerId });
+            if (fullData && !fullData.owner) {
+              // Business owner not found in DB (deleted, migrated, or re-seeded).
+              // Clear stale AsyncStorage cache so phantom data from a previous account
+              // does not appear in the Clients / Appointments tabs.
+              logger.warn("[Store] Business owner ID", ownerId, "not found in DB — clearing stale cache");
+              await Promise.all([
+                AsyncStorage.removeItem(STORAGE_KEYS.clients),
+                AsyncStorage.removeItem(STORAGE_KEYS.appointments),
+                AsyncStorage.removeItem(STORAGE_KEYS.services),
+                AsyncStorage.removeItem(STORAGE_KEYS.businessOwnerId),
+              ]);
+              dispatch({ type: "LOAD_DATA", payload: { clients: [], appointments: [], services: [], businessOwnerId: null } });
+              // Fall through to ID mismatch recovery below to try phone-based lookup
+            }
             if (fullData && fullData.owner) {
               const settingsFromDb = dbOwnerToSettings(fullData.owner);
               // If DB has no locations, check AsyncStorage for locally-created locations to recover

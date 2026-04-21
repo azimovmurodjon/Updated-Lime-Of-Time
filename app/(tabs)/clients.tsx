@@ -62,7 +62,11 @@ export default function ClientsScreen() {
       const data = await apiCall<{ inbox: MessageThread[] }>("/api/business/messages");
       setThreads(data.inbox ?? []);
     } catch (err: any) {
-      setThreadsError("Could not load messages");
+      const isSessionError =
+        err?.message?.includes("Invalid session") ||
+        err?.message?.includes("Unauthorized") ||
+        err?.message?.includes("401");
+      setThreadsError(isSessionError ? "session_expired" : "Could not load messages");
     } finally {
       setThreadsLoading(false);
     }
@@ -426,10 +430,24 @@ export default function ClientsScreen() {
             ) : threadsError ? (
               <View style={styles.emptyContainer}>
                 <IconSymbol name="exclamationmark.circle" size={40} color={colors.error} />
-                <Text style={{ fontSize: 14, color: colors.error, marginTop: 12 }}>{threadsError}</Text>
-                <Pressable onPress={loadThreads} style={({ pressed }) => [{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}>
-                  <Text style={{ color: "#fff", fontWeight: "600" }}>Retry</Text>
-                </Pressable>
+                {threadsError === "session_expired" ? (
+                  <>
+                    <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground, marginTop: 12 }}>Session Expired</Text>
+                    <Text style={{ fontSize: 13, color: colors.muted, marginTop: 6, textAlign: "center", paddingHorizontal: 32 }}>
+                      Your session has expired. Please sign out and sign back in to load messages.
+                    </Text>
+                    <Pressable onPress={loadThreads} style={({ pressed }) => [{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}>
+                      <Text style={{ color: "#fff", fontWeight: "600" }}>Retry</Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <>
+                    <Text style={{ fontSize: 14, color: colors.error, marginTop: 12 }}>{threadsError}</Text>
+                    <Pressable onPress={loadThreads} style={({ pressed }) => [{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}>
+                      <Text style={{ color: "#fff", fontWeight: "600" }}>Retry</Text>
+                    </Pressable>
+                  </>
+                )}
               </View>
             ) : threads.length === 0 ? (
               <View style={styles.emptyContainer}>
