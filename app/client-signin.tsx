@@ -187,7 +187,12 @@ export default function ClientSignInScreen() {
       const data = await res.json() as { token: string; account: any };
       await signIn(data.account, data.token);
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace("/(client-tabs)" as any);
+      // Navigate to profile onboarding for new users (no name set yet)
+      if (!data.account?.name) {
+        router.replace("/client-profile-onboarding" as any);
+      } else {
+        router.replace("/(client-tabs)" as any);
+      }
     } catch (e: any) {
       setPhoneError(e.message ?? "Failed to sign in. Please try again.");
     } finally {
@@ -354,9 +359,6 @@ export default function ClientSignInScreen() {
                   </Pressable>
                   <Text style={styles.stepBackLabel}>Back</Text>
                 </View>
-                <View style={styles.stepIconWrap}>
-                  <Text style={{ fontSize: 34 }}>📱</Text>
-                </View>
                 <Text style={styles.stepTitle}>Your Phone Number</Text>
                 <Text style={styles.stepSubtitle}>
                   Enter your phone number to sign in or create an account.
@@ -484,10 +486,6 @@ const styles = StyleSheet.create({
   stepBackRow: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
   stepBackChevron: { fontSize: 22, color: "#4A7C59", fontWeight: "600" },
   stepBackLabel: { fontSize: 13, color: "#4A7C59", fontWeight: "600" },
-  stepIconWrap: {
-    width: 64, height: 64, borderRadius: 20,
-    backgroundColor: "#F0FFF4", alignItems: "center", justifyContent: "center", marginBottom: 16,
-  },
   stepTitle: { fontSize: 22, fontWeight: "800", color: "#111827", marginBottom: 6, letterSpacing: -0.3 },
   stepSubtitle: { fontSize: 14, color: "#6B7280", lineHeight: 20, marginBottom: 20 },
   inputGroup: { marginBottom: 16 },

@@ -129,7 +129,7 @@ export function registerClientRoutes(app: Express) {
   app.patch("/api/client/profile", async (req: Request, res: Response) => {
     try {
       const { clientAccount } = await getClientAccount(req);
-      const { name, phone, email, birthday, expoPushToken, preferredRadius, themeMode, notificationPreferences } = req.body;
+      const { name, phone, email, birthday, profilePhotoUri, expoPushToken, preferredRadius, themeMode, notificationPreferences } = req.body;
 
       // If user is providing a real phone number, update the primary key
       if (phone && !phone.startsWith("oauth:")) {
@@ -156,12 +156,31 @@ export function registerClientRoutes(app: Express) {
         ...(name !== undefined && { name }),
         ...(email !== undefined && { email }),
         ...(birthday !== undefined && { birthday }),
+        ...(profilePhotoUri !== undefined && { profilePhotoUri }),
         ...(expoPushToken !== undefined && { expoPushToken }),
         ...(preferredRadius !== undefined && { preferredRadius }),
         ...(themeMode !== undefined && { themeMode }),
         ...(notificationPreferences !== undefined && { notificationPreferences }),
       });
       res.json({ clientAccount: await db.getClientAccountById(clientAccount!.id) });
+    } catch (err: any) {
+      res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
+    }
+  });
+
+  // ── Profile Photo Upload ──────────────────────────────────────────────────
+  /** POST /api/client/upload-photo — upload a profile photo (base64) and return public URL */
+  app.post("/api/client/upload-photo", async (req: Request, res: Response) => {
+    try {
+      await getClientAccount(req); // auth check
+      const { base64, mimeType = "image/jpeg" } = req.body as { base64: string; mimeType?: string };
+      if (!base64) { res.status(400).json({ error: "base64 required" }); return; }
+      const { storagePut } = await import("./storage");
+      const ext = mimeType.split("/")[1]?.replace("jpeg", "jpg") ?? "jpg";
+      const key = `client-photos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const buffer = Buffer.from(base64, "base64");
+      const { url } = await storagePut(key, buffer, mimeType);
+      res.json({ url });
     } catch (err: any) {
       res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
     }

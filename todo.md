@@ -1807,3 +1807,18 @@
 - [x] Fix business session persisting after logout — unread-count polling now checks businessOwnerId before making API call; stops polling when logged out
 - [x] Fix business dashboard visible behind client portal — (tabs) and (client-tabs) now use fullScreenModal presentation; logout uses router.dismissAll() + router.replace("/profile-select")
 - [x] Fix client portal sign-out to navigate to profile-select (not back to client tabs)
+## Changes Apr 21 2026 (Session 6)
+- [ ] Redesign profile-select portal cards — modern premium look with gradients, better visual hierarchy
+- [ ] Remove phone icon from client-signin and clean up spacing
+- [ ] Add client profile onboarding screen after phone sign-in (Full Name, Phone pre-filled, Email optional, Photo optional, Birthday optional)
+- [ ] Auto-sync client profile data to business client DB when they submit a booking
+
+## UI & Onboarding Apr 21 2026
+- [x] Redesign profile-select portal cards (modern gradient design)
+- [x] Remove phone icon from client-signin and fix spacing
+- [x] Add client profile onboarding screen (name, phone, email, birthday, photo)
+- [x] New users redirected to profile onboarding after phone sign-in
+- [x] Returning users (with name) skip onboarding and go straight to client tabs
+- [x] Profile photo upload via base64 to S3 storage
+- [x] Show profile photo in client-tabs profile screen
+- [x] clientPhone sent to booking wizard for business client DB auto-population

@@ -13,9 +13,11 @@ import { getApiBaseUrl } from "@/constants/oauth";
 
 export interface ClientAccount {
   id: number;
-  name: string;
+  name: string | null;
   email: string | null;
   phone: string | null;
+  birthday: string | null;
+  profilePhotoUri: string | null;
   avatarUrl: string | null;
   expoPushToken: string | null;
   createdAt: string;

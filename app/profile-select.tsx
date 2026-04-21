@@ -1,11 +1,7 @@
 /**
  * Profile Selection Screen
- * Exactly matches the business onboarding green gradient background:
- * - Same LinearGradient colors: #1A3A28 → #2D5A3D → #4A7C59 → #3D6B4A
- * - Same floating particles
- * - Same wave decorations
- * - Same logo/appName/tagline/byInnovancio header
- * - White cards below (same as business onboarding white card)
+ * Premium redesign — gradient cards with glass morphism, bold typography,
+ * animated entry, and clear visual hierarchy for Business vs Client portals.
  */
 
 import React, { useEffect } from "react";
@@ -37,7 +33,7 @@ import { setProfileMode } from "@/lib/client-store";
 
 const { width, height } = Dimensions.get("window");
 
-// ─── Floating Particle (identical to business onboarding) ─────────────
+// ─── Floating Particle ────────────────────────────────────────────────────────
 function FloatingParticle({
   x, y, size, delay, duration, opacity: baseOpacity,
 }: { x: number; y: number; size: number; delay: number; duration: number; opacity: number }) {
@@ -85,31 +81,37 @@ const PARTICLES = [
   { x: width * 0.65, y: height * 0.15, size: 3, delay: 900, duration: 2700, opacity: 0.22 },
 ];
 
-// ─── Portal Card (white card, same style as business onboarding white card) ──
+// ─── Premium Portal Card ──────────────────────────────────────────────────────
 function PortalCard({
+  gradientColors,
+  accentLight,
   icon,
+  badgeLabel,
   title,
   subtitle,
-  accentColor,
-  badgeLabel,
+  features,
+  ctaLabel,
   onPress,
   delay,
 }: {
+  gradientColors: [string, string, string];
+  accentLight: string;
   icon: string;
+  badgeLabel: string;
   title: string;
   subtitle: string;
-  accentColor: string;
-  badgeLabel: string;
+  features: string[];
+  ctaLabel: string;
   onPress: () => void;
   delay: number;
 }) {
   const scale = useSharedValue(1);
   const opacity = useSharedValue(0);
-  const translateY = useSharedValue(24);
+  const translateY = useSharedValue(32);
 
   useEffect(() => {
-    opacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
-    translateY.value = withDelay(delay, withTiming(0, { duration: 400, easing: Easing.out(Easing.quad) }));
+    opacity.value = withDelay(delay, withTiming(1, { duration: 450 }));
+    translateY.value = withDelay(delay, withTiming(0, { duration: 450, easing: Easing.out(Easing.quad) }));
   }, []);
 
   const tap = Gesture.Tap()
@@ -129,29 +131,51 @@ function PortalCard({
 
   return (
     <GestureDetector gesture={tap}>
-      <Animated.View style={[styles.card, animStyle]}>
-        {/* Accent blob top-right */}
-        <View style={[styles.cardBlob, { backgroundColor: accentColor + "20" }]} />
+      <Animated.View style={[styles.cardOuter, animStyle]}>
+        <LinearGradient
+          colors={gradientColors}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.cardGradient}
+        >
+          {/* Decorative circle top-right */}
+          <View style={[styles.cardCircle1, { backgroundColor: "rgba(255,255,255,0.08)" }]} />
+          <View style={[styles.cardCircle2, { backgroundColor: "rgba(255,255,255,0.05)" }]} />
 
-        {/* Icon */}
-        <View style={[styles.cardIconWrap, { backgroundColor: accentColor + "18" }]}>
-          <Text style={styles.cardIcon}>{icon}</Text>
-        </View>
+          {/* Top row: icon + badge */}
+          <View style={styles.cardTopRow}>
+            <View style={[styles.cardIconBox, { backgroundColor: "rgba(255,255,255,0.18)" }]}>
+              <Text style={styles.cardIconText}>{icon}</Text>
+            </View>
+            <View style={[styles.cardBadge, { backgroundColor: "rgba(255,255,255,0.22)" }]}>
+              <Text style={styles.cardBadgeText}>{badgeLabel}</Text>
+            </View>
+          </View>
 
-        {/* Badge */}
-        <View style={[styles.cardBadge, { backgroundColor: accentColor }]}>
-          <Text style={styles.cardBadgeText}>{badgeLabel}</Text>
-        </View>
+          {/* Title + subtitle */}
+          <Text style={styles.cardTitle}>{title}</Text>
+          <Text style={styles.cardSubtitle}>{subtitle}</Text>
 
-        {/* Text */}
-        <Text style={styles.cardTitle}>{title}</Text>
-        <Text style={styles.cardSubtitle}>{subtitle}</Text>
+          {/* Feature pills */}
+          <View style={styles.featureRow}>
+            {features.map((f, i) => (
+              <View key={i} style={[styles.featurePill, { backgroundColor: "rgba(255,255,255,0.14)" }]}>
+                <Text style={styles.featurePillText}>{f}</Text>
+              </View>
+            ))}
+          </View>
 
-        {/* CTA */}
-        <View style={styles.cardCta}>
-          <Text style={[styles.cardCtaText, { color: accentColor }]}>Get started</Text>
-          <Text style={[styles.cardCtaArrow, { color: accentColor }]}> ›</Text>
-        </View>
+          {/* Divider */}
+          <View style={[styles.cardDivider, { backgroundColor: "rgba(255,255,255,0.18)" }]} />
+
+          {/* CTA row */}
+          <View style={styles.cardCtaRow}>
+            <Text style={styles.cardCtaLabel}>{ctaLabel}</Text>
+            <View style={[styles.cardCtaArrowBox, { backgroundColor: "rgba(255,255,255,0.22)" }]}>
+              <Text style={styles.cardCtaArrow}>→</Text>
+            </View>
+          </View>
+        </LinearGradient>
       </Animated.View>
     </GestureDetector>
   );
@@ -162,7 +186,6 @@ export default function ProfileSelectScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  // Entrance animations (same timing as business onboarding)
   const logoOpacity = useSharedValue(0);
   const logoScale = useSharedValue(0.8);
   const appNameOpacity = useSharedValue(0);
@@ -209,25 +232,21 @@ export default function ProfileSelectScreen() {
 
   return (
     <View style={styles.container}>
-      {/* ─── Exact same gradient as business onboarding ─── */}
       <LinearGradient
-        colors={["#1A3A28", "#2D5A3D", "#4A7C59", "#3D6B4A"]}
+        colors={["#0F2318", "#1A3A28", "#2D5A3D", "#3D6B4A"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFillObject}
       />
 
-      {/* ─── Floating Particles (identical to business onboarding) ─── */}
       {PARTICLES.map((p, i) => <FloatingParticle key={i} {...p} />)}
 
-      {/* ─── Bottom Wave Decorations (identical to business onboarding) ─── */}
       <View style={styles.wave1} />
       <View style={styles.wave2} />
 
-      {/* ─── Content ─── */}
-      <View style={[styles.content, { paddingTop: insets.top + 14, paddingBottom: insets.bottom + 14 }]}>
+      <View style={[styles.content, { paddingTop: insets.top + 10, paddingBottom: insets.bottom + 10 }]}>
 
-        {/* ─── Logo + App Name (identical to business onboarding) ─── */}
+        {/* ─── Logo + App Name ─── */}
         <View style={styles.logoContainer}>
           <Animated.View style={logoStyle}>
             <View style={styles.logoRing}>
@@ -240,7 +259,7 @@ export default function ProfileSelectScreen() {
           </Animated.View>
           <Animated.Text style={[styles.appName, appNameStyle]}>Lime Of Time</Animated.Text>
           <Animated.Text style={[styles.appTagline, taglineStyle]}>Book Appointments Near You</Animated.Text>
-          <Animated.View style={[{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 }, byLineStyle]}>
+          <Animated.View style={[{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 }, byLineStyle]}>
             <View style={{ width: 24, height: 1, backgroundColor: "rgba(255,255,255,0.3)" }} />
             <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", letterSpacing: 1.5, textTransform: "uppercase" }}>by Innovancio</Text>
             <View style={{ width: 24, height: 1, backgroundColor: "rgba(255,255,255,0.3)" }} />
@@ -250,20 +269,26 @@ export default function ProfileSelectScreen() {
         {/* ─── Portal Cards ─── */}
         <View style={styles.cardsContainer}>
           <PortalCard
-            icon="💼"
-            title="Business Portal"
-            subtitle="Manage appointments, clients, staff, services, and grow your business."
-            accentColor="#4A7C59"
+            gradientColors={["#1E5C3A", "#2D7A50", "#3A9463"]}
+            accentLight="#7ECFA0"
+            icon="🏢"
             badgeLabel="For Businesses"
+            title="Business Portal"
+            subtitle="Your complete business management hub"
+            features={["Appointments", "Clients", "Analytics"]}
+            ctaLabel="Get started"
             onPress={() => handleSelect("business")}
             delay={600}
           />
           <PortalCard
-            icon="👤"
-            title="Client Portal"
-            subtitle="Discover services, book appointments, and manage your schedule."
-            accentColor="#8B5CF6"
+            gradientColors={["#4C2D8A", "#6B3FAD", "#8B5CF6"]}
+            accentLight="#C4B5FD"
+            icon="✨"
             badgeLabel="For Customers"
+            title="Client Portal"
+            subtitle="Discover and book services near you"
+            features={["Discover", "Book", "Track"]}
+            ctaLabel="Get started"
             onPress={() => handleSelect("client")}
             delay={750}
           />
@@ -288,7 +313,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: height * 0.38,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: "rgba(255,255,255,0.04)",
     borderTopLeftRadius: width * 0.5,
     borderTopRightRadius: width * 0.5,
   },
@@ -298,25 +323,25 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: height * 0.28,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: "rgba(255,255,255,0.03)",
     borderTopLeftRadius: width * 0.6,
     borderTopRightRadius: width * 0.6,
   },
   content: {
     flex: 1,
-    paddingHorizontal: 22,
+    paddingHorizontal: 20,
     alignItems: "center",
     justifyContent: "center",
-    gap: 18,
+    gap: 16,
   },
   logoContainer: {
     alignItems: "center",
-    marginBottom: 0,
+    marginBottom: 4,
   },
   logoRing: {
-    width: 100,
-    height: 100,
-    borderRadius: 28,
+    width: 96,
+    height: 96,
+    borderRadius: 26,
     backgroundColor: "rgba(255,255,255,0.12)",
     alignItems: "center",
     justifyContent: "center",
@@ -325,9 +350,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   logo: {
-    width: 76,
-    height: 76,
-    borderRadius: 20,
+    width: 72,
+    height: 72,
+    borderRadius: 18,
   },
   appName: {
     fontSize: 28,
@@ -344,82 +369,128 @@ const styles = StyleSheet.create({
   },
   cardsContainer: {
     width: "100%",
-    gap: 12,
-    marginTop: 4,
+    gap: 14,
   },
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 18,
+  // ─── Premium Card ─────────────────────────────────────────────────────────
+  cardOuter: {
+    borderRadius: 24,
     overflow: "hidden",
-    shadowColor: "#0A2518",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.22,
-    shadowRadius: 20,
-    elevation: 10,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.95)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+    elevation: 14,
   },
-  cardBlob: {
+  cardGradient: {
+    borderRadius: 24,
+    padding: 20,
+    overflow: "hidden",
+  },
+  cardCircle1: {
     position: "absolute",
-    top: -20,
-    right: -20,
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    top: -30,
+    right: -30,
+    width: 130,
+    height: 130,
+    borderRadius: 65,
   },
-  cardIconWrap: {
+  cardCircle2: {
+    position: "absolute",
+    bottom: -20,
+    right: 40,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
+  cardTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  cardIconBox: {
     width: 52,
     height: 52,
-    borderRadius: 14,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 10,
   },
-  cardIcon: {
+  cardIconText: {
     fontSize: 26,
   },
   cardBadge: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
     borderRadius: 20,
-    marginBottom: 8,
   },
   cardBadgeText: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#FFFFFF",
-    letterSpacing: 0.3,
+    color: "rgba(255,255,255,0.95)",
+    letterSpacing: 0.4,
   },
   cardTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "800",
-    color: "#111827",
-    marginBottom: 6,
+    color: "#FFFFFF",
+    letterSpacing: 0.1,
+    marginBottom: 5,
   },
   cardSubtitle: {
     fontSize: 13,
-    color: "#6B7280",
+    color: "rgba(255,255,255,0.75)",
     lineHeight: 19,
-    marginBottom: 12,
+    marginBottom: 14,
   },
-  cardCta: {
+  featureRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 7,
+    marginBottom: 16,
+  },
+  featurePill: {
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  featurePillText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.9)",
+    letterSpacing: 0.2,
+  },
+  cardDivider: {
+    height: 1,
+    marginBottom: 14,
+  },
+  cardCtaRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
   },
-  cardCtaText: {
-    fontSize: 14,
+  cardCtaLabel: {
+    fontSize: 15,
     fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: 0.2,
+  },
+  cardCtaArrowBox: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
   },
   cardCtaArrow: {
-    fontSize: 18,
+    fontSize: 16,
+    color: "#FFFFFF",
     fontWeight: "700",
-    marginTop: -1,
   },
   footerNote: {
     fontSize: 12,
-    color: "rgba(255,255,255,0.45)",
+    color: "rgba(255,255,255,0.4)",
     textAlign: "center",
+    letterSpacing: 0.2,
+    marginTop: 4,
   },
 });

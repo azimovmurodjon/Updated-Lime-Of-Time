@@ -14,6 +14,7 @@ import {
   StyleSheet,
   Alert,
   Platform,
+  Image,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -141,11 +142,18 @@ export default function ClientProfileScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
         {/* Profile Header */}
         <View style={s.profileHeader}>
-          <View style={[s.avatar, { backgroundColor: "#8B5CF620" }]}>
-            <Text style={s.avatarInitial}>
-              {(state.account.name ?? "?").charAt(0).toUpperCase()}
-            </Text>
-          </View>
+          {state.account.profilePhotoUri ? (
+            <Image
+              source={{ uri: state.account.profilePhotoUri }}
+              style={[s.avatar, { borderWidth: 2.5, borderColor: "#8B5CF6" }]}
+            />
+          ) : (
+            <View style={[s.avatar, { backgroundColor: "#8B5CF620" }]}>
+              <Text style={s.avatarInitial}>
+                {(state.account.name ?? "?").charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
           <Text style={[s.name, { color: colors.foreground }]}>{state.account.name}</Text>
           {state.account.email && (
             <Text style={[s.email, { color: colors.muted }]}>{state.account.email}</Text>

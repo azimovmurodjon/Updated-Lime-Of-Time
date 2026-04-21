@@ -168,12 +168,16 @@ export default function ClientBookingWizardScreen() {
       const dateStr = selectedDate.toISOString().split("T")[0];
       const clientName = state.account?.name ?? "Guest";
       const clientEmail = state.account?.email ?? undefined;
+      // Normalize phone: strip non-digits, add country code if needed
+      const rawPhone = state.account?.phone ?? "";
+      const clientPhone = rawPhone.startsWith("oauth:") ? undefined : rawPhone || undefined;
       const res = await fetch(`${apiBase}/api/public/business/${slug}/book`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clientName,
           clientEmail,
+          clientPhone,
           serviceLocalId: selectedService.localId,
           date: dateStr,
           time: selectedSlot.time,

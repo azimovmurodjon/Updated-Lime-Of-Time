@@ -164,6 +164,7 @@ function RootLayout() {
               {/* Client Portal Screens */}
               <Stack.Screen name="profile-select" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="client-signin" options={{ presentation: "fullScreenModal" }} />
+              <Stack.Screen name="client-profile-onboarding" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="(client-tabs)" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="client-business-detail" options={{ presentation: "card" }} />
               <Stack.Screen name="client-booking-wizard" options={{ presentation: "fullScreenModal" }} />
