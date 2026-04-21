@@ -51,7 +51,12 @@ export async function apiCall<T>(endpoint: string, options: RequestInit = {}): P
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.error("[API] Error response:", errorText);
+      // Don't log 401 errors as errors — they are expected when session expires or not yet established
+      if (response.status !== 401) {
+        logger.error("[API] Error response:", errorText);
+      } else {
+        logger.log("[API] 401 Unauthorized:", endpoint);
+      }
       let errorMessage = errorText;
       try {
         const errorJson = JSON.parse(errorText);
@@ -73,7 +78,12 @@ export async function apiCall<T>(endpoint: string, options: RequestInit = {}): P
     logger.log("[API] Text response received");
     return (text ? JSON.parse(text) : {}) as T;
   } catch (error) {
-    logger.captureError(error, { endpoint, method: options.method || "GET" });
+    // Don't captureError for 401/session errors — they are expected during app startup
+    const isAuthError = error instanceof Error &&
+      (error.message.includes("Invalid session") || error.message.includes("Unauthorized") || error.message.includes("401"));
+    if (!isAuthError) {
+      logger.captureError(error, { endpoint, method: options.method || "GET" });
+    }
     if (error instanceof Error) {
       throw error;
     }
