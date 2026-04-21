@@ -22,11 +22,11 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
-import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { useClientStore, ClientAppointment } from "@/lib/client-store";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { FuturisticBackground } from "@/components/futuristic-background";
+import { ClientPortalBackground } from "@/components/client-portal-background";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -45,14 +45,21 @@ function formatDate(dateStr: string): string {
   return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
 }
 
-function statusColor(status: ClientAppointment["status"], colors: ReturnType<typeof useColors>) {
+const GREEN_ACCENT = "#8FBF6A";
+const GREEN_DARK = "#1A3A28";
+const CARD_BG = "rgba(255,255,255,0.09)";
+const CARD_BORDER = "rgba(255,255,255,0.14)";
+const TEXT_PRIMARY = "#FFFFFF";
+const TEXT_MUTED = "rgba(255,255,255,0.6)";
+
+function statusColor(status: ClientAppointment["status"]) {
   switch (status) {
-    case "confirmed": return colors.success;
-    case "pending": return colors.warning;
-    case "completed": return colors.muted;
+    case "confirmed": return "#6EE7B7";
+    case "pending": return "#FCD34D";
+    case "completed": return "rgba(255,255,255,0.5)";
     case "cancelled":
-    case "no_show": return colors.error;
-    default: return colors.muted;
+    case "no_show": return "#FCA5A5";
+    default: return "rgba(255,255,255,0.5)";
   }
 }
 
@@ -74,6 +81,7 @@ function isUpcoming(appt: ClientAppointment): boolean {
 export default function BookingsScreen() {
   const colors = useColors();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { state, dispatch, apiCall } = useClientStore();
   const [activeTab, setActiveTab] = useState<FilterTab>("upcoming");
   const [loading, setLoading] = useState(false);
@@ -162,9 +170,9 @@ export default function BookingsScreen() {
 
   if (!state.account) {
     return (
-      <ScreenContainer className="px-6">
-        <FuturisticBackground />
-        <View style={s.guestContainer}>
+      <View style={{ flex: 1, backgroundColor: GREEN_DARK }}>
+        <ClientPortalBackground />
+        <View style={[s.guestContainer, { paddingTop: insets.top }]}>
           <View style={s.guestLogoWrap}>
             <Image
               source={require("@/assets/images/icon.png")}
@@ -172,8 +180,8 @@ export default function BookingsScreen() {
               resizeMode="contain"
             />
           </View>
-          <Text style={[s.guestTitle, { color: colors.foreground }]}>Sign in to see your bookings</Text>
-          <Text style={[s.guestSub, { color: colors.muted }]}>Track all your upcoming and past appointments in one place.</Text>
+          <Text style={[s.guestTitle, { color: TEXT_PRIMARY }]}>Sign in to see your bookings</Text>
+          <Text style={[s.guestSub, { color: TEXT_MUTED }]}>Track all your upcoming and past appointments in one place.</Text>
           <Pressable
             style={({ pressed }) => [s.signInBtn, pressed && { opacity: 0.85 }]}
             onPress={() => router.push("/client-signin" as any)}
@@ -188,30 +196,30 @@ export default function BookingsScreen() {
             </LinearGradient>
           </Pressable>
         </View>
-      </ScreenContainer>
+      </View>
     );
   }
 
   return (
-    <ScreenContainer>
-      <FuturisticBackground />
+    <View style={{ flex: 1, backgroundColor: GREEN_DARK }}>
+      <ClientPortalBackground />
       {/* Header */}
-      <Animated.View style={[s.header, headerStyle]}>
+      <Animated.View style={[s.header, headerStyle, { paddingTop: insets.top + 16 }]}>
         <Text style={s.title}>My Bookings</Text>
       </Animated.View>
 
       {/* Filter Tabs */}
-      <View style={[s.tabRow, { borderBottomColor: colors.border }]}>
+      <View style={[s.tabRow, { borderBottomColor: CARD_BORDER }]}>
         {(["upcoming", "past", "all"] as FilterTab[]).map((tab) => (
           <Pressable
             key={tab}
-            style={[s.tab, activeTab === tab && { borderBottomColor: "#8B5CF6", borderBottomWidth: 2 }]}
+            style={[s.tab, activeTab === tab && { borderBottomColor: GREEN_ACCENT, borderBottomWidth: 2 }]}
             onPress={() => {
               if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setActiveTab(tab);
             }}
           >
-            <Text style={[s.tabText, { color: activeTab === tab ? "#8B5CF6" : colors.muted }]}>
+            <Text style={[s.tabText, { color: activeTab === tab ? GREEN_ACCENT : TEXT_MUTED }]}>
               {tab === "upcoming" ? "Upcoming" : tab === "past" ? "Past" : "All"}
             </Text>
           </Pressable>
@@ -220,14 +228,14 @@ export default function BookingsScreen() {
 
       {loading ? (
         <View style={s.loadingContainer}>
-          <ActivityIndicator color="#8B5CF6" />
+          <ActivityIndicator color={GREEN_ACCENT} />
         </View>
       ) : (
         <FlatList
           data={filteredAppts}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32, paddingTop: 12 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#8B5CF6" />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={GREEN_ACCENT} />}
           ListEmptyComponent={
             <View style={s.emptyContainer}>
               <View style={s.emptyLogoWrap}>
@@ -237,10 +245,10 @@ export default function BookingsScreen() {
                   resizeMode="contain"
                 />
               </View>
-              <Text style={[s.emptyTitle, { color: colors.foreground }]}>
+              <Text style={[s.emptyTitle, { color: TEXT_PRIMARY }]}>
                 {activeTab === "upcoming" ? "No upcoming appointments" : "No appointments yet"}
               </Text>
-              <Text style={[s.emptySub, { color: colors.muted }]}>
+              <Text style={[s.emptySub, { color: TEXT_MUTED }]}>
                 {activeTab === "upcoming"
                   ? "Discover local services and book your first appointment."
                   : "Your booking history will appear here."}
@@ -266,7 +274,7 @@ export default function BookingsScreen() {
             <Pressable
               style={({ pressed }) => [
                 s.apptCard,
-                { backgroundColor: colors.surface, borderColor: colors.border },
+                { backgroundColor: CARD_BG, borderColor: CARD_BORDER },
                 pressed && { opacity: 0.85 },
               ]}
               onPress={() => {
@@ -276,24 +284,24 @@ export default function BookingsScreen() {
             >
               <View style={s.apptTop}>
                 <View style={s.apptInfo}>
-                  <Text style={[s.apptService, { color: colors.foreground }]}>{item.serviceName}</Text>
-                  <Text style={[s.apptBusiness, { color: "#8B5CF6" }]}>{item.businessName}</Text>
+                  <Text style={[s.apptService, { color: TEXT_PRIMARY }]}>{item.serviceName}</Text>
+                  <Text style={[s.apptBusiness, { color: GREEN_ACCENT }]}>{item.businessName}</Text>
                 </View>
-                <View style={[s.statusBadge, { backgroundColor: statusColor(item.status, colors) + "20" }]}>
-                  <Text style={[s.statusText, { color: statusColor(item.status, colors) }]}>
+                <View style={[s.statusBadge, { backgroundColor: statusColor(item.status) + "30" }]}>
+                  <Text style={[s.statusText, { color: statusColor(item.status) }]}>
                     {statusLabel(item.status)}
                   </Text>
                 </View>
               </View>
-              <View style={[s.apptDivider, { backgroundColor: colors.border }]} />
+              <View style={[s.apptDivider, { backgroundColor: CARD_BORDER }]} />
               <View style={s.apptMeta}>
                 <View style={s.metaItem}>
-                  <IconSymbol name="calendar" size={13} color={colors.muted} />
-                  <Text style={[s.metaText, { color: colors.muted }]}>{formatDate(item.date)}</Text>
+                  <IconSymbol name="calendar" size={13} color={TEXT_MUTED} />
+                  <Text style={[s.metaText, { color: TEXT_MUTED }]}>{formatDate(item.date)}</Text>
                 </View>
                 <View style={s.metaItem}>
-                  <IconSymbol name="clock" size={13} color={colors.muted} />
-                  <Text style={[s.metaText, { color: colors.muted }]}>{item.time}</Text>
+                  <IconSymbol name="clock" size={13} color={TEXT_MUTED} />
+                  <Text style={[s.metaText, { color: TEXT_MUTED }]}>{item.time}</Text>
                 </View>
                 {item.staffName && (
                   <View style={s.metaItem}>
@@ -309,15 +317,15 @@ export default function BookingsScreen() {
                         </Text>
                       </View>
                     )}
-                    <Text style={[s.metaText, { color: colors.muted }]}>{item.staffName}</Text>
+                    <Text style={[s.metaText, { color: TEXT_MUTED }]}>{item.staffName}</Text>
                   </View>
                 )}
               </View>
               {/* Cancel/Reschedule request badge */}
               {(item.cancelRequest?.status === "pending" || item.rescheduleRequest?.status === "pending") && (
-                <View style={[s.requestBadge, { backgroundColor: colors.warning + "20" }]}>
-                  <IconSymbol name="clock" size={12} color={colors.warning} />
-                  <Text style={[s.requestBadgeText, { color: colors.warning }]}>
+                <View style={[s.requestBadge, { backgroundColor: "rgba(252,211,77,0.15)" }]}>
+                  <IconSymbol name="clock" size={12} color="#FCD34D" />
+                  <Text style={[s.requestBadgeText, { color: "#FCD34D" }]}>
                     {item.cancelRequest?.status === "pending" ? "Cancel request pending" : "Reschedule request pending"}
                   </Text>
                 </View>
@@ -340,7 +348,7 @@ export default function BookingsScreen() {
           )}
         />
       )}
-    </ScreenContainer>
+    </View>
   );
 }
 
@@ -354,7 +362,7 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     title: {
       fontSize: 24,
       fontWeight: "700",
-      color: colors.foreground,
+      color: TEXT_PRIMARY,
     },
     tabRow: {
       flexDirection: "row",

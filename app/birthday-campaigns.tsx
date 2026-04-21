@@ -64,6 +64,8 @@ export default function BirthdayCampaignsScreen() {
   const [discountCode, setDiscountCode] = useState("BDAY15");
   const [discountPct, setDiscountPct] = useState("15");
   const [showSettings, setShowSettings] = useState(false);
+  const [sentToday, setSentToday] = useState<Set<string>>(new Set());
+  const [sendingAll, setSendingAll] = useState(false);
 
   const biz = state.settings;
 
@@ -160,6 +162,63 @@ export default function BirthdayCampaignsScreen() {
     );
   }, [filteredClients, handleSendMessage]);
 
+  // Auto-send all today's birthdays via Twilio (for businesses with SMS enabled)
+  const handleAutoSendToday = useCallback(async () => {
+    const todayClients = clientsWithBirthdays.filter((e) => e.daysUntil === 0 && e.client.phone);
+    if (todayClients.length === 0) {
+      Alert.alert("No Birthdays Today", "There are no clients with birthdays today who have phone numbers.");
+      return;
+    }
+    const smsEnabled = biz.twilioEnabled && biz.twilioBirthdaySms;
+    if (!smsEnabled || !state.businessOwnerId) {
+      // Fallback: open SMS app for first client
+      handleSendMessage(todayClients[0].client);
+      return;
+    }
+    Alert.alert(
+      "Auto-Send Birthday SMS",
+      `Send birthday messages to ${todayClients.length} client${todayClients.length !== 1 ? "s" : ""} with birthdays today?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Send All",
+          style: "default",
+          onPress: async () => {
+            setSendingAll(true);
+            let successCount = 0;
+            const newSent = new Set(sentToday);
+            for (const { client } of todayClients) {
+              if (newSent.has(client.id)) continue;
+              const rawPhone = stripPhoneFormat(client.phone!);
+              const toNumber = rawPhone.startsWith("+") ? rawPhone : `+1${rawPhone.replace(/\D/g, "")}`;
+              const message = generateBirthdayMessage(client);
+              try {
+                await sendSmsMutation.mutateAsync({
+                  businessOwnerId: state.businessOwnerId!,
+                  toNumber,
+                  body: message,
+                  smsAction: "birthday",
+                });
+                newSent.add(client.id);
+                successCount++;
+              } catch {
+                // Continue with next client even if one fails
+              }
+            }
+            setSentToday(newSent);
+            setSendingAll(false);
+            Alert.alert(
+              "Done!",
+              successCount > 0
+                ? `Birthday SMS sent to ${successCount} client${successCount !== 1 ? "s" : ""}!`
+                : "Could not send messages. Please check your SMS settings."
+            );
+          },
+        },
+      ]
+    );
+  }, [clientsWithBirthdays, biz, state.businessOwnerId, sentToday, generateBirthdayMessage, sendSmsMutation, handleSendMessage]);
+
   const todayCount = clientsWithBirthdays.filter((e) => e.daysUntil === 0).length;
   const upcomingCount = clientsWithBirthdays.filter((e) => e.daysUntil <= 30).length;
 
@@ -220,7 +279,7 @@ export default function BirthdayCampaignsScreen() {
           </View>
         )}
 
-        {/* Summary Banner */}
+        {/* Summary Banner with Auto-Send */}
         {todayCount > 0 && (
           <View style={[styles.todayBanner, { backgroundColor: "#FF9800" + "18", borderColor: "#FF9800" + "40" }]}>
             <Text style={{ fontSize: 22 }}>🎂</Text>
@@ -230,6 +289,22 @@ export default function BirthdayCampaignsScreen() {
               </Text>
               <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Send them a special message now.</Text>
             </View>
+            <Pressable
+              onPress={handleAutoSendToday}
+              disabled={sendingAll}
+              style={({ pressed }) => [{
+                backgroundColor: "#FF9800",
+                borderRadius: 10,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                opacity: pressed || sendingAll ? 0.7 : 1,
+                alignItems: "center",
+              }]}
+            >
+              <Text style={{ fontSize: 11, fontWeight: "700", color: "#FFF" }}>
+                {sendingAll ? "Sending..." : "Send All"}
+              </Text>
+            </Pressable>
           </View>
         )}
 
@@ -289,6 +364,7 @@ export default function BirthdayCampaignsScreen() {
             const { client, daysUntil, display } = item;
             const isToday = daysUntil === 0;
             const isSoon = daysUntil <= 7;
+            const wasSent = sentToday.has(client.id);
             const accentColor = isToday ? "#FF9800" : isSoon ? colors.primary : colors.muted;
             return (
               <View style={[styles.clientCard, { backgroundColor: colors.surface, borderColor: isToday ? "#FF9800" + "50" : colors.border, borderLeftColor: accentColor }]}>
@@ -298,7 +374,14 @@ export default function BirthdayCampaignsScreen() {
                   </Text>
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{client.name}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{client.name}</Text>
+                    {wasSent && (
+                      <View style={{ paddingHorizontal: 5, paddingVertical: 1, borderRadius: 6, backgroundColor: colors.success + "20" }}>
+                        <Text style={{ fontSize: 9, fontWeight: "700", color: colors.success }}>SENT</Text>
+                      </View>
+                    )}
+                  </View>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 3 }}>
                     <IconSymbol name="birthday.cake" size={12} color={accentColor} />
                     <Text style={{ fontSize: 12, color: accentColor, fontWeight: "500" }}>{display}</Text>

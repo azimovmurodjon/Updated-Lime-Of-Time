@@ -1,7 +1,8 @@
 /**
  * Client Portal Tab Layout
  *
- * 4-tab navigation: Dashboard, Discover, Bookings, Messages, Profile
+ * Dark forest-green tab bar matching the onboarding screen aesthetic.
+ * 5-tab navigation: Home, Discover, Bookings, Messages, Profile
  */
 
 import { Tabs } from "expo-router";
@@ -9,11 +10,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Platform } from "react-native";
-import { useColors } from "@/hooks/use-colors";
 import { useClientStore } from "@/lib/client-store";
 
+// Forest green palette (matches onboarding)
+const TAB_BG = "#1A3A28";
+const TAB_ACTIVE = "#8FBF6A";   // light green accent
+const TAB_INACTIVE = "rgba(255,255,255,0.45)";
+const TAB_BORDER = "rgba(255,255,255,0.08)";
+
 export default function ClientTabLayout() {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
   const { state } = useClientStore();
   const bottomPadding = Platform.OS === "web" ? 12 : Math.max(insets.bottom, 8);
@@ -22,16 +27,16 @@ export default function ClientTabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: "#8B5CF6",
-        tabBarInactiveTintColor: colors.muted,
+        tabBarActiveTintColor: TAB_ACTIVE,
+        tabBarInactiveTintColor: TAB_INACTIVE,
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarStyle: {
           paddingTop: 8,
           paddingBottom: bottomPadding,
           height: tabBarHeight,
-          backgroundColor: colors.background,
-          borderTopColor: colors.border,
+          backgroundColor: TAB_BG,
+          borderTopColor: TAB_BORDER,
           borderTopWidth: 0.5,
         },
         tabBarLabelStyle: {

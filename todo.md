@@ -1831,3 +1831,11 @@
 ## Feature: Discover Tab - Recently Visited Businesses (Apr 21 2026)
 - [x] Add "Recently Visited" section to client discover tab from appointment history
 - [x] Add rebook-in-one-tap button on recently visited business cards
+
+## Feature: Client Portal Redesign + New Features (Apr 21 2026)
+- [ ] Redesign all Client Portal screens with dark-green onboarding aesthetic
+- [ ] Add payment step to client booking wizard (Zelle, Venmo, CashApp, Cash)
+- [ ] Build client notification preferences screen
+- [ ] Wire Notification Preferences from client profile tab
+- [ ] Build Birthday Campaigns section on business side
+- [ ] Add server endpoint for birthday campaign SMS sending

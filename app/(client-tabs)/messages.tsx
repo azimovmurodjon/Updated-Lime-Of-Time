@@ -13,14 +13,15 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
+  Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
-import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { useClientStore } from "@/lib/client-store";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { FuturisticBackground } from "@/components/futuristic-background";
+import { ClientPortalBackground } from "@/components/client-portal-background";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -30,9 +31,14 @@ import Animated, {
   runOnJS,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { Platform } from "react-native";
 import * as Haptics from "expo-haptics";
-import { getApiBaseUrl } from "@/constants/oauth";
+
+const GREEN_ACCENT = "#8FBF6A";
+const GREEN_DARK = "#1A3A28";
+const CARD_BG = "rgba(255,255,255,0.09)";
+const CARD_BORDER = "rgba(255,255,255,0.14)";
+const TEXT_PRIMARY = "#FFFFFF";
+const TEXT_MUTED = "rgba(255,255,255,0.6)";
 
 interface MessageThread {
   appointmentId: number;
@@ -58,6 +64,7 @@ function timeAgo(dateStr: string): string {
 export default function MessagesScreen() {
   const colors = useColors();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { state, dispatch, apiCall } = useClientStore();
   const [threads, setThreads] = useState<MessageThread[]>([]);
   const [loading, setLoading] = useState(false);
@@ -95,199 +102,275 @@ export default function MessagesScreen() {
     transform: [{ translateY: headerY.value }],
   }));
 
-  const s = styles(colors);
-
   if (!state.account) {
     return (
-      <ScreenContainer className="px-6">
-        <FuturisticBackground />
-        <View style={s.guestContainer}>
-          <IconSymbol name="text.bubble.fill" size={40} color={colors.muted} />
-          <Text style={[s.guestTitle, { color: colors.foreground }]}>Sign in to view messages</Text>
+      <View style={{ flex: 1, backgroundColor: GREEN_DARK }}>
+        <ClientPortalBackground />
+        <View style={[styles.guestContainer, { paddingTop: insets.top }]}>
+          <View style={styles.guestIconWrap}>
+            <IconSymbol name="text.bubble.fill" size={36} color={GREEN_ACCENT} />
+          </View>
+          <Text style={styles.guestTitle}>Sign in to view messages</Text>
+          <Text style={styles.guestSub}>Chat with businesses about your appointments.</Text>
           <Pressable
-            style={({ pressed }) => [s.signInBtn, pressed && { opacity: 0.85 }]}
+            style={({ pressed }) => [styles.signInBtn, pressed && { opacity: 0.85 }]}
             onPress={() => router.push("/client-signin" as any)}
           >
-            <Text style={s.signInBtnText}>Sign In</Text>
+            <Text style={styles.signInBtnText}>Sign In</Text>
           </Pressable>
         </View>
-      </ScreenContainer>
+      </View>
     );
   }
 
   return (
-    <ScreenContainer>
-      <FuturisticBackground />
-      <Animated.View style={[s.header, headerStyle]}>
-        <Text style={s.title}>Messages</Text>
+    <View style={{ flex: 1, backgroundColor: GREEN_DARK }}>
+      <ClientPortalBackground />
+      <Animated.View style={[styles.header, headerStyle, { paddingTop: insets.top + 16 }]}>
+        <Text style={styles.title}>Messages</Text>
       </Animated.View>
 
       {loading ? (
-        <View style={s.loadingContainer}>
-          <ActivityIndicator color="#8B5CF6" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator color={GREEN_ACCENT} />
         </View>
       ) : (
         <FlatList
           data={threads}
           keyExtractor={(item) => String(item.appointmentId)}
           contentContainerStyle={{ paddingBottom: 32 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#8B5CF6" />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={GREEN_ACCENT} />}
           ListEmptyComponent={
-            <View style={s.emptyContainer}>
-              <IconSymbol name="text.bubble.fill" size={36} color={colors.muted} />
-              <Text style={[s.emptyTitle, { color: colors.foreground }]}>No messages yet</Text>
-              <Text style={[s.emptySubtitle, { color: colors.muted }]}>
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyIconWrap}>
+                <IconSymbol name="text.bubble.fill" size={32} color={GREEN_ACCENT} />
+              </View>
+              <Text style={styles.emptyTitle}>No messages yet</Text>
+              <Text style={styles.emptySubtitle}>
                 Messages with businesses will appear here after you book an appointment.
               </Text>
             </View>
           }
-          renderItem={({ item }) => (
-            <Pressable
-              style={({ pressed }) => [
-                s.threadCard,
-                { borderBottomColor: colors.border },
-                pressed && { backgroundColor: colors.surface },
-              ]}
-              onPress={() => router.push({ pathname: "/client-message-thread", params: { appointmentId: String(item.appointmentId) } } as any)}
-            >
-              <View style={[s.avatar, { backgroundColor: "#8B5CF620" }]}>
-                <IconSymbol name="scissors" size={20} color="#8B5CF6" />
-              </View>
-              <View style={s.threadInfo}>
-                <View style={s.threadTop}>
-                  <Text style={[s.businessName, { color: colors.foreground }]} numberOfLines={1}>{item.businessName}</Text>
-                  {item.lastMessageAt && (
-                    <Text style={[s.timeAgo, { color: colors.muted }]}>{timeAgo(item.lastMessageAt)}</Text>
-                  )}
-                </View>
-                <Text style={[s.serviceName, { color: "#8B5CF6" }]} numberOfLines={1}>{item.serviceName}</Text>
-                {item.lastMessage ? (
-                  <Text style={[s.lastMessage, { color: colors.muted, fontWeight: item.unreadCount > 0 ? "600" : "400" }]} numberOfLines={1}>
-                    {item.lastMessage}
-                  </Text>
-                ) : (
-                  <Text style={[s.lastMessage, { color: colors.muted, fontStyle: "italic" }]}>No messages yet — tap to send one</Text>
-                )}
-              </View>
-              {item.unreadCount > 0 && (
-                <View style={s.unreadBadge}>
-                  <Text style={s.unreadText}>{item.unreadCount}</Text>
-                </View>
-              )}
-            </Pressable>
+          renderItem={({ item, index }) => (
+            <ThreadRow item={item} index={index} router={router} />
           )}
         />
       )}
-    </ScreenContainer>
+    </View>
   );
 }
 
-const styles = (colors: ReturnType<typeof useColors>) =>
-  StyleSheet.create({
-    header: {
-      paddingHorizontal: 20,
-      paddingTop: 16,
-      paddingBottom: 8,
-    },
-    title: {
-      fontSize: 24,
-      fontWeight: "700",
-      color: colors.foreground,
-    },
-    loadingContainer: {
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    emptyContainer: {
-      alignItems: "center",
-      paddingTop: 60,
-      paddingHorizontal: 32,
-      gap: 12,
-    },
-    emptyTitle: {
-      fontSize: 18,
-      fontWeight: "600",
-    },
-    emptySubtitle: {
-      fontSize: 14,
-      textAlign: "center",
-      lineHeight: 20,
-    },
-    threadCard: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      borderBottomWidth: 1,
-      gap: 12,
-    },
-    avatar: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    threadInfo: {
-      flex: 1,
-      gap: 3,
-    },
-    threadTop: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-    },
-    businessName: {
-      fontSize: 15,
-      fontWeight: "700",
-      flex: 1,
-    },
-    timeAgo: {
-      fontSize: 11,
-      marginLeft: 8,
-    },
-    serviceName: {
-      fontSize: 12,
-      fontWeight: "600",
-    },
-    lastMessage: {
-      fontSize: 13,
-      lineHeight: 18,
-    },
-    unreadBadge: {
-      backgroundColor: "#8B5CF6",
-      minWidth: 20,
-      height: 20,
-      borderRadius: 10,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 5,
-    },
-    unreadText: {
-      color: "#FFFFFF",
-      fontSize: 11,
-      fontWeight: "700",
-    },
-    guestContainer: {
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 16,
-    },
-    guestTitle: {
-      fontSize: 16,
-      fontWeight: "600",
-    },
-    signInBtn: {
-      backgroundColor: "#8B5CF6",
-      paddingHorizontal: 32,
-      paddingVertical: 12,
-      borderRadius: 24,
-    },
-    signInBtnText: {
-      color: "#FFFFFF",
-      fontSize: 15,
-      fontWeight: "700",
-    },
-  });
+function ThreadRow({ item, index, router }: { item: MessageThread; index: number; router: ReturnType<typeof useRouter> }) {
+  const scale = useSharedValue(1);
+
+  const tap = Gesture.Tap()
+    .onBegin(() => { scale.value = withSpring(0.98, { damping: 20, stiffness: 300 }); })
+    .onFinalize((_, success) => {
+      scale.value = withSpring(1, { damping: 18, stiffness: 200 });
+      if (success) {
+        if (Platform.OS !== "web") runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
+        runOnJS(router.push)({ pathname: "/client-message-thread", params: { appointmentId: String(item.appointmentId) } } as any);
+      }
+    });
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  // Get initials from business name
+  const initials = item.businessName
+    .split(" ")
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("");
+
+  return (
+    <GestureDetector gesture={tap}>
+      <Animated.View style={[animStyle, styles.threadCard]}>
+        {/* Avatar */}
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>{initials}</Text>
+        </View>
+
+        {/* Thread info */}
+        <View style={styles.threadInfo}>
+          <View style={styles.threadTop}>
+            <Text style={styles.businessName} numberOfLines={1}>{item.businessName}</Text>
+            {item.lastMessageAt && (
+              <Text style={styles.timeAgo}>{timeAgo(item.lastMessageAt)}</Text>
+            )}
+          </View>
+          <Text style={styles.serviceName} numberOfLines={1}>{item.serviceName}</Text>
+          {item.lastMessage ? (
+            <Text
+              style={[styles.lastMessage, item.unreadCount > 0 && { fontWeight: "600", color: TEXT_PRIMARY }]}
+              numberOfLines={1}
+            >
+              {item.lastMessage}
+            </Text>
+          ) : (
+            <Text style={[styles.lastMessage, { fontStyle: "italic" }]}>No messages yet — tap to send one</Text>
+          )}
+        </View>
+
+        {/* Unread badge */}
+        {item.unreadCount > 0 && (
+          <View style={styles.unreadBadge}>
+            <Text style={styles.unreadText}>{item.unreadCount}</Text>
+          </View>
+        )}
+      </Animated.View>
+    </GestureDetector>
+  );
+}
+
+const styles = StyleSheet.create({
+  header: {
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: TEXT_PRIMARY,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyContainer: {
+    alignItems: "center",
+    paddingTop: 80,
+    paddingHorizontal: 32,
+    gap: 12,
+  },
+  emptyIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    backgroundColor: "rgba(143,191,106,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: TEXT_PRIMARY,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+    color: TEXT_MUTED,
+  },
+  threadCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: CARD_BORDER,
+    gap: 12,
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(143,191,106,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(143,191,106,0.3)",
+  },
+  avatarText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: GREEN_ACCENT,
+  },
+  threadInfo: {
+    flex: 1,
+    gap: 3,
+  },
+  threadTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  businessName: {
+    fontSize: 15,
+    fontWeight: "700",
+    flex: 1,
+    color: TEXT_PRIMARY,
+  },
+  timeAgo: {
+    fontSize: 11,
+    marginLeft: 8,
+    color: TEXT_MUTED,
+  },
+  serviceName: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: GREEN_ACCENT,
+  },
+  lastMessage: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: TEXT_MUTED,
+  },
+  unreadBadge: {
+    backgroundColor: GREEN_ACCENT,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 5,
+  },
+  unreadText: {
+    color: GREEN_DARK,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  guestContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+    paddingHorizontal: 32,
+  },
+  guestIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 22,
+    backgroundColor: "rgba(143,191,106,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  guestTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: TEXT_PRIMARY,
+    textAlign: "center",
+  },
+  guestSub: {
+    fontSize: 14,
+    color: TEXT_MUTED,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  signInBtn: {
+    backgroundColor: GREEN_ACCENT,
+    paddingHorizontal: 36,
+    paddingVertical: 13,
+    borderRadius: 24,
+    marginTop: 4,
+  },
+  signInBtnText: {
+    color: GREEN_DARK,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+});

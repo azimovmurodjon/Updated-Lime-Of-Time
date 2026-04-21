@@ -49,7 +49,15 @@ interface AvailableSlot {
   time: string;
 }
 
-const STEPS = ["Service", "Staff", "Date", "Time", "Confirm"];
+const STEPS = ["Service", "Staff", "Date", "Time", "Payment", "Confirm"];
+
+const PAYMENT_METHODS = [
+  { id: "zelle", label: "Zelle", icon: "💜", hint: "Send to business Zelle number" },
+  { id: "venmo", label: "Venmo", icon: "💙", hint: "Send via @username" },
+  { id: "cashapp", label: "Cash App", icon: "💚", hint: "Send via $cashtag" },
+  { id: "cash", label: "Cash", icon: "💵", hint: "Pay in person at appointment" },
+] as const;
+type PaymentMethodId = typeof PAYMENT_METHODS[number]["id"];
 
 function formatPrice(price: string | null): string {
   if (price == null) return "Price varies";
@@ -89,6 +97,8 @@ export default function ClientBookingWizardScreen() {
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
   const [notes, setNotes] = useState("");
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId | null>(null);
+  const [paymentConfirmationNumber, setPaymentConfirmationNumber] = useState("");
 
   const today = new Date();
   const [calYear, setCalYear] = useState(today.getFullYear());
@@ -162,6 +172,14 @@ export default function ClientBookingWizardScreen() {
 
   const handleSubmit = async () => {
     if (!selectedService || !selectedDate || !selectedSlot) return;
+    if (!paymentMethod) {
+      Alert.alert("Payment Required", "Please select a payment method before confirming.");
+      return;
+    }
+    if (paymentMethod !== "cash" && !paymentConfirmationNumber.trim()) {
+      Alert.alert("Confirmation Number Required", "Please enter your payment confirmation number.");
+      return;
+    }
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSubmitting(true);
     try {
@@ -184,6 +202,8 @@ export default function ClientBookingWizardScreen() {
           duration: selectedService.duration,
           notes: notes.trim() || null,
           staffId: selectedStaffId !== "any" ? selectedStaffId : undefined,
+          paymentMethod,
+          paymentConfirmationNumber: paymentMethod !== "cash" ? paymentConfirmationNumber.trim() : undefined,
         }),
       });
       if (!res.ok) {
@@ -203,6 +223,8 @@ export default function ClientBookingWizardScreen() {
           businessName: slug,
           businessSlug: slug,
           price: selectedService.price ?? "",
+          paymentMethod: paymentMethod ?? "",
+          paymentConfirmationNumber: paymentMethod !== "cash" ? paymentConfirmationNumber.trim() : "",
         },
       } as any);
     } catch (err: any) {
@@ -461,8 +483,80 @@ export default function ClientBookingWizardScreen() {
           </View>
         )}
 
-        {/* Step 4: Confirm */}
-        {step === 4 && selectedService && selectedDate && selectedSlot && (
+        {/* Step 4: Payment */}
+        {step === 4 && selectedService && (
+          <View style={s.stepContent}>
+            <Text style={[s.stepTitle, { color: colors.foreground }]}>Payment</Text>
+            <Text style={[s.stepSubtitle, { color: colors.muted }]}>
+              Select how you'll pay for this appointment.
+            </Text>
+
+            {/* Payment method cards */}
+            <View style={{ gap: 10, marginTop: 8 }}>
+              {PAYMENT_METHODS.map((method) => (
+                <Pressable
+                  key={method.id}
+                  style={({ pressed }) => [
+                    s.paymentCard,
+                    {
+                      backgroundColor: paymentMethod === method.id ? LIME_GREEN + "20" : colors.surface,
+                      borderColor: paymentMethod === method.id ? LIME_GREEN : colors.border,
+                    },
+                    pressed && { opacity: 0.85 },
+                  ]}
+                  onPress={() => {
+                    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setPaymentMethod(method.id);
+                    if (method.id === "cash") setPaymentConfirmationNumber("");
+                  }}
+                >
+                  <Text style={{ fontSize: 22 }}>{method.icon}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.paymentMethodLabel, { color: colors.foreground }]}>{method.label}</Text>
+                    <Text style={[s.paymentMethodHint, { color: colors.muted }]}>{method.hint}</Text>
+                  </View>
+                  {paymentMethod === method.id && (
+                    <IconSymbol name="checkmark.circle.fill" size={22} color={LIME_GREEN} />
+                  )}
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Confirmation number input for digital payments */}
+            {paymentMethod && paymentMethod !== "cash" && (
+              <View style={{ marginTop: 16 }}>
+                <Text style={[s.notesLabel, { color: colors.foreground }]}>
+                  {paymentMethod === "zelle" ? "Zelle" : paymentMethod === "venmo" ? "Venmo" : "Cash App"} Confirmation Number
+                </Text>
+                <TextInput
+                  style={[s.notesInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground }]}
+                  placeholder="Enter confirmation number..."
+                  placeholderTextColor={colors.muted}
+                  value={paymentConfirmationNumber}
+                  onChangeText={setPaymentConfirmationNumber}
+                  returnKeyType="done"
+                  autoCapitalize="none"
+                />
+                <Text style={[{ color: colors.muted, fontSize: 12, marginTop: 6, lineHeight: 16 }]}>
+                  After sending payment, enter the confirmation number here so the business can verify your payment.
+                </Text>
+              </View>
+            )}
+
+            {/* Cash info */}
+            {paymentMethod === "cash" && (
+              <View style={[s.cashInfoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <IconSymbol name="info.circle.fill" size={18} color={colors.muted} />
+                <Text style={[{ color: colors.muted, fontSize: 13, flex: 1, lineHeight: 18 }]}>
+                  Cash payments are collected at your appointment. The business will confirm receipt from their side.
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Step 5: Confirm */}
+        {step === 5 && selectedService && selectedDate && selectedSlot && (
           <View style={s.stepContent}>
             <Text style={[s.stepTitle, { color: colors.foreground }]}>Confirm Booking</Text>
             <View style={[s.confirmCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -477,6 +571,16 @@ export default function ClientBookingWizardScreen() {
                   value={staff.find((m) => m.localId === selectedStaffId)?.name ?? selectedStaffId}
                   colors={colors}
                 />
+              )}
+              {paymentMethod && (
+                <Row
+                  label="Payment"
+                  value={PAYMENT_METHODS.find((m) => m.id === paymentMethod)?.label ?? paymentMethod}
+                  colors={colors}
+                />
+              )}
+              {paymentMethod !== "cash" && paymentConfirmationNumber && (
+                <Row label="Confirmation #" value={paymentConfirmationNumber} colors={colors} />
               )}
             </View>
             <Text style={[s.notesLabel, { color: colors.foreground }]}>Notes (optional)</Text>
@@ -501,11 +605,11 @@ export default function ClientBookingWizardScreen() {
           <Pressable
             style={({ pressed }) => [
               s.nextBtn,
-              { opacity: canProceed(step, selectedService, selectedStaffId, selectedDate, selectedSlot) ? 1 : 0.4 },
-              pressed && canProceed(step, selectedService, selectedStaffId, selectedDate, selectedSlot) && { transform: [{ scale: 0.97 }] },
+              { opacity: canProceed(step, selectedService, selectedStaffId, selectedDate, selectedSlot, paymentMethod, paymentConfirmationNumber) ? 1 : 0.4 },
+              pressed && canProceed(step, selectedService, selectedStaffId, selectedDate, selectedSlot, paymentMethod, paymentConfirmationNumber) && { transform: [{ scale: 0.97 }] },
             ]}
             onPress={handleNext}
-            disabled={!canProceed(step, selectedService, selectedStaffId, selectedDate, selectedSlot)}
+            disabled={!canProceed(step, selectedService, selectedStaffId, selectedDate, selectedSlot, paymentMethod, paymentConfirmationNumber)}
           >
             <Text style={s.nextBtnText}>Continue</Text>
             <IconSymbol name="chevron.right" size={16} color="#FFFFFF" />
@@ -531,11 +635,16 @@ export default function ClientBookingWizardScreen() {
   );
 }
 
-function canProceed(step: number, selectedService: any, selectedStaffId: any, selectedDate: Date | null, selectedSlot: any): boolean {
+function canProceed(step: number, selectedService: any, selectedStaffId: any, selectedDate: Date | null, selectedSlot: any, paymentMethod?: string | null, paymentConfirmationNumber?: string): boolean {
   if (step === 0) return selectedService != null;
   if (step === 1) return selectedStaffId !== undefined;
   if (step === 2) return selectedDate != null;
   if (step === 3) return selectedSlot != null;
+  if (step === 4) {
+    if (!paymentMethod) return false;
+    if (paymentMethod !== "cash" && !paymentConfirmationNumber?.trim()) return false;
+    return true;
+  }
   return true;
 }
 
@@ -583,6 +692,11 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     confirmCard: { borderRadius: 16, borderWidth: 1, paddingHorizontal: 16, paddingTop: 4, marginBottom: 16 },
     notesLabel: { fontSize: 15, fontWeight: "600", marginBottom: 6 },
     notesInput: { borderRadius: 12, borderWidth: 1, padding: 12, fontSize: 14, minHeight: 80 },
+    stepSubtitle: { fontSize: 14, marginBottom: 4 },
+    paymentCard: { flexDirection: "row", alignItems: "center", borderRadius: 14, borderWidth: 1.5, padding: 14, gap: 12 },
+    paymentMethodLabel: { fontSize: 15, fontWeight: "600" },
+    paymentMethodHint: { fontSize: 12, marginTop: 2 },
+    cashInfoCard: { flexDirection: "row", alignItems: "flex-start", borderRadius: 12, borderWidth: 1, padding: 12, gap: 10, marginTop: 12 },
     bottomAction: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 16, borderTopWidth: 1 },
     nextBtn: { backgroundColor: LIME_GREEN, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14 },
     nextBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },

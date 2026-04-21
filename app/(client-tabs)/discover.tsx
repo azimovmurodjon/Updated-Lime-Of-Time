@@ -20,11 +20,11 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
-import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { useClientStore, DiscoverBusiness } from "@/lib/client-store";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { FuturisticBackground } from "@/components/futuristic-background";
+import { ClientPortalBackground } from "@/components/client-portal-background";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -57,20 +57,28 @@ const CATEGORIES = [
 const RADIUS_OPTIONS = [5, 10, 25, 50, 100];
 
 // Category accent colors
+// Green-toned category colors for dark background
 const CATEGORY_COLORS: Record<string, string> = {
-  Hair: "#8B5CF6",
-  Nails: "#EC4899",
-  Skin: "#F59E0B",
-  Massage: "#10B981",
-  Fitness: "#3B82F6",
-  Dental: "#06B6D4",
-  Medical: "#EF4444",
-  Spa: "#8B5CF6",
-  Barber: "#6366F1",
-  Tattoo: "#F97316",
-  Other: "#6B7280",
-  All: "#8B5CF6",
+  Hair: "#8FBF6A",
+  Nails: "#F9A8D4",
+  Skin: "#FCD34D",
+  Massage: "#6EE7B7",
+  Fitness: "#93C5FD",
+  Dental: "#67E8F9",
+  Medical: "#FCA5A5",
+  Spa: "#C4B5FD",
+  Barber: "#8FBF6A",
+  Tattoo: "#FDBA74",
+  Other: "rgba(255,255,255,0.5)",
+  All: "#8FBF6A",
 };
+
+const GREEN_ACCENT = "#8FBF6A";
+const GREEN_DARK = "#1A3A28";
+const CARD_BG = "rgba(255,255,255,0.09)";
+const CARD_BORDER = "rgba(255,255,255,0.14)";
+const TEXT_PRIMARY = "#FFFFFF";
+const TEXT_MUTED = "rgba(255,255,255,0.6)";
 
 function kmToMiles(km: number): number {
   return km * 0.621371;
@@ -88,13 +96,13 @@ interface RecentBusiness {
   lastService: string;
 }
 
-function RecentlyVisited({ items, colors, router }: { items: RecentBusiness[]; colors: ReturnType<typeof useColors>; router: ReturnType<typeof useRouter> }) {
+function RecentlyVisited({ items, router }: { items: RecentBusiness[]; router: ReturnType<typeof useRouter> }) {
   if (items.length === 0) return null;
   return (
     <View style={recentStyles.section}>
       <View style={recentStyles.header}>
-        <Text style={[recentStyles.title, { color: colors.foreground }]}>Recently Visited</Text>
-        <Text style={[recentStyles.subtitle, { color: colors.muted }]}>Tap to rebook</Text>
+        <Text style={[recentStyles.title, { color: TEXT_PRIMARY }]}>Recently Visited</Text>
+        <Text style={[recentStyles.subtitle, { color: TEXT_MUTED }]}>Tap to rebook</Text>
       </View>
       <ScrollView
         horizontal
@@ -109,7 +117,7 @@ function RecentlyVisited({ items, colors, router }: { items: RecentBusiness[]; c
               key={biz.businessOwnerId}
               style={({ pressed }) => [
                 recentStyles.card,
-                { backgroundColor: colors.surface, borderColor: colors.border },
+                { backgroundColor: CARD_BG, borderColor: CARD_BORDER },
                 pressed && { opacity: 0.75, transform: [{ scale: 0.97 }] },
               ]}
               onPress={() => {
@@ -126,11 +134,11 @@ function RecentlyVisited({ items, colors, router }: { items: RecentBusiness[]; c
                 )}
               </View>
               {/* Name */}
-              <Text style={[recentStyles.name, { color: colors.foreground }]} numberOfLines={2}>
+              <Text style={[recentStyles.name, { color: TEXT_PRIMARY }]} numberOfLines={2}>
                 {biz.businessName}
               </Text>
               {/* Last service */}
-              <Text style={[recentStyles.service, { color: colors.muted }]} numberOfLines={1}>
+              <Text style={[recentStyles.service, { color: TEXT_MUTED }]} numberOfLines={1}>
                 {biz.lastService}
               </Text>
               {/* Rebook button */}
@@ -224,6 +232,7 @@ const recentStyles = StyleSheet.create({
 export default function DiscoverScreen() {
   const colors = useColors();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { state, dispatch } = useClientStore();
 
   const [businesses, setBusinesses] = useState<DiscoverBusiness[]>([]);
@@ -330,17 +339,17 @@ export default function DiscoverScreen() {
   const s = styles(colors);
 
   return (
-    <ScreenContainer edges={["top", "left", "right"]}>
-      <FuturisticBackground />
+    <View style={{ flex: 1, backgroundColor: GREEN_DARK }}>
+      <ClientPortalBackground />
 
       {/* Search Bar + Radius */}
-      <View style={s.searchRow}>
-        <View style={[s.searchBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View style={[s.searchRow, { paddingTop: insets.top + 10 }]}>
+        <View style={[s.searchBox, { backgroundColor: CARD_BG, borderColor: CARD_BORDER }]}>
           <IconSymbol name="magnifyingglass" size={16} color={colors.muted} />
           <TextInput
-            style={[s.searchInput, { color: colors.foreground }]}
+            style={[s.searchInput, { color: TEXT_PRIMARY }]}
             placeholder="Search businesses..."
-            placeholderTextColor={colors.muted}
+            placeholderTextColor={TEXT_MUTED}
             value={searchQuery}
             onChangeText={setSearchQuery}
             onSubmitEditing={handleSearch}
@@ -348,32 +357,32 @@ export default function DiscoverScreen() {
           />
           {searchQuery.length > 0 && (
             <Pressable onPress={() => { setSearchQuery(""); fetchBusinesses(userLat ?? undefined, userLng ?? undefined, "", state.discoverCategory, state.discoverRadius); }}>
-              <IconSymbol name="xmark.circle.fill" size={15} color={colors.muted} />
+              <IconSymbol name="xmark.circle.fill" size={15} color={TEXT_MUTED} />
             </Pressable>
           )}
         </View>
         <Pressable
-          style={({ pressed }) => [s.radiusBtn, { backgroundColor: colors.surface, borderColor: colors.border }, pressed && { opacity: 0.7 }]}
+          style={({ pressed }) => [s.radiusBtn, { backgroundColor: CARD_BG, borderColor: CARD_BORDER }, pressed && { opacity: 0.7 }]}
           onPress={() => setShowRadiusPicker((v) => !v)}
         >
-          <IconSymbol name="location.fill" size={13} color="#8B5CF6" />
-          <Text style={{ color: "#8B5CF6", fontSize: 12, fontWeight: "700" }}>{state.discoverRadius} mi</Text>
+          <IconSymbol name="location.fill" size={13} color={GREEN_ACCENT} />
+          <Text style={{ color: GREEN_ACCENT, fontSize: 12, fontWeight: "700" }}>{state.discoverRadius} mi</Text>
         </Pressable>
       </View>
 
       {/* Radius picker dropdown */}
       {showRadiusPicker && (
-        <View style={[s.radiusPicker, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={[s.radiusPicker, { backgroundColor: "#1e4a32", borderColor: CARD_BORDER }]}>
           {RADIUS_OPTIONS.map((r) => (
             <Pressable
               key={r}
-              style={({ pressed }) => [s.radiusOption, state.discoverRadius === r && { backgroundColor: "#8B5CF615" }, pressed && { opacity: 0.7 }]}
+              style={({ pressed }) => [s.radiusOption, state.discoverRadius === r && { backgroundColor: "rgba(143,191,106,0.12)" }, pressed && { opacity: 0.7 }]}
               onPress={() => handleRadiusSelect(r)}
             >
-              <Text style={{ color: state.discoverRadius === r ? "#8B5CF6" : colors.foreground, fontWeight: state.discoverRadius === r ? "700" : "400", fontSize: 14 }}>
+              <Text style={{ color: state.discoverRadius === r ? GREEN_ACCENT : TEXT_PRIMARY, fontWeight: state.discoverRadius === r ? "700" : "400", fontSize: 14 }}>
                 {r} miles
               </Text>
-              {state.discoverRadius === r && <IconSymbol name="checkmark" size={13} color="#8B5CF6" />}
+              {state.discoverRadius === r && <IconSymbol name="checkmark" size={13} color={GREEN_ACCENT} />}
             </Pressable>
           ))}
         </View>
@@ -381,9 +390,9 @@ export default function DiscoverScreen() {
 
       {/* Location error banner */}
       {locationError && (
-        <View style={[s.locationBanner, { backgroundColor: colors.warning + "20" }]}>
-          <IconSymbol name="location.slash.fill" size={13} color={colors.warning} />
-          <Text style={{ color: colors.warning, fontSize: 12, flex: 1 }}>{locationError}</Text>
+        <View style={[s.locationBanner, { backgroundColor: "rgba(251,191,36,0.15)" }]}>
+          <IconSymbol name="location.slash.fill" size={13} color="#FBBF24" />
+          <Text style={{ color: "#FBBF24", fontSize: 12, flex: 1 }}>{locationError}</Text>
         </View>
       )}
 
@@ -397,22 +406,22 @@ export default function DiscoverScreen() {
         >
           {CATEGORIES.map(({ label, emoji }) => {
             const isActive = activeCategory === label;
-            const accentColor = CATEGORY_COLORS[label] ?? "#8B5CF6";
+            const accentColor = CATEGORY_COLORS[label] ?? GREEN_ACCENT;
             return (
               <Pressable
                 key={label}
                 style={({ pressed }) => [
                   s.categoryChip,
                   {
-                    backgroundColor: isActive ? accentColor : colors.surface,
-                    borderColor: isActive ? accentColor : colors.border,
+                    backgroundColor: isActive ? accentColor + "30" : CARD_BG,
+                    borderColor: isActive ? accentColor : CARD_BORDER,
                   },
                   pressed && { opacity: 0.75 },
                 ]}
                 onPress={() => handleCategorySelect(label)}
               >
                 <Text style={s.categoryEmoji}>{emoji}</Text>
-                <Text style={[s.categoryLabel, { color: isActive ? "#FFFFFF" : colors.foreground }]}>
+                <Text style={[s.categoryLabel, { color: isActive ? accentColor : TEXT_PRIMARY }]}>
                   {label}
                 </Text>
               </Pressable>
@@ -423,21 +432,21 @@ export default function DiscoverScreen() {
 
       {/* Recently Visited */}
       {!loading && recentlyVisited.length > 0 && (
-        <RecentlyVisited items={recentlyVisited} colors={colors} router={router} />
+        <RecentlyVisited items={recentlyVisited} router={router} />
       )}
 
       {/* Divider between recently visited and results */}
       {!loading && recentlyVisited.length > 0 && businesses.length > 0 && (
-        <View style={[s.sectionDivider, { borderTopColor: colors.border }]}>
-          <Text style={[s.sectionDividerText, { color: colors.muted }]}>All Businesses</Text>
+        <View style={[s.sectionDivider, { borderTopColor: CARD_BORDER }]}>
+          <Text style={[s.sectionDividerText, { color: TEXT_MUTED }]}>All Businesses</Text>
         </View>
       )}
 
       {/* Results */}
       {loading ? (
         <View style={s.loadingContainer}>
-          <ActivityIndicator size="large" color="#8B5CF6" />
-          <Text style={[s.loadingText, { color: colors.muted }]}>Finding businesses near you...</Text>
+          <ActivityIndicator size="large" color={GREEN_ACCENT} />
+          <Text style={[s.loadingText, { color: TEXT_MUTED }]}>Finding businesses near you...</Text>
         </View>
       ) : (
         <FlatList
@@ -448,10 +457,10 @@ export default function DiscoverScreen() {
           ListEmptyComponent={
             <View style={s.emptyContainer}>
               <Text style={s.emptyIcon}>📍</Text>
-              <Text style={[s.emptyTitle, { color: colors.foreground }]}>
+              <Text style={[s.emptyTitle, { color: TEXT_PRIMARY }]}>
                 {userLat != null ? "No businesses nearby" : "No businesses found"}
               </Text>
-              <Text style={[s.emptySubtitle, { color: colors.muted }]}>
+              <Text style={[s.emptySubtitle, { color: TEXT_MUTED }]}>
                 {userLat != null
                   ? `No businesses available within ${state.discoverRadius} miles. Try increasing your range or changing the category.`
                   : "No businesses match your search. Try a different keyword or category."}
@@ -464,21 +473,21 @@ export default function DiscoverScreen() {
                     if (nextRadius !== state.discoverRadius) handleRadiusSelect(nextRadius);
                   }}
                 >
-                  <Text style={{ color: "#8B5CF6", fontWeight: "600", fontSize: 14 }}>Expand Range</Text>
+                  <Text style={{ color: GREEN_ACCENT, fontWeight: "600", fontSize: 14 }}>Expand Range</Text>
                 </Pressable>
               )}
             </View>
           }
-          renderItem={({ item, index }) => <BusinessCard item={item} colors={colors} router={router} index={index} />}
+          renderItem={({ item, index }) => <BusinessCard item={item} router={router} index={index} />}
         />
       )}
-    </ScreenContainer>
+    </View>
   );
 }
 
 // ─── Business Card Component ─────────────────────────────────────────────────
 
-function BusinessCard({ item, colors, router, index }: { item: DiscoverBusiness; colors: ReturnType<typeof useColors>; router: ReturnType<typeof useRouter>; index: number }) {
+function BusinessCard({ item, router, index }: { item: DiscoverBusiness; router: ReturnType<typeof useRouter>; index: number }) {
   const scale = useSharedValue(1);
   const opacity = useSharedValue(0);
   const translateY = useSharedValue(20);
@@ -505,13 +514,13 @@ function BusinessCard({ item, colors, router, index }: { item: DiscoverBusiness;
   }));
 
   const displayCategory = item.businessCategory ?? item.category;
-  const accentColor = CATEGORY_COLORS[displayCategory ?? "Other"] ?? "#8B5CF6";
+  const accentColor = CATEGORY_COLORS[displayCategory ?? "Other"] ?? GREEN_ACCENT;
   const distanceMiles = item.distanceKm != null ? kmToMiles(item.distanceKm) : null;
 
   return (
     <GestureDetector gesture={tap}>
       <Animated.View style={[animStyle, { marginBottom: 12 }]}>
-        <View style={[cardStyles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={[cardStyles.card, { backgroundColor: CARD_BG, borderColor: CARD_BORDER }]}>
           {/* Logo / Cover */}
           <View style={[cardStyles.logoBox, { backgroundColor: accentColor + "18" }]}>
             {(item.businessLogoUri || item.logoUrl) ? (
@@ -523,7 +532,7 @@ function BusinessCard({ item, colors, router, index }: { item: DiscoverBusiness;
 
           {/* Info */}
           <View style={cardStyles.info}>
-            <Text style={[cardStyles.name, { color: colors.foreground }]} numberOfLines={1}>
+            <Text style={[cardStyles.name, { color: TEXT_PRIMARY }]} numberOfLines={1}>
               {item.businessName}
             </Text>
             {displayCategory && (
@@ -534,7 +543,7 @@ function BusinessCard({ item, colors, router, index }: { item: DiscoverBusiness;
               </View>
             )}
             {item.address && (
-              <Text style={[cardStyles.address, { color: colors.muted }]} numberOfLines={1}>
+              <Text style={[cardStyles.address, { color: TEXT_MUTED }]} numberOfLines={1}>
                 📍 {item.address}
               </Text>
             )}
@@ -542,23 +551,23 @@ function BusinessCard({ item, colors, router, index }: { item: DiscoverBusiness;
               {item.avgRating != null && (
                 <View style={cardStyles.ratingRow}>
                   <Text style={{ fontSize: 11 }}>⭐</Text>
-                  <Text style={[cardStyles.ratingText, { color: colors.foreground }]}>
+                  <Text style={[cardStyles.ratingText, { color: TEXT_PRIMARY }]}>
                     {item.avgRating.toFixed(1)}
                   </Text>
-                  <Text style={[cardStyles.reviewCount, { color: colors.muted }]}>
+                  <Text style={[cardStyles.reviewCount, { color: TEXT_MUTED }]}>
                     ({item.reviewCount})
                   </Text>
                 </View>
               )}
               {distanceMiles != null && (
-                <Text style={[cardStyles.distance, { color: colors.muted }]}>
+                <Text style={[cardStyles.distance, { color: TEXT_MUTED }]}>
                   {distanceMiles < 0.1 ? "< 0.1 mi" : `${distanceMiles.toFixed(1)} mi`}
                 </Text>
               )}
             </View>
           </View>
 
-          <IconSymbol name="chevron.right" size={15} color={colors.muted} />
+          <IconSymbol name="chevron.right" size={15} color={TEXT_MUTED} />
         </View>
       </Animated.View>
     </GestureDetector>
@@ -762,9 +771,9 @@ const styles = (colors: ReturnType<typeof useColors>) =>
       paddingHorizontal: 20,
       paddingVertical: 10,
       borderRadius: 20,
-      backgroundColor: "#8B5CF615",
+      backgroundColor: "rgba(143,191,106,0.12)",
       borderWidth: 1,
-      borderColor: "#8B5CF640",
+      borderColor: "rgba(143,191,106,0.3)",
     },
     sectionDivider: {
       borderTopWidth: 1,
