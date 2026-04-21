@@ -350,6 +350,20 @@ export function useNotifications() {
 
       // ── Default: tap on notification body → navigate ──────────────────────
       if (data) {
+        // For payment_received taps: immediately update local state to 'paid'
+        // so the appointment-detail screen shows 'Refund' instead of 'Mark as Paid'
+        // (the DB was already updated by the Stripe webhook; local state just lags behind)
+        if (data.type === 'payment_received' && data.appointmentId) {
+          const apptId = data.appointmentId;
+          const appt = state.appointments.find((a) => a.id === apptId);
+          if (appt && appt.paymentStatus !== 'paid') {
+            const updatedAppt = { ...appt, paymentStatus: 'paid' as const, paymentMethod: 'card' as const };
+            const updateAction = { type: 'UPDATE_APPOINTMENT' as const, payload: updatedAppt };
+            dispatch(updateAction);
+            syncToDb(updateAction);
+            logger.log('[Notifications] Pre-updated appointment to paid on notification tap:', apptId);
+          }
+        }
         setTimeout(() => handleNotificationNavigation(data), 300);
       }
     });
@@ -379,6 +393,18 @@ export function useNotifications() {
         if (lastResponse) {
           const data = lastResponse.notification.request.content.data as NotificationData;
           if (data) {
+            // For payment_received cold-start: pre-update local state to 'paid'
+            if (data.type === 'payment_received' && data.appointmentId) {
+              const apptId = data.appointmentId;
+              const appt = state.appointments.find((a) => a.id === apptId);
+              if (appt && appt.paymentStatus !== 'paid') {
+                const updatedAppt = { ...appt, paymentStatus: 'paid' as const, paymentMethod: 'card' as const };
+                const updateAction = { type: 'UPDATE_APPOINTMENT' as const, payload: updatedAppt };
+                dispatch(updateAction);
+                syncToDb(updateAction);
+                logger.log('[Notifications] Cold-start: pre-updated appointment to paid:', apptId);
+              }
+            }
             setTimeout(() => handleNotificationNavigation(data), 1000);
           }
         }
@@ -393,7 +419,7 @@ export function useNotifications() {
       foregroundSubscription.remove();
       listenerSetupRef.current = false;
     };
-  }, [handleNotificationNavigation]);
+  }, [handleNotificationNavigation, dispatch, syncToDb, state.appointments]);
 
   // Schedule local reminders and auto-complete notifications for upcoming appointments
   useEffect(() => {

@@ -1588,3 +1588,9 @@
 - [x] Fixed card payment redirect bug: request-payment endpoint was using owner.slug (undefined) — now uses customSlug || businessName-derived slug
 - [x] Fixed card payment redirect bug: success URL was using wrong query param payment_success=1 — now uses dedicated /api/payment-receipt/:slug?session_id= page
 - [x] Added dedicated /api/payment-receipt/:slug page for owner-initiated card payment receipts — clean receipt page with no booking form flash
+- [ ] Fix notification tap crash: Cannot read property 'toLowerCase' of undefined in types.ts:690 (appointment-detail.tsx:48)
+- [ ] Fix client booking page redirect: after card payment still going back to step 1 instead of receipt page
+- [ ] Fix appointment not updating to paid after Stripe webhook fires (still shows Mark as Paid instead of Refund)
+- [x] Fix notification tap crash: guard against invalid date in generateAvailableSlots (types.ts + appointment-detail.tsx)
+- [x] Fix client booking page redirect after card payment: skip auto-advance to step-1 when payment=success in URL
+- [x] Fix appointment not showing Refund button after card payment: immediate DB check on mount + pre-update on notification tap

@@ -5734,7 +5734,11 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       loadWorkingDays(selectedLocation);
       // Auto-advance past location step if location is already determined
       // (preselected via URL param, or only one location exists)
-      if (selectedLocation && !${JSON.stringify(!!owner.temporaryClosed)}) {
+      // IMPORTANT: do NOT auto-advance when returning from Stripe Checkout
+      // (payment=success in URL) — handlePaymentReturn() will show the receipt instead
+      const _urlParamsInit = new URLSearchParams(window.location.search);
+      const _isPaymentReturn = _urlParamsInit.get('payment') === 'success';
+      if (selectedLocation && !${JSON.stringify(!!owner.temporaryClosed)} && !_isPaymentReturn) {
         // Small delay to let the page render first
         setTimeout(() => goToStep(1), 50);
       }

@@ -45,7 +45,7 @@ function applyTemplate(
 }
 
 export default function AppointmentDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
   const { state, dispatch, getServiceById, getClientById, getStaffById, getLocationById, syncToDb } = useStore();
   const colors = useColors();
   const router = useRouter();
@@ -182,7 +182,8 @@ export default function AppointmentDetailScreen() {
   };
 
   const reschedSlots = useMemo(() => {
-    if (!appointment) return [];
+    // Guard: appointment not loaded yet or reschedDate is empty/invalid — skip slot generation
+    if (!appointment || !reschedDate || !/^\d{4}-\d{2}-\d{2}$/.test(reschedDate)) return [];
     const loc = assignedLocation;
     const wh = (loc?.workingHours != null && Object.keys(loc.workingHours).length > 0)
       ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
@@ -325,6 +326,34 @@ export default function AppointmentDetailScreen() {
   }, [appointment, state.businessOwnerId, state.settings.twilioEnabled, client, service, biz.businessName, sendSmsMutation, openSms, dispatch]);
 
   // ── Payment status polling — check every 30s if appointment is unpaid ──────
+  // ── Immediate payment status check on mount (for notification tap) ─────────
+  // When the screen opens from a push notification, the DB may already be updated
+  // but local state hasn't synced yet. Do a single immediate check.
+  useEffect(() => {
+    if (!appointment || !state.businessOwnerId) return;
+    if (!(state.settings as any).stripeConnectEnabled) return;
+    // Only do immediate check if opened from notification or if appointment is unpaid
+    // (could have been paid while app was backgrounded)
+    if (appointment.paymentStatus === 'paid') return;
+    const immediateCheck = async () => {
+      try {
+        const result = await apiCall<{ ok: boolean; paymentStatus: string; paymentMethod: string | null }>(
+          `/api/stripe-connect/appointment-payment-status?businessOwnerId=${state.businessOwnerId}&appointmentLocalId=${encodeURIComponent(appointment.id)}`,
+          { method: 'GET' },
+        );
+        if (result.ok && result.paymentStatus === 'paid') {
+          const updated = { ...appointment, paymentStatus: 'paid' as const, paymentMethod: (result.paymentMethod ?? 'card') as any };
+          dispatch({ type: 'UPDATE_APPOINTMENT', payload: updated });
+          syncToDb({ type: 'UPDATE_APPOINTMENT', payload: updated });
+        }
+      } catch {
+        // Silently ignore
+      }
+    };
+    immediateCheck();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appointment?.id, state.businessOwnerId]);
+
   useEffect(() => {
     if (!appointment || appointment.paymentStatus === 'paid' || !state.businessOwnerId) return;
     // Only poll if Stripe is connected (stripeConnectEnabled flag)

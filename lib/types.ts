@@ -684,9 +684,12 @@ export function generateAvailableSlots(
   }
 
   // Fall back to weekly working hours
+  // Guard: if date is empty or invalid, getDay() returns NaN and DAYS_OF_WEEK[NaN] is undefined
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return [];
   const dateObj = new Date(date + "T12:00:00");
   const dayIndex = dateObj.getDay();
   const dayName = DAYS_OF_WEEK[dayIndex];
+  if (!dayName) return []; // safety guard for invalid date
   const wh = resolvedWorkingHours[dayName] || resolvedWorkingHours[dayName.toLowerCase()];
   if (!wh || !wh.enabled) return [];
 
