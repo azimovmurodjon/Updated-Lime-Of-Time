@@ -113,6 +113,9 @@ const businessRouter = router({
         instagramHandle: z.string().optional(),
         facebookHandle: z.string().optional(),
         tiktokHandle: z.string().optional(),
+        businessCategory: z.string().optional(),
+        appStoreUrl: z.string().optional(),
+        playStoreUrl: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {

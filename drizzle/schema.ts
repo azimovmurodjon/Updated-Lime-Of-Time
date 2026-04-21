@@ -134,6 +134,10 @@ export const businessOwners = mysqlTable("business_owners", {
   lng: decimal("lng", { precision: 10, scale: 7 }),
   /** Whether this business is visible in the client portal discovery feed */
   clientPortalVisible: boolean("clientPortalVisible").default(false).notNull(),
+  /** iOS App Store URL for the App Share card */
+  appStoreUrl: varchar("appStoreUrl", { length: 500 }),
+  /** Google Play Store URL for the App Share card */
+  playStoreUrl: varchar("playStoreUrl", { length: 500 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

@@ -14,6 +14,7 @@ import {
   Platform,
   Modal,
   Animated,
+  Linking,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatTime, formatDateStr } from "@/lib/store";
@@ -2145,21 +2146,77 @@ export default function HomeScreen() {
             <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Share Client App</Text>
             <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 16 }}>Let clients book appointments directly from the app.</Text>
           </View>
-          <Pressable
-            style={({ pressed }) => [{
-              backgroundColor: "#8B5CF6",
-              paddingHorizontal: 14,
-              paddingVertical: 8,
-              borderRadius: 20,
-              opacity: pressed ? 0.8 : 1,
-            }]}
-            onPress={() => {
-              // TODO: Replace with real App Store / Play Store URL after deployment
-              Alert.alert("Coming Soon", "The app will be available on the App Store and Google Play after deployment. Share this message with your clients once it's live!");
-            }}
-          >
-            <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "700" }}>Share</Text>
-          </Pressable>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            {/* iOS App Store button */}
+            <Pressable
+              style={({ pressed }) => [{
+                backgroundColor: "#8B5CF6",
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 20,
+                opacity: pressed ? 0.8 : 1,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+              }]}
+              onPress={() => {
+                const url = (state.settings as any).appStoreUrl;
+                if (url) {
+                  Linking.openURL(url).catch(() => Alert.alert("Error", "Could not open App Store link."));
+                } else {
+                  Alert.alert("App Store Link", "Set your App Store URL in Settings → Business Profile to enable this button.");
+                }
+              }}
+            >
+              <IconSymbol name="iphone" size={14} color="#FFFFFF" />
+              <Text style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "700" }}>iOS</Text>
+            </Pressable>
+            {/* Android Play Store button */}
+            <Pressable
+              style={({ pressed }) => [{
+                backgroundColor: "#059669",
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 20,
+                opacity: pressed ? 0.8 : 1,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+              }]}
+              onPress={() => {
+                const url = (state.settings as any).playStoreUrl;
+                if (url) {
+                  Linking.openURL(url).catch(() => Alert.alert("Error", "Could not open Play Store link."));
+                } else {
+                  Alert.alert("Play Store Link", "Set your Play Store URL in Settings → Business Profile to enable this button.");
+                }
+              }}
+            >
+              <Text style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "700" }}>Android</Text>
+            </Pressable>
+            {/* Share both links */}
+            <Pressable
+              style={({ pressed }) => [{
+                backgroundColor: "#8B5CF620",
+                borderWidth: 1,
+                borderColor: "#8B5CF640",
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 20,
+                opacity: pressed ? 0.8 : 1,
+              }]}
+              onPress={() => {
+                const iosUrl = (state.settings as any).appStoreUrl;
+                const androidUrl = (state.settings as any).playStoreUrl;
+                const msg = iosUrl || androidUrl
+                  ? `Book appointments with us on the app!${iosUrl ? `\niOS: ${iosUrl}` : ""}${androidUrl ? `\nAndroid: ${androidUrl}` : ""}`
+                  : "Our client app is coming soon to the App Store and Google Play!";
+                Share.share({ message: msg });
+              }}
+            >
+              <Text style={{ color: "#8B5CF6", fontSize: 12, fontWeight: "700" }}>Share</Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* ─── Birthday Banner ──────────────────────────────────────── */}

@@ -105,6 +105,9 @@ const initialSettings: BusinessSettings = {
   instagramHandle: "",
   facebookHandle: "",
   tiktokHandle: "",
+  businessCategory: "",
+  appStoreUrl: "",
+  playStoreUrl: "",
 };
 
 const initialState: AppState = {
@@ -859,6 +862,9 @@ export function dbOwnerToSettings(owner: any): Partial<BusinessSettings> {
     instagramHandle: (owner as any).instagramHandle ?? "",
     facebookHandle: (owner as any).facebookHandle ?? "",
     tiktokHandle: (owner as any).tiktokHandle ?? "",
+    businessCategory: (owner as any).businessCategory ?? "",
+    appStoreUrl: (owner as any).appStoreUrl ?? "",
+    playStoreUrl: (owner as any).playStoreUrl ?? "",
   };
 }
 
@@ -1699,6 +1705,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             if (settings.instagramHandle !== undefined) updateData.instagramHandle = settings.instagramHandle;
             if (settings.facebookHandle !== undefined) updateData.facebookHandle = settings.facebookHandle;
             if (settings.tiktokHandle !== undefined) updateData.tiktokHandle = settings.tiktokHandle;
+            // Client portal discovery
+            if ((settings as any).businessCategory !== undefined) updateData.businessCategory = (settings as any).businessCategory;
+            if ((settings as any).appStoreUrl !== undefined) updateData.appStoreUrl = (settings as any).appStoreUrl;
+            if ((settings as any).playStoreUrl !== undefined) updateData.playStoreUrl = (settings as any).playStoreUrl;
             // Only update if there's something besides id
             if (Object.keys(updateData).length > 1) {
               await updateBusinessMut.mutateAsync(updateData);

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import {
   Text,
   View,
@@ -68,6 +68,9 @@ export default function BusinessProfileScreen() {
   const [email, setEmail] = useState(profile.email ?? "");
   const [website, setWebsite] = useState(profile.website ?? "");
   const [description, setDescription] = useState(profile.description ?? "");
+  const [businessCategory, setBusinessCategory] = useState((state.settings as any).businessCategory ?? "");
+  const [appStoreUrl, setAppStoreUrl] = useState((state.settings as any).appStoreUrl ?? "");
+  const [playStoreUrl, setPlayStoreUrl] = useState((state.settings as any).playStoreUrl ?? "");
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -98,6 +101,9 @@ export default function BusinessProfileScreen() {
       type: "UPDATE_SETTINGS" as const,
       payload: {
         businessName: businessName.trim(),
+        businessCategory: businessCategory.trim(),
+        appStoreUrl: appStoreUrl.trim(),
+        playStoreUrl: playStoreUrl.trim(),
         profile: {
           ...profile,
           ownerName: ownerName.trim(),
@@ -106,12 +112,12 @@ export default function BusinessProfileScreen() {
           website: website.trim(),
           description: description.trim(),
         },
-      },
+      } as any,
     };
     dispatch(settingsAction);
     syncToDb(settingsAction);
     router.back();
-  }, [businessName, ownerName, phone, email, website, description, profile, dispatch, syncToDb, router, validate]);
+  }, [businessName, ownerName, phone, email, website, description, businessCategory, appStoreUrl, playStoreUrl, profile, dispatch, syncToDb, router, validate]);
 
   const openWebsite = useCallback(() => {
     const url = website.startsWith("http") ? website : `https://${website}`;
@@ -338,6 +344,99 @@ export default function BusinessProfileScreen() {
                   },
                 ]}
               />
+            </Field>
+
+              {/* App Store URLs */}
+            <Field
+              label="App Store URL (optional)"
+              errorColor={colors.error}
+              foregroundColor={colors.foreground}
+            >
+              <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 8 }}>
+                iOS App Store link — paste after your app is published.
+              </Text>
+              <TextInput
+                value={appStoreUrl}
+                onChangeText={setAppStoreUrl}
+                placeholder="https://apps.apple.com/app/..."
+                placeholderTextColor={colors.muted}
+                autoCapitalize="none"
+                keyboardType="url"
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.background,
+                    borderColor: colors.border,
+                    color: colors.foreground,
+                  },
+                ]}
+              />
+            </Field>
+
+            <Field
+              label="Play Store URL (optional)"
+              errorColor={colors.error}
+              foregroundColor={colors.foreground}
+            >
+              <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 8 }}>
+                Google Play Store link — paste after your app is published.
+              </Text>
+              <TextInput
+                value={playStoreUrl}
+                onChangeText={setPlayStoreUrl}
+                placeholder="https://play.google.com/store/apps/..."
+                placeholderTextColor={colors.muted}
+                autoCapitalize="none"
+                keyboardType="url"
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.background,
+                    borderColor: colors.border,
+                    color: colors.foreground,
+                  },
+                ]}
+              />
+            </Field>
+
+              {/* Business Category */}
+            <Field
+              label="Business Category (optional)"
+              errorColor={colors.error}
+              foregroundColor={colors.foreground}
+            >
+              <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10 }}>
+                Helps clients find you in the app's Discover screen.
+              </Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {[
+                  "Hair", "Nails", "Spa", "Massage", "Fitness", "Yoga",
+                  "Barbershop", "Esthetics", "Tattoo", "Lashes", "Brows",
+                  "Makeup", "Wellness", "Dental", "Other"
+                ].map((cat) => (
+                  <Pressable
+                    key={cat}
+                    onPress={() => setBusinessCategory(businessCategory === cat ? "" : cat)}
+                    style={({ pressed }) => ({
+                      paddingHorizontal: 14,
+                      paddingVertical: 8,
+                      borderRadius: 20,
+                      borderWidth: 1.5,
+                      borderColor: businessCategory === cat ? colors.primary : colors.border,
+                      backgroundColor: businessCategory === cat ? colors.primary + "22" : colors.surface,
+                      opacity: pressed ? 0.7 : 1,
+                    })}
+                  >
+                    <Text style={{
+                      fontSize: 13,
+                      fontWeight: businessCategory === cat ? "600" : "400",
+                      color: businessCategory === cat ? colors.primary : colors.foreground,
+                    }}>
+                      {cat}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
             </Field>
           </View>
         </ScrollView>

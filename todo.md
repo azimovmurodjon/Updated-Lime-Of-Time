@@ -1702,3 +1702,8 @@
 - [x] Push notification types for client_message and business_message
 - [x] businessCategory, lat/lng columns added to DB schema
 - [x] expo-location package installed for Discover screen
+
+## Post-Client-Portal Enhancements
+- [x] businessCategory picker in Business Profile settings
+- [x] Wire App Store/Play Store URLs to App Share card (iOS + Android + Share buttons)
+- [x] Unread client message badge on Clients tab (polls every 60s)
