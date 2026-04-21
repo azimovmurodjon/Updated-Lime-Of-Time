@@ -187,7 +187,20 @@ export default function ClientBookingWizardScreen() {
         throw new Error((err as any).error ?? `HTTP ${res.status}`);
       }
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace("/(client-tabs)/bookings" as any);
+      const selectedStaffMember = selectedStaffId !== "any" ? staff.find((m) => m.localId === selectedStaffId) : null;
+      router.replace({
+        pathname: "/client-booking-confirmation",
+        params: {
+          serviceName: selectedService.name,
+          staffName: selectedStaffMember?.name ?? "",
+          date: dateStr,
+          time: selectedSlot.time,
+          duration: String(selectedService.duration),
+          businessName: slug,
+          businessSlug: slug,
+          price: selectedService.price ?? "",
+        },
+      } as any);
     } catch (err: any) {
       Alert.alert("Booking Failed", err?.message ?? "Please try again.");
     } finally {

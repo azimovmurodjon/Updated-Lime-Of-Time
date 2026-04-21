@@ -2211,7 +2211,11 @@ export default function HomeScreen() {
                 const msg = iosUrl || androidUrl
                   ? `Book appointments with us on the app!${iosUrl ? `\niOS: ${iosUrl}` : ""}${androidUrl ? `\nAndroid: ${androidUrl}` : ""}`
                   : "Our client app is coming soon to the App Store and Google Play!";
-                Share.share({ message: msg });
+                if (Platform.OS !== "web") {
+                  Share.share({ message: msg });
+                } else if (typeof navigator !== "undefined" && navigator.clipboard) {
+                  navigator.clipboard.writeText(msg);
+                }
               }}
             >
               <Text style={{ color: "#8B5CF6", fontSize: 12, fontWeight: "700" }}>Share</Text>

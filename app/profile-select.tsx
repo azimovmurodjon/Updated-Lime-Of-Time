@@ -225,7 +225,7 @@ export default function ProfileSelectScreen() {
       <View style={styles.wave2} />
 
       {/* ─── Content ─── */}
-      <View style={[styles.content, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 20 }]}>
+      <View style={[styles.content, { paddingTop: insets.top + 14, paddingBottom: insets.bottom + 14 }]}>
 
         {/* ─── Logo + App Name (identical to business onboarding) ─── */}
         <View style={styles.logoContainer}>
@@ -306,58 +306,59 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 22,
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
+    gap: 18,
   },
   logoContainer: {
     alignItems: "center",
-    marginBottom: 4,
+    marginBottom: 0,
   },
   logoRing: {
-    width: 116,
-    height: 116,
-    borderRadius: 32,
+    width: 100,
+    height: 100,
+    borderRadius: 28,
     backgroundColor: "rgba(255,255,255,0.12)",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
     borderColor: "rgba(255,255,255,0.2)",
-    marginBottom: 12,
+    marginBottom: 10,
   },
   logo: {
-    width: 88,
-    height: 88,
-    borderRadius: 24,
+    width: 76,
+    height: 76,
+    borderRadius: 20,
   },
   appName: {
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: "800",
     color: "#FFFFFF",
-    letterSpacing: 0.3,
-    marginTop: 4,
+    letterSpacing: 0.2,
+    marginTop: 2,
   },
   appTagline: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.7)",
+    fontSize: 13,
+    color: "rgba(255,255,255,0.65)",
     marginTop: 3,
     letterSpacing: 0.2,
   },
   cardsContainer: {
     width: "100%",
-    gap: 14,
-    flex: 1,
-    justifyContent: "center",
-    paddingVertical: 8,
+    gap: 12,
+    marginTop: 4,
   },
   card: {
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
-    padding: 20,
+    padding: 18,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowColor: "#0A2518",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 20,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.95)",
   },
   cardBlob: {
     position: "absolute",
@@ -420,6 +421,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "rgba(255,255,255,0.45)",
     textAlign: "center",
-    marginTop: 8,
   },
 });

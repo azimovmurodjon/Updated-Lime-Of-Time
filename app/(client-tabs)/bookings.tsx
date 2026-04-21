@@ -297,7 +297,18 @@ export default function BookingsScreen() {
                 </View>
                 {item.staffName && (
                   <View style={s.metaItem}>
-                    <IconSymbol name="person.fill" size={13} color={colors.muted} />
+                    {item.staffAvatarUrl ? (
+                      <Image
+                        source={{ uri: item.staffAvatarUrl }}
+                        style={{ width: 18, height: 18, borderRadius: 9, marginRight: 2 }}
+                      />
+                    ) : (
+                      <View style={[s.staffInitialBadge, { backgroundColor: "#4A7C5920" }]}>
+                        <Text style={[s.staffInitialText, { color: "#4A7C59" }]}>
+                          {(item.staffName ?? "?").charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
                     <Text style={[s.metaText, { color: colors.muted }]}>{item.staffName}</Text>
                   </View>
                 )}
@@ -509,6 +520,18 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     bookNowBtnText: {
       color: "#FFFFFF",
       fontSize: 15,
+      fontWeight: "700" as const,
+    },
+    staffInitialBadge: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+      marginRight: 2,
+    },
+    staffInitialText: {
+      fontSize: 9,
       fontWeight: "700" as const,
     },
     reviewBtn: {

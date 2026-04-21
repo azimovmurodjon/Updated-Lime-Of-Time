@@ -34,6 +34,7 @@ export interface ClientAppointment {
   totalPrice: string | null;
   price: number | null;
   staffName: string | null;
+  staffAvatarUrl: string | null;
   locationName: string | null;
   locationAddress: string | null;
   cancelRequest?: { status: "pending" | "approved" | "declined"; reason?: string } | null;

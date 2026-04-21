@@ -72,6 +72,50 @@ export function registerClientRoutes(app: Express) {
   // ── Profile ──────────────────────────────────────────────────────────────
 
   /** GET /api/client/profile — get or auto-create client account */
+  // ── Client OAuth Login ───────────────────────────────────────────────────
+  /** POST /api/client/auth/login — create or retrieve client account after OAuth */
+  app.post("/api/client/auth/login", async (req: Request, res: Response) => {
+    try {
+      const user = await sdk.authenticateRequest(req);
+      if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+      const dbUser = await db.getUserByOpenId(user.openId);
+      if (!dbUser) { res.status(401).json({ error: "User not found" }); return; }
+      const oauthKey = `oauth:${user.openId}`;
+      let clientAccount = await db.getClientAccountByPhone(oauthKey);
+      if (!clientAccount) {
+        clientAccount = await db.upsertClientAccount({
+          phone: oauthKey,
+          name: dbUser.name ?? user.name ?? req.body.name ?? null,
+          email: dbUser.email ?? user.email ?? req.body.email ?? null,
+        });
+      }
+      // Return the same session token (already authenticated via Bearer)
+      const authHeader = req.headers.authorization as string;
+      const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+      res.json({ token, account: clientAccount });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── Client Phone Login ────────────────────────────────────────────────────
+  /** POST /api/client/phone-login — create or retrieve client account by phone (after OTP verify) */
+  app.post("/api/client/phone-login", async (req: Request, res: Response) => {
+    try {
+      const { phone, name } = req.body as { phone: string; name?: string };
+      if (!phone) { res.status(400).json({ error: "Phone required" }); return; }
+      let clientAccount = await db.getClientAccountByPhone(phone);
+      if (!clientAccount) {
+        clientAccount = await db.upsertClientAccount({ phone, name: name ?? null, email: null });
+      }
+      // Issue a simple JWT-like token using the SDK
+      const token = await sdk.createSessionToken(`phone:${phone}`, { name: clientAccount.name ?? "" });
+      res.json({ token, account: clientAccount });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get("/api/client/profile", async (req: Request, res: Response) => {
     try {
       const { clientAccount } = await getClientAccount(req);
@@ -226,7 +270,32 @@ export function registerClientRoutes(app: Express) {
         return;
       }
       // Get all appointments for this phone number across all businesses
-      const appointments = await db.getAppointmentsByClientPhone(phone);
+      const rawAppts = await db.getAppointmentsByClientPhone(phone);
+      // Enrich each appointment with businessName, serviceName, staffName, staffAvatarUrl
+      const appointments = await Promise.all(
+        rawAppts.map(async (appt) => {
+          const [owner, services, staffList, locations] = await Promise.all([
+            db.getBusinessOwnerById(appt.businessOwnerId),
+            db.getServices(appt.businessOwnerId),
+            db.getStaffMembers(appt.businessOwnerId),
+            db.getLocations(appt.businessOwnerId),
+          ]);
+          const service = services.find((s) => s.localId === appt.serviceLocalId);
+          const staff = staffList.find((st) => st.localId === appt.staffId);
+          const location = locations.find((l) => l.localId === appt.locationId);
+          return {
+            ...appt,
+            businessName: owner?.businessName ?? "Unknown",
+            businessSlug: owner?.customSlug ?? (owner?.businessName ?? "").toLowerCase().replace(/\s+/g, "-"),
+            serviceName: service?.name ?? appt.serviceLocalId,
+            price: service?.price ?? null,
+            staffName: staff?.name ?? null,
+            staffAvatarUrl: staff?.photoUri ?? null,
+            locationName: location?.name ?? null,
+            locationAddress: location?.address ?? null,
+          };
+        })
+      );
       res.json({ appointments });
     } catch (err: any) {
       res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });

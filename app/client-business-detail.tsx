@@ -18,6 +18,17 @@ import { getApiBaseUrl } from "@/constants/oauth";
 import * as Haptics from "expo-haptics";
 import { FuturisticBackground } from "@/components/futuristic-background";
 
+function formatPhone(raw: string): string {
+  const digits = (raw ?? "").replace(/\D/g, "");
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+  if (digits.length === 11 && digits[0] === "1") {
+    return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  }
+  return raw ?? "";
+}
+
 const LIME_GREEN = "#4A7C59";
 
 interface ApiService {
@@ -230,9 +241,9 @@ export default function ClientBusinessDetailScreen() {
             </View>
           )}
           {business.phone && (
-            <Pressable style={({ pressed }) => [s.metaRow, pressed && { opacity: 0.7 }]} onPress={() => Linking.openURL(`tel:${business.phone}`)}>
+            <Pressable style={({ pressed }) => [s.metaRow, pressed && { opacity: 0.7 }]} onPress={() => Linking.openURL(`tel:${formatPhone(business.phone ?? "")}`)}>
               <IconSymbol name="phone.fill" size={13} color={colors.muted} />
-              <Text style={[s.metaText, { color: LIME_GREEN }]}>{business.phone}</Text>
+              <Text style={[s.metaText, { color: LIME_GREEN }]}>{formatPhone(business.phone ?? "")}</Text>
             </Pressable>
           )}
           {business.description && (

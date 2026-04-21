@@ -1756,10 +1756,10 @@
 - [x] Fix crash in client-business-detail.tsx: useColors() fails with 'Cannot read properties of undefined (reading length)' when navigating from discover
 
 ## New Features (Apr 21 2026)
-- [ ] Fix app startup: booking wizard calls wrong availability endpoint (/api/public/availability/ → /api/public/business/:slug/slots)
-- [ ] Add distance display ("X mi away") to Business Detail header
-- [ ] Add staff preference step to client booking wizard (pick staff before date/time)
-- [ ] Add Leave a Review flow from Bookings tab for completed appointments
+- [x] Fix app startup: booking wizard calls wrong availability endpoint (/api/public/availability/ → /api/public/business/:slug/slots)
+- [x] Add distance display ("X mi away") to Business Detail header
+- [x] Add staff preference step to client booking wizard (pick staff before date/time)
+- [x] Add Leave a Review flow from Bookings tab for completed appointments
 
 ## Features Added Apr 21 2026
 
@@ -1772,3 +1772,17 @@
 - [x] Add distance display to Business Detail header (X mi away, passed from discover screen)
 - [x] Add Leave a Review flow in Bookings tab (modal with star rating + comment for completed appointments)
 - [x] Fix appointments response parsing in bookings tab ({ appointments: [...] } vs plain array)
+
+## Changes Apr 21 2026 (Batch 2)
+
+- [x] Fix Share.share crash on web (wrap with Platform.OS !== "web" check)
+- [x] Modernize profile-select screen: reduce gap between header and cards, justify center, modern card shadows
+- [x] Client sign-in screen: real Google/Microsoft/Apple SVG logos, phone+OTP flow, green gradient matching business onboarding
+- [x] Business Detail: fix phone format display using formatPhone helper
+- [x] Business Detail: Reviews tab shows review cards with stars, comment, date
+- [x] Business Detail: Book button requires login first, then navigates to booking wizard
+- [x] Booking wizard: navigate to confirmation screen after successful booking
+- [x] Booking confirmation screen: appointment summary with service, staff, date/time, location, Add to Calendar
+- [x] Bookings tab: staff avatar/initials badge on appointment cards
+- [x] Server: enrich appointments endpoint with staffName and staffAvatarUrl
+- [x] Server: add /api/client/phone-login endpoint for phone OTP authentication
