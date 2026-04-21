@@ -1792,3 +1792,13 @@
 - [x] Wire "Add to Calendar" button in booking confirmation screen to open device calendar app with appointment pre-filled
 - [x] Replace Category text input in service edit screen with smart autocomplete dropdown (all discover categories + free-text creation)
 - [x] Sync business profile category list to match client Discover page categories (Hair, Nails, Skin, Massage, Fitness, Dental, Medical, Spa, Barber, Tattoo, Other) + custom input
+
+## Changes Apr 21 2026 (Batch 4)
+
+- [ ] Make profile-select the first screen shown after splash (before any auth check)
+- [ ] Remove OTP verification step from client sign-in — keep phone number entry, skip OTP code step
+
+## Changes Apr 21 2026 (Batch 4)
+- [x] Make profile-select the first screen shown after splash screen on every launch
+- [x] Remove OTP verification step from Client Portal sign-in (phone number entry kept, signs in directly)
+- [x] Fix goBack in client-signin to not reference removed otp step

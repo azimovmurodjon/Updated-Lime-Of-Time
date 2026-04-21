@@ -8,7 +8,7 @@
  * - Real Google / Microsoft / Apple brand logos (via brand-icons.tsx)
  * - Back button to profile-select
  */
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -30,14 +30,13 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { LinearGradient } from "expo-linear-gradient";
 import { CountryCodePicker, DEFAULT_COUNTRY, type Country } from "@/components/country-code-picker";
 import { GoogleLogo, MicrosoftLogo, AppleLogo } from "@/components/brand-icons";
-import { trpc } from "@/lib/trpc";
+// trpc removed (OTP no longer used)
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
   withDelay,
   withSpring,
-  withSequence,
   Easing,
   runOnJS,
 } from "react-native-reanimated";
@@ -104,7 +103,7 @@ function OAuthButton({
 }
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
-type Step = "options" | "phone" | "otp";
+type Step = "options" | "phone";
 
 export default function ClientSignInScreen() {
   const router = useRouter();
@@ -119,23 +118,7 @@ export default function ClientSignInScreen() {
   const [phoneLoading, setPhoneLoading] = useState(false);
   const [phoneError, setPhoneError] = useState("");
 
-  // OTP step
-  const [otpDigits, setOtpDigits] = useState<string[]>(["", "", "", "", "", ""]);
-  const [otpValue, setOtpValue] = useState("");
-  const [otpError, setOtpError] = useState("");
-  const [otpLoading, setOtpLoading] = useState(false);
-  const [otpCountdown, setOtpCountdown] = useState(0);
-  const otpRefs = useRef<(TextInput | null)[]>([null, null, null, null, null, null]);
-
-  const sendOtpMut = trpc.otp.send.useMutation();
-  const verifyOtpMut = trpc.otp.verify.useMutation();
-
-  // OTP countdown
-  useEffect(() => {
-    if (otpCountdown <= 0) return;
-    const t = setTimeout(() => setOtpCountdown(c => c - 1), 1000);
-    return () => clearTimeout(t);
-  }, [otpCountdown]);
+  // (OTP step removed — phone number signs in directly)
 
   // ── Animations ──────────────────────────────────────────────────────────────
   const logoScale = useSharedValue(0.5);
@@ -167,22 +150,7 @@ export default function ClientSignInScreen() {
     transform: [{ translateY: cardY.value }],
   }));
 
-  // OTP box animated scales (must be declared at top level — no hooks in loops)
-  const otpScale0 = useSharedValue(1); const otpScale1 = useSharedValue(1);
-  const otpScale2 = useSharedValue(1); const otpScale3 = useSharedValue(1);
-  const otpScale4 = useSharedValue(1); const otpScale5 = useSharedValue(1);
-  const otpBorder0 = useSharedValue(0); const otpBorder1 = useSharedValue(0);
-  const otpBorder2 = useSharedValue(0); const otpBorder3 = useSharedValue(0);
-  const otpBorder4 = useSharedValue(0); const otpBorder5 = useSharedValue(0);
-  const otpBoxScales = [otpScale0, otpScale1, otpScale2, otpScale3, otpScale4, otpScale5];
-  const otpBoxBorders = [otpBorder0, otpBorder1, otpBorder2, otpBorder3, otpBorder4, otpBorder5];
-  const otpBoxStyle0 = useAnimatedStyle(() => ({ transform: [{ scale: otpBoxScales[0].value }], borderColor: otpBorder0.value === 1 ? "#4A7C59" : "#E5E7EB", backgroundColor: otpBorder0.value === 1 ? "#F0FFF4" : "#F9FAFB" }));
-  const otpBoxStyle1 = useAnimatedStyle(() => ({ transform: [{ scale: otpBoxScales[1].value }], borderColor: otpBorder1.value === 1 ? "#4A7C59" : "#E5E7EB", backgroundColor: otpBorder1.value === 1 ? "#F0FFF4" : "#F9FAFB" }));
-  const otpBoxStyle2 = useAnimatedStyle(() => ({ transform: [{ scale: otpBoxScales[2].value }], borderColor: otpBorder2.value === 1 ? "#4A7C59" : "#E5E7EB", backgroundColor: otpBorder2.value === 1 ? "#F0FFF4" : "#F9FAFB" }));
-  const otpBoxStyle3 = useAnimatedStyle(() => ({ transform: [{ scale: otpBoxScales[3].value }], borderColor: otpBorder3.value === 1 ? "#4A7C59" : "#E5E7EB", backgroundColor: otpBorder3.value === 1 ? "#F0FFF4" : "#F9FAFB" }));
-  const otpBoxStyle4 = useAnimatedStyle(() => ({ transform: [{ scale: otpBoxScales[4].value }], borderColor: otpBorder4.value === 1 ? "#4A7C59" : "#E5E7EB", backgroundColor: otpBorder4.value === 1 ? "#F0FFF4" : "#F9FAFB" }));
-  const otpBoxStyle5 = useAnimatedStyle(() => ({ transform: [{ scale: otpBoxScales[5].value }], borderColor: otpBorder5.value === 1 ? "#4A7C59" : "#E5E7EB", backgroundColor: otpBorder5.value === 1 ? "#F0FFF4" : "#F9FAFB" }));
-  const otpBoxAnimStyles = [otpBoxStyle0, otpBoxStyle1, otpBoxStyle2, otpBoxStyle3, otpBoxStyle4, otpBoxStyle5];
+  // (OTP animated styles removed — OTP step no longer used)
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
   const handleOAuth = async (provider: "apple" | "google" | "microsoft") => {
@@ -209,109 +177,31 @@ export default function ClientSignInScreen() {
     setPhoneError("");
     try {
       const rawPhone = selectedCountry.dial === "+1" ? stripped : `${selectedCountry.dial.replace("+", "")}${stripped}`;
-      await sendOtpMut.mutateAsync({ phone: rawPhone });
-      setOtpDigits(["", "", "", "", "", ""]);
-      setOtpValue("");
-      setOtpError("");
-      setOtpCountdown(60);
-      setStep("otp");
-      setTimeout(() => otpRefs.current[0]?.focus(), 300);
-    } catch (e: any) {
-      setPhoneError(e.message ?? "Failed to send code. Please try again.");
-    } finally {
-      setPhoneLoading(false);
-    }
-  };
-
-  const handleOtpDigitChange = (index: number, value: string) => {
-    setOtpError("");
-    if (value.length > 1) {
-      const digits = value.replace(/\D/g, "").slice(0, 6).split("");
-      const newDigits = ["", "", "", "", "", ""];
-      digits.forEach((d, i) => { newDigits[i] = d; });
-      setOtpDigits(newDigits);
-      setOtpValue(newDigits.join(""));
-      const lastIdx = Math.min(digits.length, 5);
-      setTimeout(() => otpRefs.current[lastIdx]?.focus(), 30);
-      return;
-    }
-    const newDigits = [...otpDigits];
-    newDigits[index] = value.replace(/\D/g, "").slice(-1);
-    setOtpDigits(newDigits);
-    setOtpValue(newDigits.join(""));
-    otpBoxBorders[index].value = newDigits[index] ? 1 : 0;
-    otpBoxScales[index].value = withSequence(
-      withSpring(1.08, { damping: 12, stiffness: 300 }),
-      withSpring(1, { damping: 18, stiffness: 200 }),
-    );
-    if (newDigits[index] && index < 5) setTimeout(() => otpRefs.current[index + 1]?.focus(), 30);
-  };
-
-  const handleOtpKeyPress = (index: number, e: any) => {
-    if (e.nativeEvent.key === "Backspace" && !otpDigits[index] && index > 0) {
-      const newDigits = [...otpDigits];
-      newDigits[index - 1] = "";
-      setOtpDigits(newDigits);
-      setOtpValue(newDigits.join(""));
-      otpBoxBorders[index - 1].value = 0;
-      setTimeout(() => otpRefs.current[index - 1]?.focus(), 10);
-    }
-  };
-
-  const handleOtpVerify = async () => {
-    if (otpValue.length < 6) return;
-    setOtpLoading(true);
-    setOtpError("");
-    try {
-      const stripped = stripPhoneFormat(phone);
-      const rawPhone = selectedCountry.dial === "+1" ? stripped : `${selectedCountry.dial.replace("+", "")}${stripped}`;
-      const result = await verifyOtpMut.mutateAsync({ phone: rawPhone, code: otpValue.trim() });
-      if (!result.success) {
-        setOtpError((result as any).error ?? "Incorrect code. Please try again.");
-        otpBoxScales.forEach((s, i) => {
-          s.value = withDelay(i * 30, withSequence(
-            withTiming(0.92, { duration: 60 }),
-            withTiming(1.04, { duration: 60 }),
-            withTiming(1, { duration: 60 }),
-          ));
-        });
-        if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        setOtpLoading(false);
-        return;
-      }
+      // Directly sign in with phone number (no OTP required)
       const res = await fetch(`${API_BASE}/api/client/phone-login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: rawPhone }),
       });
-      if (!res.ok) throw new Error("Login failed");
+      if (!res.ok) throw new Error("Login failed. Please try again.");
       const data = await res.json() as { token: string; account: any };
       await signIn(data.account, data.token);
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace("/(client-tabs)" as any);
     } catch (e: any) {
-      setOtpError(e.message ?? "Verification failed. Please try again.");
+      setPhoneError(e.message ?? "Failed to sign in. Please try again.");
     } finally {
-      setOtpLoading(false);
+      setPhoneLoading(false);
     }
   };
 
-  const handleOtpResend = async () => {
-    const stripped = stripPhoneFormat(phone);
-    const rawPhone = selectedCountry.dial === "+1" ? stripped : `${selectedCountry.dial.replace("+", "")}${stripped}`;
-    try {
-      await sendOtpMut.mutateAsync({ phone: rawPhone });
-      setOtpCountdown(60);
-      setOtpDigits(["", "", "", "", "", ""]);
-      setOtpValue("");
-      setOtpError("");
-    } catch {}
-  };
+  // (OTP handlers removed — phone number signs in directly without OTP)
+
+  // (unused OTP resend removed)
 
   // Back button
   const backScale = useSharedValue(1);
   const goBack = () => {
-    if (step === "otp") { setStep("phone"); return; }
     if (step === "phone") { setStep("options"); return; }
     router.replace("/profile-select" as any);
   };
@@ -469,7 +359,7 @@ export default function ClientSignInScreen() {
                 </View>
                 <Text style={styles.stepTitle}>Your Phone Number</Text>
                 <Text style={styles.stepSubtitle}>
-                  We'll send a 6-digit verification code to confirm your number.
+                  Enter your phone number to sign in or create an account.
                 </Text>
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Phone Number</Text>
@@ -514,108 +404,12 @@ export default function ClientSignInScreen() {
                 >
                   {phoneLoading
                     ? <ActivityIndicator color="#FFF" size="small" />
-                    : <Text style={styles.primaryBtnText}>Send Code</Text>}
+                    : <Text style={styles.primaryBtnText}>Continue</Text>}
                 </Pressable>
               </>
             )}
 
-            {/* ── Step: OTP Verification ──────────────────────── */}
-            {step === "otp" && (
-              <>
-                <View style={styles.stepBackRow}>
-                  <Pressable
-                    onPress={() => setStep("phone")}
-                    style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, padding: 4, marginRight: 4 })}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <Text style={styles.stepBackChevron}>‹</Text>
-                  </Pressable>
-                  <Text style={styles.stepBackLabel}>Back</Text>
-                </View>
-                <View style={[styles.stepIconWrap, { alignSelf: "center" }]}>
-                  <Text style={{ fontSize: 34 }}>🔐</Text>
-                </View>
-                <Text style={[styles.stepTitle, { textAlign: "center" }]}>Verify Your Number</Text>
-                <Text style={[styles.stepSubtitle, { textAlign: "center" }]}>
-                  Enter the 6-digit code sent to{"\n"}
-                  <Text style={{ fontWeight: "700", color: "#111827" }}>
-                    {selectedCountry.dial} {phone}
-                  </Text>
-                </Text>
-                <View style={styles.otpRow}>
-                  {otpDigits.map((digit, i) => (
-                    <Animated.View
-                      key={i}
-                      style={[
-                        styles.otpBox,
-                        otpBoxAnimStyles[i],
-                        otpError ? { borderColor: "#EF4444" } : undefined,
-                      ]}
-                    >
-                      <TextInput
-                        ref={ref => { otpRefs.current[i] = ref; }}
-                        style={styles.otpInput}
-                        value={digit}
-                        onChangeText={v => handleOtpDigitChange(i, v)}
-                        onKeyPress={e => handleOtpKeyPress(i, e)}
-                        keyboardType="number-pad"
-                        maxLength={i === 0 ? 6 : 1}
-                        editable={!otpLoading}
-                        selectTextOnFocus
-                        caretHidden
-                        textContentType={i === 0 ? "oneTimeCode" : "none"}
-                        autoComplete={i === 0 ? "sms-otp" : "off"}
-                      />
-                    </Animated.View>
-                  ))}
-                </View>
-                {otpError ? (
-                  <View style={styles.otpErrorWrap}>
-                    <Text style={styles.otpErrorText}>{otpError}</Text>
-                  </View>
-                ) : null}
-                <View style={{ alignItems: "center", marginTop: 16, marginBottom: 20 }}>
-                  {otpCountdown > 0 ? (
-                    <Text style={{ fontSize: 13, color: "#6B7280", textAlign: "center" }}>
-                      Resend code in{" "}
-                      <Text style={{ fontWeight: "700", color: "#4A7C59" }}>{otpCountdown}s</Text>
-                    </Text>
-                  ) : (
-                    <Pressable
-                      onPress={handleOtpResend}
-                      style={({ pressed }) => ({
-                        opacity: pressed ? 0.6 : 1,
-                        paddingVertical: 8, paddingHorizontal: 16,
-                        borderRadius: 8, backgroundColor: "rgba(74,124,89,0.08)",
-                      })}
-                    >
-                      <Text style={{ fontSize: 14, color: "#4A7C59", fontWeight: "600" }}>Resend Code</Text>
-                    </Pressable>
-                  )}
-                </View>
-                <View style={styles.buttonRow}>
-                  <Pressable
-                    onPress={() => { setStep("phone"); setOtpDigits(["", "", "", "", "", ""]); setOtpValue(""); setOtpError(""); }}
-                    style={({ pressed }) => [styles.secondaryBtn, { opacity: pressed ? 0.7 : 1 }]}
-                    disabled={otpLoading}
-                  >
-                    <Text style={styles.secondaryBtnText}>Back</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={handleOtpVerify}
-                    disabled={otpValue.length !== 6 || otpLoading}
-                    style={({ pressed }) => [
-                      styles.primaryBtn,
-                      { flex: 1, backgroundColor: otpValue.length === 6 && !otpLoading ? "#4A7C59" : "#9CA3AF", opacity: pressed ? 0.9 : 1 },
-                    ]}
-                  >
-                    {otpLoading
-                      ? <ActivityIndicator color="#FFF" size="small" />
-                      : <Text style={styles.primaryBtnText}>Verify</Text>}
-                  </Pressable>
-                </View>
-              </>
-            )}
+            {/* OTP step removed — phone signs in directly */}
 
           </Animated.View>
         </ScrollView>

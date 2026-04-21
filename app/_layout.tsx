@@ -73,22 +73,16 @@ function RootLayout() {
 
   /**
    * Called when the animated splash screen finishes.
-   * Checks AsyncStorage for the saved profile mode and routes accordingly:
-   *  - null  → first launch, show Profile Selection screen
-   *  - "client"   → go directly to Client tab bar
-   *  - "business" → let (tabs)/index.tsx handle onboarding redirect as usual
+   * Always shows the Profile Selection screen first so the user can choose
+   * Business Portal or Client Portal every time they open the app.
+   * The profile-select screen itself handles redirecting returning users
+   * who have already authenticated (it can skip straight to the right portal).
    */
   const handleSplashFinish = useCallback(async () => {
     setSplashDone(true);
     try {
-      const mode = await getProfileMode();
-      if (mode === "client") {
-        router.replace("/(client-tabs)" as any);
-      } else if (mode === null) {
-        // First launch — show profile selection
-        router.replace("/profile-select" as any);
-      }
-      // mode === "business" → normal (tabs) routing, onboarding handled by (tabs)/index.tsx
+      // Always land on profile-select — it will auto-redirect if already logged in
+      router.replace("/profile-select" as any);
     } catch {
       // Fallback: do nothing, let normal routing take over
     }
