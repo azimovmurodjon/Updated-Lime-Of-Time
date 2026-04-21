@@ -169,7 +169,7 @@ function RootLayout() {
               <Stack.Screen name="client-notifications" options={{ presentation: "card", headerShown: false }} />
               <Stack.Screen name="(client-tabs)" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="client-business-detail" options={{ presentation: "card" }} />
-              <Stack.Screen name="client-booking-wizard" options={{ presentation: "fullScreenModal" }} />
+              <Stack.Screen name="client-booking-wizard" options={{ presentation: "card", headerShown: false }} />
               <Stack.Screen name="client-appointment-detail" options={{ presentation: "card" }} />
               <Stack.Screen name="client-message-thread" options={{ presentation: "card" }} />
               <Stack.Screen name="client-saved-businesses" options={{ presentation: "card" }} />

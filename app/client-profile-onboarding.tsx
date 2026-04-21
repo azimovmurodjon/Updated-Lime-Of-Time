@@ -31,8 +31,6 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const API_BASE = getApiBaseUrl();
-
 function formatPhoneDisplay(phone: string | null): string {
   if (!phone) return "";
   const digits = phone.replace(/\D/g, "");
@@ -94,7 +92,8 @@ export default function ClientProfileOnboardingScreen() {
       const filename = uri.split("/").pop() ?? "photo.jpg";
       const ext = filename.split(".").pop()?.toLowerCase() ?? "jpg";
       const mimeType = ext === "png" ? "image/png" : "image/jpeg";
-      const res = await fetch(`${API_BASE}/api/client/upload-photo`, {
+      const apiBase = getApiBaseUrl();
+      const res = await fetch(`${apiBase}/api/client/upload-photo`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -144,7 +143,8 @@ export default function ClientProfileOnboardingScreen() {
         profilePhotoUri: finalPhotoUri,
       };
 
-      const res = await fetch(`${API_BASE}/api/client/profile`, {
+      const apiBase = getApiBaseUrl();
+      const res = await fetch(`${apiBase}/api/client/profile`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

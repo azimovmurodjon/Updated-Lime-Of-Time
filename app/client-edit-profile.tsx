@@ -30,8 +30,6 @@ import * as Haptics from "expo-haptics";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const API_BASE = getApiBaseUrl();
-
 function formatBirthday(raw: string): string {
   const digits = raw.replace(/\D/g, "").slice(0, 4);
   if (digits.length <= 2) return digits;
@@ -99,7 +97,8 @@ export default function ClientEditProfileScreen() {
       const filename = uri.split("/").pop() ?? "photo.jpg";
       const ext = filename.split(".").pop()?.toLowerCase() ?? "jpg";
       const mimeType = ext === "png" ? "image/png" : "image/jpeg";
-      const res = await fetch(`${API_BASE}/api/client/upload-photo`, {
+      const apiBase = getApiBaseUrl();
+      const res = await fetch(`${apiBase}/api/client/upload-photo`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -153,7 +152,8 @@ export default function ClientEditProfileScreen() {
         profilePhotoUri: finalPhotoUri,
       };
 
-      const res = await fetch(`${API_BASE}/api/client/profile`, {
+      const apiBase = getApiBaseUrl();
+      const res = await fetch(`${apiBase}/api/client/profile`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
