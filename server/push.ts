@@ -12,6 +12,8 @@ export type PushNotificationData = {
     | "appointment_request"
     | "appointment_cancelled"
     | "appointment_rescheduled"
+    | "cancel_request"
+    | "reschedule_request"
     | "waitlist"
     | "appointment_reminder"
     | "appointment_completed"

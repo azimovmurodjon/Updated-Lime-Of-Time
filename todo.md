@@ -1635,3 +1635,5 @@
 - [x] Request history section on client manage appointment page
 - [x] Configurable owner response window setting (12h/24h/48h/72h)
 - [x] Revenue summary card on Home screen from Stripe balance
+- [x] Push notification to owner when client submits cancel/reschedule request
+- [x] Response window countdown timer on owner's pending-requests list

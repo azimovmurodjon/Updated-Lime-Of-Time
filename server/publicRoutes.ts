@@ -1294,12 +1294,16 @@ export function registerPublicRoutes(app: Express) {
         const ownerPushToken = (owner as any).expoPushToken as string | null | undefined;
         const svcList = await db.getServicesByOwner(owner.id);
         const svc = svcList.find((s: any) => s.localId === appt.serviceLocalId);
+        const responseWindowHours: number = (owner as any).requestResponseWindowHours ?? 48;
         if (ownerPushToken) {
-          const { sendExpoPush } = await import("./notifications");
+          const formattedDate = appt.date
+            ? new Date(appt.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+            : appt.date;
           await sendExpoPush(ownerPushToken, {
-            title: `⚠️ Cancel Request — ${owner.businessName}`,
-            body: `${client?.name || "A client"} requested to cancel their ${svc?.name || "appointment"} on ${appt.date} at ${appt.time}.`,
-            data: { type: "cancel_request", appointmentId },
+            title: `⚠️ Cancellation Request`,
+            body: `${client?.name || "A client"} wants to cancel their ${svc?.name || "appointment"} on ${formattedDate}. Respond within ${responseWindowHours}h or it auto-expires.`,
+            data: { type: "cancel_request", appointmentId, filter: "requests" },
+            channelId: "requests",
           });
         }
       } catch { /* non-blocking */ }
@@ -1339,12 +1343,16 @@ export function registerPublicRoutes(app: Express) {
         const ownerPushToken = (owner as any).expoPushToken as string | null | undefined;
         const svcList = await db.getServicesByOwner(owner.id);
         const svc = svcList.find((s: any) => s.localId === appt.serviceLocalId);
+        const responseWindowHours: number = (owner as any).requestResponseWindowHours ?? 48;
         if (ownerPushToken) {
-          const { sendExpoPush } = await import("./notifications");
+          const formattedRequested = requestedDate
+            ? new Date(requestedDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+            : requestedDate;
           await sendExpoPush(ownerPushToken, {
-            title: `🔄 Reschedule Request — ${owner.businessName}`,
-            body: `${client?.name || "A client"} requested to reschedule their ${svc?.name || "appointment"} to ${requestedDate} at ${requestedTime}.`,
-            data: { type: "reschedule_request", appointmentId },
+            title: `🔄 Reschedule Request`,
+            body: `${client?.name || "A client"} wants to move their ${svc?.name || "appointment"} to ${formattedRequested} at ${requestedTime}. Respond within ${responseWindowHours}h or it auto-expires.`,
+            data: { type: "reschedule_request", appointmentId, filter: "requests" },
+            channelId: "requests",
           });
         }
       } catch { /* non-blocking */ }

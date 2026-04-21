@@ -273,13 +273,13 @@ export default function CalendarScreen() {
   const params = useLocalSearchParams<{ filter?: string; date?: string; view?: string }>();
   const { width, isTablet, isLargeTablet, hp, maxContentWidth } = useResponsive();
 
-  // Live clock for the current-time indicator — updates every 30 seconds
+  // Live clock for the current-time indicator and countdown timers — updates every 60 seconds
   // NOTE: Do NOT use a bare `const now = new Date()` here; it becomes stale after the component
   // first renders and causes wrong weekday labels. Use lazy initialisers so each useState
   // captures a fresh Date() at mount time, and use liveNow for any derived values.
   const [liveNow, setLiveNow] = useState(() => new Date());
   useEffect(() => {
-    const id = setInterval(() => setLiveNow(new Date()), 30_000);
+    const id = setInterval(() => setLiveNow(new Date()), 60_000);
     return () => clearInterval(id);
   }, []);
 
@@ -1522,17 +1522,43 @@ export default function CalendarScreen() {
                           </View>
                         );
                       })()}
-                      {/* Pending cancel/reschedule request badge — shown on all filter tabs */}
+                      {/* Pending cancel/reschedule request badge with countdown timer */}
                       {(() => {
                         const cr = (appt as any).cancelRequest;
                         const rr = (appt as any).rescheduleRequest;
-                        const hasPendingCancel = cr && cr.status === 'pending';
-                        const hasPendingReschedule = rr && rr.status === 'pending';
-                        if (!hasPendingCancel && !hasPendingReschedule) return null;
+                        const pendingReq = (cr?.status === 'pending' ? cr : null) || (rr?.status === 'pending' ? rr : null);
+                        const isCancelReq = cr?.status === 'pending';
+                        if (!pendingReq) return null;
+                        // Compute time remaining
+                        const windowHours: number = state.settings.requestResponseWindowHours ?? 48;
+                        const submittedAt = pendingReq.submittedAt ? new Date(pendingReq.submittedAt).getTime() : null;
+                        const expiresAt = submittedAt ? submittedAt + windowHours * 60 * 60 * 1000 : null;
+                        const msLeft = expiresAt ? expiresAt - liveNow.getTime() : null;
+                        let countdownLabel = '';
+                        let countdownColor = '#F59E0B';
+                        if (msLeft !== null) {
+                          if (msLeft <= 0) {
+                            countdownLabel = 'Expiring';
+                            countdownColor = '#EF4444';
+                          } else {
+                            const hLeft = Math.floor(msLeft / (1000 * 60 * 60));
+                            const mLeft = Math.floor((msLeft % (1000 * 60 * 60)) / (1000 * 60));
+                            if (hLeft < 1) {
+                              countdownLabel = `${mLeft}m left`;
+                              countdownColor = '#EF4444';
+                            } else if (hLeft < 6) {
+                              countdownLabel = `${hLeft}h ${mLeft}m left`;
+                              countdownColor = '#F97316';
+                            } else {
+                              countdownLabel = `${hLeft}h left`;
+                              countdownColor = '#F59E0B';
+                            }
+                          }
+                        }
                         return (
-                          <View style={[styles.statusBadge, { backgroundColor: '#F59E0B18', flexDirection: 'row', gap: 3, alignItems: 'center' }]}>
-                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#F59E0B' }}>
-                              {hasPendingCancel ? '⏳ Cancel Req' : '⏳ Reschedule Req'}
+                          <View style={[styles.statusBadge, { backgroundColor: countdownColor + '18', flexDirection: 'row', gap: 3, alignItems: 'center' }]}>
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: countdownColor }}>
+                              {isCancelReq ? '⚠️ Cancel' : '🔄 Reschedule'}{countdownLabel ? ` · ${countdownLabel}` : ''}
                             </Text>
                           </View>
                         );
