@@ -1573,3 +1573,6 @@
 
 - [x] Fix "Invalid array" PaymentIntent bug in transaction suite test endpoint
 - [x] Add webhook health check status indicator to admin Stripe Connect page
+
+- [x] Add payment method badge (Card/Cash/Zelle) to appointment cards in calendar list
+- [x] Auto-refresh webhook health check after tapping Register Webhook Automatically

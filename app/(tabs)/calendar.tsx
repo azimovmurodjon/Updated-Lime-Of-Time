@@ -1424,6 +1424,22 @@ export default function CalendarScreen() {
                       <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
                         <Text style={{ fontSize: 11, fontWeight: "600", color: statusColor, textTransform: "capitalize" }}>{appt.status}</Text>
                       </View>
+                      {/* Payment method badge — always shown when method is known */}
+                      {appt.paymentMethod && appt.paymentMethod !== "skip" && (() => {
+                        const methodLabel =
+                          appt.paymentMethod === "card" || appt.paymentMethod === "cashapp" ? "💳 Card"
+                          : appt.paymentMethod === "cash" ? "💵 Cash"
+                          : appt.paymentMethod === "zelle" ? "⚡ Zelle"
+                          : appt.paymentMethod.charAt(0).toUpperCase() + appt.paymentMethod.slice(1);
+                        const isPaid = appt.paymentStatus === "paid";
+                        const bgColor = isPaid ? "#22C55E18" : "#6B728018";
+                        const textColor = isPaid ? "#22C55E" : colors.muted;
+                        return (
+                          <View style={[styles.statusBadge, { backgroundColor: bgColor, flexDirection: "row", gap: 3, alignItems: "center" }]}>
+                            <Text style={{ fontSize: 10, fontWeight: "600", color: textColor }}>{methodLabel}</Text>
+                          </View>
+                        );
+                      })()}
                       {(activeFilter === "unpaid" || activeFilter === "paid") && appt.totalPrice != null && (
                         <View style={[styles.statusBadge, {
                           backgroundColor: appt.paymentStatus === "paid" ? "#22C55E18" : "#EF444418",
@@ -1432,11 +1448,6 @@ export default function CalendarScreen() {
                           <Text style={{ fontSize: 11, fontWeight: "700", color: appt.paymentStatus === "paid" ? "#22C55E" : "#EF4444" }}>
                             ${appt.totalPrice.toFixed(2)}
                           </Text>
-                          {appt.paymentStatus === "paid" && appt.paymentMethod && (
-                            <Text style={{ fontSize: 10, fontWeight: "600", color: "#22C55E", opacity: 0.85 }}>
-                              {appt.paymentMethod === "cashapp" ? "Card" : appt.paymentMethod.charAt(0).toUpperCase() + appt.paymentMethod.slice(1)}
-                            </Text>
-                          )}
                         </View>
                       )}
                     </View>

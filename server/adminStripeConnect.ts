@@ -721,6 +721,8 @@ function stripeConnectPage(data: {
           result.style.color = '#4ade80';
           result.textContent = d.alreadyExists ? '✅ Already registered' : '✅ Registered! Signing secret saved automatically.';
           btn.textContent = '✅ Done';
+          // Auto-refresh health check so badge updates immediately
+          setTimeout(function() { checkWebhookHealth(); }, 800);
         } else {
           result.style.color = '#f87171';
           result.textContent = '❌ ' + (d.error || 'Failed');
