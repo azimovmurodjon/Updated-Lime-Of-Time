@@ -15,6 +15,9 @@ import {
   RefreshControl,
   Platform,
   Image,
+  Modal,
+  TextInput,
+  Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -75,12 +78,19 @@ export default function BookingsScreen() {
   const [activeTab, setActiveTab] = useState<FilterTab>("upcoming");
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // Review modal state
+  const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [reviewAppt, setReviewAppt] = useState<ClientAppointment | null>(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   const loadAppointments = useCallback(async (silent = false) => {
     if (!state.account) return;
     if (!silent) setLoading(true);
     try {
-      const appts = await apiCall<ClientAppointment[]>("/api/client/appointments");
+      const raw = await apiCall<{ appointments: ClientAppointment[] } | ClientAppointment[]>("/api/client/appointments");
+      const appts: ClientAppointment[] = Array.isArray(raw) ? raw : (raw as any).appointments ?? [];
       dispatch({ type: "SET_APPOINTMENTS", payload: appts });
     } catch (err) {
       console.warn("[Bookings] load error:", err);
@@ -91,6 +101,39 @@ export default function BookingsScreen() {
   }, [state.account, apiCall, dispatch]);
 
   useFocusEffect(useCallback(() => { loadAppointments(true); }, [loadAppointments]));
+
+  const openReviewModal = (appt: ClientAppointment) => {
+    setReviewAppt(appt);
+    setReviewRating(5);
+    setReviewComment("");
+    setReviewModalVisible(true);
+  };
+
+  const submitReview = async () => {
+    if (!reviewAppt) return;
+    setSubmittingReview(true);
+    try {
+      const apiBase = (await import("@/constants/oauth")).getApiBaseUrl();
+      const res = await fetch(`${apiBase}/api/public/business/${reviewAppt.businessSlug}/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientName: state.account?.name ?? "Guest",
+          clientPhone: state.account?.phone ?? "",
+          rating: reviewRating,
+          comment: reviewComment.trim() || null,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to submit review");
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setReviewModalVisible(false);
+      Alert.alert("Thank you!", "Your review has been submitted.");
+    } catch (err: any) {
+      Alert.alert("Error", err?.message ?? "Could not submit review. Please try again.");
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   const onRefresh = () => { setRefreshing(true); loadAppointments(); };
 
@@ -267,6 +310,20 @@ export default function BookingsScreen() {
                     {item.cancelRequest?.status === "pending" ? "Cancel request pending" : "Reschedule request pending"}
                   </Text>
                 </View>
+              )}
+              {/* Leave a Review button for completed appointments */}
+              {item.status === "completed" && (
+                <Pressable
+                  style={({ pressed }) => [s.reviewBtn, pressed && { opacity: 0.75 }]}
+                  onPress={(e) => {
+                    e.stopPropagation?.();
+                    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    openReviewModal(item);
+                  }}
+                >
+                  <IconSymbol name="star" size={13} color="#4A7C59" />
+                  <Text style={s.reviewBtnText}>Leave a Review</Text>
+                </Pressable>
               )}
             </Pressable>
           )}
@@ -452,6 +509,81 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     bookNowBtnText: {
       color: "#FFFFFF",
       fontSize: 15,
+      fontWeight: "700" as const,
+    },
+    reviewBtn: {
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      gap: 5,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 20,
+      backgroundColor: "rgba(74,124,89,0.12)",
+      alignSelf: "flex-start" as const,
+    },
+    reviewBtnText: {
+      color: "#4A7C59",
+      fontSize: 12,
+      fontWeight: "700" as const,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      justifyContent: "flex-end" as const,
+    },
+    modalSheet: {
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      padding: 24,
+      paddingBottom: 40,
+      gap: 12,
+    },
+    modalHeader: {
+      flexDirection: "row" as const,
+      justifyContent: "space-between" as const,
+      alignItems: "center" as const,
+      marginBottom: 4,
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: "700" as const,
+    },
+    modalBiz: {
+      fontSize: 13,
+      marginBottom: 4,
+    },
+    starsRow: {
+      flexDirection: "row" as const,
+      justifyContent: "center" as const,
+      gap: 8,
+      marginVertical: 8,
+    },
+    starBtn: {
+      padding: 4,
+    },
+    ratingLabel: {
+      textAlign: "center" as const,
+      fontSize: 13,
+      fontWeight: "600" as const,
+      marginBottom: 4,
+    },
+    reviewInput: {
+      borderRadius: 12,
+      borderWidth: 1,
+      padding: 12,
+      fontSize: 14,
+      minHeight: 90,
+    },
+    submitReviewBtn: {
+      backgroundColor: "#4A7C59",
+      borderRadius: 14,
+      paddingVertical: 14,
+      alignItems: "center" as const,
+      marginTop: 4,
+    },
+    submitReviewBtnText: {
+      color: "#FFFFFF",
+      fontSize: 16,
       fontWeight: "700" as const,
     },
   });

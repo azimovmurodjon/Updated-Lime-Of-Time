@@ -1754,3 +1754,21 @@
 
 ## Bug Fix
 - [x] Fix crash in client-business-detail.tsx: useColors() fails with 'Cannot read properties of undefined (reading length)' when navigating from discover
+
+## New Features (Apr 21 2026)
+- [ ] Fix app startup: booking wizard calls wrong availability endpoint (/api/public/availability/ → /api/public/business/:slug/slots)
+- [ ] Add distance display ("X mi away") to Business Detail header
+- [ ] Add staff preference step to client booking wizard (pick staff before date/time)
+- [ ] Add Leave a Review flow from Bookings tab for completed appointments
+
+## Features Added Apr 21 2026
+
+- [x] Fix booking wizard: use correct /api/public/business/:slug/services and /staff endpoints
+- [x] Fix booking wizard: use correct /api/public/business/:slug/slots endpoint (was using non-existent /availability/)
+- [x] Fix booking wizard: use serviceLocalId (string) instead of numeric id for service matching
+- [x] Fix booking wizard: use /api/public/business/:slug/book instead of non-existent /api/client/book
+- [x] Add staff preference step to booking wizard (Step 1: Any Available or specific staff member)
+- [x] Add staffId to server book endpoint so staff preference is saved to appointment
+- [x] Add distance display to Business Detail header (X mi away, passed from discover screen)
+- [x] Add Leave a Review flow in Bookings tab (modal with star rating + comment for completed appointments)
+- [x] Fix appointments response parsing in bookings tab ({ appointments: [...] } vs plain array)

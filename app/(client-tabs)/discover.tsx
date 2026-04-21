@@ -309,7 +309,7 @@ function BusinessCard({ item, colors, router, index }: { item: DiscoverBusiness;
       scale.value = withSpring(1, { damping: 18, stiffness: 200 });
       if (success) {
         if (Platform.OS !== "web") runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
-        runOnJS(router.push)({ pathname: "/client-business-detail", params: { slug: item.customSlug ?? item.slug } } as any);
+        runOnJS(router.push)({ pathname: "/client-business-detail", params: { slug: item.customSlug ?? item.slug, distanceKm: item.distanceKm != null ? String(item.distanceKm) : "" } } as any);
       }
     });
 

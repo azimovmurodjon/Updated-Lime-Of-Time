@@ -60,7 +60,8 @@ function parseWorkingHours(wh: Record<string, { enabled: boolean; start: string;
 export default function ClientBusinessDetailScreen() {
   const colors = useColors();
   const router = useRouter();
-  const { slug } = useLocalSearchParams<{ slug: string }>();
+  const { slug, distanceKm } = useLocalSearchParams<{ slug: string; distanceKm?: string }>();
+  const distanceMiles = distanceKm && distanceKm !== "" ? (parseFloat(distanceKm) * 0.621371).toFixed(1) : null;
   const { state, apiCall, dispatch } = useClientStore();
 
   const [business, setBusiness] = useState<ApiBusiness | null>(null);
@@ -206,6 +207,12 @@ export default function ClientBusinessDetailScreen() {
           </View>
           <Text style={[s.bizName, { color: colors.foreground }]}>{business.businessName}</Text>
           {category && <Text style={[s.bizCategory, { color: LIME_GREEN }]}>{category}</Text>}
+          {distanceMiles ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+              <IconSymbol name="location.fill" size={12} color={colors.muted} />
+              <Text style={{ color: colors.muted, fontSize: 13 }}>{distanceMiles} mi away</Text>
+            </View>
+          ) : null}
           {business.avgRating != null && (
             <View style={s.ratingRow}>
               {[1,2,3,4,5].map((star) => (

@@ -8,8 +8,7 @@
  * 4. Time slot picker
  * 5. Confirm & notes
  */
-
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -29,38 +28,34 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { getApiBaseUrl } from "@/constants/oauth";
 import * as Haptics from "expo-haptics";
 import { FuturisticBackground } from "@/components/futuristic-background";
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, withDelay, Easing } from "react-native-reanimated";
-import { LinearGradient } from "expo-linear-gradient";
 
 const LIME_GREEN = "#4A7C59";
 
 interface PublicService {
-  id: number;
+  localId: string;
   name: string;
   duration: number;
-  price: number | null;
+  price: string | null;
   description: string | null;
 }
-
 interface PublicStaff {
-  id: number;
+  localId: string;
   name: string;
   role: string | null;
+  photoUri: string | null;
+  serviceIds: string[];
 }
-
 interface AvailableSlot {
   time: string;
-  staffId: number | null;
-  staffName: string | null;
 }
 
 const STEPS = ["Service", "Staff", "Date", "Time", "Confirm"];
 
-function formatPrice(price: number | null): string {
+function formatPrice(price: string | null): string {
   if (price == null) return "Price varies";
-  return `$${price.toFixed(2)}`;
+  const n = parseFloat(price);
+  return isNaN(n) ? "Price varies" : `$${n.toFixed(2)}`;
 }
-
 function getDaysInMonth(year: number, month: number): Date[] {
   const days: Date[] = [];
   const date = new Date(year, month, 1);
@@ -70,7 +65,6 @@ function getDaysInMonth(year: number, month: number): Date[] {
   }
   return days;
 }
-
 function formatDateLabel(d: Date): string {
   return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 }
@@ -78,8 +72,8 @@ function formatDateLabel(d: Date): string {
 export default function ClientBookingWizardScreen() {
   const colors = useColors();
   const router = useRouter();
-  const { slug, serviceId } = useLocalSearchParams<{ slug: string; serviceId?: string }>();
-  const { state, apiCall } = useClientStore();
+  const { slug, serviceLocalId } = useLocalSearchParams<{ slug: string; serviceLocalId?: string }>();
+  const { state } = useClientStore();
   const apiBase = getApiBaseUrl();
 
   const [step, setStep] = useState(0);
@@ -89,35 +83,36 @@ export default function ClientBookingWizardScreen() {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Selections
   const [selectedService, setSelectedService] = useState<PublicService | null>(null);
-  const [selectedStaffId, setSelectedStaffId] = useState<number | null | "any">("any");
+  const [selectedStaffId, setSelectedStaffId] = useState<string>("any");
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
   const [notes, setNotes] = useState("");
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
 
-  // Calendar state
   const today = new Date();
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
 
-  // Load services and staff
+  // Load services and staff from separate public endpoints
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`${apiBase}/api/public/business/${slug}`);
-        if (res.ok) {
-          const data = await res.json();
-          setServices(data.services ?? []);
-          setStaff(data.staff ?? []);
-          // Pre-select service if passed
-          if (serviceId) {
-            const found = (data.services ?? []).find((s: PublicService) => s.id === Number(serviceId));
-            if (found) {
-              setSelectedService(found);
-              setStep(1); // Skip to staff step
-            }
+        const [svcRes, staffRes] = await Promise.all([
+          fetch(`${apiBase}/api/public/business/${slug}/services`),
+          fetch(`${apiBase}/api/public/business/${slug}/staff`),
+        ]);
+        const svcData = svcRes.ok ? await svcRes.json() : [];
+        const staffData = staffRes.ok ? await staffRes.json() : [];
+        const svcList: PublicService[] = Array.isArray(svcData) ? svcData : [];
+        const staffList: PublicStaff[] = Array.isArray(staffData) ? staffData : [];
+        setServices(svcList);
+        setStaff(staffList);
+        if (serviceLocalId) {
+          const found = svcList.find((s) => s.localId === serviceLocalId);
+          if (found) {
+            setSelectedService(found);
+            setStep(1);
           }
         }
       } catch (err) {
@@ -126,9 +121,9 @@ export default function ClientBookingWizardScreen() {
         setLoadingData(false);
       }
     })();
-  }, [slug, serviceId, apiBase]);
+  }, [slug, serviceLocalId, apiBase]);
 
-  // Load slots when date is selected
+  // Load slots using /api/public/business/:slug/slots
   useEffect(() => {
     if (!selectedDate || !selectedService) return;
     (async () => {
@@ -137,11 +132,15 @@ export default function ClientBookingWizardScreen() {
       setSelectedSlot(null);
       try {
         const dateStr = selectedDate.toISOString().split("T")[0];
-        const staffParam = selectedStaffId !== "any" && selectedStaffId != null ? `&staffId=${selectedStaffId}` : "";
-        const res = await fetch(`${apiBase}/api/public/availability/${slug}?date=${dateStr}&serviceId=${selectedService.id}${staffParam}`);
+        const staffParam = selectedStaffId !== "any" ? `&staffId=${encodeURIComponent(selectedStaffId)}` : "";
+        const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+        const clientToday = new Date().toISOString().split("T")[0];
+        const url = `${apiBase}/api/public/business/${slug}/slots?date=${dateStr}&duration=${selectedService.duration}${staffParam}&clientToday=${clientToday}&nowMinutes=${nowMinutes}`;
+        const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
-          setSlots(data.slots ?? []);
+          const rawSlots: string[] = data.slots ?? [];
+          setSlots(rawSlots.map((t) => ({ time: t })));
         }
       } catch (err) {
         console.warn("[BookingWizard] slots error:", err);
@@ -155,7 +154,6 @@ export default function ClientBookingWizardScreen() {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
   };
-
   const handleBack = () => {
     if (step === 0) { router.back(); return; }
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -163,26 +161,33 @@ export default function ClientBookingWizardScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!selectedService || !selectedDate || !selectedSlot || !state.account) return;
+    if (!selectedService || !selectedDate || !selectedSlot) return;
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSubmitting(true);
     try {
       const dateStr = selectedDate.toISOString().split("T")[0];
-      const result = await apiCall<{ appointmentId: number }>("/api/client/book", {
+      const clientName = state.account?.name ?? "Guest";
+      const clientEmail = state.account?.email ?? undefined;
+      const res = await fetch(`${apiBase}/api/public/business/${slug}/book`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          businessSlug: slug,
-          serviceId: selectedService.id,
-          staffId: selectedStaffId !== "any" ? selectedStaffId : null,
+          clientName,
+          clientEmail,
+          serviceLocalId: selectedService.localId,
           date: dateStr,
           time: selectedSlot.time,
+          duration: selectedService.duration,
           notes: notes.trim() || null,
+          staffId: selectedStaffId !== "any" ? selectedStaffId : undefined,
         }),
       });
-      router.replace({
-        pathname: "/client-appointment-detail",
-        params: { id: String(result.appointmentId), new: "1" },
-      } as any);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Booking failed" }));
+        throw new Error((err as any).error ?? `HTTP ${res.status}`);
+      }
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.replace("/(client-tabs)/bookings" as any);
     } catch (err: any) {
       Alert.alert("Booking Failed", err?.message ?? "Please try again.");
     } finally {
@@ -197,7 +202,8 @@ export default function ClientBookingWizardScreen() {
       <ScreenContainer>
         <FuturisticBackground />
         <View style={s.loadingContainer}>
-          <ActivityIndicator size="large" color={LIME_GREEN} />
+          <ActivityIndicator color={LIME_GREEN} size="large" />
+          <Text style={{ color: colors.muted, marginTop: 12 }}>Loading...</Text>
         </View>
       </ScreenContainer>
     );
@@ -205,8 +211,11 @@ export default function ClientBookingWizardScreen() {
 
   const calDays = getDaysInMonth(calYear, calMonth);
   const monthLabel = new Date(calYear, calMonth, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const eligibleStaff = selectedService
+    ? staff.filter((m) => !m.serviceIds?.length || m.serviceIds.includes(selectedService.localId))
+    : staff;
 
-    return (
+  return (
     <ScreenContainer>
       <FuturisticBackground />
       {/* Header */}
@@ -217,54 +226,55 @@ export default function ClientBookingWizardScreen() {
         <Text style={[s.headerTitle, { color: colors.foreground }]}>Book Appointment</Text>
         <View style={{ width: 32 }} />
       </View>
-
-      {/* Step Indicator */}
+      {/* Step indicator */}
       <View style={s.stepIndicator}>
-        {STEPS.map((label, idx) => (
-          <View key={label} style={s.stepItem}>
-            <View style={[s.stepDot, { backgroundColor: idx <= step ? LIME_GREEN : colors.border }]}>
-              {idx < step ? (
-                <IconSymbol name="checkmark" size={10} color="#FFFFFF" />
+        {STEPS.map((label, i) => (
+          <View key={i} style={s.stepItem}>
+            <View style={[s.stepDot, { backgroundColor: i <= step ? LIME_GREEN : colors.border }]}>
+              {i < step ? (
+                <IconSymbol name="checkmark" size={12} color="#FFFFFF" />
               ) : (
-                <Text style={{ color: idx === step ? "#FFFFFF" : colors.muted, fontSize: 11, fontWeight: "700" }}>{idx + 1}</Text>
+                <Text style={{ color: i <= step ? "#FFFFFF" : colors.muted, fontSize: 11, fontWeight: "700" }}>{i + 1}</Text>
               )}
             </View>
-            {idx < STEPS.length - 1 && (
-              <View style={[s.stepLine, { backgroundColor: idx < step ? LIME_GREEN : colors.border }]} />
+            {i < STEPS.length - 1 && (
+              <View style={[s.stepLine, { backgroundColor: i < step ? LIME_GREEN : colors.border }]} />
             )}
           </View>
         ))}
       </View>
       <Text style={[s.stepLabel, { color: LIME_GREEN }]}>{STEPS[step]}</Text>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}>
-
-        {/* Step 0: Service Selection */}
+      <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+        {/* Step 0: Service */}
         {step === 0 && (
           <View style={s.stepContent}>
-            <Text style={[s.stepTitle, { color: colors.foreground }]}>Select a Service</Text>
-            {services.map((svc) => (
+            <Text style={[s.stepTitle, { color: colors.foreground }]}>Choose a Service</Text>
+            {services.length === 0 ? (
+              <Text style={{ color: colors.muted, textAlign: "center", marginTop: 24 }}>No services available.</Text>
+            ) : services.map((svc) => (
               <Pressable
-                key={svc.id}
+                key={svc.localId}
                 style={({ pressed }) => [
                   s.optionCard,
-                  { backgroundColor: colors.surface, borderColor: selectedService?.id === svc.id ? LIME_GREEN : colors.border },
-                  selectedService?.id === svc.id && { borderWidth: 2 },
+                  { backgroundColor: colors.surface, borderColor: selectedService?.localId === svc.localId ? LIME_GREEN : colors.border },
+                  selectedService?.localId === svc.localId && { borderWidth: 2 },
                   pressed && { opacity: 0.85 },
                 ]}
                 onPress={() => {
                   if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setSelectedService(svc);
+                  setSelectedStaffId("any");
+                  setSelectedDate(null);
+                  setSelectedSlot(null);
                 }}
               >
                 <View style={s.optionLeft}>
                   <Text style={[s.optionName, { color: colors.foreground }]}>{svc.name}</Text>
-                  {svc.description && (
-                    <Text style={[s.optionDesc, { color: colors.muted }]} numberOfLines={2}>{svc.description}</Text>
-                  )}
-                  <Text style={[s.optionMeta, { color: colors.muted }]}>{svc.duration} min · {formatPrice(svc.price)}</Text>
+                  {svc.description ? <Text style={[s.optionDesc, { color: colors.muted }]} numberOfLines={2}>{svc.description}</Text> : null}
+                  <Text style={[s.optionMeta, { color: LIME_GREEN }]}>{svc.duration} min · {formatPrice(svc.price)}</Text>
                 </View>
-                {selectedService?.id === svc.id && (
+                {selectedService?.localId === svc.localId && (
                   <View style={[s.checkCircle, { backgroundColor: LIME_GREEN }]}>
                     <IconSymbol name="checkmark" size={14} color="#FFFFFF" />
                   </View>
@@ -274,53 +284,52 @@ export default function ClientBookingWizardScreen() {
           </View>
         )}
 
-        {/* Step 1: Staff Selection */}
+        {/* Step 1: Staff */}
         {step === 1 && (
           <View style={s.stepContent}>
             <Text style={[s.stepTitle, { color: colors.foreground }]}>Choose a Staff Member</Text>
-            {/* Any available */}
             <Pressable
               style={({ pressed }) => [
                 s.optionCard,
-                { backgroundColor: colors.surface, borderColor: selectedStaffId === "any" ? "#8B5CF6" : colors.border },
+                { backgroundColor: colors.surface, borderColor: selectedStaffId === "any" ? LIME_GREEN : colors.border },
                 selectedStaffId === "any" && { borderWidth: 2 },
                 pressed && { opacity: 0.85 },
               ]}
               onPress={() => setSelectedStaffId("any")}
             >
-              <View style={[s.staffAvatar, { backgroundColor: "#8B5CF620" }]}>
-                <IconSymbol name="person.2.fill" size={18} color="#8B5CF6" />
+              <View style={[s.staffAvatar, { backgroundColor: `${LIME_GREEN}20` }]}>
+                <IconSymbol name="person.3.fill" size={20} color={LIME_GREEN} />
               </View>
               <View style={s.optionLeft}>
                 <Text style={[s.optionName, { color: colors.foreground }]}>Any Available</Text>
-                <Text style={[s.optionDesc, { color: colors.muted }]}>We'll assign the best available staff</Text>
+                <Text style={[s.optionDesc, { color: colors.muted }]}>First available staff member</Text>
               </View>
               {selectedStaffId === "any" && (
-                <View style={[s.checkCircle, { backgroundColor: "#8B5CF6" }]}>
+                <View style={[s.checkCircle, { backgroundColor: LIME_GREEN }]}>
                   <IconSymbol name="checkmark" size={14} color="#FFFFFF" />
                 </View>
               )}
             </Pressable>
-            {staff.map((member) => (
+            {eligibleStaff.map((member) => (
               <Pressable
-                key={member.id}
+                key={member.localId}
                 style={({ pressed }) => [
                   s.optionCard,
-                  { backgroundColor: colors.surface, borderColor: selectedStaffId === member.id ? "#8B5CF6" : colors.border },
-                  selectedStaffId === member.id && { borderWidth: 2 },
+                  { backgroundColor: colors.surface, borderColor: selectedStaffId === member.localId ? LIME_GREEN : colors.border },
+                  selectedStaffId === member.localId && { borderWidth: 2 },
                   pressed && { opacity: 0.85 },
                 ]}
-                onPress={() => setSelectedStaffId(member.id)}
+                onPress={() => setSelectedStaffId(member.localId)}
               >
-                <View style={[s.staffAvatar, { backgroundColor: "#8B5CF620" }]}>
-                  <Text style={{ fontSize: 16, fontWeight: "700", color: "#8B5CF6" }}>{member.name.charAt(0)}</Text>
+                <View style={[s.staffAvatar, { backgroundColor: `${LIME_GREEN}20` }]}>
+                  <Text style={{ fontSize: 16, fontWeight: "700", color: LIME_GREEN }}>{member.name.charAt(0)}</Text>
                 </View>
                 <View style={s.optionLeft}>
                   <Text style={[s.optionName, { color: colors.foreground }]}>{member.name}</Text>
-                  {member.role && <Text style={[s.optionDesc, { color: colors.muted }]}>{member.role}</Text>}
+                  {member.role ? <Text style={[s.optionDesc, { color: colors.muted }]}>{member.role}</Text> : null}
                 </View>
-                {selectedStaffId === member.id && (
-                  <View style={[s.checkCircle, { backgroundColor: "#8B5CF6" }]}>
+                {selectedStaffId === member.localId && (
+                  <View style={[s.checkCircle, { backgroundColor: LIME_GREEN }]}>
                     <IconSymbol name="checkmark" size={14} color="#FFFFFF" />
                   </View>
                 )}
@@ -329,41 +338,31 @@ export default function ClientBookingWizardScreen() {
           </View>
         )}
 
-        {/* Step 2: Date Picker */}
+        {/* Step 2: Date */}
         {step === 2 && (
           <View style={s.stepContent}>
             <Text style={[s.stepTitle, { color: colors.foreground }]}>Pick a Date</Text>
-            {/* Month navigation */}
             <View style={s.monthNav}>
               <Pressable
                 style={({ pressed }) => [s.monthBtn, pressed && { opacity: 0.7 }]}
-                onPress={() => {
-                  if (calMonth === 0) { setCalMonth(11); setCalYear((y) => y - 1); }
-                  else setCalMonth((m) => m - 1);
-                }}
+                onPress={() => { if (calMonth === 0) { setCalMonth(11); setCalYear((y) => y - 1); } else setCalMonth((m) => m - 1); }}
               >
                 <IconSymbol name="chevron.left" size={18} color={colors.foreground} />
               </Pressable>
               <Text style={[s.monthLabel, { color: colors.foreground }]}>{monthLabel}</Text>
               <Pressable
                 style={({ pressed }) => [s.monthBtn, pressed && { opacity: 0.7 }]}
-                onPress={() => {
-                  if (calMonth === 11) { setCalMonth(0); setCalYear((y) => y + 1); }
-                  else setCalMonth((m) => m + 1);
-                }}
+                onPress={() => { if (calMonth === 11) { setCalMonth(0); setCalYear((y) => y + 1); } else setCalMonth((m) => m + 1); }}
               >
                 <IconSymbol name="chevron.right" size={18} color={colors.foreground} />
               </Pressable>
             </View>
-            {/* Day headers */}
             <View style={s.dayHeaders}>
               {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
                 <Text key={i} style={[s.dayHeader, { color: colors.muted }]}>{d}</Text>
               ))}
             </View>
-            {/* Calendar grid */}
             <View style={s.calGrid}>
-              {/* Empty cells for first day offset */}
               {Array.from({ length: new Date(calYear, calMonth, 1).getDay() }).map((_, i) => (
                 <View key={`empty-${i}`} style={s.calCell} />
               ))}
@@ -376,9 +375,9 @@ export default function ClientBookingWizardScreen() {
                     key={day.toISOString()}
                     style={({ pressed }) => [
                       s.calCell,
-                      isSelected && { backgroundColor: "#8B5CF6", borderRadius: 20 },
-                      isToday && !isSelected && { borderWidth: 1.5, borderColor: "#8B5CF6", borderRadius: 20 },
-                      (isPast) && { opacity: 0.3 },
+                      isSelected && { backgroundColor: LIME_GREEN, borderRadius: 20 },
+                      isToday && !isSelected && { borderWidth: 1.5, borderColor: LIME_GREEN, borderRadius: 20 },
+                      isPast && { opacity: 0.3 },
                       pressed && !isPast && { opacity: 0.7 },
                     ]}
                     onPress={() => {
@@ -396,39 +395,37 @@ export default function ClientBookingWizardScreen() {
               })}
             </View>
             {selectedDate && (
-              <Text style={[s.selectedDateLabel, { color: "#8B5CF6" }]}>
-                Selected: {formatDateLabel(selectedDate)}
-              </Text>
+              <Text style={[s.selectedDateLabel, { color: LIME_GREEN }]}>Selected: {formatDateLabel(selectedDate)}</Text>
             )}
           </View>
         )}
 
-        {/* Step 3: Time Slot Picker */}
+        {/* Step 3: Time Slots */}
         {step === 3 && (
           <View style={s.stepContent}>
             <Text style={[s.stepTitle, { color: colors.foreground }]}>
               Available Times{selectedDate ? ` · ${formatDateLabel(selectedDate)}` : ""}
             </Text>
             {loadingSlots ? (
-              <ActivityIndicator color="#8B5CF6" style={{ marginTop: 24 }} />
+              <ActivityIndicator color={LIME_GREEN} style={{ marginTop: 24 }} />
             ) : slots.length === 0 ? (
               <View style={s.noSlots}>
                 <IconSymbol name="clock" size={28} color={colors.muted} />
                 <Text style={[s.noSlotsText, { color: colors.muted }]}>No available times on this date.</Text>
                 <Pressable onPress={() => setStep(2)}>
-                  <Text style={{ color: "#8B5CF6", fontWeight: "600" }}>Pick another date</Text>
+                  <Text style={{ color: LIME_GREEN, fontWeight: "600" }}>Pick another date</Text>
                 </Pressable>
               </View>
             ) : (
               <View style={s.slotsGrid}>
                 {slots.map((slot) => {
-                  const isSelected = selectedSlot?.time === slot.time && selectedSlot?.staffId === slot.staffId;
+                  const isSelected = selectedSlot?.time === slot.time;
                   return (
                     <Pressable
-                      key={`${slot.time}-${slot.staffId}`}
+                      key={slot.time}
                       style={({ pressed }) => [
                         s.slotBtn,
-                        { backgroundColor: isSelected ? "#8B5CF6" : colors.surface, borderColor: isSelected ? "#8B5CF6" : colors.border },
+                        { backgroundColor: isSelected ? LIME_GREEN : colors.surface, borderColor: isSelected ? LIME_GREEN : colors.border },
                         pressed && { opacity: 0.8 },
                       ]}
                       onPress={() => {
@@ -439,11 +436,6 @@ export default function ClientBookingWizardScreen() {
                       <Text style={{ color: isSelected ? "#FFFFFF" : colors.foreground, fontSize: 14, fontWeight: "600" }}>
                         {slot.time}
                       </Text>
-                      {slot.staffName && selectedStaffId === "any" && (
-                        <Text style={{ color: isSelected ? "#FFFFFF99" : colors.muted, fontSize: 11 }}>
-                          {slot.staffName}
-                        </Text>
-                      )}
                     </Pressable>
                   );
                 })}
@@ -462,20 +454,25 @@ export default function ClientBookingWizardScreen() {
               <Row label="Price" value={formatPrice(selectedService.price)} colors={colors} />
               <Row label="Date" value={formatDateLabel(selectedDate)} colors={colors} />
               <Row label="Time" value={selectedSlot.time} colors={colors} />
-              {selectedSlot.staffName && (
-                <Row label="Staff" value={selectedSlot.staffName} colors={colors} />
+              {selectedStaffId !== "any" && (
+                <Row
+                  label="Staff"
+                  value={staff.find((m) => m.localId === selectedStaffId)?.name ?? selectedStaffId}
+                  colors={colors}
+                />
               )}
             </View>
             <Text style={[s.notesLabel, { color: colors.foreground }]}>Notes (optional)</Text>
             <TextInput
               style={[s.notesInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground }]}
-              placeholder="Any special requests or information for the business..."
+              placeholder="Any special requests..."
               placeholderTextColor={colors.muted}
               value={notes}
               onChangeText={setNotes}
               multiline
               numberOfLines={3}
               textAlignVertical="top"
+              returnKeyType="done"
             />
           </View>
         )}
@@ -488,7 +485,7 @@ export default function ClientBookingWizardScreen() {
             style={({ pressed }) => [
               s.nextBtn,
               { opacity: canProceed(step, selectedService, selectedStaffId, selectedDate, selectedSlot) ? 1 : 0.4 },
-              pressed && { transform: [{ scale: 0.97 }] },
+              pressed && canProceed(step, selectedService, selectedStaffId, selectedDate, selectedSlot) && { transform: [{ scale: 0.97 }] },
             ]}
             onPress={handleNext}
             disabled={!canProceed(step, selectedService, selectedStaffId, selectedDate, selectedSlot)}
@@ -517,13 +514,7 @@ export default function ClientBookingWizardScreen() {
   );
 }
 
-function canProceed(
-  step: number,
-  selectedService: any,
-  selectedStaffId: any,
-  selectedDate: Date | null,
-  selectedSlot: any
-): boolean {
+function canProceed(step: number, selectedService: any, selectedStaffId: any, selectedDate: Date | null, selectedSlot: any): boolean {
   if (step === 0) return selectedService != null;
   if (step === 1) return selectedStaffId !== undefined;
   if (step === 2) return selectedDate != null;
@@ -566,7 +557,7 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     dayHeaders: { flexDirection: "row", marginBottom: 4 },
     dayHeader: { flex: 1, textAlign: "center", fontSize: 12, fontWeight: "600" },
     calGrid: { flexDirection: "row", flexWrap: "wrap" },
-    calCell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: "center", justifyContent: "center" },
+    calCell: { width: "14.28%" as any, aspectRatio: 1, alignItems: "center", justifyContent: "center" },
     selectedDateLabel: { textAlign: "center", fontSize: 14, fontWeight: "600", marginTop: 12 },
     noSlots: { alignItems: "center", paddingTop: 40, gap: 12 },
     noSlotsText: { fontSize: 14 },
