@@ -432,7 +432,7 @@ export function registerClientRoutes(app: Express) {
         await sendExpoPush(owner.expoPushToken, {
           title: "Cancellation Request",
           body: `${clientAccount!.name ?? "A client"} requested to cancel their appointment.`,
-          data: { type: "cancel_request", appointmentId: appt.id },
+          data: { type: "cancel_request", appointmentId: appt.localId },
         });
       }
       res.json({ ok: true });
@@ -492,6 +492,7 @@ export function registerClientRoutes(app: Express) {
           // Match via client records
           const matchingClients = await db.getClientsByOwner(item.businessOwnerId);
           const matchedClient = matchingClients.find((c) => {
+            if (!c.phone) return false;
             const d = c.phone.replace(/\D/g, "");
             const n = d.length === 11 && d.startsWith("1") ? d.slice(1) : d;
             return n === normalizedPhone || c.phone === clientPhone;

@@ -500,11 +500,11 @@ const appointmentsRouter = router({
               const cName = enrichedAppt.clientName ?? "there";
               let title = "";
               let body = "";
-              let notifType = "";
+              let notifType: "appointment_request" | "appointment_cancelled" | "appointment_completed" | "general" = "general";
               if (data.status === "confirmed") {
-                title = "Appointment Confirmed \u2705";
+                title = "Appointment Confirmed ✅";
                 body = `Hi ${cName}, your ${sName} at ${bName} has been confirmed!`;
-                notifType = "appointment_confirmed";
+                notifType = "appointment_request"; // closest match — routes to appointment detail
               } else if (data.status === "cancelled") {
                 title = "Appointment Cancelled";
                 body = `Your ${sName} at ${bName} has been cancelled. Please contact them to reschedule.`;
