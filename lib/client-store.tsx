@@ -74,6 +74,10 @@ export interface DiscoverBusiness {
   reviewCount: number;
   avgRating: number | null;
   logoUrl: string | null;
+  businessLogoUri: string | null;
+  description: string | null;
+  businessCategory: string | null;
+  customSlug: string | null;
 }
 
 export interface ClientState {

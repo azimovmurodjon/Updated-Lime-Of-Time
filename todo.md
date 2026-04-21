@@ -1732,3 +1732,10 @@
 - [x] Add back button to business onboarding sign-in tab to return to profile-select
 - [x] Fix discover screen: empty state for no nearby businesses, change KM to Miles
 - [x] Connect client-side data to admin panel (client accounts, messages via tabbed view)
+
+## Seed Data & Discover UI Fix
+- [x] Fix discover page UI: compact horizontal category chips, proper business card layout
+- [x] Seed 10 Pittsburgh Downtown businesses with photos, 2 locations, 5 staff, 10 services, 10 products, 3 discounts each
+- [x] Fix API response parsing (unwrap businesses array)
+- [x] Fix businessLogoUri and businessCategory field mapping
+- [x] Fix slug navigation to use customSlug from API response
