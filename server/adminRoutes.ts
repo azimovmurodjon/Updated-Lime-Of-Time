@@ -1168,14 +1168,20 @@ export function registerAdminRoutes(app: Express): void {
       }
 
       // Step 3: Create a PaymentIntent ($1.00 USD)
-      const piRes = await stripe("/payment_intents", "POST", {
-        amount: "100",
-        currency: "usd",
-        customer: customerId,
-        payment_method_types: "card",
-        description: "Admin suite test charge — auto-refunded",
-        metadata: "suite_test=true",
+      // Note: Stripe form-encoding requires array notation for payment_method_types[]
+      const piBody = new URLSearchParams();
+      piBody.append("amount", "100");
+      piBody.append("currency", "usd");
+      piBody.append("customer", customerId);
+      piBody.append("payment_method_types[]", "card");
+      piBody.append("description", "Admin suite test charge — auto-refunded");
+      piBody.append("metadata[suite_test]", "true");
+      const piRaw = await fetch("https://api.stripe.com/v1/payment_intents", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${secretKey}`, "Content-Type": "application/x-www-form-urlencoded" },
+        body: piBody.toString(),
       });
+      const piRes = { ok: piRaw.ok, status: piRaw.status, data: await piRaw.json() as any };
       if (piRes.ok) {
         paymentIntentId = piRes.data.id;
         steps.push({ step: "3. Create PaymentIntent ($1.00)", ok: true, detail: `PI ID: ${paymentIntentId}, status: ${piRes.data.status}` });

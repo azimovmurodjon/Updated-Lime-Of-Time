@@ -215,6 +215,61 @@ export function registerAdminStripeConnectRoutes(app: Express): void {
     }
   });
 
+  // ── Webhook Health Check ──────────────────────────────────────────
+  app.get("/api/admin/stripe-connect/webhook-health", async (req: Request, res: Response) => {
+    if (!requireAdminAuth(req, res)) return;
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(503).json({ error: "DB unavailable" }); return; }
+      const { platformConfig } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+
+      // Check webhook secret is stored
+      const secretRow = await dbase.select().from(platformConfig).where(eq(platformConfig.configKey, "STRIPE_CONNECT_WEBHOOK_SECRET"));
+      const webhookSecret = secretRow[0]?.configValue || "";
+      const hasSecret = webhookSecret.startsWith("whsec_");
+
+      // Check Stripe key is available to query webhooks
+      const keyRow = await dbase.select().from(platformConfig).where(eq(platformConfig.configKey, "STRIPE_SECRET_KEY"));
+      const stripeKey = keyRow[0]?.configValue || "";
+      if (!stripeKey) {
+        res.json({ ok: false, hasSecret, webhookRegistered: false, webhookUrl: null, error: "Stripe key not configured" });
+        return;
+      }
+
+      // Query Stripe for registered webhooks
+      const r = await fetch("https://api.stripe.com/v1/webhook_endpoints?limit=20", {
+        headers: { Authorization: `Bearer ${stripeKey}` },
+      });
+      const json = await r.json() as any;
+      if (!r.ok) {
+        res.json({ ok: false, hasSecret, webhookRegistered: false, webhookUrl: null, error: json?.error?.message || `Stripe error ${r.status}` });
+        return;
+      }
+
+      const endpoints: any[] = json.data || [];
+      const match = endpoints.find((e: any) => e.url && e.url.includes("/api/stripe-connect/webhook"));
+      const webhookRegistered = !!match;
+      const webhookUrl = match?.url || null;
+      const webhookStatus = match?.status || null;
+      const webhookEvents: string[] = match?.enabled_events || [];
+      const hasCheckoutEvent = webhookEvents.includes("checkout.session.completed") || webhookEvents.includes("*");
+
+      res.json({
+        ok: webhookRegistered && hasSecret && hasCheckoutEvent,
+        hasSecret,
+        webhookRegistered,
+        webhookUrl,
+        webhookStatus,
+        hasCheckoutEvent,
+        totalEndpoints: endpoints.length,
+      });
+    } catch (err: any) {
+      console.error("[Admin] Webhook health check error:", err);
+      res.status(500).json({ ok: false, error: err?.message || "Health check failed" });
+    }
+  });
+
   // ── Disconnect a business from Stripe Connect ───────────────────────
   app.post("/api/admin/stripe-connect/:id/disconnect", async (req: Request, res: Response) => {
     if (!requireAdminAuth(req, res)) return;
@@ -449,7 +504,18 @@ function stripeConnectPage(data: {
 
     <!-- Webhook Setup Guide -->
     <div class="card" style="border:1px solid #f59e0b40;background:#f59e0b08;">
-      <h2 style="color:#f59e0b;">⚡ Webhook Setup</h2>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <h2 style="color:#f59e0b;margin-bottom:0;">⚡ Webhook Setup</h2>
+        <span id="webhookHealthBadge" style="font-size:12px;padding:4px 12px;border-radius:20px;background:#1f2937;color:#9ca3af;">Checking...</span>
+      </div>
+      <!-- Health check status rows -->
+      <div id="webhookHealthRows" style="background:#111827;border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12px;display:none;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><span id="hc1">⏳</span> <span>Webhook endpoint registered in Stripe</span></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><span id="hc2">⏳</span> <span>Webhook signing secret (whsec_...) saved in Platform Config</span></div>
+        <div style="display:flex;align-items:center;gap:8px;"><span id="hc3">⏳</span> <span>checkout.session.completed event enabled</span></div>
+        <div id="hcUrl" style="margin-top:10px;font-size:11px;color:#4b5563;"></div>
+        <div id="hcError" style="margin-top:8px;font-size:12px;color:#f87171;"></div>
+      </div>
       <p style="font-size:13px;color:#9ca3af;margin-bottom:14px;">Register your webhook endpoint with Stripe so card payments are confirmed automatically — even if the client closes the browser before being redirected back.</p>
       <div style="background:#1a1a2e;border-radius:8px;padding:14px;margin-bottom:14px;font-family:monospace;font-size:12px;color:#a5f3fc;word-break:break-all;">
         ${serverDomain}/api/stripe-connect/webhook
@@ -591,6 +657,52 @@ function stripeConnectPage(data: {
         btn.textContent = isTest ? 'Switch to Live Mode' : 'Switch to Test Mode';
       });
     }
+
+    function checkWebhookHealth() {
+      var badge = document.getElementById('webhookHealthBadge');
+      var rows = document.getElementById('webhookHealthRows');
+      var hc1 = document.getElementById('hc1');
+      var hc2 = document.getElementById('hc2');
+      var hc3 = document.getElementById('hc3');
+      var hcUrl = document.getElementById('hcUrl');
+      var hcError = document.getElementById('hcError');
+      badge.textContent = 'Checking...';
+      badge.style.background = '#1f2937';
+      badge.style.color = '#9ca3af';
+      fetch('/api/admin/stripe-connect/webhook-health')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          rows.style.display = 'block';
+          hc1.textContent = d.webhookRegistered ? '\u2705' : '\u274c';
+          hc2.textContent = d.hasSecret ? '\u2705' : '\u274c';
+          hc3.textContent = d.hasCheckoutEvent ? '\u2705' : (d.webhookRegistered ? '\u274c' : '\u2796');
+          hcUrl.textContent = d.webhookUrl ? '\ud83d\udd17 Registered URL: ' + d.webhookUrl + (d.webhookStatus ? ' (' + d.webhookStatus + ')' : '') : '';
+          hcError.textContent = d.error ? d.error : '';
+          if (d.ok) {
+            badge.textContent = '\u2705 Fully Configured';
+            badge.style.background = '#14532d';
+            badge.style.color = '#4ade80';
+          } else if (d.webhookRegistered || d.hasSecret) {
+            badge.textContent = '\u26a0\ufe0f Partial Setup';
+            badge.style.background = '#78350f';
+            badge.style.color = '#fbbf24';
+          } else {
+            badge.textContent = '\u274c Not Configured';
+            badge.style.background = '#7f1d1d';
+            badge.style.color = '#fca5a5';
+          }
+        })
+        .catch(function(e) {
+          badge.textContent = '\u26a0\ufe0f Check failed';
+          badge.style.background = '#78350f';
+          badge.style.color = '#fbbf24';
+          rows.style.display = 'block';
+          hcError.textContent = 'Error: ' + e.message;
+        });
+    }
+    // Auto-load on page open
+    checkWebhookHealth();
+    loadFeeRevenue();
 
     function registerWebhook() {
       var btn = document.getElementById('registerWebhookBtn');

@@ -1570,3 +1570,6 @@
 - [x] Twilio credential validator: "Test Connection" button in Platform Config to verify SID + auth token — already existed
 
 - [x] Fix location name overflowing out of appointment card on calendar screen
+
+- [x] Fix "Invalid array" PaymentIntent bug in transaction suite test endpoint
+- [x] Add webhook health check status indicator to admin Stripe Connect page
