@@ -88,6 +88,8 @@ const MAPPING = {
   "arrow.right.square.fill": "logout",
   "arrow.up.right.square": "open-in-new",
   "location.fill": "location-on",
+  "location.slash.fill": "location-off",
+  "bell.slash.fill": "notifications-off",
   "building.fill": "apartment",
   "gear": "settings",
   "doc.on.doc.fill": "file-copy",

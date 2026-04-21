@@ -390,6 +390,19 @@ export default function ClientDetailScreen() {
     }
   }, [dispatch]);
 
+  if (!client) {
+    return (
+      <ScreenContainer edges={["top", "bottom", "left", "right"]} tabletMaxWidth={720}>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, marginBottom: 24 }]}>
+            <IconSymbol name="chevron.left" size={24} color={colors.primary} />
+          </Pressable>
+          <Text style={{ fontSize: 16, color: colors.muted, textAlign: "center" }}>Client not found.</Text>
+        </View>
+      </ScreenContainer>
+    );
+  }
+
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} tabletMaxWidth={720}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}>

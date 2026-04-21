@@ -610,6 +610,23 @@ export function registerClientRoutes(app: Express) {
     }
   });
 
+  /** GET /api/business/messages/unread-count — MUST be before /:clientAccountId to avoid Express route shadowing */
+  app.get("/api/business/messages/unread-count", async (req: Request, res: Response) => {
+    try {
+      const user = await sdk.authenticateRequest(req);
+      const owner = await db.getBusinessOwnerByOpenId(user.openId);
+      if (!owner) {
+        res.json({ count: 0 });
+        return;
+      }
+      const inbox = await db.getBusinessMessageInbox(owner.id);
+      const total = inbox.reduce((sum, item) => sum + item.unreadCount, 0);
+      res.json({ count: total });
+    } catch {
+      res.json({ count: 0 });
+    }
+  });
+
   /** GET /api/business/messages/:clientAccountId — full thread with a client */
   app.get("/api/business/messages/:clientAccountId", async (req: Request, res: Response) => {
     try {
@@ -804,22 +821,4 @@ export function registerClientRoutes(app: Express) {
     }
   });
 
-  // ── Unread message count (for business app badge) ─────────────────────────
-
-  /** GET /api/business/messages/unread-count */
-  app.get("/api/business/messages/unread-count", async (req: Request, res: Response) => {
-    try {
-      const user = await sdk.authenticateRequest(req);
-      const owner = await db.getBusinessOwnerByOpenId(user.openId);
-      if (!owner) {
-        res.json({ count: 0 });
-        return;
-      }
-      const inbox = await db.getBusinessMessageInbox(owner.id);
-      const total = inbox.reduce((sum, item) => sum + item.unreadCount, 0);
-      res.json({ count: total });
-    } catch {
-      res.json({ count: 0 });
-    }
-  });
 }

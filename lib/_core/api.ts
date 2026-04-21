@@ -133,7 +133,14 @@ export async function getMe(): Promise<{
     const result = await apiCall<{ user: any }>("/api/auth/me");
     return result.user || null;
   } catch (error) {
-    logger.error("[API] getMe failed:", error);
+    // Don't log 401/session errors — expected when not logged in
+    const isAuthError = error instanceof Error &&
+      (error.message.includes("Invalid session") || error.message.includes("Unauthorized") || error.message.includes("401"));
+    if (!isAuthError) {
+      logger.error("[API] getMe failed:", error);
+    } else {
+      logger.log("[API] getMe: not authenticated");
+    }
     return null;
   }
 }

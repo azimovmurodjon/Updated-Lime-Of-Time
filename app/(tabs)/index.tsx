@@ -2126,103 +2126,6 @@ export default function HomeScreen() {
         />
 
 
-        {/* ─── App Download Card ─────────────────────────────────────── */}
-        <View style={[{
-          marginTop: 20,
-          borderRadius: 16,
-          overflow: "hidden",
-          borderWidth: 1,
-          borderColor: "#8B5CF640",
-          backgroundColor: "#8B5CF608",
-          padding: 16,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 14,
-        }]}>
-          <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "#8B5CF620", alignItems: "center", justifyContent: "center" }}>
-            <IconSymbol name="iphone" size={22} color="#8B5CF6" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Share Client App</Text>
-            <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 16 }}>Let clients book appointments directly from the app.</Text>
-          </View>
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            {/* iOS App Store button */}
-            <Pressable
-              style={({ pressed }) => [{
-                backgroundColor: "#8B5CF6",
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                borderRadius: 20,
-                opacity: pressed ? 0.8 : 1,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 4,
-              }]}
-              onPress={() => {
-                const url = (state.settings as any).appStoreUrl;
-                if (url) {
-                  Linking.openURL(url).catch(() => Alert.alert("Error", "Could not open App Store link."));
-                } else {
-                  Alert.alert("App Store Link", "Set your App Store URL in Settings → Business Profile to enable this button.");
-                }
-              }}
-            >
-              <IconSymbol name="iphone" size={14} color="#FFFFFF" />
-              <Text style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "700" }}>iOS</Text>
-            </Pressable>
-            {/* Android Play Store button */}
-            <Pressable
-              style={({ pressed }) => [{
-                backgroundColor: "#059669",
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                borderRadius: 20,
-                opacity: pressed ? 0.8 : 1,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 4,
-              }]}
-              onPress={() => {
-                const url = (state.settings as any).playStoreUrl;
-                if (url) {
-                  Linking.openURL(url).catch(() => Alert.alert("Error", "Could not open Play Store link."));
-                } else {
-                  Alert.alert("Play Store Link", "Set your Play Store URL in Settings → Business Profile to enable this button.");
-                }
-              }}
-            >
-              <Text style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "700" }}>Android</Text>
-            </Pressable>
-            {/* Share both links */}
-            <Pressable
-              style={({ pressed }) => [{
-                backgroundColor: "#8B5CF620",
-                borderWidth: 1,
-                borderColor: "#8B5CF640",
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                borderRadius: 20,
-                opacity: pressed ? 0.8 : 1,
-              }]}
-              onPress={() => {
-                const iosUrl = (state.settings as any).appStoreUrl;
-                const androidUrl = (state.settings as any).playStoreUrl;
-                const msg = iosUrl || androidUrl
-                  ? `Book appointments with us on the app!${iosUrl ? `\niOS: ${iosUrl}` : ""}${androidUrl ? `\nAndroid: ${androidUrl}` : ""}`
-                  : "Our client app is coming soon to the App Store and Google Play!";
-                if (Platform.OS !== "web") {
-                  Share.share({ message: msg });
-                } else if (typeof navigator !== "undefined" && navigator.clipboard) {
-                  navigator.clipboard.writeText(msg);
-                }
-              }}
-            >
-              <Text style={{ color: "#8B5CF6", fontSize: 12, fontWeight: "700" }}>Share</Text>
-            </Pressable>
-          </View>
-        </View>
-
         {/* ─── Birthday Banner ──────────────────────────────────────── */}
         {birthdayClients.length > 0 && (
           <View style={{ marginTop: 20, borderRadius: 16, overflow: "hidden" }}>
@@ -2408,6 +2311,102 @@ export default function HomeScreen() {
               Share Link
             </Text>
           </Pressable>
+        </View>
+
+        {/* ─── Client App Card ─────────────────────────────────────── */}
+        <View style={{
+          marginTop: 24,
+          borderRadius: 18,
+          borderWidth: 1,
+          borderColor: "#8B5CF630",
+          backgroundColor: colors.surface,
+          overflow: "hidden",
+        }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderBottomWidth: 1, borderBottomColor: "#8B5CF620" }}>
+            <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: "#8B5CF615", alignItems: "center", justifyContent: "center" }}>
+              <IconSymbol name="iphone" size={24} color="#8B5CF6" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>Client Booking App</Text>
+              <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1, lineHeight: 17 }}>Let clients discover and book directly from the app</Text>
+            </View>
+          </View>
+          <View style={{ flexDirection: "row", padding: 12, gap: 8 }}>
+            <Pressable
+              style={({ pressed }) => [{
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                backgroundColor: "#8B5CF6",
+                paddingVertical: 10,
+                borderRadius: 12,
+                opacity: pressed ? 0.8 : 1,
+              }]}
+              onPress={() => {
+                const url = (state.settings as any).appStoreUrl;
+                if (url) {
+                  Linking.openURL(url).catch(() => Alert.alert("Error", "Could not open App Store link."));
+                } else {
+                  Alert.alert("App Store Link", "Set your App Store URL in Settings \u2192 Business Profile to enable this button.");
+                }
+              }}
+            >
+              <IconSymbol name="iphone" size={15} color="#FFFFFF" />
+              <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "700" }}>iOS App</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [{
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                backgroundColor: "#059669",
+                paddingVertical: 10,
+                borderRadius: 12,
+                opacity: pressed ? 0.8 : 1,
+              }]}
+              onPress={() => {
+                const url = (state.settings as any).playStoreUrl;
+                if (url) {
+                  Linking.openURL(url).catch(() => Alert.alert("Error", "Could not open Play Store link."));
+                } else {
+                  Alert.alert("Play Store Link", "Set your Play Store URL in Settings \u2192 Business Profile to enable this button.");
+                }
+              }}
+            >
+              <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "700" }}>Android App</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [{
+                width: 44,
+                height: 44,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "#8B5CF615",
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: "#8B5CF630",
+                opacity: pressed ? 0.8 : 1,
+              }]}
+              onPress={() => {
+                const iosUrl = (state.settings as any).appStoreUrl;
+                const androidUrl = (state.settings as any).playStoreUrl;
+                const msg = iosUrl || androidUrl
+                  ? `Book appointments with us on the app!${iosUrl ? `\niOS: ${iosUrl}` : ""}${androidUrl ? `\nAndroid: ${androidUrl}` : ""}`
+                  : "Our client app is coming soon to the App Store and Google Play!";
+                if (Platform.OS !== "web") {
+                  Share.share({ message: msg });
+                } else if (typeof navigator !== "undefined" && navigator.clipboard) {
+                  navigator.clipboard.writeText(msg);
+                }
+              }}
+            >
+              <IconSymbol name="paperplane.fill" size={18} color="#8B5CF6" />
+            </Pressable>
+          </View>
         </View>
 
         {/* ─── Schedule Card (Today + Upcoming) ─────────────────────── */}

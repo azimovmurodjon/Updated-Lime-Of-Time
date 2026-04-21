@@ -21,6 +21,7 @@ import { useColors } from "@/hooks/use-colors";
 import { useClientStore } from "@/lib/client-store";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { ClientPortalBackground } from "@/components/client-portal-background";
+import { formatPhone } from "@/lib/utils";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 
@@ -154,16 +155,18 @@ export default function ClientProfileScreen() {
           ) : (
             <View style={styles.avatar}>
               <Text style={styles.avatarInitial}>
-                {(state.account.name ?? "?").charAt(0).toUpperCase()}
+                {state.account.name
+                  ? state.account.name.charAt(0).toUpperCase()
+                  : (state.account.phone?.replace(/\D/g, "").slice(-10, -9) ?? "?").toUpperCase()}
               </Text>
             </View>
           )}
-          <Text style={styles.name}>{state.account.name}</Text>
+          <Text style={styles.name}>{state.account.name ?? "Tap Edit Profile to set your name"}</Text>
           {state.account.email && (
             <Text style={styles.email}>{state.account.email}</Text>
           )}
-          {state.account.phone && (
-            <Text style={styles.phone}>{state.account.phone}</Text>
+          {state.account.phone && !state.account.phone.startsWith("oauth:") && (
+            <Text style={styles.phone}>{formatPhone(state.account.phone)}</Text>
           )}
           <Pressable
             style={({ pressed }) => [styles.editBtn, pressed && { opacity: 0.7 }]}

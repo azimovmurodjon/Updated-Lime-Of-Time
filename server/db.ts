@@ -1151,7 +1151,7 @@ export async function getClientMessageInbox(clientAccountId: number): Promise<{ 
   return Array.from(map.entries()).map(([businessOwnerId, v]) => ({ businessOwnerId, ...v }));
 }
 
-export async function getBusinessMessageInbox(businessOwnerId: number): Promise<{ clientAccountId: number; lastMessage: string; lastAt: Date; unreadCount: number }[]> {
+export async function getBusinessMessageInbox(businessOwnerId: number): Promise<{ clientAccountId: number; lastMessage: string; lastAt: Date; lastMessageAt: string; unreadCount: number; senderType: "client" | "business" }[]> {
   const db = await getDb();
   if (!db) return [];
   const rows = await db
@@ -1159,7 +1159,7 @@ export async function getBusinessMessageInbox(businessOwnerId: number): Promise<
     .from(clientMessages)
     .where(eq(clientMessages.businessOwnerId, businessOwnerId))
     .orderBy(clientMessages.createdAt);
-  const map = new Map<number, { lastMessage: string; lastAt: Date; unreadCount: number }>();
+  const map = new Map<number, { lastMessage: string; lastAt: Date; unreadCount: number; senderType: "client" | "business" }>();
   for (const msg of rows) {
     const existing = map.get(msg.clientAccountId);
     const isUnread = !msg.readAt && msg.senderType === "client";
@@ -1168,12 +1168,17 @@ export async function getBusinessMessageInbox(businessOwnerId: number): Promise<
         lastMessage: msg.body,
         lastAt: msg.createdAt,
         unreadCount: (existing?.unreadCount ?? 0) + (isUnread ? 1 : 0),
+        senderType: msg.senderType,
       });
     } else if (isUnread) {
       existing.unreadCount++;
     }
   }
-  return Array.from(map.entries()).map(([clientAccountId, v]) => ({ clientAccountId, ...v }));
+  return Array.from(map.entries()).map(([clientAccountId, v]) => ({
+    clientAccountId,
+    ...v,
+    lastMessageAt: v.lastAt.toISOString(),
+  }));
 }
 
 // ─── Client Saved Businesses ─────────────────────────────────────────
