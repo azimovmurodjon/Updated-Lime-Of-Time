@@ -381,7 +381,7 @@ export default function AppointmentDetailScreen() {
       } catch {
         // Silently ignore polling errors
       }
-    }, 30_000);
+    }, 10_000);
 
     return () => clearInterval(intervalId);
   }, [appointment?.id, appointment?.paymentStatus, state.businessOwnerId, (state.settings as any).stripeConnectEnabled]);
@@ -1305,16 +1305,46 @@ Would you also like to charge a no-show fee via Stripe?`,
                 <IconSymbol name="xmark" size={22} color={colors.muted} />
               </Pressable>
             </View>
-            <Text style={{ fontSize: 14, color: colors.muted, marginBottom: 16, lineHeight: 20 }}>
-              The refund will be sent to the client's card via Stripe.
-            </Text>
+
+            {/* Charge breakdown card */}
+            {(() => {
+              const total = appointment?.totalPrice ?? 0;
+              // Platform fee: 1.5% of service amount
+              const platformFee = Math.round(total * 0.015 * 100) / 100;
+              // Stripe processing fee: ~2.9% + $0.30 (standard card rate)
+              const stripeFee = Math.round((total * 0.029 + 0.30) * 100) / 100;
+              // Client receives back: full amount (Stripe fees are non-refundable)
+              const clientReceives = Math.round((total - stripeFee) * 100) / 100;
+              return (
+                <View style={{ backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: colors.border }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>Refund Breakdown</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <Text style={{ fontSize: 14, color: colors.foreground }}>Amount charged</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: colors.foreground }}>${total.toFixed(2)}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <Text style={{ fontSize: 13, color: colors.muted }}>Stripe processing fee (est.)</Text>
+                    <Text style={{ fontSize: 13, color: colors.muted }}>−${stripeFee.toFixed(2)}</Text>
+                  </View>
+                  <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: colors.foreground }}>Client receives back</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: colors.success }}>${clientReceives.toFixed(2)}</Text>
+                  </View>
+                  <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6, lineHeight: 16 }}>Note: Stripe's processing fee (2.9% + $0.30) is non-refundable. The platform fee (1.5%) is also retained.</Text>
+                </View>
+              );
+            })()}
+
             {/* Full Refund quick-tap */}
             <Pressable
               onPress={() => {
                 const total = appointment?.totalPrice ?? 0;
+                const stripeFee = Math.round((total * 0.029 + 0.30) * 100) / 100;
+                const clientReceives = Math.round((total - stripeFee) * 100) / 100;
                 Alert.alert(
                   'Confirm Full Refund',
-                  `Issue a full refund of $${total.toFixed(2)} to the client's card?`,
+                  `Issue a full refund of $${total.toFixed(2)} to the client's card?\n\nThe client will receive approximately $${clientReceives.toFixed(2)} after Stripe's non-refundable processing fee.`,
                   [
                     { text: 'Cancel', style: 'cancel' },
                     { text: 'Refund', style: 'destructive', onPress: () => handleRefund(undefined) },
@@ -1364,11 +1394,16 @@ Would you also like to charge a no-show fee via Stripe?`,
                     Alert.alert('Invalid Amount', 'Please enter a valid positive amount or leave blank for full refund.');
                     return;
                   }
+                  const total = appointment?.totalPrice ?? 0;
+                  const stripeFee = Math.round((total * 0.029 + 0.30) * 100) / 100;
+                  const clientReceives = partial
+                    ? partial
+                    : Math.round((total - stripeFee) * 100) / 100;
                   Alert.alert(
                     'Confirm Refund',
                     partial
-                      ? `Issue a $${partial.toFixed(2)} partial refund to the client’s card?`
-                      : `Issue a full refund of $${((appointment?.totalPrice ?? 0)).toFixed(2)} to the client’s card?`,
+                      ? `Issue a $${partial.toFixed(2)} partial refund to the client's card?`
+                      : `Issue a full refund of $${total.toFixed(2)}?\n\nClient receives approximately $${clientReceives.toFixed(2)} after Stripe's non-refundable processing fee.`,
                     [
                       { text: 'Cancel', style: 'cancel' },
                       { text: 'Refund', style: 'destructive', onPress: () => handleRefund(partial) },
@@ -1622,7 +1657,61 @@ Would you also like to charge a no-show fee via Stripe?`,
                     }
                     router.back();
                   };
-                  if (cancInfo.feeApplies && cancInfo.fee > 0 && Platform.OS !== "web") {
+                  // ── Smart cancellation for card-paid appointments ──────────────────
+                  const isCardPaid = appointment.paymentStatus === 'paid' && appointment.paymentMethod === 'card';
+                  const stripeEnabled = !!(state.settings as any).stripeConnectEnabled;
+
+                  if (isCardPaid && stripeEnabled) {
+                    const total = appointment.totalPrice ?? 0;
+                    const fee = cancInfo.feeApplies ? cancInfo.fee : 0;
+                    const refundAmt = Math.max(0, total - fee);
+
+                    const doCardCancel = async () => {
+                      // Cancel the appointment first
+                      proceed();
+                      // Then issue refund (partial if fee applies, full if no fee)
+                      if (total > 0) {
+                        try {
+                          await apiCall<{ ok: boolean; refundId: string; amount: number }>('/api/stripe-connect/refund', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                              businessOwnerId: state.businessOwnerId,
+                              appointmentLocalId: appointment.id,
+                              ...(fee > 0 ? { amount: refundAmt } : {}),
+                            }),
+                          });
+                          Alert.alert(
+                            '✅ Refund Issued',
+                            fee > 0
+                              ? `$${refundAmt.toFixed(2)} has been refunded to the client's card.\n$${fee.toFixed(2)} cancellation fee was retained.`
+                              : `$${total.toFixed(2)} has been fully refunded to the client's card.`
+                          );
+                        } catch (err: any) {
+                          Alert.alert('Refund Failed', `The appointment was cancelled but the refund could not be issued automatically.\nError: ${err?.message ?? 'Unknown error'}\n\nPlease issue the refund manually from the Stripe dashboard.`);
+                        }
+                      }
+                    };
+
+                    if (fee > 0) {
+                      Alert.alert(
+                        'Cancel & Refund',
+                        `This appointment was paid by card ($${total.toFixed(2)}).\n\nCancellation fee: $${fee.toFixed(2)} (${policy.feePercentage}%)\nRefund to client: $${refundAmt.toFixed(2)}\n\nThe cancellation fee will be kept and the remainder refunded to the client's card.`,
+                        [
+                          { text: 'Go Back', style: 'cancel' },
+                          { text: 'Cancel & Refund', style: 'destructive', onPress: doCardCancel },
+                        ]
+                      );
+                    } else {
+                      Alert.alert(
+                        'Cancel & Full Refund',
+                        `This appointment was paid by card ($${total.toFixed(2)}).\n\nNo cancellation fee applies — a full refund will be issued to the client's card.`,
+                        [
+                          { text: 'Go Back', style: 'cancel' },
+                          { text: 'Cancel & Refund', style: 'destructive', onPress: doCardCancel },
+                        ]
+                      );
+                    }
+                  } else if (cancInfo.feeApplies && cancInfo.fee > 0 && Platform.OS !== "web") {
                     Alert.alert("Cancellation Fee", `A fee of $${cancInfo.fee} (${policy.feePercentage}%) applies.`, [
                       { text: "Cancel", style: "cancel" },
                       { text: "Confirm", onPress: proceed },

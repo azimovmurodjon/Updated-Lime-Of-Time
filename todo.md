@@ -1594,3 +1594,6 @@
 - [x] Fix notification tap crash: guard against invalid date in generateAvailableSlots (types.ts + appointment-detail.tsx)
 - [x] Fix client booking page redirect after card payment: skip auto-advance to step-1 when payment=success in URL
 - [x] Fix appointment not showing Refund button after card payment: immediate DB check on mount + pre-update on notification tap
+- [x] Reduce payment polling interval from 30s to 10s on appointment-detail screen
+- [x] Add refund breakdown modal showing charge amount, Stripe fee estimate, and client receives amount
+- [x] Smart cancellation for card-paid appointments: auto-refund on cancel, keep fee if cancellation policy applies
