@@ -4,6 +4,9 @@
  * Allows signed-in clients to update their Full Name, Email, Birthday (MM/DD),
  * and Profile Photo. Accessed from the "Edit Profile" button in the Client Portal
  * profile tab. Saves via PATCH /api/client/profile.
+ *
+ * Design: dark forest-green portal aesthetic (#1A3A28 → #2D5A3D) matching all
+ * other client portal screens.
  */
 import React, { useState, useRef } from "react";
 import {
@@ -20,15 +23,25 @@ import {
   KeyboardAvoidingView,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { ScreenContainer } from "@/components/screen-container";
+import { ClientPortalBackground } from "@/components/client-portal-background";
 import { useClientStore } from "@/lib/client-store";
 import { getApiBaseUrl } from "@/constants/oauth";
-import { useColors } from "@/hooks/use-colors";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+// ─── Portal palette ───────────────────────────────────────────────────────────
+const GREEN_ACCENT = "#8FBF6A";
+const GREEN_DARK = "#1A3A28";
+const CARD_BG = "rgba(255,255,255,0.09)";
+const CARD_BORDER = "rgba(255,255,255,0.14)";
+const TEXT_PRIMARY = "#FFFFFF";
+const TEXT_MUTED = "rgba(255,255,255,0.6)";
+const INPUT_BG = "rgba(255,255,255,0.07)";
+const INPUT_BORDER = "rgba(255,255,255,0.18)";
+const INPUT_FOCUSED_BORDER = "rgba(143,191,106,0.6)";
 
 function formatBirthday(raw: string): string {
   const digits = raw.replace(/\D/g, "").slice(0, 4);
@@ -49,7 +62,6 @@ function formatPhoneDisplay(phone: string | null): string {
 
 export default function ClientEditProfileScreen() {
   const router = useRouter();
-  const colors = useColors();
   const insets = useSafeAreaInsets();
   const { state, signIn } = useClientStore();
 
@@ -62,8 +74,10 @@ export default function ClientEditProfileScreen() {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const emailRef = useRef<TextInput>(null);
+  const birthdayRef = useRef<TextInput>(null);
   const token = state.sessionToken;
 
   const handlePickPhoto = async () => {
@@ -134,15 +148,12 @@ export default function ClientEditProfileScreen() {
       let finalPhotoUri = account?.profilePhotoUri ?? null;
 
       if (photoUri === null) {
-        // User explicitly removed photo
         finalPhotoUri = null;
       } else if (photoUri && photoUri.startsWith("file")) {
-        // New local photo — upload it
         const uploaded = await uploadPhoto(photoUri);
         if (uploaded) finalPhotoUri = uploaded;
-        // If upload fails, keep old photo
       } else if (photoUri) {
-        finalPhotoUri = photoUri; // already a remote URL, unchanged
+        finalPhotoUri = photoUri;
       }
 
       const body: Record<string, string | null> = {
@@ -178,35 +189,39 @@ export default function ClientEditProfileScreen() {
 
   if (!account) {
     return (
-      <ScreenContainer className="px-6">
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <Text style={{ color: colors.muted }}>Not signed in.</Text>
-        </View>
-      </ScreenContainer>
+      <View style={{ flex: 1, backgroundColor: GREEN_DARK, alignItems: "center", justifyContent: "center" }}>
+        <ClientPortalBackground />
+        <Text style={{ color: TEXT_MUTED, fontSize: 15 }}>Not signed in.</Text>
+      </View>
     );
   }
 
+  const initials = (account.name ?? "?").charAt(0).toUpperCase();
+
   return (
-    <ScreenContainer edges={["top", "left", "right"]}>
-      {/* Navigation Bar */}
-      <View style={[styles.navBar, { borderBottomColor: colors.border }]}>
+    <View style={{ flex: 1, backgroundColor: GREEN_DARK }}>
+      <ClientPortalBackground />
+
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Pressable
+          style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.7 }]}
           onPress={() => router.back()}
-          style={({ pressed }) => [styles.navBack, { opacity: pressed ? 0.6 : 1 }]}
         >
-          <IconSymbol name="chevron.left" size={18} color={colors.foreground} />
-          <Text style={[styles.navBackText, { color: colors.foreground }]}>Back</Text>
+          <IconSymbol name="chevron.left" size={20} color={TEXT_PRIMARY} />
+          <Text style={styles.backText}>Back</Text>
         </Pressable>
-        <Text style={[styles.navTitle, { color: colors.foreground }]}>Edit Profile</Text>
+        <Text style={styles.headerTitle}>Edit Profile</Text>
+        {/* Save button in header (right side) */}
         <Pressable
           onPress={handleSave}
           disabled={saving || uploading}
-          style={({ pressed }) => [styles.navSave, { opacity: pressed || saving || uploading ? 0.6 : 1 }]}
+          style={({ pressed }) => [styles.headerSaveBtn, (pressed || saving || uploading) && { opacity: 0.7 }]}
         >
           {saving || uploading ? (
-            <ActivityIndicator size="small" color="#8B5CF6" />
+            <ActivityIndicator size="small" color={GREEN_ACCENT} />
           ) : (
-            <Text style={styles.navSaveText}>Save</Text>
+            <Text style={styles.headerSaveText}>Save</Text>
           )}
         </Pressable>
       </View>
@@ -217,26 +232,24 @@ export default function ClientEditProfileScreen() {
         keyboardVerticalOffset={0}
       >
         <ScrollView
-          contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 32 }]}
+          contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 40 }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Profile Photo */}
+          {/* ── Profile Photo ─────────────────────────────────────────────── */}
           <View style={styles.photoSection}>
             <View style={styles.photoWrap}>
               {photoUri ? (
                 <Image source={{ uri: photoUri }} style={styles.photoImage} />
               ) : (
-                <View style={[styles.photoPlaceholder, { backgroundColor: "#8B5CF620", borderColor: "#8B5CF640" }]}>
-                  <Text style={[styles.photoInitial, { color: "#8B5CF6" }]}>
-                    {(account.name ?? "?").charAt(0).toUpperCase()}
-                  </Text>
+                <View style={styles.photoPlaceholder}>
+                  <Text style={styles.photoInitial}>{initials}</Text>
                 </View>
               )}
               {/* Camera badge */}
               <Pressable
                 onPress={handlePickPhoto}
-                style={({ pressed }) => [styles.cameraBadge, { opacity: pressed ? 0.8 : 1 }]}
+                style={({ pressed }) => [styles.cameraBadge, pressed && { opacity: 0.8 }]}
               >
                 <Text style={{ fontSize: 14 }}>📷</Text>
               </Pressable>
@@ -245,32 +258,39 @@ export default function ClientEditProfileScreen() {
             <View style={styles.photoBtns}>
               <Pressable
                 onPress={handlePickPhoto}
-                style={({ pressed }) => [styles.photoChangeBtn, { borderColor: "#8B5CF6", opacity: pressed ? 0.7 : 1 }]}
+                style={({ pressed }) => [styles.photoChangeBtn, pressed && { opacity: 0.7 }]}
               >
-                <Text style={[styles.photoChangeBtnText, { color: "#8B5CF6" }]}>Change Photo</Text>
+                <Text style={styles.photoChangeBtnText}>Change Photo</Text>
               </Pressable>
               {photoUri && (
                 <Pressable
                   onPress={handleRemovePhoto}
-                  style={({ pressed }) => [styles.photoRemoveBtn, { opacity: pressed ? 0.7 : 1 }]}
+                  style={({ pressed }) => [styles.photoRemoveBtn, pressed && { opacity: 0.7 }]}
                 >
-                  <Text style={[styles.photoRemoveBtnText, { color: colors.error }]}>Remove</Text>
+                  <Text style={styles.photoRemoveBtnText}>Remove</Text>
                 </Pressable>
               )}
             </View>
           </View>
 
-          {/* Form Card */}
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {/* ── Form ──────────────────────────────────────────────────────── */}
+          <View style={styles.card}>
             {/* Full Name */}
             <View style={styles.fieldGroup}>
-              <Text style={[styles.fieldLabel, { color: colors.muted }]}>FULL NAME <Text style={{ color: colors.error }}>*</Text></Text>
+              <Text style={styles.fieldLabel}>
+                FULL NAME <Text style={styles.required}>*</Text>
+              </Text>
               <TextInput
-                style={[styles.input, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.background }]}
+                style={[
+                  styles.input,
+                  focusedField === "name" && styles.inputFocused,
+                ]}
                 placeholder="e.g. Jane Smith"
-                placeholderTextColor={colors.muted}
+                placeholderTextColor={TEXT_MUTED}
                 value={name}
                 onChangeText={(t) => { setName(t); setError(""); }}
+                onFocus={() => setFocusedField("name")}
+                onBlur={() => setFocusedField(null)}
                 returnKeyType="next"
                 onSubmitEditing={() => emailRef.current?.focus()}
                 autoCapitalize="words"
@@ -278,76 +298,92 @@ export default function ClientEditProfileScreen() {
               />
             </View>
 
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            <View style={styles.divider} />
 
             {/* Phone (read-only) */}
             <View style={styles.fieldGroup}>
-              <Text style={[styles.fieldLabel, { color: colors.muted }]}>PHONE NUMBER</Text>
-              <View style={[styles.input, styles.inputReadOnly, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-                <Text style={[styles.inputReadOnlyText, { color: colors.foreground }]}>
+              <Text style={styles.fieldLabel}>PHONE NUMBER</Text>
+              <View style={[styles.input, styles.inputReadOnly]}>
+                <Text style={styles.inputReadOnlyText}>
                   {formatPhoneDisplay(account.phone)}
                 </Text>
-                <View style={[styles.verifiedBadge, { backgroundColor: colors.success + "20" }]}>
-                  <Text style={[styles.verifiedText, { color: colors.success }]}>✓ Verified</Text>
+                <View style={styles.verifiedBadge}>
+                  <Text style={styles.verifiedText}>✓ Verified</Text>
                 </View>
               </View>
-              <Text style={[styles.fieldHint, { color: colors.muted }]}>Phone number cannot be changed here</Text>
+              <Text style={styles.fieldHint}>Phone number cannot be changed here</Text>
             </View>
 
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            <View style={styles.divider} />
 
             {/* Email */}
             <View style={styles.fieldGroup}>
-              <Text style={[styles.fieldLabel, { color: colors.muted }]}>EMAIL <Text style={[styles.optional, { color: colors.muted }]}>(optional)</Text></Text>
+              <Text style={styles.fieldLabel}>
+                EMAIL <Text style={styles.optional}>(optional)</Text>
+              </Text>
               <TextInput
                 ref={emailRef}
-                style={[styles.input, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.background }]}
+                style={[
+                  styles.input,
+                  focusedField === "email" && styles.inputFocused,
+                ]}
                 placeholder="you@example.com"
-                placeholderTextColor={colors.muted}
+                placeholderTextColor={TEXT_MUTED}
                 value={email}
                 onChangeText={(t) => { setEmail(t); setError(""); }}
+                onFocus={() => setFocusedField("email")}
+                onBlur={() => setFocusedField(null)}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
                 returnKeyType="next"
+                onSubmitEditing={() => birthdayRef.current?.focus()}
               />
             </View>
 
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            <View style={styles.divider} />
 
             {/* Birthday */}
             <View style={styles.fieldGroup}>
-              <Text style={[styles.fieldLabel, { color: colors.muted }]}>BIRTHDAY <Text style={[styles.optional, { color: colors.muted }]}>(optional)</Text></Text>
+              <Text style={styles.fieldLabel}>
+                BIRTHDAY <Text style={styles.optional}>(optional)</Text>
+              </Text>
               <TextInput
-                style={[styles.input, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.background }]}
+                ref={birthdayRef}
+                style={[
+                  styles.input,
+                  focusedField === "birthday" && styles.inputFocused,
+                ]}
                 placeholder="MM/DD  (e.g. 03/15)"
-                placeholderTextColor={colors.muted}
+                placeholderTextColor={TEXT_MUTED}
                 value={birthday}
                 onChangeText={(t) => { setBirthday(formatBirthday(t)); setError(""); }}
+                onFocus={() => setFocusedField("birthday")}
+                onBlur={() => setFocusedField(null)}
                 keyboardType="number-pad"
                 maxLength={5}
                 returnKeyType="done"
               />
-              <Text style={[styles.fieldHint, { color: colors.muted }]}>
+              <Text style={styles.fieldHint}>
                 Businesses may send you birthday discounts
               </Text>
             </View>
           </View>
 
-          {/* Error */}
+          {/* ── Error ─────────────────────────────────────────────────────── */}
           {error ? (
-            <View style={[styles.errorBanner, { backgroundColor: colors.error + "15", borderColor: colors.error + "40" }]}>
-              <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorText}>{error}</Text>
             </View>
           ) : null}
 
-          {/* Save Button */}
+          {/* ── Save Button ───────────────────────────────────────────────── */}
           <Pressable
             onPress={handleSave}
             disabled={saving || uploading}
             style={({ pressed }) => [
               styles.saveBtn,
-              { opacity: pressed || saving || uploading ? 0.85 : 1 },
+              (pressed || saving || uploading) && { opacity: 0.85 },
             ]}
           >
             {saving || uploading ? (
@@ -358,52 +394,57 @@ export default function ClientEditProfileScreen() {
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
-    </ScreenContainer>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  navBar: {
+  // ─── Header ─────────────────────────────────────────────────────────────────
+  header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 0.5,
+    paddingBottom: 12,
   },
-  navBack: {
+  backBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
     minWidth: 64,
   },
-  navBackText: {
+  backText: {
     fontSize: 16,
+    color: TEXT_PRIMARY,
     fontWeight: "500",
   },
-  navTitle: {
+  headerTitle: {
     fontSize: 17,
     fontWeight: "700",
+    color: TEXT_PRIMARY,
   },
-  navSave: {
+  headerSaveBtn: {
     minWidth: 64,
     alignItems: "flex-end",
+    justifyContent: "center",
   },
-  navSaveText: {
+  headerSaveText: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#8B5CF6",
+    color: GREEN_ACCENT,
   },
+  // ─── Scroll ──────────────────────────────────────────────────────────────────
   scroll: {
     flexGrow: 1,
     paddingHorizontal: 16,
-    paddingTop: 24,
+    paddingTop: 8,
     gap: 16,
   },
-  // ─── Photo ──────────────────────────────────────────────────────────────────
+  // ─── Photo ───────────────────────────────────────────────────────────────────
   photoSection: {
     alignItems: "center",
     gap: 14,
+    paddingVertical: 8,
   },
   photoWrap: {
     position: "relative",
@@ -415,7 +456,7 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 50,
     borderWidth: 2.5,
-    borderColor: "#8B5CF6",
+    borderColor: GREEN_ACCENT,
   },
   photoPlaceholder: {
     width: 100,
@@ -423,12 +464,15 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     borderWidth: 2,
     borderStyle: "dashed",
+    borderColor: "rgba(143,191,106,0.5)",
+    backgroundColor: "rgba(143,191,106,0.12)",
     alignItems: "center",
     justifyContent: "center",
   },
   photoInitial: {
     fontSize: 36,
     fontWeight: "700",
+    color: GREEN_ACCENT,
   },
   cameraBadge: {
     position: "absolute",
@@ -437,11 +481,11 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: "#8B5CF6",
+    backgroundColor: GREEN_ACCENT,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
-    borderColor: "#FFFFFF",
+    borderColor: GREEN_DARK,
   },
   photoBtns: {
     flexDirection: "row",
@@ -453,10 +497,12 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 18,
     paddingVertical: 8,
+    borderColor: GREEN_ACCENT,
   },
   photoChangeBtnText: {
     fontSize: 14,
     fontWeight: "600",
+    color: GREEN_ACCENT,
   },
   photoRemoveBtn: {
     paddingHorizontal: 12,
@@ -465,11 +511,14 @@ const styles = StyleSheet.create({
   photoRemoveBtnText: {
     fontSize: 14,
     fontWeight: "500",
+    color: "rgba(255,100,100,0.85)",
   },
-  // ─── Form ───────────────────────────────────────────────────────────────────
+  // ─── Form Card ───────────────────────────────────────────────────────────────
   card: {
+    backgroundColor: CARD_BG,
     borderRadius: 16,
     borderWidth: 1,
+    borderColor: CARD_BORDER,
     overflow: "hidden",
     paddingVertical: 4,
   },
@@ -482,13 +531,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.8,
+    color: TEXT_MUTED,
     textTransform: "uppercase",
+  },
+  required: {
+    color: "rgba(255,100,100,0.85)",
+    fontWeight: "700",
   },
   optional: {
     fontWeight: "400",
     textTransform: "none",
     letterSpacing: 0,
     fontSize: 11,
+    color: TEXT_MUTED,
   },
   input: {
     height: 48,
@@ -496,61 +551,77 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 14,
     fontSize: 16,
+    color: TEXT_PRIMARY,
+    backgroundColor: INPUT_BG,
+    borderColor: INPUT_BORDER,
+  },
+  inputFocused: {
+    borderColor: INPUT_FOCUSED_BORDER,
+    backgroundColor: "rgba(143,191,106,0.06)",
   },
   inputReadOnly: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    opacity: 0.75,
   },
   inputReadOnlyText: {
     fontSize: 16,
     fontWeight: "500",
+    color: TEXT_PRIMARY,
   },
   verifiedBadge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 10,
+    backgroundColor: "rgba(143,191,106,0.15)",
   },
   verifiedText: {
     fontSize: 11,
     fontWeight: "700",
+    color: GREEN_ACCENT,
   },
   fieldHint: {
     fontSize: 12,
     lineHeight: 16,
+    color: TEXT_MUTED,
   },
   divider: {
     height: 1,
+    backgroundColor: CARD_BORDER,
     marginHorizontal: 16,
   },
-  // ─── Error ──────────────────────────────────────────────────────────────────
+  // ─── Error ───────────────────────────────────────────────────────────────────
   errorBanner: {
     borderRadius: 12,
     borderWidth: 1,
     padding: 12,
+    backgroundColor: "rgba(255,80,80,0.12)",
+    borderColor: "rgba(255,80,80,0.3)",
   },
   errorText: {
     fontSize: 13,
     fontWeight: "500",
     textAlign: "center",
+    color: "rgba(255,130,130,1)",
   },
   // ─── Save Button ─────────────────────────────────────────────────────────────
   saveBtn: {
     height: 54,
-    backgroundColor: "#8B5CF6",
+    backgroundColor: GREEN_ACCENT,
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#8B5CF6",
+    shadowColor: GREEN_ACCENT,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.35,
     shadowRadius: 10,
     elevation: 6,
   },
   saveBtnText: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#1A3A28",
     letterSpacing: 0.2,
   },
 });
