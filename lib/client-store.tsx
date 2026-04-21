@@ -7,6 +7,7 @@
 
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getApiBaseUrl } from "@/constants/oauth";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -191,7 +192,8 @@ const ClientStoreContext = createContext<ClientStoreContextValue | null>(null);
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? "http://127.0.0.1:3000";
+// Use the same dynamic base URL as the rest of the app (works on native + web)
+const API_BASE = getApiBaseUrl();
 
 export function ClientStoreProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(clientReducer, initialState);

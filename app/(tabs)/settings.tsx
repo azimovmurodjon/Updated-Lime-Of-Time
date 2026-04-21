@@ -130,7 +130,11 @@ export default function SettingsScreen() {
           } catch {}
           try { await removeSessionToken(); } catch {}
           try { await clearUserInfo(); } catch {}
-          router.replace("/onboarding");
+          // Dismiss all screens in the stack (pops back to root) then replace
+          // with profile-select so the business dashboard is fully unmounted
+          // and cannot bleed through when the user switches to the client portal.
+          try { router.dismissAll(); } catch {}
+          router.replace("/profile-select" as any);
         },
       },
     ]);

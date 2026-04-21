@@ -53,13 +53,15 @@ export default function TabLayout() {
   const [unreadMessages, setUnreadMessages] = useState(0);
 
   const fetchUnreadCount = useCallback(async () => {
+    // Only poll when the business user is authenticated
+    if (!state.businessOwnerId) return;
     try {
       const data = await apiCall<{ count: number }>("/api/business/messages/unread-count");
       setUnreadMessages(data.count ?? 0);
     } catch {
       // non-blocking — badge just won't show if request fails
     }
-  }, []);
+  }, [state.businessOwnerId]);
 
   // Poll every 60 seconds while the tab bar is mounted
   useEffect(() => {

@@ -84,7 +84,8 @@ export default function ClientProfileScreen() {
             if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
             setSigningOut(true);
             await signOut();
-            router.replace("/(client-tabs)" as any);
+            try { router.dismissAll(); } catch {}
+            router.replace("/profile-select" as any);
           },
         },
       ]

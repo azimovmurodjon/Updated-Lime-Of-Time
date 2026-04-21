@@ -25,7 +25,7 @@ import {
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { setProfileMode, useClientStore } from "@/lib/client-store";
-import { startOAuthLogin } from "@/constants/oauth";
+import { startOAuthLogin, getApiBaseUrl } from "@/constants/oauth";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { LinearGradient } from "expo-linear-gradient";
 import { CountryCodePicker, DEFAULT_COUNTRY, type Country } from "@/components/country-code-picker";
@@ -44,7 +44,7 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import * as Haptics from "expo-haptics";
 
 const { width, height } = Dimensions.get("window");
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? "http://127.0.0.1:3000";
+const API_BASE = getApiBaseUrl();
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatPhoneUS(raw: string): string {

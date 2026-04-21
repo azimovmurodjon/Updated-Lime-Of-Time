@@ -1802,3 +1802,8 @@
 - [x] Make profile-select the first screen shown after splash screen on every launch
 - [x] Remove OTP verification step from Client Portal sign-in (phone number entry kept, signs in directly)
 - [x] Fix goBack in client-signin to not reference removed otp step
+## Bug Fixes Apr 21 2026 (Session 5)
+- [x] Fix client sign-in "Network request failed" on native — replace hardcoded API_BASE (127.0.0.1:3000) with getApiBaseUrl() in client-signin.tsx and client-store.tsx
+- [x] Fix business session persisting after logout — unread-count polling now checks businessOwnerId before making API call; stops polling when logged out
+- [x] Fix business dashboard visible behind client portal — (tabs) and (client-tabs) now use fullScreenModal presentation; logout uses router.dismissAll() + router.replace("/profile-select")
+- [x] Fix client portal sign-out to navigate to profile-select (not back to client tabs)

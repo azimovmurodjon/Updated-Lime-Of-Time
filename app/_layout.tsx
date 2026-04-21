@@ -134,7 +134,7 @@ function RootLayout() {
             {/* If a screen needs the native header, explicitly enable it and set a human title via Stack.Screen options. */}
             {/* in order for ios apps tab switching to work properly, use presentation: "fullScreenModal" for login page, whenever you decide to use presentation: "modal*/}
             <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="(tabs)" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="new-booking" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="appointment-detail" options={{ presentation: "card" }} />
               <Stack.Screen name="client-detail" options={{ presentation: "card" }} />
@@ -164,7 +164,7 @@ function RootLayout() {
               {/* Client Portal Screens */}
               <Stack.Screen name="profile-select" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="client-signin" options={{ presentation: "fullScreenModal" }} />
-              <Stack.Screen name="(client-tabs)" />
+              <Stack.Screen name="(client-tabs)" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="client-business-detail" options={{ presentation: "card" }} />
               <Stack.Screen name="client-booking-wizard" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="client-appointment-detail" options={{ presentation: "card" }} />
