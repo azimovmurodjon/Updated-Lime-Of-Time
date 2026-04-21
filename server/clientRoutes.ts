@@ -1,0 +1,550 @@
+/**
+ * Client Portal REST API Routes
+ *
+ * All routes under /api/client/* require authentication via the existing
+ * Manus session token (same JWT used by the business owner side).
+ *
+ * The client account is identified by the user's openId from the session.
+ * On first access, a clientAccount is auto-created for the authenticated user.
+ */
+import { Express, Request, Response } from "express";
+import * as db from "./db";
+import { sdk } from "./_core/sdk";
+import { sendExpoPush } from "./push";
+
+// ─── Auth helper ─────────────────────────────────────────────────────────────
+
+async function getClientAccount(req: Request): Promise<{ clientAccount: Awaited<ReturnType<typeof db.getClientAccountById>>; user: Awaited<ReturnType<typeof db.getUserByOpenId>> }> {
+  const user = await sdk.authenticateRequest(req);
+  if (!user) throw new Error("Unauthorized");
+
+  // Look up client account by openId stored in the accounts table
+  // We use email as the link key (openId is stored in users table)
+  const dbUser = await db.getUserByOpenId(user.openId);
+  if (!dbUser) throw new Error("User not found");
+
+  // Find or create client account linked to this user's openId
+  // We store openId in the phone field prefixed with "oauth:" for OAuth users
+  // who haven't yet provided a phone number
+  const oauthKey = `oauth:${user.openId}`;
+  let clientAccount = await db.getClientAccountByPhone(oauthKey);
+  if (!clientAccount) {
+    // Auto-create on first access
+    clientAccount = await db.upsertClientAccount({
+      phone: oauthKey,
+      name: dbUser.name ?? user.name ?? null,
+      email: dbUser.email ?? user.email ?? null,
+    });
+  }
+  return { clientAccount, user: dbUser };
+}
+
+// ─── Geocoding helper (Nominatim, free, no API key) ──────────────────────────
+
+async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const encoded = encodeURIComponent(address);
+    const url = `https://nominatim.openstreetmap.org/search?q=${encoded}&format=json&limit=1`;
+    const res = await fetch(url, { headers: { "User-Agent": "LimeOfTime/1.0" } });
+    const data = (await res.json()) as { lat: string; lon: string }[];
+    if (data.length === 0) return null;
+    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+  } catch {
+    return null;
+  }
+}
+
+// ─── Distance helper (Haversine formula) ─────────────────────────────────────
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// ─── Route registration ───────────────────────────────────────────────────────
+
+export function registerClientRoutes(app: Express) {
+  // ── Profile ──────────────────────────────────────────────────────────────
+
+  /** GET /api/client/profile — get or auto-create client account */
+  app.get("/api/client/profile", async (req: Request, res: Response) => {
+    try {
+      const { clientAccount } = await getClientAccount(req);
+      res.json({ clientAccount });
+    } catch (err: any) {
+      res.status(401).json({ error: err.message });
+    }
+  });
+
+  /** PATCH /api/client/profile — update name, phone, email, birthday, expoPushToken, preferredRadius, themeMode */
+  app.patch("/api/client/profile", async (req: Request, res: Response) => {
+    try {
+      const { clientAccount } = await getClientAccount(req);
+      const { name, phone, email, birthday, expoPushToken, preferredRadius, themeMode, notificationPreferences } = req.body;
+
+      // If user is providing a real phone number, update the primary key
+      if (phone && !phone.startsWith("oauth:")) {
+        // Check if a clientAccount with this phone already exists
+        const existing = await db.getClientAccountByPhone(phone);
+        if (existing && existing.id !== clientAccount!.id) {
+          // Merge: update existing account, delete the oauth: one
+          await db.updateClientAccount(existing.id, {
+            name: name ?? existing.name,
+            email: email ?? existing.email,
+            birthday: birthday ?? existing.birthday,
+            expoPushToken: expoPushToken ?? existing.expoPushToken,
+            preferredRadius: preferredRadius ?? existing.preferredRadius,
+            themeMode: themeMode ?? existing.themeMode,
+          });
+          res.json({ clientAccount: await db.getClientAccountById(existing.id) });
+          return;
+        }
+        // Update phone on current account
+        await db.updateClientAccount(clientAccount!.id, { phone });
+      }
+
+      await db.updateClientAccount(clientAccount!.id, {
+        ...(name !== undefined && { name }),
+        ...(email !== undefined && { email }),
+        ...(birthday !== undefined && { birthday }),
+        ...(expoPushToken !== undefined && { expoPushToken }),
+        ...(preferredRadius !== undefined && { preferredRadius }),
+        ...(themeMode !== undefined && { themeMode }),
+        ...(notificationPreferences !== undefined && { notificationPreferences }),
+      });
+      res.json({ clientAccount: await db.getClientAccountById(clientAccount!.id) });
+    } catch (err: any) {
+      res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
+    }
+  });
+
+  // ── Discovery ─────────────────────────────────────────────────────────────
+
+  /**
+   * GET /api/client/businesses/discover
+   * Query params: lat, lng, radiusMiles (default 25), category, search, page (default 0)
+   */
+  app.get("/api/client/businesses/discover", async (req: Request, res: Response) => {
+    try {
+      const clientLat = req.query.lat ? parseFloat(req.query.lat as string) : null;
+      const clientLng = req.query.lng ? parseFloat(req.query.lng as string) : null;
+      const radiusMiles = parseFloat((req.query.radiusMiles as string) ?? "25");
+      const radiusKm = radiusMiles * 1.60934;
+      const category = (req.query.category as string) ?? "";
+      const search = ((req.query.search as string) ?? "").toLowerCase();
+
+      const businesses = await db.getDiscoverableBusinesses();
+
+      const results = businesses
+        .filter((b) => {
+          if (category && b.businessCategory !== category) return false;
+          if (search && !b.businessName.toLowerCase().includes(search) && !(b.description ?? "").toLowerCase().includes(search)) return false;
+          return true;
+        })
+        .map((b) => {
+          let distanceKm: number | null = null;
+          if (clientLat !== null && clientLng !== null && b.lat && b.lng) {
+            distanceKm = haversineKm(clientLat, clientLng, parseFloat(b.lat as string), parseFloat(b.lng as string));
+          }
+          return { ...b, distanceKm };
+        })
+        .filter((b) => {
+          if (clientLat !== null && b.distanceKm !== null) {
+            return b.distanceKm <= radiusKm;
+          }
+          return true;
+        })
+        .sort((a, b) => {
+          if (a.distanceKm !== null && b.distanceKm !== null) return a.distanceKm - b.distanceKm;
+          return 0;
+        });
+
+      res.json({ businesses: results });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  /**
+   * GET /api/client/businesses/:slug — full business detail for client portal
+   */
+  app.get("/api/client/businesses/:slug", async (req: Request, res: Response) => {
+    try {
+      const { slug } = req.params;
+      const owner = await db.getBusinessOwnerBySlug(slug);
+      if (!owner) {
+        res.status(404).json({ error: "Business not found" });
+        return;
+      }
+      const [services, staff, reviews, locations, servicePhotos] = await Promise.all([
+        db.getServices(owner.id),
+        db.getStaffMembers(owner.id),
+        db.getReviews(owner.id),
+        db.getLocations(owner.id),
+        db.getServicePhotos(owner.id),
+      ]);
+      res.json({ owner, services, staff, reviews, locations, servicePhotos });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── Geocode (owner-side: geocode their address and store lat/lng) ─────────
+
+  /** POST /api/client/geocode — geocode an address, returns { lat, lng } */
+  app.post("/api/client/geocode", async (req: Request, res: Response) => {
+    try {
+      const { address } = req.body;
+      if (!address) {
+        res.status(400).json({ error: "address required" });
+        return;
+      }
+      const coords = await geocodeAddress(address);
+      res.json({ coords });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── Appointments ──────────────────────────────────────────────────────────
+
+  /**
+   * GET /api/client/appointments
+   * Returns all appointments where clientPhone matches the client's phone number
+   */
+  app.get("/api/client/appointments", async (req: Request, res: Response) => {
+    try {
+      const { clientAccount } = await getClientAccount(req);
+      const phone = clientAccount!.phone.startsWith("oauth:") ? clientAccount!.email : clientAccount!.phone;
+      if (!phone) {
+        res.json({ appointments: [] });
+        return;
+      }
+      // Get all appointments for this phone number across all businesses
+      const appointments = await db.getAppointmentsByClientPhone(phone);
+      res.json({ appointments });
+    } catch (err: any) {
+      res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
+    }
+  });
+
+  // ── Messages ──────────────────────────────────────────────────────────────
+
+  /** GET /api/client/messages — inbox: list of conversations with businesses */
+  app.get("/api/client/messages", async (req: Request, res: Response) => {
+    try {
+      const { clientAccount } = await getClientAccount(req);
+      const inbox = await db.getClientMessageInbox(clientAccount!.id);
+
+      // Enrich with business info
+      const enriched = await Promise.all(
+        inbox.map(async (item) => {
+          const business = await db.getBusinessOwnerById(item.businessOwnerId);
+          return {
+            ...item,
+            businessName: business?.businessName ?? "Unknown",
+            businessLogoUri: business?.businessLogoUri ?? null,
+            businessSlug: business?.customSlug ?? business?.businessName?.toLowerCase().replace(/\s+/g, "-") ?? "",
+          };
+        })
+      );
+      res.json({ inbox: enriched });
+    } catch (err: any) {
+      res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
+    }
+  });
+
+  /** GET /api/client/messages/:businessOwnerId — full thread with a business */
+  app.get("/api/client/messages/:businessOwnerId", async (req: Request, res: Response) => {
+    try {
+      const { clientAccount } = await getClientAccount(req);
+      const businessOwnerId = parseInt(req.params.businessOwnerId);
+      const messages = await db.getClientMessages(businessOwnerId, clientAccount!.id);
+      // Mark business messages as read
+      await db.markClientMessagesRead(businessOwnerId, clientAccount!.id, "business");
+      res.json({ messages });
+    } catch (err: any) {
+      res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
+    }
+  });
+
+  /** POST /api/client/messages/:businessOwnerId — send a message to a business */
+  app.post("/api/client/messages/:businessOwnerId", async (req: Request, res: Response) => {
+    try {
+      const { clientAccount } = await getClientAccount(req);
+      const businessOwnerId = parseInt(req.params.businessOwnerId);
+      const { body } = req.body;
+      if (!body?.trim()) {
+        res.status(400).json({ error: "Message body required" });
+        return;
+      }
+      const message = await db.insertClientMessage({
+        businessOwnerId,
+        clientAccountId: clientAccount!.id,
+        senderType: "client",
+        body: body.trim(),
+      });
+
+      // Push notification to business owner
+      const owner = await db.getBusinessOwnerById(businessOwnerId);
+      if (owner?.expoPushToken) {
+        await sendExpoPush(owner.expoPushToken, {
+          title: `New message from ${clientAccount!.name ?? "a client"}`,
+          body: body.trim().slice(0, 100),
+          data: { type: "client_message", clientAccountId: clientAccount!.id },
+        });
+      }
+
+      res.json({ message });
+    } catch (err: any) {
+      res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
+    }
+  });
+
+  // ── Business-side: read messages from client portal ───────────────────────
+
+  /** GET /api/business/messages — inbox: list of client conversations (authenticated as business owner) */
+  app.get("/api/business/messages", async (req: Request, res: Response) => {
+    try {
+      const user = await sdk.authenticateRequest(req);
+      const owner = await db.getBusinessOwnerByOpenId(user.openId);
+      if (!owner) {
+        res.status(404).json({ error: "Business owner not found" });
+        return;
+      }
+      const inbox = await db.getBusinessMessageInbox(owner.id);
+      // Enrich with client info
+      const enriched = await Promise.all(
+        inbox.map(async (item) => {
+          const client = await db.getClientAccountById(item.clientAccountId);
+          return {
+            ...item,
+            clientName: client?.name ?? "Client",
+            clientPhone: client?.phone?.startsWith("oauth:") ? null : client?.phone,
+          };
+        })
+      );
+      res.json({ inbox: enriched });
+    } catch (err: any) {
+      res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
+    }
+  });
+
+  /** GET /api/business/messages/:clientAccountId — full thread with a client */
+  app.get("/api/business/messages/:clientAccountId", async (req: Request, res: Response) => {
+    try {
+      const user = await sdk.authenticateRequest(req);
+      const owner = await db.getBusinessOwnerByOpenId(user.openId);
+      if (!owner) {
+        res.status(404).json({ error: "Business owner not found" });
+        return;
+      }
+      const clientAccountId = parseInt(req.params.clientAccountId);
+      const messages = await db.getClientMessages(owner.id, clientAccountId);
+      // Mark client messages as read
+      await db.markClientMessagesRead(owner.id, clientAccountId, "client");
+      res.json({ messages });
+    } catch (err: any) {
+      res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
+    }
+  });
+
+  /** POST /api/business/messages/:clientAccountId — business sends a message to client */
+  app.post("/api/business/messages/:clientAccountId", async (req: Request, res: Response) => {
+    try {
+      const user = await sdk.authenticateRequest(req);
+      const owner = await db.getBusinessOwnerByOpenId(user.openId);
+      if (!owner) {
+        res.status(404).json({ error: "Business owner not found" });
+        return;
+      }
+      const clientAccountId = parseInt(req.params.clientAccountId);
+      const { body } = req.body;
+      if (!body?.trim()) {
+        res.status(400).json({ error: "Message body required" });
+        return;
+      }
+      const message = await db.insertClientMessage({
+        businessOwnerId: owner.id,
+        clientAccountId,
+        senderType: "business",
+        body: body.trim(),
+      });
+
+      // Push notification to client
+      const client = await db.getClientAccountById(clientAccountId);
+      if (client?.expoPushToken) {
+        await sendExpoPush(client.expoPushToken, {
+          title: `Message from ${owner.businessName}`,
+          body: body.trim().slice(0, 100),
+          data: { type: "business_message", businessOwnerId: owner.id },
+        });
+      }
+
+      res.json({ message });
+    } catch (err: any) {
+      res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
+    }
+  });
+
+  // ── Saved Businesses ──────────────────────────────────────────────────────
+
+  /** GET /api/client/saved — list saved business IDs */
+  app.get("/api/client/saved", async (req: Request, res: Response) => {
+    try {
+      const { clientAccount } = await getClientAccount(req);
+      const savedIds = await db.getSavedBusinesses(clientAccount!.id);
+      res.json({ savedIds });
+    } catch (err: any) {
+      res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
+    }
+  });
+
+  /** POST /api/client/saved/:businessOwnerId — save a business */
+  app.post("/api/client/saved/:businessOwnerId", async (req: Request, res: Response) => {
+    try {
+      const { clientAccount } = await getClientAccount(req);
+      const businessOwnerId = parseInt(req.params.businessOwnerId);
+      await db.saveBusinessForClient(clientAccount!.id, businessOwnerId);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
+    }
+  });
+
+  /** DELETE /api/client/saved/:businessOwnerId — unsave a business */
+  app.delete("/api/client/saved/:businessOwnerId", async (req: Request, res: Response) => {
+    try {
+      const { clientAccount } = await getClientAccount(req);
+      const businessOwnerId = parseInt(req.params.businessOwnerId);
+      await db.unsaveBusinessForClient(clientAccount!.id, businessOwnerId);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
+    }
+  });
+
+  // ── Service Photos ────────────────────────────────────────────────────────
+
+  /** GET /api/public/service-photos/:slug — public: get service photos for a business */
+  app.get("/api/public/service-photos/:slug", async (req: Request, res: Response) => {
+    try {
+      const owner = await db.getBusinessOwnerBySlug(req.params.slug);
+      if (!owner) {
+        res.status(404).json({ error: "Business not found" });
+        return;
+      }
+      const { serviceLocalId } = req.query;
+      const photos = await db.getServicePhotos(owner.id, serviceLocalId as string | undefined);
+      res.json({ photos });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  /** POST /api/business/service-photos — owner uploads a service photo */
+  app.post("/api/business/service-photos", async (req: Request, res: Response) => {
+    try {
+      const user = await sdk.authenticateRequest(req);
+      const owner = await db.getBusinessOwnerByOpenId(user.openId);
+      if (!owner) {
+        res.status(404).json({ error: "Business owner not found" });
+        return;
+      }
+      const { serviceLocalId, uri, label, note, sortOrder } = req.body;
+      if (!serviceLocalId || !uri) {
+        res.status(400).json({ error: "serviceLocalId and uri required" });
+        return;
+      }
+      const photo = await db.insertServicePhoto({
+        businessOwnerId: owner.id,
+        serviceLocalId,
+        uri,
+        label: label ?? "other",
+        note: note ?? null,
+        sortOrder: sortOrder ?? 0,
+      });
+      res.json({ photo });
+    } catch (err: any) {
+      res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
+    }
+  });
+
+  /** DELETE /api/business/service-photos/:id — owner deletes a service photo */
+  app.delete("/api/business/service-photos/:id", async (req: Request, res: Response) => {
+    try {
+      const user = await sdk.authenticateRequest(req);
+      const owner = await db.getBusinessOwnerByOpenId(user.openId);
+      if (!owner) {
+        res.status(404).json({ error: "Business owner not found" });
+        return;
+      }
+      await db.deleteServicePhoto(parseInt(req.params.id), owner.id);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
+    }
+  });
+
+  // ── Business Portal Visibility Toggle ────────────────────────────────────
+
+  /** POST /api/business/portal-visibility — toggle clientPortalVisible + geocode address */
+  app.post("/api/business/portal-visibility", async (req: Request, res: Response) => {
+    try {
+      const user = await sdk.authenticateRequest(req);
+      const owner = await db.getBusinessOwnerByOpenId(user.openId);
+      if (!owner) {
+        res.status(404).json({ error: "Business owner not found" });
+        return;
+      }
+      const { visible, businessCategory } = req.body;
+
+      let lat = owner.lat;
+      let lng = owner.lng;
+
+      // Auto-geocode if enabling and no coords yet
+      if (visible && (!lat || !lng) && owner.address) {
+        const coords = await geocodeAddress(owner.address);
+        if (coords) {
+          lat = coords.lat as any;
+          lng = coords.lng as any;
+        }
+      }
+
+      await db.updateBusinessOwner(owner.id, {
+        clientPortalVisible: visible ?? owner.clientPortalVisible,
+        businessCategory: businessCategory ?? owner.businessCategory,
+        lat: lat as any,
+        lng: lng as any,
+      });
+
+      res.json({ success: true, lat, lng });
+    } catch (err: any) {
+      res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
+    }
+  });
+
+  // ── Unread message count (for business app badge) ─────────────────────────
+
+  /** GET /api/business/messages/unread-count */
+  app.get("/api/business/messages/unread-count", async (req: Request, res: Response) => {
+    try {
+      const user = await sdk.authenticateRequest(req);
+      const owner = await db.getBusinessOwnerByOpenId(user.openId);
+      if (!owner) {
+        res.json({ count: 0 });
+        return;
+      }
+      const inbox = await db.getBusinessMessageInbox(owner.id);
+      const total = inbox.reduce((sum, item) => sum + item.unreadCount, 0);
+      res.json({ count: total });
+    } catch {
+      res.json({ count: 0 });
+    }
+  });
+}

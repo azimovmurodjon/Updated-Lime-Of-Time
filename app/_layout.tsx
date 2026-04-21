@@ -20,6 +20,7 @@ import type { EdgeInsets, Metrics, Rect } from "react-native-safe-area-context";
 import { trpc, createTRPCClient } from "@/lib/trpc";
 import { initManusRuntime, subscribeSafeAreaInsets } from "@/lib/_core/manus-runtime";
 import { StoreProvider } from "@/lib/store";
+import { ClientStoreProvider } from "@/lib/client-store";
 import { AppLockProvider } from "@/lib/app-lock-provider";
 import { NotificationProvider } from "@/lib/notification-provider";
 import { initSentry, withSentryWrapper } from "@/lib/sentry";
@@ -107,6 +108,7 @@ function RootLayout() {
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
           <StoreProvider>
+            <ClientStoreProvider>
             <AppLockProvider>
             <NotificationProvider>
             {/* Default to hiding native headers so raw route segments don't appear (e.g. "(tabs)", "products/[id]"). */}
@@ -140,10 +142,20 @@ function RootLayout() {
               <Stack.Screen name="staff-calendar" options={{ presentation: "card" }} />
               <Stack.Screen name="product-form" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="sms-templates" options={{ presentation: "card" }} />
+              {/* Client Portal Screens */}
+              <Stack.Screen name="profile-select" options={{ presentation: "fullScreenModal" }} />
+              <Stack.Screen name="client-signin" options={{ presentation: "fullScreenModal" }} />
+              <Stack.Screen name="(client-tabs)" />
+              <Stack.Screen name="client-business-detail" options={{ presentation: "card" }} />
+              <Stack.Screen name="client-booking-wizard" options={{ presentation: "fullScreenModal" }} />
+              <Stack.Screen name="client-appointment-detail" options={{ presentation: "card" }} />
+              <Stack.Screen name="client-message-thread" options={{ presentation: "card" }} />
+              <Stack.Screen name="client-saved-businesses" options={{ presentation: "card" }} />
             </Stack>
             <StatusBar style="auto" />
             </NotificationProvider>
             </AppLockProvider>
+            </ClientStoreProvider>
           </StoreProvider>
         </QueryClientProvider>
       </trpc.Provider>

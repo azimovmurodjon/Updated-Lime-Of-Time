@@ -1637,3 +1637,68 @@
 - [x] Revenue summary card on Home screen from Stripe balance
 - [x] Push notification to owner when client submits cancel/reschedule request
 - [x] Response window countdown timer on owner's pending-requests list
+
+## Client Portal — Phase 1 (COMPLETED): DB Schema
+- [ ] Add clientAccounts table to schema
+- [ ] Add messages table to schema
+- [ ] Add clientSavedBusinesses table to schema
+- [ ] Add servicePhotos table to schema (server-synced)
+- [ ] Add businessCategory, lat, lng columns to businessOwners
+- [ ] Add lat, lng columns to locations
+- [ ] Run DB migration
+
+## Client Portal — Phase 2: Server API
+- [x] Client JWT auth middleware
+- [x] POST /api/client/auth/verify (OTP → JWT)
+- [x] GET/PATCH /api/client/profile
+- [x] GET /api/client/businesses/discover
+- [x] GET /api/client/appointments
+- [x] GET /api/client/messages (inbox)
+- [x] GET/POST /api/client/messages/:businessOwnerId (thread)
+- [x] GET/POST/DELETE /api/client/saved
+- [x] GET /api/public/business/:slug/service-photos
+- [x] POST /api/public/business/:slug/service-photos (owner upload)
+- [x] Add source field to appointments
+- [x] Send push to client on booking confirmation/cancellation/reschedule
+
+## Client Portal — Phase 3 (COMPLETED): Navigation & Auth
+- [x] Profile selection screen (profile-select.tsx)
+- [x] Client onboarding screen — uses OAuth (Apple/Google/Microsoft)
+- [x] Root layout routing logic (business vs client mode)
+- [x] ClientStoreProvider (lightweight client session context)
+
+## Client Portal — Phase 4 (COMPLETED): Discovery Screens
+- [x] Client tab bar with 5 tabs (Dashboard, Discover, Bookings, Messages, Profile)
+- [x] Client Dashboard screen (upcoming appts, saved businesses, quick-book)
+- [x] Discover screen (search, category filter, radius slider, business cards)
+- [x] Business Detail screen (full profile, services, staff, reviews)
+- [x] Service Detail embedded in Business Detail
+
+## Client Portal — Phase 5 (COMPLETED): Booking Flow
+- [x] Native 7-step booking wizard (client-booking-wizard.tsx)
+- [x] Step 1: Service selection with category tiles
+- [x] Step 2: Staff selection
+- [x] Step 3: Location selection (multi-location businesses)
+- [x] Step 4: Date & time picker
+- [x] Step 5: Extras & products
+- [x] Step 6: Discount/promo/gift card
+- [x] Step 7: Review, confirm, payment method
+
+## Client Portal — Phase 6 (COMPLETED): Bookings & Appointment Detail
+- [x] My Bookings screen (upcoming/past/cancelled tabs)
+- [x] Client Appointment Detail screen (manage, cancel/reschedule, review)
+
+## Client Portal — Phase 7 (COMPLETED): Messaging
+- [x] Messages inbox screen
+- [x] Message thread screen (chat UI)
+- [x] Business app: push notification to owner on new client message
+
+## Client Portal — Phase 8 (COMPLETED): Profile & Saved
+- [x] Client Profile screen (account settings, notifications, theme, sign out)
+- [x] Saved businesses list with quick-book
+
+## Client Portal — Phase 9 (COMPLETED): Business App Enhancements
+- [x] App Share card on business Home screen (placeholder download button)
+- [x] Push notification types for client_message and business_message
+- [x] businessCategory, lat/lng columns added to DB schema
+- [x] expo-location package installed for Discover screen

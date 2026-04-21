@@ -7,6 +7,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { registerPublicRoutes } from "../publicRoutes";
+import { registerClientRoutes } from "../clientRoutes";
 import { registerAdminRoutes } from "../adminRoutes";
 import { registerAdminStripeConnectRoutes } from "../adminStripeConnect";
 import { registerLegalRoutes } from "../legalRoutes";
@@ -90,6 +91,9 @@ async function startServer() {
 
   // Register public web pages (booking, review, gift card)
   registerPublicRoutes(app);
+
+  // Register client portal API routes
+  registerClientRoutes(app);
 
   const preferredPort = parseInt(process.env.PORT || "3000");
   const port = await findAvailablePort(preferredPort);

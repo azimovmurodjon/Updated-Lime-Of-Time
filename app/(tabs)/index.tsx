@@ -2125,6 +2125,43 @@ export default function HomeScreen() {
         />
 
 
+        {/* ─── App Download Card ─────────────────────────────────────── */}
+        <View style={[{
+          marginTop: 20,
+          borderRadius: 16,
+          overflow: "hidden",
+          borderWidth: 1,
+          borderColor: "#8B5CF640",
+          backgroundColor: "#8B5CF608",
+          padding: 16,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 14,
+        }]}>
+          <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "#8B5CF620", alignItems: "center", justifyContent: "center" }}>
+            <IconSymbol name="iphone" size={22} color="#8B5CF6" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Share Client App</Text>
+            <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 16 }}>Let clients book appointments directly from the app.</Text>
+          </View>
+          <Pressable
+            style={({ pressed }) => [{
+              backgroundColor: "#8B5CF6",
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+              borderRadius: 20,
+              opacity: pressed ? 0.8 : 1,
+            }]}
+            onPress={() => {
+              // TODO: Replace with real App Store / Play Store URL after deployment
+              Alert.alert("Coming Soon", "The app will be available on the App Store and Google Play after deployment. Share this message with your clients once it's live!");
+            }}
+          >
+            <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "700" }}>Share</Text>
+          </Pressable>
+        </View>
+
         {/* ─── Birthday Banner ──────────────────────────────────────── */}
         {birthdayClients.length > 0 && (
           <View style={{ marginTop: 20, borderRadius: 16, overflow: "hidden" }}>

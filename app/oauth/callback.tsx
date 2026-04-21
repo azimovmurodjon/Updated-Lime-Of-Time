@@ -22,6 +22,8 @@ import {
   dbCustomScheduleToLocal,
   dbOwnerToSettings,
 } from "@/lib/store";
+import { getProfileMode } from "@/lib/client-store";
+import { getApiBaseUrl } from "@/constants/oauth";
 
 export default function OAuthCallback() {
   const router = useRouter();
@@ -42,9 +44,11 @@ export default function OAuthCallback() {
       console.log("[OAuth] Callback handler triggered");
       try {
         let userInfo: Auth.User | null = null;
+        let sessionToken: string | null = null;
 
         // ── Web callback: sessionToken in params ──────────────────────
         if (params.sessionToken) {
+          sessionToken = params.sessionToken;
           await Auth.setSessionToken(params.sessionToken);
           if (params.user) {
             try {
@@ -90,7 +94,6 @@ export default function OAuthCallback() {
 
           let code: string | null = null;
           let state: string | null = null;
-          let sessionToken: string | null = null;
 
           if (params.code && params.state) {
             code = params.code;
@@ -123,6 +126,7 @@ export default function OAuthCallback() {
               setErrorMessage("No session token received");
               return;
             }
+            sessionToken = result.sessionToken;
             await Auth.setSessionToken(result.sessionToken);
             if (result.user) {
               userInfo = {
@@ -142,12 +146,56 @@ export default function OAuthCallback() {
           }
         }
 
-        // ── Check if a business owner exists for this social user ─────
-        // Load userInfo from storage if not already set
+        // ── Load userInfo from storage if not already set ─────────────
         if (!userInfo) {
           userInfo = await Auth.getUserInfo();
         }
 
+        // ── Check profile mode: client portal or business ─────────────
+        const profileMode = await getProfileMode();
+
+        if (profileMode === "client") {
+          // ── Client portal flow ────────────────────────────────────────
+          const apiBase = getApiBaseUrl();
+          const token = sessionToken ?? await Auth.getSessionToken();
+          if (!token) {
+            setStatus("error");
+            setErrorMessage("No session token available");
+            return;
+          }
+          try {
+            const res = await fetch(`${apiBase}/api/client/auth/login`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                name: userInfo?.name ?? "",
+                email: userInfo?.email ?? "",
+                openId: userInfo?.openId ?? "",
+              }),
+            });
+            if (res.ok) {
+              const data = await res.json() as { token: string; account: any };
+              // Store client session separately
+              const { default: AsyncStorage } = await import("@react-native-async-storage/async-storage");
+              await AsyncStorage.setItem("client_session_token", data.token);
+              await AsyncStorage.setItem("client_account_info", JSON.stringify(data.account));
+              setStatus("success");
+              setTimeout(() => router.replace("/(client-tabs)" as any), 600);
+              return;
+            }
+          } catch (err) {
+            console.warn("[OAuth] Client login failed:", err);
+          }
+          // Fallback: go to client tabs anyway (will show sign-in if no account)
+          setStatus("success");
+          setTimeout(() => router.replace("/(client-tabs)" as any), 600);
+          return;
+        }
+
+        // ── Business owner flow (existing logic) ──────────────────────
         const email = userInfo?.email;
         if (email) {
           try {
