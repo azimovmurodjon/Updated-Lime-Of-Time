@@ -1555,6 +1555,29 @@ export default function HomeScreen() {
           </View>
         </LinearGradient>
 
+        {/* No-location setup banner */}
+        {state.locations.length === 0 && (
+          <Pressable
+            onPress={() => router.push("/locations" as any)}
+            style={({ pressed }) => ({
+              flexDirection: "row", alignItems: "center", gap: 12,
+              backgroundColor: colors.warning + "18",
+              borderWidth: 1, borderColor: colors.warning + "50",
+              borderRadius: 14, padding: 14, marginTop: 12,
+              opacity: pressed ? 0.8 : 1,
+            })}
+          >
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.warning + "25", alignItems: "center", justifyContent: "center" }}>
+              <IconSymbol name="location.fill" size={20} color={colors.warning} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.warning, marginBottom: 2 }}>No Location Added</Text>
+              <Text style={{ fontSize: 12, color: colors.muted, lineHeight: 17 }}>Add your business address to start accepting bookings. Tap here to set up your first location.</Text>
+            </View>
+            <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+          </Pressable>
+        )}
+
         {/* Location Filter */}
         {hasMultipleLocations && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8, marginBottom: 4 }}>
