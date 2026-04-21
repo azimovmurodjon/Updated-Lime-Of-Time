@@ -40,6 +40,14 @@ import * as Haptics from "expo-haptics";
 
 const CLIENT_PURPLE = "#8B5CF6";
 
+// ─── Time-of-day greeting ─────────────────────────────────────────────────────
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
@@ -183,8 +191,11 @@ export default function ClientHomeScreen() {
         {/* Header */}
         <Animated.View style={[styles.header, headerStyle]}>
           <View style={{ flex: 1 }}>
+            <Text style={[styles.greetingLabel, { color: colors.muted }]}>
+              {getGreeting()},
+            </Text>
             <Text style={[styles.greeting, { color: colors.foreground }]}>
-              Hello, {state.account?.name?.split(" ")[0] ?? "there"} 👋
+              {state.account?.name?.split(" ")[0] ?? "there"} 👋
             </Text>
             <Text style={[styles.greetingSub, { color: colors.muted }]}>What are you booking today?</Text>
           </View>
@@ -195,12 +206,36 @@ export default function ClientHomeScreen() {
               </View>
             </AnimCard>
             <AnimCard onPress={() => router.push("/(client-tabs)/profile" as any)}>
-              <View style={[styles.avatarBtn, { backgroundColor: CLIENT_PURPLE + "20" }]}>
-                <IconSymbol name="person.crop.circle.fill" size={32} color={CLIENT_PURPLE} />
-              </View>
+              {state.account?.profilePhotoUri ? (
+                <Image
+                  source={{ uri: state.account.profilePhotoUri }}
+                  style={styles.avatarPhoto}
+                />
+              ) : (
+                <View style={[styles.avatarBtn, { backgroundColor: CLIENT_PURPLE + "20" }]}>
+                  <Text style={styles.avatarInitial}>
+                    {(state.account?.name ?? "?").charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
             </AnimCard>
           </View>
         </Animated.View>
+
+        {/* Profile completion nudge — shown when no photo set */}
+        {!state.account?.profilePhotoUri && (
+          <Animated.View style={[{ paddingHorizontal: 16, marginBottom: 4 }, headerStyle]}>
+            <AnimCard onPress={() => router.push("/client-profile-onboarding" as any)}>
+              <View style={[styles.nudgeBanner, { backgroundColor: CLIENT_PURPLE + "12", borderColor: CLIENT_PURPLE + "30" }]}>
+                <View style={[styles.nudgeIcon, { backgroundColor: CLIENT_PURPLE + "20" }]}>
+                  <IconSymbol name="person.crop.circle.fill" size={16} color={CLIENT_PURPLE} />
+                </View>
+                <Text style={[styles.nudgeText, { color: CLIENT_PURPLE }]}>Complete your profile — add a photo</Text>
+                <IconSymbol name="chevron.right" size={12} color={CLIENT_PURPLE} />
+              </View>
+            </AnimCard>
+          </Animated.View>
+        )}
 
         <Animated.View style={contentStyle}>
           {/* Quick Actions */}
@@ -424,13 +459,19 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 8,
   },
+  greetingLabel: {
+    fontSize: 13,
+    fontWeight: "500",
+    marginBottom: 1,
+  },
   greeting: {
-    fontSize: 22,
-    fontWeight: "700",
+    fontSize: 24,
+    fontWeight: "800",
+    letterSpacing: -0.3,
   },
   greetingSub: {
-    fontSize: 14,
-    marginTop: 2,
+    fontSize: 13,
+    marginTop: 3,
   },
   avatarBtn: {
     width: 44,
@@ -438,6 +479,39 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
+  },
+  avatarPhoto: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: CLIENT_PURPLE,
+  },
+  avatarInitial: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: CLIENT_PURPLE,
+  },
+  nudgeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  nudgeIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  nudgeText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
   },
   quickActions: {
     flexDirection: "row",

@@ -1822,3 +1822,8 @@
 - [x] Profile photo upload via base64 to S3 storage
 - [x] Show profile photo in client-tabs profile screen
 - [x] clientPhone sent to booking wizard for business client DB auto-population
+
+## Client Portal Personalization Apr 21 2026
+- [x] Add "Welcome back, [Name]" greeting with profile photo to client home/discover tab
+- [x] Build client-edit-profile.tsx screen (name, email, birthday, photo)
+- [x] Wire Edit Profile button in client-tabs profile to client-edit-profile screen
