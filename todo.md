@@ -1612,3 +1612,14 @@
 - [x] Smart fee+refund logic on cancellation approval (card-paid appointments)
 - [x] Push notifications for cancel_request and reschedule_request to owner
 - [x] Notification tap handler for cancel_request and reschedule_request types
+- [ ] Remove phone number 4124827733 from business profile/DB
+- [ ] Restrict Pay with Card to correct plan tier (not Solo/Growth)
+- [ ] Add Requests filter tab to Calendar screen
+- [ ] Add amber request badge on calendar appointment cards
+- [ ] Pre-composed SMS for owner on Approve/Decline (no auto-send)
+- [x] Remove phone number 4124827733 from DB and all code references
+- [x] Restrict card/Stripe payments to Studio and Enterprise plans only
+- [x] Show upgrade prompt on Payment Methods screen for Solo/Growth plans
+- [x] Requests filter tab on Calendar (already existed, confirmed working)
+- [x] Amber request badge on calendar appointment cards for pending cancel/reschedule requests
+- [x] Pre-composed SMS prompt on appointment-detail after owner approves or declines a request

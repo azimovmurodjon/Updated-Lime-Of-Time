@@ -17,6 +17,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { FuturisticBackground } from "@/components/futuristic-background";
 import { apiCall } from "@/lib/_core/api";
 import * as WebBrowser from "expo-web-browser";
+import { usePlanLimitCheck } from "@/hooks/use-plan-limit-check";
 
 type ConnectStatus = {
   connected: boolean;
@@ -55,6 +56,8 @@ export default function PaymentMethodsScreen() {
   const router = useRouter();
   const settings = state.settings;
   const businessOwnerId = state.businessOwnerId;
+  const { planInfo } = usePlanLimitCheck();
+  const isStripePlan = planInfo && (planInfo.planKey === "studio" || planInfo.planKey === "enterprise");
 
   // Stripe Connect state
   const [connectStatus, setConnectStatus] = useState<ConnectStatus | null>(null);
@@ -297,6 +300,33 @@ export default function PaymentMethodsScreen() {
         </View>
 
         {/* ── Stripe Connect Section ── */}
+        {!isStripePlan && planInfo && (
+          <View style={[styles.stripeCard, { backgroundColor: "#635bff12", borderColor: "#635bff40" }]}>
+            <View style={styles.stripeHeader}>
+              <View style={styles.stripeTitleRow}>
+                <Text style={styles.stripeIcon}>💳</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.stripeTitle, { color: colors.foreground }]}>Accept Card Payments</Text>
+                  <Text style={[styles.stripeSubtitle, { color: colors.muted }]}>Powered by Stripe Connect</Text>
+                </View>
+              </View>
+              <View style={{ backgroundColor: "#f59e0b20", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: "#f59e0b" }}>🔒 Studio+</Text>
+              </View>
+            </View>
+            <Text style={[styles.stripeNote, { color: colors.muted }]}>
+              Card payments via Stripe are available on the Studio plan ($39/mo) and above. Upgrade to accept Visa, Mastercard, Apple Pay, and Google Pay directly on your booking page.
+            </Text>
+            <TouchableOpacity
+              style={[styles.stripeBtn, { backgroundColor: "#f59e0b" }]}
+              onPress={() => router.push("/subscription")}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.stripeBtnText}>Upgrade to Studio →</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {isStripePlan && (
         <View style={[styles.stripeCard, { backgroundColor: "#635bff12", borderColor: "#635bff40" }]}>
           <View style={styles.stripeHeader}>
             <View style={styles.stripeTitleRow}>
@@ -512,6 +542,7 @@ export default function PaymentMethodsScreen() {
             </>
           )}
         </View>
+        )}
 
         {/* Divider */}
         <View style={[styles.divider, { borderColor: colors.border }]}>

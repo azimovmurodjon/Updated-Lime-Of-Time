@@ -1465,6 +1465,21 @@ export default function CalendarScreen() {
                           </View>
                         );
                       })()}
+                      {/* Pending cancel/reschedule request badge — shown on all filter tabs */}
+                      {(() => {
+                        const cr = (appt as any).cancelRequest;
+                        const rr = (appt as any).rescheduleRequest;
+                        const hasPendingCancel = cr && cr.status === 'pending';
+                        const hasPendingReschedule = rr && rr.status === 'pending';
+                        if (!hasPendingCancel && !hasPendingReschedule) return null;
+                        return (
+                          <View style={[styles.statusBadge, { backgroundColor: '#F59E0B18', flexDirection: 'row', gap: 3, alignItems: 'center' }]}>
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#F59E0B' }}>
+                              {hasPendingCancel ? '⏳ Cancel Req' : '⏳ Reschedule Req'}
+                            </Text>
+                          </View>
+                        );
+                      })()}
                       {(activeFilter === "unpaid" || activeFilter === "paid") && appt.totalPrice != null && (
                         <View style={[styles.statusBadge, {
                           backgroundColor: appt.paymentStatus === "paid" ? "#22C55E18" : "#EF444418",

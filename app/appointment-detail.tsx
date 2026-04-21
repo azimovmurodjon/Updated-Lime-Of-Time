@@ -53,6 +53,8 @@ export default function AppointmentDetailScreen() {
   const sendSmsMutation = trpc.twilio.sendSms.useMutation();
   const { planInfo } = usePlanLimitCheck();
   const isGrowthPlan = planInfo && planInfo.planKey !== "solo";
+  // Card/Stripe payments are only available on Studio and Enterprise plans (adminOverride gets enterprise)
+  const isStripePlan = planInfo && (planInfo.planKey === "studio" || planInfo.planKey === "enterprise");
 
   const appointment = useMemo(
     () => state.appointments.find((a) => a.id === id),
@@ -910,8 +912,8 @@ Would you also like to charge a no-show fee via Stripe?`,
                     {appointment.paymentMethod === 'cash' ? 'Confirm Cash Received' : 'Mark as Paid'}
                   </Text>
                 </Pressable>
-                {/* Request Card Payment via Stripe link — only when Stripe is connected and price > 0 */}
-                {!!(state.settings as any).stripeConnectEnabled && (appointment.totalPrice ?? 0) > 0 && (
+                {/* Request Card Payment via Stripe link — only on Studio/Enterprise plans with Stripe connected */}
+                {isStripePlan && !!(state.settings as any).stripeConnectEnabled && (appointment.totalPrice ?? 0) > 0 && (
                   <Pressable
                     onPress={async () => {
                       // On Resend: check if the previous session is still active.
@@ -1268,6 +1270,44 @@ Would you also like to charge a no-show fee via Stripe?`,
             )}
           </View>
         )}
+
+        {/* Resolved Request SMS Prompt — shown after owner approves or declines */}
+        {(() => {
+          const cr = appointment.cancelRequest;
+          const rr = appointment.rescheduleRequest;
+          const resolved = (cr && cr.status !== 'pending') || (rr && rr.status !== 'pending');
+          if (!resolved || !client?.phone) return null;
+          const isCancel = cr && cr.status !== 'pending';
+          const approved = isCancel ? cr?.status === 'approved' : rr?.status === 'approved';
+          const svcName = getServiceById(appointment.serviceId)?.name ?? 'your appointment';
+          const businessName = (state.settings as any).businessName ?? 'us';
+          let smsText = '';
+          if (isCancel) {
+            smsText = approved
+              ? `Hi ${client.name?.split(' ')[0] ?? 'there'}, your cancellation request for ${svcName} on ${appointment.date} has been approved. ${appointment.paymentMethod === 'card' ? 'Your refund is on its way (5-10 business days).' : ''} Thanks for letting us know. – ${businessName}`
+              : `Hi ${client.name?.split(' ')[0] ?? 'there'}, your cancellation request for ${svcName} on ${appointment.date} was declined. Your appointment is still confirmed. Please contact us if you have questions. – ${businessName}`;
+          } else {
+            smsText = approved
+              ? `Hi ${client.name?.split(' ')[0] ?? 'there'}, your reschedule request has been approved! Your new appointment is on ${rr?.requestedDate ?? appointment.date} at ${rr?.requestedTime ?? appointment.time}. See you then! – ${businessName}`
+              : `Hi ${client.name?.split(' ')[0] ?? 'there'}, your reschedule request for ${svcName} was declined. Your original appointment on ${appointment.date} is still confirmed. – ${businessName}`;
+          }
+          return (
+            <View style={{ backgroundColor: approved ? '#F0FDF4' : '#FFF7ED', borderColor: approved ? '#86EFAC' : '#FCD34D', borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 16 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: approved ? '#166534' : '#92400E', marginBottom: 6 }}>
+                {approved ? '✅' : '❌'} Request {approved ? 'Approved' : 'Declined'} — Notify Client?
+              </Text>
+              <Text style={{ fontSize: 12, color: approved ? '#166534' : '#78350F', marginBottom: 10, lineHeight: 18 }}>{smsText}</Text>
+              <Pressable
+                onPress={() => {
+                  sendSmsMutation.mutate({ to: client.phone!, body: smsText });
+                }}
+                style={({ pressed }) => [{ backgroundColor: approved ? '#22C55E' : '#F59E0B', borderRadius: 10, paddingVertical: 9, alignItems: 'center', opacity: pressed ? 0.7 : 1 }]}
+              >
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>📱 Send SMS to {client.name?.split(' ')[0] ?? 'Client'}</Text>
+              </Pressable>
+            </View>
+          );
+        })()}
 
         {/* Actions */}
         {appointment.status === "pending" && (

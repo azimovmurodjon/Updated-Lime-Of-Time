@@ -39,7 +39,7 @@ const STEPS = [
   {
     number: "2",
     title: "Get a Twilio phone number",
-    body: "In the Twilio Console, go to Phone Numbers → Manage → Buy a number. Choose a US number with SMS capability. Do NOT use your old number 4124827733 — create a new one.",
+    body: "In the Twilio Console, go to Phone Numbers → Manage → Buy a number. Choose a US number with SMS capability. Use a new Twilio number — do not use your personal business number.",
     link: "https://console.twilio.com/us1/develop/phone-numbers/manage/incoming",
     linkLabel: "Open Phone Numbers",
     icon: "phone.fill",
@@ -100,7 +100,7 @@ export default function TwilioSetupScreen() {
       return;
     }
     if (!from.startsWith("+")) {
-      Alert.alert("Invalid Phone Number", "Phone number must be in E.164 format, e.g. +14124827733");
+      Alert.alert("Invalid Phone Number", "Phone number must be in E.164 format, e.g. +12125551234");
       return;
     }
     setSaving(true);
@@ -277,7 +277,7 @@ export default function TwilioSetupScreen() {
 
         <View style={{ marginBottom: 20 }}>
           <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 6 }}>
-            Twilio Phone Number (E.164 format, e.g. +14124827733)
+            Twilio Phone Number (E.164 format, e.g. +12125551234)
           </Text>
           <TextInput
             value={fromNumber}
@@ -288,7 +288,7 @@ export default function TwilioSetupScreen() {
             style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground }]}
           />
           <Text style={{ fontSize: 11, color: colors.muted, marginTop: 4 }}>
-            ⚠️ Do NOT use your old business number 4124827733 — create a new Twilio number.
+            ⚠️ Use a new Twilio number — do not use your personal business number.
           </Text>
         </View>
 
@@ -369,7 +369,7 @@ export default function TwilioSetupScreen() {
             Send a real Twilio Verify OTP to any phone number and confirm it arrives and verifies correctly.
           </Text>
 
-          <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 6 }}>Phone Number (E.164, e.g. +14124827733)</Text>
+          <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 6 }}>Phone Number (E.164, e.g. +12125551234)</Text>
           <TextInput
             value={otpPhone}
             onChangeText={(v) => { setOtpPhone(v); setOtpSent(false); setOtpResult(null); setOtpCode(""); }}
@@ -382,7 +382,7 @@ export default function TwilioSetupScreen() {
           <Pressable
             onPress={async () => {
               if (!otpPhone.startsWith("+") || otpPhone.replace(/\D/g, "").length < 10) {
-                Alert.alert("Invalid number", "Enter a full E.164 phone number, e.g. +14124827733");
+                Alert.alert("Invalid number", "Enter a full E.164 phone number, e.g. +12125551234");
                 return;
               }
               setOtpSending(true);
