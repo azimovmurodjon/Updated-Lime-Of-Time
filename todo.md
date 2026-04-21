@@ -1566,3 +1566,7 @@
 - [x] Stripe test mode toggle in admin Stripe Connect panel (one-click, warning banner when active)
 
 - [x] Stripe key switcher: warn on test/live key mismatch when toggling mode, allow inline key update
+
+- [x] Twilio credential validator: "Test Connection" button in Platform Config to verify SID + auth token — already existed
+
+- [x] Fix location name overflowing out of appointment card on calendar screen

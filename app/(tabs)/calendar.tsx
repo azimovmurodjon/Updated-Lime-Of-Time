@@ -1401,20 +1401,20 @@ export default function CalendarScreen() {
                         {formatDateDisplay(appt.date)} · {formatTime(appt.time)} – {getEndTime(appt.time, appt.duration)}
                       </Text>
                       <Text style={{ fontSize: 13, color: colors.foreground, marginTop: 2 }}>{svc ? getServiceDisplayName(svc) : "Service"}</Text>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 1 }}>
-                        <Text style={{ fontSize: 12, color: colors.muted }}>{client?.name} {client?.phone ? `· ${formatPhone(client.phone)}` : ""}</Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 1, flexWrap: "wrap" }}>
+                        <Text style={{ fontSize: 12, color: colors.muted, flexShrink: 1 }} numberOfLines={1}>{client?.name} {client?.phone ? `· ${formatPhone(client.phone)}` : ""}</Text>
                         {staffMember && (
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginLeft: 4 }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
                             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: staffMember.color || colors.primary }} />
-                            <Text style={{ fontSize: 11, color: staffMember.color || colors.primary, fontWeight: "500" }}>{staffMember.name}</Text>
+                            <Text style={{ fontSize: 11, color: staffMember.color || colors.primary, fontWeight: "500" }} numberOfLines={1}>{staffMember.name}</Text>
                           </View>
                         )}
                         {hasMultiLoc && appt.locationId && (() => {
                           const loc = state.locations.find((l) => l.id === appt.locationId);
                           return loc ? (
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 2, marginLeft: 4, backgroundColor: colors.primary + "12", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 2, backgroundColor: colors.primary + "12", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, maxWidth: 160, flexShrink: 1 }}>
                               <IconSymbol name="location.fill" size={9} color={colors.primary} />
-                              <Text style={{ fontSize: 10, color: colors.primary, fontWeight: "500" }}>{loc.name}</Text>
+                              <Text style={{ fontSize: 10, color: colors.primary, fontWeight: "500", flexShrink: 1 }} numberOfLines={1} ellipsizeMode="tail">{loc.name}</Text>
                             </View>
                           ) : null;
                         })()}
