@@ -1669,23 +1669,61 @@ Would you also like to charge a no-show fee via Stripe?`,
                     const doCardCancel = async () => {
                       // Cancel the appointment first
                       proceed();
-                      // Then issue refund (partial if fee applies, full if no fee)
-                      if (total > 0) {
+                      if (total <= 0) return;
+
+                      if (fee > 0) {
+                        // Step 1: Charge the cancellation fee separately (off-session)
+                        let feeCharged = false;
+                        try {
+                          await apiCall<{ ok: boolean; chargeId: string; amount: number }>('/api/stripe-connect/cancellation-fee', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                              businessOwnerId: state.businessOwnerId,
+                              appointmentLocalId: appointment.id,
+                              feeAmount: fee,
+                              serviceName: service ? getServiceDisplayName(service) : 'Service',
+                              clientName: client?.name ?? 'Client',
+                            }),
+                          });
+                          feeCharged = true;
+                        } catch (feeErr: any) {
+                          // Fee charge failed — warn owner but still proceed with full refund
+                          Alert.alert(
+                            '⚠️ Fee Charge Failed',
+                            `Could not charge the $${fee.toFixed(2)} cancellation fee automatically.\nReason: ${feeErr?.message ?? 'Unknown error'}\n\nA full refund will still be issued. Please collect the fee manually.`
+                          );
+                        }
+
+                        // Step 2: Issue full refund of the original charge
                         try {
                           await apiCall<{ ok: boolean; refundId: string; amount: number }>('/api/stripe-connect/refund', {
                             method: 'POST',
                             body: JSON.stringify({
                               businessOwnerId: state.businessOwnerId,
                               appointmentLocalId: appointment.id,
-                              ...(fee > 0 ? { amount: refundAmt } : {}),
+                              // Full refund — fee was charged separately
                             }),
                           });
                           Alert.alert(
-                            '✅ Refund Issued',
-                            fee > 0
-                              ? `$${refundAmt.toFixed(2)} has been refunded to the client's card.\n$${fee.toFixed(2)} cancellation fee was retained.`
+                            '✅ Done',
+                            feeCharged
+                              ? `$${fee.toFixed(2)} cancellation fee charged to card.\n$${total.toFixed(2)} refunded to the client's card.\n\nBoth transactions are visible in your Stripe dashboard.`
                               : `$${total.toFixed(2)} has been fully refunded to the client's card.`
                           );
+                        } catch (refundErr: any) {
+                          Alert.alert('Refund Failed', `The cancellation fee was charged but the refund could not be issued automatically.\nError: ${refundErr?.message ?? 'Unknown error'}\n\nPlease issue the refund manually from the Stripe dashboard.`);
+                        }
+                      } else {
+                        // No fee — just issue full refund
+                        try {
+                          await apiCall<{ ok: boolean; refundId: string; amount: number }>('/api/stripe-connect/refund', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                              businessOwnerId: state.businessOwnerId,
+                              appointmentLocalId: appointment.id,
+                            }),
+                          });
+                          Alert.alert('✅ Refund Issued', `$${total.toFixed(2)} has been fully refunded to the client's card.`);
                         } catch (err: any) {
                           Alert.alert('Refund Failed', `The appointment was cancelled but the refund could not be issued automatically.\nError: ${err?.message ?? 'Unknown error'}\n\nPlease issue the refund manually from the Stripe dashboard.`);
                         }

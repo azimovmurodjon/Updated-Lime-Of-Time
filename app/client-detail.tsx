@@ -534,11 +534,28 @@ export default function ClientDetailScreen() {
                 {upcomingAppts.map((appt) => {
                   const svc = getServiceById(appt.serviceId);
                   const statusColor = appt.status === "confirmed" ? colors.success : appt.status === "pending" ? "#FF9800" : colors.primary;
+                  const isRefunded = !!(appt as any).refundedAt;
+                  const refundedAmt = (appt as any).refundedAmount;
+                  const isCardPaid = appt.paymentMethod === 'card' && appt.paymentStatus === 'paid';
                   return (
                     <Pressable key={appt.id} onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })} style={({ pressed }) => [styles.apptCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: svc?.color ?? colors.primary, opacity: pressed ? 0.8 : 1 }]}>
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{svc ? getServiceDisplayName(svc) : "Service"}</Text>
                         <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{formatDateDisplay(appt.date)} · {formatTime(appt.time)} - {formatTime(minutesToTime(timeToMinutes(appt.time) + appt.duration))}</Text>
+                        {isRefunded && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 4 }}>
+                            <View style={{ backgroundColor: '#EF444418', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                              <Text style={{ fontSize: 10, fontWeight: '700', color: '#EF4444' }}>↩ Refunded{refundedAmt ? ` $${Number(refundedAmt).toFixed(2)}` : ''}</Text>
+                            </View>
+                          </View>
+                        )}
+                        {!isRefunded && isCardPaid && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 4 }}>
+                            <View style={{ backgroundColor: '#635BFF18', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                              <Text style={{ fontSize: 10, fontWeight: '700', color: '#635BFF' }}>💳 Card Paid</Text>
+                            </View>
+                          </View>
+                        )}
                       </View>
                       <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
                         <Text style={{ fontSize: 10, fontWeight: "600", color: statusColor, textTransform: "capitalize" }}>{appt.status}</Text>
@@ -550,11 +567,28 @@ export default function ClientDetailScreen() {
                 {pastAppts.map((appt) => {
                   const svc = getServiceById(appt.serviceId);
                   const statusColor = appt.status === "completed" ? colors.success : colors.error;
+                  const isRefunded = !!(appt as any).refundedAt;
+                  const refundedAmt = (appt as any).refundedAmount;
+                  const isCardPaid = appt.paymentMethod === 'card' && appt.paymentStatus === 'paid';
                   return (
                     <Pressable key={appt.id} onPress={() => router.push({ pathname: "/appointment-detail", params: { id: appt.id } })} style={({ pressed }) => [styles.apptCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: svc?.color ?? colors.primary, opacity: pressed ? 0.8 : 1 }]}>
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{svc ? getServiceDisplayName(svc) : "Service"}</Text>
                         <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{formatDateDisplay(appt.date)} · {formatTime(appt.time)} - {formatTime(minutesToTime(timeToMinutes(appt.time) + appt.duration))}</Text>
+                        {isRefunded && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 4 }}>
+                            <View style={{ backgroundColor: '#EF444418', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                              <Text style={{ fontSize: 10, fontWeight: '700', color: '#EF4444' }}>↩ Refunded{refundedAmt ? ` $${Number(refundedAmt).toFixed(2)}` : ''}</Text>
+                            </View>
+                          </View>
+                        )}
+                        {!isRefunded && isCardPaid && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 4 }}>
+                            <View style={{ backgroundColor: '#635BFF18', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                              <Text style={{ fontSize: 10, fontWeight: '700', color: '#635BFF' }}>💳 Card Paid</Text>
+                            </View>
+                          </View>
+                        )}
                       </View>
                       <View style={[styles.statusBadge, { backgroundColor: statusColor + "18" }]}>
                         <Text style={{ fontSize: 10, fontWeight: "600", color: statusColor, textTransform: "capitalize" }}>{appt.status}</Text>

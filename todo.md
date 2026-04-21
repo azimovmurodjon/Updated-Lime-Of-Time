@@ -1597,3 +1597,5 @@
 - [x] Reduce payment polling interval from 30s to 10s on appointment-detail screen
 - [x] Add refund breakdown modal showing charge amount, Stripe fee estimate, and client receives amount
 - [x] Smart cancellation for card-paid appointments: auto-refund on cancel, keep fee if cancellation policy applies
+- [x] Separate Stripe charge for cancellation fee when client paid by card
+- [x] Refund history badge on client profile appointment cards

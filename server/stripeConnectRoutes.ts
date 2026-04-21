@@ -1032,6 +1032,120 @@ export function registerStripeConnectRoutes(app: Express): void {
     }
   });
 
+  // ── 12. Cancellation fee charge ──────────────────────────────────────────────
+  // POST /api/stripe-connect/cancellation-fee
+  // Body: { businessOwnerId, appointmentLocalId, feeAmount, serviceName?, clientName? }
+  // Charges the cancellation fee directly to the payment method used in the original checkout.
+  // Returns { ok, chargeId, amount } — no redirect URL needed (off-session charge).
+  app.post("/api/stripe-connect/cancellation-fee", async (req: Request, res: Response) => {
+    try {
+      const {
+        businessOwnerId,
+        appointmentLocalId,
+        feeAmount,
+        serviceName,
+        clientName,
+        currency = "usd",
+      } = req.body as {
+        businessOwnerId: number;
+        appointmentLocalId: string;
+        feeAmount: number;
+        serviceName?: string;
+        clientName?: string;
+        currency?: string;
+      };
+
+      if (!businessOwnerId || !appointmentLocalId || !feeAmount || feeAmount <= 0) {
+        res.status(400).json({ error: "businessOwnerId, appointmentLocalId, and feeAmount are required" }); return;
+      }
+
+      const stripe = await getStripe();
+      if (!stripe) { res.status(503).json({ error: "Stripe not configured" }); return; }
+
+      const owner = await getOwner(businessOwnerId);
+      if (!owner) { res.status(404).json({ error: "Business not found" }); return; }
+      const accountId = (owner as any)?.stripeConnectAccountId as string | null;
+      if (!accountId) { res.status(400).json({ error: "Business has not connected Stripe yet" }); return; }
+      const chargesEnabled = (owner as any)?.stripeConnectEnabled as boolean | null;
+      if (!chargesEnabled) { res.status(400).json({ error: "Stripe account is not yet fully set up" }); return; }
+
+      const db = await getDb();
+      if (!db) { res.status(503).json({ error: "DB unavailable" }); return; }
+
+      // Look up the original appointment to get the checkout session
+      const rows = await db
+        .select()
+        .from(appointments)
+        .where(and(eq(appointments.localId, appointmentLocalId), eq(appointments.businessOwnerId, businessOwnerId)))
+        .limit(1);
+      const appt = rows[0];
+      if (!appt) { res.status(404).json({ error: "Appointment not found" }); return; }
+
+      const sessionId = (appt as any).stripeCheckoutSessionId as string | null;
+      if (!sessionId) { res.status(400).json({ error: "No original Stripe checkout session found — cannot charge off-session" }); return; }
+
+      // Retrieve original session to get payment method
+      const originalSession = await stripe.checkout.sessions.retrieve(
+        sessionId,
+        { expand: ["payment_intent"] },
+        { stripeAccount: accountId }
+      );
+      const pi = typeof originalSession.payment_intent === "string"
+        ? await stripe.paymentIntents.retrieve(originalSession.payment_intent, {}, { stripeAccount: accountId })
+        : (originalSession.payment_intent as Stripe.PaymentIntent | null);
+
+      if (!pi) { res.status(400).json({ error: "Could not retrieve original payment intent" }); return; }
+
+      const paymentMethodId = typeof pi.payment_method === "string" ? pi.payment_method : pi.payment_method?.id;
+      const customerId = typeof pi.customer === "string" ? pi.customer : pi.customer?.id;
+
+      if (!paymentMethodId) {
+        res.status(400).json({ error: "No saved payment method on original charge — cannot charge off-session" }); return;
+      }
+
+      const feeCents = Math.round(feeAmount * 100);
+      const feePercent = await getPlatformFeePercent();
+      const platformFeeCents = Math.round(feeCents * feePercent);
+
+      // Create a new PaymentIntent for the cancellation fee (off-session, using saved payment method)
+      const feePI = await stripe.paymentIntents.create(
+        {
+          amount: feeCents,
+          currency,
+          payment_method: paymentMethodId,
+          ...(customerId ? { customer: customerId } : {}),
+          confirm: true,
+          off_session: true,
+          application_fee_amount: platformFeeCents,
+          description: `Cancellation fee — ${serviceName || "Appointment"} (${clientName || "client"})`,
+          metadata: {
+            appointmentLocalId,
+            businessOwnerId: String(businessOwnerId),
+            feeType: "cancellation",
+          },
+        } as any,
+        { stripeAccount: accountId }
+      );
+
+      console.log(`[StripeConnect] cancellation-fee charged: $${feeAmount} piId=${feePI.id} accountId=${accountId}`);
+
+      res.json({
+        ok: true,
+        chargeId: feePI.id,
+        status: feePI.status,
+        amount: feeCents / 100,
+      });
+    } catch (err: any) {
+      console.error("[StripeConnect] cancellation-fee error:", err);
+      // Stripe off-session errors (e.g. card declined) return a specific code
+      if (err?.code === "authentication_required" || err?.code === "card_declined") {
+        res.status(402).json({ error: "Card declined or authentication required. Please collect the fee manually.", code: err.code });
+      } else {
+        res.status(500).json({ error: err?.message ?? "Failed to charge cancellation fee" });
+      }
+    }
+  });
+
   // ── 10. Payout schedule ───────────────────────────────────────────────────────────────────────────────────
   // GET /api/stripe-connect/payouts?businessOwnerId=123
   // Returns payout schedule info + recent payouts for the connected account.
