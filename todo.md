@@ -1562,3 +1562,5 @@
 - [x] Add "Test Fee" button in admin Stripe Connect dashboard
 - [x] Add fee revenue dashboard in admin panel (stripe.applicationFees.list() by month)
 - [x] Fix seed-reviews.ts TypeScript null check error
+
+- [x] Stripe test mode toggle in admin Stripe Connect panel (one-click, warning banner when active)

@@ -71,6 +71,32 @@ export function registerAdminStripeConnectRoutes(app: Express): void {
     }
   });
 
+  // ── Toggle Stripe Test/Live Mode ────────────────────────────────
+  app.post("/api/admin/stripe-connect/toggle-test-mode", async (req: Request, res: Response) => {
+    if (!requireAdminAuth(req, res)) return;
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(500).json({ error: "DB unavailable" }); return; }
+      const { platformConfig } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const current = await getPlatformConfig("STRIPE_TEST_MODE");
+      const isCurrentlyTest = current === "true" || current === "1";
+      const newValue = isCurrentlyTest ? "false" : "true";
+      const existing = await dbase.select().from(platformConfig).where(eq(platformConfig.configKey, "STRIPE_TEST_MODE"));
+      if (existing.length > 0) {
+        await dbase.update(platformConfig).set({ configValue: newValue, updatedAt: new Date() }).where(eq(platformConfig.configKey, "STRIPE_TEST_MODE"));
+      } else {
+        await dbase.insert(platformConfig).values({ configKey: "STRIPE_TEST_MODE", configValue: newValue });
+      }
+      const mode = newValue === "true" ? "test" : "live";
+      console.log(`[Admin] Stripe mode switched to: ${mode}`);
+      res.json({ ok: true, isTestMode: newValue === "true", mode });
+    } catch (err: any) {
+      console.error("[Admin] Toggle test mode error:", err);
+      res.status(500).json({ error: err?.message || "Failed to toggle mode" });
+    }
+  });
+
   // ── Test Fee: create a $1.00 test checkout session to verify fee flow ─
   app.post("/api/admin/stripe-connect/test-fee", async (req: Request, res: Response) => {
     if (!requireAdminAuth(req, res)) return;
@@ -265,6 +291,29 @@ function stripeConnectPage(data: {
     <h1>Stripe Connect <span class="${isTestMode ? 'badge-test' : 'badge-live'}">${isTestMode ? 'TEST MODE' : 'LIVE MODE'}</span></h1>
     <div class="subtitle">Manage business owner Stripe Connect accounts and platform fee settings.</div>
 
+    <!-- Test Mode Warning Banner -->
+    ${isTestMode ? `
+    <div id="testModeBanner" style="background:#1e3a5f;border:2px solid #3b82f6;border-radius:12px;padding:16px 20px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;gap:16px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span style="font-size:24px;">🧪</span>
+        <div>
+          <div style="font-weight:700;font-size:15px;color:#93c5fd;">TEST MODE ACTIVE</div>
+          <div style="font-size:12px;color:#60a5fa;margin-top:2px;">No real charges will be processed. Use Stripe test cards (e.g. 4242 4242 4242 4242). Switch to Live Mode before accepting real payments.</div>
+        </div>
+      </div>
+      <button onclick="toggleStripeMode()" id="modeToggleBtn" style="background:#3b82f6;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">Switch to Live Mode</button>
+    </div>` : `
+    <div id="testModeBanner" style="background:#0a1a0a;border:1.5px solid #166534;border-radius:12px;padding:14px 20px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;gap:16px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span style="font-size:20px;">✅</span>
+        <div>
+          <div style="font-weight:700;font-size:14px;color:#4ade80;">LIVE MODE — Real payments enabled</div>
+          <div style="font-size:12px;color:#6b7280;margin-top:2px;">Clients will be charged real money. Switch to Test Mode to run tests without real charges.</div>
+        </div>
+      </div>
+      <button onclick="toggleStripeMode()" id="modeToggleBtn" style="background:#1f2937;color:#9ca3af;border:1px solid #374151;padding:8px 16px;border-radius:8px;font-size:13px;cursor:pointer;white-space:nowrap;">Switch to Test Mode</button>
+    </div>`}
+
     ${data.businesses.length === 0 || (data.connected.length === 0 && data.pending.length === 0) ? '' : ''}
 
     <!-- Stats -->
@@ -416,6 +465,38 @@ function stripeConnectPage(data: {
 
     // Auto-load fee revenue on page load
     window.addEventListener('DOMContentLoaded', function() { loadFeeRevenue(); });
+
+    function toggleStripeMode() {
+      var btn = document.getElementById('modeToggleBtn');
+      var banner = document.getElementById('testModeBanner');
+      var isTest = btn.textContent.indexOf('Live') !== -1; // currently test, switching to live
+      var confirmMsg = isTest
+        ? '⚠️ Switch to LIVE MODE? Real card charges will be processed. Make sure your live Stripe keys are configured.'
+        : '🧪 Switch to TEST MODE? No real charges will be processed. Use Stripe test cards only.';
+      if (!confirm(confirmMsg)) return;
+      btn.disabled = true;
+      btn.textContent = 'Switching...';
+      fetch('/api/admin/stripe-connect/toggle-test-mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.ok) {
+          // Reload page to reflect new mode everywhere
+          window.location.reload();
+        } else {
+          alert('❌ Failed to switch mode: ' + (d.error || 'Unknown error'));
+          btn.disabled = false;
+          btn.textContent = isTest ? 'Switch to Live Mode' : 'Switch to Test Mode';
+        }
+      })
+      .catch(function(e) {
+        alert('❌ Network error: ' + e.message);
+        btn.disabled = false;
+        btn.textContent = isTest ? 'Switch to Live Mode' : 'Switch to Test Mode';
+      });
+    }
 
     function registerWebhook() {
       var btn = document.getElementById('registerWebhookBtn');
