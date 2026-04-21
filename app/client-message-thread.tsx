@@ -2,6 +2,8 @@
  * Client Portal — Message Thread Screen
  *
  * Real-time-style message thread between client and business for a specific appointment.
+ *
+ * Design: dark forest-green portal aesthetic matching all other client portal screens.
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -18,11 +20,27 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
-import { ScreenContainer } from "@/components/screen-container";
-import { useColors } from "@/hooks/use-colors";
+import { ClientPortalBackground } from "@/components/client-portal-background";
 import { useClientStore } from "@/lib/client-store";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
+
+// ─── Portal palette ───────────────────────────────────────────────────────────
+const GREEN_ACCENT = "#8FBF6A";
+const GREEN_DARK = "#1A3A28";
+const CARD_BG = "rgba(255,255,255,0.09)";
+const CARD_BORDER = "rgba(255,255,255,0.14)";
+const TEXT_PRIMARY = "#FFFFFF";
+const TEXT_MUTED = "rgba(255,255,255,0.6)";
+
+// Client bubble: lime-green tinted
+const CLIENT_BUBBLE_BG = "rgba(143,191,106,0.85)";
+const CLIENT_BUBBLE_TEXT = "#1A3A28";
+
+// Business bubble: translucent white card
+const BUSINESS_BUBBLE_BG = "rgba(255,255,255,0.10)";
+const BUSINESS_BUBBLE_BORDER = "rgba(255,255,255,0.18)";
 
 interface Message {
   id: number;
@@ -57,10 +75,10 @@ function formatDay(dateStr: string): string {
 }
 
 export default function ClientMessageThreadScreen() {
-  const colors = useColors();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { appointmentId } = useLocalSearchParams<{ appointmentId: string }>();
-  const { state, apiCall } = useClientStore();
+  const { apiCall } = useClientStore();
   const [messages, setMessages] = useState<Message[]>([]);
   const [threadInfo, setThreadInfo] = useState<ThreadInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -89,7 +107,6 @@ export default function ClientMessageThreadScreen() {
 
   useFocusEffect(useCallback(() => {
     loadMessages();
-    // Poll every 10 seconds for new messages
     pollRef.current = setInterval(() => loadMessages(true), 10000);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
@@ -111,18 +128,15 @@ export default function ClientMessageThreadScreen() {
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (err: any) {
       console.warn("[MessageThread] send error:", err);
-      setDraft(body); // Restore draft on error
+      setDraft(body);
     } finally {
       setSending(false);
     }
   };
 
-  const s = styles(colors);
-
-  // Group messages by day
-  const groupedMessages: { type: "date"; date: string } | Message[] = [];
-  let lastDay = "";
+  // Build grouped items (date separators + messages)
   const items: ({ type: "date"; key: string; label: string } | (Message & { type: "message" }))[] = [];
+  let lastDay = "";
   messages.forEach((msg) => {
     const day = formatDay(msg.createdAt);
     if (day !== lastDay) {
@@ -133,23 +147,28 @@ export default function ClientMessageThreadScreen() {
   });
 
   return (
-    <ScreenContainer edges={["top", "left", "right"]}>
-      {/* Header */}
-      <View style={[s.header, { borderBottomColor: colors.border }]}>
-        <Pressable style={({ pressed }) => [s.backBtn, pressed && { opacity: 0.7 }]} onPress={() => router.back()}>
-          <IconSymbol name="chevron.left" size={20} color={colors.foreground} />
+    <View style={{ flex: 1, backgroundColor: GREEN_DARK }}>
+      <ClientPortalBackground />
+
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <Pressable
+          style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.7 }]}
+          onPress={() => router.back()}
+        >
+          <IconSymbol name="chevron.left" size={20} color={TEXT_PRIMARY} />
         </Pressable>
-        <View style={s.headerInfo}>
-          <Text style={[s.headerBusiness, { color: colors.foreground }]} numberOfLines={1}>
+        <View style={styles.headerInfo}>
+          <Text style={styles.headerBusiness} numberOfLines={1}>
             {threadInfo?.businessName ?? "Business"}
           </Text>
           {threadInfo && (
-            <Text style={[s.headerAppt, { color: colors.muted }]} numberOfLines={1}>
+            <Text style={styles.headerAppt} numberOfLines={1}>
               {threadInfo.serviceName} · {threadInfo.appointmentDate}
             </Text>
           )}
         </View>
-        <View style={{ width: 32 }} />
+        <View style={{ width: 36 }} />
       </View>
 
       <KeyboardAvoidingView
@@ -158,8 +177,8 @@ export default function ClientMessageThreadScreen() {
         keyboardVerticalOffset={0}
       >
         {loading ? (
-          <View style={s.loadingContainer}>
-            <ActivityIndicator color="#8B5CF6" />
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator color={GREEN_ACCENT} size="large" />
           </View>
         ) : (
           <FlatList
@@ -169,44 +188,50 @@ export default function ClientMessageThreadScreen() {
             contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 }}
             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
             ListEmptyComponent={
-              <View style={s.emptyContainer}>
-                <IconSymbol name="text.bubble" size={32} color={colors.muted} />
-                <Text style={[s.emptyText, { color: colors.muted }]}>
-                  No messages yet. Send a message to the business!
+              <View style={styles.emptyContainer}>
+                <View style={styles.emptyIconWrap}>
+                  <IconSymbol name="text.bubble" size={28} color={GREEN_ACCENT} />
+                </View>
+                <Text style={styles.emptyText}>
+                  No messages yet.{"\n"}Send a message to the business!
                 </Text>
               </View>
             }
             renderItem={({ item }) => {
               if (item.type === "date") {
                 return (
-                  <View style={s.dateSeparator}>
-                    <View style={[s.dateLine, { backgroundColor: colors.border }]} />
-                    <Text style={[s.dateLabel, { color: colors.muted, backgroundColor: colors.background }]}>
-                      {(item as any).label}
-                    </Text>
-                    <View style={[s.dateLine, { backgroundColor: colors.border }]} />
+                  <View style={styles.dateSeparator}>
+                    <View style={styles.dateLine} />
+                    <Text style={styles.dateLabel}>{(item as any).label}</Text>
+                    <View style={styles.dateLine} />
                   </View>
                 );
               }
               const msg = item as Message & { type: "message" };
               const isClient = msg.senderType === "client";
               return (
-                <View style={[s.msgRow, isClient ? s.msgRowRight : s.msgRowLeft]}>
+                <View style={[styles.msgRow, isClient ? styles.msgRowRight : styles.msgRowLeft]}>
                   {!isClient && (
-                    <View style={[s.msgAvatar, { backgroundColor: "#8B5CF620" }]}>
-                      <IconSymbol name="scissors" size={14} color="#8B5CF6" />
+                    <View style={styles.msgAvatar}>
+                      <IconSymbol name="scissors" size={13} color={GREEN_ACCENT} />
                     </View>
                   )}
                   <View style={[
-                    s.msgBubble,
+                    styles.msgBubble,
                     isClient
-                      ? { backgroundColor: "#8B5CF6", borderBottomRightRadius: 4 }
-                      : { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderBottomLeftRadius: 4 },
+                      ? styles.msgBubbleClient
+                      : styles.msgBubbleBusiness,
                   ]}>
-                    <Text style={[s.msgBody, { color: isClient ? "#FFFFFF" : colors.foreground }]}>
+                    <Text style={[
+                      styles.msgBody,
+                      { color: isClient ? CLIENT_BUBBLE_TEXT : TEXT_PRIMARY },
+                    ]}>
                       {msg.body}
                     </Text>
-                    <Text style={[s.msgTime, { color: isClient ? "#FFFFFF99" : colors.muted }]}>
+                    <Text style={[
+                      styles.msgTime,
+                      { color: isClient ? "rgba(26,58,40,0.6)" : TEXT_MUTED },
+                    ]}>
                       {formatTime(msg.createdAt)}
                     </Text>
                   </View>
@@ -216,12 +241,12 @@ export default function ClientMessageThreadScreen() {
           />
         )}
 
-        {/* Input Bar */}
-        <View style={[s.inputBar, { backgroundColor: colors.background, borderTopColor: colors.border }]}>
+        {/* ── Input Bar ──────────────────────────────────────────────── */}
+        <View style={[styles.inputBar, { paddingBottom: insets.bottom + 8 }]}>
           <TextInput
-            style={[s.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground }]}
+            style={styles.input}
             placeholder="Type a message..."
-            placeholderTextColor={colors.muted}
+            placeholderTextColor={TEXT_MUTED}
             value={draft}
             onChangeText={setDraft}
             multiline
@@ -230,46 +255,183 @@ export default function ClientMessageThreadScreen() {
           />
           <Pressable
             style={({ pressed }) => [
-              s.sendBtn,
-              { backgroundColor: draft.trim() ? "#8B5CF6" : colors.border },
+              styles.sendBtn,
+              { backgroundColor: draft.trim() ? GREEN_ACCENT : "rgba(255,255,255,0.15)" },
               pressed && { opacity: 0.8, transform: [{ scale: 0.95 }] },
             ]}
             onPress={handleSend}
             disabled={!draft.trim() || sending}
           >
             {sending ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <ActivityIndicator size="small" color={draft.trim() ? GREEN_DARK : TEXT_MUTED} />
             ) : (
-              <IconSymbol name="paperplane.fill" size={18} color="#FFFFFF" />
+              <IconSymbol
+                name="paperplane.fill"
+                size={18}
+                color={draft.trim() ? GREEN_DARK : TEXT_MUTED}
+              />
             )}
           </Pressable>
         </View>
       </KeyboardAvoidingView>
-    </ScreenContainer>
+    </View>
   );
 }
 
-const styles = (colors: ReturnType<typeof useColors>) =>
-  StyleSheet.create({
-    header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, gap: 12 },
-    backBtn: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-    headerInfo: { flex: 1 },
-    headerBusiness: { fontSize: 16, fontWeight: "700" },
-    headerAppt: { fontSize: 12 },
-    loadingContainer: { flex: 1, alignItems: "center", justifyContent: "center" },
-    emptyContainer: { alignItems: "center", paddingTop: 60, gap: 12 },
-    emptyText: { fontSize: 14, textAlign: "center", maxWidth: 240 },
-    dateSeparator: { flexDirection: "row", alignItems: "center", gap: 8, marginVertical: 12 },
-    dateLine: { flex: 1, height: 1 },
-    dateLabel: { fontSize: 12, fontWeight: "600", paddingHorizontal: 8 },
-    msgRow: { flexDirection: "row", alignItems: "flex-end", marginBottom: 8, gap: 8 },
-    msgRowLeft: { justifyContent: "flex-start" },
-    msgRowRight: { justifyContent: "flex-end" },
-    msgAvatar: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-    msgBubble: { maxWidth: "75%", borderRadius: 16, padding: 10, gap: 4 },
-    msgBody: { fontSize: 14, lineHeight: 20 },
-    msgTime: { fontSize: 10, alignSelf: "flex-end" },
-    inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 10, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1 },
-    input: { flex: 1, borderRadius: 20, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, maxHeight: 100 },
-    sendBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  });
+const styles = StyleSheet.create({
+  // ─── Header ──────────────────────────────────────────────────────────────
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: CARD_BORDER,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  headerInfo: {
+    flex: 1,
+  },
+  headerBusiness: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: TEXT_PRIMARY,
+  },
+  headerAppt: {
+    fontSize: 12,
+    color: TEXT_MUTED,
+    marginTop: 1,
+  },
+  // ─── Loading / Empty ─────────────────────────────────────────────────────
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyContainer: {
+    alignItems: "center",
+    paddingTop: 60,
+    gap: 14,
+  },
+  emptyIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "rgba(143,191,106,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyText: {
+    fontSize: 14,
+    textAlign: "center",
+    maxWidth: 240,
+    color: TEXT_MUTED,
+    lineHeight: 20,
+  },
+  // ─── Date Separator ──────────────────────────────────────────────────────
+  dateSeparator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginVertical: 14,
+  },
+  dateLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: CARD_BORDER,
+  },
+  dateLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    color: TEXT_MUTED,
+    paddingHorizontal: 6,
+    backgroundColor: "transparent",
+  },
+  // ─── Message Bubbles ─────────────────────────────────────────────────────
+  msgRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    marginBottom: 8,
+    gap: 8,
+  },
+  msgRowLeft: {
+    justifyContent: "flex-start",
+  },
+  msgRowRight: {
+    justifyContent: "flex-end",
+  },
+  msgAvatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "rgba(143,191,106,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(143,191,106,0.25)",
+  },
+  msgBubble: {
+    maxWidth: "75%",
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 3,
+  },
+  msgBubbleClient: {
+    backgroundColor: CLIENT_BUBBLE_BG,
+    borderBottomRightRadius: 4,
+  },
+  msgBubbleBusiness: {
+    backgroundColor: BUSINESS_BUBBLE_BG,
+    borderWidth: 1,
+    borderColor: BUSINESS_BUBBLE_BORDER,
+    borderBottomLeftRadius: 4,
+  },
+  msgBody: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  msgTime: {
+    fontSize: 10,
+    alignSelf: "flex-end",
+  },
+  // ─── Input Bar ───────────────────────────────────────────────────────────
+  inputBar: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: CARD_BORDER,
+    backgroundColor: "rgba(26,58,40,0.85)",
+  },
+  input: {
+    flex: 1,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.18)",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 14,
+    maxHeight: 100,
+    color: TEXT_PRIMARY,
+  },
+  sendBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});

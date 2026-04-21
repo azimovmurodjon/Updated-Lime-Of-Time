@@ -2,7 +2,9 @@
  * Client Portal — Booking Confirmation Screen
  *
  * Shown after a successful booking. Displays appointment summary
- * (service, staff, date, time, business) and an "Add to Calendar" button.
+ * (service, staff, date, time, business, location) and an "Add to Calendar" button.
+ *
+ * Design: dark forest-green portal aesthetic matching all other client portal screens.
  */
 import React, { useEffect, useState } from "react";
 import {
@@ -13,12 +15,12 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  ScrollView,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ScreenContainer } from "@/components/screen-container";
-import { useColors } from "@/hooks/use-colors";
+import { ClientPortalBackground } from "@/components/client-portal-background";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { FuturisticBackground } from "@/components/futuristic-background";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -29,11 +31,17 @@ import Animated, {
 import * as Haptics from "expo-haptics";
 import * as Calendar from "expo-calendar";
 
-const LIME_GREEN = "#4A7C59";
+// ─── Portal palette ───────────────────────────────────────────────────────────
+const GREEN_ACCENT = "#8FBF6A";
+const GREEN_DARK = "#1A3A28";
+const CARD_BG = "rgba(255,255,255,0.09)";
+const CARD_BORDER = "rgba(255,255,255,0.14)";
+const TEXT_PRIMARY = "#FFFFFF";
+const TEXT_MUTED = "rgba(255,255,255,0.6)";
 
 export default function ClientBookingConfirmationScreen() {
-  const colors = useColors();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const {
     serviceName,
     staffName,
@@ -61,14 +69,25 @@ export default function ClientBookingConfirmationScreen() {
   // Entrance animation
   const scale = useSharedValue(0.85);
   const opacity = useSharedValue(0);
+  const checkScale = useSharedValue(0);
+
   useEffect(() => {
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    scale.value = withSpring(1, { damping: 16, stiffness: 140 });
     opacity.value = withTiming(1, { duration: 350, easing: Easing.out(Easing.cubic) });
+    scale.value = withSpring(1, { damping: 16, stiffness: 140 });
+    // Stagger the checkmark pop
+    setTimeout(() => {
+      checkScale.value = withSpring(1, { damping: 12, stiffness: 200 });
+    }, 150);
   }, []);
-  const cardStyle = useAnimatedStyle(() => ({
+
+  const contentStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
     transform: [{ scale: scale.value }],
+  }));
+
+  const checkStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: checkScale.value }],
   }));
 
   function formatDateDisplay(dateStr: string): string {
@@ -98,7 +117,6 @@ export default function ClientBookingConfirmationScreen() {
     const endDate = new Date(startDate.getTime() + durationMins * 60000);
 
     if (Platform.OS === "web") {
-      // Web: download .ics file
       const pad = (n: number) => String(n).padStart(2, "0");
       const toICS = (d: Date) =>
         `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
@@ -125,7 +143,6 @@ export default function ClientBookingConfirmationScreen() {
       return;
     }
 
-    // Native: use expo-calendar
     try {
       setCalendarLoading(true);
       const { status } = await Calendar.requestCalendarPermissionsAsync();
@@ -134,7 +151,6 @@ export default function ClientBookingConfirmationScreen() {
         return;
       }
 
-      // Find a writable calendar
       let calendarId: string | undefined;
       if (Platform.OS === "ios") {
         const defaultCal = await Calendar.getDefaultCalendarAsync();
@@ -150,12 +166,6 @@ export default function ClientBookingConfirmationScreen() {
         return;
       }
 
-      const description = [
-        staffName ? `Staff: ${staffName}` : null,
-        locationAddress ? `Location: ${locationAddress}` : null,
-        `Booked via Lime Of Time`,
-      ].filter(Boolean).join("\n");
-
       await Calendar.createEventAsync(calendarId, {
         title: `${serviceName} at ${businessName}`,
         startDate,
@@ -168,126 +178,110 @@ export default function ClientBookingConfirmationScreen() {
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setCalendarAdded(true);
       Alert.alert("Added!", "Your appointment has been added to your calendar.");
-    } catch (err) {
+    } catch {
       Alert.alert("Error", "Could not add to calendar. Please try again.");
     } finally {
       setCalendarLoading(false);
     }
   };
 
-  const s = styles(colors);
-
   return (
-    <ScreenContainer>
-      <FuturisticBackground />
-      <View style={s.container}>
-        {/* Success icon */}
-        <Animated.View style={[s.successCircle, cardStyle]}>
-          <View style={[s.successInner, { backgroundColor: LIME_GREEN }]}>
-            <IconSymbol name="checkmark" size={36} color="#FFFFFF" />
-          </View>
-        </Animated.View>
+    <View style={{ flex: 1, backgroundColor: GREEN_DARK }}>
+      <ClientPortalBackground />
 
-        <Animated.View style={[{ width: "100%" }, cardStyle]}>
-          <Text style={[s.headline, { color: colors.foreground }]}>Booking Confirmed!</Text>
-          <Text style={[s.subline, { color: colors.muted }]}>
-            Your appointment has been submitted. The business will confirm shortly.
+      <ScrollView
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 32 },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Success Icon ─────────────────────────────────────────────── */}
+        <View style={styles.iconSection}>
+          <View style={styles.successRing}>
+            <Animated.View style={[styles.successCircle, checkStyle]}>
+              <IconSymbol name="checkmark" size={40} color={GREEN_DARK} />
+            </Animated.View>
+          </View>
+        </View>
+
+        <Animated.View style={[styles.content, contentStyle]}>
+          {/* ── Headline ─────────────────────────────────────────────── */}
+          <Text style={styles.headline}>Booking Confirmed!</Text>
+          <Text style={styles.subline}>
+            Your appointment has been submitted.{"\n"}The business will confirm shortly.
           </Text>
 
-          {/* Summary card */}
-          <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <SummaryRow
-              icon="scissors"
-              label="Service"
-              value={serviceName ?? "—"}
-              colors={colors}
-            />
+          {/* ── Summary Card ─────────────────────────────────────────── */}
+          <View style={styles.card}>
+            <SummaryRow icon="scissors" label="Service" value={serviceName ?? "—"} />
             {staffName ? (
-              <SummaryRow
-                icon="person.fill"
-                label="Staff"
-                value={staffName}
-                colors={colors}
-              />
+              <SummaryRow icon="person.fill" label="Staff" value={staffName} />
             ) : null}
-            <SummaryRow
-              icon="calendar"
-              label="Date"
-              value={formatDateDisplay(date ?? "")}
-              colors={colors}
-            />
-            <SummaryRow
-              icon="clock"
-              label="Time"
-              value={formatTime12(time ?? "")}
-              colors={colors}
-            />
+            <SummaryRow icon="calendar" label="Date" value={formatDateDisplay(date ?? "")} />
+            <SummaryRow icon="clock" label="Time" value={formatTime12(time ?? "")} />
+            {price ? (
+              <SummaryRow icon="creditcard" label="Price" value={price} />
+            ) : null}
             <SummaryRow
               icon="building.2"
               label="Business"
               value={businessName ?? "—"}
-              colors={colors}
-              last
+              last={!locationAddress}
             />
             {locationAddress ? (
-              <SummaryRow
-                icon="location"
-                label="Location"
-                value={locationAddress}
-                colors={colors}
-                last
-              />
+              <SummaryRow icon="location" label="Location" value={locationAddress} last />
             ) : null}
           </View>
 
-          {/* Add to Calendar */}
+          {/* ── Add to Calendar ──────────────────────────────────────── */}
           <Pressable
             style={({ pressed }) => [
-              s.calBtn,
-              calendarAdded && { backgroundColor: "rgba(74,124,89,0.08)", borderColor: LIME_GREEN },
+              styles.calBtn,
+              calendarAdded && styles.calBtnDone,
               pressed && { opacity: 0.8 },
             ]}
             onPress={handleAddToCalendar}
             disabled={calendarLoading || calendarAdded}
           >
             {calendarLoading ? (
-              <ActivityIndicator size="small" color={LIME_GREEN} />
+              <ActivityIndicator size="small" color={GREEN_ACCENT} />
             ) : calendarAdded ? (
-              <IconSymbol name="checkmark" size={18} color={LIME_GREEN} />
+              <IconSymbol name="checkmark" size={18} color={GREEN_ACCENT} />
             ) : (
-              <IconSymbol name="calendar" size={18} color={LIME_GREEN} />
+              <IconSymbol name="calendar" size={18} color={GREEN_ACCENT} />
             )}
-            <Text style={[s.calBtnText, { color: LIME_GREEN }]}>
+            <Text style={styles.calBtnText}>
               {calendarAdded ? "Added to Calendar" : "Add to Calendar"}
             </Text>
           </Pressable>
 
-          {/* View Bookings */}
+          {/* ── View Bookings ────────────────────────────────────────── */}
           <Pressable
-            style={({ pressed }) => [s.primaryBtn, { backgroundColor: LIME_GREEN }, pressed && { opacity: 0.85 }]}
+            style={({ pressed }) => [styles.primaryBtn, pressed && { opacity: 0.85 }]}
             onPress={() => {
               if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.replace("/(client-tabs)/bookings" as any);
             }}
           >
-            <Text style={s.primaryBtnText}>View My Bookings</Text>
+            <Text style={styles.primaryBtnText}>View My Bookings</Text>
           </Pressable>
 
-          {/* Back to Business */}
+          {/* ── Back to Business ─────────────────────────────────────── */}
           {businessSlug ? (
             <Pressable
-              style={({ pressed }) => [s.ghostBtn, pressed && { opacity: 0.7 }]}
+              style={({ pressed }) => [styles.ghostBtn, pressed && { opacity: 0.7 }]}
               onPress={() => {
                 if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.replace({ pathname: "/client-business-detail", params: { slug: businessSlug } } as any);
               }}
             >
-              <Text style={[s.ghostBtnText, { color: colors.muted }]}>Back to Business</Text>
+              <Text style={styles.ghostBtnText}>Back to Business</Text>
             </Pressable>
           ) : null}
         </Animated.View>
-      </View>
-    </ScreenContainer>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -295,28 +289,21 @@ function SummaryRow({
   icon,
   label,
   value,
-  colors,
   last,
 }: {
   icon: string;
   label: string;
   value: string;
-  colors: ReturnType<typeof useColors>;
   last?: boolean;
 }) {
   return (
-    <View
-      style={[
-        rowStyles.row,
-        !last && { borderBottomWidth: 1, borderBottomColor: colors.border },
-      ]}
-    >
+    <View style={[rowStyles.row, !last && rowStyles.rowBorder]}>
       <View style={rowStyles.iconWrap}>
-        <IconSymbol name={icon as any} size={15} color={LIME_GREEN} />
+        <IconSymbol name={icon as any} size={15} color={GREEN_ACCENT} />
       </View>
       <View style={rowStyles.textWrap}>
-        <Text style={[rowStyles.label, { color: colors.muted }]}>{label}</Text>
-        <Text style={[rowStyles.value, { color: colors.foreground }]}>{value}</Text>
+        <Text style={rowStyles.label}>{label}</Text>
+        <Text style={rowStyles.value}>{value}</Text>
       </View>
     </View>
   );
@@ -329,11 +316,15 @@ const rowStyles = StyleSheet.create({
     paddingVertical: 12,
     gap: 12,
   },
+  rowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: CARD_BORDER,
+  },
   iconWrap: {
-    width: 32,
-    height: 32,
+    width: 34,
+    height: 34,
     borderRadius: 10,
-    backgroundColor: "rgba(74,124,89,0.12)",
+    backgroundColor: "rgba(143,191,106,0.12)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -346,89 +337,125 @@ const rowStyles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: 1,
+    color: TEXT_MUTED,
   },
   value: {
     fontSize: 14,
     fontWeight: "600",
+    color: TEXT_PRIMARY,
   },
 });
 
-const styles = (colors: ReturnType<typeof useColors>) =>
-  StyleSheet.create({
-    container: {
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 24,
-      gap: 16,
-    },
-    successCircle: {
-      width: 96,
-      height: 96,
-      borderRadius: 48,
-      backgroundColor: "rgba(74,124,89,0.15)",
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: 8,
-    },
-    successInner: {
-      width: 72,
-      height: 72,
-      borderRadius: 36,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    headline: {
-      fontSize: 26,
-      fontWeight: "800",
-      textAlign: "center",
-      marginBottom: 6,
-    },
-    subline: {
-      fontSize: 14,
-      textAlign: "center",
-      lineHeight: 20,
-      marginBottom: 20,
-      paddingHorizontal: 8,
-    },
-    card: {
-      borderRadius: 18,
-      borderWidth: 1,
-      paddingHorizontal: 16,
-      marginBottom: 16,
-    },
-    calBtn: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 8,
-      paddingVertical: 14,
-      borderRadius: 14,
-      borderWidth: 1.5,
-      borderColor: LIME_GREEN,
-      marginBottom: 12,
-    },
-    calBtnText: {
-      fontSize: 15,
-      fontWeight: "700",
-    },
-    primaryBtn: {
-      paddingVertical: 16,
-      borderRadius: 14,
-      alignItems: "center",
-      marginBottom: 10,
-    },
-    primaryBtnText: {
-      color: "#FFFFFF",
-      fontSize: 16,
-      fontWeight: "700",
-    },
-    ghostBtn: {
-      paddingVertical: 10,
-      alignItems: "center",
-    },
-    ghostBtnText: {
-      fontSize: 14,
-      fontWeight: "600",
-    },
-  });
+const styles = StyleSheet.create({
+  scroll: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    alignItems: "center",
+  },
+  // ─── Success Icon ─────────────────────────────────────────────────────────
+  iconSection: {
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  successRing: {
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    backgroundColor: "rgba(143,191,106,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "rgba(143,191,106,0.3)",
+  },
+  successCircle: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: GREEN_ACCENT,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  // ─── Text ─────────────────────────────────────────────────────────────────
+  content: {
+    width: "100%",
+    alignItems: "center",
+  },
+  headline: {
+    fontSize: 28,
+    fontWeight: "800",
+    textAlign: "center",
+    color: TEXT_PRIMARY,
+    marginBottom: 8,
+    letterSpacing: -0.3,
+  },
+  subline: {
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 21,
+    marginBottom: 24,
+    paddingHorizontal: 8,
+    color: TEXT_MUTED,
+  },
+  // ─── Summary Card ─────────────────────────────────────────────────────────
+  card: {
+    width: "100%",
+    backgroundColor: CARD_BG,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  // ─── Calendar Button ──────────────────────────────────────────────────────
+  calBtn: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: GREEN_ACCENT,
+    marginBottom: 12,
+    backgroundColor: "rgba(143,191,106,0.07)",
+  },
+  calBtnDone: {
+    backgroundColor: "rgba(143,191,106,0.12)",
+  },
+  calBtnText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: GREEN_ACCENT,
+  },
+  // ─── Primary Button ───────────────────────────────────────────────────────
+  primaryBtn: {
+    width: "100%",
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: "center",
+    marginBottom: 10,
+    backgroundColor: GREEN_ACCENT,
+    shadowColor: GREEN_ACCENT,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  primaryBtnText: {
+    color: GREEN_DARK,
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+  },
+  // ─── Ghost Button ─────────────────────────────────────────────────────────
+  ghostBtn: {
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  ghostBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: TEXT_MUTED,
+  },
+});
