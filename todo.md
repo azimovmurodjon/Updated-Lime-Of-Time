@@ -1725,3 +1725,10 @@
 ## Quick Fix
 - [x] Add back button on client sign-in page to navigate back to onboarding/profile-select screen
 - [x] Add back-to-portal-select button on client home guest banner and signed-in header
+
+## Feature Batch — Onboarding, Search & Admin
+- [x] Redesign profile-select to use app logo and green FuturisticBackground
+- [x] Redesign client-signin to match business green style with app logo (no OTP)
+- [x] Add back button to business onboarding sign-in tab to return to profile-select
+- [x] Fix discover screen: empty state for no nearby businesses, change KM to Miles
+- [x] Connect client-side data to admin panel (client accounts, messages via tabbed view)

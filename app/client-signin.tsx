@@ -1,9 +1,12 @@
 /**
  * Client Portal — Sign In Screen
  *
- * Full redesign — matches business app visual quality:
- * FuturisticBackground, Reanimated entrance animations, LinearGradient,
- * spring press feedback, and haptic confirmation.
+ * Matches the business onboarding visual style exactly:
+ * - Same dark green LinearGradient background (#1A3A28 → #4A7C59)
+ * - App logo (icon.png) at top, same ring treatment
+ * - White card at bottom with OAuth buttons
+ * - No OTP — social login only
+ * - Back button to profile-select
  */
 
 import React, { useState, useEffect } from "react";
@@ -13,6 +16,10 @@ import {
   StyleSheet,
   Platform,
   ActivityIndicator,
+  Dimensions,
+  Image,
+  KeyboardAvoidingView,
+  ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -20,7 +27,6 @@ import { useColors } from "@/hooks/use-colors";
 import { setProfileMode } from "@/lib/client-store";
 import { startOAuthLogin } from "@/constants/oauth";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { FuturisticBackground } from "@/components/futuristic-background";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   useSharedValue,
@@ -34,13 +40,12 @@ import Animated, {
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import * as Haptics from "expo-haptics";
 
-const CLIENT_PURPLE = "#8B5CF6";
+const { width, height } = Dimensions.get("window");
 
 // ─── Animated OAuth Button ────────────────────────────────────────────────────
 function OAuthButton({
   label,
   icon,
-  iconColor,
   bgColor,
   textColor,
   borderColor,
@@ -51,7 +56,6 @@ function OAuthButton({
 }: {
   label: string;
   icon: React.ReactNode;
-  iconColor?: string;
   bgColor: string;
   textColor: string;
   borderColor?: string;
@@ -115,26 +119,34 @@ export default function ClientSignInScreen() {
     setLoading(null);
   };
 
-  // Header entrance
-  const headerOpacity = useSharedValue(0);
-  const headerY = useSharedValue(-24);
+  // Logo entrance
   const logoScale = useSharedValue(0.5);
   const logoOpacity = useSharedValue(0);
+  const appNameOpacity = useSharedValue(0);
+  const appNameY = useSharedValue(10);
+  const cardOpacity = useSharedValue(0);
+  const cardY = useSharedValue(40);
 
   useEffect(() => {
     logoOpacity.value = withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) });
     logoScale.value = withSpring(1, { damping: 14, stiffness: 120 });
-    headerOpacity.value = withDelay(150, withTiming(1, { duration: 450 }));
-    headerY.value = withDelay(150, withSpring(0, { damping: 18, stiffness: 100 }));
+    appNameOpacity.value = withDelay(300, withTiming(1, { duration: 500 }));
+    appNameY.value = withDelay(300, withSpring(0, { damping: 18, stiffness: 100 }));
+    cardOpacity.value = withDelay(500, withTiming(1, { duration: 500, easing: Easing.out(Easing.cubic) }));
+    cardY.value = withDelay(500, withSpring(0, { damping: 20, stiffness: 120 }));
   }, []);
 
   const logoStyle = useAnimatedStyle(() => ({
     opacity: logoOpacity.value,
     transform: [{ scale: logoScale.value }],
   }));
-  const headerStyle = useAnimatedStyle(() => ({
-    opacity: headerOpacity.value,
-    transform: [{ translateY: headerY.value }],
+  const appNameStyle = useAnimatedStyle(() => ({
+    opacity: appNameOpacity.value,
+    transform: [{ translateY: appNameY.value }],
+  }));
+  const cardStyle = useAnimatedStyle(() => ({
+    opacity: cardOpacity.value,
+    transform: [{ translateY: cardY.value }],
   }));
 
   // Back button
@@ -144,205 +156,309 @@ export default function ClientSignInScreen() {
     .onBegin(() => { backScale.value = withSpring(0.93, { damping: 20, stiffness: 300 }); })
     .onFinalize((_, success) => {
       backScale.value = withSpring(1, { damping: 18, stiffness: 200 });
-      if (success) runOnJS(goToProfileSelect)();
+      if (success) {
+        if (Platform.OS !== "web") runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
+        runOnJS(goToProfileSelect)();
+      }
     });
   const backStyle = useAnimatedStyle(() => ({ transform: [{ scale: backScale.value }] }));
 
-  // Skip button
+  // Skip opacity
   const skipOpacity = useSharedValue(0);
   useEffect(() => {
-    skipOpacity.value = withDelay(700, withTiming(1, { duration: 400 }));
+    skipOpacity.value = withDelay(800, withTiming(1, { duration: 400 }));
   }, []);
   const skipStyle = useAnimatedStyle(() => ({ opacity: skipOpacity.value }));
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]}>
-      <FuturisticBackground />
+      {/* ─── Green gradient background (matches business onboarding) ── */}
+      <LinearGradient
+        colors={["#1A3A28", "#2D5A3D", "#4A7C59", "#3D6B4A"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
+      />
 
-      <View style={styles.container}>
-        {/* Back button */}
-        <GestureDetector gesture={backTap}>
-          <Animated.View style={[styles.backBtn, backStyle]}>
-            <IconSymbol name="chevron.left" size={20} color={colors.foreground} />
-            <Text style={[styles.backText, { color: colors.foreground }]}>Back</Text>
-          </Animated.View>
-        </GestureDetector>
+      {/* ─── Bottom wave decorations ────────────────────────────── */}
+      <View style={[styles.wave1]} />
+      <View style={[styles.wave2]} />
 
-        {/* Logo */}
-        <Animated.View style={[styles.logoWrap, logoStyle]}>
-          <LinearGradient
-            colors={[CLIENT_PURPLE + "30", CLIENT_PURPLE + "10"]}
-            style={styles.logoCircle}
-          >
-            <IconSymbol name="person.crop.circle.fill" size={44} color={CLIENT_PURPLE} />
-          </LinearGradient>
-          <View style={[styles.logoRing, { borderColor: CLIENT_PURPLE + "40" }]} />
-        </Animated.View>
-
-        {/* Header text */}
-        <Animated.View style={[styles.headerBlock, headerStyle]}>
-          <Text style={[styles.appLabel, { color: CLIENT_PURPLE }]}>Client Portal</Text>
-          <Text style={[styles.title, { color: colors.foreground }]}>Welcome Back</Text>
-          <Text style={[styles.subtitle, { color: colors.muted }]}>
-            Sign in to book appointments, manage your schedule, and discover new services.
-          </Text>
-        </Animated.View>
-
-        {/* OAuth Buttons */}
-        <View style={styles.buttons}>
-          {Platform.OS !== "android" && (
-            <OAuthButton
-              label="Continue with Apple"
-              icon={<IconSymbol name="apple.logo" size={20} color={colors.background} />}
-              bgColor={colors.foreground}
-              textColor={colors.background}
-              loading={loading === "apple"}
-              disabled={loading !== null}
-              delay={350}
-              onPress={() => handleOAuth("apple")}
-            />
-          )}
-          <OAuthButton
-            label="Continue with Google"
-            icon={<Text style={{ fontSize: 18, fontWeight: "700", color: "#4285F4" }}>G</Text>}
-            bgColor={colors.surface}
-            textColor={colors.foreground}
-            borderColor={colors.border}
-            loading={loading === "google"}
-            disabled={loading !== null}
-            delay={Platform.OS === "android" ? 350 : 450}
-            onPress={() => handleOAuth("google")}
-          />
-          <OAuthButton
-            label="Continue with Microsoft"
-            icon={<Text style={{ fontSize: 16, fontWeight: "700", color: "#0078D4" }}>M</Text>}
-            bgColor={colors.surface}
-            textColor={colors.foreground}
-            borderColor={colors.border}
-            loading={loading === "microsoft"}
-            disabled={loading !== null}
-            delay={Platform.OS === "android" ? 450 : 550}
-            onPress={() => handleOAuth("microsoft")}
-          />
-        </View>
-
-        {/* Browse without account */}
-        <Animated.View style={skipStyle}>
-          <GestureDetector gesture={Gesture.Tap().onFinalize((_, s) => {
-            if (s) runOnJS(router.replace)("/(client-tabs)" as any);
-          })}>
-            <Animated.View style={styles.skipBtn}>
-              <Text style={[styles.skipText, { color: colors.muted }]}>Browse without signing in</Text>
+      <KeyboardAvoidingView
+        behavior="padding"
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 24}
+        style={{ flex: 1 }}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* ─── Back button ─────────────────────────────────────── */}
+          <GestureDetector gesture={backTap}>
+            <Animated.View style={[styles.backBtn, backStyle]}>
+              <IconSymbol name="chevron.left" size={20} color="rgba(255,255,255,0.8)" />
+              <Text style={styles.backText}>Back</Text>
             </Animated.View>
           </GestureDetector>
 
-          <Text style={[styles.terms, { color: colors.muted }]}>
-            By continuing you agree to our Terms of Service and Privacy Policy.
-          </Text>
-        </Animated.View>
-      </View>
+          {/* ─── Logo + App Name ─────────────────────────────────── */}
+          <Animated.View style={[styles.logoWrap, logoStyle]}>
+            <View style={styles.logoRing}>
+              <Image
+                source={require("@/assets/images/icon.png")}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+            </View>
+            <Animated.Text style={[styles.appName, appNameStyle]}>Lime Of Time</Animated.Text>
+            <Animated.Text style={[styles.appTagline, appNameStyle]}>Book appointments with ease</Animated.Text>
+            <Animated.View style={[styles.byLine, appNameStyle]}>
+              <View style={styles.byLineDash} />
+              <Text style={styles.byLineText}>CLIENT PORTAL</Text>
+              <View style={styles.byLineDash} />
+            </Animated.View>
+          </Animated.View>
+
+          {/* ─── White Card ──────────────────────────────────────── */}
+          <Animated.View style={[styles.card, cardStyle]}>
+            <Text style={styles.cardTitle}>Welcome!</Text>
+            <Text style={styles.cardSubtitle}>
+              Sign in to book appointments, manage your schedule, and discover new services.
+            </Text>
+
+            {/* OAuth Buttons */}
+            <View style={styles.buttons}>
+              {Platform.OS !== "android" && (
+                <OAuthButton
+                  label="Continue with Apple"
+                  icon={<IconSymbol name="apple.logo" size={20} color="#FFFFFF" />}
+                  bgColor="#000000"
+                  textColor="#FFFFFF"
+                  loading={loading === "apple"}
+                  disabled={loading !== null}
+                  delay={600}
+                  onPress={() => handleOAuth("apple")}
+                />
+              )}
+              <OAuthButton
+                label="Continue with Google"
+                icon={<Text style={{ fontSize: 18, fontWeight: "700", color: "#4285F4" }}>G</Text>}
+                bgColor="#FFFFFF"
+                textColor="#111827"
+                borderColor="#E5E7EB"
+                loading={loading === "google"}
+                disabled={loading !== null}
+                delay={Platform.OS === "android" ? 600 : 700}
+                onPress={() => handleOAuth("google")}
+              />
+              <OAuthButton
+                label="Continue with Microsoft"
+                icon={<Text style={{ fontSize: 16, fontWeight: "700", color: "#0078D4" }}>M</Text>}
+                bgColor="#FFFFFF"
+                textColor="#111827"
+                borderColor="#E5E7EB"
+                loading={loading === "microsoft"}
+                disabled={loading !== null}
+                delay={Platform.OS === "android" ? 700 : 800}
+                onPress={() => handleOAuth("microsoft")}
+              />
+            </View>
+
+            {/* Divider */}
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* Browse without account */}
+            <Animated.View style={skipStyle}>
+              <GestureDetector gesture={Gesture.Tap().onFinalize((_, s) => {
+                if (s) runOnJS(router.replace)("/(client-tabs)" as any);
+              })}>
+                <Animated.View style={styles.skipBtn}>
+                  <Text style={styles.skipText}>Browse without signing in</Text>
+                </Animated.View>
+              </GestureDetector>
+            </Animated.View>
+
+            <Text style={styles.terms}>
+              By continuing you agree to our Terms of Service and Privacy Policy.
+            </Text>
+          </Animated.View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  scroll: {
+    minHeight: height,
     paddingHorizontal: 24,
-    paddingTop: 8,
-    paddingBottom: 24,
-    justifyContent: "center",
+    paddingTop: 32,
+    paddingBottom: 48,
+  },
+  wave1: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: height * 0.38,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderTopLeftRadius: width * 0.5,
+    borderTopRightRadius: width * 0.5,
+  },
+  wave2: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: height * 0.28,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderTopLeftRadius: width * 0.6,
+    borderTopRightRadius: width * 0.6,
   },
   backBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginBottom: 20,
+    marginBottom: 16,
     alignSelf: "flex-start",
   },
   backText: {
     fontSize: 16,
+    color: "rgba(255,255,255,0.8)",
+    fontWeight: "500",
   },
   logoWrap: {
     alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 24,
-    alignSelf: "center",
-  },
-  logoCircle: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    alignItems: "center",
-    justifyContent: "center",
+    marginBottom: 32,
+    marginTop: 8,
   },
   logoRing: {
-    position: "absolute",
-    width: 108,
-    height: 108,
-    borderRadius: 54,
-    borderWidth: 1.5,
-  },
-  headerBlock: {
+    width: 96,
+    height: 96,
+    borderRadius: 28,
+    backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center",
-    marginBottom: 36,
+    justifyContent: "center",
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.25)",
   },
-  appLabel: {
-    fontSize: 12,
-    fontWeight: "700",
+  logo: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+  },
+  appName: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: -0.5,
+    marginBottom: 4,
+  },
+  appTagline: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.65)",
+    letterSpacing: 0.2,
+    marginBottom: 10,
+  },
+  byLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 4,
+  },
+  byLineDash: {
+    width: 24,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.3)",
+  },
+  byLineText: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.45)",
     letterSpacing: 1.5,
     textTransform: "uppercase",
-    marginBottom: 6,
   },
-  title: {
-    fontSize: 32,
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 10,
+  },
+  cardTitle: {
+    fontSize: 24,
     fontWeight: "800",
-    letterSpacing: -0.5,
+    color: "#111827",
     marginBottom: 8,
+    letterSpacing: -0.3,
   },
-  subtitle: {
-    fontSize: 15,
-    textAlign: "center",
-    lineHeight: 22,
-    maxWidth: 300,
+  cardSubtitle: {
+    fontSize: 14,
+    color: "#6B7280",
+    lineHeight: 20,
+    marginBottom: 24,
   },
   buttons: {
     gap: 12,
-    marginBottom: 8,
   },
   oauthWrap: {
-    borderRadius: 16,
+    borderRadius: 14,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
   },
   oauthBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 12,
-    paddingVertical: 16,
-    borderRadius: 16,
+    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 14,
   },
   oauthBtnText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#E5E7EB",
+  },
+  dividerText: {
+    fontSize: 13,
+    color: "#9CA3AF",
+    fontWeight: "500",
   },
   skipBtn: {
     alignItems: "center",
-    paddingVertical: 14,
-    marginTop: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: "#F3F4F6",
+    marginBottom: 16,
   },
   skipText: {
     fontSize: 14,
+    color: "#4A7C59",
+    fontWeight: "600",
   },
   terms: {
     fontSize: 11,
+    color: "#9CA3AF",
     textAlign: "center",
     lineHeight: 16,
-    marginTop: 8,
+    marginTop: 4,
   },
 });

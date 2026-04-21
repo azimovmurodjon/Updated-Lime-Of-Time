@@ -58,6 +58,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import * as Haptics from "expo-haptics";
 import { CountryCodePicker, DEFAULT_COUNTRY, type Country } from "@/components/country-code-picker";
+import { IconSymbol } from "@/components/ui/icon-symbol";
 import { PlanCarousel } from "@/components/plan-carousel";
 import { startOAuthLogin } from "@/constants/oauth";
 import { GoogleLogo, MicrosoftLogo, AppleLogo } from "@/components/brand-icons";
@@ -1151,6 +1152,24 @@ export default function OnboardingScreen() {
 
           {/* ─── Progress Dots ──────────────────────────────────── */}
           <ProgressDots step={displayStep} />
+
+          {/* ─── Back to portal select (step 1 only) ──────────── */}
+          {displayStep === 1 && (
+            <Pressable
+              onPress={() => router.replace("/profile-select" as any)}
+              style={({ pressed }) => ({
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+                marginBottom: 12,
+                alignSelf: "flex-start",
+                opacity: pressed ? 0.6 : 1,
+              })}
+            >
+              <IconSymbol name="chevron.left" size={18} color="rgba(255,255,255,0.8)" />
+              <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 15, fontWeight: "500" }}>Back</Text>
+            </Pressable>
+          )}
 
           {/* ─── White Card ──────────────────────────────────── */}
           {/* GestureDetector enables swipe-right to go back on applicable steps */}

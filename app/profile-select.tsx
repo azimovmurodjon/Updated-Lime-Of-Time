@@ -19,6 +19,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { setProfileMode } from "@/lib/client-store";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { Image } from "react-native";
 import { FuturisticBackground } from "@/components/futuristic-background";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
@@ -184,7 +185,11 @@ export default function ProfileSelectScreen() {
             colors={[colors.primary + "30", colors.primary + "10"]}
             style={styles.logoCircle}
           >
-            <IconSymbol name="calendar" size={44} color={colors.primary} />
+            <Image
+              source={require("../assets/images/icon.png")}
+              style={{ width: 64, height: 64, borderRadius: 16 }}
+              resizeMode="contain"
+            />
           </LinearGradient>
           {/* Outer ring */}
           <View style={[styles.logoRing, { borderColor: colors.primary + "40" }]} />

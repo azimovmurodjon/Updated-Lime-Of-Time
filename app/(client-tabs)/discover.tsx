@@ -42,6 +42,7 @@ const CATEGORIES = [
   "Dental", "Medical", "Spa", "Barber", "Tattoo", "Other",
 ];
 
+// Radius options in miles
 const RADIUS_OPTIONS = [5, 10, 25, 50, 100];
 
 export default function DiscoverScreen() {
@@ -67,8 +68,8 @@ export default function DiscoverScreen() {
       if (lng != null) params.set("lng", String(lng));
       if (query) params.set("q", query);
       if (category && category !== "All") params.set("category", category);
-      if (radius) params.set("radius", String(radius));
-      const res = await fetch(`${apiBase}/api/client/discover?${params.toString()}`);
+      if (radius) params.set("radiusMiles", String(radius));
+      const res = await fetch(`${apiBase}/api/client/businesses/discover?${params.toString()}`);
       if (res.ok) {
         const data = await res.json() as DiscoverBusiness[];
         setBusinesses(data);
@@ -166,7 +167,7 @@ export default function DiscoverScreen() {
           onPress={() => setShowRadiusPicker((v) => !v)}
         >
           <IconSymbol name="location.fill" size={14} color="#8B5CF6" />
-          <Text style={{ color: "#8B5CF6", fontSize: 13, fontWeight: "600" }}>{state.discoverRadius}km</Text>
+          <Text style={{ color: "#8B5CF6", fontSize: 13, fontWeight: "600" }}>{state.discoverRadius} mi</Text>
         </Pressable>
       </View>
 
@@ -180,7 +181,7 @@ export default function DiscoverScreen() {
               onPress={() => handleRadiusSelect(r)}
             >
               <Text style={{ color: state.discoverRadius === r ? "#8B5CF6" : colors.foreground, fontWeight: state.discoverRadius === r ? "700" : "400", fontSize: 14 }}>
-                {r} km
+                {r} miles
               </Text>
               {state.discoverRadius === r && <IconSymbol name="checkmark" size={14} color="#8B5CF6" />}
             </Pressable>
@@ -232,11 +233,35 @@ export default function DiscoverScreen() {
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32, paddingTop: 8 }}
           ListEmptyComponent={
             <View style={s.emptyContainer}>
-              <IconSymbol name="safari.fill" size={40} color={colors.muted} />
-              <Text style={[s.emptyTitle, { color: colors.foreground }]}>No businesses found</Text>
-              <Text style={[s.emptySubtitle, { color: colors.muted }]}>
-                Try expanding the radius or changing the category filter.
+              <IconSymbol name="location.slash.fill" size={48} color={colors.muted} />
+              <Text style={[s.emptyTitle, { color: colors.foreground }]}>
+                {userLat != null ? "No businesses nearby" : "No businesses found"}
               </Text>
+              <Text style={[s.emptySubtitle, { color: colors.muted }]}>
+                {userLat != null
+                  ? `No businesses available within ${state.discoverRadius} miles of your location. Try increasing the range or changing the category filter.`
+                  : "No businesses match your search. Try a different keyword or category."}
+              </Text>
+              {userLat != null && (
+                <Pressable
+                  style={({ pressed }) => [{
+                    marginTop: 16,
+                    paddingHorizontal: 20,
+                    paddingVertical: 10,
+                    borderRadius: 20,
+                    backgroundColor: "#8B5CF615",
+                    borderWidth: 1,
+                    borderColor: "#8B5CF640",
+                    opacity: pressed ? 0.7 : 1,
+                  }]}
+                  onPress={() => {
+                    const nextRadius = RADIUS_OPTIONS[Math.min(RADIUS_OPTIONS.indexOf(state.discoverRadius) + 1, RADIUS_OPTIONS.length - 1)];
+                    if (nextRadius !== state.discoverRadius) handleRadiusSelect(nextRadius);
+                  }}
+                >
+                  <Text style={{ color: "#8B5CF6", fontWeight: "600", fontSize: 14 }}>Expand Range</Text>
+                </Pressable>
+              )}
             </View>
           }
           renderItem={({ item }) => {
