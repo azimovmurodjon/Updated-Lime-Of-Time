@@ -41,8 +41,9 @@ const TEXT_PRIMARY = "#FFFFFF";
 const TEXT_MUTED = "rgba(255,255,255,0.6)";
 
 interface MessageThread {
-  appointmentId: number;
+  businessOwnerId: number;
   businessName: string;
+  businessSlug: string;
   serviceName: string;
   appointmentDate: string;
   lastMessage: string | null;
@@ -137,7 +138,7 @@ export default function MessagesScreen() {
       ) : (
         <FlatList
           data={threads}
-          keyExtractor={(item) => String(item.appointmentId)}
+          keyExtractor={(item) => String(item.businessOwnerId)}
           contentContainerStyle={{ paddingBottom: 32 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={GREEN_ACCENT} />}
           ListEmptyComponent={
@@ -169,7 +170,15 @@ function ThreadRow({ item, index, router }: { item: MessageThread; index: number
       scale.value = withSpring(1, { damping: 18, stiffness: 200 });
       if (success) {
         if (Platform.OS !== "web") runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
-        runOnJS(router.push)({ pathname: "/client-message-thread", params: { appointmentId: String(item.appointmentId) } } as any);
+        runOnJS(router.push)({
+          pathname: "/client-message-thread",
+          params: {
+            businessOwnerId: String(item.businessOwnerId),
+            businessName: item.businessName,
+            serviceName: item.serviceName,
+            appointmentDate: item.appointmentDate,
+          },
+        } as any);
       }
     });
 

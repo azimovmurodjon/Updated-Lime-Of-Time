@@ -347,6 +347,100 @@ export function registerClientRoutes(app: Express) {
     }
   });
 
+  /**
+   * GET /api/client/appointments/:id
+   * Returns a single enriched appointment by numeric DB id.
+   * Only returns if the appointment belongs to this client.
+   */
+  app.get("/api/client/appointments/:id", async (req: Request, res: Response) => {
+    try {
+      const { clientAccount } = await getClientAccount(req);
+      const apptId = parseInt(req.params.id);
+      if (isNaN(apptId)) {
+        res.status(400).json({ error: "Invalid appointment id" });
+        return;
+      }
+      // Use getAppointmentsByClientPhone to find the appointment
+      let phone = clientAccount!.phone.startsWith("oauth:") ? clientAccount!.email : clientAccount!.phone;
+      const rawDigits = (phone ?? "").replace(/\D/g, "");
+      const normalizedPhone = rawDigits.length === 11 && rawDigits.startsWith("1") ? rawDigits.slice(1) : rawDigits;
+      if (normalizedPhone.length >= 10) phone = normalizedPhone;
+      const rawAppts = await db.getAppointmentsByClientPhone(phone ?? "");
+      const appt = rawAppts.find((a) => a.id === apptId);
+      if (!appt) {
+        res.status(404).json({ error: "Appointment not found" });
+        return;
+      }
+      const [owner, svcList, staffList, locList] = await Promise.all([
+        db.getBusinessOwnerById(appt.businessOwnerId),
+        db.getServices(appt.businessOwnerId),
+        db.getStaffMembers(appt.businessOwnerId),
+        db.getLocations(appt.businessOwnerId),
+      ]);
+      const service = svcList.find((s) => s.localId === appt.serviceLocalId);
+      const staff = staffList.find((st) => st.localId === appt.staffId);
+      const location = locList.find((l) => l.localId === appt.locationId);
+      res.json({
+        ...appt,
+        businessName: owner?.businessName ?? "Unknown",
+        businessSlug: owner?.customSlug ?? (owner?.businessName ?? "").toLowerCase().replace(/\s+/g, "-"),
+        businessLogoUri: owner?.businessLogoUri ?? null,
+        businessCategory: owner?.businessCategory ?? null,
+        serviceName: service?.name ?? appt.serviceLocalId,
+        price: service?.price ?? null,
+        staffName: staff?.name ?? null,
+        staffAvatarUrl: staff?.photoUri ?? null,
+        locationName: location?.name ?? null,
+        locationAddress: location?.address ?? null,
+      });
+    } catch (err: any) {
+      res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
+    }
+  });
+
+  /**
+   * POST /api/client/appointments/:id/cancel-request
+   * Submits a cancellation request for the appointment.
+   */
+  app.post("/api/client/appointments/:id/cancel-request", async (req: Request, res: Response) => {
+    try {
+      const { clientAccount } = await getClientAccount(req);
+      const apptId = parseInt(req.params.id);
+      if (isNaN(apptId)) {
+        res.status(400).json({ error: "Invalid appointment id" });
+        return;
+      }
+      let phone = clientAccount!.phone.startsWith("oauth:") ? clientAccount!.email : clientAccount!.phone;
+      const rawDigits = (phone ?? "").replace(/\D/g, "");
+      const normalizedPhone = rawDigits.length === 11 && rawDigits.startsWith("1") ? rawDigits.slice(1) : rawDigits;
+      if (normalizedPhone.length >= 10) phone = normalizedPhone;
+      const rawAppts = await db.getAppointmentsByClientPhone(phone ?? "");
+      const appt = rawAppts.find((a) => a.id === apptId);
+      if (!appt) {
+        res.status(404).json({ error: "Appointment not found" });
+        return;
+      }
+      if (appt.status !== "confirmed" && appt.status !== "pending") {
+        res.status(400).json({ error: "Cannot request cancellation for this appointment" });
+        return;
+      }
+      const cancelRequest = { status: "pending" as const, submittedAt: new Date().toISOString() };
+      await db.updateAppointment(appt.localId, appt.businessOwnerId, { cancelRequest });
+      // Notify business owner
+      const owner = await db.getBusinessOwnerById(appt.businessOwnerId);
+      if (owner?.expoPushToken) {
+        await sendExpoPush(owner.expoPushToken, {
+          title: "Cancellation Request",
+          body: `${clientAccount!.name ?? "A client"} requested to cancel their appointment.`,
+          data: { type: "cancel_request", appointmentId: appt.id },
+        });
+      }
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
+    }
+  });
+
   // ── Messages ──────────────────────────────────────────────────────────────
 
   /** GET /api/client/messages — inbox: list of conversations with businesses */
@@ -368,6 +462,72 @@ export function registerClientRoutes(app: Express) {
         })
       );
       res.json({ inbox: enriched });
+    } catch (err: any) {
+      res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
+    }
+  });
+
+  /**
+   * GET /api/client/messages/threads
+   * Returns appointment-enriched thread list for the Messages tab.
+   * Each thread has: businessOwnerId, businessName, serviceName, appointmentDate,
+   * lastMessage, lastMessageAt, unreadCount.
+   */
+  app.get("/api/client/messages/threads", async (req: Request, res: Response) => {
+    try {
+      const { clientAccount } = await getClientAccount(req);
+      const inbox = await db.getClientMessageInbox(clientAccount!.id);
+
+      // Enrich each inbox item with business info and latest appointment
+      const threads = await Promise.all(
+        inbox.map(async (item) => {
+          const [business, allAppts] = await Promise.all([
+            db.getBusinessOwnerById(item.businessOwnerId),
+            db.getAppointmentsByOwner(item.businessOwnerId),
+          ]);
+          // Find the most recent appointment for this client at this business
+          const clientPhone = clientAccount!.phone.startsWith("oauth:") ? clientAccount!.email : clientAccount!.phone;
+          const rawDigits = (clientPhone ?? "").replace(/\D/g, "");
+          const normalizedPhone = rawDigits.length === 11 && rawDigits.startsWith("1") ? rawDigits.slice(1) : rawDigits;
+          // Match via client records
+          const matchingClients = await db.getClientsByOwner(item.businessOwnerId);
+          const matchedClient = matchingClients.find((c) => {
+            const d = c.phone.replace(/\D/g, "");
+            const n = d.length === 11 && d.startsWith("1") ? d.slice(1) : d;
+            return n === normalizedPhone || c.phone === clientPhone;
+          });
+          const clientAppts = matchedClient
+            ? allAppts.filter((a) => a.clientLocalId === matchedClient.localId)
+            : [];
+          const latestAppt = clientAppts.sort((a, b) => b.date.localeCompare(a.date))[0];
+          const services = latestAppt ? await db.getServices(item.businessOwnerId) : [];
+          const service = latestAppt ? services.find((s) => s.localId === latestAppt.serviceLocalId) : null;
+          return {
+            businessOwnerId: item.businessOwnerId,
+            businessName: business?.businessName ?? "Unknown",
+            businessLogoUri: business?.businessLogoUri ?? null,
+            businessSlug: business?.customSlug ?? (business?.businessName ?? "").toLowerCase().replace(/\s+/g, "-"),
+            serviceName: service?.name ?? (latestAppt?.serviceLocalId ?? ""),
+            appointmentDate: latestAppt?.date ?? "",
+            lastMessage: item.lastMessage,
+            lastMessageAt: item.lastAt,
+            unreadCount: item.unreadCount,
+          };
+        })
+      );
+      res.json(threads);
+    } catch (err: any) {
+      res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
+    }
+  });
+
+  /** GET /api/client/messages/unread-count — total unread message count for badge */
+  app.get("/api/client/messages/unread-count", async (req: Request, res: Response) => {
+    try {
+      const { clientAccount } = await getClientAccount(req);
+      const inbox = await db.getClientMessageInbox(clientAccount!.id);
+      const total = inbox.reduce((sum, item) => sum + item.unreadCount, 0);
+      res.json({ count: total });
     } catch (err: any) {
       res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
     }

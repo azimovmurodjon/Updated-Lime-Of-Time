@@ -1839,3 +1839,14 @@
 - [ ] Wire Notification Preferences from client profile tab
 - [ ] Build Birthday Campaigns section on business side
 - [ ] Add server endpoint for birthday campaign SMS sending
+
+## Client Portal Dark-Green Redesign (Apr 21 2026)
+- [x] Redesign client-booking-confirmation.tsx with dark forest-green portal aesthetic
+- [x] Redesign client-message-thread.tsx with dark forest-green portal aesthetic (businessOwnerId-based)
+- [x] Redesign client-appointment-detail.tsx with dark forest-green portal aesthetic
+- [x] Add /api/client/messages/threads endpoint (appointment-enriched inbox)
+- [x] Add /api/client/messages/unread-count endpoint for client portal
+- [x] Add /api/client/appointments/:id endpoint (single enriched appointment by numeric id)
+- [x] Add /api/client/appointments/:id/cancel-request endpoint
+- [x] Fix messages tab to use businessOwnerId-based navigation instead of appointmentId
+- [x] Wire unread message badge on Messages tab icon from server (30s background polling)

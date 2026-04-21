@@ -5,7 +5,7 @@
  * Completely separate from the business owner store.
  */
 
-import React, { createContext, useContext, useReducer, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getApiBaseUrl } from "@/constants/oauth";
 
@@ -196,9 +196,6 @@ const ClientStoreContext = createContext<ClientStoreContextValue | null>(null);
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
-// Use the same dynamic base URL as the rest of the app (works on native + web)
-const API_BASE = getApiBaseUrl();
-
 export function ClientStoreProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(clientReducer, initialState);
 
@@ -243,13 +240,31 @@ export function ClientStoreProvider({ children }: { children: React.ReactNode })
     if (state.sessionToken) {
       headers["Authorization"] = `Bearer ${state.sessionToken}`;
     }
-    const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+    const res = await fetch(`${getApiBaseUrl()}${path}`, { ...options, headers });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: "Request failed" }));
       throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`);
     }
     return res.json() as Promise<T>;
   }, [state.sessionToken]);
+
+  // ── Background unread-count polling (every 30 s when signed in) ──────────
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    if (!state.sessionToken || !state.account) {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      return;
+    }
+    const poll = async () => {
+      try {
+        const data = await apiCall<{ count: number }>("/api/client/messages/unread-count");
+        dispatch({ type: "SET_UNREAD_COUNT", payload: data.count });
+      } catch { /* silent */ }
+    };
+    poll(); // immediate first fetch
+    pollRef.current = setInterval(poll, 30_000);
+    return () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
+  }, [state.sessionToken, state.account, apiCall]);
 
   return (
     <ClientStoreContext.Provider value={{ state, dispatch, signIn, signOut, apiCall }}>

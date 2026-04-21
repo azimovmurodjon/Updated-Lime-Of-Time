@@ -1,7 +1,8 @@
 /**
  * Client Portal — Message Thread Screen
  *
- * Real-time-style message thread between client and business for a specific appointment.
+ * Real-time-style message thread between client and business.
+ * Uses businessOwnerId-based API endpoints.
  *
  * Design: dark forest-green portal aesthetic matching all other client portal screens.
  */
@@ -29,7 +30,6 @@ import * as Haptics from "expo-haptics";
 // ─── Portal palette ───────────────────────────────────────────────────────────
 const GREEN_ACCENT = "#8FBF6A";
 const GREEN_DARK = "#1A3A28";
-const CARD_BG = "rgba(255,255,255,0.09)";
 const CARD_BORDER = "rgba(255,255,255,0.14)";
 const TEXT_PRIMARY = "#FFFFFF";
 const TEXT_MUTED = "rgba(255,255,255,0.6)";
@@ -51,14 +51,6 @@ interface Message {
   readAt: string | null;
 }
 
-interface ThreadInfo {
-  appointmentId: number;
-  businessName: string;
-  serviceName: string;
-  appointmentDate: string;
-  appointmentTime: string;
-}
-
 function formatTime(dateStr: string): string {
   const d = new Date(dateStr);
   return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
@@ -77,10 +69,16 @@ function formatDay(dateStr: string): string {
 export default function ClientMessageThreadScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { appointmentId } = useLocalSearchParams<{ appointmentId: string }>();
-  const { apiCall } = useClientStore();
+  // Accept either businessOwnerId (new) or appointmentId (legacy) params
+  const params = useLocalSearchParams<{
+    businessOwnerId?: string;
+    businessName?: string;
+    serviceName?: string;
+    appointmentDate?: string;
+  }>();
+  const businessOwnerId = params.businessOwnerId;
+  const { apiCall, dispatch } = useClientStore();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [threadInfo, setThreadInfo] = useState<ThreadInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [draft, setDraft] = useState("");
@@ -88,22 +86,21 @@ export default function ClientMessageThreadScreen() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadMessages = useCallback(async (silent = false) => {
+    if (!businessOwnerId) return;
     if (!silent) setLoading(true);
     try {
-      const [msgs, info] = await Promise.all([
-        apiCall<Message[]>(`/api/client/messages/${appointmentId}`),
-        apiCall<ThreadInfo>(`/api/client/messages/${appointmentId}/info`),
-      ]);
-      setMessages(msgs);
-      setThreadInfo(info);
-      // Mark as read
-      apiCall(`/api/client/messages/${appointmentId}/read`, { method: "POST" }).catch(() => {});
+      const data = await apiCall<{ messages: Message[] }>(`/api/client/messages/${businessOwnerId}`);
+      setMessages(data.messages ?? []);
+      // Refresh unread count after marking as read
+      apiCall<{ count: number }>("/api/client/messages/unread-count")
+        .then((r) => dispatch({ type: "SET_UNREAD_COUNT", payload: r.count }))
+        .catch(() => {});
     } catch (err) {
       console.warn("[MessageThread] load error:", err);
     } finally {
       setLoading(false);
     }
-  }, [appointmentId, apiCall]);
+  }, [businessOwnerId, apiCall, dispatch]);
 
   useFocusEffect(useCallback(() => {
     loadMessages();
@@ -115,16 +112,16 @@ export default function ClientMessageThreadScreen() {
 
   const handleSend = async () => {
     const body = draft.trim();
-    if (!body || sending) return;
+    if (!body || sending || !businessOwnerId) return;
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSending(true);
     setDraft("");
     try {
-      const newMsg = await apiCall<Message>(`/api/client/messages/${appointmentId}`, {
+      const data = await apiCall<{ message: Message }>(`/api/client/messages/${businessOwnerId}`, {
         method: "POST",
         body: JSON.stringify({ body }),
       });
-      setMessages((prev) => [...prev, newMsg]);
+      setMessages((prev) => [...prev, data.message]);
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (err: any) {
       console.warn("[MessageThread] send error:", err);
@@ -160,13 +157,13 @@ export default function ClientMessageThreadScreen() {
         </Pressable>
         <View style={styles.headerInfo}>
           <Text style={styles.headerBusiness} numberOfLines={1}>
-            {threadInfo?.businessName ?? "Business"}
+            {params.businessName ?? "Business"}
           </Text>
-          {threadInfo && (
+          {params.serviceName ? (
             <Text style={styles.headerAppt} numberOfLines={1}>
-              {threadInfo.serviceName} · {threadInfo.appointmentDate}
+              {params.serviceName}{params.appointmentDate ? ` · ${params.appointmentDate}` : ""}
             </Text>
-          )}
+          ) : null}
         </View>
         <View style={{ width: 36 }} />
       </View>
@@ -218,9 +215,7 @@ export default function ClientMessageThreadScreen() {
                   )}
                   <View style={[
                     styles.msgBubble,
-                    isClient
-                      ? styles.msgBubbleClient
-                      : styles.msgBubbleBusiness,
+                    isClient ? styles.msgBubbleClient : styles.msgBubbleBusiness,
                   ]}>
                     <Text style={[
                       styles.msgBody,
@@ -354,7 +349,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     color: TEXT_MUTED,
     paddingHorizontal: 6,
-    backgroundColor: "transparent",
   },
   // ─── Message Bubbles ─────────────────────────────────────────────────────
   msgRow: {
