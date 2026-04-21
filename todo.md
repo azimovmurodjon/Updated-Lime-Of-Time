@@ -1564,3 +1564,5 @@
 - [x] Fix seed-reviews.ts TypeScript null check error
 
 - [x] Stripe test mode toggle in admin Stripe Connect panel (one-click, warning banner when active)
+
+- [x] Stripe key switcher: warn on test/live key mismatch when toggling mode, allow inline key update

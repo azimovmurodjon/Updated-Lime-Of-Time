@@ -24,6 +24,13 @@ export function registerAdminStripeConnectRoutes(app: Express): void {
       const stripeMode = await getPlatformConfig("STRIPE_TEST_MODE");
       const isTestMode = stripeMode === "true" || stripeMode === "1";
 
+      // Read current Stripe key to detect test/live mismatch
+      const stripeKey = await getPlatformConfig("STRIPE_SECRET_KEY") || "";
+      const keyPrefix = stripeKey.startsWith("sk_test_") ? "test" : stripeKey.startsWith("sk_live_") ? "live" : stripeKey ? "unknown" : "unset";
+      const keyMismatch = (isTestMode && keyPrefix === "live") || (!isTestMode && keyPrefix === "test");
+      // Mask key for display: show first 12 chars + ...
+      const keyMasked = stripeKey ? stripeKey.slice(0, 12) + "..." : "(not set)";
+
       const connected = allBiz.filter((b: any) => b.stripeConnectAccountId);
       const enabled = allBiz.filter((b: any) => b.stripeConnectEnabled);
       const pending = allBiz.filter((b: any) => b.stripeConnectAccountId && !b.stripeConnectEnabled);
@@ -37,6 +44,9 @@ export function registerAdminStripeConnectRoutes(app: Express): void {
         platformFee,
         isTestMode,
         serverDomain,
+        keyPrefix,
+        keyMismatch,
+        keyMasked,
       }));
     } catch (err) {
       console.error("[Admin] Stripe Connect error:", err);
@@ -176,6 +186,35 @@ export function registerAdminStripeConnectRoutes(app: Express): void {
     }
   });
 
+  // ── Update Stripe Secret Key inline ─────────────────────────────
+  app.post("/api/admin/stripe-connect/update-key", async (req: Request, res: Response) => {
+    if (!requireAdminAuth(req, res)) return;
+    try {
+      const { key } = req.body;
+      if (!key || typeof key !== "string") { res.status(400).json({ error: "key required" }); return; }
+      const trimmed = key.trim();
+      if (!trimmed.startsWith("sk_test_") && !trimmed.startsWith("sk_live_")) {
+        res.status(400).json({ error: "Invalid Stripe key. Must start with sk_test_ or sk_live_" }); return;
+      }
+      const dbase = await getDb();
+      if (!dbase) { res.status(503).json({ error: "DB unavailable" }); return; }
+      const { platformConfig } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const existing = await dbase.select().from(platformConfig).where(eq(platformConfig.configKey, "STRIPE_SECRET_KEY"));
+      if (existing.length > 0) {
+        await dbase.update(platformConfig).set({ configValue: trimmed, updatedAt: new Date() }).where(eq(platformConfig.configKey, "STRIPE_SECRET_KEY"));
+      } else {
+        await dbase.insert(platformConfig).values({ configKey: "STRIPE_SECRET_KEY", configValue: trimmed });
+      }
+      const prefix = trimmed.startsWith("sk_test_") ? "test" : "live";
+      console.log(`[Admin] Stripe key updated to ${prefix} key`);
+      res.json({ ok: true, prefix });
+    } catch (err: any) {
+      console.error("[Admin] Update Stripe key error:", err);
+      res.status(500).json({ error: err?.message || "Failed to update key" });
+    }
+  });
+
   // ── Disconnect a business from Stripe Connect ───────────────────────
   app.post("/api/admin/stripe-connect/:id/disconnect", async (req: Request, res: Response) => {
     if (!requireAdminAuth(req, res)) return;
@@ -205,8 +244,11 @@ function stripeConnectPage(data: {
   platformFee: string;
   isTestMode: boolean;
   serverDomain: string;
+  keyPrefix: string;
+  keyMismatch: boolean;
+  keyMasked: string;
 }): string {
-  const { businesses, connected, enabled, pending, platformFee, isTestMode, serverDomain } = data;
+  const { businesses, connected, enabled, pending, platformFee, isTestMode, serverDomain, keyPrefix, keyMismatch, keyMasked } = data;
 
   const rows = businesses.map((b: any) => {
     const hasAccount = !!b.stripeConnectAccountId;
@@ -347,6 +389,23 @@ function stripeConnectPage(data: {
       </form>
     </div>
 
+    <!-- Stripe Key Status + Inline Switcher -->
+    <div class="card" style="border:1px solid ${keyMismatch ? '#ef444440' : '#374151'};background:${keyMismatch ? '#450a0a' : 'var(--bg-card)'}">
+      <h2 style="color:${keyMismatch ? '#f87171' : '#e4e6eb'};">🔑 Stripe Secret Key</h2>
+      ${keyMismatch ? `
+      <div style="background:#7f1d1d;border:1.5px solid #ef4444;border-radius:10px;padding:12px 16px;margin-bottom:14px;">
+        <div style="font-weight:700;font-size:14px;color:#fca5a5;">⚠️ KEY MISMATCH DETECTED</div>
+        <div style="font-size:12px;color:#fca5a5;margin-top:4px;">You are in <strong>${isTestMode ? 'TEST' : 'LIVE'} mode</strong> but your key is a <strong>${keyPrefix.toUpperCase()} key</strong> (<code style="background:#450a0a;padding:1px 5px;border-radius:3px;">${escHtml(keyMasked)}</code>). All Stripe charges will fail silently until you update the key below.</div>
+      </div>` : `
+      <p style="font-size:13px;color:#9ca3af;margin-bottom:14px;">Current key: <code style="background:#111827;padding:2px 8px;border-radius:6px;color:${keyPrefix === 'test' ? '#60a5fa' : keyPrefix === 'live' ? '#4ade80' : '#f87171'};">${escHtml(keyMasked)}</code> <span style="font-size:11px;color:${keyPrefix === 'test' ? '#60a5fa' : keyPrefix === 'live' ? '#4ade80' : '#f87171'};">${keyPrefix === 'test' ? '(test key — matches test mode ✅)' : keyPrefix === 'live' ? '(live key — matches live mode ✅)' : keyPrefix === 'unset' ? '(not set — Stripe features disabled)' : '(unrecognized format)'}</span></p>`}
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <input type="password" id="stripeKeyInput" placeholder="sk_test_... or sk_live_..." style="background:#111827;border:1px solid #374151;color:#e4e6eb;padding:8px 12px;border-radius:8px;font-size:13px;width:340px;font-family:monospace;" autocomplete="off">
+        <button onclick="updateStripeKey()" id="updateKeyBtn" style="background:${keyMismatch ? '#ef4444' : '#374151'};color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:13px;cursor:pointer;">${keyMismatch ? '🔑 Fix Key Now' : '🔑 Update Key'}</button>
+        <span id="updateKeyResult" style="font-size:13px;"></span>
+      </div>
+      <div style="font-size:11px;color:#4b5563;margin-top:8px;">Key is stored encrypted in the database. Never share your secret key. Get keys from <a href="https://dashboard.stripe.com/apikeys" target="_blank" style="color:#60a5fa;">Stripe Dashboard → API Keys</a>.</div>
+    </div>
+
     <!-- Business Accounts Table -->
     <div class="card">
       <h2>🏢 Business Connect Accounts (${businesses.length} total)</h2>
@@ -465,6 +524,41 @@ function stripeConnectPage(data: {
 
     // Auto-load fee revenue on page load
     window.addEventListener('DOMContentLoaded', function() { loadFeeRevenue(); });
+
+    function updateStripeKey() {
+      var input = document.getElementById('stripeKeyInput');
+      var btn = document.getElementById('updateKeyBtn');
+      var result = document.getElementById('updateKeyResult');
+      var key = input.value.trim();
+      if (!key) { result.innerHTML = '<span style="color:#f87171;">Please enter a key</span>'; return; }
+      if (!key.startsWith('sk_test_') && !key.startsWith('sk_live_')) {
+        result.innerHTML = '<span style="color:#f87171;">Key must start with sk_test_ or sk_live_</span>'; return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+      result.innerHTML = '';
+      fetch('/api/admin/stripe-connect/update-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: key })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.ok) {
+          result.innerHTML = '<span style="color:#4ade80;">\u2705 Key saved (' + d.prefix + '). Reloading...</span>';
+          setTimeout(function() { window.location.reload(); }, 1200);
+        } else {
+          result.innerHTML = '<span style="color:#f87171;">\u274c ' + (d.error || 'Failed') + '</span>';
+          btn.disabled = false;
+          btn.textContent = '\ud83d\udd11 Update Key';
+        }
+      })
+      .catch(function(e) {
+        result.innerHTML = '<span style="color:#f87171;">\u274c Network error: ' + e.message + '</span>';
+        btn.disabled = false;
+        btn.textContent = '\ud83d\udd11 Update Key';
+      });
+    }
 
     function toggleStripeMode() {
       var btn = document.getElementById('modeToggleBtn');
