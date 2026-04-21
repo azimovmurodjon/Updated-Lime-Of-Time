@@ -995,6 +995,26 @@ export default function CalendarScreen() {
   // ─── Workday Panel (shown below selected date in month view) ──────────
 
   const renderWorkdayPanel = (dateStr: string) => {
+    // When no location is configured, show a disabled placeholder
+    if (state.locations.length === 0) {
+      return (
+        <View style={[styles.workdayPanel, { backgroundColor: colors.surface, borderColor: colors.border, opacity: 0.4 }]}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Workday</Text>
+              <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Add a location to configure working hours</Text>
+            </View>
+            <Switch
+              value={false}
+              disabled={true}
+              trackColor={{ false: colors.border, true: colors.primary + "80" }}
+              thumbColor={colors.muted}
+            />
+          </View>
+        </View>
+      );
+    }
+
     // When All Locations is selected and there are multiple locations, Workday is per-location.
     // Hide the panel and show an informational message instead.
     if (calLocationFilter === null && hasMultiLoc) {
