@@ -22,6 +22,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { useClientStore, ClientAppointment } from "@/lib/client-store";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { Image } from "react-native";
 import { FuturisticBackground } from "@/components/futuristic-background";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
@@ -338,14 +339,18 @@ function GuestBanner({ colors, router }: { colors: ReturnType<typeof useColors>;
   return (
     <View style={styles.guestContainer}>
       <Animated.View style={[styles.guestLogoWrap, logoStyle]}>
-        <LinearGradient colors={[CLIENT_PURPLE + "30", CLIENT_PURPLE + "10"]} style={styles.guestLogoCircle}>
-          <IconSymbol name="calendar" size={48} color={CLIENT_PURPLE} />
-        </LinearGradient>
-        <View style={[styles.guestLogoRing, { borderColor: CLIENT_PURPLE + "40" }]} />
+        <View style={styles.guestLogoCircle}>
+          <Image
+            source={require("@/assets/images/icon.png")}
+            style={{ width: 72, height: 72, borderRadius: 20 }}
+            resizeMode="contain"
+          />
+        </View>
+        <View style={[styles.guestLogoRing, { borderColor: "rgba(74,124,89,0.4)" }]} />
       </Animated.View>
 
-      <Animated.View style={[{ alignItems: "center", gap: 10 }, textStyle]}>
-        <Text style={[styles.guestLabel, { color: CLIENT_PURPLE }]}>Client Portal</Text>
+      <Animated.View style={[{ alignItems: "center", gap: 8 }, textStyle]}>
+        <Text style={[styles.guestLabel, { color: "#4A7C59" }]}>Lime Of Time</Text>
         <Text style={[styles.guestTitle, { color: colors.foreground }]}>Book Appointments{"\n"}Near You</Text>
         <Text style={[styles.guestSubtitle, { color: colors.muted }]}>
           Discover local services, book instantly, and manage all your appointments in one place.

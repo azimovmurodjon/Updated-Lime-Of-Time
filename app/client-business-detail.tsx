@@ -28,6 +28,9 @@ import { useClientStore, SavedBusiness } from "@/lib/client-store";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { getApiBaseUrl } from "@/constants/oauth";
 import * as Haptics from "expo-haptics";
+import { FuturisticBackground } from "@/components/futuristic-background";
+
+const LIME_GREEN = "#4A7C59";
 
 interface PublicService {
   id: number;
@@ -200,6 +203,7 @@ export default function ClientBusinessDetailScreen() {
   if (loading) {
     return (
       <ScreenContainer>
+        <FuturisticBackground />
         <View style={s.loadingContainer}>
           <ActivityIndicator size="large" color="#8B5CF6" />
         </View>
@@ -210,6 +214,7 @@ export default function ClientBusinessDetailScreen() {
   if (!business) {
     return (
       <ScreenContainer className="px-6">
+        <FuturisticBackground />
         <View style={s.loadingContainer}>
           <Text style={{ color: colors.foreground, fontSize: 16 }}>Business not found.</Text>
           <Pressable onPress={() => router.back()} style={{ marginTop: 16 }}>
@@ -222,6 +227,7 @@ export default function ClientBusinessDetailScreen() {
 
   return (
     <ScreenContainer>
+      <FuturisticBackground />
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
         {/* Header Banner */}
         <View style={[s.banner, { backgroundColor: "#8B5CF6" }]}>

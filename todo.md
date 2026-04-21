@@ -1739,3 +1739,10 @@
 - [x] Fix API response parsing (unwrap businesses array)
 - [x] Fix businessLogoUri and businessCategory field mapping
 - [x] Fix slug navigation to use customSlug from API response
+
+## UI Polish — Green Background & Branding
+- [x] Profile-select: use same dark green gradient as business onboarding (continuous from splash)
+- [x] Client home header: remove 'Client Portal' text, add app logo + 'By Innovancio' branding
+- [x] All client booking screens: lime green accent + FuturisticBackground
+- [x] Client business detail: FuturisticBackground added
+- [x] Client booking wizard: lime green step indicators and buttons

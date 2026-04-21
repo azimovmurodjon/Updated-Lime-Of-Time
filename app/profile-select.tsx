@@ -1,130 +1,157 @@
 /**
  * Profile Selection Screen
- *
- * Full redesign — matches business app visual quality:
- * FuturisticBackground, Reanimated entrance animations, LinearGradient cards,
- * spring press feedback, and haptic confirmation.
+ * Exactly matches the business onboarding green gradient background:
+ * - Same LinearGradient colors: #1A3A28 → #2D5A3D → #4A7C59 → #3D6B4A
+ * - Same floating particles
+ * - Same wave decorations
+ * - Same logo/appName/tagline/byInnovancio header
+ * - White cards below (same as business onboarding white card)
  */
 
 import React, { useEffect } from "react";
 import {
-  View,
   Text,
+  View,
   StyleSheet,
+  Image,
   Dimensions,
   Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { ScreenContainer } from "@/components/screen-container";
-import { useColors } from "@/hooks/use-colors";
-import { setProfileMode } from "@/lib/client-store";
-import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Image } from "react-native";
-import { FuturisticBackground } from "@/components/futuristic-background";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
   withDelay,
+  withRepeat,
+  withSequence,
   withSpring,
   Easing,
   runOnJS,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import * as Haptics from "expo-haptics";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { setProfileMode } from "@/lib/client-store";
 
-const { width } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
 
-// ─── Animated Card ────────────────────────────────────────────────────────────
+// ─── Floating Particle (identical to business onboarding) ─────────────
+function FloatingParticle({
+  x, y, size, delay, duration, opacity: baseOpacity,
+}: { x: number; y: number; size: number; delay: number; duration: number; opacity: number }) {
+  const translateY = useSharedValue(0);
+  const opacity = useSharedValue(0);
+
+  useEffect(() => {
+    opacity.value = withDelay(delay, withTiming(baseOpacity, { duration: 800 }));
+    translateY.value = withDelay(
+      delay,
+      withRepeat(
+        withSequence(
+          withTiming(-18, { duration, easing: Easing.inOut(Easing.sin) }),
+          withTiming(0, { duration, easing: Easing.inOut(Easing.sin) }),
+        ),
+        -1,
+        false,
+      ),
+    );
+  }, []);
+
+  const style = useAnimatedStyle(() => ({
+    position: "absolute",
+    left: x,
+    top: y,
+    width: size,
+    height: size,
+    borderRadius: size / 2,
+    backgroundColor: "rgba(255,255,255,0.6)",
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  return <Animated.View style={style} />;
+}
+
+const PARTICLES = [
+  { x: width * 0.08, y: height * 0.12, size: 5, delay: 200, duration: 2800, opacity: 0.35 },
+  { x: width * 0.85, y: height * 0.09, size: 4, delay: 600, duration: 3200, opacity: 0.28 },
+  { x: width * 0.15, y: height * 0.35, size: 3, delay: 400, duration: 2600, opacity: 0.22 },
+  { x: width * 0.78, y: height * 0.28, size: 6, delay: 800, duration: 3600, opacity: 0.3 },
+  { x: width * 0.5,  y: height * 0.08, size: 4, delay: 300, duration: 3000, opacity: 0.25 },
+  { x: width * 0.92, y: height * 0.45, size: 3, delay: 700, duration: 2900, opacity: 0.2 },
+  { x: width * 0.05, y: height * 0.55, size: 5, delay: 500, duration: 3400, opacity: 0.28 },
+  { x: width * 0.65, y: height * 0.15, size: 3, delay: 900, duration: 2700, opacity: 0.22 },
+];
+
+// ─── Portal Card (white card, same style as business onboarding white card) ──
 function PortalCard({
   icon,
   title,
-  description,
-  badge,
-  badgeColor,
-  iconBg,
-  iconColor,
-  gradientColors,
-  borderColor,
+  subtitle,
+  accentColor,
+  badgeLabel,
+  onPress,
   delay,
-  onSelect,
-  disabled,
 }: {
   icon: string;
   title: string;
-  description: string;
-  badge: string;
-  badgeColor: string;
-  iconBg: string;
-  iconColor: string;
-  gradientColors: [string, string, string];
-  borderColor: string;
+  subtitle: string;
+  accentColor: string;
+  badgeLabel: string;
+  onPress: () => void;
   delay: number;
-  onSelect: () => void;
-  disabled: boolean;
 }) {
-  const colors = useColors();
   const scale = useSharedValue(1);
   const opacity = useSharedValue(0);
-  const translateY = useSharedValue(40);
+  const translateY = useSharedValue(24);
 
   useEffect(() => {
-    opacity.value = withDelay(delay, withTiming(1, { duration: 500, easing: Easing.out(Easing.cubic) }));
-    translateY.value = withDelay(delay, withSpring(0, { damping: 18, stiffness: 120 }));
+    opacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
+    translateY.value = withDelay(delay, withTiming(0, { duration: 400, easing: Easing.out(Easing.quad) }));
   }, []);
+
+  const tap = Gesture.Tap()
+    .onBegin(() => { scale.value = withSpring(0.97, { damping: 18, stiffness: 300 }); })
+    .onFinalize((_, success) => {
+      scale.value = withSpring(1, { damping: 18, stiffness: 200 });
+      if (success) {
+        if (Platform.OS !== "web") runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Medium);
+        runOnJS(onPress)();
+      }
+    });
 
   const animStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
     transform: [{ translateY: translateY.value }, { scale: scale.value }],
   }));
 
-  const tap = Gesture.Tap()
-    .onBegin(() => {
-      scale.value = withSpring(0.96, { damping: 20, stiffness: 300 });
-    })
-    .onFinalize((e, success) => {
-      scale.value = withSpring(1, { damping: 18, stiffness: 200 });
-      if (success && !disabled) {
-        if (Platform.OS !== "web") {
-          runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Medium);
-        }
-        runOnJS(onSelect)();
-      }
-    });
-
   return (
     <GestureDetector gesture={tap}>
-      <Animated.View style={[styles.cardWrapper, animStyle]}>
-        <LinearGradient
-          colors={gradientColors}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.card, { borderColor }]}
-        >
-          {/* Glow accent top-right */}
-          <View style={[styles.cardGlow, { backgroundColor: badgeColor + "18" }]} />
+      <Animated.View style={[styles.card, animStyle]}>
+        {/* Accent blob top-right */}
+        <View style={[styles.cardBlob, { backgroundColor: accentColor + "20" }]} />
 
-          {/* Icon */}
-          <View style={[styles.iconCircle, { backgroundColor: iconBg }]}>
-            <IconSymbol name={icon as any} size={34} color={iconColor} />
-          </View>
+        {/* Icon */}
+        <View style={[styles.cardIconWrap, { backgroundColor: accentColor + "18" }]}>
+          <Text style={styles.cardIcon}>{icon}</Text>
+        </View>
 
-          {/* Badge */}
-          <View style={[styles.badge, { backgroundColor: badgeColor }]}>
-            <Text style={styles.badgeText}>{badge}</Text>
-          </View>
+        {/* Badge */}
+        <View style={[styles.cardBadge, { backgroundColor: accentColor }]}>
+          <Text style={styles.cardBadgeText}>{badgeLabel}</Text>
+        </View>
 
-          {/* Text */}
-          <Text style={[styles.cardTitle, { color: colors.foreground }]}>{title}</Text>
-          <Text style={[styles.cardDesc, { color: colors.muted }]}>{description}</Text>
+        {/* Text */}
+        <Text style={styles.cardTitle}>{title}</Text>
+        <Text style={styles.cardSubtitle}>{subtitle}</Text>
 
-          {/* Arrow */}
-          <View style={styles.arrowRow}>
-            <Text style={[styles.arrowLabel, { color: badgeColor }]}>Get started</Text>
-            <IconSymbol name="chevron.right" size={16} color={badgeColor} />
-          </View>
-        </LinearGradient>
+        {/* CTA */}
+        <View style={styles.cardCta}>
+          <Text style={[styles.cardCtaText, { color: accentColor }]}>Get started</Text>
+          <Text style={[styles.cardCtaArrow, { color: accentColor }]}> ›</Text>
+        </View>
       </Animated.View>
     </GestureDetector>
   );
@@ -132,37 +159,43 @@ function PortalCard({
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ProfileSelectScreen() {
-  const colors = useColors();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
-  // Header entrance
-  const headerOpacity = useSharedValue(0);
-  const headerY = useSharedValue(-30);
-  const logoScale = useSharedValue(0.5);
+  // Entrance animations (same timing as business onboarding)
   const logoOpacity = useSharedValue(0);
+  const logoScale = useSharedValue(0.8);
+  const appNameOpacity = useSharedValue(0);
+  const appNameTranslateY = useSharedValue(16);
+  const taglineOpacity = useSharedValue(0);
+  const taglineTranslateY = useSharedValue(12);
+  const byLineOpacity = useSharedValue(0);
+  const footerOpacity = useSharedValue(0);
 
   useEffect(() => {
-    logoOpacity.value = withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) });
+    logoOpacity.value = withTiming(1, { duration: 500 });
     logoScale.value = withSpring(1, { damping: 14, stiffness: 120 });
-    headerOpacity.value = withDelay(200, withTiming(1, { duration: 500 }));
-    headerY.value = withDelay(200, withSpring(0, { damping: 18, stiffness: 100 }));
+    appNameOpacity.value = withDelay(220, withTiming(1, { duration: 380 }));
+    appNameTranslateY.value = withDelay(220, withTiming(0, { duration: 360, easing: Easing.out(Easing.quad) }));
+    taglineOpacity.value = withDelay(380, withTiming(1, { duration: 400 }));
+    taglineTranslateY.value = withDelay(380, withTiming(0, { duration: 400, easing: Easing.out(Easing.quad) }));
+    byLineOpacity.value = withDelay(520, withTiming(1, { duration: 400 }));
+    footerOpacity.value = withDelay(900, withTiming(1, { duration: 400 }));
   }, []);
 
   const logoStyle = useAnimatedStyle(() => ({
     opacity: logoOpacity.value,
     transform: [{ scale: logoScale.value }],
   }));
-
-  const headerStyle = useAnimatedStyle(() => ({
-    opacity: headerOpacity.value,
-    transform: [{ translateY: headerY.value }],
+  const appNameStyle = useAnimatedStyle(() => ({
+    opacity: appNameOpacity.value,
+    transform: [{ translateY: appNameTranslateY.value }],
   }));
-
-  // Footer entrance
-  const footerOpacity = useSharedValue(0);
-  useEffect(() => {
-    footerOpacity.value = withDelay(700, withTiming(1, { duration: 500 }));
-  }, []);
+  const taglineStyle = useAnimatedStyle(() => ({
+    opacity: taglineOpacity.value,
+    transform: [{ translateY: taglineTranslateY.value }],
+  }));
+  const byLineStyle = useAnimatedStyle(() => ({ opacity: byLineOpacity.value }));
   const footerStyle = useAnimatedStyle(() => ({ opacity: footerOpacity.value }));
 
   const handleSelect = async (mode: "business" | "client") => {
@@ -170,204 +203,223 @@ export default function ProfileSelectScreen() {
     if (mode === "business") {
       router.replace("/onboarding");
     } else {
-      router.replace("/(client-tabs)" as any);
+      router.replace("/client-signin" as any);
     }
   };
 
   return (
-    <ScreenContainer edges={["top", "bottom", "left", "right"]}>
-      <FuturisticBackground />
+    <View style={styles.container}>
+      {/* ─── Exact same gradient as business onboarding ─── */}
+      <LinearGradient
+        colors={["#1A3A28", "#2D5A3D", "#4A7C59", "#3D6B4A"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
+      />
 
-      <View style={styles.container}>
-        {/* Logo */}
-        <Animated.View style={[styles.logoWrap, logoStyle]}>
-          <LinearGradient
-            colors={[colors.primary + "30", colors.primary + "10"]}
-            style={styles.logoCircle}
-          >
-            <Image
-              source={require("../assets/images/icon.png")}
-              style={{ width: 64, height: 64, borderRadius: 16 }}
-              resizeMode="contain"
-            />
-          </LinearGradient>
-          {/* Outer ring */}
-          <View style={[styles.logoRing, { borderColor: colors.primary + "40" }]} />
-        </Animated.View>
+      {/* ─── Floating Particles (identical to business onboarding) ─── */}
+      {PARTICLES.map((p, i) => <FloatingParticle key={i} {...p} />)}
 
-        {/* Header text */}
-        <Animated.View style={[styles.headerBlock, headerStyle]}>
-          <Text style={[styles.appName, { color: colors.primary }]}>Lime Of Time</Text>
-          <Text style={[styles.title, { color: colors.foreground }]}>Welcome</Text>
-          <Text style={[styles.subtitle, { color: colors.muted }]}>
-            Choose how you'd like to use the app
-          </Text>
-        </Animated.View>
+      {/* ─── Bottom Wave Decorations (identical to business onboarding) ─── */}
+      <View style={styles.wave1} />
+      <View style={styles.wave2} />
 
-        {/* Cards */}
-        <View style={styles.cards}>
+      {/* ─── Content ─── */}
+      <View style={[styles.content, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 20 }]}>
+
+        {/* ─── Logo + App Name (identical to business onboarding) ─── */}
+        <View style={styles.logoContainer}>
+          <Animated.View style={logoStyle}>
+            <View style={styles.logoRing}>
+              <Image
+                source={require("@/assets/images/icon.png")}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+            </View>
+          </Animated.View>
+          <Animated.Text style={[styles.appName, appNameStyle]}>Lime Of Time</Animated.Text>
+          <Animated.Text style={[styles.appTagline, taglineStyle]}>Book Appointments Near You</Animated.Text>
+          <Animated.View style={[{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 }, byLineStyle]}>
+            <View style={{ width: 24, height: 1, backgroundColor: "rgba(255,255,255,0.3)" }} />
+            <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", letterSpacing: 1.5, textTransform: "uppercase" }}>by Innovancio</Text>
+            <View style={{ width: 24, height: 1, backgroundColor: "rgba(255,255,255,0.3)" }} />
+          </Animated.View>
+        </View>
+
+        {/* ─── Portal Cards ─── */}
+        <View style={styles.cardsContainer}>
           <PortalCard
-            icon="briefcase.fill"
+            icon="💼"
             title="Business Portal"
-            description="Manage appointments, clients, staff, services, and grow your business."
-            badge="For Businesses"
-            badgeColor={colors.primary}
-            iconBg={colors.primary + "20"}
-            iconColor={colors.primary}
-            gradientColors={[colors.surface, colors.surface, colors.background]}
-            borderColor={colors.primary + "60"}
-            delay={350}
-            onSelect={() => handleSelect("business")}
-            disabled={false}
+            subtitle="Manage appointments, clients, staff, services, and grow your business."
+            accentColor="#4A7C59"
+            badgeLabel="For Businesses"
+            onPress={() => handleSelect("business")}
+            delay={600}
           />
-
           <PortalCard
-            icon="person.crop.circle.fill"
+            icon="👤"
             title="Client Portal"
-            description="Discover services, book appointments, and manage your schedule."
-            badge="For Customers"
-            badgeColor="#8B5CF6"
-            iconBg="#8B5CF620"
-            iconColor="#8B5CF6"
-            gradientColors={[colors.surface, colors.surface, colors.background]}
-            borderColor="#8B5CF640"
-            delay={500}
-            onSelect={() => handleSelect("client")}
-            disabled={false}
+            subtitle="Discover services, book appointments, and manage your schedule."
+            accentColor="#8B5CF6"
+            badgeLabel="For Customers"
+            onPress={() => handleSelect("client")}
+            delay={750}
           />
         </View>
 
-        {/* Footer */}
-        <Animated.Text style={[styles.footer, { color: colors.muted }, footerStyle]}>
+        {/* ─── Footer Note ─── */}
+        <Animated.Text style={[styles.footerNote, footerStyle]}>
           You can switch between portals at any time from Settings
         </Animated.Text>
       </View>
-    </ScreenContainer>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 32,
   },
-  logoWrap: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 28,
+  wave1: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: height * 0.38,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderTopLeftRadius: width * 0.5,
+    borderTopRightRadius: width * 0.5,
   },
-  logoCircle: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+  wave2: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: height * 0.28,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderTopLeftRadius: width * 0.6,
+    borderTopRightRadius: width * 0.6,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 22,
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
+  },
+  logoContainer: {
+    alignItems: "center",
+    marginBottom: 4,
   },
   logoRing: {
-    position: "absolute",
-    width: 108,
-    height: 108,
-    borderRadius: 54,
-    borderWidth: 1.5,
-  },
-  headerBlock: {
+    width: 116,
+    height: 116,
+    borderRadius: 32,
+    backgroundColor: "rgba(255,255,255,0.12)",
     alignItems: "center",
-    marginBottom: 36,
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.2)",
+    marginBottom: 12,
+  },
+  logo: {
+    width: 88,
+    height: 88,
+    borderRadius: 24,
   },
   appName: {
-    fontSize: 13,
-    fontWeight: "700",
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-    marginBottom: 6,
-  },
-  title: {
-    fontSize: 34,
+    fontSize: 30,
     fontWeight: "800",
-    letterSpacing: -0.5,
-    marginBottom: 8,
+    color: "#FFFFFF",
+    letterSpacing: 0.3,
+    marginTop: 4,
   },
-  subtitle: {
-    fontSize: 15,
-    textAlign: "center",
-    lineHeight: 22,
+  appTagline: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.7)",
+    marginTop: 3,
+    letterSpacing: 0.2,
   },
-  cards: {
+  cardsContainer: {
     width: "100%",
-    gap: 16,
+    gap: 14,
+    flex: 1,
+    justifyContent: "center",
+    paddingVertical: 8,
   },
-  cardWrapper: {
-    width: "100%",
-    borderRadius: 22,
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
     overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
     elevation: 6,
   },
-  card: {
-    borderRadius: 22,
-    borderWidth: 1.5,
-    padding: 22,
-    gap: 6,
-    overflow: "hidden",
-  },
-  cardGlow: {
+  cardBlob: {
     position: "absolute",
-    top: -40,
-    right: -40,
-    width: 140,
-    height: 140,
-    borderRadius: 70,
+    top: -20,
+    right: -20,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
   },
-  iconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 18,
+  cardIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 6,
+    marginBottom: 10,
   },
-  badge: {
+  cardIcon: {
+    fontSize: 26,
+  },
+  cardBadge: {
     alignSelf: "flex-start",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 20,
-    marginBottom: 4,
+    marginBottom: 8,
   },
-  badgeText: {
-    color: "#FFFFFF",
+  cardBadgeText: {
     fontSize: 11,
     fontWeight: "700",
-    letterSpacing: 0.5,
+    color: "#FFFFFF",
+    letterSpacing: 0.3,
   },
   cardTitle: {
-    fontSize: 21,
+    fontSize: 20,
     fontWeight: "800",
-    letterSpacing: -0.3,
+    color: "#111827",
+    marginBottom: 6,
   },
-  cardDesc: {
-    fontSize: 14,
-    lineHeight: 20,
+  cardSubtitle: {
+    fontSize: 13,
+    color: "#6B7280",
+    lineHeight: 19,
+    marginBottom: 12,
   },
-  arrowRow: {
+  cardCta: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    marginTop: 6,
   },
-  arrowLabel: {
-    fontSize: 13,
+  cardCtaText: {
+    fontSize: 14,
     fontWeight: "700",
   },
-  footer: {
-    fontSize: 13,
+  cardCtaArrow: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginTop: -1,
+  },
+  footerNote: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.45)",
     textAlign: "center",
-    marginTop: 28,
-    lineHeight: 18,
+    marginTop: 8,
   },
 });

@@ -28,6 +28,11 @@ import { useClientStore } from "@/lib/client-store";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { getApiBaseUrl } from "@/constants/oauth";
 import * as Haptics from "expo-haptics";
+import { FuturisticBackground } from "@/components/futuristic-background";
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, withDelay, Easing } from "react-native-reanimated";
+import { LinearGradient } from "expo-linear-gradient";
+
+const LIME_GREEN = "#4A7C59";
 
 interface PublicService {
   id: number;
@@ -190,8 +195,9 @@ export default function ClientBookingWizardScreen() {
   if (loadingData) {
     return (
       <ScreenContainer>
+        <FuturisticBackground />
         <View style={s.loadingContainer}>
-          <ActivityIndicator size="large" color="#8B5CF6" />
+          <ActivityIndicator size="large" color={LIME_GREEN} />
         </View>
       </ScreenContainer>
     );
@@ -200,8 +206,9 @@ export default function ClientBookingWizardScreen() {
   const calDays = getDaysInMonth(calYear, calMonth);
   const monthLabel = new Date(calYear, calMonth, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
 
-  return (
+    return (
     <ScreenContainer>
+      <FuturisticBackground />
       {/* Header */}
       <View style={s.header}>
         <Pressable style={({ pressed }) => [s.backBtn, pressed && { opacity: 0.7 }]} onPress={handleBack}>
@@ -215,7 +222,7 @@ export default function ClientBookingWizardScreen() {
       <View style={s.stepIndicator}>
         {STEPS.map((label, idx) => (
           <View key={label} style={s.stepItem}>
-            <View style={[s.stepDot, { backgroundColor: idx <= step ? "#8B5CF6" : colors.border }]}>
+            <View style={[s.stepDot, { backgroundColor: idx <= step ? LIME_GREEN : colors.border }]}>
               {idx < step ? (
                 <IconSymbol name="checkmark" size={10} color="#FFFFFF" />
               ) : (
@@ -223,12 +230,12 @@ export default function ClientBookingWizardScreen() {
               )}
             </View>
             {idx < STEPS.length - 1 && (
-              <View style={[s.stepLine, { backgroundColor: idx < step ? "#8B5CF6" : colors.border }]} />
+              <View style={[s.stepLine, { backgroundColor: idx < step ? LIME_GREEN : colors.border }]} />
             )}
           </View>
         ))}
       </View>
-      <Text style={[s.stepLabel, { color: "#8B5CF6" }]}>{STEPS[step]}</Text>
+      <Text style={[s.stepLabel, { color: LIME_GREEN }]}>{STEPS[step]}</Text>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}>
 
@@ -241,7 +248,7 @@ export default function ClientBookingWizardScreen() {
                 key={svc.id}
                 style={({ pressed }) => [
                   s.optionCard,
-                  { backgroundColor: colors.surface, borderColor: selectedService?.id === svc.id ? "#8B5CF6" : colors.border },
+                  { backgroundColor: colors.surface, borderColor: selectedService?.id === svc.id ? LIME_GREEN : colors.border },
                   selectedService?.id === svc.id && { borderWidth: 2 },
                   pressed && { opacity: 0.85 },
                 ]}
@@ -258,7 +265,7 @@ export default function ClientBookingWizardScreen() {
                   <Text style={[s.optionMeta, { color: colors.muted }]}>{svc.duration} min · {formatPrice(svc.price)}</Text>
                 </View>
                 {selectedService?.id === svc.id && (
-                  <View style={[s.checkCircle, { backgroundColor: "#8B5CF6" }]}>
+                  <View style={[s.checkCircle, { backgroundColor: LIME_GREEN }]}>
                     <IconSymbol name="checkmark" size={14} color="#FFFFFF" />
                   </View>
                 )}
@@ -569,6 +576,6 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     notesLabel: { fontSize: 15, fontWeight: "600", marginBottom: 6 },
     notesInput: { borderRadius: 12, borderWidth: 1, padding: 12, fontSize: 14, minHeight: 80 },
     bottomAction: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 16, borderTopWidth: 1 },
-    nextBtn: { backgroundColor: "#8B5CF6", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14 },
+    nextBtn: { backgroundColor: LIME_GREEN, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14 },
     nextBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },
   });
