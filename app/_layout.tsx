@@ -1,6 +1,6 @@
 import "@/global.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -20,7 +20,7 @@ import type { EdgeInsets, Metrics, Rect } from "react-native-safe-area-context";
 import { trpc, createTRPCClient } from "@/lib/trpc";
 import { initManusRuntime, subscribeSafeAreaInsets } from "@/lib/_core/manus-runtime";
 import { StoreProvider } from "@/lib/store";
-import { ClientStoreProvider } from "@/lib/client-store";
+import { ClientStoreProvider, getProfileMode } from "@/lib/client-store";
 import { AppLockProvider } from "@/lib/app-lock-provider";
 import { NotificationProvider } from "@/lib/notification-provider";
 import { initSentry, withSentryWrapper } from "@/lib/sentry";
@@ -42,6 +42,8 @@ function RootLayout() {
   // Use system fonts (SF Pro on iOS, Roboto on Android) — no external font package needed
   const fontsLoaded = true;
   const [splashDone, setSplashDone] = useState(false);
+  const router = useRouter();
+
   const onLayoutRootView = useCallback(async () => {
     // Hide the native splash immediately — we use our own animated splash instead
     await SplashScreen.hideAsync();
@@ -68,6 +70,29 @@ function RootLayout() {
     const unsubscribe = subscribeSafeAreaInsets(handleSafeAreaUpdate);
     return () => unsubscribe();
   }, [handleSafeAreaUpdate]);
+
+  /**
+   * Called when the animated splash screen finishes.
+   * Checks AsyncStorage for the saved profile mode and routes accordingly:
+   *  - null  → first launch, show Profile Selection screen
+   *  - "client"   → go directly to Client tab bar
+   *  - "business" → let (tabs)/index.tsx handle onboarding redirect as usual
+   */
+  const handleSplashFinish = useCallback(async () => {
+    setSplashDone(true);
+    try {
+      const mode = await getProfileMode();
+      if (mode === "client") {
+        router.replace("/(client-tabs)" as any);
+      } else if (mode === null) {
+        // First launch — show profile selection
+        router.replace("/profile-select" as any);
+      }
+      // mode === "business" → normal (tabs) routing, onboarding handled by (tabs)/index.tsx
+    } catch {
+      // Fallback: do nothing, let normal routing take over
+    }
+  }, [router]);
 
   // Create clients once and reuse them
   const [queryClient] = useState(
@@ -151,6 +176,7 @@ function RootLayout() {
               <Stack.Screen name="client-appointment-detail" options={{ presentation: "card" }} />
               <Stack.Screen name="client-message-thread" options={{ presentation: "card" }} />
               <Stack.Screen name="client-saved-businesses" options={{ presentation: "card" }} />
+              <Stack.Screen name="client-message-thread-business" options={{ presentation: "card" }} />
             </Stack>
             <StatusBar style="auto" />
             </NotificationProvider>
@@ -174,7 +200,7 @@ function RootLayout() {
               {content}
               {!splashDone && (
                 <View style={StyleSheet.absoluteFill} pointerEvents="none">
-                  <AnimatedSplash onFinish={() => setSplashDone(true)} />
+                  <AnimatedSplash onFinish={handleSplashFinish} />
                 </View>
               )}
             </SafeAreaInsetsContext.Provider>
@@ -190,7 +216,7 @@ function RootLayout() {
         {content}
         {!splashDone && (
           <View style={StyleSheet.absoluteFill} pointerEvents="none">
-            <AnimatedSplash onFinish={() => setSplashDone(true)} />
+            <AnimatedSplash onFinish={handleSplashFinish} />
           </View>
         )}
       </SafeAreaProvider>

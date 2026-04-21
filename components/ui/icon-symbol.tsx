@@ -183,6 +183,9 @@ const MAPPING = {
   "timer": "timer",
   "star": "star-border",
   "clock": "access-time",
+  "icloud.fill": "cloud-done",
+  "icloud": "cloud",
+  "exclamationmark.circle": "error-outline",
 } as unknown as IconMapping;
 
 export function IconSymbol({

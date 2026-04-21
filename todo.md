@@ -1707,3 +1707,9 @@
 - [x] businessCategory picker in Business Profile settings
 - [x] Wire App Store/Play Store URLs to App Share card (iOS + Android + Share buttons)
 - [x] Unread client message badge on Clients tab (polls every 60s)
+
+## Next Feature Batch
+- [x] Profile Selection screen on onboarding (Business Owner vs Client choice before sign-in)
+- [x] Messages section on Clients screen (all client conversations in one place)
+- [x] 1-hour-before-expiry reminder push notification for cancel/reschedule requests
+- [x] Service photo gallery S3 upload in Services screen (syncs to client portal)
