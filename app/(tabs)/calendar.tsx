@@ -1357,6 +1357,63 @@ export default function CalendarScreen() {
           </ScrollView>
         )}
 
+        {/* Requests bulk review banner */}
+        {activeFilter === "requests" && filteredAppointments.length > 0 && (() => {
+          const pendingAppts = filteredAppointments.filter((a) => a.status === "pending");
+          const pendingCount = pendingAppts.length;
+          if (pendingCount === 0) return null;
+          return (
+            <View style={{ backgroundColor: "#FF980012", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 10, borderWidth: 1, borderColor: "#FF980030" }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <IconSymbol name="clock.fill" size={18} color="#FF9800" />
+                <Text style={{ fontSize: 14, fontWeight: "700", color: "#FF9800", flex: 1 }}>
+                  {pendingCount} pending request{pendingCount !== 1 ? "s" : ""} awaiting review
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+                <Pressable
+                  onPress={() => {
+                    Alert.alert(
+                      "Approve All Requests",
+                      `Approve all ${pendingCount} pending request${pendingCount !== 1 ? "s" : ""}? Each client will be prompted to confirm.`,
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        { text: "Approve All", onPress: () => { pendingAppts.forEach((a) => handleAccept(a)); } },
+                      ]
+                    );
+                  }}
+                  style={({ pressed }) => [{ flex: 1, backgroundColor: "#1B5E20", borderRadius: 10, paddingVertical: 9, alignItems: "center", opacity: pressed ? 0.8 : 1 }]}
+                >
+                  <Text style={{ color: "#FFF", fontSize: 13, fontWeight: "700" }}>✓ Approve All</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    Alert.alert(
+                      "Decline All Requests",
+                      `Decline all ${pendingCount} pending request${pendingCount !== 1 ? "s" : ""}? This cannot be undone.`,
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Decline All", style: "destructive",
+                          onPress: () => {
+                            pendingAppts.forEach((a) => {
+                              dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: a.id, status: "cancelled" } });
+                              syncToDb({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: a.id, status: "cancelled" } });
+                            });
+                          },
+                        },
+                      ]
+                    );
+                  }}
+                  style={({ pressed }) => [{ flex: 1, backgroundColor: "#F4433618", borderRadius: 10, paddingVertical: 9, alignItems: "center", borderWidth: 1, borderColor: "#F4433640", opacity: pressed ? 0.8 : 1 }]}
+                >
+                  <Text style={{ color: "#F44336", fontSize: 13, fontWeight: "700" }}>✕ Decline All</Text>
+                </Pressable>
+              </View>
+            </View>
+          );
+        })()}
+
         {/* Unpaid / Paid summary banner */}
         {(activeFilter === "unpaid" || activeFilter === "paid") && filteredAppointments.length > 0 && (() => {
           const total = filteredAppointments.reduce((s, a) => s + (a.totalPrice ?? 0), 0);

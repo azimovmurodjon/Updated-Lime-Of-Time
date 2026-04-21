@@ -1355,6 +1355,42 @@ export function registerPublicRoutes(app: Express) {
     }
   });
 
+  /** Client withdraws a pending cancel or reschedule request */
+  app.post("/api/public/appointment/:appointmentId/withdraw-request", async (req: Request, res: Response) => {
+    try {
+      const { appointmentId } = req.params;
+      const { slug, clientPhone, requestType } = req.body; // requestType: 'cancel' | 'reschedule'
+      if (!slug || !requestType) { res.status(400).json({ error: "slug and requestType are required" }); return; }
+      const owner = await db.getBusinessOwnerBySlug(slug);
+      if (!owner) { res.status(404).json({ error: "Business not found" }); return; }
+      const appt = await db.getAppointmentByLocalId(appointmentId, owner.id);
+      if (!appt) { res.status(404).json({ error: "Appointment not found" }); return; }
+      // Verify client identity
+      const clientList = await db.getClientsByOwner(owner.id);
+      const client = clientList.find((c: any) => c.localId === appt.clientLocalId);
+      const normPhone = (p: string) => { const d = p.replace(/\D/g, ""); return d.length >= 10 ? d.slice(-10) : d; };
+      if (client?.phone?.trim()) {
+        if (!clientPhone?.trim()) { res.status(403).json({ error: "Please enter your phone number to verify your identity." }); return; }
+        if (normPhone(clientPhone) !== normPhone(client.phone)) { res.status(403).json({ error: "Phone number does not match." }); return; }
+      }
+      if (requestType === "cancel") {
+        const existing = (appt as any).cancelRequest as any;
+        if (!existing || existing.status !== "pending") { res.status(400).json({ error: "No pending cancellation request found." }); return; }
+        await db.updateAppointment(appointmentId, owner.id, { cancelRequest: { ...existing, status: "withdrawn", withdrawnAt: new Date().toISOString() } } as any);
+      } else if (requestType === "reschedule") {
+        const existing = (appt as any).rescheduleRequest as any;
+        if (!existing || existing.status !== "pending") { res.status(400).json({ error: "No pending reschedule request found." }); return; }
+        await db.updateAppointment(appointmentId, owner.id, { rescheduleRequest: { ...existing, status: "withdrawn", withdrawnAt: new Date().toISOString() } } as any);
+      } else {
+        res.status(400).json({ error: "requestType must be cancel or reschedule" }); return;
+      }
+      res.json({ success: true, message: "Your request has been withdrawn." });
+    } catch (err) {
+      console.error("[Public API] Error withdrawing request:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   /** Client marks payment as sent — flags appointment for owner review */
   app.post("/api/public/appointment/:appointmentId/mark-paid", async (req: Request, res: Response) => {
     try {
@@ -6543,6 +6579,19 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any,
         <div style="font-weight:700;font-size:14px;color:#92400e;margin-bottom:4px;">⏳ Cancellation Request Pending</div>
         <div style="font-size:13px;color:#78350f;">Your request was submitted on ${new Date(cancelReq!.submittedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}. The business will review it and respond shortly.</div>
         ${cancelReq!.reason ? `<div style="font-size:12px;color:#92400e;margin-top:6px;">Reason: "${escHtml(cancelReq!.reason)}"</div>` : ''}
+        <button onclick="withdrawRequest('cancel')" style="margin-top:10px;padding:8px 16px;background:transparent;border:1px solid #92400e;border-radius:8px;font-size:13px;font-weight:600;color:#92400e;cursor:pointer;">Withdraw Request</button>
+      </div>
+      ` : ''}
+      ${cancelReq?.status === 'expired' ? `
+      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px;margin-bottom:12px;">
+        <div style="font-weight:700;font-size:14px;color:#991b1b;margin-bottom:4px;">⏰ Cancellation Request Expired</div>
+        <div style="font-size:13px;color:#7f1d1d;">Your request expired without a response. Your appointment remains as scheduled. Please contact the business directly if you still need to cancel.</div>
+      </div>
+      ` : ''}
+      ${cancelReq?.status === 'withdrawn' ? `
+      <div style="background:#f5f5f5;border:1px solid #e5e7eb;border-radius:10px;padding:14px;margin-bottom:12px;">
+        <div style="font-weight:700;font-size:14px;color:#6b7280;margin-bottom:4px;">↩ Cancellation Request Withdrawn</div>
+        <div style="font-size:13px;color:#9ca3af;">You withdrew your cancellation request. Your appointment remains as scheduled.</div>
       </div>
       ` : ''}
       ${reschedReq?.status === 'approved' ? `

@@ -1623,3 +1623,12 @@
 - [x] Requests filter tab on Calendar (already existed, confirmed working)
 - [x] Amber request badge on calendar appointment cards for pending cancel/reschedule requests
 - [x] Pre-composed SMS prompt on appointment-detail after owner approves or declines a request
+- [ ] Fix UPDATE_APPOINTMENT_STATUS tRPC sync error (network request failed)
+- [ ] Request expiry: auto-decline after 24-48h and SMS client
+- [ ] Client-facing request status page with withdraw option
+- [ ] Bulk request review on Calendar Requests tab
+- [x] Fixed requestExpiryCron.ts to use await getDb() correctly
+- [x] Added withdraw-request endpoint in publicRoutes.ts
+- [x] Added Withdraw Request button on client manage appointment page
+- [x] Added expired/withdrawn status banners on client manage page
+- [x] Added bulk Approve All / Decline All banner on Calendar Requests tab
