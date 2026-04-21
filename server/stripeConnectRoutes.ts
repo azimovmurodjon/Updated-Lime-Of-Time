@@ -1129,6 +1129,67 @@ export function registerStripeConnectRoutes(app: Express): void {
 
       console.log(`[StripeConnect] cancellation-fee charged: $${feeAmount} piId=${feePI.id} accountId=${accountId}`);
 
+      // ── Send cancellation fee SMS to client ─────────────────────────────────
+      try {
+        const accountSid = await getPlatformConfig("TWILIO_ACCOUNT_SID");
+        const authToken = await getPlatformConfig("TWILIO_AUTH_TOKEN");
+        const fromNumber = await getPlatformConfig("TWILIO_FROM_NUMBER");
+        const testMode = await getPlatformConfig("TWILIO_TEST_MODE");
+
+        if (accountSid && authToken && fromNumber) {
+          // Fetch client phone
+          const clientRows = await db
+            .select({ phone: clients.phone, name: clients.name })
+            .from(clients)
+            .where(and(eq(clients.localId, (appt as any).clientLocalId ?? ""), eq(clients.businessOwnerId, businessOwnerId)))
+            .limit(1);
+          const clientPhone = clientRows[0]?.phone;
+          const resolvedClientName = clientRows[0]?.name ?? clientName ?? "there";
+
+          // Fetch original charge amount from appointment
+          const originalTotal = parseFloat(String((appt as any).totalPrice ?? "0")) || 0;
+          const refundAmt = Math.max(0, originalTotal - feeAmount);
+
+          const apptDate = (appt as any).date ?? "";
+          const formattedDate = apptDate
+            ? new Date(apptDate + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+            : "your appointment";
+
+          const bizName = (owner as any).businessName ?? "Your provider";
+
+          const smsBody = [
+            `Hi ${resolvedClientName}, your appointment for ${serviceName || "your service"} on ${formattedDate} has been cancelled.`,
+            ``,
+            `Here is a summary of your charges:`,
+            `• Cancellation fee charged: $${feeAmount.toFixed(2)}`,
+            ...(refundAmt > 0 ? [`• Refund issued: $${refundAmt.toFixed(2)} (will appear on your card in 5–10 business days)`] : []),
+            ``,
+            `If you have any questions, please contact ${bizName} directly. — Lime Of Time`,
+          ].join("\n");
+
+          if (clientPhone) {
+            if (testMode === "true") {
+              console.log(`[SMS TEST MODE] Cancellation fee SMS to ${clientPhone}: ${smsBody}`);
+            } else {
+              const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+              const params = new URLSearchParams();
+              params.append("From", fromNumber);
+              params.append("To", clientPhone);
+              params.append("Body", smsBody);
+              const credentials = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+              await fetch(url, {
+                method: "POST",
+                headers: { Authorization: `Basic ${credentials}`, "Content-Type": "application/x-www-form-urlencoded" },
+                body: params.toString(),
+              }).catch((smsErr) => console.error("[StripeConnect] cancellation-fee SMS error:", smsErr));
+            }
+          }
+        }
+      } catch (smsErr) {
+        // SMS failure should not block the charge response
+        console.error("[StripeConnect] cancellation-fee SMS send error:", smsErr);
+      }
+
       res.json({
         ok: true,
         chargeId: feePI.id,
@@ -1288,6 +1349,59 @@ export function registerStripeConnectRoutes(app: Express): void {
     } catch (err: any) {
       console.error("[StripeConnect] balance error:", err);
       res.status(500).json({ error: err?.message ?? "Failed to fetch balance" });
+    }
+  });
+
+  // ── Transactions: recent charges + refunds ────────────────────────────────────────
+  // GET /api/stripe-connect/transactions?businessOwnerId=123&limit=20
+  // Returns recent balance transactions (charges, refunds, payouts) for audit trail.
+  app.get("/api/stripe-connect/transactions", async (req: Request, res: Response) => {
+    try {
+      const businessOwnerId = parseInt(String(req.query.businessOwnerId ?? "0"), 10);
+      const limit = Math.min(parseInt(String(req.query.limit ?? "20"), 10), 50);
+      if (!businessOwnerId) { res.status(400).json({ error: "businessOwnerId required" }); return; }
+
+      const stripe = await getStripe();
+      if (!stripe) { res.status(503).json({ error: "Stripe not configured" }); return; }
+
+      const owner = await getOwner(businessOwnerId);
+      if (!owner) { res.status(404).json({ error: "Business not found" }); return; }
+      const accountId = (owner as any).stripeConnectAccountId as string | null;
+      if (!accountId) { res.status(404).json({ error: "No Stripe account connected" }); return; }
+
+      // Fetch recent balance transactions (includes charges, refunds, payouts, fees)
+      const txList = await stripe.balanceTransactions.list(
+        { limit, expand: ["data.source"] },
+        { stripeAccount: accountId }
+      );
+
+      const transactions = txList.data.map((tx) => {
+        const src = tx.source as any;
+        // Try to extract a human-readable description
+        let description = tx.description ?? "";
+        if (src?.description) description = src.description;
+        if (src?.metadata?.feeType) description = `${src.metadata.feeType.replace(/_/g, " ")} fee`;
+        // Client name from metadata if available
+        const clientName = src?.metadata?.clientName ?? src?.metadata?.client_name ?? null;
+        return {
+          id: tx.id,
+          type: tx.type,          // "charge", "refund", "payout", "stripe_fee", etc.
+          amount: tx.amount / 100, // positive = credit, negative = debit
+          fee: tx.fee / 100,
+          net: tx.net / 100,
+          currency: tx.currency.toUpperCase(),
+          status: tx.status,
+          created: tx.created,    // Unix timestamp
+          description,
+          clientName,
+          sourceId: typeof tx.source === "string" ? tx.source : src?.id ?? null,
+        };
+      });
+
+      res.json({ transactions });
+    } catch (err: any) {
+      console.error("[StripeConnect] transactions error:", err);
+      res.status(500).json({ error: err?.message ?? "Failed to fetch transactions" });
     }
   });
 }

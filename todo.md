@@ -1599,3 +1599,5 @@
 - [x] Smart cancellation for card-paid appointments: auto-refund on cancel, keep fee if cancellation policy applies
 - [x] Separate Stripe charge for cancellation fee when client paid by card
 - [x] Refund history badge on client profile appointment cards
+- [x] Cancellation fee SMS to client (itemized fee charged + refund amount)
+- [x] Stripe Payments audit trail tab in Settings (charges, refunds, payouts)
