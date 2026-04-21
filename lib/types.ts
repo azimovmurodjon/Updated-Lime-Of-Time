@@ -100,6 +100,22 @@ export interface Appointment {
   stripeRefundId?: string;
   /** ISO timestamp when client tapped 'I Sent Payment' on the manage page */
   clientPaidNotifiedAt?: string;
+  /** Client-submitted cancellation request */
+  cancelRequest?: {
+    status: 'pending' | 'approved' | 'declined';
+    reason?: string;
+    submittedAt: string;
+    resolvedAt?: string;
+  } | null;
+  /** Client-submitted reschedule request */
+  rescheduleRequest?: {
+    status: 'pending' | 'approved' | 'declined';
+    requestedDate: string;
+    requestedTime: string;
+    reason?: string;
+    submittedAt: string;
+    resolvedAt?: string;
+  } | null;
 }
 
 export interface Review {

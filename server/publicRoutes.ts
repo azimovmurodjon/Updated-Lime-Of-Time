@@ -1261,6 +1261,100 @@ export function registerPublicRoutes(app: Express) {
     }
   });
 
+  // ── Request-based Cancel / Reschedule (new flow) ──────────────────────────────
+
+  /** Client submits a cancellation REQUEST (does NOT cancel immediately) */
+  app.post("/api/public/appointment/:appointmentId/request-cancel", async (req: Request, res: Response) => {
+    try {
+      const { appointmentId } = req.params;
+      const { slug, clientPhone, reason } = req.body;
+      if (!slug) { res.status(400).json({ error: "slug is required" }); return; }
+      const owner = await db.getBusinessOwnerBySlug(slug);
+      if (!owner) { res.status(404).json({ error: "Business not found" }); return; }
+      const appt = await db.getAppointmentByLocalId(appointmentId, owner.id);
+      if (!appt) { res.status(404).json({ error: "Appointment not found" }); return; }
+      // Block if already cancelled or completed
+      if (appt.status === "cancelled") { res.status(400).json({ error: "Appointment is already cancelled." }); return; }
+      if (appt.status === "completed") { res.status(400).json({ error: "Completed appointments cannot be cancelled." }); return; }
+      // Block if a pending request already exists
+      const existing = (appt as any).cancelRequest as any;
+      if (existing?.status === "pending") { res.status(400).json({ error: "A cancellation request is already pending. Please wait for the business to respond." }); return; }
+      // Verify client identity
+      const clientList = await db.getClientsByOwner(owner.id);
+      const client = clientList.find((c: any) => c.localId === appt.clientLocalId);
+      const normPhone = (p: string) => { const d = p.replace(/\D/g, ""); return d.length >= 10 ? d.slice(-10) : d; };
+      if (client?.phone?.trim()) {
+        if (!clientPhone?.trim()) { res.status(403).json({ error: "Please enter your phone number to verify your identity." }); return; }
+        if (normPhone(clientPhone) !== normPhone(client.phone)) { res.status(403).json({ error: "Phone number does not match." }); return; }
+      }
+      const cancelRequest = { status: "pending", reason: reason || "", submittedAt: new Date().toISOString() };
+      await db.updateAppointment(appointmentId, owner.id, { cancelRequest } as any);
+      // Push notification to owner
+      try {
+        const ownerPushToken = (owner as any).expoPushToken as string | null | undefined;
+        const svcList = await db.getServicesByOwner(owner.id);
+        const svc = svcList.find((s: any) => s.localId === appt.serviceLocalId);
+        if (ownerPushToken) {
+          const { sendExpoPush } = await import("./notifications");
+          await sendExpoPush(ownerPushToken, {
+            title: `⚠️ Cancel Request — ${owner.businessName}`,
+            body: `${client?.name || "A client"} requested to cancel their ${svc?.name || "appointment"} on ${appt.date} at ${appt.time}.`,
+            data: { type: "cancel_request", appointmentId },
+          });
+        }
+      } catch { /* non-blocking */ }
+      res.json({ success: true, message: "Your cancellation request has been submitted. The business will review it and get back to you." });
+    } catch (err) {
+      console.error("[Public API] Error submitting cancel request:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  /** Client submits a reschedule REQUEST (does NOT reschedule immediately) */
+  app.post("/api/public/appointment/:appointmentId/request-reschedule", async (req: Request, res: Response) => {
+    try {
+      const { appointmentId } = req.params;
+      const { slug, clientPhone, requestedDate, requestedTime, reason } = req.body;
+      if (!slug || !requestedDate || !requestedTime) { res.status(400).json({ error: "slug, requestedDate, and requestedTime are required" }); return; }
+      const owner = await db.getBusinessOwnerBySlug(slug);
+      if (!owner) { res.status(404).json({ error: "Business not found" }); return; }
+      const appt = await db.getAppointmentByLocalId(appointmentId, owner.id);
+      if (!appt) { res.status(404).json({ error: "Appointment not found" }); return; }
+      if (appt.status === "cancelled") { res.status(400).json({ error: "Appointment is already cancelled." }); return; }
+      if (appt.status === "completed") { res.status(400).json({ error: "Completed appointments cannot be rescheduled." }); return; }
+      const existing = (appt as any).rescheduleRequest as any;
+      if (existing?.status === "pending") { res.status(400).json({ error: "A reschedule request is already pending. Please wait for the business to respond." }); return; }
+      // Verify client identity
+      const clientList = await db.getClientsByOwner(owner.id);
+      const client = clientList.find((c: any) => c.localId === appt.clientLocalId);
+      const normPhone = (p: string) => { const d = p.replace(/\D/g, ""); return d.length >= 10 ? d.slice(-10) : d; };
+      if (client?.phone?.trim()) {
+        if (!clientPhone?.trim()) { res.status(403).json({ error: "Please enter your phone number to verify your identity." }); return; }
+        if (normPhone(clientPhone) !== normPhone(client.phone)) { res.status(403).json({ error: "Phone number does not match." }); return; }
+      }
+      const rescheduleRequest = { status: "pending", requestedDate, requestedTime, reason: reason || "", submittedAt: new Date().toISOString() };
+      await db.updateAppointment(appointmentId, owner.id, { rescheduleRequest } as any);
+      // Push notification to owner
+      try {
+        const ownerPushToken = (owner as any).expoPushToken as string | null | undefined;
+        const svcList = await db.getServicesByOwner(owner.id);
+        const svc = svcList.find((s: any) => s.localId === appt.serviceLocalId);
+        if (ownerPushToken) {
+          const { sendExpoPush } = await import("./notifications");
+          await sendExpoPush(ownerPushToken, {
+            title: `🔄 Reschedule Request — ${owner.businessName}`,
+            body: `${client?.name || "A client"} requested to reschedule their ${svc?.name || "appointment"} to ${requestedDate} at ${requestedTime}.`,
+            data: { type: "reschedule_request", appointmentId },
+          });
+        }
+      } catch { /* non-blocking */ }
+      res.json({ success: true, message: "Your reschedule request has been submitted. The business will review it and get back to you." });
+    } catch (err) {
+      console.error("[Public API] Error submitting reschedule request:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   /** Client marks payment as sent — flags appointment for owner review */
   app.post("/api/public/appointment/:appointmentId/mark-paid", async (req: Request, res: Response) => {
     try {
@@ -6228,6 +6322,11 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any,
   const now = new Date();
   const hoursUntil = (apptDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
   const canReschedule = isConfirmed && hoursUntil > 24;
+  // Request state (new request-based flow)
+  const cancelReq = (appt as any).cancelRequest as { status: string; reason?: string; submittedAt: string } | null;
+  const reschedReq = (appt as any).rescheduleRequest as { status: string; requestedDate: string; requestedTime: string; reason?: string; submittedAt: string } | null;
+  const hasPendingCancelReq = cancelReq?.status === 'pending';
+  const hasPendingReschedReq = reschedReq?.status === 'pending';
   const apptLocationId = appt.locationId || "";
   // Resolve the location object for display
   const apptLocation = locations.find((l: any) => l.localId === appt.locationId) ?? null;
@@ -6439,6 +6538,38 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any,
       <input type="tel" id="phone-input" class="phone-input" placeholder="Phone number used when booking" value="${escHtml(clientPhone)}" ${clientPhone ? 'readonly style="background:var(--bg-card);opacity:0.8;"' : ''} />
       ${clientPhone ? '<p style="font-size:11px;color:var(--text-muted);margin-top:4px;">Phone auto-filled from your booking record</p>' : ''}
 
+      ${hasPendingCancelReq ? `
+      <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:10px;padding:14px;margin-bottom:12px;">
+        <div style="font-weight:700;font-size:14px;color:#92400e;margin-bottom:4px;">⏳ Cancellation Request Pending</div>
+        <div style="font-size:13px;color:#78350f;">Your request was submitted on ${new Date(cancelReq!.submittedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}. The business will review it and respond shortly.</div>
+        ${cancelReq!.reason ? `<div style="font-size:12px;color:#92400e;margin-top:6px;">Reason: "${escHtml(cancelReq!.reason)}"</div>` : ''}
+      </div>
+      ` : ''}
+      ${reschedReq?.status === 'approved' ? `
+      <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px;margin-bottom:12px;">
+        <div style="font-weight:700;font-size:14px;color:#166534;margin-bottom:4px;">✅ Reschedule Approved</div>
+        <div style="font-size:13px;color:#14532d;">Your appointment has been rescheduled to ${reschedReq!.requestedDate} at ${formatTime12(reschedReq!.requestedTime)}.</div>
+      </div>
+      ` : ''}
+      ${cancelReq?.status === 'approved' ? `
+      <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px;margin-bottom:12px;">
+        <div style="font-weight:700;font-size:14px;color:#166534;margin-bottom:4px;">✅ Cancellation Approved</div>
+        <div style="font-size:13px;color:#14532d;">Your appointment has been cancelled. If you paid by card, a refund will be processed within 5–10 business days.</div>
+      </div>
+      ` : ''}
+      ${cancelReq?.status === 'declined' ? `
+      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px;margin-bottom:12px;">
+        <div style="font-weight:700;font-size:14px;color:#991b1b;margin-bottom:4px;">❌ Cancellation Request Declined</div>
+        <div style="font-size:13px;color:#7f1d1d;">The business has declined your cancellation request. Please contact them directly if you have questions.</div>
+      </div>
+      ` : ''}
+      ${reschedReq?.status === 'declined' ? `
+      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px;margin-bottom:12px;">
+        <div style="font-weight:700;font-size:14px;color:#991b1b;margin-bottom:4px;">❌ Reschedule Request Declined</div>
+        <div style="font-size:13px;color:#7f1d1d;">The business has declined your reschedule request. Please contact them directly if you have questions.</div>
+      </div>
+      ` : ''}
+      ${!hasPendingCancelReq && cancelReq?.status !== 'approved' ? `
       ${(() => {
         const cp = owner.cancellationPolicy;
         if (cp && cp.enabled) {
@@ -6448,16 +6579,20 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any,
           if (hrsUntil <= cp.hoursBeforeAppointment) {
             const svcPrice = parseFloat(appt.totalPrice || appt.price || '0');
             const fee = (svcPrice * cp.feePercentage / 100).toFixed(2);
-            return `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:12px;margin-bottom:12px;font-size:13px;color:#991b1b;"><strong>⚠️ Late Cancellation Fee:</strong> This appointment is within <strong>${cp.hoursBeforeAppointment} hour${cp.hoursBeforeAppointment !== 1 ? 's' : ''}</strong> of the scheduled time. A <strong>${cp.feePercentage}% cancellation fee ($${fee})</strong> may apply.</div>`;
+            return `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:12px;margin-bottom:12px;font-size:13px;color:#991b1b;"><strong>⚠️ Cancellation Fee Notice:</strong> This appointment is within <strong>${cp.hoursBeforeAppointment} hour${cp.hoursBeforeAppointment !== 1 ? 's' : ''}</strong> of the scheduled time. A <strong>${cp.feePercentage}% cancellation fee ($${fee})</strong> will apply if your request is approved.</div>`;
           } else {
             return `<div style="background:var(--accent-bg);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:12px;font-size:12px;color:var(--accent-dark);">Free cancellation available (more than ${cp.hoursBeforeAppointment} hours before appointment).</div>`;
           }
         }
         return '';
       })()}
-      <button class="btn-cancel" id="cancel-btn" onclick="cancelAppointment()">Cancel Appointment</button>
+      <div id="cancel-reason-section" style="display:none;margin-bottom:12px;">
+        <textarea id="cancel-reason-input" placeholder="Reason for cancellation (optional)" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:14px;background:var(--bg-card);color:var(--text-primary);resize:vertical;min-height:80px;box-sizing:border-box;"></textarea>
+      </div>
+      <button class="btn-cancel" id="cancel-btn" onclick="requestCancellation()">Request Cancellation</button>
+      ` : ''}
 
-      ${isPending ? '<p style="font-size:12px;color:var(--text-secondary);margin-top:12px;text-align:center;">Your appointment is pending approval. You can cancel it, but rescheduling is available only after the business confirms your appointment.</p>' : ''}
+      ${isPending ? '<p style="font-size:12px;color:var(--text-secondary);margin-top:12px;text-align:center;">Your appointment is pending approval. You can request cancellation, but rescheduling is available only after the business confirms your appointment.</p>' : ''}
 
       ${(() => {
         const apptPrice2 = parseFloat(appt.totalPrice || appt.price || '0');
@@ -6483,18 +6618,24 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any,
 </div>`;
       })()}
 
-      ${canReschedule ? `
+      ${hasPendingReschedReq ? `
+      <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:10px;padding:14px;margin-top:8px;">
+        <div style="font-weight:700;font-size:14px;color:#92400e;margin-bottom:4px;">⏳ Reschedule Request Pending</div>
+        <div style="font-size:13px;color:#78350f;">You requested to reschedule to ${reschedReq!.requestedDate} at ${formatTime12(reschedReq!.requestedTime)}. The business will review it shortly.</div>
+      </div>
+      ` : ''}
+      ${canReschedule && !hasPendingReschedReq && reschedReq?.status !== 'approved' ? `
       <button class="btn-reschedule" id="reschedule-toggle" onclick="toggleReschedule()">Request Reschedule</button>
 
       <div id="reschedule-panel" class="reschedule-panel">
         <p class="section-title">Pick a New Date & Time</p>
         <input type="date" id="new-date" class="date-input" min="${new Date().toISOString().split("T")[0]}" />
         <div id="slot-container"></div>
-        <button class="btn-confirm-reschedule" id="confirm-reschedule-btn" onclick="confirmReschedule()" disabled>Confirm New Time</button>
+        <button class="btn-confirm-reschedule" id="confirm-reschedule-btn" onclick="confirmReschedule()" disabled>Submit Reschedule Request</button>
       </div>
       ` : ''}
 
-      ${isConfirmed && !canReschedule ? '<p style="font-size:12px;color:var(--error);margin-top:12px;text-align:center;">Rescheduling is not available within 24 hours of the appointment time. You may still cancel.</p>' : ''}
+      ${isConfirmed && !canReschedule ? '<p style="font-size:12px;color:var(--error);margin-top:12px;text-align:center;">Rescheduling requests are not available within 24 hours of the appointment time.</p>' : ''}
 
       <div id="msg-box" class="msg-box"></div>
     </div>
@@ -6597,31 +6738,39 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any,
       box.style.display = 'block';
     }
 
-    async function cancelAppointment() {
+    async function requestCancellation() {
       const phone = document.getElementById('phone-input').value.trim();
       if (!phone) { showMsg('Please enter your phone number to verify your identity.', true); return; }
+      // Show reason textarea on first click, submit on second
+      const reasonSection = document.getElementById('cancel-reason-section');
       const btn = document.getElementById('cancel-btn');
+      if (reasonSection && reasonSection.style.display === 'none') {
+        reasonSection.style.display = 'block';
+        btn.textContent = 'Confirm Request';
+        return;
+      }
+      const reason = document.getElementById('cancel-reason-input') ? document.getElementById('cancel-reason-input').value.trim() : '';
       btn.disabled = true;
-      btn.textContent = 'Cancelling...';
+      btn.textContent = 'Submitting...';
       try {
-        const res = await fetch(API_BASE + '/api/public/appointment/' + APPT_ID + '/cancel', {
+        const res = await fetch(API_BASE + '/api/public/appointment/' + APPT_ID + '/request-cancel', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slug: SLUG, clientPhone: phone })
+          body: JSON.stringify({ slug: SLUG, clientPhone: phone, reason: reason || undefined })
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          showMsg(data.message || 'Appointment cancelled.', false);
-          document.getElementById('action-section').innerHTML = '<div style="text-align:center;padding:20px;"><p style="color:var(--accent);font-weight:600;">Appointment Cancelled</p></div>';
+          showMsg(data.message || 'Cancellation request submitted. The business will respond shortly.', false);
+          setTimeout(function() { location.reload(); }, 1800);
         } else {
-          showMsg(data.error || 'Failed to cancel.', true);
+          showMsg(data.error || 'Failed to submit request.', true);
           btn.disabled = false;
-          btn.textContent = 'Cancel Appointment';
+          btn.textContent = 'Confirm Request';
         }
       } catch (e) {
         showMsg('Network error. Please try again.', true);
         btn.disabled = false;
-        btn.textContent = 'Cancel Appointment';
+        btn.textContent = 'Confirm Request';
       }
     }
 
@@ -6673,19 +6822,19 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any,
       btn.disabled = true;
       btn.textContent = 'Rescheduling...';
       try {
-        const res = await fetch(API_BASE + '/api/public/appointment/' + APPT_ID + '/reschedule', {
+        const res = await fetch(API_BASE + '/api/public/appointment/' + APPT_ID + '/request-reschedule', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slug: SLUG, clientPhone: phone, newDate: newDate, newTime: selectedSlot })
+          body: JSON.stringify({ slug: SLUG, clientPhone: phone, requestedDate: newDate, requestedTime: selectedSlot })
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          showMsg(data.message || 'Appointment rescheduled!', false);
-          setTimeout(function() { location.reload(); }, 1500);
+          showMsg(data.message || 'Reschedule request submitted! The business will review it shortly.', false);
+          setTimeout(function() { location.reload(); }, 1800);
         } else {
-          showMsg(data.error || 'Failed to reschedule.', true);
+          showMsg(data.error || 'Failed to submit request.', true);
           btn.disabled = false;
-          btn.textContent = 'Confirm New Time';
+          btn.textContent = 'Submit Reschedule Request';
         }
       } catch (e) {
         showMsg('Network error. Please try again.', true);

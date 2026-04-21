@@ -1601,3 +1601,14 @@
 - [x] Refund history badge on client profile appointment cards
 - [x] Cancellation fee SMS to client (itemized fee charged + refund amount)
 - [x] Stripe Payments audit trail tab in Settings (charges, refunds, payouts)
+- [ ] Request-based cancellation: client requests cancel/reschedule instead of instant cancel
+- [ ] Owner approves/declines cancel request with auto fee charge + partial refund
+- [ ] Block cancellation for completed appointments on client booking page
+- [ ] Pending request badge on owner appointment-detail screen
+- [x] Request-based cancellation system: DB schema fields (cancelRequest, rescheduleRequest)
+- [x] Server endpoints for request-cancel and request-reschedule
+- [x] Client booking page: replaced instant cancel with Request Cancellation / Request Reschedule
+- [x] Owner appointment-detail: pending request banner with Approve/Decline buttons
+- [x] Smart fee+refund logic on cancellation approval (card-paid appointments)
+- [x] Push notifications for cancel_request and reschedule_request to owner
+- [x] Notification tap handler for cancel_request and reschedule_request types

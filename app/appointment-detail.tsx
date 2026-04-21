@@ -1144,6 +1144,131 @@ Would you also like to charge a no-show fee via Stripe?`,
           </Pressable>
         )}
 
+        {/* Pending Cancel/Reschedule Request Banner */}
+        {(appointment.cancelRequest?.status === 'pending' || appointment.rescheduleRequest?.status === 'pending') && (
+          <View style={{ backgroundColor: '#FEF3C7', borderColor: '#FCD34D', borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 16 }}>
+            {appointment.cancelRequest?.status === 'pending' && (
+              <>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#92400E', marginBottom: 4 }}>⏳ Client Requested Cancellation</Text>
+                {appointment.cancelRequest.reason ? (
+                  <Text style={{ fontSize: 13, color: '#78350F', marginBottom: 12 }}>Reason: "{appointment.cancelRequest.reason}"</Text>
+                ) : (
+                  <Text style={{ fontSize: 13, color: '#78350F', marginBottom: 12 }}>No reason provided.</Text>
+                )}
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <Pressable
+                    onPress={async () => {
+                      const { feeApplies, fee } = getCancellationInfo();
+                      const total = appointment.totalPrice ?? 0;
+                      const isPaidByCard = appointment.paymentStatus === 'paid' && appointment.paymentMethod === 'card';
+                      const confirmMsg = isPaidByCard
+                        ? feeApplies
+                          ? `Approve cancellation?\n\nCancellation fee: $${fee.toFixed(2)} (${policy.feePercentage}%)\nRefund to client: $${(total - fee).toFixed(2)}\n\nThe fee will be charged off-session and the remainder refunded.`
+                          : `Approve cancellation?\n\nNo fee applies — a full refund of $${total.toFixed(2)} will be issued to the client's card.`
+                        : 'Approve this cancellation request? The appointment will be cancelled.';
+                      Alert.alert('Approve Cancellation', confirmMsg, [
+                        { text: 'Go Back', style: 'cancel' },
+                        { text: 'Approve', style: 'destructive', onPress: async () => {
+                          // Mark request as approved
+                          const updatedAppt = { ...appointment, cancelRequest: { ...appointment.cancelRequest!, status: 'approved' as const, resolvedAt: new Date().toISOString() } };
+                          dispatch({ type: 'UPDATE_APPOINTMENT', payload: updatedAppt });
+                          // Handle card refund/fee
+                          if (isPaidByCard) {
+                            try {
+                              if (feeApplies && fee > 0) {
+                                await apiCall('/api/stripe-connect/cancellation-fee', { appointmentId: appointment.id, businessOwnerId: state.businessOwnerId, feeAmount: fee });
+                              }
+                              const refundAmt = feeApplies ? total - fee : undefined;
+                              const result = await apiCall<{ ok: boolean; refundId: string; amount: number }>('/api/stripe-connect/refund', { appointmentId: appointment.id, businessOwnerId: state.businessOwnerId, amount: refundAmt });
+                              const refundedAppt = { ...updatedAppt, status: 'cancelled' as const, refundedAmount: result.amount, stripeRefundId: result.refundId, cancellationReason: appointment.cancelRequest?.reason || 'Client requested cancellation' };
+                              dispatch({ type: 'UPDATE_APPOINTMENT', payload: refundedAppt });
+                              syncToDb({ type: 'UPDATE_APPOINTMENT', payload: refundedAppt });
+                              Alert.alert('✅ Approved', `Appointment cancelled and $${result.amount.toFixed(2)} refunded to client's card.`);
+                            } catch (err: any) {
+                              // Still cancel even if refund fails
+                              const cancelledAppt = { ...updatedAppt, status: 'cancelled' as const, cancellationReason: appointment.cancelRequest?.reason || 'Client requested cancellation' };
+                              dispatch({ type: 'UPDATE_APPOINTMENT', payload: cancelledAppt });
+                              syncToDb({ type: 'UPDATE_APPOINTMENT', payload: cancelledAppt });
+                              Alert.alert('Refund Failed', `Appointment cancelled but refund failed: ${err?.message ?? 'Unknown error'}. Please issue manually from Stripe dashboard.`);
+                            }
+                          } else {
+                            const cancelledAppt = { ...updatedAppt, status: 'cancelled' as const, cancellationReason: appointment.cancelRequest?.reason || 'Client requested cancellation' };
+                            dispatch({ type: 'UPDATE_APPOINTMENT', payload: cancelledAppt });
+                            syncToDb({ type: 'UPDATE_APPOINTMENT', payload: cancelledAppt });
+                            Alert.alert('✅ Approved', 'Appointment has been cancelled.');
+                          }
+                        }},
+                      ]);
+                    }}
+                    style={({ pressed }) => [{ flex: 1, backgroundColor: '#22C55E', borderRadius: 10, paddingVertical: 10, alignItems: 'center', opacity: pressed ? 0.7 : 1 }]}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>✓ Approve</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      Alert.alert('Decline Cancellation', 'Decline this cancellation request? The appointment will remain active.', [
+                        { text: 'Go Back', style: 'cancel' },
+                        { text: 'Decline', style: 'destructive', onPress: () => {
+                          const updatedAppt = { ...appointment, cancelRequest: { ...appointment.cancelRequest!, status: 'declined' as const, resolvedAt: new Date().toISOString() } };
+                          dispatch({ type: 'UPDATE_APPOINTMENT', payload: updatedAppt });
+                          syncToDb({ type: 'UPDATE_APPOINTMENT', payload: updatedAppt });
+                        }},
+                      ]);
+                    }}
+                    style={({ pressed }) => [{ flex: 1, backgroundColor: '#EF4444', borderRadius: 10, paddingVertical: 10, alignItems: 'center', opacity: pressed ? 0.7 : 1 }]}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>✗ Decline</Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
+            {appointment.rescheduleRequest?.status === 'pending' && (
+              <>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#92400E', marginBottom: 4 }}>⏳ Client Requested Reschedule</Text>
+                <Text style={{ fontSize: 13, color: '#78350F', marginBottom: 4 }}>Requested: {appointment.rescheduleRequest.requestedDate} at {formatTime(appointment.rescheduleRequest.requestedTime)}</Text>
+                {appointment.rescheduleRequest.reason ? (
+                  <Text style={{ fontSize: 13, color: '#78350F', marginBottom: 12 }}>Reason: "{appointment.rescheduleRequest.reason}"</Text>
+                ) : (
+                  <Text style={{ fontSize: 13, color: '#78350F', marginBottom: 12 }}></Text>
+                )}
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <Pressable
+                    onPress={() => {
+                      Alert.alert('Approve Reschedule', `Reschedule to ${appointment.rescheduleRequest!.requestedDate} at ${formatTime(appointment.rescheduleRequest!.requestedTime)}?`, [
+                        { text: 'Go Back', style: 'cancel' },
+                        { text: 'Approve', onPress: () => {
+                          const updatedAppt = { ...appointment, date: appointment.rescheduleRequest!.requestedDate, time: appointment.rescheduleRequest!.requestedTime, rescheduleRequest: { ...appointment.rescheduleRequest!, status: 'approved' as const, resolvedAt: new Date().toISOString() } };
+                          dispatch({ type: 'UPDATE_APPOINTMENT', payload: updatedAppt });
+                          syncToDb({ type: 'UPDATE_APPOINTMENT', payload: updatedAppt });
+                          Alert.alert('✅ Approved', 'Appointment rescheduled successfully.');
+                        }},
+                      ]);
+                    }}
+                    style={({ pressed }) => [{ flex: 1, backgroundColor: '#22C55E', borderRadius: 10, paddingVertical: 10, alignItems: 'center', opacity: pressed ? 0.7 : 1 }]}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>✓ Approve</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      Alert.alert('Decline Reschedule', 'Decline this reschedule request?', [
+                        { text: 'Go Back', style: 'cancel' },
+                        { text: 'Decline', style: 'destructive', onPress: () => {
+                          const updatedAppt = { ...appointment, rescheduleRequest: { ...appointment.rescheduleRequest!, status: 'declined' as const, resolvedAt: new Date().toISOString() } };
+                          dispatch({ type: 'UPDATE_APPOINTMENT', payload: updatedAppt });
+                          syncToDb({ type: 'UPDATE_APPOINTMENT', payload: updatedAppt });
+                        }},
+                      ]);
+                    }}
+                    style={({ pressed }) => [{ flex: 1, backgroundColor: '#EF4444', borderRadius: 10, paddingVertical: 10, alignItems: 'center', opacity: pressed ? 0.7 : 1 }]}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>✗ Decline</Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
+          </View>
+        )}
+
         {/* Actions */}
         {appointment.status === "pending" && (
           <View className="gap-3 mt-2 mb-4">

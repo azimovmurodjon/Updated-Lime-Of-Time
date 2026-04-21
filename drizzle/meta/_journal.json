@@ -295,6 +295,13 @@
       "when": 1776658508301,
       "tag": "0041_mighty_sleepwalker",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "5",
+      "when": 1776751071293,
+      "tag": "0042_illegal_mephistopheles",
+      "breakpoints": true
     }
   ]
 }

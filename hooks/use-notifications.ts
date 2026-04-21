@@ -226,6 +226,16 @@ export function useNotifications() {
           }
           break;
 
+        // ── Cancel/Reschedule request from client: go to appointment to approve/decline ──
+        case "cancel_request":
+        case "reschedule_request":
+          if (appointmentId) {
+            router.push({ pathname: "/appointment-detail", params: { id: appointmentId, from: "notification" } });
+          } else {
+            router.push({ pathname: "/(tabs)/calendar", params: { filter: "upcoming" } });
+          }
+          break;
+
         // ── Cancellation: open cancelled tab (no appointment to act on) ───────────
         case "appointment_cancelled":
           if (appointmentId) {

@@ -236,6 +236,18 @@ export const appointments = mysqlTable("appointments", {
   refundedAmount: decimal("refundedAmount", { precision: 10, scale: 2 }),
   /** Stripe refund ID for reference */
   stripeRefundId: varchar("stripeRefundId", { length: 255 }),
+  /**
+   * Client-submitted cancellation request.
+   * JSON: { status: 'pending'|'approved'|'declined', reason?: string, submittedAt: ISO string, resolvedAt?: ISO string }
+   * null = no request submitted
+   */
+  cancelRequest: json("cancelRequest"),
+  /**
+   * Client-submitted reschedule request.
+   * JSON: { status: 'pending'|'approved'|'declined', requestedDate: YYYY-MM-DD, requestedTime: HH:MM, reason?: string, submittedAt: ISO string, resolvedAt?: ISO string }
+   * null = no request submitted
+   */
+  rescheduleRequest: json("rescheduleRequest"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
