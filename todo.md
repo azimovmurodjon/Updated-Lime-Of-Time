@@ -1786,3 +1786,9 @@
 - [x] Bookings tab: staff avatar/initials badge on appointment cards
 - [x] Server: enrich appointments endpoint with staffName and staffAvatarUrl
 - [x] Server: add /api/client/phone-login endpoint for phone OTP authentication
+
+## Changes Apr 21 2026 (Batch 3)
+
+- [x] Wire "Add to Calendar" button in booking confirmation screen to open device calendar app with appointment pre-filled
+- [x] Replace Category text input in service edit screen with smart autocomplete dropdown (all discover categories + free-text creation)
+- [x] Sync business profile category list to match client Discover page categories (Hair, Nails, Skin, Massage, Fitness, Dental, Medical, Spa, Barber, Tattoo, Other) + custom input

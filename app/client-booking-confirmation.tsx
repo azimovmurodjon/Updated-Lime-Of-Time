@@ -4,7 +4,7 @@
  * Shown after a successful booking. Displays appointment summary
  * (service, staff, date, time, business) and an "Add to Calendar" button.
  */
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   Pressable,
   Platform,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -26,6 +27,7 @@ import Animated, {
   Easing,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
+import * as Calendar from "expo-calendar";
 
 const LIME_GREEN = "#4A7C59";
 
@@ -87,32 +89,31 @@ export default function ClientBookingConfirmationScreen() {
     return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
   }
 
-  const handleAddToCalendar = () => {
-    // Build a simple calendar event description
+  const [calendarAdded, setCalendarAdded] = useState(false);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+
+  const handleAddToCalendar = async () => {
     const startDate = new Date(`${date}T${time}:00`);
     const durationMins = parseInt(duration ?? "60", 10);
     const endDate = new Date(startDate.getTime() + durationMins * 60000);
 
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const toICS = (d: Date) =>
-      `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
-
-    const icsContent = [
-      "BEGIN:VCALENDAR",
-      "VERSION:2.0",
-      "BEGIN:VEVENT",
-      `SUMMARY:${serviceName} at ${businessName}`,
-      `DTSTART:${toICS(startDate)}`,
-      `DTEND:${toICS(endDate)}`,
-      `DESCRIPTION:${staffName ? `Staff: ${staffName}\\n` : ""}${locationAddress ? `Location: ${locationAddress}` : ""}`,
-      locationAddress ? `LOCATION:${locationAddress}` : "",
-      "END:VEVENT",
-      "END:VCALENDAR",
-    ]
-      .filter(Boolean)
-      .join("\r\n");
-
     if (Platform.OS === "web") {
+      // Web: download .ics file
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const toICS = (d: Date) =>
+        `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+      const icsContent = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "BEGIN:VEVENT",
+        `SUMMARY:${serviceName} at ${businessName}`,
+        `DTSTART:${toICS(startDate)}`,
+        `DTEND:${toICS(endDate)}`,
+        `DESCRIPTION:${staffName ? `Staff: ${staffName}\\n` : ""}${locationAddress ? `Location: ${locationAddress}` : ""}`,
+        locationAddress ? `LOCATION:${locationAddress}` : "",
+        "END:VEVENT",
+        "END:VCALENDAR",
+      ].filter(Boolean).join("\r\n");
       const blob = new Blob([icsContent], { type: "text/calendar" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -120,13 +121,57 @@ export default function ClientBookingConfirmationScreen() {
       a.download = "appointment.ics";
       a.click();
       URL.revokeObjectURL(url);
-    } else {
-      Alert.alert(
-        "Add to Calendar",
-        "To add this appointment to your calendar, please note:\n\n" +
-          `📅 ${formatDateDisplay(date)}\n⏰ ${formatTime12(time)}\n📍 ${locationAddress ?? businessName}`,
-        [{ text: "OK" }]
-      );
+      setCalendarAdded(true);
+      return;
+    }
+
+    // Native: use expo-calendar
+    try {
+      setCalendarLoading(true);
+      const { status } = await Calendar.requestCalendarPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Denied", "Please allow calendar access in Settings to add this appointment.");
+        return;
+      }
+
+      // Find a writable calendar
+      let calendarId: string | undefined;
+      if (Platform.OS === "ios") {
+        const defaultCal = await Calendar.getDefaultCalendarAsync();
+        calendarId = defaultCal?.id;
+      }
+      if (!calendarId) {
+        const cals = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+        const writable = cals.filter(c => c.allowsModifications);
+        calendarId = writable[0]?.id;
+      }
+      if (!calendarId) {
+        Alert.alert("No Calendar", "No writable calendar found on this device.");
+        return;
+      }
+
+      const description = [
+        staffName ? `Staff: ${staffName}` : null,
+        locationAddress ? `Location: ${locationAddress}` : null,
+        `Booked via Lime Of Time`,
+      ].filter(Boolean).join("\n");
+
+      await Calendar.createEventAsync(calendarId, {
+        title: `${serviceName} at ${businessName}`,
+        startDate,
+        endDate,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        location: locationAddress ?? businessName ?? "",
+        alarms: [{ relativeOffset: -60 }],
+      } as Calendar.Event);
+
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setCalendarAdded(true);
+      Alert.alert("Added!", "Your appointment has been added to your calendar.");
+    } catch (err) {
+      Alert.alert("Error", "Could not add to calendar. Please try again.");
+    } finally {
+      setCalendarLoading(false);
     }
   };
 
@@ -197,11 +242,24 @@ export default function ClientBookingConfirmationScreen() {
 
           {/* Add to Calendar */}
           <Pressable
-            style={({ pressed }) => [s.calBtn, pressed && { opacity: 0.8 }]}
+            style={({ pressed }) => [
+              s.calBtn,
+              calendarAdded && { backgroundColor: "rgba(74,124,89,0.08)", borderColor: LIME_GREEN },
+              pressed && { opacity: 0.8 },
+            ]}
             onPress={handleAddToCalendar}
+            disabled={calendarLoading || calendarAdded}
           >
-            <IconSymbol name="calendar" size={18} color={LIME_GREEN} />
-            <Text style={[s.calBtnText, { color: LIME_GREEN }]}>Add to Calendar</Text>
+            {calendarLoading ? (
+              <ActivityIndicator size="small" color={LIME_GREEN} />
+            ) : calendarAdded ? (
+              <IconSymbol name="checkmark" size={18} color={LIME_GREEN} />
+            ) : (
+              <IconSymbol name="calendar" size={18} color={LIME_GREEN} />
+            )}
+            <Text style={[s.calBtnText, { color: LIME_GREEN }]}>
+              {calendarAdded ? "Added to Calendar" : "Add to Calendar"}
+            </Text>
           </Pressable>
 
           {/* View Bookings */}

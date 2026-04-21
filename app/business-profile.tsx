@@ -408,35 +408,66 @@ export default function BusinessProfileScreen() {
               <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10 }}>
                 Helps clients find you in the app's Discover screen.
               </Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {[
-                  "Hair", "Nails", "Spa", "Massage", "Fitness", "Yoga",
-                  "Barbershop", "Esthetics", "Tattoo", "Lashes", "Brows",
-                  "Makeup", "Wellness", "Dental", "Other"
-                ].map((cat) => (
+              {/* Preset categories — must match the client Discover page */}
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+                {([
+                  { label: "Hair", emoji: "✂️" },
+                  { label: "Nails", emoji: "💅" },
+                  { label: "Skin", emoji: "✨" },
+                  { label: "Massage", emoji: "💆" },
+                  { label: "Fitness", emoji: "🏋️" },
+                  { label: "Dental", emoji: "🦷" },
+                  { label: "Medical", emoji: "🏥" },
+                  { label: "Spa", emoji: "🧖" },
+                  { label: "Barber", emoji: "💈" },
+                  { label: "Tattoo", emoji: "🎨" },
+                  { label: "Other", emoji: "📍" },
+                ] as const).map(({ label, emoji }) => (
                   <Pressable
-                    key={cat}
-                    onPress={() => setBusinessCategory(businessCategory === cat ? "" : cat)}
+                    key={label}
+                    onPress={() => setBusinessCategory(businessCategory === label ? "" : label)}
                     style={({ pressed }) => ({
                       paddingHorizontal: 14,
                       paddingVertical: 8,
                       borderRadius: 20,
                       borderWidth: 1.5,
-                      borderColor: businessCategory === cat ? colors.primary : colors.border,
-                      backgroundColor: businessCategory === cat ? colors.primary + "22" : colors.surface,
+                      flexDirection: "row",
+                      alignItems: "center" as const,
+                      gap: 4,
+                      borderColor: businessCategory === label ? colors.primary : colors.border,
+                      backgroundColor: businessCategory === label ? colors.primary + "22" : colors.surface,
                       opacity: pressed ? 0.7 : 1,
                     })}
                   >
+                    <Text style={{ fontSize: 13 }}>{emoji}</Text>
                     <Text style={{
                       fontSize: 13,
-                      fontWeight: businessCategory === cat ? "600" : "400",
-                      color: businessCategory === cat ? colors.primary : colors.foreground,
+                      fontWeight: businessCategory === label ? "600" : "400",
+                      color: businessCategory === label ? colors.primary : colors.foreground,
                     }}>
-                      {cat}
+                      {label}
                     </Text>
                   </Pressable>
                 ))}
               </View>
+              {/* Custom category — type anything not in the preset list */}
+              <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 6 }}>Or type a custom category:</Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.background,
+                    borderColor: businessCategory && !["Hair","Nails","Skin","Massage","Fitness","Dental","Medical","Spa","Barber","Tattoo","Other"].includes(businessCategory)
+                      ? colors.primary : colors.border,
+                    color: colors.foreground,
+                  },
+                ]}
+                placeholder="e.g. Yoga, Lashes, Wellness..."
+                placeholderTextColor={colors.muted}
+                value={["Hair","Nails","Skin","Massage","Fitness","Dental","Medical","Spa","Barber","Tattoo","Other"].includes(businessCategory) ? "" : businessCategory}
+                onChangeText={(text) => setBusinessCategory(text)}
+                returnKeyType="done"
+              />
             </Field>
           </View>
         </ScrollView>
