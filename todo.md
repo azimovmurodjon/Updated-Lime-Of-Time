@@ -1721,3 +1721,7 @@
 - [x] Add swipeable before/after gallery carousel on client Business Detail screen
 - [x] Add inline 'Mark as responded' push notification action for expiry reminders
 - [x] Fix dev server connection issue (restarted, now running cleanly)
+
+## Quick Fix
+- [x] Add back button on client sign-in page to navigate back to onboarding/profile-select screen
+- [x] Add back-to-portal-select button on client home guest banner and signed-in header

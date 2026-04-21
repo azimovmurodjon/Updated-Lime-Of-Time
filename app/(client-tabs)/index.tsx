@@ -169,17 +169,24 @@ export default function ClientHomeScreen() {
       >
         {/* Header */}
         <Animated.View style={[styles.header, headerStyle]}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={[styles.greeting, { color: colors.foreground }]}>
               Hello, {state.account?.name?.split(" ")[0] ?? "there"} 👋
             </Text>
             <Text style={[styles.greetingSub, { color: colors.muted }]}>What are you booking today?</Text>
           </View>
-          <AnimCard onPress={() => router.push("/(client-tabs)/profile" as any)}>
-            <View style={[styles.avatarBtn, { backgroundColor: CLIENT_PURPLE + "20" }]}>
-              <IconSymbol name="person.crop.circle.fill" size={32} color={CLIENT_PURPLE} />
-            </View>
-          </AnimCard>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <AnimCard onPress={() => router.replace("/profile-select" as any)}>
+              <View style={[styles.avatarBtn, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}>
+                <IconSymbol name="chevron.left" size={16} color={colors.muted} />
+              </View>
+            </AnimCard>
+            <AnimCard onPress={() => router.push("/(client-tabs)/profile" as any)}>
+              <View style={[styles.avatarBtn, { backgroundColor: CLIENT_PURPLE + "20" }]}>
+                <IconSymbol name="person.crop.circle.fill" size={32} color={CLIENT_PURPLE} />
+              </View>
+            </AnimCard>
+          </View>
         </Animated.View>
 
         <Animated.View style={contentStyle}>
@@ -359,6 +366,12 @@ function GuestBanner({ colors, router }: { colors: ReturnType<typeof useColors>;
         <AnimCard onPress={() => router.push("/(client-tabs)/discover" as any)}>
           <View style={[styles.guestSecondaryBtn, { borderColor: CLIENT_PURPLE + "60" }]}>
             <Text style={[styles.guestSecondaryBtnText, { color: CLIENT_PURPLE }]}>Browse Without Account</Text>
+          </View>
+        </AnimCard>
+        <AnimCard onPress={() => router.replace("/profile-select" as any)}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12 }}>
+            <IconSymbol name="chevron.left" size={14} color={colors.muted} />
+            <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "500" }}>Back to Portal Selection</Text>
           </View>
         </AnimCard>
       </Animated.View>

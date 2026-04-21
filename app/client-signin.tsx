@@ -139,11 +139,12 @@ export default function ClientSignInScreen() {
 
   // Back button
   const backScale = useSharedValue(1);
+  const goToProfileSelect = () => router.replace("/profile-select" as any);
   const backTap = Gesture.Tap()
     .onBegin(() => { backScale.value = withSpring(0.93, { damping: 20, stiffness: 300 }); })
     .onFinalize((_, success) => {
       backScale.value = withSpring(1, { damping: 18, stiffness: 200 });
-      if (success) runOnJS(router.back)();
+      if (success) runOnJS(goToProfileSelect)();
     });
   const backStyle = useAnimatedStyle(() => ({ transform: [{ scale: backScale.value }] }));
 
