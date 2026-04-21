@@ -20,6 +20,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { useClientStore, clearProfileMode } from "@/lib/client-store";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { FuturisticBackground } from "@/components/futuristic-background";
 import * as Haptics from "expo-haptics";
 
 interface MenuItemProps {
@@ -113,6 +114,7 @@ export default function ClientProfileScreen() {
   if (!state.account) {
     return (
       <ScreenContainer className="px-6">
+        <FuturisticBackground />
         <View style={s.guestContainer}>
           <View style={[s.guestAvatar, { backgroundColor: "#8B5CF620" }]}>
             <IconSymbol name="person.crop.circle.fill" size={48} color="#8B5CF6" />
@@ -134,6 +136,7 @@ export default function ClientProfileScreen() {
 
   return (
     <ScreenContainer>
+      <FuturisticBackground />
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
         {/* Profile Header */}
         <View style={s.profileHeader}>

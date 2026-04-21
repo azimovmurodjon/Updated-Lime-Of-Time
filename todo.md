@@ -1713,3 +1713,11 @@
 - [x] Messages section on Clients screen (all client conversations in one place)
 - [x] 1-hour-before-expiry reminder push notification for cancel/reschedule requests
 - [x] Service photo gallery S3 upload in Services screen (syncs to client portal)
+
+## Feature Batch — UI Polish & New Features
+- [x] Redesign onboarding page with full polished UI and animations matching business app
+- [x] Fix all client portal UI/animations to match business app quality (FuturisticBackground, Reanimated transitions, haptics, press states)
+- [x] Add photo count badge on service cards in Services screen
+- [x] Add swipeable before/after gallery carousel on client Business Detail screen
+- [x] Add inline 'Mark as responded' push notification action for expiry reminders
+- [x] Fix dev server connection issue (restarted, now running cleanly)

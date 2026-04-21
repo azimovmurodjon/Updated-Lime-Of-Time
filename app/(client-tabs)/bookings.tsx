@@ -21,6 +21,16 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { useClientStore, ClientAppointment } from "@/lib/client-store";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { FuturisticBackground } from "@/components/futuristic-background";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  Easing,
+  runOnJS,
+} from "react-native-reanimated";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import * as Haptics from "expo-haptics";
 
 type FilterTab = "upcoming" | "past" | "all";
@@ -91,11 +101,24 @@ export default function BookingsScreen() {
     return b.date.localeCompare(a.date);
   });
 
+  // Entrance animation
+  const headerOpacity = useSharedValue(0);
+  const headerY = useSharedValue(-16);
+  React.useEffect(() => {
+    headerOpacity.value = withTiming(1, { duration: 400, easing: Easing.out(Easing.cubic) });
+    headerY.value = withSpring(0, { damping: 18, stiffness: 120 });
+  }, []);
+  const headerStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ translateY: headerY.value }],
+  }));
+
   const s = styles(colors);
 
   if (!state.account) {
     return (
       <ScreenContainer className="px-6">
+        <FuturisticBackground />
         <View style={s.guestContainer}>
           <IconSymbol name="calendar" size={40} color={colors.muted} />
           <Text style={[s.guestTitle, { color: colors.foreground }]}>Sign in to see your bookings</Text>
@@ -112,10 +135,11 @@ export default function BookingsScreen() {
 
   return (
     <ScreenContainer>
+      <FuturisticBackground />
       {/* Header */}
-      <View style={s.header}>
+      <Animated.View style={[s.header, headerStyle]}>
         <Text style={s.title}>My Bookings</Text>
-      </View>
+      </Animated.View>
 
       {/* Filter Tabs */}
       <View style={[s.tabRow, { borderBottomColor: colors.border }]}>

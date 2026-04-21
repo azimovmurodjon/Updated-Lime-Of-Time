@@ -5,7 +5,7 @@
  * Fetches data from the existing public /api/public/business/:slug endpoint.
  */
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -16,7 +16,11 @@ import {
   Alert,
   Platform,
   Linking,
+  Dimensions,
+  FlatList,
+  Modal,
 } from "react-native";
+import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
@@ -46,6 +50,14 @@ interface PublicHours {
   isOpen: boolean;
   openTime: string;
   closeTime: string;
+}
+
+interface ServicePhoto {
+  id: number;
+  serviceLocalId: string;
+  url: string;
+  caption: string | null;
+  sortOrder: number;
 }
 
 interface PublicBusiness {
@@ -86,17 +98,29 @@ export default function ClientBusinessDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [isSaved, setIsSaved] = useState(false);
   const [savingToggle, setSavingToggle] = useState(false);
-  const [activeTab, setActiveTab] = useState<"services" | "staff" | "hours" | "reviews">("services");
+  const [activeTab, setActiveTab] = useState<"services" | "staff" | "hours" | "reviews" | "gallery">("services");
+  const [servicePhotos, setServicePhotos] = useState<ServicePhoto[]>([]);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  const [lightboxVisible, setLightboxVisible] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const SCREEN_WIDTH = Dimensions.get("window").width;
 
   const apiBase = getApiBaseUrl();
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`${apiBase}/api/public/business/${slug}`);
-        if (res.ok) {
-          const data = await res.json() as PublicBusiness;
+        const [bizRes, photosRes] = await Promise.all([
+          fetch(`${apiBase}/api/public/business/${slug}`),
+          fetch(`${apiBase}/api/public/service-photos/${slug}`),
+        ]);
+        if (bizRes.ok) {
+          const data = await bizRes.json() as PublicBusiness;
           setBusiness(data);
+        }
+        if (photosRes.ok) {
+          const photos = await photosRes.json() as ServicePhoto[];
+          setServicePhotos(photos);
         }
       } catch (err) {
         console.warn("[BizDetail] fetch error:", err);
@@ -256,19 +280,19 @@ export default function ClientBusinessDetailScreen() {
         </View>
 
         {/* Tab Bar */}
-        <View style={[s.tabBar, { borderBottomColor: colors.border }]}>
-          {(["services", "staff", "hours", "reviews"] as const).map((tab) => (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[s.tabBar, { borderBottomColor: colors.border }]} contentContainerStyle={{ flexDirection: "row" }}>
+          {(["services", "staff", "hours", "reviews", ...(servicePhotos.length > 0 ? ["gallery"] : [])] as const).map((tab) => (
             <Pressable
               key={tab}
               style={[s.tab, activeTab === tab && { borderBottomColor: "#8B5CF6", borderBottomWidth: 2 }]}
-              onPress={() => setActiveTab(tab)}
+              onPress={() => setActiveTab(tab as any)}
             >
               <Text style={[s.tabText, { color: activeTab === tab ? "#8B5CF6" : colors.muted }]}>
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                {tab === "gallery" ? `Gallery (${servicePhotos.length})` : tab.charAt(0).toUpperCase() + tab.slice(1)}
               </Text>
             </Pressable>
           ))}
-        </View>
+        </ScrollView>
 
         {/* Services Tab */}
         {activeTab === "services" && (
@@ -343,6 +367,107 @@ export default function ClientBusinessDetailScreen() {
             )}
           </View>
         )}
+
+        {/* Gallery Tab */}
+        {activeTab === "gallery" && (
+          <View style={{ paddingTop: 16 }}>
+            {/* Swipeable full-width carousel */}
+            <FlatList
+              data={servicePhotos}
+              keyExtractor={(item) => String(item.id)}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={(e) => {
+                const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+                setGalleryIndex(idx);
+              }}
+              renderItem={({ item, index }) => (
+                <Pressable
+                  style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1 })}
+                  onPress={() => { setLightboxIndex(index); setLightboxVisible(true); }}
+                >
+                  <Image
+                    source={{ uri: item.url }}
+                    style={{ width: SCREEN_WIDTH, height: 260 }}
+                    contentFit="cover"
+                    transition={300}
+                  />
+                  {item.caption ? (
+                    <View style={[s.photoCaptionBar, { backgroundColor: "rgba(0,0,0,0.55)" }]}>
+                      <Text style={s.photoCaptionText}>{item.caption}</Text>
+                    </View>
+                  ) : null}
+                </Pressable>
+              )}
+            />
+            {/* Dot indicators */}
+            {servicePhotos.length > 1 && (
+              <View style={s.dotRow}>
+                {servicePhotos.map((_, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      s.dot,
+                      { backgroundColor: i === galleryIndex ? "#8B5CF6" : colors.border },
+                    ]}
+                  />
+                ))}
+              </View>
+            )}
+            {/* Thumbnail strip */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingTop: 12 }}>
+              {servicePhotos.map((photo, idx) => (
+                <Pressable
+                  key={photo.id}
+                  onPress={() => { setLightboxIndex(idx); setLightboxVisible(true); }}
+                  style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}
+                >
+                  <Image
+                    source={{ uri: photo.url }}
+                    style={[
+                      s.thumbnail,
+                      idx === galleryIndex && { borderColor: "#8B5CF6", borderWidth: 2 },
+                    ]}
+                    contentFit="cover"
+                    transition={200}
+                  />
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Lightbox Modal */}
+        <Modal visible={lightboxVisible} transparent animationType="fade" onRequestClose={() => setLightboxVisible(false)}>
+          <View style={s.lightboxOverlay}>
+            <Pressable style={s.lightboxClose} onPress={() => setLightboxVisible(false)}>
+              <IconSymbol name="xmark" size={22} color="#FFFFFF" />
+            </Pressable>
+            <FlatList
+              data={servicePhotos}
+              keyExtractor={(item) => String(item.id)}
+              horizontal
+              pagingEnabled
+              initialScrollIndex={lightboxIndex}
+              getItemLayout={(_, index) => ({ length: SCREEN_WIDTH, offset: SCREEN_WIDTH * index, index })}
+              showsHorizontalScrollIndicator={false}
+              renderItem={({ item }) => (
+                <View style={{ width: SCREEN_WIDTH, justifyContent: "center", alignItems: "center" }}>
+                  <Image
+                    source={{ uri: item.url }}
+                    style={{ width: SCREEN_WIDTH, height: 400 }}
+                    contentFit="contain"
+                    transition={200}
+                  />
+                  {item.caption ? (
+                    <Text style={[s.lightboxCaption, { color: "#FFFFFF" }]}>{item.caption}</Text>
+                  ) : null}
+                </View>
+              )}
+            />
+          </View>
+        </Modal>
 
         {/* Reviews Tab */}
         {activeTab === "reviews" && (
@@ -449,4 +574,14 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     stickyBook: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 16, borderTopWidth: 1 },
     stickyBookBtn: { backgroundColor: "#8B5CF6", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 14, borderRadius: 14 },
     stickyBookBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },
+    // Gallery
+    photoCaptionBar: { position: "absolute", bottom: 0, left: 0, right: 0, paddingHorizontal: 16, paddingVertical: 8 },
+    photoCaptionText: { color: "#FFFFFF", fontSize: 13, fontWeight: "500" },
+    dotRow: { flexDirection: "row", justifyContent: "center", gap: 6, marginTop: 10 },
+    dot: { width: 6, height: 6, borderRadius: 3 },
+    thumbnail: { width: 72, height: 72, borderRadius: 10, borderWidth: 0, borderColor: "transparent" },
+    // Lightbox
+    lightboxOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.95)", justifyContent: "center" },
+    lightboxClose: { position: "absolute", top: 56, right: 20, zIndex: 10, width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
+    lightboxCaption: { textAlign: "center", fontSize: 14, marginTop: 12, paddingHorizontal: 24 },
   });

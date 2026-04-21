@@ -146,17 +146,22 @@ async function expireOldRequests() {
         const formattedDate = appt.date
           ? new Date(appt.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })
           : "an appointment";
-        const clientName = appt.clientLocalId ? (
-          await db.select({ name: clients.name }).from(clients)
-            .where(and(eq(clients.localId, appt.clientLocalId), eq(clients.businessOwnerId, appt.businessOwnerId)))
-            .limit(1)
-        ).then(rows => rows[0]?.name || "A client").catch(() => "A client") : "A client";
+        let clientName = "A client";
+        if (appt.clientLocalId) {
+          try {
+            const cnRows = await db.select({ name: clients.name }).from(clients)
+              .where(and(eq(clients.localId, appt.clientLocalId), eq(clients.businessOwnerId, appt.businessOwnerId)))
+              .limit(1);
+            clientName = cnRows[0]?.name || "A client";
+          } catch { /* keep default */ }
+        }
 
         await sendExpoPush(expoPushToken, {
           title: `⚠️ Cancellation Request Expiring Soon`,
           body: `${clientName}'s cancellation request for ${formattedDate} expires in ~1 hour. Respond now to approve or decline.`,
           data: { type: "cancel_request", appointmentId: appt.localId ?? undefined, filter: "requests" },
           channelId: "appointments",
+          categoryIdentifier: "cancelreschedule",
         });
         reminderCount++;
       }
@@ -201,17 +206,22 @@ async function expireOldRequests() {
         const formattedDate = appt.date
           ? new Date(appt.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })
           : "an appointment";
-        const clientName = appt.clientLocalId ? (
-          await db.select({ name: clients.name }).from(clients)
-            .where(and(eq(clients.localId, appt.clientLocalId), eq(clients.businessOwnerId, appt.businessOwnerId)))
-            .limit(1)
-        ).then(rows => rows[0]?.name || "A client").catch(() => "A client") : "A client";
+        let clientName = "A client";
+        if (appt.clientLocalId) {
+          try {
+            const cnRows = await db.select({ name: clients.name }).from(clients)
+              .where(and(eq(clients.localId, appt.clientLocalId), eq(clients.businessOwnerId, appt.businessOwnerId)))
+              .limit(1);
+            clientName = cnRows[0]?.name || "A client";
+          } catch { /* keep default */ }
+        }
 
         await sendExpoPush(expoPushToken, {
           title: `⚠️ Reschedule Request Expiring Soon`,
           body: `${clientName}'s reschedule request for ${formattedDate} expires in ~1 hour. Respond now to approve or decline.`,
           data: { type: "reschedule_request", appointmentId: appt.localId ?? undefined, filter: "requests" },
           channelId: "appointments",
+          categoryIdentifier: "cancelreschedule",
         });
         reminderCount++;
       }

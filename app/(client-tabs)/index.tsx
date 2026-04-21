@@ -1,16 +1,16 @@
 /**
  * Client Portal — Dashboard (Home Tab)
  *
- * Shows upcoming appointments, saved businesses, quick-book shortcuts,
- * and a welcome banner for signed-out users.
+ * Full redesign — matches business app visual quality:
+ * FuturisticBackground, Reanimated entrance animations, spring press feedback,
+ * LinearGradient cards, and haptic confirmation.
  */
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
   ScrollView,
-  Pressable,
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
@@ -22,10 +22,23 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { useClientStore, ClientAppointment } from "@/lib/client-store";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { FuturisticBackground } from "@/components/futuristic-background";
+import { LinearGradient } from "expo-linear-gradient";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withDelay,
+  withSpring,
+  Easing,
+  runOnJS,
+} from "react-native-reanimated";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import * as Haptics from "expo-haptics";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+const CLIENT_PURPLE = "#8B5CF6";
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
   return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
@@ -53,8 +66,27 @@ function statusLabel(status: ClientAppointment["status"]): string {
   }
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Animated Press Wrapper ───────────────────────────────────────────────────
+function AnimCard({ children, onPress, style }: { children: React.ReactNode; onPress: () => void; style?: any }) {
+  const scale = useSharedValue(1);
+  const tap = Gesture.Tap()
+    .onBegin(() => { scale.value = withSpring(0.97, { damping: 20, stiffness: 300 }); })
+    .onFinalize((_, s) => {
+      scale.value = withSpring(1, { damping: 18, stiffness: 200 });
+      if (s) {
+        if (Platform.OS !== "web") runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
+        runOnJS(onPress)();
+      }
+    });
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return (
+    <GestureDetector gesture={tap}>
+      <Animated.View style={[animStyle, style]}>{children}</Animated.View>
+    </GestureDetector>
+  );
+}
 
+// ─── Component ────────────────────────────────────────────────────────────────
 export default function ClientHomeScreen() {
   const colors = useColors();
   const router = useRouter();
@@ -74,7 +106,6 @@ export default function ClientHomeScreen() {
       ]);
       dispatch({ type: "SET_APPOINTMENTS", payload: appts });
       dispatch({ type: "SET_SAVED_BUSINESSES", payload: saved });
-      // Count unread messages
       const msgs = await apiCall<{ unreadCount: number }>("/api/client/messages/unread-count");
       dispatch({ type: "SET_UNREAD_COUNT", payload: msgs.unreadCount });
     } catch (err) {
@@ -94,37 +125,35 @@ export default function ClientHomeScreen() {
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 5);
 
-  const s = styles(colors);
+  // Entrance animations
+  const headerOpacity = useSharedValue(0);
+  const headerY = useSharedValue(-20);
+  const contentOpacity = useSharedValue(0);
+  const contentY = useSharedValue(30);
+
+  useEffect(() => {
+    headerOpacity.value = withTiming(1, { duration: 450, easing: Easing.out(Easing.cubic) });
+    headerY.value = withSpring(0, { damping: 18, stiffness: 120 });
+    contentOpacity.value = withDelay(200, withTiming(1, { duration: 450 }));
+    contentY.value = withDelay(200, withSpring(0, { damping: 18, stiffness: 100 }));
+  }, []);
+
+  const headerStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ translateY: headerY.value }],
+  }));
+  const contentStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+    transform: [{ translateY: contentY.value }],
+  }));
 
   // ── Not signed in ──────────────────────────────────────────────────────────
   if (!isSignedIn) {
     return (
-      <ScreenContainer className="px-6">
-        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}>
-          <View style={s.guestContainer}>
-            <View style={s.guestIcon}>
-              <IconSymbol name="calendar" size={48} color="#8B5CF6" />
-            </View>
-            <Text style={s.guestTitle}>Book Appointments{"\n"}Near You</Text>
-            <Text style={s.guestSubtitle}>
-              Discover local services, book instantly, and manage all your appointments in one place.
-            </Text>
-            <Pressable
-              style={({ pressed }) => [s.primaryBtn, pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] }]}
-              onPress={() => {
-                if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push("/client-signin" as any);
-              }}
-            >
-              <Text style={s.primaryBtnText}>Get Started</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [s.secondaryBtn, pressed && { opacity: 0.7 }]}
-              onPress={() => router.push("/(client-tabs)/discover" as any)}
-            >
-              <Text style={[s.secondaryBtnText, { color: "#8B5CF6" }]}>Browse Without Account</Text>
-            </Pressable>
-          </View>
+      <ScreenContainer>
+        <FuturisticBackground />
+        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 24 }}>
+          <GuestBanner colors={colors} router={router} />
         </ScrollView>
       </ScreenContainer>
     );
@@ -133,317 +162,430 @@ export default function ClientHomeScreen() {
   // ── Signed in ──────────────────────────────────────────────────────────────
   return (
     <ScreenContainer>
+      <FuturisticBackground />
       <ScrollView
         contentContainerStyle={{ paddingBottom: 32 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={CLIENT_PURPLE} />}
       >
         {/* Header */}
-        <View style={s.header}>
+        <Animated.View style={[styles.header, headerStyle]}>
           <View>
-            <Text style={s.greeting}>Hello, {state.account?.name?.split(" ")[0] ?? "there"} 👋</Text>
-            <Text style={[s.greetingSub, { color: colors.muted }]}>What are you booking today?</Text>
+            <Text style={[styles.greeting, { color: colors.foreground }]}>
+              Hello, {state.account?.name?.split(" ")[0] ?? "there"} 👋
+            </Text>
+            <Text style={[styles.greetingSub, { color: colors.muted }]}>What are you booking today?</Text>
           </View>
-          <Pressable
-            style={({ pressed }) => [s.avatarBtn, { backgroundColor: "#8B5CF620" }, pressed && { opacity: 0.7 }]}
-            onPress={() => router.push("/(client-tabs)/profile" as any)}
-          >
-            <IconSymbol name="person.crop.circle.fill" size={32} color="#8B5CF6" />
-          </Pressable>
-        </View>
+          <AnimCard onPress={() => router.push("/(client-tabs)/profile" as any)}>
+            <View style={[styles.avatarBtn, { backgroundColor: CLIENT_PURPLE + "20" }]}>
+              <IconSymbol name="person.crop.circle.fill" size={32} color={CLIENT_PURPLE} />
+            </View>
+          </AnimCard>
+        </Animated.View>
 
-        {/* Quick Actions */}
-        <View style={s.quickActions}>
-          <Pressable
-            style={({ pressed }) => [s.quickBtn, { backgroundColor: "#8B5CF6" }, pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] }]}
-            onPress={() => router.push("/(client-tabs)/discover" as any)}
-          >
-            <IconSymbol name="safari.fill" size={20} color="#FFFFFF" />
-            <Text style={[s.quickBtnText, { color: "#FFFFFF" }]}>Discover</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [s.quickBtn, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] }]}
-            onPress={() => router.push("/(client-tabs)/bookings" as any)}
-          >
-            <IconSymbol name="calendar" size={20} color={colors.foreground} />
-            <Text style={[s.quickBtnText, { color: colors.foreground }]}>My Bookings</Text>
-          </Pressable>
-        </View>
+        <Animated.View style={contentStyle}>
+          {/* Quick Actions */}
+          <View style={styles.quickActions}>
+            <AnimCard
+              onPress={() => router.push("/(client-tabs)/discover" as any)}
+              style={{ flex: 1 }}
+            >
+              <LinearGradient
+                colors={[CLIENT_PURPLE, "#7C3AED"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.quickBtnGrad}
+              >
+                <IconSymbol name="safari.fill" size={20} color="#FFFFFF" />
+                <Text style={[styles.quickBtnText, { color: "#FFFFFF" }]}>Discover</Text>
+              </LinearGradient>
+            </AnimCard>
+            <AnimCard
+              onPress={() => router.push("/(client-tabs)/bookings" as any)}
+              style={{ flex: 1 }}
+            >
+              <View style={[styles.quickBtnOutline, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <IconSymbol name="calendar" size={20} color={colors.foreground} />
+                <Text style={[styles.quickBtnText, { color: colors.foreground }]}>My Bookings</Text>
+              </View>
+            </AnimCard>
+          </View>
 
-        {/* Upcoming Appointments */}
-        <View style={s.section}>
-          <View style={s.sectionHeader}>
-            <Text style={s.sectionTitle}>Upcoming</Text>
-            {state.appointments.length > 0 && (
-              <Pressable onPress={() => router.push("/(client-tabs)/bookings" as any)}>
-                <Text style={[s.seeAll, { color: "#8B5CF6" }]}>See all</Text>
-              </Pressable>
+          {/* Upcoming Appointments */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Upcoming</Text>
+              {state.appointments.length > 0 && (
+                <AnimCard onPress={() => router.push("/(client-tabs)/bookings" as any)}>
+                  <Text style={[styles.seeAll, { color: CLIENT_PURPLE }]}>See all</Text>
+                </AnimCard>
+              )}
+            </View>
+
+            {loading ? (
+              <ActivityIndicator color={CLIENT_PURPLE} style={{ marginTop: 24 }} />
+            ) : upcoming.length === 0 ? (
+              <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <IconSymbol name="calendar" size={28} color={colors.muted} />
+                <Text style={[styles.emptyText, { color: colors.muted }]}>No upcoming appointments</Text>
+                <AnimCard onPress={() => router.push("/(client-tabs)/discover" as any)}>
+                  <View style={[styles.emptyBtn, { borderColor: CLIENT_PURPLE }]}>
+                    <Text style={{ color: CLIENT_PURPLE, fontWeight: "600", fontSize: 14 }}>Book Now</Text>
+                  </View>
+                </AnimCard>
+              </View>
+            ) : (
+              upcoming.map((appt, idx) => (
+                <AnimCard
+                  key={appt.id}
+                  onPress={() => router.push({ pathname: "/client-appointment-detail", params: { id: String(appt.id) } } as any)}
+                  style={{ marginBottom: 10 }}
+                >
+                  <View style={[styles.apptCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    {/* Left accent bar */}
+                    <View style={[styles.apptAccent, { backgroundColor: statusColor(appt.status, colors) }]} />
+                    <View style={styles.apptLeft}>
+                      <Text style={[styles.apptService, { color: colors.foreground }]}>{appt.serviceName}</Text>
+                      <Text style={[styles.apptBusiness, { color: colors.muted }]}>{appt.businessName}</Text>
+                      <Text style={[styles.apptDate, { color: colors.muted }]}>
+                        {formatDate(appt.date)} · {appt.time}
+                        {appt.staffName ? ` · ${appt.staffName}` : ""}
+                      </Text>
+                    </View>
+                    <View style={[styles.statusBadge, { backgroundColor: statusColor(appt.status, colors) + "20" }]}>
+                      <Text style={[styles.statusText, { color: statusColor(appt.status, colors) }]}>
+                        {statusLabel(appt.status)}
+                      </Text>
+                    </View>
+                  </View>
+                </AnimCard>
+              ))
             )}
           </View>
 
-          {loading ? (
-            <ActivityIndicator color="#8B5CF6" style={{ marginTop: 24 }} />
-          ) : upcoming.length === 0 ? (
-            <View style={[s.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <IconSymbol name="calendar" size={28} color={colors.muted} />
-              <Text style={[s.emptyText, { color: colors.muted }]}>No upcoming appointments</Text>
-              <Pressable
-                style={({ pressed }) => [s.emptyBtn, { borderColor: "#8B5CF6" }, pressed && { opacity: 0.7 }]}
-                onPress={() => router.push("/(client-tabs)/discover" as any)}
-              >
-                <Text style={{ color: "#8B5CF6", fontWeight: "600", fontSize: 14 }}>Book Now</Text>
-              </Pressable>
+          {/* Saved Businesses */}
+          {state.savedBusinesses.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Saved</Text>
+                <AnimCard onPress={() => router.push("/client-saved-businesses" as any)}>
+                  <Text style={[styles.seeAll, { color: CLIENT_PURPLE }]}>See all</Text>
+                </AnimCard>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 2 }}>
+                {state.savedBusinesses.slice(0, 6).map((biz) => (
+                  <AnimCard
+                    key={biz.id}
+                    onPress={() => router.push({ pathname: "/client-business-detail", params: { slug: biz.businessSlug } } as any)}
+                  >
+                    <View style={[styles.savedCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                      <View style={[styles.savedIcon, { backgroundColor: CLIENT_PURPLE + "20" }]}>
+                        <IconSymbol name="scissors" size={20} color={CLIENT_PURPLE} />
+                      </View>
+                      <Text style={[styles.savedName, { color: colors.foreground }]} numberOfLines={2}>{biz.businessName}</Text>
+                      {biz.businessCategory && (
+                        <Text style={[styles.savedCat, { color: colors.muted }]} numberOfLines={1}>{biz.businessCategory}</Text>
+                      )}
+                    </View>
+                  </AnimCard>
+                ))}
+              </ScrollView>
             </View>
-          ) : (
-            upcoming.map((appt) => (
-              <Pressable
-                key={appt.id}
-                style={({ pressed }) => [
-                  s.apptCard,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
-                  pressed && { opacity: 0.85 },
-                ]}
-                onPress={() => router.push({ pathname: "/client-appointment-detail", params: { id: String(appt.id) } } as any)}
-              >
-                <View style={s.apptLeft}>
-                  <Text style={[s.apptService, { color: colors.foreground }]}>{appt.serviceName}</Text>
-                  <Text style={[s.apptBusiness, { color: colors.muted }]}>{appt.businessName}</Text>
-                  <Text style={[s.apptDate, { color: colors.muted }]}>
-                    {formatDate(appt.date)} · {appt.time}
-                    {appt.staffName ? ` · ${appt.staffName}` : ""}
-                  </Text>
-                </View>
-                <View style={[s.statusBadge, { backgroundColor: statusColor(appt.status, colors) + "20" }]}>
-                  <Text style={[s.statusText, { color: statusColor(appt.status, colors) }]}>
-                    {statusLabel(appt.status)}
-                  </Text>
-                </View>
-              </Pressable>
-            ))
           )}
-        </View>
-
-        {/* Saved Businesses */}
-        {state.savedBusinesses.length > 0 && (
-          <View style={s.section}>
-            <View style={s.sectionHeader}>
-              <Text style={s.sectionTitle}>Saved</Text>
-              <Pressable onPress={() => router.push("/client-saved-businesses" as any)}>
-                <Text style={[s.seeAll, { color: "#8B5CF6" }]}>See all</Text>
-              </Pressable>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 2 }}>
-              {state.savedBusinesses.slice(0, 6).map((biz) => (
-                <Pressable
-                  key={biz.id}
-                  style={({ pressed }) => [
-                    s.savedCard,
-                    { backgroundColor: colors.surface, borderColor: colors.border },
-                    pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] },
-                  ]}
-                  onPress={() => router.push({ pathname: "/client-business-detail", params: { slug: biz.businessSlug } } as any)}
-                >
-                  <View style={[s.savedIcon, { backgroundColor: "#8B5CF620" }]}>
-                    <IconSymbol name="scissors" size={20} color="#8B5CF6" />
-                  </View>
-                  <Text style={[s.savedName, { color: colors.foreground }]} numberOfLines={2}>{biz.businessName}</Text>
-                  {biz.businessCategory && (
-                    <Text style={[s.savedCat, { color: colors.muted }]} numberOfLines={1}>{biz.businessCategory}</Text>
-                  )}
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        )}
+        </Animated.View>
       </ScrollView>
     </ScreenContainer>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ─── Guest Banner ─────────────────────────────────────────────────────────────
+function GuestBanner({ colors, router }: { colors: ReturnType<typeof useColors>; router: any }) {
+  const logoScale = useSharedValue(0.5);
+  const logoOpacity = useSharedValue(0);
+  const textOpacity = useSharedValue(0);
+  const textY = useSharedValue(20);
+  const btnsOpacity = useSharedValue(0);
+  const btnsY = useSharedValue(20);
 
-const styles = (colors: ReturnType<typeof useColors>) =>
-  StyleSheet.create({
-    header: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingHorizontal: 20,
-      paddingTop: 16,
-      paddingBottom: 8,
-    },
-    greeting: {
-      fontSize: 22,
-      fontWeight: "700",
-      color: colors.foreground,
-    },
-    greetingSub: {
-      fontSize: 14,
-      marginTop: 2,
-    },
-    avatarBtn: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    quickActions: {
-      flexDirection: "row",
-      gap: 12,
-      paddingHorizontal: 20,
-      marginTop: 12,
-      marginBottom: 8,
-    },
-    quickBtn: {
-      flex: 1,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 8,
-      paddingVertical: 12,
-      borderRadius: 14,
-    },
-    quickBtnText: {
-      fontSize: 15,
-      fontWeight: "600",
-    },
-    section: {
-      marginTop: 24,
-      paddingHorizontal: 20,
-    },
-    sectionHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: 12,
-    },
-    sectionTitle: {
-      fontSize: 18,
-      fontWeight: "700",
-      color: colors.foreground,
-    },
-    seeAll: {
-      fontSize: 14,
-      fontWeight: "600",
-    },
-    apptCard: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      borderRadius: 14,
-      borderWidth: 1,
-      padding: 14,
-      marginBottom: 10,
-    },
-    apptLeft: {
-      flex: 1,
-      gap: 3,
-    },
-    apptService: {
-      fontSize: 15,
-      fontWeight: "600",
-    },
-    apptBusiness: {
-      fontSize: 13,
-    },
-    apptDate: {
-      fontSize: 12,
-    },
-    statusBadge: {
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 20,
-      marginLeft: 10,
-    },
-    statusText: {
-      fontSize: 11,
-      fontWeight: "700",
-    },
-    emptyCard: {
-      borderRadius: 16,
-      borderWidth: 1,
-      padding: 28,
-      alignItems: "center",
-      gap: 10,
-    },
-    emptyText: {
-      fontSize: 14,
-    },
-    emptyBtn: {
-      borderWidth: 1.5,
-      borderRadius: 20,
-      paddingHorizontal: 20,
-      paddingVertical: 8,
-      marginTop: 4,
-    },
-    savedCard: {
-      width: 130,
-      borderRadius: 14,
-      borderWidth: 1,
-      padding: 14,
-      gap: 8,
-    },
-    savedIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    savedName: {
-      fontSize: 13,
-      fontWeight: "600",
-      lineHeight: 18,
-    },
-    savedCat: {
-      fontSize: 11,
-    },
-    // Guest styles
-    guestContainer: {
-      alignItems: "center",
-      paddingVertical: 40,
-      gap: 16,
-    },
-    guestIcon: {
-      width: 96,
-      height: 96,
-      borderRadius: 48,
-      backgroundColor: "#8B5CF615",
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: 8,
-    },
-    guestTitle: {
-      fontSize: 28,
-      fontWeight: "700",
-      color: colors.foreground,
-      textAlign: "center",
-      lineHeight: 36,
-    },
-    guestSubtitle: {
-      fontSize: 15,
-      color: colors.muted,
-      textAlign: "center",
-      lineHeight: 22,
-      maxWidth: 300,
-    },
-    primaryBtn: {
-      backgroundColor: "#8B5CF6",
-      paddingHorizontal: 40,
-      paddingVertical: 14,
-      borderRadius: 28,
-      marginTop: 8,
-    },
-    primaryBtnText: {
-      color: "#FFFFFF",
-      fontSize: 16,
-      fontWeight: "700",
-    },
-    secondaryBtn: {
-      paddingVertical: 10,
-    },
-    secondaryBtnText: {
-      fontSize: 15,
-      fontWeight: "600",
-    },
-  });
+  useEffect(() => {
+    logoOpacity.value = withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) });
+    logoScale.value = withSpring(1, { damping: 14, stiffness: 120 });
+    textOpacity.value = withDelay(250, withTiming(1, { duration: 450 }));
+    textY.value = withDelay(250, withSpring(0, { damping: 18, stiffness: 100 }));
+    btnsOpacity.value = withDelay(450, withTiming(1, { duration: 400 }));
+    btnsY.value = withDelay(450, withSpring(0, { damping: 18, stiffness: 100 }));
+  }, []);
+
+  const logoStyle = useAnimatedStyle(() => ({
+    opacity: logoOpacity.value,
+    transform: [{ scale: logoScale.value }],
+  }));
+  const textStyle = useAnimatedStyle(() => ({
+    opacity: textOpacity.value,
+    transform: [{ translateY: textY.value }],
+  }));
+  const btnsStyle = useAnimatedStyle(() => ({
+    opacity: btnsOpacity.value,
+    transform: [{ translateY: btnsY.value }],
+  }));
+
+  return (
+    <View style={styles.guestContainer}>
+      <Animated.View style={[styles.guestLogoWrap, logoStyle]}>
+        <LinearGradient colors={[CLIENT_PURPLE + "30", CLIENT_PURPLE + "10"]} style={styles.guestLogoCircle}>
+          <IconSymbol name="calendar" size={48} color={CLIENT_PURPLE} />
+        </LinearGradient>
+        <View style={[styles.guestLogoRing, { borderColor: CLIENT_PURPLE + "40" }]} />
+      </Animated.View>
+
+      <Animated.View style={[{ alignItems: "center", gap: 10 }, textStyle]}>
+        <Text style={[styles.guestLabel, { color: CLIENT_PURPLE }]}>Client Portal</Text>
+        <Text style={[styles.guestTitle, { color: colors.foreground }]}>Book Appointments{"\n"}Near You</Text>
+        <Text style={[styles.guestSubtitle, { color: colors.muted }]}>
+          Discover local services, book instantly, and manage all your appointments in one place.
+        </Text>
+      </Animated.View>
+
+      <Animated.View style={[{ width: "100%", gap: 12, marginTop: 8 }, btnsStyle]}>
+        <AnimCard onPress={() => router.push("/client-signin" as any)}>
+          <LinearGradient
+            colors={[CLIENT_PURPLE, "#7C3AED"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.guestPrimaryBtn}
+          >
+            <Text style={styles.guestPrimaryBtnText}>Get Started</Text>
+          </LinearGradient>
+        </AnimCard>
+        <AnimCard onPress={() => router.push("/(client-tabs)/discover" as any)}>
+          <View style={[styles.guestSecondaryBtn, { borderColor: CLIENT_PURPLE + "60" }]}>
+            <Text style={[styles.guestSecondaryBtnText, { color: CLIENT_PURPLE }]}>Browse Without Account</Text>
+          </View>
+        </AnimCard>
+      </Animated.View>
+    </View>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const styles = StyleSheet.create({
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  greeting: {
+    fontSize: 22,
+    fontWeight: "700",
+  },
+  greetingSub: {
+    fontSize: 14,
+    marginTop: 2,
+  },
+  avatarBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickActions: {
+    flexDirection: "row",
+    gap: 12,
+    paddingHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  quickBtnGrad: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 16,
+  },
+  quickBtnOutline: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  quickBtnText: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  section: {
+    marginTop: 24,
+    paddingHorizontal: 20,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  seeAll: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  apptCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  apptAccent: {
+    width: 4,
+    alignSelf: "stretch",
+    borderRadius: 2,
+    marginRight: 12,
+  },
+  apptLeft: {
+    flex: 1,
+    gap: 3,
+  },
+  apptService: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  apptBusiness: {
+    fontSize: 13,
+  },
+  apptDate: {
+    fontSize: 12,
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    marginLeft: 10,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  emptyCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 28,
+    alignItems: "center",
+    gap: 10,
+  },
+  emptyText: {
+    fontSize: 14,
+  },
+  emptyBtn: {
+    borderWidth: 1.5,
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    marginTop: 4,
+  },
+  savedCard: {
+    width: 130,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  savedIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  savedName: {
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 18,
+  },
+  savedCat: {
+    fontSize: 11,
+  },
+  // Guest styles
+  guestContainer: {
+    alignItems: "center",
+    paddingVertical: 40,
+    gap: 20,
+  },
+  guestLogoWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  guestLogoCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  guestLogoRing: {
+    position: "absolute",
+    width: 116,
+    height: 116,
+    borderRadius: 58,
+    borderWidth: 1.5,
+  },
+  guestLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+  },
+  guestTitle: {
+    fontSize: 28,
+    fontWeight: "800",
+    textAlign: "center",
+    letterSpacing: -0.3,
+    lineHeight: 36,
+  },
+  guestSubtitle: {
+    fontSize: 15,
+    textAlign: "center",
+    lineHeight: 22,
+    maxWidth: 300,
+  },
+  guestPrimaryBtn: {
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: "center",
+  },
+  guestPrimaryBtnText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  guestSecondaryBtn: {
+    paddingVertical: 15,
+    borderRadius: 16,
+    alignItems: "center",
+    borderWidth: 1.5,
+  },
+  guestSecondaryBtnText: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+});

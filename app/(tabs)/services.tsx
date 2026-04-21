@@ -284,9 +284,17 @@ export default function ServicesScreen() {
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginRight: 8 }}>
                     <Pressable
                       onPress={() => router.push({ pathname: "/service-gallery" as any, params: { serviceId: svc.id } })}
-                      style={({ pressed }) => ({ backgroundColor: colors.primary + "15", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, opacity: pressed ? 0.7 : 1 })}
+                      style={({ pressed }) => ({ backgroundColor: colors.primary + "15", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, opacity: pressed ? 0.7 : 1, flexDirection: "row", alignItems: "center", gap: 4 })}
                     >
                       <IconSymbol name="photo.fill" size={14} color={colors.primary} />
+                      {(() => {
+                        const photoCount = (state.servicePhotos ?? []).filter((p) => p.serviceLocalId === svc.id).length;
+                        return photoCount > 0 ? (
+                          <View style={{ backgroundColor: colors.primary, borderRadius: 8, minWidth: 16, height: 16, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 }}>
+                            <Text style={{ color: "#FFFFFF", fontSize: 10, fontWeight: "700" }}>{photoCount}</Text>
+                          </View>
+                        ) : null;
+                      })()}
                     </Pressable>
                     <IconSymbol name="chevron.right" size={16} color={colors.muted} />
                   </View>

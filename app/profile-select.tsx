@@ -1,15 +1,15 @@
 /**
  * Profile Selection Screen
  *
- * Shown to users who haven't chosen a profile mode yet.
- * Lets them choose between Business Owner and Client.
+ * Full redesign — matches business app visual quality:
+ * FuturisticBackground, Reanimated entrance animations, LinearGradient cards,
+ * spring press feedback, and haptic confirmation.
  */
 
-import React, { useState } from "react";
+import React, { useEffect } from "react";
 import {
   View,
   Text,
-  Pressable,
   StyleSheet,
   Dimensions,
   Platform,
@@ -19,20 +19,152 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { setProfileMode } from "@/lib/client-store";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { FuturisticBackground } from "@/components/futuristic-background";
+import { LinearGradient } from "expo-linear-gradient";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withDelay,
+  withSpring,
+  Easing,
+  runOnJS,
+} from "react-native-reanimated";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import * as Haptics from "expo-haptics";
 
 const { width } = Dimensions.get("window");
 
+// ─── Animated Card ────────────────────────────────────────────────────────────
+function PortalCard({
+  icon,
+  title,
+  description,
+  badge,
+  badgeColor,
+  iconBg,
+  iconColor,
+  gradientColors,
+  borderColor,
+  delay,
+  onSelect,
+  disabled,
+}: {
+  icon: string;
+  title: string;
+  description: string;
+  badge: string;
+  badgeColor: string;
+  iconBg: string;
+  iconColor: string;
+  gradientColors: [string, string, string];
+  borderColor: string;
+  delay: number;
+  onSelect: () => void;
+  disabled: boolean;
+}) {
+  const colors = useColors();
+  const scale = useSharedValue(1);
+  const opacity = useSharedValue(0);
+  const translateY = useSharedValue(40);
+
+  useEffect(() => {
+    opacity.value = withDelay(delay, withTiming(1, { duration: 500, easing: Easing.out(Easing.cubic) }));
+    translateY.value = withDelay(delay, withSpring(0, { damping: 18, stiffness: 120 }));
+  }, []);
+
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }, { scale: scale.value }],
+  }));
+
+  const tap = Gesture.Tap()
+    .onBegin(() => {
+      scale.value = withSpring(0.96, { damping: 20, stiffness: 300 });
+    })
+    .onFinalize((e, success) => {
+      scale.value = withSpring(1, { damping: 18, stiffness: 200 });
+      if (success && !disabled) {
+        if (Platform.OS !== "web") {
+          runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Medium);
+        }
+        runOnJS(onSelect)();
+      }
+    });
+
+  return (
+    <GestureDetector gesture={tap}>
+      <Animated.View style={[styles.cardWrapper, animStyle]}>
+        <LinearGradient
+          colors={gradientColors}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.card, { borderColor }]}
+        >
+          {/* Glow accent top-right */}
+          <View style={[styles.cardGlow, { backgroundColor: badgeColor + "18" }]} />
+
+          {/* Icon */}
+          <View style={[styles.iconCircle, { backgroundColor: iconBg }]}>
+            <IconSymbol name={icon as any} size={34} color={iconColor} />
+          </View>
+
+          {/* Badge */}
+          <View style={[styles.badge, { backgroundColor: badgeColor }]}>
+            <Text style={styles.badgeText}>{badge}</Text>
+          </View>
+
+          {/* Text */}
+          <Text style={[styles.cardTitle, { color: colors.foreground }]}>{title}</Text>
+          <Text style={[styles.cardDesc, { color: colors.muted }]}>{description}</Text>
+
+          {/* Arrow */}
+          <View style={styles.arrowRow}>
+            <Text style={[styles.arrowLabel, { color: badgeColor }]}>Get started</Text>
+            <IconSymbol name="chevron.right" size={16} color={badgeColor} />
+          </View>
+        </LinearGradient>
+      </Animated.View>
+    </GestureDetector>
+  );
+}
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ProfileSelectScreen() {
   const colors = useColors();
   const router = useRouter();
-  const [selecting, setSelecting] = useState<"business" | "client" | null>(null);
+
+  // Header entrance
+  const headerOpacity = useSharedValue(0);
+  const headerY = useSharedValue(-30);
+  const logoScale = useSharedValue(0.5);
+  const logoOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    logoOpacity.value = withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) });
+    logoScale.value = withSpring(1, { damping: 14, stiffness: 120 });
+    headerOpacity.value = withDelay(200, withTiming(1, { duration: 500 }));
+    headerY.value = withDelay(200, withSpring(0, { damping: 18, stiffness: 100 }));
+  }, []);
+
+  const logoStyle = useAnimatedStyle(() => ({
+    opacity: logoOpacity.value,
+    transform: [{ scale: logoScale.value }],
+  }));
+
+  const headerStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ translateY: headerY.value }],
+  }));
+
+  // Footer entrance
+  const footerOpacity = useSharedValue(0);
+  useEffect(() => {
+    footerOpacity.value = withDelay(700, withTiming(1, { duration: 500 }));
+  }, []);
+  const footerStyle = useAnimatedStyle(() => ({ opacity: footerOpacity.value }));
 
   const handleSelect = async (mode: "business" | "client") => {
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-    setSelecting(mode);
     await setProfileMode(mode);
     if (mode === "business") {
       router.replace("/onboarding");
@@ -41,156 +173,196 @@ export default function ProfileSelectScreen() {
     }
   };
 
-  const s = styles(colors);
-
   return (
-    <ScreenContainer edges={["top", "bottom", "left", "right"]} className="px-6">
-      <View style={s.container}>
-        {/* Header */}
-        <View style={s.header}>
-          <View style={s.logoCircle}>
-            <IconSymbol name="calendar" size={40} color={colors.primary} />
-          </View>
-          <Text style={s.title}>Welcome</Text>
-          <Text style={s.subtitle}>
-            How would you like to use the app?
+    <ScreenContainer edges={["top", "bottom", "left", "right"]}>
+      <FuturisticBackground />
+
+      <View style={styles.container}>
+        {/* Logo */}
+        <Animated.View style={[styles.logoWrap, logoStyle]}>
+          <LinearGradient
+            colors={[colors.primary + "30", colors.primary + "10"]}
+            style={styles.logoCircle}
+          >
+            <IconSymbol name="calendar" size={44} color={colors.primary} />
+          </LinearGradient>
+          {/* Outer ring */}
+          <View style={[styles.logoRing, { borderColor: colors.primary + "40" }]} />
+        </Animated.View>
+
+        {/* Header text */}
+        <Animated.View style={[styles.headerBlock, headerStyle]}>
+          <Text style={[styles.appName, { color: colors.primary }]}>Lime Of Time</Text>
+          <Text style={[styles.title, { color: colors.foreground }]}>Welcome</Text>
+          <Text style={[styles.subtitle, { color: colors.muted }]}>
+            Choose how you'd like to use the app
           </Text>
-        </View>
+        </Animated.View>
 
         {/* Cards */}
-        <View style={s.cards}>
-          {/* Business Owner Card */}
-          <Pressable
-            style={({ pressed }) => [
-              s.card,
-              { borderColor: colors.primary, backgroundColor: colors.surface },
-              pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] },
-              selecting === "business" && { borderWidth: 2, borderColor: colors.primary },
-            ]}
-            onPress={() => handleSelect("business")}
-            disabled={selecting !== null}
-          >
-            <View style={[s.cardIcon, { backgroundColor: colors.primary + "20" }]}>
-              <IconSymbol name="briefcase.fill" size={32} color={colors.primary} />
-            </View>
-            <Text style={[s.cardTitle, { color: colors.foreground }]}>Business Owner</Text>
-            <Text style={[s.cardDesc, { color: colors.muted }]}>
-              Manage appointments, clients, staff, and grow your business.
-            </Text>
-            <View style={[s.cardBadge, { backgroundColor: colors.primary }]}>
-              <Text style={s.cardBadgeText}>For Businesses</Text>
-            </View>
-          </Pressable>
+        <View style={styles.cards}>
+          <PortalCard
+            icon="briefcase.fill"
+            title="Business Portal"
+            description="Manage appointments, clients, staff, services, and grow your business."
+            badge="For Businesses"
+            badgeColor={colors.primary}
+            iconBg={colors.primary + "20"}
+            iconColor={colors.primary}
+            gradientColors={[colors.surface, colors.surface, colors.background]}
+            borderColor={colors.primary + "60"}
+            delay={350}
+            onSelect={() => handleSelect("business")}
+            disabled={false}
+          />
 
-          {/* Client Card */}
-          <Pressable
-            style={({ pressed }) => [
-              s.card,
-              { borderColor: colors.border, backgroundColor: colors.surface },
-              pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] },
-              selecting === "client" && { borderWidth: 2, borderColor: colors.primary },
-            ]}
-            onPress={() => handleSelect("client")}
-            disabled={selecting !== null}
-          >
-            <View style={[s.cardIcon, { backgroundColor: "#8B5CF620" }]}>
-              <IconSymbol name="person.crop.circle.fill" size={32} color="#8B5CF6" />
-            </View>
-            <Text style={[s.cardTitle, { color: colors.foreground }]}>Client</Text>
-            <Text style={[s.cardDesc, { color: colors.muted }]}>
-              Discover nearby services, book appointments, and manage your schedule.
-            </Text>
-            <View style={[s.cardBadge, { backgroundColor: "#8B5CF6" }]}>
-              <Text style={s.cardBadgeText}>For Customers</Text>
-            </View>
-          </Pressable>
+          <PortalCard
+            icon="person.crop.circle.fill"
+            title="Client Portal"
+            description="Discover services, book appointments, and manage your schedule."
+            badge="For Customers"
+            badgeColor="#8B5CF6"
+            iconBg="#8B5CF620"
+            iconColor="#8B5CF6"
+            gradientColors={[colors.surface, colors.surface, colors.background]}
+            borderColor="#8B5CF640"
+            delay={500}
+            onSelect={() => handleSelect("client")}
+            disabled={false}
+          />
         </View>
 
-        {/* Footer note */}
-        <Text style={[s.footer, { color: colors.muted }]}>
-          You can switch between profiles at any time from Settings.
-        </Text>
+        {/* Footer */}
+        <Animated.Text style={[styles.footer, { color: colors.muted }, footerStyle]}>
+          You can switch between portals at any time from Settings
+        </Animated.Text>
       </View>
     </ScreenContainer>
   );
 }
 
-const styles = (colors: ReturnType<typeof useColors>) =>
-  StyleSheet.create({
-    container: {
-      flex: 1,
-      justifyContent: "center",
-      alignItems: "center",
-      paddingVertical: 32,
-    },
-    header: {
-      alignItems: "center",
-      marginBottom: 40,
-    },
-    logoCircle: {
-      width: 80,
-      height: 80,
-      borderRadius: 40,
-      backgroundColor: colors.primary + "15",
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: 20,
-    },
-    title: {
-      fontSize: 32,
-      fontWeight: "700",
-      color: colors.foreground,
-      marginBottom: 8,
-    },
-    subtitle: {
-      fontSize: 16,
-      color: colors.muted,
-      textAlign: "center",
-      lineHeight: 22,
-    },
-    cards: {
-      width: "100%",
-      gap: 16,
-    },
-    card: {
-      width: "100%",
-      borderRadius: 20,
-      borderWidth: 1.5,
-      padding: 24,
-      gap: 8,
-    },
-    cardIcon: {
-      width: 56,
-      height: 56,
-      borderRadius: 16,
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: 4,
-    },
-    cardTitle: {
-      fontSize: 20,
-      fontWeight: "700",
-    },
-    cardDesc: {
-      fontSize: 14,
-      lineHeight: 20,
-    },
-    cardBadge: {
-      alignSelf: "flex-start",
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 20,
-      marginTop: 4,
-    },
-    cardBadgeText: {
-      color: "#FFFFFF",
-      fontSize: 11,
-      fontWeight: "700",
-    },
-    footer: {
-      fontSize: 13,
-      textAlign: "center",
-      marginTop: 32,
-      lineHeight: 18,
-    },
-  });
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+  },
+  logoWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 28,
+  },
+  logoCircle: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoRing: {
+    position: "absolute",
+    width: 108,
+    height: 108,
+    borderRadius: 54,
+    borderWidth: 1.5,
+  },
+  headerBlock: {
+    alignItems: "center",
+    marginBottom: 36,
+  },
+  appName: {
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+    marginBottom: 6,
+  },
+  title: {
+    fontSize: 34,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 15,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  cards: {
+    width: "100%",
+    gap: 16,
+  },
+  cardWrapper: {
+    width: "100%",
+    borderRadius: 22,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  card: {
+    borderRadius: 22,
+    borderWidth: 1.5,
+    padding: 22,
+    gap: 6,
+    overflow: "hidden",
+  },
+  cardGlow: {
+    position: "absolute",
+    top: -40,
+    right: -40,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+  },
+  iconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
+  },
+  badge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    marginBottom: 4,
+  },
+  badgeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  cardTitle: {
+    fontSize: 21,
+    fontWeight: "800",
+    letterSpacing: -0.3,
+  },
+  cardDesc: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  arrowRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 6,
+  },
+  arrowLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  footer: {
+    fontSize: 13,
+    textAlign: "center",
+    marginTop: 28,
+    lineHeight: 18,
+  },
+});

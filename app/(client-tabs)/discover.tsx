@@ -23,6 +23,16 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { useClientStore, DiscoverBusiness } from "@/lib/client-store";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { FuturisticBackground } from "@/components/futuristic-background";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  Easing,
+  runOnJS,
+} from "react-native-reanimated";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { getApiBaseUrl } from "@/constants/oauth";
@@ -112,11 +122,25 @@ export default function DiscoverScreen() {
     fetchBusinesses(userLat ?? undefined, userLng ?? undefined, searchQuery, state.discoverCategory, r);
   };
 
-  const s = styles(colors);
   const activeCategory = state.discoverCategory ?? "All";
+
+  // Entrance animation
+  const headerOpacity = useSharedValue(0);
+  const headerY = useSharedValue(-16);
+  useEffect(() => {
+    headerOpacity.value = withTiming(1, { duration: 400, easing: Easing.out(Easing.cubic) });
+    headerY.value = withSpring(0, { damping: 18, stiffness: 120 });
+  }, []);
+  const headerStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ translateY: headerY.value }],
+  }));
+
+  const s = styles(colors);
 
   return (
     <ScreenContainer>
+      <FuturisticBackground />
       {/* Search Bar */}
       <View style={s.searchRow}>
         <View style={[s.searchBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -215,17 +239,26 @@ export default function DiscoverScreen() {
               </Text>
             </View>
           }
-          renderItem={({ item }) => (
-            <Pressable
-              style={({ pressed }) => [
+          renderItem={({ item }) => {
+            const scale = useSharedValue(1);
+            const tap = Gesture.Tap()
+              .onBegin(() => { scale.value = withSpring(0.97, { damping: 20, stiffness: 300 }); })
+              .onFinalize((_, success) => {
+                scale.value = withSpring(1, { damping: 18, stiffness: 200 });
+                if (success) {
+                  if (Platform.OS !== "web") runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
+                  runOnJS(router.push)({ pathname: "/client-business-detail", params: { slug: item.slug } } as any);
+                }
+              });
+            const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+            return (
+            <GestureDetector gesture={tap}>
+              <Animated.View style={[animStyle, { marginBottom: 12 }]}>
+            <View
+              style={[
                 s.bizCard,
                 { backgroundColor: colors.surface, borderColor: colors.border },
-                pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
               ]}
-              onPress={() => {
-                if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push({ pathname: "/client-business-detail", params: { slug: item.slug } } as any);
-              }}
             >
               {/* Logo placeholder */}
               <View style={[s.bizLogo, { backgroundColor: "#8B5CF620" }]}>
@@ -258,8 +291,11 @@ export default function DiscoverScreen() {
                 </View>
               </View>
               <IconSymbol name="chevron.right" size={16} color={colors.muted} />
-            </Pressable>
-          )}
+            </View>
+              </Animated.View>
+            </GestureDetector>
+            );
+          }}
         />
       )}
     </ScreenContainer>

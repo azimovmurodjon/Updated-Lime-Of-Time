@@ -73,6 +73,21 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
     },
   ]);
 
+  // Register interactive notification category for cancel/reschedule request expiry reminders
+  // Shows a single "Mark as Responded" inline action so owner can dismiss without opening the app
+  await Notifications.setNotificationCategoryAsync("cancelreschedule", [
+    {
+      identifier: "mark_responded",
+      buttonTitle: "✅ Mark as Responded",
+      options: { opensAppToForeground: false, isDestructive: false, isAuthenticationRequired: false },
+    },
+    {
+      identifier: "view_request",
+      buttonTitle: "👁 View Request",
+      options: { opensAppToForeground: true, isDestructive: false, isAuthenticationRequired: false },
+    },
+  ]);
+
   // Set up Android notification channels
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("appointments", {
@@ -356,6 +371,42 @@ export function useNotifications() {
           logger.log("[Notifications] Declined appointment from banner:", apptId);
         }
         return; // Don't navigate — action was handled silently
+      }
+
+      // ── Inline action: Mark cancel/reschedule request as responded ────────
+      // Triggered from the 1-hour expiry reminder banner without opening the app.
+      // Resolves the pending request by marking it as 'declined' (owner chose not to act)
+      // and navigates to the appointment detail for any follow-up if needed.
+      if (actionId === "mark_responded" && data?.appointmentId) {
+        const apptId = data.appointmentId;
+        const appt = state.appointments.find((a) => a.id === apptId);
+        if (appt) {
+          const now = new Date().toISOString();
+          let updatedAppt = { ...appt };
+          if (appt.cancelRequest?.status === "pending") {
+            updatedAppt = {
+              ...updatedAppt,
+              cancelRequest: { ...appt.cancelRequest, status: "declined" as const, resolvedAt: now },
+            };
+          }
+          if ((appt as any).rescheduleRequest?.status === "pending") {
+            updatedAppt = {
+              ...updatedAppt,
+              rescheduleRequest: { ...(appt as any).rescheduleRequest, status: "declined" as const, resolvedAt: now },
+            };
+          }
+          const updateAction = { type: "UPDATE_APPOINTMENT" as const, payload: updatedAppt };
+          dispatch(updateAction);
+          syncToDb(updateAction);
+          logger.log("[Notifications] Marked cancel/reschedule request as responded from banner:", apptId);
+        }
+        return; // Don't navigate — handled silently
+      }
+
+      // ── Inline action: View cancel/reschedule request (opens app) ─────────
+      if (actionId === "view_request" && data?.appointmentId) {
+        setTimeout(() => router.push({ pathname: "/appointment-detail", params: { id: data.appointmentId, from: "notification" } }), 300);
+        return;
       }
 
       // ── Default: tap on notification body → navigate ──────────────────────
