@@ -1576,3 +1576,5 @@
 
 - [x] Add payment method badge (Card/Cash/Zelle) to appointment cards in calendar list
 - [x] Auto-refresh webhook health check after tapping Register Webhook Automatically
+
+- [x] Calendar: block booking and show setup banner with deep link to Add Location when no location is configured
