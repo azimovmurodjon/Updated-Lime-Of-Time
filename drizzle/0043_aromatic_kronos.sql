@@ -1,0 +1,1 @@
+ALTER TABLE `business_owners` ADD `requestResponseWindowHours` int DEFAULT 48 NOT NULL;

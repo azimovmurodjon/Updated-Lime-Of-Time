@@ -19,6 +19,7 @@ export default function BookingPoliciesScreen() {
 
   const autoComplete = settings.autoCompleteEnabled;
   const autoCompleteDelay = settings.autoCompleteDelayMinutes ?? 5;
+  const responseWindow = settings.requestResponseWindowHours ?? 48;
 
   const toggleAutoComplete = useCallback(() => {
     const action = { type: "UPDATE_SETTINGS" as const, payload: { autoCompleteEnabled: !autoComplete } };
@@ -28,6 +29,12 @@ export default function BookingPoliciesScreen() {
 
   const setAutoCompleteDelay = useCallback((minutes: number) => {
     const action = { type: "UPDATE_SETTINGS" as const, payload: { autoCompleteDelayMinutes: minutes } };
+    dispatch(action);
+    syncToDb(action);
+  }, [dispatch, syncToDb]);
+
+  const setResponseWindow = useCallback((hours: number) => {
+    const action = { type: "UPDATE_SETTINGS" as const, payload: { requestResponseWindowHours: hours } };
     dispatch(action);
     syncToDb(action);
   }, [dispatch, syncToDb]);
@@ -141,6 +148,47 @@ export default function BookingPoliciesScreen() {
               </Text>
             </View>
           )}
+        </View>
+
+        {/* Request Response Window */}
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.switchRow}>
+            <View style={styles.switchLabel}>
+              <IconSymbol name="clock.fill" size={20} color={colors.primary} />
+              <View style={{ marginLeft: 12, flex: 1 }}>
+                <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground }}>Request Response Window</Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 16 }}>
+                  How long you have to approve or decline cancel/reschedule requests
+                </Text>
+              </View>
+            </View>
+          </View>
+          <View style={{ marginTop: 14 }}>
+            <Text style={{ fontSize: 12, fontWeight: "500", color: colors.muted, marginBottom: 8 }}>Auto-Decline After</Text>
+            <View style={styles.chipRow}>
+              {[12, 24, 48, 72].map((h) => (
+                <Pressable
+                  key={h}
+                  onPress={() => setResponseWindow(h)}
+                  style={({ pressed }) => [
+                    styles.chip,
+                    {
+                      backgroundColor: responseWindow === h ? colors.primary : colors.background,
+                      borderColor: responseWindow === h ? colors.primary : colors.border,
+                      opacity: pressed ? 0.7 : 1,
+                    },
+                  ]}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: "500", color: responseWindow === h ? "#FFFFFF" : colors.foreground }}>
+                    {h}h
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={{ fontSize: 11, color: colors.muted, marginTop: 8, lineHeight: 16 }}>
+              Pending requests will be automatically declined after {responseWindow} hour{responseWindow > 1 ? "s" : ""} with an SMS sent to the client.
+            </Text>
+          </View>
         </View>
 
         {/* Auto-Complete Appointments */}

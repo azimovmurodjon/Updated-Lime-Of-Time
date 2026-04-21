@@ -457,6 +457,8 @@ export interface BusinessSettings {
   instagramHandle?: string; // Instagram username (without @)
   facebookHandle?: string; // Facebook page name or URL slug
   tiktokHandle?: string; // TikTok username (without @)
+  // Request response window
+  requestResponseWindowHours?: number; // hours before a pending cancel/reschedule request auto-expires (default: 48)
 }
 
 export const SERVICE_COLORS = [

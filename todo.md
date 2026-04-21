@@ -1632,3 +1632,6 @@
 - [x] Added Withdraw Request button on client manage appointment page
 - [x] Added expired/withdrawn status banners on client manage page
 - [x] Added bulk Approve All / Decline All banner on Calendar Requests tab
+- [x] Request history section on client manage appointment page
+- [x] Configurable owner response window setting (12h/24h/48h/72h)
+- [x] Revenue summary card on Home screen from Stripe balance

@@ -6760,6 +6760,40 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any,
       return html;
     })()}
 
+    ${(() => {
+      // Request History section — show if any request has been made
+      const requests: { type: string; status: string; submittedAt: string; reason?: string; requestedDate?: string; requestedTime?: string; resolvedAt?: string }[] = [];
+      if (cancelReq) requests.push({ type: 'Cancellation', ...cancelReq });
+      if (reschedReq) requests.push({ type: 'Reschedule', ...reschedReq });
+      if (requests.length === 0) return '';
+      const statusBadge = (s: string) => {
+        const map: Record<string, [string, string]> = {
+          pending: ['#78350f', '#fef3c7'],
+          approved: ['#14532d', '#dcfce7'],
+          declined: ['#7f1d1d', '#fee2e2'],
+          expired: ['#374151', '#f3f4f6'],
+          withdrawn: ['#374151', '#f3f4f6'],
+        };
+        const [color, bg] = map[s] ?? ['#374151', '#f3f4f6'];
+        return `<span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;background:${bg};color:${color};text-transform:capitalize;">${s}</span>`;
+      };
+      let html = '<div style="border:1.5px solid var(--border);border-radius:16px;padding:16px;margin-bottom:16px;">';
+      html += '<div style="font-weight:700;font-size:15px;color:var(--text-primary);margin-bottom:12px;">📋 Request History</div>';
+      for (const r of requests) {
+        html += '<div style="border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:10px;">';
+        html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;"><span style="font-size:13px;font-weight:600;color:var(--text-primary);">${r.type} Request</span>${statusBadge(r.status)}</div>`;
+        html += `<div style="font-size:12px;color:var(--text-muted);">Submitted: ${new Date(r.submittedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>`;
+        if (r.reason) html += `<div style="font-size:12px;color:var(--text-secondary);margin-top:3px;">Reason: "${escHtml(r.reason)}"</div>`;
+        if (r.type === 'Reschedule' && r.requestedDate) html += `<div style="font-size:12px;color:var(--text-secondary);margin-top:3px;">Requested: ${r.requestedDate}${r.requestedTime ? ' at ' + formatTime12(r.requestedTime) : ''}</div>`;
+        if ((r as any).resolvedAt) html += `<div style="font-size:12px;color:var(--text-muted);margin-top:3px;">Resolved: ${new Date((r as any).resolvedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>`;
+        if ((r as any).expiredAt) html += `<div style="font-size:12px;color:var(--text-muted);margin-top:3px;">Expired: ${new Date((r as any).expiredAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>`;
+        if ((r as any).withdrawnAt) html += `<div style="font-size:12px;color:var(--text-muted);margin-top:3px;">Withdrawn: ${new Date((r as any).withdrawnAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>`;
+        html += '</div>';
+      }
+      html += '</div>';
+      return html;
+    })()}
+
     <div style="text-align:center;margin-top:32px;">
       <a href="/api/book/${escHtml(slug)}" style="color:var(--accent);font-size:14px;text-decoration:none;">Book a new appointment</a>
     </div>

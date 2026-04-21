@@ -102,6 +102,7 @@ const businessRouter = router({
         expoPushToken: z.string().nullable().optional(),
         autoCompleteEnabled: z.boolean().optional(),
         autoCompleteDelayMinutes: z.number().optional(),
+        requestResponseWindowHours: z.number().optional(),
         notificationPreferences: z.any().optional(),
         smsTemplates: z.any().optional(),
         // Payment methods

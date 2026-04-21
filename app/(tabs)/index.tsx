@@ -40,6 +40,7 @@ import { RevenueChartCard } from "@/components/revenue-chart-card";
 import { PaymentSummaryCard } from "@/components/payment-summary-card";
 import { ChartDrillDownSheet, type DrillDownAppointment } from "@/components/chart-drilldown-sheet";
 import { ScheduleCard } from "@/components/schedule-card";
+import { apiCall } from "@/lib/_core/api";
 
 // App logo URL (same as app.config.ts logoUrl)
 const APP_LOGO_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/jHoNjHdLsUGgpFhz.png";
@@ -1309,6 +1310,31 @@ export default function HomeScreen() {
 
   const { planInfo } = usePlanLimitCheck();
   const isFreeplan = !planInfo || planInfo.planKey === "solo";
+  const isStripePlan = planInfo && (planInfo.planKey === "studio" || planInfo.planKey === "enterprise");
+  const stripeConnected = !!(state.settings as any).stripeConnectEnabled;
+
+  // ─── Stripe Balance (Studio/Enterprise plan only) ──────────────
+  const [stripeBalance, setStripeBalance] = useState<{ available: number; pending: number } | null>(null);
+  const [stripeBalanceLoading, setStripeBalanceLoading] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!isStripePlan || !stripeConnected || !state.businessOwnerId) return;
+      setStripeBalanceLoading(true);
+      apiCall<{ available: { amount: number; currency: string }[]; pending: { amount: number; currency: string }[] }>(
+        `/api/stripe-connect/balance?businessOwnerId=${state.businessOwnerId}`
+      )
+        .then((data) => {
+          if (data) {
+            const avail = (data.available ?? []).reduce((s: number, b: { amount: number }) => s + b.amount, 0) / 100;
+            const pend = (data.pending ?? []).reduce((s: number, b: { amount: number }) => s + b.amount, 0) / 100;
+            setStripeBalance({ available: avail, pending: pend });
+          }
+        })
+        .catch(() => {})
+        .finally(() => setStripeBalanceLoading(false));
+    }, [isStripePlan, stripeConnected, state.businessOwnerId])
+  );
 
   const handleKpiExport = useCallback(async (tab: KpiTab) => {
     if (isFreeplan) {
@@ -2023,8 +2049,61 @@ export default function HomeScreen() {
           }}
           onPressMethod={(method) => router.push({ pathname: '/payment-summary', params: { method } } as any)}
         />
+        {/* ─── Stripe Balance Card (Studio/Enterprise only) ───────────── */}
+        {isStripePlan && stripeConnected && (
+          <Pressable
+            onPress={() => (router as any).push("/payments-history")}
+            style={({ pressed }) => ({
+              marginTop: 14,
+              borderRadius: 16,
+              overflow: "hidden" as const,
+              opacity: pressed ? 0.85 : 1,
+            })}
+          >
+            <LinearGradient
+              colors={["#635BFF", "#4A3FCC"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={{ padding: 16, borderRadius: 16 }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" }}>
+                    <IconSymbol name="creditcard.fill" size={16} color="#FFF" />
+                  </View>
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: "#FFF" }}>Stripe Balance</Text>
+                </View>
+                {stripeBalanceLoading ? (
+                  <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.3)" }} />
+                ) : (
+                  <IconSymbol name="chevron.right" size={14} color="rgba(255,255,255,0.7)" />
+                )}
+              </View>
+              {stripeBalance ? (
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                  <View style={{ flex: 1, backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 10, padding: 10 }}>
+                    <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", marginBottom: 2 }}>Available</Text>
+                    <Text style={{ fontSize: 18, fontWeight: "800", color: "#FFF" }}>
+                      ${stripeBalance.available.toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1, backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 10, padding: 10 }}>
+                    <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", marginBottom: 2 }}>Pending</Text>
+                    <Text style={{ fontSize: 18, fontWeight: "800", color: "rgba(255,255,255,0.85)" }}>
+                      ${stripeBalance.pending.toFixed(2)}
+                    </Text>
+                  </View>
+                </View>
+              ) : (
+                <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.7)" }}>
+                  {stripeBalanceLoading ? "Loading balance..." : "Tap to view payment history"}
+                </Text>
+              )}
+            </LinearGradient>
+          </Pressable>
+        )}
 
-        {/* ─── Unified Revenue Chart Card ───────────────────────────────── */}
+        {/* ─── Unified Revenue Chart Card ─────────────────────────────────── */}
         <RevenueChartCard
           hourlyData={analytics.hourlyData}
           weeklyData={analytics.weeklyDailyData.map((d) => ({ label: d.label, value: d.value, apptCount: d.apptCount }))}

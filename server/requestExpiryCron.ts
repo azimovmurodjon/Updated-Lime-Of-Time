@@ -2,15 +2,15 @@
  * Request Expiry Cron
  *
  * Runs every hour. Auto-expires any pending cancel or reschedule requests
- * that are older than 48 hours. Sends an SMS to the client notifying them
- * that their request expired.
+ * that are older than the owner's configured response window (default 48h).
+ * Sends an SMS to the client notifying them that their request expired.
  */
 import { getDb } from "./db";
 import { appointments, businessOwners, clients } from "../drizzle/schema";
 import { eq, and, isNotNull } from "drizzle-orm";
 import { getPlatformConfig } from "./subscription";
 
-const EXPIRY_HOURS = 48;
+const DEFAULT_EXPIRY_HOURS = 48;
 
 async function sendExpirySms(toPhone: string, body: string) {
   try {
@@ -44,7 +44,6 @@ async function expireOldRequests() {
   if (!db) return;
 
   const now = new Date();
-  const cutoff = new Date(now.getTime() - EXPIRY_HOURS * 60 * 60 * 1000);
   let expiredCount = 0;
 
   // Fetch all appointments that have a cancelRequest or rescheduleRequest set
@@ -53,9 +52,44 @@ async function expireOldRequests() {
     .from(appointments)
     .where(isNotNull(appointments.localId));
 
+  // Cache owner settings to avoid repeated DB queries per appointment
+  const ownerCache: Record<number, { businessName: string; expiryHours: number }> = {};
+
   for (const appt of allAppts) {
     const cancelReq = (appt as any).cancelRequest as any;
     const reschedReq = (appt as any).rescheduleRequest as any;
+
+    // Skip if no pending requests
+    if (
+      !(cancelReq?.status === "pending" && cancelReq.submittedAt) &&
+      !(reschedReq?.status === "pending" && reschedReq.submittedAt)
+    ) {
+      continue;
+    }
+
+    // Load owner settings (cached)
+    if (!ownerCache[appt.businessOwnerId]) {
+      try {
+        const ownerRows = await db
+          .select({ businessName: businessOwners.businessName, requestResponseWindowHours: (businessOwners as any).requestResponseWindowHours })
+          .from(businessOwners)
+          .where(eq(businessOwners.id, appt.businessOwnerId))
+          .limit(1);
+        ownerCache[appt.businessOwnerId] = {
+          businessName: ownerRows[0]?.businessName || "the business",
+          expiryHours: ownerRows[0]?.requestResponseWindowHours ?? DEFAULT_EXPIRY_HOURS,
+        };
+      } catch {
+        ownerCache[appt.businessOwnerId] = {
+          businessName: "the business",
+          expiryHours: DEFAULT_EXPIRY_HOURS,
+        };
+      }
+    }
+
+    const { businessName, expiryHours } = ownerCache[appt.businessOwnerId];
+    const cutoff = new Date(now.getTime() - expiryHours * 60 * 60 * 1000);
+
     let updated = false;
     let newCancelReq = cancelReq;
     let newReschedReq = reschedReq;
@@ -69,13 +103,6 @@ async function expireOldRequests() {
 
         // Send SMS to client
         try {
-          const ownerRows = await db
-            .select({ businessName: businessOwners.businessName })
-            .from(businessOwners)
-            .where(eq(businessOwners.id, appt.businessOwnerId))
-            .limit(1);
-          const businessName = ownerRows[0]?.businessName || "the business";
-
           const clientRows = await db
             .select({ phone: clients.phone, name: clients.name })
             .from(clients)
@@ -90,7 +117,7 @@ async function expireOldRequests() {
               : "your appointment";
             await sendExpirySms(
               clientPhone,
-              `Hi ${clientName}, your cancellation request for your appointment on ${formattedDate} with ${businessName} has expired (no response within 48 hours). Your appointment remains as scheduled. Please contact ${businessName} directly if you still need to cancel.`
+              `Hi ${clientName}, your cancellation request for your appointment on ${formattedDate} with ${businessName} has expired (no response within ${expiryHours} hours). Your appointment remains as scheduled. Please contact ${businessName} directly if you still need to cancel.`
             );
           }
         } catch (smsErr) {
@@ -108,13 +135,6 @@ async function expireOldRequests() {
 
         // Send SMS to client
         try {
-          const ownerRows = await db
-            .select({ businessName: businessOwners.businessName })
-            .from(businessOwners)
-            .where(eq(businessOwners.id, appt.businessOwnerId))
-            .limit(1);
-          const businessName = ownerRows[0]?.businessName || "the business";
-
           const clientRows = await db
             .select({ phone: clients.phone, name: clients.name })
             .from(clients)
@@ -129,7 +149,7 @@ async function expireOldRequests() {
               : "your appointment";
             await sendExpirySms(
               clientPhone,
-              `Hi ${clientName}, your reschedule request for your appointment on ${formattedDate} with ${businessName} has expired (no response within 48 hours). Your original appointment remains as scheduled. Please contact ${businessName} directly to reschedule.`
+              `Hi ${clientName}, your reschedule request for your appointment on ${formattedDate} with ${businessName} has expired (no response within ${expiryHours} hours). Your original appointment remains as scheduled. Please contact ${businessName} directly to reschedule.`
             );
           }
         } catch (smsErr) {
@@ -154,7 +174,7 @@ async function expireOldRequests() {
 
 export function startRequestExpiryCron() {
   const INTERVAL_MS = 60 * 60 * 1000; // 1 hour
-  console.log("[RequestExpiryCron] Started — checking every hour for expired requests (48h threshold)");
+  console.log("[RequestExpiryCron] Started — checking every hour for expired requests (per-owner response window)");
 
   // Run immediately on startup
   expireOldRequests().catch(console.error);

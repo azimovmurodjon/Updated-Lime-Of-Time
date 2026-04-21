@@ -76,6 +76,8 @@ export const businessOwners = mysqlTable("business_owners", {
   autoCompleteEnabled: boolean("autoCompleteEnabled").default(false).notNull(),
   /** Minutes after appointment end time to auto-complete (5, 10, 15, 30) */
   autoCompleteDelayMinutes: int("autoCompleteDelayMinutes").default(5).notNull(),
+  /** Hours before auto-declining pending cancel/reschedule requests (12, 24, 48, 72) */
+  requestResponseWindowHours: int("requestResponseWindowHours").default(48).notNull(),
   /** Notification preferences JSON: per-event push/email toggles */
   notificationPreferences: json("notificationPreferences"),
   /** SMS message templates JSON: per-event custom message bodies */
