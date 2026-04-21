@@ -15,25 +15,45 @@ import { sendExpoPush } from "./push";
 // ─── Auth helper ─────────────────────────────────────────────────────────────
 
 async function getClientAccount(req: Request): Promise<{ clientAccount: Awaited<ReturnType<typeof db.getClientAccountById>>; user: Awaited<ReturnType<typeof db.getUserByOpenId>> }> {
-  const user = await sdk.authenticateRequest(req);
-  if (!user) throw new Error("Unauthorized");
+  // Verify the session JWT (works for both OAuth and phone-based tokens)
+  const authHeader = req.headers.authorization || req.headers.Authorization;
+  let token: string | undefined;
+  if (typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
+    token = authHeader.slice(7).trim();
+  }
+  if (!token) {
+    // Also check cookie
+    const cookies = req.headers.cookie?.split(";").reduce((acc, c) => {
+      const [k, v] = c.trim().split("=");
+      acc[k] = v;
+      return acc;
+    }, {} as Record<string, string>) ?? {};
+    token = cookies["session_token"];
+  }
+  const session = await (sdk as any).verifySession(token);
+  if (!session) throw new Error("Unauthorized");
 
-  // Look up client account by openId stored in the accounts table
-  // We use email as the link key (openId is stored in users table)
-  const dbUser = await db.getUserByOpenId(user.openId);
+  // ── Phone-based client (openId starts with "phone:") ─────────────────────
+  if (session.openId.startsWith("phone:")) {
+    const phone = session.openId.slice(6); // strip "phone:" prefix
+    let clientAccount = await db.getClientAccountByPhone(phone);
+    if (!clientAccount) {
+      clientAccount = await db.upsertClientAccount({ phone, name: session.name ?? null, email: null });
+    }
+    return { clientAccount, user: null as any };
+  }
+
+  // ── OAuth-based client (standard flow) ───────────────────────────────────
+  const dbUser = await db.getUserByOpenId(session.openId);
   if (!dbUser) throw new Error("User not found");
 
-  // Find or create client account linked to this user's openId
-  // We store openId in the phone field prefixed with "oauth:" for OAuth users
-  // who haven't yet provided a phone number
-  const oauthKey = `oauth:${user.openId}`;
+  const oauthKey = `oauth:${session.openId}`;
   let clientAccount = await db.getClientAccountByPhone(oauthKey);
   if (!clientAccount) {
-    // Auto-create on first access
     clientAccount = await db.upsertClientAccount({
       phone: oauthKey,
-      name: dbUser.name ?? user.name ?? null,
-      email: dbUser.email ?? user.email ?? null,
+      name: dbUser.name ?? session.name ?? null,
+      email: dbUser.email ?? null,
     });
   }
   return { clientAccount, user: dbUser };
@@ -109,7 +129,7 @@ export function registerClientRoutes(app: Express) {
         clientAccount = await db.upsertClientAccount({ phone, name: name ?? null, email: null });
       }
       // Issue a simple JWT-like token using the SDK
-      const token = await sdk.createSessionToken(`phone:${phone}`, { name: clientAccount.name ?? "" });
+      const token = await sdk.createSessionToken(`phone:${phone}`, { name: clientAccount.name ?? "client" });
       res.json({ token, account: clientAccount });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -164,11 +184,11 @@ export function registerClientRoutes(app: Express) {
       });
       res.json({ clientAccount: await db.getClientAccountById(clientAccount!.id) });
     } catch (err: any) {
+      console.error("[PATCH /api/client/profile] error:", err.message, err.stack?.split("\n")[1]);
       res.status(err.message === "Unauthorized" ? 401 : 500).json({ error: err.message });
     }
   });
-
-  // ── Profile Photo Upload ──────────────────────────────────────────────────
+  // ── Profile Photo Uploadd ──────────────────────────────────────────────────
   /** POST /api/client/upload-photo — upload a profile photo (base64) and return public URL */
   app.post("/api/client/upload-photo", async (req: Request, res: Response) => {
     try {
@@ -283,11 +303,15 @@ export function registerClientRoutes(app: Express) {
   app.get("/api/client/appointments", async (req: Request, res: Response) => {
     try {
       const { clientAccount } = await getClientAccount(req);
-      const phone = clientAccount!.phone.startsWith("oauth:") ? clientAccount!.email : clientAccount!.phone;
+      let phone = clientAccount!.phone.startsWith("oauth:") ? clientAccount!.email : clientAccount!.phone;
       if (!phone) {
         res.json({ appointments: [] });
         return;
       }
+      // Normalize phone to 10-digit format (same as booking endpoint)
+      const rawDigits = phone.replace(/\D/g, "");
+      const normalizedPhone = rawDigits.length === 11 && rawDigits.startsWith("1") ? rawDigits.slice(1) : rawDigits;
+      if (normalizedPhone.length >= 10) phone = normalizedPhone;
       // Get all appointments for this phone number across all businesses
       const rawAppts = await db.getAppointmentsByClientPhone(phone);
       // Enrich each appointment with businessName, serviceName, staffName, staffAvatarUrl

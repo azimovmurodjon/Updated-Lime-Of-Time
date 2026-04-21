@@ -26,6 +26,7 @@ import { useColors } from "@/hooks/use-colors";
 import { useClientStore } from "@/lib/client-store";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { getApiBaseUrl } from "@/constants/oauth";
+import { scheduleAppointmentReminders } from "@/lib/notifications";
 import * as Haptics from "expo-haptics";
 import { FuturisticBackground } from "@/components/futuristic-background";
 
@@ -210,7 +211,17 @@ export default function ClientBookingWizardScreen() {
         const err = await res.json().catch(() => ({ error: "Booking failed" }));
         throw new Error((err as any).error ?? `HTTP ${res.status}`);
       }
+      const bookingResult = await res.json().catch(() => ({}));
+      const appointmentId = bookingResult?.appointmentId ?? `appt-${Date.now()}`;
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Schedule local push notification reminders based on user preferences
+      scheduleAppointmentReminders(
+        appointmentId,
+        slug,
+        selectedService.name,
+        dateStr,
+        selectedSlot.time
+      ).catch(() => {}); // Non-blocking — don't fail booking if notifications fail
       const selectedStaffMember = selectedStaffId !== "any" ? staff.find((m) => m.localId === selectedStaffId) : null;
       router.replace({
         pathname: "/client-booking-confirmation",
