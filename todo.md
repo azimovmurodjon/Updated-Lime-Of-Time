@@ -1827,3 +1827,7 @@
 - [x] Add "Welcome back, [Name]" greeting with profile photo to client home/discover tab
 - [x] Build client-edit-profile.tsx screen (name, email, birthday, photo)
 - [x] Wire Edit Profile button in client-tabs profile to client-edit-profile screen
+
+## Feature: Discover Tab - Recently Visited Businesses (Apr 21 2026)
+- [x] Add "Recently Visited" section to client discover tab from appointment history
+- [x] Add rebook-in-one-tap button on recently visited business cards

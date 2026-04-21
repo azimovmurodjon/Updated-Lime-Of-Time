@@ -5,7 +5,7 @@
  * Scrollable card list with search, category filter, and radius picker.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -75,6 +75,151 @@ const CATEGORY_COLORS: Record<string, string> = {
 function kmToMiles(km: number): number {
   return km * 0.621371;
 }
+
+// ─── Recently Visited Component ─────────────────────────────────────────────
+
+interface RecentBusiness {
+  businessOwnerId: number;
+  businessName: string;
+  businessSlug: string;
+  businessLogoUri: string | null;
+  businessCategory: string | null;
+  lastVisited: string; // ISO date string
+  lastService: string;
+}
+
+function RecentlyVisited({ items, colors, router }: { items: RecentBusiness[]; colors: ReturnType<typeof useColors>; router: ReturnType<typeof useRouter> }) {
+  if (items.length === 0) return null;
+  return (
+    <View style={recentStyles.section}>
+      <View style={recentStyles.header}>
+        <Text style={[recentStyles.title, { color: colors.foreground }]}>Recently Visited</Text>
+        <Text style={[recentStyles.subtitle, { color: colors.muted }]}>Tap to rebook</Text>
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={recentStyles.row}
+      >
+        {items.map((biz) => {
+          const accentColor = CATEGORY_COLORS[biz.businessCategory ?? "Other"] ?? "#8B5CF6";
+          const emoji = CATEGORIES.find((c) => c.label === biz.businessCategory)?.emoji ?? "🏢";
+          return (
+            <Pressable
+              key={biz.businessOwnerId}
+              style={({ pressed }) => [
+                recentStyles.card,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+                pressed && { opacity: 0.75, transform: [{ scale: 0.97 }] },
+              ]}
+              onPress={() => {
+                if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push({ pathname: "/client-business-detail", params: { slug: biz.businessSlug } } as any);
+              }}
+            >
+              {/* Logo */}
+              <View style={[recentStyles.logoWrap, { backgroundColor: accentColor + "18" }]}>
+                {biz.businessLogoUri ? (
+                  <Image source={{ uri: biz.businessLogoUri }} style={recentStyles.logoImage} />
+                ) : (
+                  <Text style={{ fontSize: 22 }}>{emoji}</Text>
+                )}
+              </View>
+              {/* Name */}
+              <Text style={[recentStyles.name, { color: colors.foreground }]} numberOfLines={2}>
+                {biz.businessName}
+              </Text>
+              {/* Last service */}
+              <Text style={[recentStyles.service, { color: colors.muted }]} numberOfLines={1}>
+                {biz.lastService}
+              </Text>
+              {/* Rebook button */}
+              <View style={[recentStyles.rebookBtn, { backgroundColor: accentColor + "18", borderColor: accentColor + "40" }]}>
+                <Text style={[recentStyles.rebookText, { color: accentColor }]}>Rebook</Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
+const recentStyles = StyleSheet.create({
+  section: {
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    marginBottom: 10,
+  },
+  title: {
+    fontSize: 17,
+    fontWeight: "700",
+    letterSpacing: -0.2,
+  },
+  subtitle: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  row: {
+    paddingHorizontal: 16,
+    gap: 10,
+    paddingBottom: 2,
+  },
+  card: {
+    width: 130,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 12,
+    gap: 6,
+    alignItems: "flex-start",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  logoWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  logoImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+  },
+  name: {
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 17,
+  },
+  service: {
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  rebookBtn: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginTop: 2,
+  },
+  rebookText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+});
+
+// ─── Main Screen ─────────────────────────────────────────────────────────────
 
 export default function DiscoverScreen() {
   const colors = useColors();
@@ -152,6 +297,35 @@ export default function DiscoverScreen() {
   };
 
   const activeCategory = state.discoverCategory ?? "All";
+
+  // Derive recently visited businesses from appointment history
+  // Deduplicate by businessOwnerId, sort by most recent date, take top 5
+  const recentlyVisited = useMemo<RecentBusiness[]>(() => {
+    if (!state.account || state.appointments.length === 0) return [];
+    const map = new Map<number, RecentBusiness>();
+    // Sort appointments by date descending first
+    const sorted = [...state.appointments]
+      .filter((a) => a.status !== "cancelled")
+      .sort((a, b) => {
+        const da = new Date(`${a.date}T${a.time}`).getTime();
+        const db2 = new Date(`${b.date}T${b.time}`).getTime();
+        return db2 - da;
+      });
+    for (const appt of sorted) {
+      if (!map.has(appt.businessOwnerId)) {
+        map.set(appt.businessOwnerId, {
+          businessOwnerId: appt.businessOwnerId,
+          businessName: appt.businessName,
+          businessSlug: appt.businessSlug,
+          businessLogoUri: appt.businessLogoUri ?? null,
+          businessCategory: appt.businessCategory ?? null,
+          lastVisited: appt.date,
+          lastService: appt.serviceName,
+        });
+      }
+    }
+    return Array.from(map.values()).slice(0, 5);
+  }, [state.appointments, state.account]);
 
   const s = styles(colors);
 
@@ -246,6 +420,18 @@ export default function DiscoverScreen() {
           })}
         </ScrollView>
       </View>
+
+      {/* Recently Visited */}
+      {!loading && recentlyVisited.length > 0 && (
+        <RecentlyVisited items={recentlyVisited} colors={colors} router={router} />
+      )}
+
+      {/* Divider between recently visited and results */}
+      {!loading && recentlyVisited.length > 0 && businesses.length > 0 && (
+        <View style={[s.sectionDivider, { borderTopColor: colors.border }]}>
+          <Text style={[s.sectionDividerText, { color: colors.muted }]}>All Businesses</Text>
+        </View>
+      )}
 
       {/* Results */}
       {loading ? (
@@ -579,5 +765,19 @@ const styles = (colors: ReturnType<typeof useColors>) =>
       backgroundColor: "#8B5CF615",
       borderWidth: 1,
       borderColor: "#8B5CF640",
+    },
+    sectionDivider: {
+      borderTopWidth: 1,
+      marginHorizontal: 16,
+      marginTop: 12,
+      marginBottom: 4,
+      paddingTop: 10,
+    },
+    sectionDividerText: {
+      fontSize: 13,
+      fontWeight: "700",
+      letterSpacing: 0.5,
+      textTransform: "uppercase",
+      marginBottom: 4,
     },
   });

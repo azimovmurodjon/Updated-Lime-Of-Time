@@ -306,6 +306,8 @@ export function registerClientRoutes(app: Express) {
             ...appt,
             businessName: owner?.businessName ?? "Unknown",
             businessSlug: owner?.customSlug ?? (owner?.businessName ?? "").toLowerCase().replace(/\s+/g, "-"),
+            businessLogoUri: owner?.businessLogoUri ?? null,
+            businessCategory: owner?.businessCategory ?? null,
             serviceName: service?.name ?? appt.serviceLocalId,
             price: service?.price ?? null,
             staffName: staff?.name ?? null,

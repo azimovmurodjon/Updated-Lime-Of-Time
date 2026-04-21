@@ -28,6 +28,8 @@ export interface ClientAppointment {
   businessOwnerId: number;
   businessName: string;
   businessSlug: string;
+  businessLogoUri?: string | null;
+  businessCategory?: string | null;
   serviceName: string;
   date: string;
   time: string;
