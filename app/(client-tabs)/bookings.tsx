@@ -14,7 +14,9 @@ import {
   ActivityIndicator,
   RefreshControl,
   Platform,
+  Image,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { ScreenContainer } from "@/components/screen-container";
@@ -120,13 +122,27 @@ export default function BookingsScreen() {
       <ScreenContainer className="px-6">
         <FuturisticBackground />
         <View style={s.guestContainer}>
-          <IconSymbol name="calendar" size={40} color={colors.muted} />
+          <View style={s.guestLogoWrap}>
+            <Image
+              source={require("@/assets/images/icon.png")}
+              style={{ width: 64, height: 64, borderRadius: 18 }}
+              resizeMode="contain"
+            />
+          </View>
           <Text style={[s.guestTitle, { color: colors.foreground }]}>Sign in to see your bookings</Text>
+          <Text style={[s.guestSub, { color: colors.muted }]}>Track all your upcoming and past appointments in one place.</Text>
           <Pressable
             style={({ pressed }) => [s.signInBtn, pressed && { opacity: 0.85 }]}
             onPress={() => router.push("/client-signin" as any)}
           >
-            <Text style={s.signInBtnText}>Sign In</Text>
+            <LinearGradient
+              colors={["#4A7C59", "#2D5A3D"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={s.signInBtnGradient}
+            >
+              <Text style={s.signInBtnText}>Sign In</Text>
+            </LinearGradient>
           </Pressable>
         </View>
       </ScreenContainer>
@@ -171,16 +187,34 @@ export default function BookingsScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#8B5CF6" />}
           ListEmptyComponent={
             <View style={s.emptyContainer}>
-              <IconSymbol name="calendar" size={36} color={colors.muted} />
+              <View style={s.emptyLogoWrap}>
+                <Image
+                  source={require("@/assets/images/icon.png")}
+                  style={{ width: 56, height: 56, borderRadius: 16 }}
+                  resizeMode="contain"
+                />
+              </View>
               <Text style={[s.emptyTitle, { color: colors.foreground }]}>
                 {activeTab === "upcoming" ? "No upcoming appointments" : "No appointments yet"}
+              </Text>
+              <Text style={[s.emptySub, { color: colors.muted }]}>
+                {activeTab === "upcoming"
+                  ? "Discover local services and book your first appointment."
+                  : "Your booking history will appear here."}
               </Text>
               {activeTab === "upcoming" && (
                 <Pressable
                   style={({ pressed }) => [s.bookNowBtn, pressed && { opacity: 0.85 }]}
                   onPress={() => router.push("/(client-tabs)/discover" as any)}
                 >
-                  <Text style={s.bookNowBtnText}>Book Now</Text>
+                  <LinearGradient
+                    colors={["#4A7C59", "#2D5A3D"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={s.bookNowBtnGradient}
+                  >
+                    <Text style={s.bookNowBtnText}>Discover Services</Text>
+                  </LinearGradient>
                 </Pressable>
               )}
             </View>
@@ -284,18 +318,7 @@ const styles = (colors: ReturnType<typeof useColors>) =>
       fontSize: 16,
       fontWeight: "600",
     },
-    bookNowBtn: {
-      backgroundColor: "#8B5CF6",
-      paddingHorizontal: 28,
-      paddingVertical: 12,
-      borderRadius: 24,
-      marginTop: 4,
-    },
-    bookNowBtnText: {
-      color: "#FFFFFF",
-      fontSize: 15,
-      fontWeight: "700",
-    },
+
     apptCard: {
       borderRadius: 16,
       borderWidth: 1,
@@ -370,14 +393,65 @@ const styles = (colors: ReturnType<typeof useColors>) =>
       textAlign: "center",
     },
     signInBtn: {
-      backgroundColor: "#8B5CF6",
+      borderRadius: 24,
+      overflow: "hidden" as const,
+      marginTop: 4,
+    },
+    signInBtnGradient: {
       paddingHorizontal: 32,
       paddingVertical: 12,
+      alignItems: "center" as const,
       borderRadius: 24,
     },
     signInBtnText: {
       color: "#FFFFFF",
       fontSize: 15,
-      fontWeight: "700",
+      fontWeight: "700" as const,
+    },
+    guestLogoWrap: {
+      width: 88,
+      height: 88,
+      borderRadius: 24,
+      backgroundColor: "rgba(74,124,89,0.12)",
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+      marginBottom: 8,
+    },
+    guestSub: {
+      fontSize: 13,
+      textAlign: "center" as const,
+      lineHeight: 19,
+      paddingHorizontal: 24,
+    },
+    emptyLogoWrap: {
+      width: 80,
+      height: 80,
+      borderRadius: 22,
+      backgroundColor: "rgba(74,124,89,0.12)",
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+      marginBottom: 4,
+    },
+    emptySub: {
+      fontSize: 13,
+      textAlign: "center" as const,
+      lineHeight: 19,
+      paddingHorizontal: 32,
+    },
+    bookNowBtn: {
+      borderRadius: 24,
+      overflow: "hidden" as const,
+      marginTop: 4,
+    },
+    bookNowBtnGradient: {
+      paddingHorizontal: 28,
+      paddingVertical: 12,
+      alignItems: "center" as const,
+      borderRadius: 24,
+    },
+    bookNowBtnText: {
+      color: "#FFFFFF",
+      fontSize: 15,
+      fontWeight: "700" as const,
     },
   });

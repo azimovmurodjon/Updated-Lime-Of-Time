@@ -15,6 +15,8 @@ import {
   ActivityIndicator,
   RefreshControl,
   Platform,
+  Image,
+  Dimensions,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
@@ -22,7 +24,6 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { useClientStore, ClientAppointment } from "@/lib/client-store";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Image } from "react-native";
 import { FuturisticBackground } from "@/components/futuristic-background";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
@@ -131,6 +132,7 @@ export default function ClientHomeScreen() {
   const headerY = useSharedValue(-20);
   const contentOpacity = useSharedValue(0);
   const contentY = useSharedValue(30);
+  const screenSlideX = useSharedValue(0);
 
   useEffect(() => {
     headerOpacity.value = withTiming(1, { duration: 450, easing: Easing.out(Easing.cubic) });
@@ -147,6 +149,15 @@ export default function ClientHomeScreen() {
     opacity: contentOpacity.value,
     transform: [{ translateY: contentY.value }],
   }));
+  const screenSlideStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: screenSlideX.value }],
+  }));
+
+  function handleBackToPortal() {
+    screenSlideX.value = withTiming(SCREEN_W, { duration: 280, easing: Easing.in(Easing.cubic) }, (done) => {
+      if (done) runOnJS(router.replace)("/profile-select");
+    });
+  }
 
   // ── Not signed in ──────────────────────────────────────────────────────────
   if (!isSignedIn) {
@@ -160,8 +171,9 @@ export default function ClientHomeScreen() {
     );
   }
 
-  // ── Signed in ──────────────────────────────────────────────────────────────
+  // ── Signed in ──────────────────────────────────────────────────────────────────
   return (
+    <Animated.View style={[{ flex: 1 }, screenSlideStyle]}>
     <ScreenContainer>
       <FuturisticBackground />
       <ScrollView
@@ -177,7 +189,7 @@ export default function ClientHomeScreen() {
             <Text style={[styles.greetingSub, { color: colors.muted }]}>What are you booking today?</Text>
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <AnimCard onPress={() => router.replace("/profile-select" as any)}>
+            <AnimCard onPress={handleBackToPortal}>
               <View style={[styles.avatarBtn, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}>
                 <IconSymbol name="chevron.left" size={16} color={colors.muted} />
               </View>
@@ -302,10 +314,13 @@ export default function ClientHomeScreen() {
         </Animated.View>
       </ScrollView>
     </ScreenContainer>
+    </Animated.View>
   );
 }
 
 // ─── Guest Banner ─────────────────────────────────────────────────────────────
+const { width: SCREEN_W } = Dimensions.get("window");
+
 function GuestBanner({ colors, router }: { colors: ReturnType<typeof useColors>; router: any }) {
   const logoScale = useSharedValue(0.5);
   const logoOpacity = useSharedValue(0);
@@ -313,6 +328,7 @@ function GuestBanner({ colors, router }: { colors: ReturnType<typeof useColors>;
   const textY = useSharedValue(20);
   const btnsOpacity = useSharedValue(0);
   const btnsY = useSharedValue(20);
+  const slideX = useSharedValue(0);
 
   useEffect(() => {
     logoOpacity.value = withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) });
@@ -335,9 +351,18 @@ function GuestBanner({ colors, router }: { colors: ReturnType<typeof useColors>;
     opacity: btnsOpacity.value,
     transform: [{ translateY: btnsY.value }],
   }));
+  const slideStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: slideX.value }],
+  }));
+
+  function navigateBack() {
+    slideX.value = withTiming(SCREEN_W, { duration: 280, easing: Easing.in(Easing.cubic) }, (done) => {
+      if (done) runOnJS(router.replace)("/profile-select");
+    });
+  }
 
   return (
-    <View style={styles.guestContainer}>
+    <Animated.View style={[styles.guestContainer, slideStyle]}>
       <Animated.View style={[styles.guestLogoWrap, logoStyle]}>
         <View style={styles.guestLogoCircle}>
           <Image
@@ -349,8 +374,13 @@ function GuestBanner({ colors, router }: { colors: ReturnType<typeof useColors>;
         <View style={[styles.guestLogoRing, { borderColor: "rgba(74,124,89,0.4)" }]} />
       </Animated.View>
 
-      <Animated.View style={[{ alignItems: "center", gap: 8 }, textStyle]}>
-        <Text style={[styles.guestLabel, { color: "#4A7C59" }]}>Lime Of Time</Text>
+      <Animated.View style={[{ alignItems: "center", gap: 6 }, textStyle]}>
+        <Text style={[styles.guestLabel, { color: "#4A7C59", fontSize: 13, fontWeight: "700", letterSpacing: 2 }]}>LIME OF TIME</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
+          <View style={{ height: 1, width: 28, backgroundColor: "rgba(74,124,89,0.4)" }} />
+          <Text style={{ color: "rgba(74,124,89,0.7)", fontSize: 10, fontWeight: "500", letterSpacing: 1.5 }}>BY INNOVANCIO</Text>
+          <View style={{ height: 1, width: 28, backgroundColor: "rgba(74,124,89,0.4)" }} />
+        </View>
         <Text style={[styles.guestTitle, { color: colors.foreground }]}>Book Appointments{"\n"}Near You</Text>
         <Text style={[styles.guestSubtitle, { color: colors.muted }]}>
           Discover local services, book instantly, and manage all your appointments in one place.
@@ -373,18 +403,18 @@ function GuestBanner({ colors, router }: { colors: ReturnType<typeof useColors>;
             <Text style={[styles.guestSecondaryBtnText, { color: CLIENT_PURPLE }]}>Browse Without Account</Text>
           </View>
         </AnimCard>
-        <AnimCard onPress={() => router.replace("/profile-select" as any)}>
+        <AnimCard onPress={navigateBack}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12 }}>
             <IconSymbol name="chevron.left" size={14} color={colors.muted} />
             <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "500" }}>Back to Portal Selection</Text>
           </View>
         </AnimCard>
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ─── Styles─────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   header: {
     flexDirection: "row",

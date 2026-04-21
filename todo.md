@@ -1746,3 +1746,8 @@
 - [x] All client booking screens: lime green accent + FuturisticBackground
 - [x] Client business detail: FuturisticBackground added
 - [x] Client booking wizard: lime green step indicators and buttons
+
+## UI Polish — Animation & Branding Refinements
+- [x] Slide-right exit animation on back-to-portal buttons (client home guest + signed-in header)
+- [x] Add 'By Innovancio' subtitle to client home guest banner (already present)
+- [x] Update client bookings tab empty state with lime green accent and app logo
