@@ -11,6 +11,7 @@ import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Platform } from "react-native";
 import { useClientStore } from "@/lib/client-store";
+import { useClientNotifications } from "@/hooks/use-client-notifications";
 
 // Forest green palette (matches onboarding)
 const TAB_BG = "#1A3A28";
@@ -21,6 +22,8 @@ const TAB_BORDER = "rgba(255,255,255,0.08)";
 export default function ClientTabLayout() {
   const insets = useSafeAreaInsets();
   const { state } = useClientStore();
+  // Register push token and handle notification taps
+  useClientNotifications();
   const bottomPadding = Platform.OS === "web" ? 12 : Math.max(insets.bottom, 8);
   const tabBarHeight = 56 + bottomPadding;
 

@@ -226,7 +226,7 @@ export default function ClientSignInScreen() {
     : stripPhoneFormat(phone).length >= 7;
 
   return (
-    <ScreenContainer edges={["top", "bottom", "left", "right"]}>
+    <ScreenContainer edges={["top", "bottom", "left", "right"]} containerClassName="bg-[#1A3A28]">
       {/* ─── Green gradient background ────────────────────────── */}
       <LinearGradient
         colors={["#1A3A28", "#2D5A3D", "#4A7C59", "#3D6B4A"]}

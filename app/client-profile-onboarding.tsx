@@ -173,7 +173,7 @@ export default function ClientProfileOnboardingScreen() {
   };
 
   return (
-    <ScreenContainer edges={["top", "bottom", "left", "right"]}>
+    <ScreenContainer edges={["top", "bottom", "left", "right"]} containerClassName="bg-[#0F2318]">
       <LinearGradient
         colors={["#0F2318", "#1A3A28", "#2D5A3D"]}
         start={{ x: 0, y: 0 }}

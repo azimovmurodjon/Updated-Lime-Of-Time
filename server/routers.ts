@@ -5,6 +5,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 import { sendAppointmentConfirmationEmail, sendPaymentReceiptEmail } from "./email";
+import { sendExpoPush } from "./push";
 import {
   getPlatformConfig,
   getPublicPlans,
@@ -481,6 +482,47 @@ const appointmentsRouter = router({
           }
         } catch (emailErr) {
           console.error("[Email] Failed to send payment receipt email:", emailErr);
+        }
+      }
+
+      // ── Push notification to client portal account when status changes ──────────
+      if (data.status === "confirmed" || data.status === "cancelled" || data.status === "completed") {
+        try {
+          const enrichedAppt = await db.getEnrichedAppointment(localId, businessOwnerId);
+          if (enrichedAppt?.clientPhone) {
+            const rawDigits = enrichedAppt.clientPhone.replace(/\D/g, "");
+            const normalizedPhone = rawDigits.length === 11 && rawDigits.startsWith("1") ? rawDigits.slice(1) : rawDigits;
+            const clientAccount = await db.getClientAccountByPhone(normalizedPhone);
+            if (clientAccount?.expoPushToken) {
+              const owner = await db.getBusinessOwnerById(businessOwnerId);
+              const bName = owner?.businessName ?? "Your business";
+              const sName = enrichedAppt.serviceName ?? "your appointment";
+              const cName = enrichedAppt.clientName ?? "there";
+              let title = "";
+              let body = "";
+              let notifType = "";
+              if (data.status === "confirmed") {
+                title = "Appointment Confirmed \u2705";
+                body = `Hi ${cName}, your ${sName} at ${bName} has been confirmed!`;
+                notifType = "appointment_confirmed";
+              } else if (data.status === "cancelled") {
+                title = "Appointment Cancelled";
+                body = `Your ${sName} at ${bName} has been cancelled. Please contact them to reschedule.`;
+                notifType = "appointment_cancelled";
+              } else if (data.status === "completed") {
+                title = "Appointment Completed";
+                body = `Thank you for visiting ${bName}! We hope to see you again.`;
+                notifType = "appointment_completed";
+              }
+              await sendExpoPush(clientAccount.expoPushToken, {
+                title,
+                body,
+                data: { type: notifType, appointmentId: localId },
+              });
+            }
+          }
+        } catch (pushErr) {
+          console.error("[Push] Failed to send client push notification:", pushErr);
         }
       }
 
