@@ -1859,3 +1859,5 @@
 - [x] Locations screen: show working hours summary on each location card
 - [x] Fix "Failed to fetch" error on client profile edit screen (Save Changes)
 - [x] Merge booking wizard "Pick a Date" + "Available Time" steps into a single unified calendar+time picker screen
+- [x] Booking wizard: add refresh button next to "Available Times" header to re-fetch slots in real time
+- [x] Booking wizard: grey out calendar days with no available slots (closed/fully-booked days)

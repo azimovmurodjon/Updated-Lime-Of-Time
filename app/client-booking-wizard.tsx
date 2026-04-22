@@ -10,7 +10,7 @@
  * 5. Payment
  * 6. Confirm & notes
  */
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -115,6 +115,15 @@ export default function ClientBookingWizardScreen() {
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
 
+  // Working-days data: which weekdays are open + custom date overrides
+  const [weeklyDays, setWeeklyDays] = useState<Record<string, boolean>>({});
+  const [customDays, setCustomDays] = useState<Record<string, boolean>>({});
+  // Set of YYYY-MM-DD strings that have zero available slots (fully booked / closed)
+  const [unavailableDates, setUnavailableDates] = useState<Set<string>>(new Set());
+  const [loadingMonthAvail, setLoadingMonthAvail] = useState(false);
+  // Tracks the month we last fetched availability for ("YYYY-MM")
+  const lastAvailFetchKey = useRef<string>("");
+
   // Whether to show the location step (only when >1 active location)
   const showLocationStep = locations.length > 1;
 
@@ -172,6 +181,76 @@ export default function ClientBookingWizardScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, serviceLocalId, apiBase]);
 
+  // Fetch working-days info (weeklyDays + customDays) whenever slug/location changes
+  useEffect(() => {
+    if (!slug) return;
+    (async () => {
+      try {
+        const locParam = selectedLocation ? `?locationId=${encodeURIComponent(selectedLocation.localId)}` : "";
+        const res = await fetch(`${apiBase}/api/public/business/${slug}/working-days${locParam}`);
+        if (res.ok) {
+          const data = await res.json();
+          setWeeklyDays(data.weeklyDays ?? {});
+          setCustomDays(data.customDays ?? {});
+        }
+      } catch (err) {
+        console.warn("[BookingWizard] working-days error:", err);
+      }
+    })();
+  }, [slug, selectedLocation, apiBase]);
+
+  // Fetch month-level availability: for each day in the visible month, check if any slots exist.
+  // Uses the slots endpoint per day but only for the current calendar month when it changes.
+  const fetchMonthAvailability = useCallback(async (year: number, month: number, service: typeof selectedService, location: typeof selectedLocation, staffId: string) => {
+    if (!service || !slug) return;
+    const fetchKey = `${year}-${String(month + 1).padStart(2, "0")}-${service.localId}-${location?.localId ?? "any"}-${staffId}`;
+    if (lastAvailFetchKey.current === fetchKey) return; // already fetched
+    lastAvailFetchKey.current = fetchKey;
+    setLoadingMonthAvail(true);
+    const newUnavailable = new Set<string>();
+    const todayStr = new Date().toISOString().split("T")[0];
+    const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+    // Build list of future dates in this month
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const todayDate = new Date();
+    const promises: Promise<void>[] = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateObj = new Date(year, month, d);
+      if (dateObj < new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate())) continue;
+      const dateStr = dateObj.toISOString().split("T")[0];
+      const staffParam = staffId !== "any" ? `&staffId=${encodeURIComponent(staffId)}` : "";
+      const locParam = location ? `&locationId=${encodeURIComponent(location.localId)}` : "";
+      const url = `${apiBase}/api/public/business/${slug}/slots?date=${dateStr}&duration=${service.duration}${staffParam}${locParam}&clientToday=${todayStr}&nowMinutes=${nowMinutes}`;
+      promises.push(
+        fetch(url)
+          .then((r) => r.ok ? r.json() : { slots: [] })
+          .then((data) => { if (!data.slots?.length) newUnavailable.add(dateStr); })
+          .catch(() => {})
+      );
+    }
+    await Promise.all(promises);
+    setUnavailableDates(newUnavailable);
+    setLoadingMonthAvail(false);
+  }, [slug, apiBase]);
+
+  // Trigger month availability fetch when calendar month or service changes
+  useEffect(() => {
+    if (selectedService) {
+      fetchMonthAvailability(calYear, calMonth, selectedService, selectedLocation, selectedStaffId);
+    }
+  }, [calYear, calMonth, selectedService, selectedLocation, selectedStaffId, fetchMonthAvailability]);
+
+  // Manual refresh: re-fetch slots for the currently selected date
+  const handleRefreshSlots = useCallback(() => {
+    if (!selectedDate || !selectedService) return;
+    // Force re-fetch by clearing slots and re-triggering the slots useEffect
+    setSlots([]);
+    setSelectedSlot(null);
+    // Bump a counter to force the useEffect to re-run even if deps haven't changed
+    setRefreshCounter((c) => c + 1);
+  }, [selectedDate, selectedService]);
+  const [refreshCounter, setRefreshCounter] = useState(0);
+
   // Load slots — location-aware
   useEffect(() => {
     if (!selectedDate || !selectedService) return;
@@ -198,7 +277,8 @@ export default function ClientBookingWizardScreen() {
         setLoadingSlots(false);
       }
     })();
-  }, [selectedDate, selectedService, selectedStaffId, selectedLocation, slug, apiBase]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, selectedService, selectedStaffId, selectedLocation, slug, apiBase, refreshCounter]);
 
   const handleNext = () => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -505,14 +585,24 @@ export default function ClientBookingWizardScreen() {
                 <Text key={i} style={[s.dayHeader, { color: colors.muted }]}>{d}</Text>
               ))}
             </View>
+            {/* Month-level availability loading indicator */}
+            {loadingMonthAvail && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                <ActivityIndicator size="small" color={LIME_GREEN} />
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Checking availability…</Text>
+              </View>
+            )}
             <View style={s.calGrid}>
               {Array.from({ length: new Date(calYear, calMonth, 1).getDay() }).map((_, i) => (
                 <View key={`empty-${i}`} style={s.calCell} />
               ))}
               {calDays.map((day) => {
                 const isPast = day < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                const dateStr = day.toISOString().split("T")[0];
+                const isUnavailable = !isPast && unavailableDates.has(dateStr);
                 const isSelected = selectedDate?.toDateString() === day.toDateString();
                 const isToday = day.toDateString() === today.toDateString();
+                const isDisabled = isPast || isUnavailable;
                 return (
                   <Pressable
                     key={day.toISOString()}
@@ -520,20 +610,23 @@ export default function ClientBookingWizardScreen() {
                       s.calCell,
                       isSelected && { backgroundColor: LIME_GREEN, borderRadius: 20 },
                       isToday && !isSelected && { borderWidth: 1.5, borderColor: LIME_GREEN, borderRadius: 20 },
-                      isPast && { opacity: 0.3 },
-                      pressed && !isPast && { opacity: 0.7 },
+                      (isPast || isUnavailable) && { opacity: 0.3 },
+                      pressed && !isDisabled && { opacity: 0.7 },
                     ]}
                     onPress={() => {
-                      if (isPast) return;
+                      if (isDisabled) return;
                       if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       setSelectedDate(day);
                       setSelectedSlot(null); // reset time when date changes
                     }}
-                    disabled={isPast}
+                    disabled={isDisabled}
                   >
-                    <Text style={{ color: isSelected ? "#FFFFFF" : colors.foreground, fontSize: 14, fontWeight: isToday ? "700" : "400" }}>
+                    <Text style={{ color: isSelected ? "#FFFFFF" : isUnavailable ? colors.muted : colors.foreground, fontSize: 14, fontWeight: isToday ? "700" : "400" }}>
                       {day.getDate()}
                     </Text>
+                    {isUnavailable && !isPast && (
+                      <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.muted, marginTop: 1 }} />
+                    )}
                   </Pressable>
                 );
               })}
@@ -544,9 +637,16 @@ export default function ClientBookingWizardScreen() {
               <View style={{ marginTop: 8 }}>
                 <View style={s.timeSectionHeader}>
                   <IconSymbol name="clock" size={15} color={LIME_GREEN} />
-                  <Text style={[s.timeSectionTitle, { color: colors.foreground }]}>
+                  <Text style={[s.timeSectionTitle, { color: colors.foreground, flex: 1 }]}>
                     Available Times · {formatDateLabel(selectedDate)}
                   </Text>
+                  <Pressable
+                    style={({ pressed }) => [{ padding: 6, borderRadius: 16, opacity: pressed || loadingSlots ? 0.5 : 1 }]}
+                    onPress={handleRefreshSlots}
+                    disabled={loadingSlots}
+                  >
+                    <IconSymbol name="arrow.clockwise" size={16} color={LIME_GREEN} />
+                  </Pressable>
                 </View>
                 {loadingSlots ? (
                   <ActivityIndicator color={LIME_GREEN} style={{ marginTop: 16 }} />
