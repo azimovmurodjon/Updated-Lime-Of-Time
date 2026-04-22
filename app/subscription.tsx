@@ -27,6 +27,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from "
 import { useColors } from "@/hooks/use-colors";
 import { useStore } from "@/lib/store";
 import { trpc } from "@/lib/trpc";
+import { getApiBaseUrl } from "@/constants/oauth";
 import { FuturisticBackground } from "@/components/futuristic-background";
 
 
@@ -327,6 +328,19 @@ export default function SubscriptionScreen() {
     { enabled: !!businessOwnerId, staleTime: 30_000 }
   );
 
+  // Fetch live plan prices from DB (Admin Panel) so hardcoded prices are never shown
+  const { data: publicPlans } = trpc.subscription.getPublicPlans.useQuery(undefined, {
+    staleTime: 0,
+    refetchOnMount: true,
+  });
+
+  // Merge live DB prices into PLAN_BENEFITS (keep features, override prices)
+  const planBenefits = PLAN_BENEFITS.map((p) => {
+    const live = publicPlans?.find((lp: { planKey: string; monthlyPrice: number; yearlyPrice: number }) => lp.planKey === p.planKey);
+    if (!live) return p;
+    return { ...p, monthlyPrice: live.monthlyPrice, yearlyPrice: live.yearlyPrice };
+  });
+
   // Refetch when screen comes into focus (e.g. after returning from Stripe checkout)
   useFocusEffect(
     useCallback(() => {
@@ -340,7 +354,7 @@ export default function SubscriptionScreen() {
     if (!businessOwnerId) return;
     setPortalLoading(true);
     try {
-      const res = await fetch("http://127.0.0.1:3000/api/stripe/create-portal", {
+      const res = await fetch(`${getApiBaseUrl()}/api/stripe/create-portal`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -541,7 +555,7 @@ export default function SubscriptionScreen() {
         <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 12, lineHeight: 18 }}>
           Tap any plan to see its full feature list. Your current plan is highlighted.
         </Text>
-        {PLAN_BENEFITS.map((plan) => (
+        {planBenefits.map((plan) => (
           <PlanBenefitsCard
             key={plan.planKey}
             plan={plan}

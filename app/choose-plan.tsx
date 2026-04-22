@@ -25,7 +25,9 @@ export default function ChoosePlanScreen() {
   const { state } = useStore();
 
   const { data: plans, isLoading } = trpc.subscription.getPublicPlans.useQuery(undefined, {
-    staleTime: 60_000,
+    staleTime: 0,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
 
   const utils = trpc.useUtils();

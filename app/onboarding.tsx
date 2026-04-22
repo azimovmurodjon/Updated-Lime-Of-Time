@@ -557,7 +557,7 @@ export default function OnboardingScreen() {
   const [subIsYearly, setSubIsYearly] = useState(false);
   const [subLoading, setSubLoading] = useState(false);
   const [subSelectedPlan, setSubSelectedPlan] = useState<string | null>(null);
-  const { data: publicPlans, isLoading: plansLoading } = trpc.subscription.getPublicPlans.useQuery(undefined, { staleTime: 60_000 });
+  const { data: publicPlans, isLoading: plansLoading } = trpc.subscription.getPublicPlans.useQuery(undefined, { staleTime: 0, refetchOnMount: true, refetchOnWindowFocus: true });
   const sendOtpMut = trpc.otp.send.useMutation();
   const verifyOtpMut = trpc.otp.verify.useMutation();
 
