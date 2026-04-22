@@ -51,12 +51,7 @@ export async function apiCall<T>(endpoint: string, options: RequestInit = {}): P
 
     if (!response.ok) {
       const errorText = await response.text();
-      // Don't log 401 errors as errors — they are expected when session expires or not yet established
-      if (response.status !== 401) {
-        logger.error("[API] Error response:", errorText);
-      } else {
-        logger.log("[API] 401 Unauthorized:", endpoint);
-      }
+      logger.error("[API] Error response:", errorText);
       let errorMessage = errorText;
       try {
         const errorJson = JSON.parse(errorText);
@@ -78,12 +73,7 @@ export async function apiCall<T>(endpoint: string, options: RequestInit = {}): P
     logger.log("[API] Text response received");
     return (text ? JSON.parse(text) : {}) as T;
   } catch (error) {
-    // Don't captureError for 401/session errors — they are expected during app startup
-    const isAuthError = error instanceof Error &&
-      (error.message.includes("Invalid session") || error.message.includes("Unauthorized") || error.message.includes("401"));
-    if (!isAuthError) {
-      logger.captureError(error, { endpoint, method: options.method || "GET" });
-    }
+    logger.captureError(error, { endpoint, method: options.method || "GET" });
     if (error instanceof Error) {
       throw error;
     }
@@ -133,14 +123,7 @@ export async function getMe(): Promise<{
     const result = await apiCall<{ user: any }>("/api/auth/me");
     return result.user || null;
   } catch (error) {
-    // Don't log 401/session errors — expected when not logged in
-    const isAuthError = error instanceof Error &&
-      (error.message.includes("Invalid session") || error.message.includes("Unauthorized") || error.message.includes("401"));
-    if (!isAuthError) {
-      logger.error("[API] getMe failed:", error);
-    } else {
-      logger.log("[API] getMe: not authenticated");
-    }
+    logger.error("[API] getMe failed:", error);
     return null;
   }
 }

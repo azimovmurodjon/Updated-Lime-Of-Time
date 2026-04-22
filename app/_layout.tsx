@@ -1,6 +1,6 @@
 import "@/global.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack, useRouter } from "expo-router";
+import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -20,7 +20,6 @@ import type { EdgeInsets, Metrics, Rect } from "react-native-safe-area-context";
 import { trpc, createTRPCClient } from "@/lib/trpc";
 import { initManusRuntime, subscribeSafeAreaInsets } from "@/lib/_core/manus-runtime";
 import { StoreProvider } from "@/lib/store";
-import { ClientStoreProvider, getProfileMode } from "@/lib/client-store";
 import { AppLockProvider } from "@/lib/app-lock-provider";
 import { NotificationProvider } from "@/lib/notification-provider";
 import { initSentry, withSentryWrapper } from "@/lib/sentry";
@@ -35,21 +34,16 @@ const DEFAULT_WEB_INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 const DEFAULT_WEB_FRAME: Rect = { x: 0, y: 0, width: 0, height: 0 };
 
 export const unstable_settings = {
-  anchor: "profile-select",
+  anchor: "(tabs)",
 };
 
 function RootLayout() {
   // Use system fonts (SF Pro on iOS, Roboto on Android) — no external font package needed
   const fontsLoaded = true;
   const [splashDone, setSplashDone] = useState(false);
-  const router = useRouter();
-
   const onLayoutRootView = useCallback(async () => {
-    // Hide the native splash immediately — we use our own animated splash instead.
-    // Wrapped in try-catch: on iOS, if the splash view controller is already gone
-    // (e.g., hot-reload or re-navigation), hideAsync throws "No native splash screen
-    // registered" which is harmless but shows as a console error.
-    try { await SplashScreen.hideAsync(); } catch { /* already hidden — safe to ignore */ }
+    // Hide the native splash immediately — we use our own animated splash instead
+    await SplashScreen.hideAsync();
   }, []);
 
   const initialInsets = initialWindowMetrics?.insets ?? DEFAULT_WEB_INSETS;
@@ -73,23 +67,6 @@ function RootLayout() {
     const unsubscribe = subscribeSafeAreaInsets(handleSafeAreaUpdate);
     return () => unsubscribe();
   }, [handleSafeAreaUpdate]);
-
-  /**
-   * Called when the animated splash screen finishes.
-   * Always shows the Profile Selection screen first so the user can choose
-   * Business Portal or Client Portal every time they open the app.
-   * The profile-select screen itself handles redirecting returning users
-   * who have already authenticated (it can skip straight to the right portal).
-   */
-  const handleSplashFinish = useCallback(async () => {
-    setSplashDone(true);
-    try {
-      // Always land on profile-select — it will auto-redirect if already logged in
-      router.replace("/profile-select" as any);
-    } catch {
-      // Fallback: do nothing, let normal routing take over
-    }
-  }, [router]);
 
   // Create clients once and reuse them
   const [queryClient] = useState(
@@ -130,82 +107,43 @@ function RootLayout() {
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
           <StoreProvider>
-            <ClientStoreProvider>
             <AppLockProvider>
             <NotificationProvider>
             {/* Default to hiding native headers so raw route segments don't appear (e.g. "(tabs)", "products/[id]"). */}
             {/* If a screen needs the native header, explicitly enable it and set a human title via Stack.Screen options. */}
             {/* in order for ios apps tab switching to work properly, use presentation: "fullScreenModal" for login page, whenever you decide to use presentation: "modal*/}
             <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="(tabs)" options={{ presentation: "fullScreenModal" }} />
+              <Stack.Screen name="(tabs)" />
               <Stack.Screen name="new-booking" options={{ presentation: "fullScreenModal" }} />
-              <Stack.Screen name="appointment-detail" options={{ presentation: "modal" }} />
-              <Stack.Screen name="client-detail" options={{ presentation: "modal" }} />
+              <Stack.Screen name="appointment-detail" options={{ presentation: "card" }} />
+              <Stack.Screen name="client-detail" options={{ presentation: "card" }} />
               <Stack.Screen name="service-form" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="booking" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="onboarding" options={{ presentation: "fullScreenModal" }} />
-              <Stack.Screen name="analytics-detail" options={{ presentation: "modal" }} />
+              <Stack.Screen name="analytics-detail" options={{ presentation: "card" }} />
               <Stack.Screen name="discounts" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="gift-cards" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="book/[slug]" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="review/[slug]" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="gift/[code]" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="oauth/callback" />
-              {/* Business Settings Screens — must be modal (not card) to work on top of fullScreenModal tabs */}
-              <Stack.Screen name="schedule-settings" options={{ presentation: "modal" }} />
-              <Stack.Screen name="booking-policies" options={{ presentation: "modal" }} />
-              <Stack.Screen name="business-profile" options={{ presentation: "modal" }} />
-              <Stack.Screen name="locations" options={{ presentation: "modal" }} />
+              <Stack.Screen name="schedule-settings" options={{ presentation: "card" }} />
+              <Stack.Screen name="booking-policies" options={{ presentation: "card" }} />
+              <Stack.Screen name="business-profile" options={{ presentation: "card" }} />
+              <Stack.Screen name="locations" options={{ presentation: "card" }} />
               <Stack.Screen name="location-form" options={{ presentation: "fullScreenModal" }} />
-              <Stack.Screen name="reviews" options={{ presentation: "modal" }} />
-              <Stack.Screen name="notification-settings" options={{ presentation: "modal" }} />
-              <Stack.Screen name="data-export" options={{ presentation: "modal" }} />
-              <Stack.Screen name="staff" options={{ presentation: "modal" }} />
+              <Stack.Screen name="reviews" options={{ presentation: "card" }} />
+              <Stack.Screen name="notification-settings" options={{ presentation: "card" }} />
+              <Stack.Screen name="data-export" options={{ presentation: "card" }} />
+              <Stack.Screen name="staff" options={{ presentation: "card" }} />
               <Stack.Screen name="staff-form" options={{ presentation: "fullScreenModal" }} />
-              <Stack.Screen name="staff-calendar" options={{ presentation: "modal" }} />
+              <Stack.Screen name="staff-calendar" options={{ presentation: "card" }} />
               <Stack.Screen name="product-form" options={{ presentation: "fullScreenModal" }} />
-              <Stack.Screen name="sms-templates" options={{ presentation: "modal" }} />
-              <Stack.Screen name="sms-automation" options={{ presentation: "modal" }} />
-              <Stack.Screen name="business-hours-settings" options={{ presentation: "modal" }} />
-              <Stack.Screen name="category-management" options={{ presentation: "modal" }} />
-              <Stack.Screen name="note-templates" options={{ presentation: "modal" }} />
-              <Stack.Screen name="service-gallery" options={{ presentation: "modal" }} />
-              <Stack.Screen name="social-links" options={{ presentation: "modal" }} />
-              <Stack.Screen name="twilio-setup" options={{ presentation: "modal" }} />
-              <Stack.Screen name="payment-methods" options={{ presentation: "modal" }} />
-              <Stack.Screen name="payment-method-zelle" options={{ presentation: "modal" }} />
-              <Stack.Screen name="payment-method-venmo" options={{ presentation: "modal" }} />
-              <Stack.Screen name="payment-method-cashapp" options={{ presentation: "modal" }} />
-              <Stack.Screen name="payment-summary" options={{ presentation: "modal" }} />
-              <Stack.Screen name="payments-history" options={{ presentation: "modal" }} />
-              <Stack.Screen name="packages" options={{ presentation: "modal" }} />
-              <Stack.Screen name="promo-codes" options={{ presentation: "modal" }} />
-              <Stack.Screen name="birthday-campaigns" options={{ presentation: "modal" }} />
-              <Stack.Screen name="choose-plan" options={{ presentation: "modal" }} />
-              <Stack.Screen name="subscription" options={{ presentation: "modal" }} />
-              <Stack.Screen name="status-detail" options={{ presentation: "modal" }} />
-              <Stack.Screen name="usage-guide" options={{ presentation: "modal" }} />
-              <Stack.Screen name="onboarding-analytics" options={{ presentation: "modal" }} />
-              <Stack.Screen name="dev-testing" options={{ presentation: "modal" }} />
-              {/* Client Portal Screens */}
-              <Stack.Screen name="profile-select" options={{ presentation: "fullScreenModal" }} />
-              <Stack.Screen name="client-signin" options={{ presentation: "fullScreenModal" }} />
-              <Stack.Screen name="client-profile-onboarding" options={{ presentation: "fullScreenModal" }} />
-              <Stack.Screen name="client-edit-profile" options={{ presentation: "modal", headerShown: false }} />
-              <Stack.Screen name="client-notifications" options={{ presentation: "modal", headerShown: false }} />
-              <Stack.Screen name="(client-tabs)" options={{ presentation: "fullScreenModal" }} />
-              <Stack.Screen name="client-business-detail" options={{ presentation: "modal" }} />
-              <Stack.Screen name="client-booking-wizard" options={{ presentation: "modal", headerShown: false }} />
-              <Stack.Screen name="client-appointment-detail" options={{ presentation: "modal" }} />
-              <Stack.Screen name="client-booking-confirmation" options={{ presentation: "modal" }} />
-              <Stack.Screen name="client-message-thread" options={{ presentation: "modal" }} />
-              <Stack.Screen name="client-saved-businesses" options={{ presentation: "modal" }} />
-              <Stack.Screen name="client-message-thread-business" options={{ presentation: "modal" }} />
+              <Stack.Screen name="sms-templates" options={{ presentation: "card" }} />
             </Stack>
             <StatusBar style="auto" />
             </NotificationProvider>
             </AppLockProvider>
-            </ClientStoreProvider>
           </StoreProvider>
         </QueryClientProvider>
       </trpc.Provider>
@@ -224,7 +162,7 @@ function RootLayout() {
               {content}
               {!splashDone && (
                 <View style={StyleSheet.absoluteFill} pointerEvents="none">
-                  <AnimatedSplash onFinish={handleSplashFinish} />
+                  <AnimatedSplash onFinish={() => setSplashDone(true)} />
                 </View>
               )}
             </SafeAreaInsetsContext.Provider>
@@ -240,7 +178,7 @@ function RootLayout() {
         {content}
         {!splashDone && (
           <View style={StyleSheet.absoluteFill} pointerEvents="none">
-            <AnimatedSplash onFinish={handleSplashFinish} />
+            <AnimatedSplash onFinish={() => setSplashDone(true)} />
           </View>
         )}
       </SafeAreaProvider>

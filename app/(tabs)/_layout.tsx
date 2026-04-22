@@ -5,10 +5,9 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Platform, AppState } from "react-native";
 import { useColors } from "@/hooks/use-colors";
 import { useResponsive } from "@/hooks/use-responsive";
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo } from "react";
 import * as Notifications from "expo-notifications";
 import { useStore } from "@/lib/store";
-import { apiCall } from "@/lib/_core/api";
 
 /** Returns true when the OS push-notification permission has been denied. */
 function usePushPermissionDenied(): boolean {
@@ -48,27 +47,6 @@ export default function TabLayout() {
     () => state.appointments.filter((a) => a.status === "pending").length,
     [state.appointments]
   );
-
-  // ─── Unread client message count ──────────────────────────────────────────
-  const [unreadMessages, setUnreadMessages] = useState(0);
-
-  const fetchUnreadCount = useCallback(async () => {
-    // Only poll when the business user is fully authenticated and store is loaded
-    if (!state.businessOwnerId || !state.loaded) return;
-    try {
-      const data = await apiCall<{ count: number }>("/api/business/messages/unread-count");
-      setUnreadMessages(data.count ?? 0);
-    } catch {
-      // non-blocking — badge just won't show if request fails
-    }
-  }, [state.businessOwnerId, state.loaded]);
-
-  // Poll every 60 seconds while the tab bar is mounted
-  useEffect(() => {
-    fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 60_000);
-    return () => clearInterval(interval);
-  }, [fetchUnreadCount]);
 
   const bottomPadding = Platform.OS === "web"
     ? (isTablet ? 16 : 12)
@@ -134,16 +112,6 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => (
             <IconSymbol size={iconSize} name="person.2.fill" color={color} />
           ),
-          tabBarBadge: unreadMessages > 0 ? unreadMessages : undefined,
-          tabBarBadgeStyle: {
-            backgroundColor: colors.primary,
-            color: "#FFFFFF",
-            fontSize: 10,
-            fontWeight: "700" as const,
-            minWidth: 16,
-            height: 16,
-            borderRadius: 8,
-          },
         }}
       />
       <Tabs.Screen

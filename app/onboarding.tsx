@@ -58,7 +58,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import * as Haptics from "expo-haptics";
 import { CountryCodePicker, DEFAULT_COUNTRY, type Country } from "@/components/country-code-picker";
-import { IconSymbol } from "@/components/ui/icon-symbol";
 import { PlanCarousel } from "@/components/plan-carousel";
 import { startOAuthLogin } from "@/constants/oauth";
 import { GoogleLogo, MicrosoftLogo, AppleLogo } from "@/components/brand-icons";
@@ -290,10 +289,6 @@ export default function OnboardingScreen() {
     return idx === -1 ? 0 : idx;
   };
 
-  const scrollToTop = useCallback(() => {
-    outerScrollRef.current?.scrollTo({ y: 0, animated: false });
-  }, []);
-
   const navigateToStep = useCallback((nextStep: Step) => {
     const direction = stepIndex(nextStep) >= stepIndex(prevStepRef.current) ? 1 : -1;
     // Use real screen width for a full off-screen slide
@@ -307,9 +302,7 @@ export default function OnboardingScreen() {
       { duration: SLIDE_OUT_DURATION, easing: Easing.in(Easing.cubic) },
       () => {
         // Swap content instantly while card is off-screen
-        // Reset scroll so logo doesn't jump during transition
         runOnJS(setDisplayStep)(nextStep);
-        runOnJS(scrollToTop)();
         // Position new card off-screen on the opposite side
         slideX.value = direction * W;
         // Phase 2: slide new card in from the side
@@ -1158,24 +1151,6 @@ export default function OnboardingScreen() {
 
           {/* ─── Progress Dots ──────────────────────────────────── */}
           <ProgressDots step={displayStep} />
-
-          {/* ─── Back to portal select (step 1 only) ──────────── */}
-          {displayStep === 1 && (
-            <Pressable
-              onPress={() => router.replace("/profile-select" as any)}
-              style={({ pressed }) => ({
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 4,
-                marginBottom: 12,
-                alignSelf: "flex-start",
-                opacity: pressed ? 0.6 : 1,
-              })}
-            >
-              <IconSymbol name="chevron.left" size={18} color="rgba(255,255,255,0.8)" />
-              <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 15, fontWeight: "500" }}>Back</Text>
-            </Pressable>
-          )}
 
           {/* ─── White Card ──────────────────────────────────── */}
           {/* GestureDetector enables swipe-right to go back on applicable steps */}

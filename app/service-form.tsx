@@ -198,86 +198,41 @@ export default function ServiceFormScreen() {
           returnKeyType="done"
         />
 
-        {/* Category — smart autocomplete with all Discover categories */}
+        {/* Category */}
         <Text className="text-xs font-medium text-muted mb-1 ml-1">Category (optional)</Text>
-        <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 8, marginLeft: 4 }}>
-          Select a category so clients can find this service on the Discover page.
-        </Text>
-        {/* Preset chips matching client Discover page */}
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-          {([
-            { label: "Hair", emoji: "✂️" },
-            { label: "Nails", emoji: "💅" },
-            { label: "Skin", emoji: "✨" },
-            { label: "Massage", emoji: "💆" },
-            { label: "Fitness", emoji: "🏋️" },
-            { label: "Dental", emoji: "🦷" },
-            { label: "Medical", emoji: "🏥" },
-            { label: "Spa", emoji: "🧖" },
-            { label: "Barber", emoji: "💈" },
-            { label: "Tattoo", emoji: "🎨" },
-            { label: "Other", emoji: "📍" },
-          ] as const).map(({ label, emoji }) => (
-            <Pressable
-              key={label}
-              onPress={() => setCategory(category === label ? "" : label)}
-              style={({ pressed }) => ({
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-                borderRadius: 16,
-                borderWidth: 1.5,
-                flexDirection: "row" as const,
-                alignItems: "center" as const,
-                gap: 3,
-                borderColor: category === label ? colors.primary : colors.border,
-                backgroundColor: category === label ? colors.primary + "22" : colors.surface,
-                opacity: pressed ? 0.7 : 1,
-              })}
-            >
-              <Text style={{ fontSize: 12 }}>{emoji}</Text>
-              <Text style={{
-                fontSize: 12,
-                fontWeight: category === label ? "600" : "400",
-                color: category === label ? colors.primary : colors.foreground,
-              }}>{label}</Text>
-            </Pressable>
-          ))}
-          {/* Also show any custom categories already used in other services */}
-          {existingCategories
-            .filter(c => !["Hair","Nails","Skin","Massage","Fitness","Dental","Medical","Spa","Barber","Tattoo","Other"].includes(c))
-            .map((cat) => (
-              <Pressable
-                key={cat}
-                onPress={() => setCategory(category === cat ? "" : cat)}
-                style={({ pressed }) => ({
-                  paddingHorizontal: 10,
-                  paddingVertical: 6,
-                  borderRadius: 16,
-                  borderWidth: 1.5,
-                  borderColor: category === cat ? colors.primary : colors.border,
-                  backgroundColor: category === cat ? colors.primary + "22" : colors.surface,
-                  opacity: pressed ? 0.7 : 1,
-                })}
-              >
-                <Text style={{
-                  fontSize: 12,
-                  fontWeight: category === cat ? "600" : "400",
-                  color: category === cat ? colors.primary : colors.foreground,
-                }}>{cat}</Text>
-              </Pressable>
-            ))}
-        </View>
-        {/* Custom category text input */}
-        <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 4, marginLeft: 4 }}>Or type a custom category:</Text>
         <TextInput
-          className="bg-surface rounded-xl px-4 py-3.5 text-base mb-4 border border-border"
-          placeholder="e.g. Yoga, Lashes, Wellness..."
+          className="bg-surface rounded-xl px-4 py-3.5 text-base mb-2 border border-border"
+          placeholder="e.g. Hair, Nails, Massage..."
           placeholderTextColor={colors.muted}
-          value={["Hair","Nails","Skin","Massage","Fitness","Dental","Medical","Spa","Barber","Tattoo","Other"].includes(category) ? "" : category}
-          onChangeText={(text) => setCategory(text)}
+          value={category}
+          onChangeText={setCategory}
           style={{ color: colors.foreground }}
           returnKeyType="done"
         />
+        {existingCategories.length > 0 && !category && (
+          <View className="flex-row flex-wrap gap-2 mb-4">
+            {existingCategories.map((cat) => (
+              <Pressable
+                key={cat}
+                onPress={() => setCategory(cat)}
+                style={({ pressed }) => [
+                  styles.durationChip,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    minHeight: 32,
+                  },
+                ]}
+              >
+                <Text className="text-xs font-medium" style={{ color: colors.foreground }}>{cat}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+        {!existingCategories.length && <View style={{ height: 8 }} />}
 
         {/* Description */}
         <Text className="text-xs font-medium text-muted mb-1 ml-1">Description (optional)</Text>

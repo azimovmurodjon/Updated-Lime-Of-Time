@@ -23,7 +23,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { removeSessionToken, clearUserInfo } from "@/lib/_core/auth";
 import { formatPhoneNumber, getMapUrl, DEFAULT_NOTIFICATION_PREFERENCES } from "@/lib/types";
 import { trpc } from "@/lib/trpc";
-import { apiCall } from "@/lib/_core/api";
 import { useAppLockContext } from "@/lib/app-lock-provider";
 import { LocationSwitcher } from "@/components/location-switcher";
 import { useActiveLocation } from "@/hooks/use-active-location";
@@ -51,19 +50,6 @@ export default function SettingsScreen() {
 
   const [activeTab, setActiveTab] = useState<TabKey>("business");
   const [devTapCount, setDevTapCount] = useState(0);
-
-  // Client Portal visibility toggle
-  const [portalVisible, setPortalVisible] = useState(false);
-  const [portalToggling, setPortalToggling] = useState(false);
-  const businessByIdQuery = trpc.business.getById.useQuery(
-    { id: state.businessOwnerId ?? 0 },
-    { enabled: !!state.businessOwnerId }
-  );
-  React.useEffect(() => {
-    if (businessByIdQuery.data?.clientPortalVisible !== undefined) {
-      setPortalVisible(!!businessByIdQuery.data.clientPortalVisible);
-    }
-  }, [businessByIdQuery.data?.clientPortalVisible]);
 
   // Business Name editing
   const [editingName, setEditingName] = useState(false);
@@ -144,11 +130,7 @@ export default function SettingsScreen() {
           } catch {}
           try { await removeSessionToken(); } catch {}
           try { await clearUserInfo(); } catch {}
-          // Dismiss all screens in the stack (pops back to root) then replace
-          // with profile-select so the business dashboard is fully unmounted
-          // and cannot bleed through when the user switches to the client portal.
-          try { router.dismissAll(); } catch {}
-          router.replace("/profile-select" as any);
+          router.replace("/onboarding");
         },
       },
     ]);
@@ -518,37 +500,6 @@ export default function SettingsScreen() {
         </View>
         <IconSymbol name="chevron.right" size={16} color={colors.muted} />
       </Pressable>
-      {/* Client Portal Visibility */}
-      <Text style={[styles.sectionLabel, { marginTop: 8 }]}>Client Portal</Text>
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <View style={{ flex: 1, marginRight: 12 }}>
-            <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Show in Client Portal</Text>
-            <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Clients can discover and book your business</Text>
-          </View>
-          <Switch
-            value={portalVisible}
-            disabled={portalToggling}
-            onValueChange={async (val) => {
-              setPortalToggling(true);
-              try {
-                await apiCall("/api/business/portal-visibility", {
-                  method: "POST",
-                  body: JSON.stringify({ visible: val }),
-                });
-                setPortalVisible(val);
-              } catch (e: any) {
-                Alert.alert("Error", e.message || "Failed to update portal visibility");
-              } finally {
-                setPortalToggling(false);
-              }
-            }}
-            trackColor={{ false: colors.border, true: colors.primary + "80" }}
-            thumbColor={portalVisible ? colors.primary : colors.muted}
-          />
-        </View>
-      </View>
-
       {/* Appearance */}
       <Text style={[styles.sectionLabel, { marginTop: 8 }]}>Appearance</Text>
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>

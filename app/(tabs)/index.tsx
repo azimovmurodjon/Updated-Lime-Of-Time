@@ -14,7 +14,6 @@ import {
   Platform,
   Modal,
   Animated,
-  Linking,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatTime, formatDateStr } from "@/lib/store";
@@ -1272,16 +1271,7 @@ export default function HomeScreen() {
           title: "Book an Appointment",
         });
       }
-    } catch (err) {
-      // Fallback: copy link to clipboard if share fails
-      try {
-        const fallbackSlug = state.settings.customSlug || state.settings.businessName.replace(/\s+/g, "-").toLowerCase();
-        const fallbackUrl = `${PUBLIC_BOOKING_URL}/book/${fallbackSlug}`;
-        const { default: Clipboard } = await import("expo-clipboard");
-        await Clipboard.setStringAsync(fallbackUrl);
-        Alert.alert("Link Copied!", "Booking link copied to clipboard.");
-      } catch {}
-    }
+    } catch {}
   }, [state.settings, activeLocation]);
 
   const handleShareBookingLink = useCallback(() => {
@@ -2332,101 +2322,6 @@ export default function HomeScreen() {
           staff={state.staff}
           locations={state.locations}
         />
-        {/* ─── Client App Card ─────────────────────────────────────── */}
-        <View style={{
-          marginTop: 24,
-          borderRadius: 18,
-          borderWidth: 1,
-          borderColor: "#8B5CF630",
-          backgroundColor: colors.surface,
-          overflow: "hidden",
-        }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderBottomWidth: 1, borderBottomColor: "#8B5CF620" }}>
-            <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: "#8B5CF615", alignItems: "center", justifyContent: "center" }}>
-              <IconSymbol name="iphone" size={24} color="#8B5CF6" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>Client Booking App</Text>
-              <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1, lineHeight: 17 }}>Let clients discover and book directly from the app</Text>
-            </View>
-          </View>
-          <View style={{ flexDirection: "row", padding: 12, gap: 8 }}>
-            <Pressable
-              style={({ pressed }) => [{
-                flex: 1,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 6,
-                backgroundColor: "#8B5CF6",
-                paddingVertical: 10,
-                borderRadius: 12,
-                opacity: pressed ? 0.8 : 1,
-              }]}
-              onPress={() => {
-                const url = (state.settings as any).appStoreUrl;
-                if (url) {
-                  Linking.openURL(url).catch(() => Alert.alert("Error", "Could not open App Store link."));
-                } else {
-                  Alert.alert("App Store Link", "Set your App Store URL in Settings \u2192 Business Profile to enable this button.");
-                }
-              }}
-            >
-              <IconSymbol name="iphone" size={15} color="#FFFFFF" />
-              <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "700" }}>iOS App</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [{
-                flex: 1,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 6,
-                backgroundColor: "#059669",
-                paddingVertical: 10,
-                borderRadius: 12,
-                opacity: pressed ? 0.8 : 1,
-              }]}
-              onPress={() => {
-                const url = (state.settings as any).playStoreUrl;
-                if (url) {
-                  Linking.openURL(url).catch(() => Alert.alert("Error", "Could not open Play Store link."));
-                } else {
-                  Alert.alert("Play Store Link", "Set your Play Store URL in Settings \u2192 Business Profile to enable this button.");
-                }
-              }}
-            >
-              <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "700" }}>Android App</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [{
-                width: 44,
-                height: 44,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: "#8B5CF615",
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: "#8B5CF630",
-                opacity: pressed ? 0.8 : 1,
-              }]}
-              onPress={() => {
-                const iosUrl = (state.settings as any).appStoreUrl;
-                const androidUrl = (state.settings as any).playStoreUrl;
-                const msg = iosUrl || androidUrl
-                  ? `Book appointments with us on the app!${iosUrl ? `\niOS: ${iosUrl}` : ""}${androidUrl ? `\nAndroid: ${androidUrl}` : ""}`
-                  : "Our client app is coming soon to the App Store and Google Play!";
-                if (Platform.OS !== "web") {
-                  Share.share({ message: msg });
-                } else if (typeof navigator !== "undefined" && navigator.clipboard) {
-                  navigator.clipboard.writeText(msg);
-                }
-              }}
-            >
-              <IconSymbol name="paperplane.fill" size={18} color="#8B5CF6" />
-            </Pressable>
-          </View>
-        </View>
       </ScrollView>
 
       {/* FAB */}

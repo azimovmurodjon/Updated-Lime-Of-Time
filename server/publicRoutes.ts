@@ -663,7 +663,7 @@ export function registerPublicRoutes(app: Express) {
         return;
       }
 
-      const { clientName, clientPhone, clientEmail, serviceLocalId, date, time, duration, notes, giftCode, totalPrice, extraItems, giftApplied, giftUsedAmount, discountName, discountPercentage, discountAmount, subtotal, locationId, paymentMethod, promoCode, promoLocalId, staffId: bodyStaffId } = req.body;
+      const { clientName, clientPhone, clientEmail, serviceLocalId, date, time, duration, notes, giftCode, totalPrice, extraItems, giftApplied, giftUsedAmount, discountName, discountPercentage, discountAmount, subtotal, locationId, paymentMethod, promoCode, promoLocalId } = req.body;
 
       if (!clientName || !serviceLocalId || !date || !time) {
         res.status(400).json({ error: "Missing required fields: clientName, serviceLocalId, date, time" });
@@ -837,7 +837,6 @@ export function registerPublicRoutes(app: Express) {
         locationId: locationId || null,
         paymentMethod: (paymentMethod && paymentMethod !== 'later') ? paymentMethod : null,
         paymentStatus: paymentMethod === 'cash' ? 'pending_cash' : ((paymentMethod && paymentMethod !== 'later') ? 'unpaid' : null),
-        staffId: bodyStaffId || null,
       });
 
       // Atomically deduct from gift card balance (prevents double-spend race conditions)

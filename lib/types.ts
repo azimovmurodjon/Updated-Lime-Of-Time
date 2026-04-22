@@ -459,10 +459,6 @@ export interface BusinessSettings {
   tiktokHandle?: string; // TikTok username (without @)
   // Request response window
   requestResponseWindowHours?: number; // hours before a pending cancel/reschedule request auto-expires (default: 48)
-  // Client portal discovery
-  businessCategory?: string; // business category for client portal Discover screen (e.g. "Hair", "Nails", "Spa")
-  appStoreUrl?: string; // iOS App Store URL for the App Share card
-  playStoreUrl?: string; // Google Play Store URL for the App Share card
 }
 
 export const SERVICE_COLORS = [

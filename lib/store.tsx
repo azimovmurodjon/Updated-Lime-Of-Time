@@ -105,9 +105,6 @@ const initialSettings: BusinessSettings = {
   instagramHandle: "",
   facebookHandle: "",
   tiktokHandle: "",
-  businessCategory: "",
-  appStoreUrl: "",
-  playStoreUrl: "",
 };
 
 const initialState: AppState = {
@@ -862,9 +859,6 @@ export function dbOwnerToSettings(owner: any): Partial<BusinessSettings> {
     instagramHandle: (owner as any).instagramHandle ?? "",
     facebookHandle: (owner as any).facebookHandle ?? "",
     tiktokHandle: (owner as any).tiktokHandle ?? "",
-    businessCategory: (owner as any).businessCategory ?? "",
-    appStoreUrl: (owner as any).appStoreUrl ?? "",
-    playStoreUrl: (owner as any).playStoreUrl ?? "",
   };
 }
 
@@ -959,20 +953,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           try {
             // Try to load from database
             const fullData = await trpcUtils.business.getFullData.fetch({ id: ownerId });
-            if (fullData && !fullData.owner) {
-              // Business owner not found in DB (deleted, migrated, or re-seeded).
-              // Clear stale AsyncStorage cache so phantom data from a previous account
-              // does not appear in the Clients / Appointments tabs.
-              logger.warn("[Store] Business owner ID", ownerId, "not found in DB — clearing stale cache");
-              await Promise.all([
-                AsyncStorage.removeItem(STORAGE_KEYS.clients),
-                AsyncStorage.removeItem(STORAGE_KEYS.appointments),
-                AsyncStorage.removeItem(STORAGE_KEYS.services),
-                AsyncStorage.removeItem(STORAGE_KEYS.businessOwnerId),
-              ]);
-              dispatch({ type: "LOAD_DATA", payload: { clients: [], appointments: [], services: [], businessOwnerId: null } });
-              // Fall through to ID mismatch recovery below to try phone-based lookup
-            }
             if (fullData && fullData.owner) {
               const settingsFromDb = dbOwnerToSettings(fullData.owner);
               // If DB has no locations, check AsyncStorage for locally-created locations to recover
@@ -1007,19 +987,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                   } catch { /* ignore parse errors */ }
                 }
               }
-              // Load staff from DB; if DB is empty, fall back to AsyncStorage cache (read-only, no re-sync during bootstrap)
-              let dbStaff = (fullData.staff || []).map(dbStaffToLocal);
-              if (dbStaff.length === 0) {
-                try {
-                  const cachedStaffRaw = await AsyncStorage.getItem(STORAGE_KEYS.staff);
-                  if (cachedStaffRaw) {
-                    const cachedStaff: StaffMember[] = JSON.parse(cachedStaffRaw);
-                    if (Array.isArray(cachedStaff) && cachedStaff.length > 0) {
-                      dbStaff = cachedStaff;
-                    }
-                  }
-                } catch { /* ignore parse errors */ }
-              }
               // Split custom schedule entries: global (no locationId) vs per-location
               const allScheduleEntries = (fullData.customSchedule || []).map(dbCustomScheduleToLocal);
               const globalSchedule = allScheduleEntries.filter((cs) => !cs.locationId);
@@ -1042,7 +1009,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                   customSchedule: globalSchedule,
                   locationCustomSchedule: locationScheduleMap,
                   products: (fullData.products || []).map(dbProductToLocal),
-                  staff: dbStaff,
+                  staff: (fullData.staff || []).map(dbStaffToLocal),
                   locations: dbLocations,
                   settings: { ...initialSettings, ...settingsFromDb },
                   businessOwnerId: ownerId,
@@ -1732,10 +1699,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             if (settings.instagramHandle !== undefined) updateData.instagramHandle = settings.instagramHandle;
             if (settings.facebookHandle !== undefined) updateData.facebookHandle = settings.facebookHandle;
             if (settings.tiktokHandle !== undefined) updateData.tiktokHandle = settings.tiktokHandle;
-            // Client portal discovery
-            if ((settings as any).businessCategory !== undefined) updateData.businessCategory = (settings as any).businessCategory;
-            if ((settings as any).appStoreUrl !== undefined) updateData.appStoreUrl = (settings as any).appStoreUrl;
-            if ((settings as any).playStoreUrl !== undefined) updateData.playStoreUrl = (settings as any).playStoreUrl;
             // Only update if there's something besides id
             if (Object.keys(updateData).length > 1) {
               await updateBusinessMut.mutateAsync(updateData);

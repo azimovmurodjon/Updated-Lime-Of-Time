@@ -20,17 +20,11 @@ export type PushNotificationData = {
     | "payment_received"
     | "stripe_payout"
     | "subscription_renewal"
-    | "general"
-    | "client_message"
-    | "business_message";
+    | "general";
   /** Appointment local ID for navigating to the specific appointment */
   appointmentId?: string;
   /** Calendar tab filter to open (requests, cancelled, upcoming, completed) */
   filter?: "requests" | "cancelled" | "upcoming" | "completed";
-  /** Client account ID for routing to client message thread */
-  clientAccountId?: number;
-  /** Business owner ID for routing to business message thread */
-  businessOwnerId?: number;
 };
 
 export type PushPayload = {
@@ -376,7 +370,7 @@ export async function notifyCardPayment(
   return sendExpoPush(expoPushToken, {
     title: `💳 Card Payment Received — ${businessName}`,
     body: lines,
-    data: { type: "payment_received", appointmentId, filter: "upcoming" },
+    data: { type: "payment_received", appointmentId, filter: "confirmed" },
     channelId: "appointments",
   });
 }

@@ -43,7 +43,7 @@ const env = {
 const config: ExpoConfig = {
   name: env.appName,
   slug: env.appSlug,
-  version: "1.0.25",
+  version: "1.0.12",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: env.scheme,
@@ -59,7 +59,6 @@ const config: ExpoConfig = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: env.iosBundleId,
-    buildNumber: "2",
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
     },
@@ -187,7 +186,7 @@ const config: ExpoConfig = {
 
   experiments: {
     typedRoutes: true,
-    reactCompiler: false,
+    reactCompiler: true,
   },
 };
 

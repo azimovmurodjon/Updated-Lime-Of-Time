@@ -11,7 +11,6 @@ import {
   Platform,
   Image,
   ScrollView,
-  ActivityIndicator,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -19,11 +18,9 @@ import { useStore, generateId } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import * as ImagePicker from "expo-image-picker";
-import * as FileSystem from "expo-file-system/legacy";
 import type { ServicePhoto } from "@/lib/types";
 import { FuturisticBackground } from "@/components/futuristic-background";
-import { trpc } from "@/lib/trpc";
-import { apiCall } from "@/lib/_core/api";
+
 
 type LabelKey = "before" | "after" | "other";
 
@@ -48,9 +45,6 @@ export default function ServiceGalleryScreen() {
   const [editingPhoto, setEditingPhoto] = useState<ServicePhoto | null>(null);
   const [editNote, setEditNote] = useState("");
   const [viewingPhoto, setViewingPhoto] = useState<ServicePhoto | null>(null);
-  const [uploadingLabel, setUploadingLabel] = useState<LabelKey | null>(null);
-
-  const uploadImageMut = trpc.files.uploadImage.useMutation();
 
   const filteredPhotos = activeFilter === "all" ? photos : photos.filter((p) => p.label === activeFilter);
 
@@ -68,76 +62,24 @@ export default function ServiceGalleryScreen() {
       quality: 0.8,
     });
     if (result.canceled || !result.assets[0]) return;
-
-    const localUri = result.assets[0].uri;
-    const photoId = generateId();
-    let remoteUri = localUri;
-
-    // ── Upload to S3 (native only) ────────────────────────────────────────
-    if (Platform.OS !== "web") {
-      try {
-        setUploadingLabel(label);
-        const base64 = await FileSystem.readAsStringAsync(localUri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        const mimeType = result.assets[0].mimeType ?? "image/jpeg";
-        const { url } = await uploadImageMut.mutateAsync({ base64, mimeType, folder: "service-photos" });
-        remoteUri = url;
-      } catch (uploadErr) {
-        console.warn("[ServiceGallery] S3 upload failed, using local URI:", uploadErr);
-        // Fall back to local URI — photo still works locally
-      } finally {
-        setUploadingLabel(null);
-      }
-    }
-
-    // ── Save to local store ───────────────────────────────────────────────
     const photo: ServicePhoto = {
-      id: photoId,
+      id: generateId(),
       serviceId: params.serviceId,
-      uri: remoteUri,
+      uri: result.assets[0].uri,
       label,
       note: "",
       takenAt: new Date().toISOString(),
     };
     dispatch({ type: "ADD_SERVICE_PHOTO", payload: photo });
-
-    // ── Persist to backend ────────────────────────────────────────────────
-    try {
-      await apiCall("/api/business/service-photos", {
-        method: "POST",
-        body: JSON.stringify({
-          serviceLocalId: params.serviceId,
-          uri: remoteUri,
-          label,
-          note: "",
-          takenAt: photo.takenAt,
-          sortOrder: photos.length,
-        }),
-      });
-    } catch (apiErr) {
-      // Non-fatal: photo is already in local store
-      console.warn("[ServiceGallery] Backend photo save failed:", apiErr);
-    }
-  }, [params.serviceId, dispatch, uploadImageMut, photos.length]);
+  }, [params.serviceId, dispatch]);
 
   const handleDeletePhoto = useCallback((photoId: string) => {
-    const doDelete = async () => {
-      dispatch({ type: "DELETE_SERVICE_PHOTO", payload: photoId });
-      // Also delete from backend (best-effort)
-      try {
-        await apiCall(`/api/business/service-photos/${photoId}`, { method: "DELETE" });
-      } catch {
-        // Non-fatal
-      }
-    };
-
     if (Platform.OS === "web") {
-      doDelete();
+      dispatch({ type: "DELETE_SERVICE_PHOTO", payload: photoId });
     } else {
       Alert.alert("Delete Photo", "Remove this photo from the gallery?", [
         { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: doDelete },
+        { text: "Delete", style: "destructive", onPress: () => dispatch({ type: "DELETE_SERVICE_PHOTO", payload: photoId }) },
       ]);
     }
   }, [dispatch]);
@@ -155,7 +97,7 @@ export default function ServiceGalleryScreen() {
   if (!service) {
     return (
       <ScreenContainer>
-        <FuturisticBackground />
+      <FuturisticBackground />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
           <Text style={{ color: colors.muted }}>Service not found.</Text>
           <Pressable onPress={() => router.back()} style={{ marginTop: 16 }}>
@@ -184,25 +126,17 @@ export default function ServiceGalleryScreen() {
             <Pressable
               key={lbl}
               onPress={() => handleAddPhoto(lbl)}
-              disabled={uploadingLabel !== null}
               style={({ pressed }) => ({
                 backgroundColor: LABEL_CONFIG[lbl].color + "20",
                 borderRadius: 8,
                 paddingHorizontal: 10,
                 paddingVertical: 6,
-                opacity: pressed || uploadingLabel !== null ? 0.6 : 1,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 4,
+                opacity: pressed ? 0.7 : 1,
               })}
             >
-              {uploadingLabel === lbl ? (
-                <ActivityIndicator size="small" color={LABEL_CONFIG[lbl].color} />
-              ) : (
-                <Text style={{ fontSize: 11, fontWeight: "700", color: LABEL_CONFIG[lbl].color }}>
-                  + {LABEL_CONFIG[lbl].label}
-                </Text>
-              )}
+              <Text style={{ fontSize: 11, fontWeight: "700", color: LABEL_CONFIG[lbl].color }}>
+                + {LABEL_CONFIG[lbl].label}
+              </Text>
             </Pressable>
           ))}
         </View>
@@ -249,9 +183,6 @@ export default function ServiceGalleryScreen() {
           <Text style={{ fontSize: 13, color: colors.muted, marginTop: 6, textAlign: "center" }}>
             Tap + Before, + After, or + Other above to add photos to this service's gallery.
           </Text>
-          <Text style={{ fontSize: 12, color: colors.muted, marginTop: 8, textAlign: "center" }}>
-            Photos are automatically uploaded to the cloud so clients can view them in the app.
-          </Text>
         </View>
       ) : (
         <FlatList
@@ -289,16 +220,6 @@ export default function ServiceGalleryScreen() {
                 }}>
                   <Text style={{ fontSize: 11, fontWeight: "700", color: "#FFF" }}>{cfg.label}</Text>
                 </View>
-                {/* Cloud indicator for remote photos */}
-                {item.uri.startsWith("http") && (
-                  <View style={{
-                    position: "absolute", top: 8, right: 32,
-                    backgroundColor: "rgba(0,0,0,0.45)",
-                    borderRadius: 8, paddingHorizontal: 5, paddingVertical: 3,
-                  }}>
-                    <IconSymbol name="icloud.fill" size={12} color="#FFF" />
-                  </View>
-                )}
                 {/* Delete button */}
                 <Pressable
                   onPress={() => handleDeletePhoto(item.id)}
