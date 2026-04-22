@@ -1637,3 +1637,10 @@
 - [x] Revenue summary card on Home screen from Stripe balance
 - [x] Push notification to owner when client submits cancel/reschedule request
 - [x] Response window countdown timer on owner's pending-requests list
+- [x] Add discountPercent field to subscriptionPlans DB schema for plan-level discounts
+- [x] Add discountLabel field to subscriptionPlans DB schema (e.g. "Launch Special", "50% off first 3 months")
+- [x] Update Admin Panel plan editor to show discount % and label fields
+- [x] Update getPublicPlans to return discountPercent and discountLabel
+- [x] Update stripeRoutes.ts create-checkout to apply discount: use discounted price as Stripe price unit_amount
+- [x] Update choose-plan.tsx, onboarding.tsx, subscription.tsx to show discount badge when discountPercent > 0
+- [x] Fix confirmation email in stripeRoutes.ts to use DB prices instead of FALLBACK_PRICES

@@ -32,6 +32,13 @@ export type PlanData = {
   displayName: string;
   monthlyPrice: number;
   yearlyPrice: number;
+  /** Effective price after admin discount (same as monthlyPrice when no discount) */
+  effectiveMonthlyPrice?: number;
+  effectiveYearlyPrice?: number;
+  /** Admin-set discount percentage 0-100 */
+  discountPercent?: number;
+  /** Admin-set discount label shown as badge (e.g. "Launch Special") */
+  discountLabel?: string | null;
   maxClients: number;
   maxAppointments: number;
   maxLocations: number;
@@ -107,10 +114,15 @@ function PlanCard({
   const tagline = PLAN_TAGLINES[plan.planKey] ?? "";
   const isPopular = plan.planKey === "growth";
   const isFree = plan.monthlyPrice === 0;
-  const price = isYearly ? Math.round(plan.yearlyPrice / 12) : plan.monthlyPrice;
+  // Use effective prices (after admin discount) for display and Stripe
+  const effectiveMonthly = plan.effectiveMonthlyPrice ?? plan.monthlyPrice;
+  const effectiveYearly = plan.effectiveYearlyPrice ?? plan.yearlyPrice;
+  const price = isYearly ? Math.round(effectiveYearly / 12) : Math.round(effectiveMonthly);
+  const originalPrice = isYearly ? Math.round(plan.yearlyPrice / 12) : plan.monthlyPrice;
+  const hasDiscount = (plan.discountPercent ?? 0) > 0;
   const savings =
-    isYearly && !isFree && plan.monthlyPrice > 0
-      ? Math.round(((plan.monthlyPrice * 12 - plan.yearlyPrice) / (plan.monthlyPrice * 12)) * 100)
+    isYearly && !isFree && effectiveMonthly > 0
+      ? Math.round(((effectiveMonthly * 12 - effectiveYearly) / (effectiveMonthly * 12)) * 100)
       : 0;
   const accent = gradients[0];
 
@@ -165,6 +177,13 @@ function PlanCard({
                   <Text style={[styles.badgeText, { color: "#22C55E" }]}>✓ ACTIVE</Text>
                 </View>
               )}
+              {hasDiscount && (
+                <View style={[styles.badge, { backgroundColor: "#F59E0B22", borderColor: "#F59E0B55" }]}>
+                  <Text style={[styles.badgeText, { color: "#F59E0B" }]}>
+                    🏷️ {plan.discountLabel ?? `${plan.discountPercent}% OFF`}
+                  </Text>
+                </View>
+              )}
             </View>
             <Text style={[styles.planTagline, { color: colors.muted }]}>{tagline}</Text>
           </View>
@@ -174,9 +193,16 @@ function PlanCard({
             {isFree ? (
               <Text style={[styles.priceMain, { color: accent }]}>Free</Text>
             ) : (
-              <View style={styles.priceRow}>
-                <Text style={[styles.priceCurrency, { color: accent }]}>$</Text>
-                <Text style={[styles.priceMain, { color: accent }]}>{price}</Text>
+              <View style={{ alignItems: "flex-end" }}>
+                {hasDiscount && (
+                  <Text style={{ fontSize: 11, color: colors.muted, textDecorationLine: "line-through", marginBottom: 1 }}>
+                    ${originalPrice}
+                  </Text>
+                )}
+                <View style={styles.priceRow}>
+                  <Text style={[styles.priceCurrency, { color: accent }]}>$</Text>
+                  <Text style={[styles.priceMain, { color: accent }]}>{price}</Text>
+                </View>
               </View>
             )}
             {isFree ? (

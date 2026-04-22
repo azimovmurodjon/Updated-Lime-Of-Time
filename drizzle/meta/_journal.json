@@ -330,6 +330,13 @@
       "when": 1776870556017,
       "tag": "0046_unusual_typhoid_mary",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "5",
+      "when": 1776885324879,
+      "tag": "0047_bumpy_xavin",
+      "breakpoints": true
     }
   ]
 }

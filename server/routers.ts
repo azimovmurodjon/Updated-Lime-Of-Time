@@ -1158,21 +1158,31 @@ const subscriptionRouter = router({
   getPublicPlans: publicProcedure
     .query(async () => {
       const plans = await getPublicPlans();
-      return plans.map((p) => ({
-        planKey: p.planKey,
-        displayName: p.displayName,
-        monthlyPrice: parseFloat(p.monthlyPrice as unknown as string),
-        yearlyPrice: parseFloat(p.yearlyPrice as unknown as string),
-        maxClients: p.maxClients,
-        maxAppointments: p.maxAppointments,
-        maxLocations: p.maxLocations,
-        maxStaff: p.maxStaff,
-        maxServices: p.maxServices,
-        maxProducts: p.maxProducts,
-        smsLevel: p.smsLevel,
-        paymentLevel: p.paymentLevel,
-        sortOrder: p.sortOrder,
-      }));
+      return plans.map((p) => {
+        const monthly = parseFloat(p.monthlyPrice as unknown as string);
+        const yearly = parseFloat(p.yearlyPrice as unknown as string);
+        const discPct = (p as any).discountPercent ?? 0;
+        return {
+          planKey: p.planKey,
+          displayName: p.displayName,
+          monthlyPrice: monthly,
+          yearlyPrice: yearly,
+          // Effective prices after discount (what Stripe will charge)
+          effectiveMonthlyPrice: discPct > 0 ? parseFloat((monthly * (1 - discPct / 100)).toFixed(2)) : monthly,
+          effectiveYearlyPrice: discPct > 0 ? parseFloat((yearly * (1 - discPct / 100)).toFixed(2)) : yearly,
+          discountPercent: discPct,
+          discountLabel: (p as any).discountLabel ?? null,
+          maxClients: p.maxClients,
+          maxAppointments: p.maxAppointments,
+          maxLocations: p.maxLocations,
+          maxStaff: p.maxStaff,
+          maxServices: p.maxServices,
+          maxProducts: p.maxProducts,
+          smsLevel: p.smsLevel,
+          paymentLevel: p.paymentLevel,
+          sortOrder: p.sortOrder,
+        };
+      });
     }),
 });
 

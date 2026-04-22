@@ -521,6 +521,10 @@ export const subscriptionPlans = mysqlTable("subscription_plans", {
   paymentLevel: mysqlEnum("paymentLevel", ["basic", "full"]).notNull().default("basic"),
   /** Whether this plan is visible to the public (admin toggle) */
   isPublic: boolean("isPublic").notNull().default(false),
+  /** Discount percentage 0-100 (0 = no discount). Admin-controlled. */
+  discountPercent: int("discountPercent").notNull().default(0),
+  /** Optional discount label shown in app (e.g. "Launch Special", "50% off first 3 months") */
+  discountLabel: varchar("discountLabel", { length: 100 }),
   /** Sort order for display */
   sortOrder: int("sortOrder").notNull().default(0),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

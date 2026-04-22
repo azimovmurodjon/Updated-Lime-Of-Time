@@ -287,12 +287,28 @@ function PlanBenefitsCard({
         <View style={{ alignItems: "flex-end", marginLeft: 12 }}>
           {plan.monthlyPrice === 0 ? (
             <Text style={{ fontSize: 18, fontWeight: "800", color: colors.success }}>Free</Text>
-          ) : (
-            <>
-              <Text style={{ fontSize: 18, fontWeight: "800", color: colors.foreground }}>${plan.monthlyPrice}<Text style={{ fontSize: 12, fontWeight: "400", color: colors.muted }}>/mo</Text></Text>
-              <Text style={{ fontSize: 11, color: colors.muted }}>${plan.yearlyPrice}/yr</Text>
-            </>
-          )}
+          ) : (() => {
+            const discPct = (plan as any).discountPercent ?? 0;
+            const effMonthly = (plan as any).effectiveMonthlyPrice ?? plan.monthlyPrice;
+            const effYearly = (plan as any).effectiveYearlyPrice ?? plan.yearlyPrice;
+            const discLabel = (plan as any).discountLabel;
+            return (
+              <>
+                {discPct > 0 && (
+                  <View style={{ backgroundColor: "#F59E0B22", borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1, marginBottom: 2 }}>
+                    <Text style={{ fontSize: 9, fontWeight: "800", color: "#F59E0B", letterSpacing: 0.3 }}>
+                      🏷️ {discLabel ?? `${discPct}% OFF`}
+                    </Text>
+                  </View>
+                )}
+                {discPct > 0 && (
+                  <Text style={{ fontSize: 11, color: colors.muted, textDecorationLine: "line-through" }}>${plan.monthlyPrice}/mo</Text>
+                )}
+                <Text style={{ fontSize: 18, fontWeight: "800", color: colors.foreground }}>${effMonthly}<Text style={{ fontSize: 12, fontWeight: "400", color: colors.muted }}>/mo</Text></Text>
+                <Text style={{ fontSize: 11, color: colors.muted }}>${effYearly}/yr</Text>
+              </>
+            );
+          })()}
         </View>
         <IconSymbol
           name={expanded ? "chevron.down" : "chevron.right"}
@@ -334,11 +350,19 @@ export default function SubscriptionScreen() {
     refetchOnMount: true,
   });
 
-  // Merge live DB prices into PLAN_BENEFITS (keep features, override prices)
+  // Merge live DB prices (including discounts) into PLAN_BENEFITS
   const planBenefits = PLAN_BENEFITS.map((p) => {
-    const live = publicPlans?.find((lp: { planKey: string; monthlyPrice: number; yearlyPrice: number }) => lp.planKey === p.planKey);
+    const live = publicPlans?.find((lp: any) => lp.planKey === p.planKey);
     if (!live) return p;
-    return { ...p, monthlyPrice: live.monthlyPrice, yearlyPrice: live.yearlyPrice };
+    return {
+      ...p,
+      monthlyPrice: live.monthlyPrice,
+      yearlyPrice: live.yearlyPrice,
+      effectiveMonthlyPrice: live.effectiveMonthlyPrice ?? live.monthlyPrice,
+      effectiveYearlyPrice: live.effectiveYearlyPrice ?? live.yearlyPrice,
+      discountPercent: live.discountPercent ?? 0,
+      discountLabel: live.discountLabel ?? null,
+    };
   });
 
   // Refetch when screen comes into focus (e.g. after returning from Stripe checkout)

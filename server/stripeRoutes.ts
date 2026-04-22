@@ -50,22 +50,34 @@ const FALLBACK_PRICES: Record<string, { monthly: number; yearly: number; name: s
   enterprise: { monthly: 6900,  yearly: 69000, name: "Enterprise" },
 };
 
-/** Read plan price from DB (Admin Panel), falling back to hardcoded values */
-async function getPlanPrice(planKey: string): Promise<{ monthly: number; yearly: number; name: string } | null> {
+/** Read plan price from DB (Admin Panel), falling back to hardcoded values.
+ * Returns EFFECTIVE prices (after any admin-set discount).
+ */
+async function getPlanPrice(planKey: string): Promise<{ monthly: number; yearly: number; name: string; discountPercent: number; discountLabel: string | null } | null> {
   try {
     const plans = await getPublicPlans();
     const plan = plans.find((p) => p.planKey === planKey);
     if (plan) {
+      const monthly = parseFloat(plan.monthlyPrice as unknown as string);
+      const yearly = parseFloat(plan.yearlyPrice as unknown as string);
+      const discPct = (plan as any).discountPercent ?? 0;
+      const discLabel = (plan as any).discountLabel ?? null;
+      // Apply discount to get effective price
+      const effectiveMonthly = discPct > 0 ? monthly * (1 - discPct / 100) : monthly;
+      const effectiveYearly = discPct > 0 ? yearly * (1 - discPct / 100) : yearly;
       return {
-        monthly: Math.round(parseFloat(plan.monthlyPrice as unknown as string) * 100),
-        yearly: Math.round(parseFloat(plan.yearlyPrice as unknown as string) * 100),
+        monthly: Math.round(effectiveMonthly * 100),  // cents
+        yearly: Math.round(effectiveYearly * 100),    // cents
         name: plan.displayName,
+        discountPercent: discPct,
+        discountLabel: discLabel,
       };
     }
   } catch (e) {
     console.warn("[Stripe] Could not read plan price from DB, using fallback", e);
   }
-  return FALLBACK_PRICES[planKey] ?? null;
+  const fb = FALLBACK_PRICES[planKey];
+  return fb ? { ...fb, discountPercent: 0, discountLabel: null } : null;
 }
 
 async function getStripeAsync(): Promise<Stripe | null> {
@@ -148,13 +160,18 @@ export function registerStripeRoutes(app: Express): void {
         }
       }
 
-      // Create a price on the fly (test mode)
+      // Build product name — include discount label if applicable
+      const productName = planInfo.discountPercent > 0
+        ? `${planInfo.name} Plan (${period}) — ${planInfo.discountLabel ?? planInfo.discountPercent + '% off'}`
+        : `${planInfo.name} Plan (${period})`;
+
+      // Create a price on the fly with the effective (post-discount) amount
       const price = await stripe.prices.create({
-        unit_amount: priceAmount,
+        unit_amount: priceAmount,  // already discounted in getPlanPrice()
         currency: "usd",
         recurring: { interval },
         product_data: {
-          name: `${planInfo.name} Plan (${period})`,
+          name: productName,
         },
       });
 
@@ -255,12 +272,13 @@ export function registerStripeRoutes(app: Express): void {
               .where(eq(businessOwners.id, businessOwnerId)).limit(1);
             const owner = ownerRows[0];
             if (owner?.email) {
-              const planName = FALLBACK_PRICES[planKey]?.name ?? planKey;
+              // Use DB prices (already discounted) for the email
+              const dbPriceInfo = await getPlanPrice(planKey).catch(() => null);
+              const planName = dbPriceInfo?.name ?? FALLBACK_PRICES[planKey]?.name ?? planKey;
               const billingPeriod = (period ?? "monthly") === "yearly" ? "yearly" : "monthly";
-              const priceInfo = FALLBACK_PRICES[planKey];
               const amount = billingPeriod === "yearly"
-                ? (priceInfo?.yearly ?? 0) / 100
-                : (priceInfo?.monthly ?? 0) / 100;
+                ? (dbPriceInfo?.yearly ?? FALLBACK_PRICES[planKey]?.yearly ?? 0) / 100
+                : (dbPriceInfo?.monthly ?? FALLBACK_PRICES[planKey]?.monthly ?? 0) / 100;
               // Calculate next renewal date
               const nextRenewal = new Date();
               if (billingPeriod === "yearly") {
@@ -371,12 +389,13 @@ export function registerStripeRoutes(app: Express): void {
                 .where(eq(businessOwners.id, businessOwnerId));
               // Send confirmation email (webhook may not have fired yet)
               if (existing?.email) {
-                const planName = FALLBACK_PRICES[planKey]?.name ?? planKey;
+                // Use DB prices (already discounted) for the email
+                const dbPriceInfoSuccess = await getPlanPrice(planKey).catch(() => null);
+                const planName = dbPriceInfoSuccess?.name ?? FALLBACK_PRICES[planKey]?.name ?? planKey;
                 const billingPeriod = (period ?? "monthly") === "yearly" ? "yearly" : "monthly";
-                const priceInfo = FALLBACK_PRICES[planKey];
                 const amount = billingPeriod === "yearly"
-                  ? (priceInfo?.yearly ?? 0) / 100
-                  : (priceInfo?.monthly ?? 0) / 100;
+                  ? (dbPriceInfoSuccess?.yearly ?? FALLBACK_PRICES[planKey]?.yearly ?? 0) / 100
+                  : (dbPriceInfoSuccess?.monthly ?? FALLBACK_PRICES[planKey]?.monthly ?? 0) / 100;
                 const nextRenewal = new Date();
                 if (billingPeriod === "yearly") {
                   nextRenewal.setFullYear(nextRenewal.getFullYear() + 1);
