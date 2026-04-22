@@ -1651,3 +1651,5 @@
 - [x] Fix Admin Panel Plan Pricing save button being disabled
 - [x] Fix Subscription screen not opening from Settings Tools (added to Stack in _layout.tsx)
 - [x] Verify DB update pipeline for plan pricing saves correctly
+- [x] Fix discountExpiresAt input: change from datetime-local to date-only to avoid browser validation error
+- [x] Restore dirty-check Save button: only enable when form values have changed

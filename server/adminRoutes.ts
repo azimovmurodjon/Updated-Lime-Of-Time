@@ -4906,9 +4906,9 @@ function plansPage(plans: any[]): string {
             </div>
             <div>
               <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Discount Expires At (optional)</label>
-              <input name="discountExpiresAt" type="datetime-local" value="${(p as any).discountExpiresAt ? new Date((p as any).discountExpiresAt).toISOString().slice(0,16) : ''}"
+              <input name="discountExpiresAt" type="date" value="${(p as any).discountExpiresAt ? new Date((p as any).discountExpiresAt).toISOString().slice(0,10) : ''}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;" />
-              <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Discount auto-expires at this date/time. Leave blank for no expiry.</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Discount auto-expires at end of this date. Leave blank for no expiry.</div>
             </div>
           </div>
         </div>
@@ -4961,7 +4961,7 @@ function plansPage(plans: any[]): string {
             </label>
           </div>
         </div>
-        <button type="submit" class="plan-save-btn" data-plan="${p.id}" style="background:var(--primary);color:white;padding:10px 20px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:background 0.2s,color 0.2s;">💾 Save Changes</button>
+        <button type="submit" class="plan-save-btn" data-plan="${p.id}" disabled style="background:var(--border);color:var(--text-muted);padding:10px 20px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:not-allowed;transition:background 0.2s,color 0.2s;">💾 Save Changes</button>
       </form>
     </div>
   `).join("");
@@ -4976,6 +4976,43 @@ function plansPage(plans: any[]): string {
     </div>
     ${planCards}
 
+    <script>
+    (function() {
+      document.querySelectorAll('.plan-save-btn').forEach(function(btn) {
+        var form = btn.closest('form');
+        if (!form) return;
+        var initial = {};
+        form.querySelectorAll('input, select').forEach(function(el) {
+          var key = el.name || el.id;
+          if (!key) return;
+          if (el.type === 'checkbox') initial[key] = el.checked;
+          else initial[key] = el.value;
+        });
+        function checkDirty() {
+          var dirty = false;
+          form.querySelectorAll('input, select').forEach(function(el) {
+            var key = el.name || el.id;
+            if (!key) return;
+            var cur = el.type === 'checkbox' ? el.checked : el.value;
+            if (cur !== initial[key]) dirty = true;
+          });
+          if (dirty) {
+            btn.disabled = false;
+            btn.style.background = 'var(--primary)';
+            btn.style.color = 'white';
+            btn.style.cursor = 'pointer';
+          } else {
+            btn.disabled = true;
+            btn.style.background = 'var(--border)';
+            btn.style.color = 'var(--text-muted)';
+            btn.style.cursor = 'not-allowed';
+          }
+        }
+        form.addEventListener('input', checkDirty);
+        form.addEventListener('change', checkDirty);
+      });
+    })();
+    </script>
   `);
 }
 
