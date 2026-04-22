@@ -118,19 +118,19 @@ export default function ClientBookingWizardScreen() {
   // Whether to show the location step (only when >1 active location)
   const showLocationStep = locations.length > 1;
 
-  // Build the step list dynamically
+  // Build the step list dynamically — Date & Time are merged into one step
   const STEPS = showLocationStep
-    ? ["Service", "Staff", "Location", "Date", "Time", "Payment", "Confirm"]
-    : ["Service", "Staff", "Date", "Time", "Payment", "Confirm"];
+    ? ["Service", "Staff", "Location", "Date & Time", "Payment", "Confirm"]
+    : ["Service", "Staff", "Date & Time", "Payment", "Confirm"];
 
   // Step indices (dynamic based on whether location step is shown)
   const STEP_SERVICE = 0;
   const STEP_STAFF = 1;
   const STEP_LOCATION = showLocationStep ? 2 : -1;
-  const STEP_DATE = showLocationStep ? 3 : 2;
-  const STEP_TIME = showLocationStep ? 4 : 3;
-  const STEP_PAYMENT = showLocationStep ? 5 : 4;
-  const STEP_CONFIRM = showLocationStep ? 6 : 5;
+  const STEP_DATE = showLocationStep ? 3 : 2;   // merged Date+Time step
+  const STEP_TIME = STEP_DATE;                   // same step as date
+  const STEP_PAYMENT = showLocationStep ? 4 : 3;
+  const STEP_CONFIRM = showLocationStep ? 5 : 4;
 
   // Load services, staff, and locations
   useEffect(() => {
@@ -473,16 +473,18 @@ export default function ClientBookingWizardScreen() {
           </View>
         )}
 
-        {/* Date step */}
+        {/* Date & Time step — merged into one */}
         {step === STEP_DATE && (
           <View style={s.stepContent}>
-            <Text style={[s.stepTitle, { color: colors.foreground }]}>Pick a Date</Text>
+            <Text style={[s.stepTitle, { color: colors.foreground }]}>Pick a Date & Time</Text>
             {selectedLocation && (
               <View style={[s.locationBadge, { backgroundColor: `${LIME_GREEN}15`, borderColor: `${LIME_GREEN}40` }]}>
                 <IconSymbol name="location.fill" size={12} color={LIME_GREEN} />
                 <Text style={{ color: LIME_GREEN, fontSize: 12, fontWeight: "600" }}>{selectedLocation.name}</Text>
               </View>
             )}
+
+            {/* ── Calendar ── */}
             <View style={s.monthNav}>
               <Pressable
                 style={({ pressed }) => [s.monthBtn, pressed && { opacity: 0.7 }]}
@@ -525,6 +527,7 @@ export default function ClientBookingWizardScreen() {
                       if (isPast) return;
                       if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       setSelectedDate(day);
+                      setSelectedSlot(null); // reset time when date changes
                     }}
                     disabled={isPast}
                   >
@@ -535,57 +538,48 @@ export default function ClientBookingWizardScreen() {
                 );
               })}
             </View>
-            {selectedDate && (
-              <Text style={[s.selectedDateLabel, { color: LIME_GREEN }]}>Selected: {formatDateLabel(selectedDate)}</Text>
-            )}
-          </View>
-        )}
 
-        {/* Time Slots step */}
-        {step === STEP_TIME && (
-          <View style={s.stepContent}>
-            <Text style={[s.stepTitle, { color: colors.foreground }]}>
-              Available Times{selectedDate ? ` · ${formatDateLabel(selectedDate)}` : ""}
-            </Text>
-            {selectedLocation && (
-              <View style={[s.locationBadge, { backgroundColor: `${LIME_GREEN}15`, borderColor: `${LIME_GREEN}40` }]}>
-                <IconSymbol name="location.fill" size={12} color={LIME_GREEN} />
-                <Text style={{ color: LIME_GREEN, fontSize: 12, fontWeight: "600" }}>{selectedLocation.name}</Text>
-              </View>
-            )}
-            {loadingSlots ? (
-              <ActivityIndicator color={LIME_GREEN} style={{ marginTop: 24 }} />
-            ) : slots.length === 0 ? (
-              <View style={s.noSlots}>
-                <IconSymbol name="clock" size={28} color={colors.muted} />
-                <Text style={[s.noSlotsText, { color: colors.muted }]}>No available times on this date.</Text>
-                <Pressable onPress={() => setStep(STEP_DATE)}>
-                  <Text style={{ color: LIME_GREEN, fontWeight: "600" }}>Pick another date</Text>
-                </Pressable>
-              </View>
-            ) : (
-              <View style={s.slotsGrid}>
-                {slots.map((slot) => {
-                  const isSelected = selectedSlot?.time === slot.time;
-                  return (
-                    <Pressable
-                      key={slot.time}
-                      style={({ pressed }) => [
-                        s.slotBtn,
-                        { backgroundColor: isSelected ? LIME_GREEN : colors.surface, borderColor: isSelected ? LIME_GREEN : colors.border },
-                        pressed && { opacity: 0.8 },
-                      ]}
-                      onPress={() => {
-                        if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        setSelectedSlot(slot);
-                      }}
-                    >
-                      <Text style={{ color: isSelected ? "#FFFFFF" : colors.foreground, fontSize: 14, fontWeight: "600" }}>
-                        {slot.time}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+            {/* ── Available Times (shown below calendar once a date is selected) ── */}
+            {selectedDate && (
+              <View style={{ marginTop: 8 }}>
+                <View style={s.timeSectionHeader}>
+                  <IconSymbol name="clock" size={15} color={LIME_GREEN} />
+                  <Text style={[s.timeSectionTitle, { color: colors.foreground }]}>
+                    Available Times · {formatDateLabel(selectedDate)}
+                  </Text>
+                </View>
+                {loadingSlots ? (
+                  <ActivityIndicator color={LIME_GREEN} style={{ marginTop: 16 }} />
+                ) : slots.length === 0 ? (
+                  <View style={s.noSlots}>
+                    <Text style={[s.noSlotsText, { color: colors.muted }]}>No available times on this date.</Text>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>Try selecting a different date above.</Text>
+                  </View>
+                ) : (
+                  <View style={s.slotsGrid}>
+                    {slots.map((slot) => {
+                      const isSelected = selectedSlot?.time === slot.time;
+                      return (
+                        <Pressable
+                          key={slot.time}
+                          style={({ pressed }) => [
+                            s.slotBtn,
+                            { backgroundColor: isSelected ? LIME_GREEN : colors.surface, borderColor: isSelected ? LIME_GREEN : colors.border },
+                            pressed && { opacity: 0.8 },
+                          ]}
+                          onPress={() => {
+                            if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setSelectedSlot(slot);
+                          }}
+                        >
+                          <Text style={{ color: isSelected ? "#FFFFFF" : colors.foreground, fontSize: 14, fontWeight: "600" }}>
+                            {slot.time}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
               </View>
             )}
           </View>
@@ -763,8 +757,8 @@ function canProceed(
   if (step === STEP_SERVICE) return selectedService != null;
   if (step === STEP_STAFF) return selectedStaffId !== undefined;
   if (showLocationStep && step === STEP_LOCATION) return selectedLocation != null;
-  if (step === STEP_DATE) return selectedDate != null;
-  if (step === STEP_TIME) return selectedSlot != null;
+  // Date and Time are merged — require both a date AND a time slot to proceed
+  if (step === STEP_DATE) return selectedDate != null && selectedSlot != null;
   if (step === STEP_PAYMENT) {
     if (!paymentMethod) return false;
     if (paymentMethod !== "cash" && !paymentConfirmationNumber?.trim()) return false;
@@ -812,6 +806,8 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     calGrid: { flexDirection: "row", flexWrap: "wrap" },
     calCell: { width: "14.28%" as any, aspectRatio: 1, alignItems: "center", justifyContent: "center" },
     selectedDateLabel: { textAlign: "center", fontSize: 14, fontWeight: "600", marginTop: 12 },
+    timeSectionHeader: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6, marginBottom: 10 },
+    timeSectionTitle: { fontSize: 15, fontWeight: "700" as const },
     noSlots: { alignItems: "center", paddingTop: 40, gap: 12 },
     noSlotsText: { fontSize: 14 },
     slotsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },

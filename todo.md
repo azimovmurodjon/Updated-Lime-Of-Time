@@ -1857,3 +1857,5 @@
 - [x] Client booking wizard: pass locationId to slots API so per-location hours are respected
 - [x] Client business detail: Hours tab shows per-location working hours (grouped by location when multiple)
 - [x] Locations screen: show working hours summary on each location card
+- [x] Fix "Failed to fetch" error on client profile edit screen (Save Changes)
+- [x] Merge booking wizard "Pick a Date" + "Available Time" steps into a single unified calendar+time picker screen

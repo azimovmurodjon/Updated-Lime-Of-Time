@@ -45,6 +45,12 @@ export function getApiBaseUrl(): string {
     }
   }
 
+  // On native (iOS/Android), fall back to the deployed production domain
+  // so Expo Go users on real phones can reach the API server
+  if (ReactNative.Platform.OS !== "web") {
+    return "https://manussched-dw4mhfnu.manus.space";
+  }
+
   // Fallback to empty (will use relative URL)
   return "";
 }
