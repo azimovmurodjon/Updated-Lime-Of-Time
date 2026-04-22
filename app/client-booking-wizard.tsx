@@ -1,12 +1,14 @@
 /**
  * Client Portal — Booking Wizard
  *
- * 5-step native booking flow:
- * 1. Service selection (pre-selected if coming from service card)
- * 2. Staff selection (or "Any available")
+ * Dynamic step flow:
+ * 0. Service selection (pre-selected if coming from service card)
+ * 1. Staff selection (or "Any available")
+ * 2. Location selection (only shown when business has >1 active location)
  * 3. Date picker
- * 4. Time slot picker
- * 5. Confirm & notes
+ * 4. Time slot picker (location-aware when location selected)
+ * 5. Payment
+ * 6. Confirm & notes
  */
 import React, { useEffect, useState } from "react";
 import {
@@ -46,11 +48,17 @@ interface PublicStaff {
   photoUri: string | null;
   serviceIds: string[];
 }
+interface PublicLocation {
+  localId: string;
+  name: string;
+  address: string;
+  phone: string;
+  workingHours: Record<string, { enabled: boolean; start: string; end: string }> | null;
+  temporarilyClosed: boolean;
+}
 interface AvailableSlot {
   time: string;
 }
-
-const STEPS = ["Service", "Staff", "Date", "Time", "Payment", "Confirm"];
 
 const PAYMENT_METHODS = [
   { id: "zelle", label: "Zelle", icon: "💜", hint: "Send to business Zelle number" },
@@ -88,12 +96,14 @@ export default function ClientBookingWizardScreen() {
   const [step, setStep] = useState(0);
   const [services, setServices] = useState<PublicService[]>([]);
   const [staff, setStaff] = useState<PublicStaff[]>([]);
+  const [locations, setLocations] = useState<PublicLocation[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const [selectedService, setSelectedService] = useState<PublicService | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<string>("any");
+  const [selectedLocation, setSelectedLocation] = useState<PublicLocation | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
   const [notes, setNotes] = useState("");
@@ -105,20 +115,47 @@ export default function ClientBookingWizardScreen() {
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
 
-  // Load services and staff from separate public endpoints
+  // Whether to show the location step (only when >1 active location)
+  const showLocationStep = locations.length > 1;
+
+  // Build the step list dynamically
+  const STEPS = showLocationStep
+    ? ["Service", "Staff", "Location", "Date", "Time", "Payment", "Confirm"]
+    : ["Service", "Staff", "Date", "Time", "Payment", "Confirm"];
+
+  // Step indices (dynamic based on whether location step is shown)
+  const STEP_SERVICE = 0;
+  const STEP_STAFF = 1;
+  const STEP_LOCATION = showLocationStep ? 2 : -1;
+  const STEP_DATE = showLocationStep ? 3 : 2;
+  const STEP_TIME = showLocationStep ? 4 : 3;
+  const STEP_PAYMENT = showLocationStep ? 5 : 4;
+  const STEP_CONFIRM = showLocationStep ? 6 : 5;
+
+  // Load services, staff, and locations
   useEffect(() => {
     (async () => {
       try {
-        const [svcRes, staffRes] = await Promise.all([
+        const [svcRes, staffRes, locRes] = await Promise.all([
           fetch(`${apiBase}/api/public/business/${slug}/services`),
           fetch(`${apiBase}/api/public/business/${slug}/staff`),
+          fetch(`${apiBase}/api/public/business/${slug}/locations`),
         ]);
         const svcData = svcRes.ok ? await svcRes.json() : [];
         const staffData = staffRes.ok ? await staffRes.json() : [];
+        const locData = locRes.ok ? await locRes.json() : [];
         const svcList: PublicService[] = Array.isArray(svcData) ? svcData : [];
         const staffList: PublicStaff[] = Array.isArray(staffData) ? staffData : [];
+        const locList: PublicLocation[] = Array.isArray(locData)
+          ? locData.filter((l: any) => !l.temporarilyClosed)
+          : [];
         setServices(svcList);
         setStaff(staffList);
+        setLocations(locList);
+        // Auto-select single location
+        if (locList.length === 1) {
+          setSelectedLocation(locList[0]);
+        }
         if (serviceLocalId) {
           const found = svcList.find((s) => s.localId === serviceLocalId);
           if (found) {
@@ -132,9 +169,10 @@ export default function ClientBookingWizardScreen() {
         setLoadingData(false);
       }
     })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, serviceLocalId, apiBase]);
 
-  // Load slots using /api/public/business/:slug/slots
+  // Load slots — location-aware
   useEffect(() => {
     if (!selectedDate || !selectedService) return;
     (async () => {
@@ -144,9 +182,10 @@ export default function ClientBookingWizardScreen() {
       try {
         const dateStr = selectedDate.toISOString().split("T")[0];
         const staffParam = selectedStaffId !== "any" ? `&staffId=${encodeURIComponent(selectedStaffId)}` : "";
+        const locParam = selectedLocation ? `&locationId=${encodeURIComponent(selectedLocation.localId)}` : "";
         const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
         const clientToday = new Date().toISOString().split("T")[0];
-        const url = `${apiBase}/api/public/business/${slug}/slots?date=${dateStr}&duration=${selectedService.duration}${staffParam}&clientToday=${clientToday}&nowMinutes=${nowMinutes}`;
+        const url = `${apiBase}/api/public/business/${slug}/slots?date=${dateStr}&duration=${selectedService.duration}${staffParam}${locParam}&clientToday=${clientToday}&nowMinutes=${nowMinutes}`;
         const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
@@ -159,7 +198,7 @@ export default function ClientBookingWizardScreen() {
         setLoadingSlots(false);
       }
     })();
-  }, [selectedDate, selectedService, selectedStaffId, slug, apiBase]);
+  }, [selectedDate, selectedService, selectedStaffId, selectedLocation, slug, apiBase]);
 
   const handleNext = () => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -187,7 +226,6 @@ export default function ClientBookingWizardScreen() {
       const dateStr = selectedDate.toISOString().split("T")[0];
       const clientName = state.account?.name ?? "Guest";
       const clientEmail = state.account?.email ?? undefined;
-      // Normalize phone: strip non-digits, add country code if needed
       const rawPhone = state.account?.phone ?? "";
       const clientPhone = rawPhone.startsWith("oauth:") ? undefined : rawPhone || undefined;
       const res = await fetch(`${apiBase}/api/public/business/${slug}/book`, {
@@ -203,6 +241,7 @@ export default function ClientBookingWizardScreen() {
           duration: selectedService.duration,
           notes: notes.trim() || null,
           staffId: selectedStaffId !== "any" ? selectedStaffId : undefined,
+          locationId: selectedLocation?.localId ?? undefined,
           paymentMethod,
           paymentConfirmationNumber: paymentMethod !== "cash" ? paymentConfirmationNumber.trim() : undefined,
         }),
@@ -214,20 +253,21 @@ export default function ClientBookingWizardScreen() {
       const bookingResult = await res.json().catch(() => ({}));
       const appointmentId = bookingResult?.appointmentId ?? `appt-${Date.now()}`;
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // Schedule local push notification reminders based on user preferences
       scheduleAppointmentReminders(
         appointmentId,
         slug,
         selectedService.name,
         dateStr,
         selectedSlot.time
-      ).catch(() => {}); // Non-blocking — don't fail booking if notifications fail
+      ).catch(() => {});
       const selectedStaffMember = selectedStaffId !== "any" ? staff.find((m) => m.localId === selectedStaffId) : null;
       router.replace({
         pathname: "/client-booking-confirmation",
         params: {
           serviceName: selectedService.name,
           staffName: selectedStaffMember?.name ?? "",
+          locationName: selectedLocation?.name ?? "",
+          locationAddress: selectedLocation?.address ?? "",
           date: dateStr,
           time: selectedSlot.time,
           duration: String(selectedService.duration),
@@ -276,6 +316,7 @@ export default function ClientBookingWizardScreen() {
         <Text style={[s.headerTitle, { color: colors.foreground }]}>Book Appointment</Text>
         <View style={{ width: 32 }} />
       </View>
+
       {/* Step indicator */}
       <View style={s.stepIndicator}>
         {STEPS.map((label, i) => (
@@ -296,8 +337,9 @@ export default function ClientBookingWizardScreen() {
       <Text style={[s.stepLabel, { color: LIME_GREEN }]}>{STEPS[step]}</Text>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+
         {/* Step 0: Service */}
-        {step === 0 && (
+        {step === STEP_SERVICE && (
           <View style={s.stepContent}>
             <Text style={[s.stepTitle, { color: colors.foreground }]}>Choose a Service</Text>
             {services.length === 0 ? (
@@ -335,7 +377,7 @@ export default function ClientBookingWizardScreen() {
         )}
 
         {/* Step 1: Staff */}
-        {step === 1 && (
+        {step === STEP_STAFF && (
           <View style={s.stepContent}>
             <Text style={[s.stepTitle, { color: colors.foreground }]}>Choose a Staff Member</Text>
             <Pressable
@@ -388,10 +430,59 @@ export default function ClientBookingWizardScreen() {
           </View>
         )}
 
-        {/* Step 2: Date */}
-        {step === 2 && (
+        {/* Step 2 (dynamic): Location — only shown when >1 location */}
+        {step === STEP_LOCATION && showLocationStep && (
+          <View style={s.stepContent}>
+            <Text style={[s.stepTitle, { color: colors.foreground }]}>Choose a Location</Text>
+            <Text style={[s.stepSubtitle, { color: colors.muted }]}>Select where you'd like your appointment.</Text>
+            {locations.map((loc) => (
+              <Pressable
+                key={loc.localId}
+                style={({ pressed }) => [
+                  s.optionCard,
+                  { backgroundColor: colors.surface, borderColor: selectedLocation?.localId === loc.localId ? LIME_GREEN : colors.border },
+                  selectedLocation?.localId === loc.localId && { borderWidth: 2 },
+                  pressed && { opacity: 0.85 },
+                ]}
+                onPress={() => {
+                  if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setSelectedLocation(loc);
+                  setSelectedDate(null);
+                  setSelectedSlot(null);
+                }}
+              >
+                <View style={[s.staffAvatar, { backgroundColor: `${LIME_GREEN}20` }]}>
+                  <IconSymbol name="location.fill" size={18} color={LIME_GREEN} />
+                </View>
+                <View style={s.optionLeft}>
+                  <Text style={[s.optionName, { color: colors.foreground }]}>{loc.name}</Text>
+                  {loc.address ? (
+                    <Text style={[s.optionDesc, { color: colors.muted }]} numberOfLines={2}>{loc.address}</Text>
+                  ) : null}
+                  {loc.phone ? (
+                    <Text style={[s.optionMeta, { color: LIME_GREEN }]}>{loc.phone}</Text>
+                  ) : null}
+                </View>
+                {selectedLocation?.localId === loc.localId && (
+                  <View style={[s.checkCircle, { backgroundColor: LIME_GREEN }]}>
+                    <IconSymbol name="checkmark" size={14} color="#FFFFFF" />
+                  </View>
+                )}
+              </Pressable>
+            ))}
+          </View>
+        )}
+
+        {/* Date step */}
+        {step === STEP_DATE && (
           <View style={s.stepContent}>
             <Text style={[s.stepTitle, { color: colors.foreground }]}>Pick a Date</Text>
+            {selectedLocation && (
+              <View style={[s.locationBadge, { backgroundColor: `${LIME_GREEN}15`, borderColor: `${LIME_GREEN}40` }]}>
+                <IconSymbol name="location.fill" size={12} color={LIME_GREEN} />
+                <Text style={{ color: LIME_GREEN, fontSize: 12, fontWeight: "600" }}>{selectedLocation.name}</Text>
+              </View>
+            )}
             <View style={s.monthNav}>
               <Pressable
                 style={({ pressed }) => [s.monthBtn, pressed && { opacity: 0.7 }]}
@@ -450,19 +541,25 @@ export default function ClientBookingWizardScreen() {
           </View>
         )}
 
-        {/* Step 3: Time Slots */}
-        {step === 3 && (
+        {/* Time Slots step */}
+        {step === STEP_TIME && (
           <View style={s.stepContent}>
             <Text style={[s.stepTitle, { color: colors.foreground }]}>
               Available Times{selectedDate ? ` · ${formatDateLabel(selectedDate)}` : ""}
             </Text>
+            {selectedLocation && (
+              <View style={[s.locationBadge, { backgroundColor: `${LIME_GREEN}15`, borderColor: `${LIME_GREEN}40` }]}>
+                <IconSymbol name="location.fill" size={12} color={LIME_GREEN} />
+                <Text style={{ color: LIME_GREEN, fontSize: 12, fontWeight: "600" }}>{selectedLocation.name}</Text>
+              </View>
+            )}
             {loadingSlots ? (
               <ActivityIndicator color={LIME_GREEN} style={{ marginTop: 24 }} />
             ) : slots.length === 0 ? (
               <View style={s.noSlots}>
                 <IconSymbol name="clock" size={28} color={colors.muted} />
                 <Text style={[s.noSlotsText, { color: colors.muted }]}>No available times on this date.</Text>
-                <Pressable onPress={() => setStep(2)}>
+                <Pressable onPress={() => setStep(STEP_DATE)}>
                   <Text style={{ color: LIME_GREEN, fontWeight: "600" }}>Pick another date</Text>
                 </Pressable>
               </View>
@@ -494,15 +591,14 @@ export default function ClientBookingWizardScreen() {
           </View>
         )}
 
-        {/* Step 4: Payment */}
-        {step === 4 && selectedService && (
+        {/* Payment step */}
+        {step === STEP_PAYMENT && selectedService && (
           <View style={s.stepContent}>
             <Text style={[s.stepTitle, { color: colors.foreground }]}>Payment</Text>
             <Text style={[s.stepSubtitle, { color: colors.muted }]}>
               Select how you'll pay for this appointment.
             </Text>
 
-            {/* Payment method cards */}
             <View style={{ gap: 10, marginTop: 8 }}>
               {PAYMENT_METHODS.map((method) => (
                 <Pressable
@@ -533,7 +629,6 @@ export default function ClientBookingWizardScreen() {
               ))}
             </View>
 
-            {/* Confirmation number input for digital payments */}
             {paymentMethod && paymentMethod !== "cash" && (
               <View style={{ marginTop: 16 }}>
                 <Text style={[s.notesLabel, { color: colors.foreground }]}>
@@ -554,7 +649,6 @@ export default function ClientBookingWizardScreen() {
               </View>
             )}
 
-            {/* Cash info */}
             {paymentMethod === "cash" && (
               <View style={[s.cashInfoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <IconSymbol name="info.circle.fill" size={18} color={colors.muted} />
@@ -566,8 +660,8 @@ export default function ClientBookingWizardScreen() {
           </View>
         )}
 
-        {/* Step 5: Confirm */}
-        {step === 5 && selectedService && selectedDate && selectedSlot && (
+        {/* Confirm step */}
+        {step === STEP_CONFIRM && selectedService && selectedDate && selectedSlot && (
           <View style={s.stepContent}>
             <Text style={[s.stepTitle, { color: colors.foreground }]}>Confirm Booking</Text>
             <View style={[s.confirmCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -576,6 +670,9 @@ export default function ClientBookingWizardScreen() {
               <Row label="Price" value={formatPrice(selectedService.price)} colors={colors} />
               <Row label="Date" value={formatDateLabel(selectedDate)} colors={colors} />
               <Row label="Time" value={selectedSlot.time} colors={colors} />
+              {selectedLocation && (
+                <Row label="Location" value={selectedLocation.name} colors={colors} />
+              )}
               {selectedStaffId !== "any" && (
                 <Row
                   label="Staff"
@@ -616,11 +713,11 @@ export default function ClientBookingWizardScreen() {
           <Pressable
             style={({ pressed }) => [
               s.nextBtn,
-              { opacity: canProceed(step, selectedService, selectedStaffId, selectedDate, selectedSlot, paymentMethod, paymentConfirmationNumber) ? 1 : 0.4 },
-              pressed && canProceed(step, selectedService, selectedStaffId, selectedDate, selectedSlot, paymentMethod, paymentConfirmationNumber) && { transform: [{ scale: 0.97 }] },
+              { opacity: canProceed(step, STEP_SERVICE, STEP_STAFF, STEP_LOCATION, STEP_DATE, STEP_TIME, STEP_PAYMENT, showLocationStep, selectedService, selectedStaffId, selectedLocation, selectedDate, selectedSlot, paymentMethod, paymentConfirmationNumber) ? 1 : 0.4 },
+              pressed && canProceed(step, STEP_SERVICE, STEP_STAFF, STEP_LOCATION, STEP_DATE, STEP_TIME, STEP_PAYMENT, showLocationStep, selectedService, selectedStaffId, selectedLocation, selectedDate, selectedSlot, paymentMethod, paymentConfirmationNumber) && { transform: [{ scale: 0.97 }] },
             ]}
             onPress={handleNext}
-            disabled={!canProceed(step, selectedService, selectedStaffId, selectedDate, selectedSlot, paymentMethod, paymentConfirmationNumber)}
+            disabled={!canProceed(step, STEP_SERVICE, STEP_STAFF, STEP_LOCATION, STEP_DATE, STEP_TIME, STEP_PAYMENT, showLocationStep, selectedService, selectedStaffId, selectedLocation, selectedDate, selectedSlot, paymentMethod, paymentConfirmationNumber)}
           >
             <Text style={s.nextBtnText}>Continue</Text>
             <IconSymbol name="chevron.right" size={16} color="#FFFFFF" />
@@ -646,12 +743,29 @@ export default function ClientBookingWizardScreen() {
   );
 }
 
-function canProceed(step: number, selectedService: any, selectedStaffId: any, selectedDate: Date | null, selectedSlot: any, paymentMethod?: string | null, paymentConfirmationNumber?: string): boolean {
-  if (step === 0) return selectedService != null;
-  if (step === 1) return selectedStaffId !== undefined;
-  if (step === 2) return selectedDate != null;
-  if (step === 3) return selectedSlot != null;
-  if (step === 4) {
+function canProceed(
+  step: number,
+  STEP_SERVICE: number,
+  STEP_STAFF: number,
+  STEP_LOCATION: number,
+  STEP_DATE: number,
+  STEP_TIME: number,
+  STEP_PAYMENT: number,
+  showLocationStep: boolean,
+  selectedService: any,
+  selectedStaffId: any,
+  selectedLocation: any,
+  selectedDate: Date | null,
+  selectedSlot: any,
+  paymentMethod?: string | null,
+  paymentConfirmationNumber?: string
+): boolean {
+  if (step === STEP_SERVICE) return selectedService != null;
+  if (step === STEP_STAFF) return selectedStaffId !== undefined;
+  if (showLocationStep && step === STEP_LOCATION) return selectedLocation != null;
+  if (step === STEP_DATE) return selectedDate != null;
+  if (step === STEP_TIME) return selectedSlot != null;
+  if (step === STEP_PAYMENT) {
     if (!paymentMethod) return false;
     if (paymentMethod !== "cash" && !paymentConfirmationNumber?.trim()) return false;
     return true;
@@ -663,7 +777,7 @@ function Row({ label, value, colors }: { label: string; value: string; colors: R
   return (
     <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
       <Text style={{ color: colors.muted, fontSize: 14 }}>{label}</Text>
-      <Text style={{ color: colors.foreground, fontSize: 14, fontWeight: "600" }}>{value}</Text>
+      <Text style={{ color: colors.foreground, fontSize: 14, fontWeight: "600", flexShrink: 1, textAlign: "right", marginLeft: 12 }}>{value}</Text>
     </View>
   );
 }
@@ -674,13 +788,14 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
     backBtn: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
     headerTitle: { fontSize: 17, fontWeight: "600" },
-    stepIndicator: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: 24, paddingTop: 8 },
+    stepIndicator: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: 16, paddingTop: 8 },
     stepItem: { flexDirection: "row", alignItems: "center" },
-    stepDot: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-    stepLine: { width: 28, height: 2, marginHorizontal: 2 },
+    stepDot: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+    stepLine: { width: 20, height: 2, marginHorizontal: 1 },
     stepLabel: { textAlign: "center", fontSize: 13, fontWeight: "600", marginTop: 6, marginBottom: 4 },
     stepContent: { paddingTop: 16, gap: 12 },
     stepTitle: { fontSize: 20, fontWeight: "700", marginBottom: 4 },
+    stepSubtitle: { fontSize: 14, marginBottom: 4 },
     optionCard: { flexDirection: "row", alignItems: "center", borderRadius: 14, borderWidth: 1, padding: 14, gap: 12 },
     optionLeft: { flex: 1, gap: 3 },
     optionName: { fontSize: 15, fontWeight: "600" },
@@ -688,6 +803,7 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     optionMeta: { fontSize: 12 },
     checkCircle: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
     staffAvatar: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+    locationBadge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, alignSelf: "flex-start", marginBottom: 4 },
     monthNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
     monthBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
     monthLabel: { fontSize: 16, fontWeight: "700" },
@@ -703,7 +819,6 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     confirmCard: { borderRadius: 16, borderWidth: 1, paddingHorizontal: 16, paddingTop: 4, marginBottom: 16 },
     notesLabel: { fontSize: 15, fontWeight: "600", marginBottom: 6 },
     notesInput: { borderRadius: 12, borderWidth: 1, padding: 12, fontSize: 14, minHeight: 80 },
-    stepSubtitle: { fontSize: 14, marginBottom: 4 },
     paymentCard: { flexDirection: "row", alignItems: "center", borderRadius: 14, borderWidth: 1.5, padding: 14, gap: 12 },
     paymentMethodLabel: { fontSize: 15, fontWeight: "600" },
     paymentMethodHint: { fontSize: 12, marginTop: 2 },

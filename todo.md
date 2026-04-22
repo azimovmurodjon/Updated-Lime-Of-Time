@@ -1850,3 +1850,10 @@
 - [x] Add /api/client/appointments/:id/cancel-request endpoint
 - [x] Fix messages tab to use businessOwnerId-based navigation instead of appointmentId
 - [x] Wire unread message badge on Messages tab icon from server (30s background polling)
+
+## Phase: Location Working Hours — Client-Side Connection (Apr 2026)
+- [x] Audit end-to-end: workingHours saved in location-form, stored in DB, returned by public API
+- [x] Client booking wizard: add Location step (shown only when business has >1 active location)
+- [x] Client booking wizard: pass locationId to slots API so per-location hours are respected
+- [x] Client business detail: Hours tab shows per-location working hours (grouped by location when multiple)
+- [x] Locations screen: show working hours summary on each location card

@@ -247,6 +247,23 @@ export default function LocationsScreen() {
             </View>
           )}
 
+          {/* Working hours summary */}
+          {item.workingHours && Object.keys(item.workingHours).length > 0 ? (
+            <View style={[styles.infoRow, { borderTopWidth: 1, borderTopColor: colors.border + "40", marginTop: 4, paddingTop: 8 }]}>
+              <IconSymbol name="clock" size={12} color={colors.muted} />
+              <Text style={{ fontSize: 11, color: colors.muted, flex: 1, lineHeight: 16 }} numberOfLines={2}>
+                {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+                  .filter((d) => item.workingHours?.[d]?.enabled)
+                  .map((d) => `${d.slice(0,3)} ${item.workingHours![d].start}–${item.workingHours![d].end}`)
+                  .join(" · ") || "All days closed"}
+              </Text>
+            </View>
+          ) : (
+            <View style={[styles.infoRow, { borderTopWidth: 1, borderTopColor: colors.border + "40", marginTop: 4, paddingTop: 8 }]}>
+              <IconSymbol name="clock" size={12} color={colors.muted} />
+              <Text style={{ fontSize: 11, color: colors.muted }}>Using global business hours</Text>
+            </View>
+          )}
           <View style={[styles.editRow, { borderTopColor: colors.border }]}>
             <Text style={{ fontSize: 12, color: colors.muted, flex: 1 }}>
               {isActiveContext ? "Currently active location" : item.active ? "Tap to edit" : "Inactive — toggle to activate"}

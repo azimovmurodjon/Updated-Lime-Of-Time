@@ -51,6 +51,11 @@ interface ApiBusiness {
   avgRating?: number | null; reviewCount?: number; businessLogoUri?: string | null;
   workingHours?: Record<string, { enabled: boolean; start: string; end: string }> | null;
 }
+interface ApiLocation {
+  localId: string; name: string; address: string; phone: string;
+  workingHours: Record<string, { enabled: boolean; start: string; end: string }> | null;
+  temporarilyClosed: boolean;
+}
 
 const DAY_ORDER = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 
@@ -80,6 +85,7 @@ export default function ClientBusinessDetailScreen() {
   const [staff, setStaff] = useState<ApiStaff[]>([]);
   const [reviews, setReviews] = useState<ApiReview[]>([]);
   const [servicePhotos, setServicePhotos] = useState<ApiServicePhoto[]>([]);
+  const [locations, setLocations] = useState<ApiLocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSaved, setIsSaved] = useState(false);
   const [savingToggle, setSavingToggle] = useState(false);
@@ -95,18 +101,20 @@ export default function ClientBusinessDetailScreen() {
     if (!slug) return;
     (async () => {
       try {
-        const [bizRes, svcRes, staffRes, revRes, photosRes] = await Promise.all([
+        const [bizRes, svcRes, staffRes, revRes, photosRes, locRes] = await Promise.all([
           fetch(`${apiBase}/api/public/business/${slug}`),
           fetch(`${apiBase}/api/public/business/${slug}/services`),
           fetch(`${apiBase}/api/public/business/${slug}/staff`),
           fetch(`${apiBase}/api/public/business/${slug}/reviews`),
           fetch(`${apiBase}/api/public/service-photos/${slug}`),
+          fetch(`${apiBase}/api/public/business/${slug}/locations`),
         ]);
         if (bizRes.ok) setBusiness(await bizRes.json() as ApiBusiness);
         if (svcRes.ok) { const d = await svcRes.json(); setServices(Array.isArray(d) ? d : []); }
         if (staffRes.ok) { const d = await staffRes.json(); setStaff(Array.isArray(d) ? d : []); }
         if (revRes.ok) { const d = await revRes.json(); setReviews(Array.isArray(d) ? d : []); }
         if (photosRes.ok) { const d = await photosRes.json(); setServicePhotos(Array.isArray(d) ? d : []); }
+        if (locRes.ok) { const d = await locRes.json(); setLocations(Array.isArray(d) ? d : []); }
       } catch (err) {
         console.warn("[BizDetail] fetch error:", err);
       } finally {
@@ -310,16 +318,79 @@ export default function ClientBusinessDetailScreen() {
         {/* Hours Tab */}
         {activeTab === "hours" && (
           <View style={s.tabContent}>
-            {hours.length === 0
-              ? <Text style={[s.emptyText, { color: colors.muted }]}>Hours not available.</Text>
-              : hours.map((h) => (
-                <View key={h.day} style={[s.hoursRow, { borderBottomColor: colors.border }]}>
-                  <Text style={[s.hoursDay, { color: colors.foreground }]}>{h.day}</Text>
-                  <Text style={[s.hoursTime, { color: h.isOpen ? LIME_GREEN : colors.muted }]}>
-                    {h.isOpen ? `${h.openTime} – ${h.closeTime}` : "Closed"}
-                  </Text>
-                </View>
-              ))}
+            {locations.length > 1 ? (
+              // Multiple locations: show per-location hours
+              locations.map((loc) => {
+                const locHours = parseWorkingHours(loc.workingHours);
+                return (
+                  <View key={loc.localId} style={[s.locationHoursCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <View style={s.locationHoursHeader}>
+                      <IconSymbol name="location.fill" size={14} color={LIME_GREEN} />
+                      <Text style={[s.locationHoursName, { color: colors.foreground }]}>{loc.name}</Text>
+                    </View>
+                    {loc.address ? (
+                      <Text style={[{ color: colors.muted, fontSize: 12, marginBottom: 8 }]}>{loc.address}</Text>
+                    ) : null}
+                    {loc.temporarilyClosed ? (
+                      <Text style={{ color: colors.error, fontSize: 13, fontWeight: "600" }}>Temporarily Closed</Text>
+                    ) : locHours.length === 0 ? (
+                      <Text style={{ color: colors.muted, fontSize: 13 }}>Hours not set</Text>
+                    ) : (
+                      locHours.map((h) => (
+                        <View key={h.day} style={[s.hoursRow, { borderBottomColor: colors.border }]}>
+                          <Text style={[s.hoursDay, { color: colors.foreground }]}>{h.day}</Text>
+                          <Text style={[s.hoursTime, { color: h.isOpen ? LIME_GREEN : colors.muted }]}>
+                            {h.isOpen ? `${h.openTime} – ${h.closeTime}` : "Closed"}
+                          </Text>
+                        </View>
+                      ))
+                    )}
+                  </View>
+                );
+              })
+            ) : locations.length === 1 ? (
+              // Single location: show its hours (or fall back to business hours)
+              (() => {
+                const loc = locations[0];
+                const locHours = parseWorkingHours(loc.workingHours ?? business?.workingHours);
+                return (
+                  <View>
+                    {loc.address ? (
+                      <View style={[s.metaRow, { marginBottom: 12 }]}>
+                        <IconSymbol name="location.fill" size={13} color={colors.muted} />
+                        <Text style={[s.metaText, { color: colors.muted }]}>{loc.address}</Text>
+                      </View>
+                    ) : null}
+                    {loc.temporarilyClosed ? (
+                      <Text style={{ color: colors.error, fontSize: 14, fontWeight: "600", textAlign: "center", paddingVertical: 16 }}>Temporarily Closed</Text>
+                    ) : locHours.length === 0 ? (
+                      <Text style={[s.emptyText, { color: colors.muted }]}>Hours not available.</Text>
+                    ) : (
+                      locHours.map((h) => (
+                        <View key={h.day} style={[s.hoursRow, { borderBottomColor: colors.border }]}>
+                          <Text style={[s.hoursDay, { color: colors.foreground }]}>{h.day}</Text>
+                          <Text style={[s.hoursTime, { color: h.isOpen ? LIME_GREEN : colors.muted }]}>
+                            {h.isOpen ? `${h.openTime} – ${h.closeTime}` : "Closed"}
+                          </Text>
+                        </View>
+                      ))
+                    )}
+                  </View>
+                );
+              })()
+            ) : (
+              // No locations — fall back to business-level hours
+              hours.length === 0
+                ? <Text style={[s.emptyText, { color: colors.muted }]}>Hours not available.</Text>
+                : hours.map((h) => (
+                  <View key={h.day} style={[s.hoursRow, { borderBottomColor: colors.border }]}>
+                    <Text style={[s.hoursDay, { color: colors.foreground }]}>{h.day}</Text>
+                    <Text style={[s.hoursTime, { color: h.isOpen ? LIME_GREEN : colors.muted }]}>
+                      {h.isOpen ? `${h.openTime} – ${h.closeTime}` : "Closed"}
+                    </Text>
+                  </View>
+                ))
+            )}
           </View>
         )}
 
@@ -457,6 +528,9 @@ const styles = (colors: ReturnType<typeof useColors>) =>
     hoursRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 12, borderBottomWidth: 1 },
     hoursDay: { fontSize: 14, fontWeight: "600" },
     hoursTime: { fontSize: 14 },
+    locationHoursCard: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 0, marginBottom: 4 },
+    locationHoursHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
+    locationHoursName: { fontSize: 15, fontWeight: "700" },
     reviewCard: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 6 },
     reviewHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
     reviewerName: { fontSize: 14, fontWeight: "600" },
