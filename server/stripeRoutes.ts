@@ -11,8 +11,7 @@ import { getDb } from "./db";
 import { businessOwners } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { sendSubscriptionConfirmationEmail } from "./email";
-import { getPlatformConfig } from "./subscription";
-
+import { getPlatformConfig, getPublicPlans } from "./subscription";
 // Keys are read from DB (Admin Panel) at request time, with env var as fallback
 async function getStripeSecretKey(): Promise<string> {
   const dbKey = await getPlatformConfig("STRIPE_SECRET_KEY").catch(() => "");
@@ -23,13 +22,31 @@ async function getStripeWebhookSecret(): Promise<string> {
   return dbSecret || process.env.STRIPE_WEBHOOK_SECRET || "";
 }
 
-// Plan key → price in cents (monthly / yearly)
-const PLAN_PRICES: Record<string, { monthly: number; yearly: number; name: string }> = {
-  solo:       { monthly: 0,    yearly: 0,     name: "Solo (Free)" },
-  growth:     { monthly: 1900, yearly: 19900, name: "Growth" },
-  studio:     { monthly: 3900, yearly: 39900, name: "Studio" },
-  enterprise: { monthly: 6900, yearly: 69900, name: "Enterprise" },
+// Fallback prices in cents (used only if DB is unavailable)
+const FALLBACK_PRICES: Record<string, { monthly: number; yearly: number; name: string }> = {
+  solo:       { monthly: 0,     yearly: 0,     name: "Solo (Free)" },
+  growth:     { monthly: 1900,  yearly: 19000, name: "Growth" },
+  studio:     { monthly: 3900,  yearly: 39000, name: "Studio" },
+  enterprise: { monthly: 6900,  yearly: 69000, name: "Enterprise" },
 };
+
+/** Read plan price from DB (Admin Panel), falling back to hardcoded values */
+async function getPlanPrice(planKey: string): Promise<{ monthly: number; yearly: number; name: string } | null> {
+  try {
+    const plans = await getPublicPlans();
+    const plan = plans.find((p) => p.planKey === planKey);
+    if (plan) {
+      return {
+        monthly: Math.round(parseFloat(plan.monthlyPrice as unknown as string) * 100),
+        yearly: Math.round(parseFloat(plan.yearlyPrice as unknown as string) * 100),
+        name: plan.displayName,
+      };
+    }
+  } catch (e) {
+    console.warn("[Stripe] Could not read plan price from DB, using fallback", e);
+  }
+  return FALLBACK_PRICES[planKey] ?? null;
+}
 
 async function getStripeAsync(): Promise<Stripe | null> {
   const key = await getStripeSecretKey();
@@ -62,7 +79,7 @@ export function registerStripeRoutes(app: Express): void {
       return;
     }
 
-    const planInfo = PLAN_PRICES[planKey];
+    const planInfo = await getPlanPrice(planKey);
     if (!planInfo) {
       res.status(400).json({ error: "Invalid plan key" });
       return;
@@ -218,9 +235,9 @@ export function registerStripeRoutes(app: Express): void {
               .where(eq(businessOwners.id, businessOwnerId)).limit(1);
             const owner = ownerRows[0];
             if (owner?.email) {
-              const planName = PLAN_PRICES[planKey]?.name ?? planKey;
+              const planName = FALLBACK_PRICES[planKey]?.name ?? planKey;
               const billingPeriod = (period ?? "monthly") === "yearly" ? "yearly" : "monthly";
-              const priceInfo = PLAN_PRICES[planKey];
+              const priceInfo = FALLBACK_PRICES[planKey];
               const amount = billingPeriod === "yearly"
                 ? (priceInfo?.yearly ?? 0) / 100
                 : (priceInfo?.monthly ?? 0) / 100;
@@ -334,9 +351,9 @@ export function registerStripeRoutes(app: Express): void {
                 .where(eq(businessOwners.id, businessOwnerId));
               // Send confirmation email (webhook may not have fired yet)
               if (existing?.email) {
-                const planName = PLAN_PRICES[planKey]?.name ?? planKey;
+                const planName = FALLBACK_PRICES[planKey]?.name ?? planKey;
                 const billingPeriod = (period ?? "monthly") === "yearly" ? "yearly" : "monthly";
-                const priceInfo = PLAN_PRICES[planKey];
+                const priceInfo = FALLBACK_PRICES[planKey];
                 const amount = billingPeriod === "yearly"
                   ? (priceInfo?.yearly ?? 0) / 100
                   : (priceInfo?.monthly ?? 0) / 100;
