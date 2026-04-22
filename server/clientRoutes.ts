@@ -234,7 +234,8 @@ export function registerClientRoutes(app: Express) {
           if (clientLat !== null && clientLng !== null && b.lat && b.lng) {
             distanceKm = haversineKm(clientLat, clientLng, parseFloat(b.lat as string), parseFloat(b.lng as string));
           }
-          return { ...b, distanceKm };
+          const slug = b.customSlug ?? (b.businessName ?? "").toLowerCase().replace(/\s+/g, "-");
+          return { ...b, distanceKm, slug };
         })
         .filter((b) => {
           if (clientLat !== null && b.distanceKm !== null) {
