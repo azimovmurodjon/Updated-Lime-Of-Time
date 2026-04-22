@@ -11,9 +11,17 @@ import { getDb } from "./db";
 import { businessOwners } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { sendSubscriptionConfirmationEmail } from "./email";
+import { getPlatformConfig } from "./subscription";
 
-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY ?? "";
-const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET ?? "";
+// Keys are read from DB (Admin Panel) at request time, with env var as fallback
+async function getStripeSecretKey(): Promise<string> {
+  const dbKey = await getPlatformConfig("STRIPE_SECRET_KEY").catch(() => "");
+  return dbKey || process.env.STRIPE_SECRET_KEY || "";
+}
+async function getStripeWebhookSecret(): Promise<string> {
+  const dbSecret = await getPlatformConfig("STRIPE_WEBHOOK_SECRET").catch(() => "");
+  return dbSecret || process.env.STRIPE_WEBHOOK_SECRET || "";
+}
 
 // Plan key → price in cents (monthly / yearly)
 const PLAN_PRICES: Record<string, { monthly: number; yearly: number; name: string }> = {
@@ -23,9 +31,10 @@ const PLAN_PRICES: Record<string, { monthly: number; yearly: number; name: strin
   enterprise: { monthly: 6900, yearly: 69900, name: "Enterprise" },
 };
 
-function getStripe(): Stripe | null {
-  if (!STRIPE_SECRET_KEY) return null;
-    return new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2026-03-25.dahlia" });
+async function getStripeAsync(): Promise<Stripe | null> {
+  const key = await getStripeSecretKey();
+  if (!key) return null;
+  return new Stripe(key, { apiVersion: "2026-03-25.dahlia" as any });
 }
 
 export function registerStripeRoutes(app: Express): void {
@@ -34,7 +43,7 @@ export function registerStripeRoutes(app: Express): void {
    * Body: { businessOwnerId, planKey, period: "monthly"|"yearly", successUrl, cancelUrl }
    */
   app.post("/api/stripe/create-checkout", async (req: Request, res: Response) => {
-    const stripe = getStripe();
+    const stripe = await getStripeAsync();
     if (!stripe) {
       res.status(500).json({ error: "Stripe not configured" });
       return;
@@ -145,7 +154,7 @@ export function registerStripeRoutes(app: Express): void {
    * Handles Stripe webhook events to activate subscriptions
    */
   app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async (req: Request, res: Response) => {
-    const stripe = getStripe();
+    const stripe = await getStripeAsync();
     if (!stripe) {
       res.status(500).send("Stripe not configured");
       return;
@@ -154,9 +163,10 @@ export function registerStripeRoutes(app: Express): void {
     const sig = req.headers["stripe-signature"] as string;
     let event: Stripe.Event;
 
+    const webhookSecret = await getStripeWebhookSecret();
     try {
-      if (STRIPE_WEBHOOK_SECRET && sig) {
-        event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
+      if (webhookSecret && sig) {
+        event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
       } else {
         // In test mode without webhook secret, parse directly
         event = JSON.parse(req.body.toString()) as Stripe.Event;
@@ -284,7 +294,7 @@ export function registerStripeRoutes(app: Express): void {
    */
   app.get("/api/stripe/success", async (req: Request, res: Response) => {
     const { session_id, boid } = req.query as { session_id?: string; boid?: string };
-    const stripe = getStripe();
+    const stripe = await getStripeAsync();
 
     // Try to activate subscription from session if webhook hasn't fired yet
     if (stripe && session_id && boid) {
@@ -403,7 +413,7 @@ export function registerStripeRoutes(app: Express): void {
    * Creates a Stripe Customer Portal session and returns the URL
    */
   app.post("/api/stripe/create-portal", async (req: Request, res: Response) => {
-    const stripe = getStripe();
+    const stripe = await getStripeAsync();
     if (!stripe) {
       res.status(500).json({ error: "Stripe not configured" });
       return;
