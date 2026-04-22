@@ -371,7 +371,7 @@ export default function ClientsScreen() {
                     <View style={[styles.avatar, { backgroundColor: colors.primary + "20" }]}>
                       <Text style={[styles.avatarText, { color: colors.primary }]}>{getInitials(item.name)}</Text>
                     </View>
-                    <View style={{ flex: 1, paddingVertical: 14, paddingHorizontal: 14 }}>
+                    <View style={{ flex: 1, paddingVertical: 14, paddingLeft: 12, paddingRight: 4 }}>
                       <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }} numberOfLines={1}>{item.name}</Text>
                       <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
                         <Text style={{ fontSize: 12, color: colors.muted }} numberOfLines={1}>
@@ -472,10 +472,10 @@ export default function ClientsScreen() {
                     ]}
                   >
                     {/* Avatar */}
-                    <View style={[styles.avatar, { backgroundColor: colors.primary + "20", marginLeft: 12 }]}>
+                    <View style={[styles.avatar, { backgroundColor: colors.primary + "20" }]}>
                       <Text style={[styles.avatarText, { color: colors.primary }]}>{getInitials(item.clientName)}</Text>
                     </View>
-                    <View style={{ flex: 1, paddingVertical: 14, paddingHorizontal: 14 }}>
+                    <View style={{ flex: 1, paddingVertical: 14, paddingLeft: 12, paddingRight: 4 }}>
                       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                         <Text style={{ fontSize: 15, fontWeight: item.unreadCount > 0 ? "700" : "600", color: colors.foreground }} numberOfLines={1}>{item.clientName}</Text>
                         <Text style={{ fontSize: 11, color: colors.muted }}>{formatRelativeTime(item.lastMessageAt)}</Text>
@@ -533,9 +533,9 @@ const styles = StyleSheet.create({
   formActions: { flexDirection: "row", gap: 8, width: "100%" },
   formButton: { paddingVertical: 12, borderRadius: 12, alignItems: "center", justifyContent: "center", paddingHorizontal: 16, minHeight: 44 },
   sortChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, alignSelf: "flex-start", height: 34, justifyContent: "center", alignItems: "center" },
-  clientRow: { flexDirection: "row", alignItems: "center", borderRadius: 16, marginBottom: 10, borderWidth: 1, overflow: "hidden" },
-  threadRow: { flexDirection: "row", alignItems: "center", borderRadius: 16, marginBottom: 10, borderWidth: 1, overflow: "hidden" },
-  avatar: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  clientRow: { flexDirection: "row", alignItems: "center", borderRadius: 16, marginBottom: 10, borderWidth: 1, paddingLeft: 12, paddingRight: 4 },
+  threadRow: { flexDirection: "row", alignItems: "center", borderRadius: 16, marginBottom: 10, borderWidth: 1, paddingLeft: 12, paddingRight: 4 },
+  avatar: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   avatarText: { fontSize: 14, fontWeight: "700" },
   emptyContainer: { alignItems: "center", paddingVertical: 48 },
 });
