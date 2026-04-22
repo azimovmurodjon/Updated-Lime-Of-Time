@@ -989,10 +989,13 @@ export function registerAdminRoutes(app: Express): void {
         { key: "TWILIO_FROM_NUMBER", sensitive: false, desc: "Twilio From Phone Number" },
         { key: "TWILIO_TEST_MODE", sensitive: false, desc: "Twilio Test Mode (true/false)" },
         { key: "TWILIO_TEST_OTP", sensitive: false, desc: "Test OTP code (default: 123456)" },
-        { key: "STRIPE_SECRET_KEY", sensitive: true, desc: "Stripe Secret Key" },
-        { key: "STRIPE_PUBLISHABLE_KEY", sensitive: false, desc: "Stripe Publishable Key" },
-        { key: "STRIPE_WEBHOOK_SECRET", sensitive: true, desc: "Stripe Webhook Secret" },
+        { key: "STRIPE_SECRET_KEY", sensitive: true, desc: "Stripe Secret Key (Live)" },
+        { key: "STRIPE_PUBLISHABLE_KEY", sensitive: false, desc: "Stripe Publishable Key (Live)" },
+        { key: "STRIPE_WEBHOOK_SECRET", sensitive: true, desc: "Stripe Webhook Secret (Live)" },
         { key: "STRIPE_TEST_MODE", sensitive: false, desc: "Stripe Test Mode (true/false)" },
+        { key: "STRIPE_TEST_SECRET_KEY", sensitive: true, desc: "Stripe Secret Key (Test)" },
+        { key: "STRIPE_TEST_PUBLISHABLE_KEY", sensitive: false, desc: "Stripe Publishable Key (Test)" },
+        { key: "STRIPE_TEST_WEBHOOK_SECRET", sensitive: true, desc: "Stripe Webhook Secret (Test)" },
       ];
       // Checkbox fields — only present in body when checked; absent means unchecked
       const checkboxKeys = new Set(['TWILIO_TEST_MODE', 'STRIPE_TEST_MODE']);
@@ -5164,20 +5167,37 @@ function platformConfigPage(
           <span style="font-size:24px;">💳</span>
           <div>
             <h2 style="font-size:18px;font-weight:700;margin:0;">Stripe Payment Configuration</h2>
-            <p style="font-size:13px;color:var(--text-muted);margin:4px 0 0;">Used for subscription billing (Phase 5 — not yet active)</p>
+            <p style="font-size:13px;color:var(--text-muted);margin:4px 0 0;">Subscription billing — live and test credentials</p>
           </div>
-          ${isStripeTestMode ? '<span style="background:#f59e0b20;color:#f59e0b;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;margin-left:auto;">⚠️ TEST MODE</span>' : '<span style="background:#6b728020;color:#6b7280;padding:4px 12px;border-radius:20px;font-size:12px;margin-left:auto;">Not Configured</span>'}
+          ${isStripeTestMode ? '<span style="background:#f59e0b20;color:#f59e0b;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;margin-left:auto;">⚠️ TEST MODE ACTIVE</span>' : '<span style="background:#22c55e20;color:#22c55e;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;margin-left:auto;">✅ LIVE MODE</span>'}
         </div>
-        <div style="background:#6b728015;border:1px solid #6b728030;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:var(--text-muted);">
-          ℹ️ Stripe billing is planned for Phase 5. You can enter your keys now to prepare, but they will not be used until billing is activated.
+
+        <!-- Live Keys -->
+        <div style="background:#22c55e10;border:1px solid #22c55e30;border-radius:8px;padding:14px 16px;margin-bottom:16px;">
+          <div style="font-size:13px;font-weight:700;color:#22c55e;margin-bottom:12px;">🟢 Live Keys — used when Test Mode is OFF</div>
+          ${field("stripe_secret_key", "Live Secret Key", "Stripe Dashboard → Developers → API Keys (sk_live_...)", true, "sk_live_...", cfgMap["STRIPE_SECRET_KEY"] || "")}
+          ${field("stripe_publishable_key", "Live Publishable Key", "Stripe Dashboard → Developers → API Keys (pk_live_...)", false, "pk_live_...", cfgMap["STRIPE_PUBLISHABLE_KEY"] || "")}
+          ${field("stripe_webhook_secret", "Live Webhook Secret", "Stripe Dashboard → Webhooks → Signing Secret (whsec_...)", true, "whsec_...", cfgMap["STRIPE_WEBHOOK_SECRET"] || "")}
         </div>
-        ${field("stripe_secret_key", "Secret Key", "From Stripe Dashboard → Developers → API Keys", true, "sk_test_...", cfgMap["STRIPE_SECRET_KEY"] || "")}
-        ${field("stripe_publishable_key", "Publishable Key", "From Stripe Dashboard → Developers → API Keys", false, "pk_test_...", cfgMap["STRIPE_PUBLISHABLE_KEY"] || "")}
-        ${field("stripe_webhook_secret", "Webhook Secret", "From Stripe Dashboard → Webhooks → Signing Secret", true, "whsec_...", cfgMap["STRIPE_WEBHOOK_SECRET"] || "")}
-        <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;margin-top:8px;">
-          <input type="checkbox" name="stripe_test_mode" value="true" ${(cfgMap["STRIPE_TEST_MODE"] === "true") ? "checked" : ""} style="width:16px;height:16px;" />
-          <span><strong>Test Mode</strong> — Use Stripe test keys (recommended until launch)</span>
+
+        <!-- Test Mode Toggle -->
+        <label style="display:flex;align-items:center;gap:10px;font-size:14px;cursor:pointer;margin-bottom:16px;background:#f59e0b10;border:1px solid #f59e0b30;border-radius:8px;padding:12px 14px;" id="stripeTestModeLabel">
+          <input type="checkbox" name="stripe_test_mode" id="stripeTestModeChk" value="true" ${(cfgMap["STRIPE_TEST_MODE"] === "true") ? "checked" : ""} style="width:18px;height:18px;cursor:pointer;" />
+          <div>
+            <div style="font-weight:700;">🧪 Test Mode — Use test keys instead of live keys</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">When checked, all Stripe operations use the test credentials below. Safe for development and QA.</div>
+          </div>
         </label>
+
+        <!-- Test Keys (shown/hidden based on checkbox) -->
+        <div id="stripeTestKeysSection" style="display:${isStripeTestMode ? 'block' : 'none'};background:#f59e0b10;border:1px solid #f59e0b30;border-radius:8px;padding:14px 16px;margin-bottom:16px;">
+          <div style="font-size:13px;font-weight:700;color:#f59e0b;margin-bottom:12px;">🟡 Test Keys — used when Test Mode is ON</div>
+          ${field("stripe_test_secret_key", "Test Secret Key", "Stripe Dashboard → Developers → API Keys (sk_test_...)", true, "sk_test_...", cfgMap["STRIPE_TEST_SECRET_KEY"] || "")}
+          ${field("stripe_test_publishable_key", "Test Publishable Key", "Stripe Dashboard → Developers → API Keys (pk_test_...)", false, "pk_test_...", cfgMap["STRIPE_TEST_PUBLISHABLE_KEY"] || "")}
+          ${field("stripe_test_webhook_secret", "Test Webhook Secret", "Stripe Dashboard → Webhooks → Signing Secret (whsec_...)", true, "whsec_...", cfgMap["STRIPE_TEST_WEBHOOK_SECRET"] || "")}
+          <div style="font-size:12px;color:#f59e0b;margin-top:8px;">⚠️ Test Mode is ON. All Stripe charges use test keys. Real cards will NOT be charged. Disable before going live.</div>
+        </div>
+
         <div style="margin-top:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <button type="button" id="testStripeBtn" onclick="testStripe()"
             style="background:#635bff;color:white;padding:8px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">
@@ -5232,8 +5252,29 @@ function platformConfigPage(
         stripe_webhook_secret: {
           test: function(v) { return v.startsWith('whsec_'); },
           hint: 'Must start with whsec_'
+        },
+        stripe_test_secret_key: {
+          test: function(v) { return v.startsWith('sk_test_'); },
+          hint: 'Must start with sk_test_'
+        },
+        stripe_test_publishable_key: {
+          test: function(v) { return v.startsWith('pk_test_'); },
+          hint: 'Must start with pk_test_'
+        },
+        stripe_test_webhook_secret: {
+          test: function(v) { return v.startsWith('whsec_'); },
+          hint: 'Must start with whsec_'
         }
       };
+
+      // ── Test Mode toggle: show/hide test keys section ─────────────────────────
+      var testModeChk = document.getElementById('stripeTestModeChk');
+      var testKeysSection = document.getElementById('stripeTestKeysSection');
+      if (testModeChk && testKeysSection) {
+        testModeChk.addEventListener('change', function() {
+          testKeysSection.style.display = testModeChk.checked ? 'block' : 'none';
+        });
+      }
 
       // ── Inject error hint elements next to each validated input ──────────────
       Object.keys(RULES).forEach(function(name) {
@@ -5699,10 +5740,12 @@ function platformConfigPage(
       var result = document.getElementById('stripeTestResult');
       var f2 = document.querySelector('form[action="/api/admin/platform-config"]');
       if (!f2 || !btn || !result) return;
-      var keyEl = f2.querySelector('[name="stripe_secret_key"]');
+      var isTestMode = document.getElementById('stripeTestModeChk') && document.getElementById('stripeTestModeChk').checked;
+      var keyName = isTestMode ? 'stripe_test_secret_key' : 'stripe_secret_key';
+      var keyEl = f2.querySelector('[name="' + keyName + '"]');
       var key = keyEl ? keyEl.value.trim() : '';
       if (!key) {
-        result.textContent = '⚠️ Enter Stripe Secret Key first';
+        result.textContent = isTestMode ? '⚠️ Enter Test Secret Key first' : '⚠️ Enter Live Secret Key first';
         result.style.color = '#f59e0b';
         return;
       }
@@ -5741,15 +5784,16 @@ function platformConfigPage(
       var resultEl = document.getElementById('stripeTestResult');
       var f2 = document.querySelector('form[action="/api/admin/platform-config"]');
       if (!btn || !logEl || !f2) return;
-      var keyEl = f2.querySelector('[name="stripe_secret_key"]');
-      var key = keyEl ? keyEl.value.trim() : '';
+      var isTestModeS = document.getElementById('stripeTestModeChk') && document.getElementById('stripeTestModeChk').checked;
+      var suiteKeyEl = f2.querySelector(isTestModeS ? '[name="stripe_test_secret_key"]' : '[name="stripe_secret_key"]');
+      var key = suiteKeyEl ? suiteKeyEl.value.trim() : '';
       if (!key) {
-        resultEl.textContent = '⚠️ Enter Stripe Secret Key first';
+        resultEl.textContent = isTestModeS ? '⚠️ Enter Test Secret Key first' : '⚠️ Enter Live Secret Key first';
         resultEl.style.color = '#f59e0b';
         return;
       }
       if (!key.startsWith('sk_test_')) {
-        resultEl.textContent = '❌ Suite requires a sk_test_ key. Switch to Test Mode.';
+        resultEl.textContent = '❌ Suite requires a sk_test_ key. Enable Test Mode and enter test keys.';
         resultEl.style.color = '#ef4444';
         return;
       }

@@ -12,14 +12,34 @@ import { businessOwners } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { sendSubscriptionConfirmationEmail } from "./email";
 import { getPlatformConfig, getPublicPlans } from "./subscription";
-// Keys are read from DB (Admin Panel) at request time, with env var as fallback
+// Keys are read from DB (Admin Panel) at request time
+// When STRIPE_TEST_MODE=true, test keys are used exclusively
 async function getStripeSecretKey(): Promise<string> {
+  const testMode = await getPlatformConfig("STRIPE_TEST_MODE").catch(() => "");
+  if (testMode === "true") {
+    const testKey = await getPlatformConfig("STRIPE_TEST_SECRET_KEY").catch(() => "");
+    return testKey || process.env.STRIPE_TEST_SECRET_KEY || "";
+  }
   const dbKey = await getPlatformConfig("STRIPE_SECRET_KEY").catch(() => "");
   return dbKey || process.env.STRIPE_SECRET_KEY || "";
 }
 async function getStripeWebhookSecret(): Promise<string> {
+  const testMode = await getPlatformConfig("STRIPE_TEST_MODE").catch(() => "");
+  if (testMode === "true") {
+    const testSecret = await getPlatformConfig("STRIPE_TEST_WEBHOOK_SECRET").catch(() => "");
+    return testSecret || process.env.STRIPE_TEST_WEBHOOK_SECRET || "";
+  }
   const dbSecret = await getPlatformConfig("STRIPE_WEBHOOK_SECRET").catch(() => "");
   return dbSecret || process.env.STRIPE_WEBHOOK_SECRET || "";
+}
+async function getStripePublishableKey(): Promise<string> {
+  const testMode = await getPlatformConfig("STRIPE_TEST_MODE").catch(() => "");
+  if (testMode === "true") {
+    const testKey = await getPlatformConfig("STRIPE_TEST_PUBLISHABLE_KEY").catch(() => "");
+    return testKey || process.env.STRIPE_TEST_PUBLISHABLE_KEY || "";
+  }
+  const dbKey = await getPlatformConfig("STRIPE_PUBLISHABLE_KEY").catch(() => "");
+  return dbKey || process.env.STRIPE_PUBLISHABLE_KEY || "";
 }
 
 // Fallback prices in cents (used only if DB is unavailable)
