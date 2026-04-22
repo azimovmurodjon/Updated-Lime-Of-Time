@@ -45,14 +45,9 @@ export function getApiBaseUrl(): string {
     }
   }
 
-  // On native (iOS/Android), fall back to the deployed production domain
-  // so Expo Go users on real phones can reach the API server
-  if (ReactNative.Platform.OS !== "web") {
-    return "https://manussched-dw4mhfnu.manus.space";
-  }
-
-  // Fallback to empty (will use relative URL)
-  return "";
+  // On native (iOS/Android) OR web fallback: use the deployed production domain
+  // so Expo Go users and web users not on a sandbox URL can reach the API server
+  return "https://manussched-dw4mhfnu.manus.space";
 }
 
 export const SESSION_TOKEN_KEY = "app_session_token";
