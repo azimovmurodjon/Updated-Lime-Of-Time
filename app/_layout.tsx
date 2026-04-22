@@ -139,44 +139,68 @@ function RootLayout() {
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="(tabs)" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="new-booking" options={{ presentation: "fullScreenModal" }} />
-              <Stack.Screen name="appointment-detail" options={{ presentation: "card" }} />
-              <Stack.Screen name="client-detail" options={{ presentation: "card" }} />
+              <Stack.Screen name="appointment-detail" options={{ presentation: "modal" }} />
+              <Stack.Screen name="client-detail" options={{ presentation: "modal" }} />
               <Stack.Screen name="service-form" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="booking" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="onboarding" options={{ presentation: "fullScreenModal" }} />
-              <Stack.Screen name="analytics-detail" options={{ presentation: "card" }} />
+              <Stack.Screen name="analytics-detail" options={{ presentation: "modal" }} />
               <Stack.Screen name="discounts" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="gift-cards" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="book/[slug]" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="review/[slug]" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="gift/[code]" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="oauth/callback" />
-              <Stack.Screen name="schedule-settings" options={{ presentation: "card" }} />
-              <Stack.Screen name="booking-policies" options={{ presentation: "card" }} />
-              <Stack.Screen name="business-profile" options={{ presentation: "card" }} />
-              <Stack.Screen name="locations" options={{ presentation: "card" }} />
+              {/* Business Settings Screens — must be modal (not card) to work on top of fullScreenModal tabs */}
+              <Stack.Screen name="schedule-settings" options={{ presentation: "modal" }} />
+              <Stack.Screen name="booking-policies" options={{ presentation: "modal" }} />
+              <Stack.Screen name="business-profile" options={{ presentation: "modal" }} />
+              <Stack.Screen name="locations" options={{ presentation: "modal" }} />
               <Stack.Screen name="location-form" options={{ presentation: "fullScreenModal" }} />
-              <Stack.Screen name="reviews" options={{ presentation: "card" }} />
-              <Stack.Screen name="notification-settings" options={{ presentation: "card" }} />
-              <Stack.Screen name="data-export" options={{ presentation: "card" }} />
-              <Stack.Screen name="staff" options={{ presentation: "card" }} />
+              <Stack.Screen name="reviews" options={{ presentation: "modal" }} />
+              <Stack.Screen name="notification-settings" options={{ presentation: "modal" }} />
+              <Stack.Screen name="data-export" options={{ presentation: "modal" }} />
+              <Stack.Screen name="staff" options={{ presentation: "modal" }} />
               <Stack.Screen name="staff-form" options={{ presentation: "fullScreenModal" }} />
-              <Stack.Screen name="staff-calendar" options={{ presentation: "card" }} />
+              <Stack.Screen name="staff-calendar" options={{ presentation: "modal" }} />
               <Stack.Screen name="product-form" options={{ presentation: "fullScreenModal" }} />
-              <Stack.Screen name="sms-templates" options={{ presentation: "card" }} />
+              <Stack.Screen name="sms-templates" options={{ presentation: "modal" }} />
+              <Stack.Screen name="sms-automation" options={{ presentation: "modal" }} />
+              <Stack.Screen name="business-hours-settings" options={{ presentation: "modal" }} />
+              <Stack.Screen name="category-management" options={{ presentation: "modal" }} />
+              <Stack.Screen name="note-templates" options={{ presentation: "modal" }} />
+              <Stack.Screen name="service-gallery" options={{ presentation: "modal" }} />
+              <Stack.Screen name="social-links" options={{ presentation: "modal" }} />
+              <Stack.Screen name="twilio-setup" options={{ presentation: "modal" }} />
+              <Stack.Screen name="payment-methods" options={{ presentation: "modal" }} />
+              <Stack.Screen name="payment-method-zelle" options={{ presentation: "modal" }} />
+              <Stack.Screen name="payment-method-venmo" options={{ presentation: "modal" }} />
+              <Stack.Screen name="payment-method-cashapp" options={{ presentation: "modal" }} />
+              <Stack.Screen name="payment-summary" options={{ presentation: "modal" }} />
+              <Stack.Screen name="payments-history" options={{ presentation: "modal" }} />
+              <Stack.Screen name="packages" options={{ presentation: "modal" }} />
+              <Stack.Screen name="promo-codes" options={{ presentation: "modal" }} />
+              <Stack.Screen name="birthday-campaigns" options={{ presentation: "modal" }} />
+              <Stack.Screen name="choose-plan" options={{ presentation: "modal" }} />
+              <Stack.Screen name="subscription" options={{ presentation: "modal" }} />
+              <Stack.Screen name="status-detail" options={{ presentation: "modal" }} />
+              <Stack.Screen name="usage-guide" options={{ presentation: "modal" }} />
+              <Stack.Screen name="onboarding-analytics" options={{ presentation: "modal" }} />
+              <Stack.Screen name="dev-testing" options={{ presentation: "modal" }} />
               {/* Client Portal Screens */}
               <Stack.Screen name="profile-select" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="client-signin" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="client-profile-onboarding" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="client-edit-profile" options={{ presentation: "modal", headerShown: false }} />
-              <Stack.Screen name="client-notifications" options={{ presentation: "card", headerShown: false }} />
+              <Stack.Screen name="client-notifications" options={{ presentation: "modal", headerShown: false }} />
               <Stack.Screen name="(client-tabs)" options={{ presentation: "fullScreenModal" }} />
-              <Stack.Screen name="client-business-detail" options={{ presentation: "card" }} />
-              <Stack.Screen name="client-booking-wizard" options={{ presentation: "card", headerShown: false }} />
-              <Stack.Screen name="client-appointment-detail" options={{ presentation: "card" }} />
-              <Stack.Screen name="client-message-thread" options={{ presentation: "card" }} />
-              <Stack.Screen name="client-saved-businesses" options={{ presentation: "card" }} />
-              <Stack.Screen name="client-message-thread-business" options={{ presentation: "card" }} />
+              <Stack.Screen name="client-business-detail" options={{ presentation: "modal" }} />
+              <Stack.Screen name="client-booking-wizard" options={{ presentation: "modal", headerShown: false }} />
+              <Stack.Screen name="client-appointment-detail" options={{ presentation: "modal" }} />
+              <Stack.Screen name="client-booking-confirmation" options={{ presentation: "modal" }} />
+              <Stack.Screen name="client-message-thread" options={{ presentation: "modal" }} />
+              <Stack.Screen name="client-saved-businesses" options={{ presentation: "modal" }} />
+              <Stack.Screen name="client-message-thread-business" options={{ presentation: "modal" }} />
             </Stack>
             <StatusBar style="auto" />
             </NotificationProvider>

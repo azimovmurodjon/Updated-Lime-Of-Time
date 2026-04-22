@@ -164,21 +164,26 @@ export default function MessagesScreen() {
 function ThreadRow({ item, index, router }: { item: MessageThread; index: number; router: ReturnType<typeof useRouter> }) {
   const scale = useSharedValue(1);
 
+  // Stable wrapper needed so runOnJS preserves the correct `this` context on iOS native
+  const navigateToThread = useCallback(() => {
+    router.push({
+      pathname: "/client-message-thread",
+      params: {
+        businessOwnerId: String(item.businessOwnerId),
+        businessName: item.businessName,
+        serviceName: item.serviceName,
+        appointmentDate: item.appointmentDate,
+      },
+    } as any);
+  }, [router, item.businessOwnerId, item.businessName, item.serviceName, item.appointmentDate]);
+
   const tap = Gesture.Tap()
     .onBegin(() => { scale.value = withSpring(0.98, { damping: 20, stiffness: 300 }); })
     .onFinalize((_, success) => {
       scale.value = withSpring(1, { damping: 18, stiffness: 200 });
       if (success) {
         if (Platform.OS !== "web") runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
-        runOnJS(router.push)({
-          pathname: "/client-message-thread",
-          params: {
-            businessOwnerId: String(item.businessOwnerId),
-            businessName: item.businessName,
-            serviceName: item.serviceName,
-            appointmentDate: item.appointmentDate,
-          },
-        } as any);
+        runOnJS(navigateToThread)();
       }
     });
 

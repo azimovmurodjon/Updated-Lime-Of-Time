@@ -494,6 +494,11 @@ function BusinessCard({ item, router, index }: { item: DiscoverBusiness; router:
   const opacity = useSharedValue(0);
   const translateY = useSharedValue(20);
 
+  // Stable wrapper needed so runOnJS preserves the correct `this` context on iOS native
+  const navigateToBusiness = useCallback(() => {
+    router.push({ pathname: "/client-business-detail", params: { slug: item.customSlug ?? item.slug, distanceKm: item.distanceKm != null ? String(item.distanceKm) : "" } } as any);
+  }, [router, item.customSlug, item.slug, item.distanceKm]);
+
   useEffect(() => {
     const delay = index * 60;
     opacity.value = withTiming(1, { duration: 350, easing: Easing.out(Easing.cubic) });
@@ -506,7 +511,7 @@ function BusinessCard({ item, router, index }: { item: DiscoverBusiness; router:
       scale.value = withSpring(1, { damping: 18, stiffness: 200 });
       if (success) {
         if (Platform.OS !== "web") runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
-        runOnJS(router.push)({ pathname: "/client-business-detail", params: { slug: item.customSlug ?? item.slug, distanceKm: item.distanceKm != null ? String(item.distanceKm) : "" } } as any);
+        runOnJS(navigateToBusiness)();
       }
     });
 
