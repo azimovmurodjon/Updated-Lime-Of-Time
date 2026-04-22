@@ -39,7 +39,7 @@ yarn-error.*
 app-example
 
 # generated native folders
-/ios
+# /ios  -- included on ios-xcode branch
 /android
 
 # IDE
