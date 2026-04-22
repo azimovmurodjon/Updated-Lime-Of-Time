@@ -4961,7 +4961,7 @@ function plansPage(plans: any[]): string {
             </label>
           </div>
         </div>
-        <button type="submit" class="plan-save-btn" data-plan="${p.id}" disabled style="background:var(--border);color:var(--text-muted);padding:10px 20px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:not-allowed;transition:background 0.2s,color 0.2s;">Save Changes</button>
+        <button type="submit" class="plan-save-btn" data-plan="${p.id}" style="background:var(--primary);color:white;padding:10px 20px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:background 0.2s,color 0.2s;">💾 Save Changes</button>
       </form>
     </div>
   `).join("");
@@ -4975,42 +4975,7 @@ function plansPage(plans: any[]): string {
       💡 <strong>Tip:</strong> Toggle "Visible to Public" to control which plans users can sign up for. Solo and Growth are public by default. Studio and Enterprise are hidden until you are ready to launch them.
     </div>
     ${planCards}
-    <script>
-    (function() {
-      document.querySelectorAll('.plan-save-btn').forEach(function(btn) {
-        var form = btn.closest('form');
-        if (!form) return;
-        var initial = {};
-        form.querySelectorAll('input, select, textarea').forEach(function(el) {
-          var key = el.name || el.id;
-          if (!key) return;
-          initial[key] = el.type === 'checkbox' ? el.checked : el.value;
-        });
-        function checkDirty() {
-          var dirty = false;
-          form.querySelectorAll('input, select, textarea').forEach(function(el) {
-            var key = el.name || el.id;
-            if (!key) return;
-            var cur = el.type === 'checkbox' ? el.checked : el.value;
-            if (cur !== initial[key]) dirty = true;
-          });
-          if (dirty) {
-            btn.disabled = false;
-            btn.style.background = 'var(--primary)';
-            btn.style.color = 'white';
-            btn.style.cursor = 'pointer';
-          } else {
-            btn.disabled = true;
-            btn.style.background = 'var(--border)';
-            btn.style.color = 'var(--text-muted)';
-            btn.style.cursor = 'not-allowed';
-          }
-        }
-        form.addEventListener('input', checkDirty);
-        form.addEventListener('change', checkDirty);
-      });
-    })();
-    </script>
+
   `);
 }
 

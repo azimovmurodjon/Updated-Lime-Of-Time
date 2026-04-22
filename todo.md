@@ -1648,3 +1648,6 @@
 - [x] Add discountExpiresAt date field to subscriptionPlans DB schema
 - [x] Update Admin Panel plan editor to show discountExpiresAt date picker
 - [x] Wire discountExpiresAt auto-expiry: getPublicPlans returns 0% discount when expired
+- [x] Fix Admin Panel Plan Pricing save button being disabled
+- [x] Fix Subscription screen not opening from Settings Tools (added to Stack in _layout.tsx)
+- [x] Verify DB update pipeline for plan pricing saves correctly

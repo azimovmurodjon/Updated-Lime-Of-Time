@@ -140,6 +140,27 @@ function RootLayout() {
               <Stack.Screen name="staff-calendar" options={{ presentation: "card" }} />
               <Stack.Screen name="product-form" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="sms-templates" options={{ presentation: "card" }} />
+              <Stack.Screen name="subscription" options={{ presentation: "card" }} />
+              <Stack.Screen name="payment-methods" options={{ presentation: "card" }} />
+              <Stack.Screen name="payments-history" options={{ presentation: "card" }} />
+              <Stack.Screen name="social-links" options={{ presentation: "card" }} />
+              <Stack.Screen name="note-templates" options={{ presentation: "card" }} />
+              <Stack.Screen name="promo-codes" options={{ presentation: "card" }} />
+              <Stack.Screen name="category-management" options={{ presentation: "card" }} />
+              <Stack.Screen name="usage-guide" options={{ presentation: "card" }} />
+              <Stack.Screen name="onboarding-analytics" options={{ presentation: "card" }} />
+              <Stack.Screen name="choose-plan" options={{ presentation: "fullScreenModal" }} />
+              <Stack.Screen name="birthday-campaigns" options={{ presentation: "card" }} />
+              <Stack.Screen name="packages" options={{ presentation: "card" }} />
+              <Stack.Screen name="sms-automation" options={{ presentation: "card" }} />
+              <Stack.Screen name="twilio-setup" options={{ presentation: "card" }} />
+              <Stack.Screen name="business-hours-settings" options={{ presentation: "card" }} />
+              <Stack.Screen name="service-gallery" options={{ presentation: "card" }} />
+              <Stack.Screen name="status-detail" options={{ presentation: "card" }} />
+              <Stack.Screen name="payment-summary" options={{ presentation: "card" }} />
+              <Stack.Screen name="payment-method-cashapp" options={{ presentation: "fullScreenModal" }} />
+              <Stack.Screen name="payment-method-venmo" options={{ presentation: "fullScreenModal" }} />
+              <Stack.Screen name="payment-method-zelle" options={{ presentation: "fullScreenModal" }} />
             </Stack>
             <StatusBar style="auto" />
             </NotificationProvider>
