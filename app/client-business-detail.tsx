@@ -57,7 +57,8 @@ interface ApiLocation {
   temporarilyClosed: boolean;
 }
 
-const DAY_ORDER = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+const DAY_ORDER = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"];
+const DAY_LABELS: Record<string,string> = { monday:"Monday", tuesday:"Tuesday", wednesday:"Wednesday", thursday:"Thursday", friday:"Friday", saturday:"Saturday", sunday:"Sunday" };
 
 function formatPrice(price: string | null | undefined): string {
   if (!price) return "Price varies";
@@ -368,7 +369,7 @@ export default function ClientBusinessDetailScreen() {
                     ) : (
                       locHours.map((h) => (
                         <View key={h.day} style={[s.hoursRow, { borderBottomColor: colors.border }]}>
-                          <Text style={[s.hoursDay, { color: colors.foreground }]}>{h.day}</Text>
+                          <Text style={[s.hoursDay, { color: colors.foreground }]}>{DAY_LABELS[h.day] ?? h.day}</Text>
                           <Text style={[s.hoursTime, { color: h.isOpen ? LIME_GREEN : colors.muted }]}>
                             {h.isOpen ? `${h.openTime} – ${h.closeTime}` : "Closed"}
                           </Text>
@@ -384,7 +385,7 @@ export default function ClientBusinessDetailScreen() {
                 ? <Text style={[s.emptyText, { color: colors.muted }]}>Hours not available.</Text>
                 : hours.map((h) => (
                   <View key={h.day} style={[s.hoursRow, { borderBottomColor: colors.border }]}>
-                    <Text style={[s.hoursDay, { color: colors.foreground }]}>{h.day}</Text>
+                    <Text style={[s.hoursDay, { color: colors.foreground }]}>{DAY_LABELS[h.day] ?? h.day}</Text>
                     <Text style={[s.hoursTime, { color: h.isOpen ? LIME_GREEN : colors.muted }]}>
                       {h.isOpen ? `${h.openTime} – ${h.closeTime}` : "Closed"}
                     </Text>
