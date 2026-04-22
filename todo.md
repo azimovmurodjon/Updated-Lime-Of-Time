@@ -1644,3 +1644,7 @@
 - [x] Update stripeRoutes.ts create-checkout to apply discount: use discounted price as Stripe price unit_amount
 - [x] Update choose-plan.tsx, onboarding.tsx, subscription.tsx to show discount badge when discountPercent > 0
 - [x] Fix confirmation email in stripeRoutes.ts to use DB prices instead of FALLBACK_PRICES
+- [x] Fix Subscription screen "Could not load subscription info" error
+- [x] Add discountExpiresAt date field to subscriptionPlans DB schema
+- [x] Update Admin Panel plan editor to show discountExpiresAt date picker
+- [x] Wire discountExpiresAt auto-expiry: getPublicPlans returns 0% discount when expired

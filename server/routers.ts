@@ -1158,10 +1158,16 @@ const subscriptionRouter = router({
   getPublicPlans: publicProcedure
     .query(async () => {
       const plans = await getPublicPlans();
+      const now = Date.now();
       return plans.map((p) => {
         const monthly = parseFloat(p.monthlyPrice as unknown as string);
         const yearly = parseFloat(p.yearlyPrice as unknown as string);
-        const discPct = (p as any).discountPercent ?? 0;
+        // Auto-expire discount if discountExpiresAt has passed
+        const expiresAt = (p as any).discountExpiresAt;
+        const isExpired = expiresAt ? new Date(expiresAt).getTime() < now : false;
+        const discPct = isExpired ? 0 : ((p as any).discountPercent ?? 0);
+        const discLabel = isExpired ? null : ((p as any).discountLabel ?? null);
+        const discExpiresAt = expiresAt ? new Date(expiresAt).toISOString() : null;
         return {
           planKey: p.planKey,
           displayName: p.displayName,
@@ -1171,7 +1177,8 @@ const subscriptionRouter = router({
           effectiveMonthlyPrice: discPct > 0 ? parseFloat((monthly * (1 - discPct / 100)).toFixed(2)) : monthly,
           effectiveYearlyPrice: discPct > 0 ? parseFloat((yearly * (1 - discPct / 100)).toFixed(2)) : yearly,
           discountPercent: discPct,
-          discountLabel: (p as any).discountLabel ?? null,
+          discountLabel: discLabel,
+          discountExpiresAt: discExpiresAt,
           maxClients: p.maxClients,
           maxAppointments: p.maxAppointments,
           maxLocations: p.maxLocations,

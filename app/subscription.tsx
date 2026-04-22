@@ -339,9 +339,9 @@ export default function SubscriptionScreen() {
   const businessOwnerId = state.businessOwnerId;
   const [portalLoading, setPortalLoading] = useState(false);
 
-  const { data: planInfo, isLoading, refetch } = trpc.subscription.getMyPlan.useQuery(
+  const { data: planInfo, isLoading, isError, refetch } = trpc.subscription.getMyPlan.useQuery(
     { businessOwnerId: businessOwnerId! },
-    { enabled: !!businessOwnerId, staleTime: 30_000 }
+    { enabled: !!businessOwnerId, staleTime: 30_000, retry: 2 }
   );
 
   // Fetch live plan prices from DB (Admin Panel) so hardcoded prices are never shown
@@ -362,6 +362,7 @@ export default function SubscriptionScreen() {
       effectiveYearlyPrice: live.effectiveYearlyPrice ?? live.yearlyPrice,
       discountPercent: live.discountPercent ?? 0,
       discountLabel: live.discountLabel ?? null,
+      discountExpiresAt: live.discountExpiresAt ?? null,
     };
   });
 
@@ -413,10 +414,16 @@ export default function SubscriptionScreen() {
   if (!planInfo) {
     return (
       <ScreenContainer className="p-5">
+        <FuturisticBackground />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 12 }}>
           <IconSymbol name="exclamationmark.triangle.fill" size={40} color={colors.warning} />
-          <Text style={{ fontSize: 16, color: colors.muted, textAlign: "center" }}>
-            Could not load subscription info.{"\n"}Please check your connection.
+          <Text style={{ fontSize: 16, color: colors.foreground, textAlign: "center", fontWeight: "700" }}>
+            {isError ? "Connection Error" : "Subscription Not Found"}
+          </Text>
+          <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center", lineHeight: 20 }}>
+            {isError
+              ? "Could not reach the server.\nPlease check your connection and try again."
+              : "Your account is not yet fully set up.\nPlease complete onboarding or contact support."}
           </Text>
           <Pressable
             onPress={() => refetch()}

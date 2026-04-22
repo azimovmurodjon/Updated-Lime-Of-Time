@@ -60,8 +60,11 @@ async function getPlanPrice(planKey: string): Promise<{ monthly: number; yearly:
     if (plan) {
       const monthly = parseFloat(plan.monthlyPrice as unknown as string);
       const yearly = parseFloat(plan.yearlyPrice as unknown as string);
-      const discPct = (plan as any).discountPercent ?? 0;
-      const discLabel = (plan as any).discountLabel ?? null;
+      // Auto-expire discount if discountExpiresAt has passed
+      const expiresAt = (plan as any).discountExpiresAt;
+      const isExpired = expiresAt ? new Date(expiresAt).getTime() < Date.now() : false;
+      const discPct = isExpired ? 0 : ((plan as any).discountPercent ?? 0);
+      const discLabel = isExpired ? null : ((plan as any).discountLabel ?? null);
       // Apply discount to get effective price
       const effectiveMonthly = discPct > 0 ? monthly * (1 - discPct / 100) : monthly;
       const effectiveYearly = discPct > 0 ? yearly * (1 - discPct / 100) : yearly;

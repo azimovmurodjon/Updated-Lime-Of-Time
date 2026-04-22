@@ -39,6 +39,8 @@ export type PlanData = {
   discountPercent?: number;
   /** Admin-set discount label shown as badge (e.g. "Launch Special") */
   discountLabel?: string | null;
+  /** ISO date string when discount auto-expires (null = no expiry) */
+  discountExpiresAt?: string | null;
   maxClients: number;
   maxAppointments: number;
   maxLocations: number;
@@ -120,6 +122,11 @@ function PlanCard({
   const price = isYearly ? Math.round(effectiveYearly / 12) : Math.round(effectiveMonthly);
   const originalPrice = isYearly ? Math.round(plan.yearlyPrice / 12) : plan.monthlyPrice;
   const hasDiscount = (plan.discountPercent ?? 0) > 0;
+  // Compute days until discount expires (null = no expiry)
+  const discExpiresAt = plan.discountExpiresAt ? new Date(plan.discountExpiresAt) : null;
+  const discDaysLeft = discExpiresAt
+    ? Math.max(0, Math.ceil((discExpiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    : null;
   const savings =
     isYearly && !isFree && effectiveMonthly > 0
       ? Math.round(((effectiveMonthly * 12 - effectiveYearly) / (effectiveMonthly * 12)) * 100)
@@ -181,6 +188,13 @@ function PlanCard({
                 <View style={[styles.badge, { backgroundColor: "#F59E0B22", borderColor: "#F59E0B55" }]}>
                   <Text style={[styles.badgeText, { color: "#F59E0B" }]}>
                     🏷️ {plan.discountLabel ?? `${plan.discountPercent}% OFF`}
+                  </Text>
+                </View>
+              )}
+              {hasDiscount && discDaysLeft !== null && (
+                <View style={[styles.badge, { backgroundColor: "#EF444422", borderColor: "#EF444455" }]}>
+                  <Text style={[styles.badgeText, { color: "#EF4444" }]}>
+                    ⏰ {discDaysLeft === 0 ? "Expires today" : `${discDaysLeft}d left`}
                   </Text>
                 </View>
               )}

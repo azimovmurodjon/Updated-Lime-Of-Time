@@ -766,9 +766,13 @@ export function registerAdminRoutes(app: Express): void {
       const id = parseInt(req.params.id);
       const { monthlyPrice, yearlyPrice, isPublic, maxClients, maxAppointments,
               maxLocations, maxStaff, maxServices, maxProducts, smsLevel, paymentLevel,
-              discountPercent, discountLabel } = req.body;
+              discountPercent, discountLabel, discountExpiresAt } = req.body;
       const discPct = Math.min(100, Math.max(0, parseInt(discountPercent) || 0));
       const discLabel = (discountLabel || "").trim() || null;
+      // Parse discountExpiresAt: empty string → null, valid date string → Date
+      const discExpiresAt = discountExpiresAt && discountExpiresAt.trim()
+        ? new Date(discountExpiresAt.trim())
+        : null;
       await dbase.update(subscriptionPlans).set({
         monthlyPrice: (parseFloat(monthlyPrice) || 0).toString(),
         yearlyPrice: (parseFloat(yearlyPrice) || 0).toString(),
@@ -782,7 +786,7 @@ export function registerAdminRoutes(app: Express): void {
         smsLevel: (smsLevel || "none") as "none" | "confirmations" | "full",
         paymentLevel: (paymentLevel || "basic") as "basic" | "full",
         // Discount fields (admin-controlled)
-        ...(({ discountPercent: discPct, discountLabel: discLabel }) as any),
+        ...(({ discountPercent: discPct, discountLabel: discLabel, discountExpiresAt: discExpiresAt }) as any),
         updatedAt: new Date(),
       }).where(eq(subscriptionPlans.id, id));
       invalidatePlanCache();
@@ -4899,6 +4903,12 @@ function plansPage(plans: any[]): string {
                 style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;"
                 placeholder="e.g. Launch Special · 20% off" />
               <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Appears as a badge on the plan card in the app</div>
+            </div>
+            <div>
+              <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Discount Expires At (optional)</label>
+              <input name="discountExpiresAt" type="datetime-local" value="${(p as any).discountExpiresAt ? new Date((p as any).discountExpiresAt).toISOString().slice(0,16) : ''}"
+                style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;" />
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Discount auto-expires at this date/time. Leave blank for no expiry.</div>
             </div>
           </div>
         </div>
