@@ -45,8 +45,9 @@ export function getApiBaseUrl(): string {
     }
   }
 
-  // Fallback to empty (will use relative URL)
-  return "";
+  // On native (iOS/Android) OR web fallback: use the deployed production domain
+  // so Expo Go users and web users not on a sandbox URL can always reach the API
+  return "https://manussched-dw4mhfnu.manus.space";
 }
 
 export const SESSION_TOKEN_KEY = "app_session_token";
