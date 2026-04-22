@@ -1007,6 +1007,36 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                   } catch { /* ignore parse errors */ }
                 }
               }
+              // If DB has no staff, check AsyncStorage for locally-created staff to recover
+              let dbStaff = (fullData.staff || []).map(dbStaffToLocal);
+              if (dbStaff.length === 0) {
+                const cachedStaffRaw = await AsyncStorage.getItem(STORAGE_KEYS.staff);
+                if (cachedStaffRaw) {
+                  try {
+                    const cachedStaff: StaffMember[] = JSON.parse(cachedStaffRaw);
+                    if (cachedStaff.length > 0) {
+                      dbStaff = cachedStaff;
+                      for (const s of cachedStaff) {
+                        createStaffMut.mutateAsync({
+                          businessOwnerId: ownerId,
+                          localId: s.id,
+                          name: s.name,
+                          phone: s.phone || undefined,
+                          email: s.email || undefined,
+                          role: s.role || undefined,
+                          color: s.color || undefined,
+                          serviceIds: s.serviceIds,
+                          locationIds: s.locationIds,
+                          workingHours: s.workingHours,
+                          active: s.active,
+                          photoUri: s.photoUri ?? undefined,
+                          commissionRate: s.commissionRate ?? undefined,
+                        }).catch(() => {});
+                      }
+                    }
+                  } catch { /* ignore parse errors */ }
+                }
+              }
               // Split custom schedule entries: global (no locationId) vs per-location
               const allScheduleEntries = (fullData.customSchedule || []).map(dbCustomScheduleToLocal);
               const globalSchedule = allScheduleEntries.filter((cs) => !cs.locationId);
@@ -1029,7 +1059,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                   customSchedule: globalSchedule,
                   locationCustomSchedule: locationScheduleMap,
                   products: (fullData.products || []).map(dbProductToLocal),
-                  staff: (fullData.staff || []).map(dbStaffToLocal),
+                  staff: dbStaff,
                   locations: dbLocations,
                   settings: { ...initialSettings, ...settingsFromDb },
                   businessOwnerId: ownerId,

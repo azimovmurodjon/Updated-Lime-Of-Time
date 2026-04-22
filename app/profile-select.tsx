@@ -30,6 +30,7 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { setProfileMode } from "@/lib/client-store";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width, height } = Dimensions.get("window");
 
@@ -224,6 +225,15 @@ export default function ProfileSelectScreen() {
   const handleSelect = async (mode: "business" | "client") => {
     await setProfileMode(mode);
     if (mode === "business") {
+      // If a business owner ID is already saved, go straight to the dashboard
+      // instead of the onboarding flow (handles post-logout re-entry)
+      try {
+        const storedOwnerId = await AsyncStorage.getItem("@bookease_business_owner_id");
+        if (storedOwnerId) {
+          router.replace("/(tabs)" as any);
+          return;
+        }
+      } catch { /* ignore */ }
       router.replace("/onboarding");
     } else {
       router.replace("/client-signin" as any);
