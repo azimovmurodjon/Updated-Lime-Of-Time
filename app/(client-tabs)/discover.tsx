@@ -448,36 +448,38 @@ export default function DiscoverScreen() {
           <ActivityIndicator size="large" color={GREEN_ACCENT} />
           <Text style={[s.loadingText, { color: TEXT_MUTED }]}>Finding businesses near you...</Text>
         </View>
+      ) : businesses.length === 0 ? (
+        <View style={s.emptyContainer}>
+          <Text style={s.emptyIcon}>📍</Text>
+          <Text style={[s.emptyTitle, { color: TEXT_PRIMARY }]}>
+            {userLat != null ? "No businesses nearby" : "No businesses found"}
+          </Text>
+          <Text style={[s.emptySubtitle, { color: TEXT_MUTED }]}>
+            {userLat != null
+              ? `No businesses available within ${state.discoverRadius} miles. Try increasing your range or changing the category.`
+              : "No businesses match your search. Try a different keyword or category."}
+          </Text>
+          {userLat != null && (
+            <Pressable
+              style={({ pressed }) => [s.expandBtn, pressed && { opacity: 0.7 }]}
+              onPress={() => {
+                const currentRadius = Number(state.discoverRadius);
+                const currentIdx = RADIUS_OPTIONS.indexOf(currentRadius);
+                const nextIdx = currentIdx === -1 ? 1 : Math.min(currentIdx + 1, RADIUS_OPTIONS.length - 1);
+                const nextRadius = RADIUS_OPTIONS[nextIdx];
+                handleRadiusSelect(nextRadius);
+              }}
+            >
+              <Text style={{ color: GREEN_ACCENT, fontWeight: "600", fontSize: 14 }}>Expand Range</Text>
+            </Pressable>
+          )}
+        </View>
       ) : (
         <FlatList
           data={businesses}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={s.listContent}
           showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={s.emptyContainer}>
-              <Text style={s.emptyIcon}>📍</Text>
-              <Text style={[s.emptyTitle, { color: TEXT_PRIMARY }]}>
-                {userLat != null ? "No businesses nearby" : "No businesses found"}
-              </Text>
-              <Text style={[s.emptySubtitle, { color: TEXT_MUTED }]}>
-                {userLat != null
-                  ? `No businesses available within ${state.discoverRadius} miles. Try increasing your range or changing the category.`
-                  : "No businesses match your search. Try a different keyword or category."}
-              </Text>
-              {userLat != null && (
-                <Pressable
-                  style={({ pressed }) => [s.expandBtn, pressed && { opacity: 0.7 }]}
-                  onPress={() => {
-                    const nextRadius = RADIUS_OPTIONS[Math.min(RADIUS_OPTIONS.indexOf(state.discoverRadius) + 1, RADIUS_OPTIONS.length - 1)];
-                    if (nextRadius !== state.discoverRadius) handleRadiusSelect(nextRadius);
-                  }}
-                >
-                  <Text style={{ color: GREEN_ACCENT, fontWeight: "600", fontSize: 14 }}>Expand Range</Text>
-                </Pressable>
-              )}
-            </View>
-          }
           renderItem={({ item, index }) => <BusinessCard item={item} router={router} index={index} />}
         />
       )}

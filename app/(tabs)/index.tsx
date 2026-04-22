@@ -1272,7 +1272,16 @@ export default function HomeScreen() {
           title: "Book an Appointment",
         });
       }
-    } catch {}
+    } catch (err) {
+      // Fallback: copy link to clipboard if share fails
+      try {
+        const fallbackSlug = state.settings.customSlug || state.settings.businessName.replace(/\s+/g, "-").toLowerCase();
+        const fallbackUrl = `${PUBLIC_BOOKING_URL}/book/${fallbackSlug}`;
+        const { default: Clipboard } = await import("expo-clipboard");
+        await Clipboard.setStringAsync(fallbackUrl);
+        Alert.alert("Link Copied!", "Booking link copied to clipboard.");
+      } catch {}
+    }
   }, [state.settings, activeLocation]);
 
   const handleShareBookingLink = useCallback(() => {
