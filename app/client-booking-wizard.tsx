@@ -120,6 +120,8 @@ export default function ClientBookingWizardScreen() {
   const [customDays, setCustomDays] = useState<Record<string, boolean>>({});
   // Set of YYYY-MM-DD strings that have zero available slots (fully booked / closed)
   const [unavailableDates, setUnavailableDates] = useState<Set<string>>(new Set());
+  // Map of YYYY-MM-DD → slot count for available days
+  const [slotCounts, setSlotCounts] = useState<Record<string, number>>({});
   const [loadingMonthAvail, setLoadingMonthAvail] = useState(false);
   // Tracks the month we last fetched availability for ("YYYY-MM")
   const lastAvailFetchKey = useRef<string>("");
@@ -208,6 +210,7 @@ export default function ClientBookingWizardScreen() {
     lastAvailFetchKey.current = fetchKey;
     setLoadingMonthAvail(true);
     const newUnavailable = new Set<string>();
+    const newSlotCounts: Record<string, number> = {};
     const todayStr = new Date().toISOString().split("T")[0];
     const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
     // Build list of future dates in this month
@@ -224,12 +227,20 @@ export default function ClientBookingWizardScreen() {
       promises.push(
         fetch(url)
           .then((r) => r.ok ? r.json() : { slots: [] })
-          .then((data) => { if (!data.slots?.length) newUnavailable.add(dateStr); })
+          .then((data) => {
+            const count = data.slots?.length ?? 0;
+            if (!count) {
+              newUnavailable.add(dateStr);
+            } else {
+              newSlotCounts[dateStr] = count;
+            }
+          })
           .catch(() => {})
       );
     }
     await Promise.all(promises);
     setUnavailableDates(newUnavailable);
+    setSlotCounts(newSlotCounts);
     setLoadingMonthAvail(false);
   }, [slug, apiBase]);
 
@@ -626,6 +637,17 @@ export default function ClientBookingWizardScreen() {
                     </Text>
                     {isUnavailable && !isPast && (
                       <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.muted, marginTop: 1 }} />
+                    )}
+                    {!isUnavailable && !isPast && slotCounts[dateStr] != null && (
+                      <Text style={{
+                        fontSize: 9,
+                        fontWeight: "700",
+                        color: isSelected ? "rgba(255,255,255,0.85)" : LIME_GREEN,
+                        marginTop: 1,
+                        lineHeight: 11,
+                      }}>
+                        {slotCounts[dateStr]}
+                      </Text>
                     )}
                   </Pressable>
                 );
