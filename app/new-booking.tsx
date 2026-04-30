@@ -17,7 +17,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useStore, generateId, formatDateStr, formatTime, formatDateDisplay } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { Appointment, Client, Product, Discount, DAYS_OF_WEEK, generateAvailableSlots, minutesToTime, timeToMinutes, getApplicableDiscount, generateConfirmationMessage, getServiceDisplayName, stripPhoneFormat, timeSlotsOverlap, PUBLIC_BOOKING_URL } from "@/lib/types";
 import { trpc } from "@/lib/trpc";
 import { useActiveLocation } from "@/hooks/use-active-location";
@@ -57,6 +57,26 @@ export default function NewBookingScreen() {
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(params.date ?? formatDateStr(new Date()));
+  const dateScrollRef = useRef<import("react-native").ScrollView>(null);
+  // Scroll the date strip to the selected date on mount / when date changes from outside
+  const CHIP_WIDTH = 70; // chip width (62) + gap (8)
+  const todayStr2 = formatDateStr(new Date());
+  // Auto-scroll date strip to the selected date chip
+  useEffect(() => {
+    if (!dateScrollRef.current) return;
+    const today = new Date();
+    const todayMs = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    const selMs = new Date(selectedDate + "T12:00:00");
+    const diff = Math.round((selMs.getTime() - todayMs) / 86400000);
+    const idx = Math.max(0, diff);
+    // Scroll so the selected chip is near the left with a small offset
+    const offset = Math.max(0, idx * CHIP_WIDTH - 8);
+    setTimeout(() => {
+      dateScrollRef.current?.scrollTo({ x: offset, animated: true });
+    }, 100);
+  }, [selectedDate]);
+
+
   // Calendar month view: track which month is displayed (offset from today's month)
   const [calMonthOffset, setCalMonthOffset] = useState(0);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
@@ -907,12 +927,35 @@ export default function NewBookingScreen() {
             const monthLabel = selDateObj.toLocaleDateString("en-US", { month: "long", year: "numeric" });
             return (
               <View style={{ marginBottom: 16 }}>
-                {/* Month label */}
-                <Text style={{ fontSize: 13, fontWeight: "600", color: colors.muted, marginBottom: 8, marginLeft: 2 }}>
-                  {monthLabel}
-                </Text>
+                {/* Month label + Today button */}
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: colors.muted, marginLeft: 2 }}>
+                    {monthLabel}
+                  </Text>
+                  {selectedDate !== todayStr && (
+                    <Pressable
+                      onPress={() => {
+                        setSelectedDate(todayStr);
+                        setSelectedTime(null);
+                      }}
+                      style={({ pressed }) => ({
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 4,
+                        paddingHorizontal: 10,
+                        paddingVertical: 4,
+                        borderRadius: 12,
+                        backgroundColor: colors.primary + "18",
+                        opacity: pressed ? 0.65 : 1,
+                      })}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: "600", color: colors.primary }}>Today</Text>
+                    </Pressable>
+                  )}
+                </View>
                 {/* Horizontal scrolling date strip */}
                 <ScrollView
+                  ref={dateScrollRef}
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={{ paddingHorizontal: 2, gap: 8 }}
@@ -1000,6 +1043,14 @@ export default function NewBookingScreen() {
             );
           })()}
 
+          {/* Selected date full label */}
+          {selectedDate && (
+            <View style={{ marginBottom: 12, marginHorizontal: 2 }}>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>
+                {new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+              </Text>
+            </View>
+          )}
           {/* Time Slots */}
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8, marginHorizontal: 4 }}>
             <Text className="text-xs font-medium text-muted">Available Times</Text>

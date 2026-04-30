@@ -1685,3 +1685,6 @@
 - [x] Fix: auto-select single location in New Booking (no "Location Required" error when only 1 location)
 - [x] Fix: calendar location filter — show all if multiple, show/preselect single if only one (via useActiveLocation hook)
 - [x] Redesign date picker: modern horizontal scrolling strip with month label, wider chips, smooth scroll (62px wide chips, day/number/month, OFF/FULL badges, today dot)
+- [x] Date picker: add "Today" jump button to scroll back to today's date chip
+- [x] Date picker: show full date label (e.g., "Wednesday, April 30") above time slot grid
+- [x] Date picker: auto-scroll to pre-selected date when arriving from calendar "Book Appointment"
