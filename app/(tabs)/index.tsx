@@ -1560,7 +1560,7 @@ export default function HomeScreen() {
               <Text style={{ fontSize: 13, fontWeight: "700", color: "#fff" }}>New Booking</Text>
             </Pressable>
             <Pressable
-              onPress={() => router.push({ pathname: "/(tabs)/calendar", params: { filter: "today" } } as any)}
+              onPress={() => router.push({ pathname: "/(tabs)/calendar", params: { filter: "today", date: todayStr, view: "day" } } as any)}
               style={({ pressed }) => ({
                 flex: 1,
                 flexDirection: "row",
