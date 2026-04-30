@@ -1676,3 +1676,7 @@
 - [x] Add Public Gifts tab to Gift Cards screen: show publicly purchased gifts (pending payment, redeemed, expired) with mark-as-paid action
 - [x] Add markAsPaid tRPC mutation to giftCards router
 - [x] Update dbGiftCardToLocal to map new public gift fields (purchasedPublicly, purchaserName, paymentStatus, etc.)
+- [x] Fix share link: point to main booking portal (/api/book/:slug) not directly to buy-gift page
+- [x] Add "Book for myself / Buy a Gift" choice card on booking portal landing page (after location step)
+- [x] Redesign buy-gift HTML page: mobile-first responsive, matching booking portal style (category tiles, service list rows, sticky footer, date toggle, step indicator)
+- [x] Fix buy-gift URL not working: routes are live on local dev server; live site needs Publish to deploy new routes

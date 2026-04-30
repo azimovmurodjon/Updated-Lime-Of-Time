@@ -127,7 +127,7 @@ function PublicGiftCard({
 export default function GiftCardsScreen() {
   const { state, dispatch, syncToDb, getServiceById } = useStore();
   const buyGiftLink = state.settings?.customSlug
-    ? `${PUBLIC_BOOKING_URL}/api/buy-gift/${state.settings.customSlug}`
+    ? `${PUBLIC_BOOKING_URL}/api/book/${state.settings.customSlug}`
     : null;
   const publicGiftCards = state.giftCards.filter(c => (c as any).purchasedPublicly);
   const publicPendingPayment = publicGiftCards.filter(c => (c as any).paymentStatus !== "paid" && !c.redeemed);

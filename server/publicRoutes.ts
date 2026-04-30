@@ -2431,265 +2431,707 @@ function baseStyles(): string {
 // ─── Buy a Gift Page ─────────────────────────────────────────────────────────
 function buyGiftPage(slug: string, owner: any): string {
   const bizName = (owner.businessName || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  const logoUri = owner.businessLogoUri || "";
+  const logoUri = owner.logoUrl || owner.businessLogoUri || "";
   const logoTag = logoUri
-    ? `<img src="${logoUri.replace(/"/g,"&quot;")}" alt="${bizName}" style="width:72px;height:72px;border-radius:20px;object-fit:cover;border:2px solid var(--border);margin-bottom:12px;">`
-    : `<div style="width:72px;height:72px;border-radius:20px;background:var(--accent);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:32px;">🎁</div>`;
+    ? `<img src="${logoUri.replace(/"/g,"&quot;")}" alt="${bizName}" class="biz-logo">`
+    : `<div class="biz-logo-placeholder">🎁</div>`;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
   <title>Buy a Gift — ${bizName}</title>
+  <meta name="description" content="Buy a gift for someone special at ${bizName}.">
   <style>
     *{margin:0;padding:0;box-sizing:border-box;}
-    :root{--bg:#f5f7f5;--bg-card:#fff;--bg-input:#fafcfa;--bg-sel:#e8f5e3;--text:#1a1a1a;--text2:#666;--textm:#888;--accent:#4a8c3f;--adk:#2d5a27;--border:#e8ece8;--bdi:#dde3dd;--err:#dc2626;}
-    @media(prefers-color-scheme:dark){:root{--bg:#0f1210;--bg-card:#1a1f1a;--bg-input:#1e241e;--bg-sel:#1e3a1a;--text:#e8ece8;--text2:#a8b0a8;--textm:#8a928a;--accent:#5ca84f;--adk:#7cc070;--border:#2a322a;--bdi:#3a423a;--err:#f87171;}}
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
-    .con{max-width:480px;margin:0 auto;padding:16px 16px 80px;}
-    .hdr{text-align:center;padding:28px 0 20px;}
-    .hdr h1{font-size:22px;font-weight:800;color:var(--adk);margin-bottom:4px;}
-    .hdr .sub{font-size:13px;color:var(--textm);}
-    .card{background:var(--bg-card);border-radius:20px;padding:20px;margin-bottom:16px;border:1px solid var(--border);}
-    .ct{font-size:15px;font-weight:700;color:var(--text);margin-bottom:14px;}
-    label{display:block;font-size:13px;color:var(--text2);font-weight:600;margin-bottom:6px;}
-    input,textarea{width:100%;padding:12px 14px;border:1.5px solid var(--bdi);border-radius:12px;font-size:15px;background:var(--bg-input);color:var(--text);outline:none;transition:border-color .2s;}
-    input:focus,textarea:focus{border-color:var(--accent);}
-    textarea{resize:vertical;min-height:80px;font-family:inherit;}
-    .fld{margin-bottom:14px;}
-    .igrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-    .ic{border:2px solid var(--border);border-radius:14px;padding:12px;cursor:pointer;transition:all .15s;background:var(--bg-card);}
-    .ic.sel{border-color:var(--accent);background:var(--bg-sel);}
-    .ic .in{font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;line-height:1.3;}
-    .ic .ip{font-size:14px;font-weight:700;color:var(--accent);}
-    .ic .is{font-size:11px;color:var(--textm);margin-top:2px;}
-    .tabs{display:flex;gap:8px;margin-bottom:14px;}
-    .tab{flex:1;padding:8px;border:1.5px solid var(--border);border-radius:10px;background:var(--bg-card);color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;}
-    .tab.act{border-color:var(--accent);background:var(--bg-sel);color:var(--adk);}
-    .pm{display:flex;align-items:center;gap:12px;padding:14px;border:2px solid var(--border);border-radius:14px;cursor:pointer;transition:all .15s;margin-bottom:10px;}
-    .pm.sel{border-color:var(--accent);background:var(--bg-sel);}
-    .pm .pmi{font-size:24px;width:36px;text-align:center;}
-    .pm .pml{font-size:14px;font-weight:600;color:var(--text);}
-    .pm .pms{font-size:12px;color:var(--textm);}
-    .dtog{display:flex;align-items:center;justify-content:space-between;padding:14px;background:var(--bg-card);border:1.5px solid var(--border);border-radius:14px;cursor:pointer;}
-    .sw{width:44px;height:24px;background:var(--border);border-radius:12px;position:relative;transition:background .2s;}
-    .sw.on{background:var(--accent);}
-    .sw::after{content:'';position:absolute;top:2px;left:2px;width:20px;height:20px;background:#fff;border-radius:50%;transition:left .2s;}
-    .sw.on::after{left:22px;}
-    .sr{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);}
-    .sr:last-child{border-bottom:none;padding-top:12px;}
-    .stot{font-size:18px;font-weight:800;color:var(--adk);}
-    .nbtn{width:100%;padding:14px;background:var(--accent);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px;}
-    .bbtn{width:100%;padding:12px;background:transparent;color:var(--text2);border:1.5px solid var(--border);border-radius:14px;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px;}
-    .sbtn{width:100%;padding:16px;background:var(--accent);color:#fff;border:none;border-radius:16px;font-size:16px;font-weight:700;cursor:pointer;margin-top:8px;}
-    .sbtn:disabled{opacity:.5;cursor:not-allowed;}
-    .errmsg{color:var(--err);font-size:13px;margin-top:6px;display:none;}
-    .load{text-align:center;padding:40px;color:var(--textm);}
-    .empty{text-align:center;padding:24px;color:var(--textm);font-size:14px;}
-    .steps{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:20px;}
-    .step{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;}
-    .step.act{background:var(--accent);color:#fff;}
-    .step.done{background:#16a34a;color:#fff;}
-    .step.pend{background:var(--border);color:var(--textm);}
-    .sl{flex:1;height:2px;background:var(--border);max-width:40px;}
-    .sl.done{background:#16a34a;}
-    .sec{display:none;}
-    .sec.act{display:block;}
-    .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
-    .chip{padding:4px 10px;background:var(--bg-sel);border:1px solid var(--accent);border-radius:20px;font-size:12px;color:var(--adk);font-weight:600;}
+    :root{
+      --bg:#f5f7f5;--bg-card:#fff;--bg-card-hover:#f8fbf8;
+      --bg-input:#fafcfa;--bg-sel:#e8f5e3;--bg-sel-hover:#f0f7ef;
+      --text:#1a1a1a;--text2:#666;--textm:#888;--textl:#aaa;
+      --accent:#4a8c3f;--adk:#2d5a27;--accent-bg:#e8f0e6;--accent-bg-light:#f0f7ef;
+      --border:#e8ece8;--bdi:#dde3dd;
+      --err:#dc2626;--err-bg:#fef2f2;
+      --gift:#e91e8c;--gift-bg:#fce4f3;
+      --shadow:rgba(0,0,0,0.04);
+    }
+    @media(prefers-color-scheme:dark){:root{
+      --bg:#0f1210;--bg-card:#1a1f1a;--bg-card-hover:#222822;
+      --bg-input:#1e241e;--bg-sel:#1e3a1a;--bg-sel-hover:#243024;
+      --text:#e8ece8;--text2:#a8b0a8;--textm:#8a928a;--textl:#5a625a;
+      --accent:#5ca84f;--adk:#7cc070;--accent-bg:#1e3a1a;--accent-bg-light:#243024;
+      --border:#2a322a;--bdi:#3a423a;
+      --err:#f87171;--err-bg:#2a1515;
+      --gift:#f06ab0;--gift-bg:#3a1a2a;
+      --shadow:rgba(0,0,0,0.2);
+    }}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+    .container{max-width:480px;margin:0 auto;padding:0 0 100px;}
+    /* Header */
+    .header{text-align:center;padding:28px 16px 20px;background:var(--bg-card);border-bottom:1px solid var(--border);margin-bottom:0;}
+    .biz-logo{width:72px;height:72px;border-radius:20px;object-fit:cover;border:2px solid var(--border);box-shadow:0 4px 16px rgba(0,0,0,0.1);margin-bottom:12px;display:block;margin-left:auto;margin-right:auto;}
+    .biz-logo-placeholder{width:72px;height:72px;border-radius:20px;background:var(--gift-bg);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:32px;border:2px solid var(--border);}
+    .header h1{font-size:22px;font-weight:800;color:var(--text);margin-bottom:4px;letter-spacing:-0.5px;}
+    .header .subtitle{font-size:13px;color:var(--textm);font-weight:500;}
+    /* Step indicator */
+    .steps{display:flex;align-items:center;justify-content:center;gap:0;padding:14px 16px;background:var(--bg-card);border-bottom:1px solid var(--border);margin-bottom:0;}
+    .step-item{display:flex;flex-direction:column;align-items:center;flex:1;position:relative;}
+    .step-item:not(:last-child)::after{content:'';position:absolute;top:14px;left:50%;width:100%;height:2px;background:var(--border);z-index:0;}
+    .step-item.done::after{background:var(--accent);}
+    .step-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px solid var(--border);background:var(--bg-card);color:var(--textm);position:relative;z-index:1;}
+    .step-dot.active{background:var(--gift);border-color:var(--gift);color:#fff;}
+    .step-dot.done{background:var(--accent);border-color:var(--accent);color:#fff;}
+    .step-label{font-size:10px;color:var(--textm);margin-top:4px;font-weight:500;text-align:center;}
+    .step-item.active .step-label{color:var(--gift);font-weight:700;}
+    .step-item.done .step-label{color:var(--accent);}
+    /* Cards */
+    .card{background:var(--bg-card);border-radius:0;padding:20px 16px;margin-bottom:8px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);}
+    .card h2{font-size:17px;font-weight:700;color:var(--text);margin-bottom:6px;letter-spacing:-0.3px;}
+    .card .card-sub{font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.5;}
+    /* Service/product tiles */
+    .tile-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+    .tile{background:var(--bg-card);border:2px solid var(--border);border-radius:16px;padding:16px 12px;cursor:pointer;text-align:center;transition:all .15s;-webkit-tap-highlight-color:transparent;}
+    .tile:active{transform:scale(0.97);}
+    .tile.selected{border-color:var(--gift);background:var(--gift-bg);}
+    .tile-icon{font-size:28px;margin-bottom:8px;display:block;}
+    .tile-name{font-size:13px;font-weight:700;color:var(--text);line-height:1.3;margin-bottom:4px;}
+    .tile-price{font-size:13px;font-weight:700;color:var(--accent);}
+    .tile-dur{font-size:11px;color:var(--textm);margin-top:2px;}
+    .tile.selected .tile-name{color:var(--gift);}
+    /* Service list rows */
+    .svc-row{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--border);cursor:pointer;-webkit-tap-highlight-color:transparent;}
+    .svc-row:last-child{border-bottom:none;}
+    .svc-row-check{width:24px;height:24px;border-radius:50%;border:2px solid var(--bdi);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
+    .svc-row-check.checked{background:var(--gift);border-color:var(--gift);}
+    .svc-row-info{flex:1;}
+    .svc-row-name{font-size:14px;font-weight:600;color:var(--text);}
+    .svc-row-meta{font-size:12px;color:var(--textm);margin-top:2px;}
+    .svc-row-price{font-size:14px;font-weight:700;color:var(--accent);flex-shrink:0;}
+    /* Search */
+    .search-wrap{position:relative;margin-bottom:14px;}
+    .search-wrap input{width:100%;padding:11px 14px 11px 38px;border:1.5px solid var(--bdi);border-radius:12px;font-size:14px;background:var(--bg-input);color:var(--text);outline:none;-webkit-appearance:none;}
+    .search-wrap input:focus{border-color:var(--gift);}
+    .search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:16px;pointer-events:none;}
+    /* Category back button */
+    .cat-back{display:flex;align-items:center;gap:8px;padding:10px 0 14px;cursor:pointer;color:var(--gift);font-size:14px;font-weight:600;}
+    /* Input groups */
+    .input-group{margin-bottom:14px;}
+    .input-group label{display:block;font-size:13px;font-weight:600;color:var(--text2);margin-bottom:6px;}
+    .input-group input,.input-group textarea,.input-group select{width:100%;padding:13px 14px;border:1.5px solid var(--bdi);border-radius:12px;font-size:15px;background:var(--bg-input);color:var(--text);outline:none;-webkit-appearance:none;font-family:inherit;}
+    .input-group input:focus,.input-group textarea:focus,.input-group select:focus{border-color:var(--gift);}
+    .input-group textarea{resize:none;min-height:80px;line-height:1.5;}
+    /* Toggle row */
+    .toggle-row{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--border);}
+    .toggle-row:last-child{border-bottom:none;}
+    .toggle-info{flex:1;}
+    .toggle-info .t-title{font-size:14px;font-weight:600;color:var(--text);}
+    .toggle-info .t-sub{font-size:12px;color:var(--textm);margin-top:2px;}
+    .toggle{width:48px;height:28px;border-radius:14px;background:var(--border);position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;}
+    .toggle.on{background:var(--gift);}
+    .toggle-knob{width:22px;height:22px;border-radius:50%;background:#fff;position:absolute;top:3px;left:3px;transition:left .2s;box-shadow:0 1px 4px rgba(0,0,0,0.2);}
+    .toggle.on .toggle-knob{left:23px;}
+    /* Payment options */
+    .pay-opt{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;border:2px solid var(--border);background:var(--bg-card);cursor:pointer;margin-bottom:10px;transition:all .15s;-webkit-tap-highlight-color:transparent;}
+    .pay-opt.selected{border-color:var(--gift);background:var(--gift-bg);}
+    .pay-opt-icon{font-size:24px;flex-shrink:0;}
+    .pay-opt-info{flex:1;}
+    .pay-opt-label{font-size:14px;font-weight:700;color:var(--text);}
+    .pay-opt-sub{font-size:12px;color:var(--textm);margin-top:2px;}
+    .pay-opt-check{width:22px;height:22px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+    .pay-opt.selected .pay-opt-check{background:var(--gift);border-color:var(--gift);}
+    /* Summary bar */
+    .summary-bar{background:var(--bg-card);border-top:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;}
+    .summary-bar .sum-label{font-size:13px;color:var(--textm);}
+    .summary-bar .sum-total{font-size:18px;font-weight:800;color:var(--accent);}
+    /* Sticky footer */
+    .sticky-footer{position:fixed;bottom:0;left:0;right:0;background:var(--bg-card);border-top:1px solid var(--border);padding:12px 16px;z-index:100;max-width:480px;margin:0 auto;}
+    @media(min-width:481px){.sticky-footer{left:50%;transform:translateX(-50%);width:480px;}}
+    .footer-inner{display:flex;gap:10px;align-items:center;}
+    .footer-total{flex:1;}
+    .footer-total .ft-label{font-size:11px;color:var(--textm);}
+    .footer-total .ft-amount{font-size:18px;font-weight:800;color:var(--text);}
+    .btn{padding:14px 20px;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;transition:all .15s;letter-spacing:-0.1px;-webkit-tap-highlight-color:transparent;}
+    .btn:active{transform:scale(0.97);}
+    .btn-primary{background:linear-gradient(135deg,var(--gift) 0%,#c0166e 100%);color:#fff;box-shadow:0 4px 14px rgba(233,30,140,0.35);}
+    .btn-primary:disabled{background:#ccc;box-shadow:none;cursor:not-allowed;}
+    .btn-secondary{background:var(--accent-bg);color:var(--adk);border:1.5px solid var(--border);}
+    .btn-full{width:100%;}
+    .btn-flex{flex:1;}
+    /* Date picker */
+    .date-toggle{display:flex;background:var(--bg-input);border-radius:12px;padding:3px;border:1.5px solid var(--bdi);margin-bottom:16px;}
+    .date-toggle-btn{flex:1;padding:10px;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--textm);transition:all .15s;}
+    .date-toggle-btn.active{background:var(--gift);color:#fff;}
+    .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:8px;}
+    .cal-day-label{text-align:center;font-size:11px;font-weight:700;color:var(--textm);padding:4px 0;}
+    .cal-day{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:50%;font-size:13px;font-weight:600;cursor:pointer;color:var(--text);-webkit-tap-highlight-color:transparent;}
+    .cal-day:active{transform:scale(0.9);}
+    .cal-day.today{border:2px solid var(--gift);}
+    .cal-day.selected{background:var(--gift);color:#fff;}
+    .cal-day.disabled{color:var(--textl);cursor:default;pointer-events:none;}
+    .cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+    .cal-nav-btn{width:36px;height:36px;border-radius:50%;border:1.5px solid var(--border);background:var(--bg-card);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text);}
+    .cal-month-label{font-size:15px;font-weight:700;color:var(--text);}
+    .time-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;}
+    .time-slot{padding:10px 6px;border:1.5px solid var(--border);border-radius:10px;text-align:center;font-size:13px;font-weight:600;cursor:pointer;color:var(--text);-webkit-tap-highlight-color:transparent;transition:all .15s;}
+    .time-slot:active{transform:scale(0.95);}
+    .time-slot.selected{background:var(--gift);border-color:var(--gift);color:#fff;}
+    /* Success */
+    .success-wrap{text-align:center;padding:40px 16px;}
+    .success-icon{font-size:64px;margin-bottom:16px;}
+    .success-title{font-size:24px;font-weight:800;color:var(--text);margin-bottom:8px;}
+    .success-sub{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px;}
+    .code-box{background:var(--gift-bg);border:2px dashed var(--gift);border-radius:16px;padding:16px;margin-bottom:20px;}
+    .code-label{font-size:12px;color:var(--textm);margin-bottom:4px;}
+    .code-value{font-size:28px;font-weight:900;color:var(--gift);letter-spacing:2px;}
+    .share-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;border-radius:14px;border:2px solid var(--gift);background:var(--gift-bg);color:var(--gift);font-size:15px;font-weight:700;cursor:pointer;width:100%;margin-bottom:10px;-webkit-tap-highlight-color:transparent;}
+    /* Misc */
+    .section-title{font-size:12px;font-weight:700;color:var(--textm);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;}
+    .err-msg{color:var(--err);font-size:12px;margin-top:4px;}
+    .selected-items-bar{background:var(--accent-bg-light);border:1.5px solid var(--accent);border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--accent);font-weight:600;display:none;}
+    .spinner{display:inline-block;width:20px;height:20px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;}
+    @keyframes spin{to{transform:rotate(360deg);}}
+    .hidden{display:none!important;}
   </style>
 </head>
 <body>
-<div class="con">
-  <div class="hdr">
+<div class="container" id="app">
+  <!-- Header -->
+  <div class="header">
     ${logoTag}
     <h1>${bizName}</h1>
-    <div class="sub">Buy a Gift</div>
+    <div class="subtitle">🎁 Buy a Gift</div>
   </div>
-  <div class="steps">
-    <div class="step act" id="s1d">1</div>
-    <div class="sl" id="l1"></div>
-    <div class="step pend" id="s2d">2</div>
-    <div class="sl" id="l2"></div>
-    <div class="step pend" id="s3d">3</div>
-  </div>
-  <div id="ld" class="load">Loading...</div>
-  <div id="mc" style="display:none;">
-    <div class="sec act" id="sec1">
-      <div class="card">
-        <div class="ct">🛍️ Choose Gift Items</div>
-        <div class="tabs">
-          <button class="tab act" id="tSvc" onclick="swTab('s')">Services</button>
-          <button class="tab" id="tPrd" onclick="swTab('p')">Products</button>
-        </div>
-        <div id="sg" class="igrid"></div>
-        <div id="pg" class="igrid" style="display:none;"></div>
-        <div id="noitems" class="empty" style="display:none;">No items available</div>
-      </div>
-      <div class="card" id="selCard" style="display:none;">
-        <div class="ct">🎁 Selected Items</div>
-        <div id="selPrev" class="chips"></div>
-        <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-size:14px;color:var(--text2);">Total Value</span>
-          <span style="font-size:18px;font-weight:800;color:var(--adk);" id="tvd">$0.00</span>
-        </div>
-      </div>
-      <div id="e1" class="errmsg">Please select at least one item.</div>
-      <button class="nbtn" onclick="g2()">Continue →</button>
+  <!-- Step indicator -->
+  <div class="steps" id="stepBar">
+    <div class="step-item active" id="si0">
+      <div class="step-dot active" id="sd0">1</div>
+      <div class="step-label">Items</div>
     </div>
-    <div class="sec" id="sec2">
-      <div class="card">
-        <div class="ct">👤 Your Information</div>
-        <div class="fld"><label>Your Name *</label><input type="text" id="pn" placeholder="John Smith" autocomplete="name"/></div>
-        <div class="fld"><label>Your Email *</label><input type="email" id="pe" placeholder="john@example.com" autocomplete="email"/><div style="font-size:11px;color:var(--textm);margin-top:4px;">You'll receive a purchase confirmation here.</div></div>
-      </div>
-      <div class="card">
-        <div class="ct">🎁 Recipient Information</div>
-        <div class="fld"><label>Recipient's Name *</label><input type="text" id="rn" placeholder="Jane Smith" autocomplete="off"/></div>
-        <div class="fld"><label>Recipient's Email</label><input type="email" id="re" placeholder="jane@example.com" autocomplete="off"/><div style="font-size:11px;color:var(--textm);margin-top:4px;">They'll receive an email with their gift link.</div></div>
-        <div class="fld"><label>Recipient's Phone (optional)</label><input type="tel" id="rp" placeholder="+1 (555) 000-0000" autocomplete="off"/></div>
-      </div>
-      <div class="card">
-        <div class="ct">💌 Personal Message (optional)</div>
-        <textarea id="pm" placeholder="Write a heartfelt message for the recipient..."></textarea>
-      </div>
-      <div class="card">
-        <div class="ct">📅 Appointment Date</div>
-        <div class="dtog" onclick="togDate()">
-          <div>
-            <div style="font-size:14px;font-weight:600;color:var(--text);">Let recipient choose date</div>
-            <div style="font-size:12px;color:var(--textm);margin-top:2px;">Recipient picks their own appointment time</div>
-          </div>
-          <div class="sw on" id="dtog"></div>
-        </div>
-        <div id="dpSec" style="display:none;margin-top:12px;">
-          <div class="fld"><label>Preferred Date</label><input type="date" id="pd"/></div>
-        </div>
-      </div>
-      <div id="e2" class="errmsg">Please fill in all required fields.</div>
-      <button class="nbtn" onclick="g3()">Continue →</button>
-      <button class="bbtn" onclick="gs(1)">← Back</button>
+    <div class="step-item" id="si1">
+      <div class="step-dot" id="sd1">2</div>
+      <div class="step-label">Details</div>
     </div>
-    <div class="sec" id="sec3">
-      <div class="card"><div class="ct">🧾 Order Summary</div><div id="os"></div></div>
-      <div class="card">
-        <div class="ct">💳 Choose Payment Method</div>
-        <div id="pmo"></div>
-        <div id="nopm" class="empty" style="display:none;">No payment methods configured.</div>
-      </div>
-      <div id="e3" class="errmsg">Please select a payment method.</div>
-      <button class="sbtn" id="subbtn" onclick="sub()">🎁 Purchase Gift</button>
-      <button class="bbtn" onclick="gs(2)">← Back</button>
+    <div class="step-item" id="si2">
+      <div class="step-dot" id="sd2">3</div>
+      <div class="step-label">Date</div>
+    </div>
+    <div class="step-item" id="si3">
+      <div class="step-dot" id="sd3">4</div>
+      <div class="step-label">Payment</div>
     </div>
   </div>
-  <div style="text-align:center;padding:24px 0 8px;"><span style="font-size:12px;color:var(--textm);">Powered by Lime Of Time</span></div>
+
+  <!-- Step 0: Select Items -->
+  <div id="step0" class="card" style="margin-top:8px;">
+    <h2>Select Services &amp; Products</h2>
+    <p class="card-sub">Choose one or more items to include in this gift.</p>
+    <!-- Tab switcher -->
+    <div style="display:flex;background:var(--bg-input);border-radius:12px;padding:3px;border:1.5px solid var(--bdi);margin-bottom:14px;">
+      <button onclick="switchItemTab('services')" id="tabSvc" style="flex:1;padding:9px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:var(--gift);color:#fff;transition:all .15s;">Services</button>
+      <button onclick="switchItemTab('products')" id="tabProd" style="flex:1;padding:9px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:transparent;color:var(--textm);transition:all .15s;">Products</button>
+    </div>
+    <!-- Search -->
+    <div class="search-wrap" id="searchWrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="itemSearch" placeholder="Search..." oninput="onItemSearch(this.value)">
+    </div>
+    <!-- Services panel -->
+    <div id="svcPanel">
+      <div id="svcCatView">
+        <div class="tile-grid" id="svcCatGrid"></div>
+      </div>
+      <div id="svcListView" style="display:none;">
+        <div class="cat-back" onclick="backToCats()">← Back to categories</div>
+        <div id="svcList"></div>
+      </div>
+      <div id="svcSearchView" style="display:none;">
+        <div id="svcSearchList"></div>
+      </div>
+    </div>
+    <!-- Products panel -->
+    <div id="prodPanel" style="display:none;">
+      <div id="prodList"></div>
+      <div id="prodSearchList" style="display:none;"></div>
+    </div>
+    <!-- Selected summary -->
+    <div class="selected-items-bar" id="selectedBar"></div>
+  </div>
+
+  <!-- Step 1: Recipient & Purchaser Details -->
+  <div id="step1" class="hidden card" style="margin-top:8px;">
+    <h2>Gift Details</h2>
+    <p class="card-sub">Tell us who this gift is for and who is sending it.</p>
+    <div class="section-title">Recipient (who receives the gift)</div>
+    <div class="input-group">
+      <label>Recipient Name *</label>
+      <input type="text" id="recipientName" placeholder="e.g. Sarah Johnson">
+    </div>
+    <div class="input-group">
+      <label>Recipient Email *</label>
+      <input type="email" id="recipientEmail" placeholder="sarah@example.com">
+    </div>
+    <div class="input-group">
+      <label>Recipient Phone</label>
+      <input type="tel" id="recipientPhone" placeholder="(000) 000-0000">
+    </div>
+    <div style="height:1px;background:var(--border);margin:16px 0;"></div>
+    <div class="section-title">From (your information)</div>
+    <div class="input-group">
+      <label>Your Name *</label>
+      <input type="text" id="purchaserName" placeholder="e.g. John Johnson">
+    </div>
+    <div class="input-group">
+      <label>Your Email *</label>
+      <input type="email" id="purchaserEmail" placeholder="john@example.com">
+    </div>
+    <div class="input-group">
+      <label>Personal Message (optional)</label>
+      <textarea id="giftMessage" placeholder="e.g. Happy Birthday! Enjoy your day 💐" maxlength="300"></textarea>
+    </div>
+  </div>
+
+  <!-- Step 2: Date Selection -->
+  <div id="step2" class="hidden card" style="margin-top:8px;">
+    <h2>Appointment Date</h2>
+    <p class="card-sub">Let the recipient choose their own date, or pick one now.</p>
+    <div class="date-toggle">
+      <button class="date-toggle-btn active" id="dtRecipient" onclick="setDateMode('recipient')">Recipient Chooses</button>
+      <button class="date-toggle-btn" id="dtMe" onclick="setDateMode('me')">I Pick the Date</button>
+    </div>
+    <div id="datePickerWrap" style="display:none;">
+      <div class="cal-nav">
+        <button class="cal-nav-btn" onclick="changeCalMonth(-1)">‹</button>
+        <div class="cal-month-label" id="calMonthLabel"></div>
+        <button class="cal-nav-btn" onclick="changeCalMonth(1)">›</button>
+      </div>
+      <div class="cal-grid">
+        <div class="cal-day-label">Su</div><div class="cal-day-label">Mo</div><div class="cal-day-label">Tu</div>
+        <div class="cal-day-label">We</div><div class="cal-day-label">Th</div><div class="cal-day-label">Fr</div>
+        <div class="cal-day-label">Sa</div>
+        <div id="calDays"></div>
+      </div>
+      <div id="timeSection" style="display:none;margin-top:16px;">
+        <div class="section-title">Select a Time</div>
+        <div class="time-grid" id="timeGrid"></div>
+      </div>
+    </div>
+    <div id="recipientChooseMsg" style="background:var(--accent-bg-light);border-radius:12px;padding:14px;font-size:13px;color:var(--text2);line-height:1.5;">
+      ✅ The recipient will receive a link to choose their own appointment date. You can still purchase the gift now.
+    </div>
+  </div>
+
+  <!-- Step 3: Payment -->
+  <div id="step3" class="hidden card" style="margin-top:8px;">
+    <h2>Complete Payment</h2>
+    <p class="card-sub">Choose how you'd like to pay for this gift.</p>
+    <div id="paymentList"></div>
+    <div id="paymentError" class="err-msg hidden"></div>
+  </div>
+
+  <!-- Sticky footer -->
+  <div class="sticky-footer" id="stickyFooter">
+    <div class="footer-inner">
+      <div class="footer-total" id="footerTotal" style="display:none;">
+        <div class="ft-label">Gift Total</div>
+        <div class="ft-amount" id="footerAmount">$0.00</div>
+      </div>
+      <button class="btn btn-primary btn-flex" id="mainBtn" onclick="handleMainBtn()" disabled>
+        Select Items to Continue
+      </button>
+    </div>
+  </div>
 </div>
+
 <script>
-  const SLUG=${JSON.stringify(slug)};
-  let biz=null,svcIds=[],prdIds=[],tab='s',rcd=true,spm=null;
-  async function load(){
-    try{
-      const r=await fetch('/api/public/business/'+SLUG+'/gift-info');
-      biz=await r.json();
-      document.getElementById('ld').style.display='none';
-      document.getElementById('mc').style.display='block';
-      render();
-    }catch(e){document.getElementById('ld').textContent='Failed to load. Please refresh.';}
+const SLUG = '${slug}';
+const BIZ_NAME = '${bizName}';
+let allServices = [], allProducts = [], paymentMethods = {};
+let selectedServiceIds = new Set(), selectedProductIds = new Set();
+let currentStep = 0;
+let dateMode = 'recipient'; // 'recipient' | 'me'
+let selectedDate = null, selectedTime = null;
+let selectedPaymentMethod = null;
+let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
+let currentCat = null;
+let currentItemTab = 'services';
+let isSubmitting = false;
+
+// ── Load data ──────────────────────────────────────────────────────────
+async function loadData() {
+  try {
+    const r = await fetch('/api/public/business/' + SLUG + '/gift-info');
+    if (!r.ok) throw new Error('Failed to load');
+    const d = await r.json();
+    allServices = d.services || [];
+    allProducts = d.products || [];
+    paymentMethods = d.paymentMethods || {};
+    renderSvcCats();
+    renderProducts();
+    renderPaymentOptions();
+  } catch(e) {
+    document.getElementById('svcCatGrid').innerHTML = '<p style="color:var(--err);font-size:13px;">Failed to load services. Please refresh.</p>';
   }
-  function esc(s){if(!s)return'';return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-  function render(){
-    const sg=document.getElementById('sg'),pg=document.getElementById('pg');
-    sg.innerHTML='';pg.innerHTML='';
-    if(!biz)return;
-    if(!biz.services.length&&!biz.products.length){document.getElementById('noitems').style.display='block';return;}
-    biz.services.forEach(s=>{
-      const el=document.createElement('div');
-      el.className='ic'+(svcIds.includes(s.localId)?' sel':'');
-      el.innerHTML='<div class="in">'+esc(s.name)+'</div><div class="ip">$'+s.price.toFixed(2)+'</div>'+(s.duration?'<div class="is">'+s.duration+' min</div>':'');
-      el.onclick=()=>tog('s',s.localId,el);sg.appendChild(el);
+}
+
+// ── Item Tab ───────────────────────────────────────────────────────────
+function switchItemTab(tab) {
+  currentItemTab = tab;
+  document.getElementById('svcPanel').style.display = tab === 'services' ? 'block' : 'none';
+  document.getElementById('prodPanel').style.display = tab === 'products' ? 'block' : 'none';
+  document.getElementById('tabSvc').style.background = tab === 'services' ? 'var(--gift)' : 'transparent';
+  document.getElementById('tabSvc').style.color = tab === 'services' ? '#fff' : 'var(--textm)';
+  document.getElementById('tabProd').style.background = tab === 'products' ? 'var(--gift)' : 'transparent';
+  document.getElementById('tabProd').style.color = tab === 'products' ? '#fff' : 'var(--textm)';
+  document.getElementById('itemSearch').value = '';
+  onItemSearch('');
+}
+
+// ── Service categories ─────────────────────────────────────────────────
+function renderSvcCats() {
+  const cats = {};
+  allServices.forEach(s => {
+    const c = s.category || 'Other';
+    if (!cats[c]) cats[c] = { name: c, count: 0, emoji: s.categoryEmoji || getCatEmoji(c) };
+    cats[c].count++;
+  });
+  const grid = document.getElementById('svcCatGrid');
+  const allCount = allServices.length;
+  let html = '<div class="tile" onclick="drillCat(\'__all__\')" id="cat___all__">';
+  html += '<span class="tile-icon">✨</span>';
+  html += '<div class="tile-name">All</div>';
+  html += '<div class="tile-dur">' + allCount + ' service' + (allCount !== 1 ? 's' : '') + '</div>';
+  html += '</div>';
+  Object.values(cats).forEach(function(c) {
+    html += '<div class="tile" onclick="drillCat(' + JSON.stringify(c.name) + ')" id="cat_' + c.name.replace(/[^a-z0-9]/gi,'_') + '">';
+    html += '<span class="tile-icon">' + c.emoji + '</span>';
+    html += '<div class="tile-name">' + escH(c.name) + '</div>';
+    html += '<div class="tile-dur">' + c.count + ' service' + (c.count !== 1 ? 's' : '') + '</div>';
+    html += '</div>';
+  });
+  grid.innerHTML = html;
+}
+function getCatEmoji(name) {
+  const n = (name||'').toLowerCase();
+  if (n.includes('hair')) return '💇';
+  if (n.includes('nail')) return '💅';
+  if (n.includes('massage') || n.includes('body')) return '💆';
+  if (n.includes('facial') || n.includes('face') || n.includes('skin')) return '✨';
+  if (n.includes('wax') || n.includes('brow')) return '🪮';
+  if (n.includes('lash') || n.includes('eye')) return '👁️';
+  if (n.includes('makeup')) return '💄';
+  if (n.includes('package')) return '🎀';
+  return '🌿';
+}
+function drillCat(cat) {
+  currentCat = cat;
+  document.getElementById('svcCatView').style.display = 'none';
+  document.getElementById('svcListView').style.display = 'block';
+  const svcs = cat === '__all__' ? allServices : allServices.filter(s => (s.category || 'Other') === cat);
+  renderSvcList(svcs, document.getElementById('svcList'));
+}
+function backToCats() {
+  currentCat = null;
+  document.getElementById('svcCatView').style.display = 'block';
+  document.getElementById('svcListView').style.display = 'none';
+}
+function renderSvcList(svcs, container) {
+  if (!svcs.length) { container.innerHTML = '<p style="color:var(--textm);font-size:13px;padding:12px 0;">No services found.</p>'; return; }
+  let html = '';
+  svcs.forEach(function(s) {
+    const checked = selectedServiceIds.has(s.localId);
+    html += '<div class="svc-row" onclick="toggleService(' + JSON.stringify(s.localId) + ')">';
+    html += '<div class="svc-row-check' + (checked ? ' checked' : '') + '" id="chk_' + s.localId + '">' + (checked ? '<span style="color:#fff;font-size:14px;">✓</span>' : '') + '</div>';
+    html += '<div class="svc-row-info"><div class="svc-row-name">' + escH(s.name) + '</div>';
+    const meta = [];
+    if (s.duration) meta.push(s.duration + ' min');
+    if (s.category) meta.push(s.category);
+    if (meta.length) html += '<div class="svc-row-meta">' + escH(meta.join(' · ')) + '</div>';
+    html += '</div>';
+    html += '<div class="svc-row-price">$' + parseFloat(s.price || 0).toFixed(2) + '</div>';
+    html += '</div>';
+  });
+  container.innerHTML = html;
+}
+
+// ── Products ───────────────────────────────────────────────────────────
+function renderProducts(filter) {
+  const prods = filter ? allProducts.filter(p => p.name.toLowerCase().includes(filter.toLowerCase())) : allProducts;
+  const container = document.getElementById('prodList');
+  if (!prods.length) { container.innerHTML = '<p style="color:var(--textm);font-size:13px;padding:12px 0;">No products found.</p>'; return; }
+  let html = '';
+  prods.forEach(function(p) {
+    const checked = selectedProductIds.has(p.localId);
+    html += '<div class="svc-row" onclick="toggleProduct(' + JSON.stringify(p.localId) + ')">';
+    html += '<div class="svc-row-check' + (checked ? ' checked' : '') + '" id="pchk_' + p.localId + '">' + (checked ? '<span style="color:#fff;font-size:14px;">✓</span>' : '') + '</div>';
+    html += '<div class="svc-row-info"><div class="svc-row-name">' + escH(p.name) + '</div>';
+    if (p.brand || p.category) html += '<div class="svc-row-meta">' + escH([p.brand, p.category].filter(Boolean).join(' · ')) + '</div>';
+    html += '</div>';
+    html += '<div class="svc-row-price">$' + parseFloat(p.price || 0).toFixed(2) + '</div>';
+    html += '</div>';
+  });
+  container.innerHTML = html;
+}
+
+// ── Search ─────────────────────────────────────────────────────────────
+function onItemSearch(q) {
+  if (currentItemTab === 'services') {
+    if (!q) {
+      document.getElementById('svcSearchView').style.display = 'none';
+      if (currentCat) {
+        document.getElementById('svcListView').style.display = 'block';
+        document.getElementById('svcCatView').style.display = 'none';
+      } else {
+        document.getElementById('svcCatView').style.display = 'block';
+        document.getElementById('svcListView').style.display = 'none';
+      }
+    } else {
+      document.getElementById('svcCatView').style.display = 'none';
+      document.getElementById('svcListView').style.display = 'none';
+      document.getElementById('svcSearchView').style.display = 'block';
+      const filtered = allServices.filter(s => s.name.toLowerCase().includes(q.toLowerCase()) || (s.category||'').toLowerCase().includes(q.toLowerCase()));
+      renderSvcList(filtered, document.getElementById('svcSearchList'));
+    }
+  } else {
+    renderProducts(q || null);
+  }
+}
+
+// ── Toggle selection ───────────────────────────────────────────────────
+function toggleService(id) {
+  if (selectedServiceIds.has(id)) selectedServiceIds.delete(id);
+  else selectedServiceIds.add(id);
+  // Update checkboxes in all views
+  document.querySelectorAll('#chk_' + id).forEach(function(el) {
+    el.className = 'svc-row-check' + (selectedServiceIds.has(id) ? ' checked' : '');
+    el.innerHTML = selectedServiceIds.has(id) ? '<span style="color:#fff;font-size:14px;">✓</span>' : '';
+  });
+  updateSummary();
+}
+function toggleProduct(id) {
+  if (selectedProductIds.has(id)) selectedProductIds.delete(id);
+  else selectedProductIds.add(id);
+  document.querySelectorAll('#pchk_' + id).forEach(function(el) {
+    el.className = 'svc-row-check' + (selectedProductIds.has(id) ? ' checked' : '');
+    el.innerHTML = selectedProductIds.has(id) ? '<span style="color:#fff;font-size:14px;">✓</span>' : '';
+  });
+  updateSummary();
+}
+function updateSummary() {
+  let total = 0, names = [];
+  selectedServiceIds.forEach(function(id) {
+    const s = allServices.find(x => x.localId === id);
+    if (s) { total += parseFloat(s.price || 0); names.push(s.name); }
+  });
+  selectedProductIds.forEach(function(id) {
+    const p = allProducts.find(x => x.localId === id);
+    if (p) { total += parseFloat(p.price || 0); names.push(p.name); }
+  });
+  const bar = document.getElementById('selectedBar');
+  const btn = document.getElementById('mainBtn');
+  const ftTotal = document.getElementById('footerTotal');
+  const ftAmt = document.getElementById('footerAmount');
+  if (names.length) {
+    bar.style.display = 'block';
+    bar.textContent = '✓ Selected: ' + names.join(', ') + ' — $' + total.toFixed(2);
+    btn.disabled = false;
+    btn.textContent = 'Continue →';
+    ftTotal.style.display = 'block';
+    ftAmt.textContent = '$' + total.toFixed(2);
+  } else {
+    bar.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'Select Items to Continue';
+    ftTotal.style.display = 'none';
+  }
+}
+
+// ── Payment options ────────────────────────────────────────────────────
+function renderPaymentOptions() {
+  const pm = paymentMethods;
+  const opts = [];
+  if (pm.zelle) opts.push({ id: 'zelle', icon: '💜', label: 'Zelle', sub: pm.zelle });
+  if (pm.cashApp) opts.push({ id: 'cashapp', icon: '💚', label: 'Cash App', sub: (pm.cashApp.startsWith('$') ? pm.cashApp : '$' + pm.cashApp) });
+  if (pm.venmo) opts.push({ id: 'venmo', icon: '💙', label: 'Venmo', sub: (pm.venmo.startsWith('@') ? pm.venmo : '@' + pm.venmo) });
+  if (pm.stripeEnabled) opts.push({ id: 'card', icon: '💳', label: 'Credit / Debit Card', sub: 'Visa, Mastercard, Apple Pay, Google Pay' });
+  opts.push({ id: 'cash', icon: '💵', label: 'Cash', sub: 'Pay in person at the appointment' });
+  let html = '';
+  opts.forEach(function(o) {
+    const sel = selectedPaymentMethod === o.id;
+    html += '<div class="pay-opt' + (sel ? ' selected' : '') + '" onclick="selectPayment(' + JSON.stringify(o.id) + ')">';
+    html += '<div class="pay-opt-icon">' + o.icon + '</div>';
+    html += '<div class="pay-opt-info"><div class="pay-opt-label">' + escH(o.label) + '</div><div class="pay-opt-sub">' + escH(o.sub) + '</div></div>';
+    html += '<div class="pay-opt-check">' + (sel ? '<span style="color:#fff;font-size:12px;">✓</span>' : '') + '</div>';
+    html += '</div>';
+  });
+  document.getElementById('paymentList').innerHTML = html;
+}
+function selectPayment(id) {
+  selectedPaymentMethod = id;
+  renderPaymentOptions();
+}
+
+// ── Date mode ──────────────────────────────────────────────────────────
+function setDateMode(mode) {
+  dateMode = mode;
+  document.getElementById('dtRecipient').className = 'date-toggle-btn' + (mode === 'recipient' ? ' active' : '');
+  document.getElementById('dtMe').className = 'date-toggle-btn' + (mode === 'me' ? ' active' : '');
+  document.getElementById('datePickerWrap').style.display = mode === 'me' ? 'block' : 'none';
+  document.getElementById('recipientChooseMsg').style.display = mode === 'recipient' ? 'block' : 'none';
+  if (mode === 'me') renderCal();
+}
+
+// ── Calendar ───────────────────────────────────────────────────────────
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+function renderCal() {
+  document.getElementById('calMonthLabel').textContent = MONTHS[calMonth] + ' ' + calYear;
+  const now = new Date(); now.setHours(0,0,0,0);
+  const first = new Date(calYear, calMonth, 1).getDay();
+  const days = new Date(calYear, calMonth + 1, 0).getDate();
+  let html = '';
+  for (let i = 0; i < first; i++) html += '<div></div>';
+  for (let d = 1; d <= days; d++) {
+    const dt = new Date(calYear, calMonth, d);
+    const iso = calYear + '-' + String(calMonth+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    const isPast = dt < now;
+    const isSel = selectedDate === iso;
+    const isToday = dt.getTime() === now.getTime();
+    html += '<div class="cal-day' + (isPast ? ' disabled' : '') + (isSel ? ' selected' : '') + (isToday && !isSel ? ' today' : '') + '"' + (!isPast ? ' onclick="selectDay(' + JSON.stringify(iso) + ')"' : '') + '>' + d + '</div>';
+  }
+  document.getElementById('calDays').innerHTML = html;
+}
+function changeCalMonth(d) {
+  calMonth += d;
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  if (calMonth < 0) { calMonth = 11; calYear--; }
+  const now = new Date();
+  if (calYear < now.getFullYear() || (calYear === now.getFullYear() && calMonth < now.getMonth())) {
+    calMonth = now.getMonth(); calYear = now.getFullYear();
+  }
+  renderCal();
+}
+function selectDay(iso) {
+  selectedDate = iso;
+  selectedTime = null;
+  renderCal();
+  // Show simple time slots
+  const slots = ['9:00 AM','9:30 AM','10:00 AM','10:30 AM','11:00 AM','11:30 AM','12:00 PM','12:30 PM','1:00 PM','1:30 PM','2:00 PM','2:30 PM','3:00 PM','3:30 PM','4:00 PM','4:30 PM','5:00 PM'];
+  let html = '';
+  slots.forEach(function(t) {
+    html += '<div class="time-slot' + (selectedTime === t ? ' selected' : '') + '" onclick="selectTime(' + JSON.stringify(t) + ')">' + t + '</div>';
+  });
+  document.getElementById('timeGrid').innerHTML = html;
+  document.getElementById('timeSection').style.display = 'block';
+}
+function selectTime(t) {
+  selectedTime = t;
+  document.querySelectorAll('.time-slot').forEach(function(el) {
+    el.className = 'time-slot' + (el.textContent === t ? ' selected' : '');
+  });
+}
+
+// ── Step navigation ────────────────────────────────────────────────────
+function goToStep(n) {
+  for (let i = 0; i <= 3; i++) {
+    const el = document.getElementById('step' + i);
+    if (el) { el.classList.add('hidden'); el.style.display = ''; }
+  }
+  const target = document.getElementById('step' + n);
+  if (target) { target.classList.remove('hidden'); target.style.display = 'block'; }
+  currentStep = n;
+  // Update step dots
+  for (let i = 0; i < 4; i++) {
+    const dot = document.getElementById('sd' + i);
+    const item = document.getElementById('si' + i);
+    if (dot) dot.className = 'step-dot' + (i < n ? ' done' : i === n ? ' active' : '');
+    if (item) item.className = 'step-item' + (i < n ? ' done' : i === n ? ' active' : '');
+  }
+  // Update footer button
+  updateFooterBtn();
+  window.scrollTo(0, 0);
+}
+function updateFooterBtn() {
+  const btn = document.getElementById('mainBtn');
+  if (currentStep === 0) {
+    const hasItems = selectedServiceIds.size > 0 || selectedProductIds.size > 0;
+    btn.disabled = !hasItems;
+    btn.textContent = hasItems ? 'Continue →' : 'Select Items to Continue';
+  } else if (currentStep === 1) {
+    btn.disabled = false;
+    btn.textContent = 'Continue →';
+  } else if (currentStep === 2) {
+    btn.disabled = false;
+    btn.textContent = 'Continue →';
+  } else if (currentStep === 3) {
+    btn.disabled = false;
+    btn.textContent = isSubmitting ? '' : 'Purchase Gift 🎁';
+    if (isSubmitting) btn.innerHTML = '<span class="spinner"></span>';
+  }
+}
+function handleMainBtn() {
+  if (currentStep === 0) {
+    if (selectedServiceIds.size === 0 && selectedProductIds.size === 0) { alert('Please select at least one item.'); return; }
+    goToStep(1);
+  } else if (currentStep === 1) {
+    const rName = document.getElementById('recipientName').value.trim();
+    const rEmail = document.getElementById('recipientEmail').value.trim();
+    const pName = document.getElementById('purchaserName').value.trim();
+    const pEmail = document.getElementById('purchaserEmail').value.trim();
+    if (!rName) { alert('Please enter the recipient name.'); document.getElementById('recipientName').focus(); return; }
+    if (!rEmail || !rEmail.includes('@')) { alert('Please enter a valid recipient email.'); document.getElementById('recipientEmail').focus(); return; }
+    if (!pName) { alert('Please enter your name.'); document.getElementById('purchaserName').focus(); return; }
+    if (!pEmail || !pEmail.includes('@')) { alert('Please enter your email.'); document.getElementById('purchaserEmail').focus(); return; }
+    goToStep(2);
+  } else if (currentStep === 2) {
+    if (dateMode === 'me' && !selectedDate) { alert('Please select a date.'); return; }
+    if (dateMode === 'me' && !selectedTime) { alert('Please select a time.'); return; }
+    goToStep(3);
+  } else if (currentStep === 3) {
+    if (!selectedPaymentMethod) { document.getElementById('paymentError').textContent = 'Please select a payment method.'; document.getElementById('paymentError').classList.remove('hidden'); return; }
+    submitGift();
+  }
+}
+
+// ── Submit ─────────────────────────────────────────────────────────────
+async function submitGift() {
+  if (isSubmitting) return;
+  isSubmitting = true;
+  updateFooterBtn();
+  const payload = {
+    serviceIds: Array.from(selectedServiceIds),
+    productIds: Array.from(selectedProductIds),
+    recipientName: document.getElementById('recipientName').value.trim(),
+    recipientEmail: document.getElementById('recipientEmail').value.trim(),
+    recipientPhone: document.getElementById('recipientPhone').value.trim(),
+    purchaserName: document.getElementById('purchaserName').value.trim(),
+    purchaserEmail: document.getElementById('purchaserEmail').value.trim(),
+    message: document.getElementById('giftMessage').value.trim(),
+    paymentMethod: selectedPaymentMethod,
+    recipientChoosesDate: dateMode === 'recipient',
+    preselectedDate: dateMode === 'me' ? selectedDate : null,
+    preselectedTime: dateMode === 'me' ? selectedTime : null,
+  };
+  try {
+    const r = await fetch('/api/public/business/' + SLUG + '/buy-gift', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
     });
-    biz.products.forEach(p=>{
-      const el=document.createElement('div');
-      el.className='ic'+(prdIds.includes(p.localId)?' sel':'');
-      el.innerHTML='<div class="in">'+esc(p.name)+'</div><div class="ip">$'+p.price.toFixed(2)+'</div>'+(p.brand?'<div class="is">'+esc(p.brand)+'</div>':'');
-      el.onclick=()=>tog('p',p.localId,el);pg.appendChild(el);
-    });
-    upd();
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Failed to create gift');
+    window.location.href = '/api/gift-confirm/' + encodeURIComponent(d.code);
+  } catch(e) {
+    isSubmitting = false;
+    updateFooterBtn();
+    alert('Error: ' + (e.message || 'Something went wrong. Please try again.'));
   }
-  function swTab(t){
-    tab=t;
-    document.getElementById('sg').style.display=t==='s'?'grid':'none';
-    document.getElementById('pg').style.display=t==='p'?'grid':'none';
-    document.getElementById('tSvc').className='tab'+(t==='s'?' act':'');
-    document.getElementById('tPrd').className='tab'+(t==='p'?' act':'');
-  }
-  function tog(type,id,el){
-    if(type==='s'){const i=svcIds.indexOf(id);if(i>=0){svcIds.splice(i,1);el.classList.remove('sel');}else{svcIds.push(id);el.classList.add('sel');}}
-    else{const i=prdIds.indexOf(id);if(i>=0){prdIds.splice(i,1);el.classList.remove('sel');}else{prdIds.push(id);el.classList.add('sel');}}
-    upd();
-  }
-  function getTotal(){if(!biz)return 0;let t=0;svcIds.forEach(id=>{const s=biz.services.find(x=>x.localId===id);if(s)t+=s.price;});prdIds.forEach(id=>{const p=biz.products.find(x=>x.localId===id);if(p)t+=p.price;});return t;}
-  function getItems(){if(!biz)return[];const a=[];svcIds.forEach(id=>{const s=biz.services.find(x=>x.localId===id);if(s)a.push({...s,type:'s'});});prdIds.forEach(id=>{const p=biz.products.find(x=>x.localId===id);if(p)a.push({...p,type:'p'});});return a;}
-  function upd(){
-    document.getElementById('tvd').textContent='$'+getTotal().toFixed(2);
-    const prev=document.getElementById('selPrev'),card=document.getElementById('selCard');
-    prev.innerHTML='';const items=getItems();
-    if(!items.length){card.style.display='none';return;}
-    card.style.display='block';
-    items.forEach(item=>{const c=document.createElement('div');c.className='chip';c.textContent=item.name;prev.appendChild(c);});
-  }
-  function g2(){if(!svcIds.length&&!prdIds.length){document.getElementById('e1').style.display='block';return;}document.getElementById('e1').style.display='none';gs(2);}
-  function g3(){
-    const pn=document.getElementById('pn').value.trim(),pe=document.getElementById('pe').value.trim(),rn=document.getElementById('rn').value.trim();
-    if(!pn||!pe||!rn){const e=document.getElementById('e2');e.textContent='Please fill in your name, email, and the recipient name.';e.style.display='block';return;}
-    if(!pe.includes('@')){const e=document.getElementById('e2');e.textContent='Please enter a valid email.';e.style.display='block';return;}
-    document.getElementById('e2').style.display='none';
-    renderOS();renderPM();gs(3);
-  }
-  function gs(n){
-    document.querySelectorAll('.sec').forEach((s,i)=>s.classList.toggle('act',i+1===n));
-    ['s1d','s2d','s3d'].forEach((id,i)=>{const el=document.getElementById(id);if(i+1<n){el.className='step done';el.textContent='✓';}else if(i+1===n){el.className='step act';el.textContent=String(i+1);}else{el.className='step pend';el.textContent=String(i+1);}});
-    ['l1','l2'].forEach((id,i)=>{document.getElementById(id).className='sl'+(i+1<n?' done':'');});
-    window.scrollTo(0,0);
-  }
-  function togDate(){rcd=!rcd;document.getElementById('dtog').className='sw'+(rcd?' on':'');document.getElementById('dpSec').style.display=rcd?'none':'block';}
-  function renderOS(){
-    const items=getItems(),total=getTotal();
-    let h='';
-    items.forEach(item=>{h+='<div class="sr"><span style="font-size:14px;">'+esc(item.name)+'</span><span style="font-size:14px;font-weight:600;">$'+item.price.toFixed(2)+'</span></div>';});
-    h+='<div class="sr"><span style="font-size:15px;font-weight:700;">Total</span><span class="stot">$'+total.toFixed(2)+'</span></div>';
-    document.getElementById('os').innerHTML=h;
-  }
-  function renderPM(){
-    if(!biz)return;const m=biz.paymentMethods,opts=[];
-    if(m.zelle)opts.push({id:'zelle',label:'Zelle',sub:m.zelle,icon:'💜'});
-    if(m.cashApp)opts.push({id:'cashapp',label:'Cash App',sub:m.cashApp.startsWith('$')?m.cashApp:'$'+m.cashApp,icon:'💚'});
-    if(m.venmo)opts.push({id:'venmo',label:'Venmo',sub:m.venmo.startsWith('@')?m.venmo:'@'+m.venmo,icon:'💙'});
-    if(m.cashEnabled)opts.push({id:'cash',label:'Cash',sub:'Pay in person at the appointment',icon:'💵'});
-    if(m.stripeEnabled)opts.push({id:'card',label:'Credit / Debit Card',sub:'Pay securely online',icon:'💳'});
-    const c=document.getElementById('pmo');c.innerHTML='';
-    if(!opts.length){document.getElementById('nopm').style.display='block';return;}
-    opts.forEach(opt=>{const el=document.createElement('div');el.className='pm';el.id='pm-'+opt.id;el.innerHTML='<div class="pmi">'+opt.icon+'</div><div><div class="pml">'+esc(opt.label)+'</div><div class="pms">'+esc(opt.sub)+'</div></div>';el.onclick=()=>selPM(opt.id);c.appendChild(el);});
-  }
-  function selPM(id){spm=id;document.querySelectorAll('.pm').forEach(el=>el.classList.remove('sel'));const el=document.getElementById('pm-'+id);if(el)el.classList.add('sel');document.getElementById('e3').style.display='none';}
-  async function sub(){
-    if(!spm){document.getElementById('e3').textContent='Please select a payment method.';document.getElementById('e3').style.display='block';return;}
-    const btn=document.getElementById('subbtn');btn.disabled=true;btn.textContent='Creating Gift...';
-    const pd=rcd?null:(document.getElementById('pd').value||null);
-    const body={purchaserName:document.getElementById('pn').value.trim(),purchaserEmail:document.getElementById('pe').value.trim(),recipientName:document.getElementById('rn').value.trim(),recipientEmail:document.getElementById('re').value.trim()||null,recipientPhone:document.getElementById('rp').value.trim()||null,personalMessage:document.getElementById('pm').value.trim()||null,serviceIds:svcIds,productIds:prdIds,paymentMethod:spm,recipientChoosesDate:rcd,preselectedDate:pd,expiresInDays:365};
-    try{
-      const r=await fetch('/api/public/business/'+SLUG+'/buy-gift',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-      const d=await r.json();
-      if(r.ok&&d.success){window.location.href='/api/gift-confirm/'+encodeURIComponent(d.code);}
-      else{btn.disabled=false;btn.textContent='🎁 Purchase Gift';document.getElementById('e3').textContent=d.error||'Failed. Please try again.';document.getElementById('e3').style.display='block';}
-    }catch(e){btn.disabled=false;btn.textContent='🎁 Purchase Gift';document.getElementById('e3').textContent='Network error. Please try again.';document.getElementById('e3').style.display='block';}
-  }
-  load();
+}
+
+// ── Utility ────────────────────────────────────────────────────────────
+function escH(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── Init ───────────────────────────────────────────────────────────────
+loadData();
 </script>
 </body>
 </html>`;
 }
-
 // ─── Gift Confirm Page ────────────────────────────────────────────────────────
 function giftConfirmPage(code: string): string {
   return `<!DOCTYPE html>
@@ -4035,7 +4477,31 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">Choose a location to book your appointment.</p>
       <div id="locationSelectorStep0"></div>
       <div style="margin-top:16px;">
-        <button class="btn btn-primary" id="locContinueBtn" onclick="goToStep(1)" style="width:100%" ${!preselectedLocationId ? 'disabled style="width:100%;opacity:0.5"' : 'style="width:100%"'}>Continue</button>
+        <button class="btn btn-primary" id="locContinueBtn" onclick="goToIntentStep()" style="width:100%" ${!preselectedLocationId ? 'disabled style="width:100%;opacity:0.5"' : 'style="width:100%"'}>Continue</button>
+      </div>
+    </div>
+    <!-- Intent Step: Book for myself vs Buy a Gift -->
+    <div id="step-intent" class="card" style="display:none">
+      <h2 style="margin-bottom:6px;">How would you like to continue?</h2>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:20px;">Book an appointment for yourself, or purchase a gift for someone special.</p>
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <button onclick="goToStep(1)" style="display:flex;align-items:center;gap:16px;padding:18px 20px;border-radius:16px;border:2px solid var(--accent);background:var(--accent-bg-light);cursor:pointer;text-align:left;width:100%;transition:all .15s;" onmouseover="this.style.background='var(--accent)';this.querySelector('.intent-title').style.color='#fff';this.querySelector('.intent-sub').style.color='rgba(255,255,255,0.8)'" onmouseout="this.style.background='var(--accent-bg-light)';this.querySelector('.intent-title').style.color='var(--accent)';this.querySelector('.intent-sub').style.color='var(--text-secondary)'">
+          <div style="font-size:36px;line-height:1;">📅</div>
+          <div>
+            <div class="intent-title" style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:3px;">Book for Myself</div>
+            <div class="intent-sub" style="font-size:13px;color:var(--text-secondary);line-height:1.4;">Schedule an appointment at a time that works for you.</div>
+          </div>
+        </button>
+        <button onclick="window.location.href='/api/buy-gift/${slug}'" style="display:flex;align-items:center;gap:16px;padding:18px 20px;border-radius:16px;border:2px solid #e91e8c;background:#fce4f3;cursor:pointer;text-align:left;width:100%;transition:all .15s;" onmouseover="this.style.background='#e91e8c';this.querySelector('.gift-title').style.color='#fff';this.querySelector('.gift-sub').style.color='rgba(255,255,255,0.8)'" onmouseout="this.style.background='#fce4f3';this.querySelector('.gift-title').style.color='#e91e8c';this.querySelector('.gift-sub').style.color='#666'">
+          <div style="font-size:36px;line-height:1;">🎁</div>
+          <div>
+            <div class="gift-title" style="font-size:16px;font-weight:700;color:#e91e8c;margin-bottom:3px;">Buy a Gift</div>
+            <div class="gift-sub" style="font-size:13px;color:#666;line-height:1.4;">Purchase services or products as a gift for a friend or family member.</div>
+          </div>
+        </button>
+      </div>
+      <div style="margin-top:16px;">
+        <button class="btn btn-secondary" onclick="goToStep(0)" style="width:100%">Back</button>
       </div>
     </div>
     <!-- Step 1: Client Info -->
@@ -4819,6 +5285,24 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         }
       }
       banner.classList.remove('show');
+    }
+    function goToIntentStep() {
+      if (!selectedLocation) { alert("Please select a location"); return; }
+      for (let i = 0; i <= 7; i++) {
+        const el = document.getElementById("step-" + i);
+        if (el) el.style.display = "none";
+      }
+      const intentEl = document.getElementById("step-intent");
+      if (intentEl) intentEl.style.display = "block";
+      // Reset step dots
+      for (let i = 0; i < 7; i++) {
+        const dot = document.getElementById("dot-" + i);
+        if (dot) dot.className = "step-dot";
+        const item = document.getElementById("step-item-" + i);
+        if (item) item.className = "step-item";
+      }
+      updateSelectedLocBanner();
+      window.scrollTo(0, 0);
     }
     function goToStep(step) {
       if (step === 1 && !selectedLocation) { alert("Please select a location"); return; }
