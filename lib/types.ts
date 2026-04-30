@@ -696,9 +696,11 @@ export function generateAvailableSlots(
     // Workday is ON but no explicit hours set — use weekly hours as fallback.
     // IMPORTANT: we still proceed even if the weekly day is normally disabled,
     // because the Workday override explicitly opens this date.
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return [];
     const dateObj2 = new Date(date + "T12:00:00");
     const dayIndex2 = dateObj2.getDay();
     const dayName2 = DAYS_OF_WEEK[dayIndex2];
+    if (!dayName2) return []; // safety guard for invalid date
     const wh2 = resolvedWorkingHours[dayName2] || resolvedWorkingHours[dayName2.toLowerCase()];
     const fallbackStart = wh2?.start ?? "09:00";
     const fallbackEnd = wh2?.end ?? "17:00";

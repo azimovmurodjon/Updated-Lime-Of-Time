@@ -1683,7 +1683,7 @@ Would you also like to charge a no-show fee via Stripe?`,
                 {/* Day headers */}
                 <View style={{ flexDirection: "row", marginBottom: 6 }}>
                   {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d => (
-                    <Text key={d} style={{ flex: 1, textAlign: "center", fontSize: 11, fontWeight: "700", color: colors.muted, letterSpacing: 0.3 }}>{d}</Text>
+                    <Text key={d} style={{ flex: 1, textAlign: "center", fontSize: 11, fontWeight: "700", color: colors.foreground, opacity: 0.55, letterSpacing: 0.3 }}>{d}</Text>
                   ))}
                 </View>
 
@@ -1701,13 +1701,16 @@ Would you also like to charge a no-show fee via Stripe?`,
                         key={dateStr}
                         onPress={() => { if (!isPast) { setReschedDate(dateStr); setReschedTime(null); } }}
                         style={({ pressed }) => [{
-                          width: "14.28%", height: 40, alignItems: "center", justifyContent: "center",
+                          width: "14.28%", height: 44, alignItems: "center", justifyContent: "center",
                           borderRadius: 10,
-                          backgroundColor: isSelected ? colors.primary : isToday ? colors.primary + "20" : "transparent",
-                          opacity: isPast ? 0.3 : pressed ? 0.7 : 1,
+                          backgroundColor: isSelected ? colors.primary : isToday ? colors.primary + "33" : "transparent",
+                          opacity: isPast ? 0.22 : pressed ? 0.7 : 1,
                         }]}
                       >
-                        <Text style={{ fontSize: 15, fontWeight: isSelected || isToday ? "700" : "400", color: isSelected ? "#FFF" : isToday ? colors.primary : colors.foreground }}>{day}</Text>
+                        <Text style={{ fontSize: 15, fontWeight: isSelected || isToday ? "700" : "500", color: isSelected ? "#FFF" : isToday ? colors.primary : colors.foreground }}>{day}</Text>
+                        {isToday && !isSelected && (
+                          <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.primary, marginTop: 1 }} />
+                        )}
                       </Pressable>
                     );
                   })}

@@ -323,37 +323,27 @@ export default function ServiceFormScreen() {
           </View>
         </View>
 
-        {/* ── SMS Reminder ── */}
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.sectionLabel, { color: colors.muted }]}>SMS REMINDER</Text>
-          {hasSms ? (
-            <>
-              <Text style={[styles.fieldHint, { color: colors.muted }]}>
-                Override the global reminder window for this service. Leave blank to use the default ({state.settings.twilioReminderHoursBeforeAppt ?? 24} hrs).
-              </Text>
-              <View style={styles.reminderRow}>
-                <TextInput
-                  style={[styles.input, { flex: 1, backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
-                  placeholder={`Default (${state.settings.twilioReminderHoursBeforeAppt ?? 24} hrs)`}
-                  placeholderTextColor={colors.muted}
-                  value={reminderHours}
-                  onChangeText={(v) => setReminderHours(v.replace(/[^0-9.]/g, ""))}
-                  keyboardType="decimal-pad"
-                  returnKeyType="done"
-                />
-                <Text style={[styles.reminderUnit, { color: colors.muted }]}>hrs</Text>
-              </View>
-            </>
-          ) : (
-            <View style={[styles.lockedRow, { backgroundColor: colors.background, borderColor: colors.border }]}>
-              <IconSymbol name="lock.fill" size={16} color={colors.muted} />
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.lockedTitle, { color: colors.foreground }]}>Per-Service SMS Timing</Text>
-                <Text style={[styles.lockedSub, { color: colors.muted }]}>Upgrade your plan to set custom reminder timing per service.</Text>
-              </View>
+        {/* ── SMS Reminder (only shown when plan includes SMS) ── */}
+        {hasSms && (
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.sectionLabel, { color: colors.muted }]}>SMS REMINDER</Text>
+            <Text style={[styles.fieldHint, { color: colors.muted }]}>
+              Override the global reminder window for this service. Leave blank to use the default ({state.settings.twilioReminderHoursBeforeAppt ?? 24} hrs).
+            </Text>
+            <View style={styles.reminderRow}>
+              <TextInput
+                style={[styles.input, { flex: 1, backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
+                placeholder={`Default (${state.settings.twilioReminderHoursBeforeAppt ?? 24} hrs)`}
+                placeholderTextColor={colors.muted}
+                value={reminderHours}
+                onChangeText={(v) => setReminderHours(v.replace(/[^0-9.]/g, ""))}
+                keyboardType="decimal-pad"
+                returnKeyType="done"
+              />
+              <Text style={[styles.reminderUnit, { color: colors.muted }]}>hrs</Text>
             </View>
-          )}
-        </View>
+          </View>
+        )}
 
         {/* ── Delete ── */}
         {isEdit && (

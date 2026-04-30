@@ -124,7 +124,7 @@ export default function ChoosePlanScreen() {
       </Text>
 
       {/* Carousel */}
-      <View style={{ flex: 1, paddingHorizontal: 16 }}>
+      <View style={{ flex: 1, paddingHorizontal: 20 }}>
         <PlanCarousel
           plans={(plans ?? []) as any}
           isLoading={isLoading}

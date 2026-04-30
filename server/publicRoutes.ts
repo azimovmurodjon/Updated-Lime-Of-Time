@@ -222,7 +222,7 @@ export function registerPublicRoutes(app: Express) {
         color: s.color,
         category: s.category || null,
         description: (s as any).description || null,
-        photoUri: (s as any).photoUri || null,
+        photoUri: ((s as any).photoUri && /^https?:\/\//i.test((s as any).photoUri)) ? (s as any).photoUri : null,
         appointmentCount: apptCountMap[s.localId] || 0,
         locationIds: Array.isArray(s.locationIds)
           ? s.locationIds
@@ -251,7 +251,7 @@ export function registerPublicRoutes(app: Express) {
         name: s.name,
         role: s.role || "",
         color: s.color || "#6366f1",
-        photoUri: (s as any).photoUri || null,
+        photoUri: ((s as any).photoUri && /^https?:\/\//i.test((s as any).photoUri)) ? (s as any).photoUri : null,
         serviceIds: Array.isArray(s.serviceIds) ? s.serviceIds : (s.serviceIds ? JSON.parse(s.serviceIds) : []),
         locationIds: Array.isArray(s.locationIds) ? s.locationIds : (s.locationIds ? JSON.parse(s.locationIds) : null),
         workingHours: s.workingHours ? (typeof s.workingHours === 'object' ? s.workingHours : JSON.parse(s.workingHours)) : null,
@@ -5611,7 +5611,10 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
             for (const loc of locations) {
               if (loc.temporarilyClosed) continue;
               try {
-                const r = await fetch(API + "/slots?date=" + selectedDate + "&duration=" + dur + "&locationId=" + encodeURIComponent(loc.localId));
+                const _locNow = new Date();
+                const _locClientToday = _locNow.toLocaleDateString('en-CA');
+                const _locNowMinutes = _locNow.getHours() * 60 + _locNow.getMinutes();
+                const r = await fetch(API + "/slots?date=" + selectedDate + "&duration=" + dur + "&locationId=" + encodeURIComponent(loc.localId) + "&clientToday=" + encodeURIComponent(_locClientToday) + "&nowMinutes=" + _locNowMinutes);
                 const d = await r.json();
                 if (d.slots && d.slots.includes(time)) {
                   // This location has the slot — auto-select it silently
@@ -7896,7 +7899,11 @@ function manageAppointmentPage(slug: string, owner: any, appt: any, client: any,
       document.getElementById('confirm-reschedule-btn').disabled = true;
       try {
         const locParam = APPT_LOCATION_ID ? '&locationId=' + encodeURIComponent(APPT_LOCATION_ID) : '';
-        const res = await fetch(API_BASE + '/api/public/business/' + SLUG + '/slots?date=' + date + '&duration=${appt.duration || 60}' + locParam);
+        const _reschedNow = new Date();
+        const _reschedClientToday = _reschedNow.toLocaleDateString('en-CA');
+        const _reschedNowMinutes = _reschedNow.getHours() * 60 + _reschedNow.getMinutes();
+        const clientTimeParams = '&clientToday=' + encodeURIComponent(_reschedClientToday) + '&nowMinutes=' + _reschedNowMinutes;
+        const res = await fetch(API_BASE + '/api/public/business/' + SLUG + '/slots?date=' + date + '&duration=${appt.duration || 60}' + locParam + clientTimeParams);
         const data = await res.json();
         if (data.slots && data.slots.length > 0) {
           container.innerHTML = '<div class="slot-grid">' + data.slots.map(function(s) {

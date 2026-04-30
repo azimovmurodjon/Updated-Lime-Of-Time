@@ -510,8 +510,8 @@ const COMPARE_FEATURE_ROWS = [
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    gap: 10,
-    paddingHorizontal: 4,
+    gap: 12,
+    paddingHorizontal: 2,
   },
   center: {
     alignItems: "center",
@@ -570,7 +570,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1.5,
     overflow: "hidden",
-    marginHorizontal: 4,
+    marginHorizontal: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,

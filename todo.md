@@ -1379,7 +1379,7 @@
 - [ ] Fix Choose Plan popup: cards too close to edges, add padding and spacing between cards
 - [ ] Fix Analytics tab: remove auto-scrolling slides carousel
 - [ ] Fix New Service form: hide/disable SMS Reminder Timing if subscription doesn't include SMS
-- [ ] Fix Custom Date Range picker: replace text input with scroll-wheel date picker like birthday selector
+- [x] Fix Custom Date Range picker: replace text input with scroll-wheel date picker like birthday selector
 - [ ] Fix Services/Products list layout: list appears too far below filter chips; add collapsible category/brand groups
 - [x] Add live clock and date to home header with professional display
 - [x] Add next appointment countdown widget in home header
@@ -1691,3 +1691,10 @@
 - [x] Fix date strip scroll: selected chip appears as first visible chip from left (not hidden/cut off), works for any date including months ahead. Mount scroll is instant (animated: false), tap scroll is animated.
 - [x] Fix "View Today" on Home screen: now passes date=todayStr + view=day + filter=today so calendar opens on today's date in day view with today's appointments visible
 - [x] Replace horizontal date strip in new-booking Pick Date & Time step with a full monthly calendar grid (same style as Calendar tab) — prev/next month navigation, day-of-week headers, OFF/FULL badges, today dot, selected highlight
+- [x] Fix reschedule calendar contrast: improve today highlight, past day visibility, and day header contrast
+- [x] Fix Home page Status section tabs: extend rangeEnd to end of week/month for future appointments
+- [x] Fix notification tap crash: add null guard for dayName2 in generateAvailableSlots (types.ts)
+- [x] Fix client portal service images: only return photoUri if it is an HTTP/HTTPS URL
+- [x] Fix client portal reschedule page: pass clientToday and nowMinutes to filter past time slots
+- [x] Fix Choose Plan popup: increase card padding and margins for better spacing from screen edges
+- [x] Fix New Service form: hide SMS Reminder Timing section when plan does not include SMS

@@ -298,22 +298,28 @@ function StatusSlide({
   const [timeline, setTimeline] = useState<StatusTimeline>("month");
 
   // Compute filtered counts based on selected timeline
+  // rangeEnd extends to end of the period (not just today) so future confirmed/pending appts are included
   const filteredCounts = useMemo((): StatusCounts => {
     if (!appointments || appointments.length === 0) return statusCounts;
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, "0");
     const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
     let rangeStart = "2000-01-01";
-    let rangeEnd = todayStr;
+    let rangeEnd = "2099-12-31";
     if (timeline === "today") {
       rangeStart = todayStr;
       rangeEnd = todayStr;
     } else if (timeline === "week") {
-      const s = new Date(now);
-      s.setDate(now.getDate() - now.getDay());
-      rangeStart = `${s.getFullYear()}-${pad(s.getMonth() + 1)}-${pad(s.getDate())}`;
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - now.getDay());
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      rangeStart = `${weekStart.getFullYear()}-${pad(weekStart.getMonth() + 1)}-${pad(weekStart.getDate())}`;
+      rangeEnd = `${weekEnd.getFullYear()}-${pad(weekEnd.getMonth() + 1)}-${pad(weekEnd.getDate())}`;
     } else if (timeline === "month") {
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
       rangeStart = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
+      rangeEnd = `${lastDay.getFullYear()}-${pad(lastDay.getMonth() + 1)}-${pad(lastDay.getDate())}`;
     }
     const ranged = appointments.filter((a) => a.date >= rangeStart && a.date <= rangeEnd);
     return {
@@ -324,7 +330,7 @@ function StatusSlide({
     };
   }, [appointments, timeline, statusCounts]);
 
-  // Per-tab total counts for badges
+  // Per-tab total counts for badges — also extend to full period (not just past)
   const tabCounts = useMemo((): Record<StatusTimeline, number> => {
     if (!appointments || appointments.length === 0) return { today: 0, week: 0, month: 0, all: 0 };
     const now = new Date();
@@ -332,14 +338,19 @@ function StatusSlide({
     const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
     const weekStart = new Date(now);
     weekStart.setDate(now.getDate() - now.getDay());
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
     const weekStartStr = `${weekStart.getFullYear()}-${pad(weekStart.getMonth() + 1)}-${pad(weekStart.getDate())}`;
+    const weekEndStr = `${weekEnd.getFullYear()}-${pad(weekEnd.getMonth() + 1)}-${pad(weekEnd.getDate())}`;
     const monthStartStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const monthEndStr = `${lastDay.getFullYear()}-${pad(lastDay.getMonth() + 1)}-${pad(lastDay.getDate())}`;
     const count = (start: string, end: string) =>
       appointments.filter((a) => a.date >= start && a.date <= end).length;
     return {
       today: count(todayStr, todayStr),
-      week: count(weekStartStr, todayStr),
-      month: count(monthStartStr, todayStr),
+      week: count(weekStartStr, weekEndStr),
+      month: count(monthStartStr, monthEndStr),
       all: appointments.length,
     };
   }, [appointments]);
