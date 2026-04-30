@@ -15,6 +15,7 @@ import {
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, generateId } from "@/lib/store";
+import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
 import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -33,12 +34,105 @@ function generateGiftCode(): string {
   return `GIFT-${code}`;
 }
 
+// ─── Public Gift Card Component ─────────────────────────────────────────────
+function PublicGiftCard({
+  card, colors, onMarkPaid, getCardItems, getCardTotal,
+}: {
+  card: GiftCard;
+  colors: any;
+  onMarkPaid: (card: GiftCard) => void;
+  getCardItems: (card: GiftCard) => Array<{ name: string; price: string; type: string }>;
+  getCardTotal: (card: GiftCard) => number;
+}) {
+  const items = getCardItems(card);
+  const total = getCardTotal(card);
+  const isPaid = (card as any).paymentStatus === "paid";
+  const isRedeemed = card.redeemed;
+  const paymentMethod = (card as any).paymentMethod ?? "cash";
+  const paymentMethodLabel: Record<string, string> = {
+    zelle: "Zelle", venmo: "Venmo", cashapp: "Cash App", cash: "Cash", card: "Card",
+  };
+  return (
+    <View style={{
+      backgroundColor: colors.surface, borderRadius: 16, padding: 14, marginBottom: 10,
+      borderWidth: 1, borderColor: colors.border,
+      borderLeftWidth: 3, borderLeftColor: isRedeemed ? colors.muted : isPaid ? colors.success : colors.warning,
+    }}>
+      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>
+            {(card as any).purchaserName ?? "Unknown"} → {card.recipientName ?? "Recipient"}
+          </Text>
+          <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{card.code}</Text>
+        </View>
+        <View style={{
+          paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
+          backgroundColor: isRedeemed ? colors.muted + "30" : isPaid ? colors.success + "20" : colors.warning + "20",
+        }}>
+          <Text style={{ fontSize: 11, fontWeight: "700", color: isRedeemed ? colors.muted : isPaid ? colors.success : colors.warning }}>
+            {isRedeemed ? "Redeemed" : isPaid ? "Paid" : "Awaiting Payment"}
+          </Text>
+        </View>
+      </View>
+      {items.map((it, idx) => (
+        <Text key={idx} style={{ fontSize: 12, color: colors.muted, marginBottom: 2 }}>
+          {it.type === "product" ? "📦" : "✂️"} {it.name} — {it.price}
+        </Text>
+      ))}
+      {total > 0 && (
+        <Text style={{ fontSize: 13, fontWeight: "700", color: colors.primary, marginTop: 4 }}>
+          Total: ${total.toFixed(2)}
+        </Text>
+      )}
+      <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
+        {(card as any).purchaserEmail ? (
+          <Text style={{ fontSize: 11, color: colors.muted, flex: 1 }} numberOfLines={1}>
+            From: {(card as any).purchaserEmail}
+          </Text>
+        ) : null}
+        {(card as any).recipientEmail ? (
+          <Text style={{ fontSize: 11, color: colors.muted, flex: 1 }} numberOfLines={1}>
+            To: {(card as any).recipientEmail}
+          </Text>
+        ) : null}
+      </View>
+      {card.message ? (
+        <Text style={{ fontSize: 12, color: colors.muted, fontStyle: "italic", marginTop: 6 }} numberOfLines={2}>
+          "{card.message}"
+        </Text>
+      ) : null}
+      <View style={{ flexDirection: "row", alignItems: "center", marginTop: 10, gap: 8 }}>
+        <Text style={{ fontSize: 11, color: colors.muted, flex: 1 }}>
+          {paymentMethodLabel[paymentMethod] ?? paymentMethod}
+          {card.expiresAt ? ` · Expires ${new Date(card.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : ""}
+        </Text>
+        {!isRedeemed && (
+          <Pressable
+            onPress={() => onMarkPaid(card)}
+            style={({ pressed }) => [{
+              paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10,
+              backgroundColor: isPaid ? colors.warning + "20" : colors.success + "20",
+            }, pressed && { opacity: 0.7 }]}
+          >
+            <Text style={{ fontSize: 12, fontWeight: "700", color: isPaid ? colors.warning : colors.success }}>
+              {isPaid ? "Mark Unpaid" : "Mark as Paid"}
+            </Text>
+          </Pressable>
+        )}
+      </View>
+    </View>
+  );
+}
+
 export default function GiftCardsScreen() {
   const { state, dispatch, syncToDb, getServiceById } = useStore();
   const buyGiftLink = state.settings?.customSlug
     ? `${PUBLIC_BOOKING_URL}/api/buy-gift/${state.settings.customSlug}`
     : null;
   const publicGiftCards = state.giftCards.filter(c => (c as any).purchasedPublicly);
+  const publicPendingPayment = publicGiftCards.filter(c => (c as any).paymentStatus !== "paid" && !c.redeemed);
+  const publicPaid = publicGiftCards.filter(c => (c as any).paymentStatus === "paid" && !c.redeemed);
+  const publicRedeemed = publicGiftCards.filter(c => c.redeemed);
   const colors = useColors();
   const router = useRouter();
   const { isTablet, hp } = useResponsive();
@@ -52,6 +146,8 @@ export default function GiftCardsScreen() {
   const [expiresInDays, setExpiresInDays] = useState("30");
   const [showItemPicker, setShowItemPicker] = useState(false);
   const [pickerTab, setPickerTab] = useState<"services" | "products">("services");
+  const [mainTab, setMainTab] = useState<"my" | "public">("my");
+  const markAsPaidMut = trpc.giftCards.markAsPaid.useMutation();
 
   const resetForm = useCallback(() => {
     setSelectedServiceIds([]);
@@ -89,6 +185,21 @@ export default function GiftCardsScreen() {
     await Clipboard.setStringAsync(buyGiftLink);
     Alert.alert("Copied!", "The buy-a-gift link has been copied to your clipboard.");
   }, [buyGiftLink]);
+
+  const handleMarkAsPaid = useCallback(async (card: GiftCard) => {
+    const newStatus = (card as any).paymentStatus === "paid" ? "unpaid" : "paid";
+    try {
+      await markAsPaidMut.mutateAsync({
+        localId: card.id,
+        businessOwnerId: state.businessOwner?.id ?? 0,
+        paymentStatus: newStatus as "paid" | "unpaid" | "pending_cash",
+      });
+      dispatch({ type: "UPDATE_GIFT_CARD", payload: { ...card, paymentStatus: newStatus } as any });
+      Alert.alert("Updated", newStatus === "paid" ? "Gift marked as paid." : "Gift marked as unpaid.");
+    } catch (e: any) {
+      Alert.alert("Error", e.message ?? "Failed to update payment status.");
+    }
+  }, [markAsPaidMut, state.businessOwner, dispatch]);
 
   const handleCreate = useCallback(() => {
     if (selectedServiceIds.length === 0 && selectedProductIds.length === 0) {
@@ -539,6 +650,23 @@ export default function GiftCardsScreen() {
         </View>
       </View>
 
+      {/* Main Tab Switcher */}
+      <View style={{ flexDirection: "row", marginHorizontal: hp, marginTop: 12, marginBottom: 4, backgroundColor: colors.surface, borderRadius: 12, padding: 3, borderWidth: 1, borderColor: colors.border }}>
+        <Pressable
+          onPress={() => setMainTab("my")}
+          style={({ pressed }) => [{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: "center", backgroundColor: mainTab === "my" ? colors.primary : "transparent" }, pressed && { opacity: 0.8 }]}
+        >
+          <Text style={{ fontSize: 13, fontWeight: "700", color: mainTab === "my" ? "#fff" : colors.muted }}>🎁 My Gift Cards</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => setMainTab("public")}
+          style={({ pressed }) => [{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: "center", backgroundColor: mainTab === "public" ? colors.primary : "transparent" }, pressed && { opacity: 0.8 }]}
+        >
+          <Text style={{ fontSize: 13, fontWeight: "700", color: mainTab === "public" ? "#fff" : colors.muted }}>
+            🛍️ Client Purchases{publicGiftCards.length > 0 ? ` (${publicGiftCards.length})` : ""}
+          </Text>
+        </Pressable>
+      </View>
       {/* Buy a Gift Public Link Banner */}
       {buyGiftLink && (
         <View style={{ marginHorizontal: hp, marginTop: 14, marginBottom: 4, backgroundColor: colors.surface, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: colors.border }}>
@@ -565,28 +693,86 @@ export default function GiftCardsScreen() {
           </View>
         </View>
       )}
-      {allCards.length === 0 && !showForm ? (
-        <View style={styles.empty}>
-          <IconSymbol name="gift.fill" size={48} color={colors.muted + "40"} />
-          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No Gift Cards Yet</Text>
-          <Text style={[styles.emptySubtitle, { color: colors.muted }]}>
-            Create gift cards with services and products that clients can share and redeem.
-          </Text>
-          <Pressable
-            onPress={() => setShowForm(true)}
-            style={({ pressed }) => [styles.emptyBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.8 }]}
-          >
-            <Text style={styles.emptyBtnText}>Create Gift Card</Text>
-          </Pressable>
-        </View>
+      {mainTab === "my" ? (
+        allCards.length === 0 && !showForm ? (
+          <View style={styles.empty}>
+            <IconSymbol name="gift.fill" size={48} color={colors.muted + "40"} />
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No Gift Cards Yet</Text>
+            <Text style={[styles.emptySubtitle, { color: colors.muted }]}>
+              Create gift cards with services and products that clients can share and redeem.
+            </Text>
+            <Pressable
+              onPress={() => setShowForm(true)}
+              style={({ pressed }) => [styles.emptyBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.8 }]}
+            >
+              <Text style={styles.emptyBtnText}>Create Gift Card</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <FlatList
+            data={allCards}
+            keyExtractor={(item) => item.id}
+            renderItem={renderCard}
+            contentContainerStyle={{ paddingHorizontal: hp, paddingTop: 16, paddingBottom: 100 }}
+            ListHeaderComponent={formContent}
+          />
+        )
       ) : (
-        <FlatList
-          data={allCards}
-          keyExtractor={(item) => item.id}
-          renderItem={renderCard}
-          contentContainerStyle={{ paddingHorizontal: hp, paddingTop: 16, paddingBottom: 100 }}
-          ListHeaderComponent={formContent}
-        />
+        /* Public Gifts Tab */
+        publicGiftCards.length === 0 ? (
+          <View style={styles.empty}>
+            <Text style={{ fontSize: 40, marginBottom: 12 }}>🛍️</Text>
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No Client Purchases Yet</Text>
+            <Text style={[styles.emptySubtitle, { color: colors.muted }]}>
+              Share the "Buy a Gift" link with clients so they can purchase gifts for friends and family.
+            </Text>
+          </View>
+        ) : (
+          <ScrollView contentContainerStyle={{ paddingHorizontal: hp, paddingTop: 12, paddingBottom: 100 }}>
+            {/* Pending Payment Section */}
+            {publicPendingPayment.length > 0 && (
+              <View style={{ marginBottom: 16 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.warning, marginRight: 8 }} />
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: colors.warning }}>
+                    Awaiting Payment ({publicPendingPayment.length})
+                  </Text>
+                </View>
+                {publicPendingPayment.map((card) => (
+                  <PublicGiftCard key={card.id} card={card} colors={colors} onMarkPaid={handleMarkAsPaid} getCardItems={getCardItems} getCardTotal={getCardTotal} />
+                ))}
+              </View>
+            )}
+            {/* Paid / Active Section */}
+            {publicPaid.length > 0 && (
+              <View style={{ marginBottom: 16 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success, marginRight: 8 }} />
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: colors.success }}>
+                    Paid — Awaiting Redemption ({publicPaid.length})
+                  </Text>
+                </View>
+                {publicPaid.map((card) => (
+                  <PublicGiftCard key={card.id} card={card} colors={colors} onMarkPaid={handleMarkAsPaid} getCardItems={getCardItems} getCardTotal={getCardTotal} />
+                ))}
+              </View>
+            )}
+            {/* Redeemed Section */}
+            {publicRedeemed.length > 0 && (
+              <View style={{ marginBottom: 16 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.muted, marginRight: 8 }} />
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: colors.muted }}>
+                    Redeemed ({publicRedeemed.length})
+                  </Text>
+                </View>
+                {publicRedeemed.map((card) => (
+                  <PublicGiftCard key={card.id} card={card} colors={colors} onMarkPaid={handleMarkAsPaid} getCardItems={getCardItems} getCardTotal={getCardTotal} />
+                ))}
+              </View>
+            )}
+          </ScrollView>
+        )
       )}
 
       {/* Item Picker Modal */}

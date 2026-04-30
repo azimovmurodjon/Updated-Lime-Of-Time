@@ -1672,3 +1672,7 @@
 - [x] Client Gift Portal: sendGiftNotificationEmail and sendGiftPurchaseConfirmationEmail added to email.ts
 - [x] Client Gift Portal: "Buy a Gift" share banner added to gift-cards.tsx business app screen
 - [x] Client Gift Portal: GiftCard type updated with new public gift fields
+- [x] Test gift portal end-to-end: look up slug for business 4124827733, open buy-gift page, submit test purchase, verify emails
+- [x] Add Public Gifts tab to Gift Cards screen: show publicly purchased gifts (pending payment, redeemed, expired) with mark-as-paid action
+- [x] Add markAsPaid tRPC mutation to giftCards router
+- [x] Update dbGiftCardToLocal to map new public gift fields (purchasedPublicly, purchaserName, paymentStatus, etc.)

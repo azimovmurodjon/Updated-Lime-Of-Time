@@ -717,6 +717,17 @@ export function dbGiftCardToLocal(g: any): GiftCard {
     redeemedAt: g.redeemedAt ? new Date(g.redeemedAt).toISOString() : undefined,
     expiresAt: g.expiresAt ?? undefined,
     createdAt: g.createdAt ? new Date(g.createdAt).toISOString() : new Date().toISOString(),
+    // Public gift purchase fields
+    purchasedPublicly: g.purchasedPublicly === 1 || g.purchasedPublicly === true,
+    purchaserName: g.purchaserName ?? undefined,
+    purchaserEmail: g.purchaserEmail ?? undefined,
+    recipientEmail: g.recipientEmail ?? undefined,
+    paymentMethod: g.paymentMethod ?? undefined,
+    paymentStatus: g.paymentStatus ?? undefined,
+    totalValue: g.totalValue != null ? parseFloat(String(g.totalValue)) : undefined,
+    recipientChoosesDate: g.recipientChoosesDate === 1 || g.recipientChoosesDate === true,
+    preselectedDate: g.preselectedDate ?? undefined,
+    preselectedTime: g.preselectedTime ?? undefined,
   };
 }
 

@@ -669,6 +669,17 @@ const giftCardsRouter = router({
       const card = await db.getGiftCardByCode(input.code, input.businessOwnerId);
       return card ?? null;
     }),
+  markAsPaid: publicProcedure
+    .input(z.object({
+      localId: z.string(),
+      businessOwnerId: z.number(),
+      paymentStatus: z.enum(["paid", "unpaid", "pending_cash"]),
+    }))
+    .mutation(async ({ input }) => {
+      const { localId, businessOwnerId, paymentStatus } = input;
+      await db.updateGiftCard(localId, businessOwnerId, { paymentStatus } as any);
+      return { success: true };
+    }),
 });
 
 // ─── Custom Schedule Router ───────────────────────────────────────────
