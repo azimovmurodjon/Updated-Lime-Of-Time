@@ -1601,6 +1601,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               phone: cl.phone || undefined,
               email: cl.email || undefined,
               notes: cl.notes || undefined,
+              birthday: cl.birthday || undefined,
             });
             break;
           }
@@ -1613,6 +1614,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               phone: cl.phone || undefined,
               email: cl.email || undefined,
               notes: cl.notes || undefined,
+              birthday: cl.birthday || undefined,
             });
             break;
           }

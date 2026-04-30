@@ -344,6 +344,13 @@
       "when": 1776886892703,
       "tag": "0048_wise_midnight",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "5",
+      "when": 1777564710098,
+      "tag": "0049_elite_whirlwind",
+      "breakpoints": true
     }
   ]
 }

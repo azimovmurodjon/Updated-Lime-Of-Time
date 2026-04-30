@@ -224,6 +224,7 @@ const clientsRouter = router({
         phone: z.string().optional(),
         email: z.string().optional(),
         notes: z.string().optional(),
+        birthday: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -240,6 +241,7 @@ const clientsRouter = router({
         phone: z.string().optional(),
         email: z.string().optional(),
         notes: z.string().optional(),
+        birthday: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {

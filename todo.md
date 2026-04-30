@@ -1659,3 +1659,5 @@
 - [x] Fix splash screen: delay Face ID prompt until after animated splash finishes (splashDone prop passed to AppLockProvider → useAppLock)
 - [x] Fix Client screen: Birthday field label shows "Expire Date" instead of "Birthday" — fixed in birthday-picker.tsx, client-detail.tsx, clients.tsx
 - [x] Remove "Expired" badge from client list cards (getExpireBadge was incorrectly treating birthday as an expiry date)
+- [x] Fix Birthday Campaigns: clients disappear after tapping Send Message — root cause was birthday not saved to DB, now fixed via birthday column in DB + tRPC mutations
+- [x] Fix birthday being cleared from client profile when returning from SMS app — added birthday column to DB schema, tRPC create/update schemas, and store sync calls

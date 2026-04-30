@@ -171,6 +171,7 @@ export const clients = mysqlTable("clients", {
   phone: varchar("phone", { length: 20 }),
   email: varchar("email", { length: 320 }),
   notes: text("notes"),
+  birthday: varchar("birthday", { length: 20 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
