@@ -10,7 +10,7 @@ const BIOMETRIC_ENABLED_KEY = "@bookease_biometric_enabled";
  * When enabled, prompts Face ID / fingerprint ONLY on initial app launch (cold start).
  * Does NOT re-lock on every foreground transition to avoid the lock loop issue.
  */
-export function useAppLock() {
+export function useAppLock(splashDone: boolean = true) {
   const [isLocked, setIsLocked] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
@@ -124,22 +124,24 @@ export function useAppLock() {
     [authenticate]
   );
 
-  // Initial authentication on first mount AFTER settings are loaded
-  // This is the ONLY time we auto-prompt — on cold start
+  // Initial authentication on first mount AFTER settings are loaded AND splash is done.
+  // This is the ONLY time we auto-prompt — on cold start.
+  // splashDone prevents the Face ID system dialog from appearing mid-splash.
   useEffect(() => {
     if (Platform.OS === "web") return;
     if (!settingsLoaded) return;
     if (!biometricEnabled) return;
+    if (!splashDone) return; // wait for animated splash to finish
     if (hasRunInitialAuth.current) return;
     hasRunInitialAuth.current = true;
 
     // isLocked was already set to true during load, now prompt
     const timer = setTimeout(async () => {
       await authenticate();
-    }, 600);
+    }, 300); // shorter delay now that splash already finished
 
     return () => clearTimeout(timer);
-  }, [settingsLoaded, biometricEnabled, authenticate]);
+  }, [settingsLoaded, biometricEnabled, splashDone, authenticate]);
 
   // NOTE: Removed the AppState listener that re-locked on every foreground transition.
   // This was causing the "non-stop locking" issue. Now Face ID only prompts on cold launch.

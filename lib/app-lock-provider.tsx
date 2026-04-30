@@ -13,8 +13,18 @@ type AppLockContextType = {
 
 const AppLockContext = createContext<AppLockContextType | null>(null);
 
-export function AppLockProvider({ children }: { children: React.ReactNode }) {
-  const appLock = useAppLock();
+/**
+ * splashDone: when false, the Face ID prompt is deferred until the animated
+ * splash finishes. Defaults to true (no deferral) so existing usages are safe.
+ */
+export function AppLockProvider({
+  children,
+  splashDone = true,
+}: {
+  children: React.ReactNode;
+  splashDone?: boolean;
+}) {
+  const appLock = useAppLock(splashDone);
 
   return (
     <AppLockContext.Provider value={appLock}>

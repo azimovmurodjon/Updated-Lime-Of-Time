@@ -1656,3 +1656,5 @@
 - [x] Fix duplicate push notifications: add deduplication/idempotency so each appointment+type fires only once
 - [x] Fix notification tap opening same screen multiple times in navigation stack
 - [x] Fix slow initial DB load (30-40 second delay for client data) — stale-while-revalidate: show AsyncStorage cache instantly, refresh from DB in background
+- [x] Fix splash screen: delay Face ID prompt until after animated splash finishes (splashDone prop passed to AppLockProvider → useAppLock)
+- [x] Fix Client screen: Birthday field label shows "Expire Date" instead of "Birthday" — fixed in birthday-picker.tsx, client-detail.tsx, clients.tsx

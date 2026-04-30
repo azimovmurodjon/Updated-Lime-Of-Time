@@ -304,7 +304,7 @@ export default function ClientsScreen() {
             <BirthdayPicker
               value={newBirthday}
               onChange={setNewBirthday}
-              placeholder="Expire Date (optional)"
+              placeholder="Birthday (optional)"
               style={{ marginBottom: 14 }}
             />
             <View style={styles.formActions}>

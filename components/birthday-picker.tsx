@@ -194,7 +194,7 @@ export function BirthdayPicker({
               <Text style={{ fontSize: 16, color: colors.error }}>Clear</Text>
             </Pressable>
             <Text style={{ fontSize: 16, fontWeight: "600", color: colors.foreground }}>
-              Expire Date
+              Birthday
             </Text>
             <Pressable
               onPress={handleConfirm}

@@ -449,7 +449,7 @@ export default function ClientDetailScreen() {
             <BirthdayPicker
               value={editBirthday}
               onChange={setEditBirthday}
-              placeholder="Expire Date (optional)"
+              placeholder="Birthday (optional)"
             />
             <View style={styles.editActions}>
               <Pressable onPress={() => setEditing(false)} style={({ pressed }) => [styles.cancelBtn, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}>
@@ -497,7 +497,7 @@ export default function ClientDetailScreen() {
               <View style={[styles.notesBox, { backgroundColor: colors.background, borderColor: colors.border, flexDirection: "row", alignItems: "center", gap: 8 }]}>
 
                 <View>
-                  <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 2 }}>Expire Date</Text>
+                  <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 2 }}>Birthday</Text>
                   <Text style={{ fontSize: 13, color: colors.foreground }}>{client.birthday}</Text>
                 </View>
               </View>
