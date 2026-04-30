@@ -173,23 +173,6 @@ export default function ClientsScreen() {
     return name.slice(0, 2).toUpperCase();
   };
 
-  // ── Expire Date badge helper ─────────────────────────────────────────────
-  const getExpireBadge = (birthday: string | undefined): { label: string; color: string } | null => {
-    if (!birthday) return null;
-    const parts = birthday.split("/");
-    if (parts.length < 3) return null;
-    const [mm, dd, yyyy] = parts;
-    const expDate = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
-    if (isNaN(expDate.getTime())) return null;
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    expDate.setHours(0, 0, 0, 0);
-    const diffDays = Math.round((expDate.getTime() - now.getTime()) / 86400000);
-    if (diffDays < 0) return { label: "Expired", color: "#EF4444" };
-    if (diffDays <= 7) return { label: "Expiring soon", color: "#F59E0B" };
-    return null;
-  };
-
   const getClientRating = (clientId: string): number | null => {
     const reviews = getReviewsForClient(clientId);
     if (reviews.length === 0) return null;
@@ -340,7 +323,6 @@ export default function ClientsScreen() {
           const rating = getClientRating(item.id);
           const apptCount = getLocationApptCount(item.id);
           const locationBadges = getClientLocationBadges(item.id);
-          const expireBadge = getExpireBadge(item.birthday);
           return (
             <Pressable
               onPress={() => router.push({ pathname: "/client-detail", params: { id: item.id } })}
@@ -390,24 +372,7 @@ export default function ClientsScreen() {
                     })}
                   </View>
                 )}
-                {expireBadge && (
-                  <View
-                    style={{
-                      alignSelf: "flex-start",
-                      marginTop: 5,
-                      backgroundColor: expireBadge.color + "18",
-                      borderRadius: 8,
-                      paddingHorizontal: 7,
-                      paddingVertical: 2,
-                      borderWidth: 1,
-                      borderColor: expireBadge.color + "50",
-                    }}
-                  >
-                    <Text style={{ fontSize: 10, fontWeight: "700", color: expireBadge.color }}>
-                      {expireBadge.label}
-                    </Text>
-                  </View>
-                )}
+
                 {rating !== null && (
                   <View style={{ flexDirection: "row", alignItems: "center", marginTop: 3 }}>
                     <IconSymbol name="star.fill" size={12} color="#FFB300" />

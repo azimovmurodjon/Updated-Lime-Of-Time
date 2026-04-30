@@ -1658,3 +1658,4 @@
 - [x] Fix slow initial DB load (30-40 second delay for client data) — stale-while-revalidate: show AsyncStorage cache instantly, refresh from DB in background
 - [x] Fix splash screen: delay Face ID prompt until after animated splash finishes (splashDone prop passed to AppLockProvider → useAppLock)
 - [x] Fix Client screen: Birthday field label shows "Expire Date" instead of "Birthday" — fixed in birthday-picker.tsx, client-detail.tsx, clients.tsx
+- [x] Remove "Expired" badge from client list cards (getExpireBadge was incorrectly treating birthday as an expiry date)
