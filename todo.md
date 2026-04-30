@@ -1690,3 +1690,4 @@
 - [x] Date picker: auto-scroll to pre-selected date when arriving from calendar "Book Appointment"
 - [x] Fix date strip scroll: selected chip appears as first visible chip from left (not hidden/cut off), works for any date including months ahead. Mount scroll is instant (animated: false), tap scroll is animated.
 - [x] Fix "View Today" on Home screen: now passes date=todayStr + view=day + filter=today so calendar opens on today's date in day view with today's appointments visible
+- [x] Replace horizontal date strip in new-booking Pick Date & Time step with a full monthly calendar grid (same style as Calendar tab) — prev/next month navigation, day-of-week headers, OFF/FULL badges, today dot, selected highlight

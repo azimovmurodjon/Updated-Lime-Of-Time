@@ -17,7 +17,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useStore, generateId, formatDateStr, formatTime, formatDateDisplay } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Appointment, Client, Product, Discount, DAYS_OF_WEEK, generateAvailableSlots, minutesToTime, timeToMinutes, getApplicableDiscount, generateConfirmationMessage, getServiceDisplayName, stripPhoneFormat, timeSlotsOverlap, PUBLIC_BOOKING_URL } from "@/lib/types";
 import { trpc } from "@/lib/trpc";
 import { useActiveLocation } from "@/hooks/use-active-location";
@@ -47,7 +47,7 @@ export default function NewBookingScreen() {
   const { activeLocations: _allActiveLocations } = useActiveLocation();
   const colors = useColors();
   const router = useRouter();
-  const { isTablet, hp } = useResponsive();
+  const { isTablet, hp, width: screenWidth } = useResponsive();
   const params = useLocalSearchParams<{ date?: string }>();
 
   const sendSmsMutation = trpc.twilio.sendSms.useMutation();
@@ -57,52 +57,15 @@ export default function NewBookingScreen() {
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(params.date ?? formatDateStr(new Date()));
-  const dateScrollRef = useRef<import("react-native").ScrollView>(null);
-  // CHIP_WIDTH = chip width (62) + gap (8) = 70px per slot.
-  // Scroll so the selected chip is the FIRST visible chip from the left with 4px breathing room.
-  const CHIP_WIDTH = 70;
   const todayStr2 = formatDateStr(new Date());
-
-  // Helper: compute the scroll offset that places the selected chip as the leftmost visible chip
-  const getChipOffset = useCallback((dateStr: string): number => {
-    const today = new Date();
-    const todayMs = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-    const selMs = new Date(dateStr + "T12:00:00");
-    const diff = Math.round((selMs.getTime() - todayMs) / 86400000);
-    const idx = Math.max(0, diff);
-    // idx * CHIP_WIDTH puts the chip's left edge at the scroll container's left edge.
-    // Subtract 4px so there's a tiny left breathing room (matches paddingHorizontal: 2 × 2).
-    return Math.max(0, idx * CHIP_WIDTH - 4);
-  }, [CHIP_WIDTH]);
-
-  // On mount: scroll instantly to the pre-selected date (e.g., date from calendar).
-  // Use a slightly longer delay so the ScrollView has finished layout.
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (dateScrollRef.current) {
-        dateScrollRef.current.scrollTo({ x: getChipOffset(selectedDate), animated: false });
-      }
-    }, 200);
-    return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // mount only — intentionally no deps
-
-  // When the user taps a different chip or the Today button: animate to the new chip.
-  const prevDateRef = useRef(selectedDate);
-  useEffect(() => {
-    if (prevDateRef.current === selectedDate) return; // skip on mount
-    prevDateRef.current = selectedDate;
-    const timer = setTimeout(() => {
-      if (dateScrollRef.current) {
-        dateScrollRef.current.scrollTo({ x: getChipOffset(selectedDate), animated: true });
-      }
-    }, 50);
-    return () => clearTimeout(timer);
-  }, [selectedDate, getChipOffset]);
-
-
   // Calendar month view: track which month is displayed (offset from today's month)
-  const [calMonthOffset, setCalMonthOffset] = useState(0);
+  // Initialize to the month of the incoming date (e.g., when navigating from calendar)
+  const [calMonthOffset, setCalMonthOffset] = useState(() => {
+    if (!params.date) return 0;
+    const today = new Date();
+    const sel = new Date(params.date + "T12:00:00");
+    return (sel.getFullYear() - today.getFullYear()) * 12 + (sel.getMonth() - today.getMonth());
+  });
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [showTemplatesPicker, setShowTemplatesPicker] = useState(false);
@@ -941,128 +904,160 @@ export default function NewBookingScreen() {
             <View style={{ width: 40 }} />
           </View>
 
-          {/* Date Selection — Modern Horizontal Strip with Month Label */}
+          {/* Date Selection — Monthly Calendar Grid */}
           {(() => {
-            // Group dateOptions by month for the month label
+            const MONTH_NAMES_CAL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            const DAY_HEADERS_CAL = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
             const today = new Date();
-            const todayStr = today.getFullYear() + "-" + String(today.getMonth()+1).padStart(2,"0") + "-" + String(today.getDate()).padStart(2,"0");
-            // Find the month of the selected date to show as header
-            const selDateObj = selectedDate ? new Date(selectedDate + "T12:00:00") : today;
-            const monthLabel = selDateObj.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+            const todayStr = todayStr2;
+            // Compute the displayed month from calMonthOffset
+            const displayDate = new Date(today.getFullYear(), today.getMonth() + calMonthOffset, 1);
+            const displayMonth = displayDate.getMonth();
+            const displayYear = displayDate.getFullYear();
+            // Build the grid: empty cells for days before the 1st, then day numbers
+            const firstDayOfWeek = new Date(displayYear, displayMonth, 1).getDay();
+            const daysInMonth = new Date(displayYear, displayMonth + 1, 0).getDate();
+            const calCells: (number | null)[] = [
+              ...Array(firstDayOfWeek).fill(null),
+              ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+            ];
+            // Compute cell size based on available width (same as calendar.tsx)
+            const calCellSize = Math.floor((screenWidth - hp * 2) / 7);
+            // Max date for the 90-day range
+            const maxDate = new Date(today);
+            maxDate.setDate(today.getDate() + 89);
+            const maxDateStr = maxDate.getFullYear() + "-" + String(maxDate.getMonth()+1).padStart(2,"0") + "-" + String(maxDate.getDate()).padStart(2,"0");
+            // Determine if prev/next month navigation is possible
+            const canGoPrev = calMonthOffset > 0;
+            const canGoNext = calMonthOffset < 3; // max ~3 months ahead covers 90 days
             return (
               <View style={{ marginBottom: 16 }}>
-                {/* Month label + Today button */}
+                {/* Month Navigation Header */}
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                  <Text style={{ fontSize: 13, fontWeight: "600", color: colors.muted, marginLeft: 2 }}>
-                    {monthLabel}
-                  </Text>
-                  {selectedDate !== todayStr && (
+                  <Pressable
+                    onPress={() => { if (canGoPrev) setCalMonthOffset((o) => o - 1); }}
+                    style={({ pressed }) => ({ padding: 8, opacity: canGoPrev ? (pressed ? 0.5 : 1) : 0.25 })}
+                  >
+                    <IconSymbol name="chevron.left" size={20} color={colors.foreground} />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      setCalMonthOffset(0);
+                      setSelectedDate(todayStr);
+                      setSelectedTime(null);
+                    }}
+                  >
+                    <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>
+                      {MONTH_NAMES_CAL[displayMonth]} {displayYear}
+                    </Text>
+                  </Pressable>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    {selectedDate !== todayStr && (
+                      <Pressable
+                        onPress={() => {
+                          setCalMonthOffset(0);
+                          setSelectedDate(todayStr);
+                          setSelectedTime(null);
+                        }}
+                        style={({ pressed }) => ({
+                          paddingHorizontal: 10,
+                          paddingVertical: 4,
+                          borderRadius: 12,
+                          backgroundColor: colors.primary + "18",
+                          opacity: pressed ? 0.65 : 1,
+                          marginRight: 4,
+                        })}
+                      >
+                        <Text style={{ fontSize: 12, fontWeight: "600", color: colors.primary }}>Today</Text>
+                      </Pressable>
+                    )}
                     <Pressable
-                      onPress={() => {
-                        setSelectedDate(todayStr);
-                        setSelectedTime(null);
-                      }}
-                      style={({ pressed }) => ({
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 4,
-                        paddingHorizontal: 10,
-                        paddingVertical: 4,
-                        borderRadius: 12,
-                        backgroundColor: colors.primary + "18",
-                        opacity: pressed ? 0.65 : 1,
-                      })}
+                      onPress={() => { if (canGoNext) setCalMonthOffset((o) => o + 1); }}
+                      style={({ pressed }) => ({ padding: 8, opacity: canGoNext ? (pressed ? 0.5 : 1) : 0.25 })}
                     >
-                      <Text style={{ fontSize: 12, fontWeight: "600", color: colors.primary }}>Today</Text>
+                      <IconSymbol name="chevron.right" size={20} color={colors.foreground} />
                     </Pressable>
-                  )}
+                  </View>
                 </View>
-                {/* Horizontal scrolling date strip */}
-                <ScrollView
-                  ref={dateScrollRef}
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ paddingHorizontal: 2, gap: 8 }}
-                >
-                  {dateOptions.map((opt) => {
-                    const dateObj = new Date(opt.date + "T12:00:00");
-                    const isSelected = opt.date === selectedDate;
-                    const isToday = opt.date === todayStr;
-                    const isPast = opt.date < todayStr;
-                    const isUnavailable = opt.closed || opt.noSlots || isPast;
-                    const dayAbbr = dateObj.toLocaleDateString("en-US", { weekday: "short" });
-                    const dayNum = dateObj.getDate();
-                    const monthAbbr = dateObj.toLocaleDateString("en-US", { month: "short" });
+                {/* Day of Week Headers */}
+                <View style={{ flexDirection: "row", marginBottom: 4 }}>
+                  {DAY_HEADERS_CAL.map((d) => (
+                    <View key={d} style={{ width: calCellSize, alignItems: "center" }}>
+                      <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted }}>{d}</Text>
+                    </View>
+                  ))}
+                </View>
+                {/* Calendar Grid */}
+                <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                  {calCells.map((day, idx) => {
+                    if (day === null) {
+                      return <View key={`empty-${idx}`} style={{ width: calCellSize, height: calCellSize }} />;
+                    }
+                    const dateStr = `${displayYear}-${String(displayMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                    const isSelected = dateStr === selectedDate;
+                    const isToday = dateStr === todayStr;
+                    const isPast = dateStr < todayStr;
+                    const isOutOfRange = dateStr > maxDateStr;
+                    // Look up in dateOptions for closed/noSlots flags
+                    const opt = dateOptions.find((o) => o.date === dateStr);
+                    const isClosed = opt ? opt.closed : true; // dates outside 90-day range treated as closed
+                    const isNoSlots = opt ? opt.noSlots : false;
+                    const isDisabled = isPast || isOutOfRange || isClosed || isNoSlots;
                     return (
                       <Pressable
-                        key={opt.date}
+                        key={dateStr}
                         onPress={() => {
-                          if (!isUnavailable) {
-                            setSelectedDate(opt.date);
+                          if (!isDisabled) {
+                            setSelectedDate(dateStr);
                             setSelectedTime(null);
                           }
                         }}
                         style={({ pressed }) => ({
-                          width: 62,
-                          paddingVertical: 12,
-                          paddingHorizontal: 4,
-                          borderRadius: 16,
+                          width: calCellSize,
+                          height: calCellSize,
                           alignItems: "center",
                           justifyContent: "center",
-                          backgroundColor: isSelected ? colors.primary : isToday && !isUnavailable ? colors.primary + "12" : colors.surface,
-                          borderWidth: isToday && !isSelected ? 1.5 : isSelected ? 0 : 1,
-                          borderColor: isSelected ? colors.primary : isToday ? colors.primary : colors.border,
-                          opacity: isUnavailable ? 0.3 : pressed ? 0.65 : 1,
-                          shadowColor: isSelected ? colors.primary : "transparent",
-                          shadowOffset: { width: 0, height: 2 },
-                          shadowOpacity: isSelected ? 0.25 : 0,
-                          shadowRadius: 6,
-                          elevation: isSelected ? 3 : 0,
+                          backgroundColor: isSelected ? colors.primary : "transparent",
+                          borderRadius: calCellSize / 2,
+                          opacity: (isPast || isOutOfRange) ? 0.3 : pressed && !isDisabled ? 0.7 : 1,
                         })}
                       >
-                        <Text style={{
-                          fontSize: 10,
-                          fontWeight: "600",
-                          color: isSelected ? "rgba(255,255,255,0.8)" : colors.muted,
-                          letterSpacing: 0.5,
-                          textTransform: "uppercase",
-                          marginBottom: 4,
-                        }}>
-                          {dayAbbr}
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            fontWeight: isToday || isSelected ? "700" : "400",
+                            color: isSelected
+                              ? "#FFFFFF"
+                              : isToday
+                              ? colors.primary
+                              : isClosed && !isPast && !isOutOfRange
+                              ? colors.muted
+                              : colors.foreground,
+                            textDecorationLine: isClosed && !isPast && !isOutOfRange ? "line-through" : "none",
+                          }}
+                        >
+                          {day}
                         </Text>
-                        <Text style={{
-                          fontSize: 22,
-                          fontWeight: "700",
-                          color: isSelected ? "#FFFFFF" : isUnavailable ? colors.muted : colors.foreground,
-                          lineHeight: 26,
-                        }}>
-                          {dayNum}
-                        </Text>
-                        <Text style={{
-                          fontSize: 10,
-                          fontWeight: "500",
-                          color: isSelected ? "rgba(255,255,255,0.75)" : colors.muted,
-                          marginTop: 3,
-                        }}>
-                          {monthAbbr}
-                        </Text>
-                        {opt.closed && !isPast && (
-                          <View style={{ marginTop: 4, backgroundColor: colors.error + "20", borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
-                            <Text style={{ fontSize: 8, color: colors.error, fontWeight: "700" }}>OFF</Text>
-                          </View>
-                        )}
-                        {!opt.closed && opt.noSlots && (
-                          <View style={{ marginTop: 4, backgroundColor: colors.warning + "20", borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
-                            <Text style={{ fontSize: 8, color: colors.warning, fontWeight: "700" }}>FULL</Text>
-                          </View>
-                        )}
+                        {/* Today dot */}
                         {isToday && !isSelected && (
-                          <View style={{ position: "absolute", bottom: 6, width: 4, height: 4, borderRadius: 2, backgroundColor: colors.primary }} />
+                          <View style={{ position: "absolute", bottom: 4, width: 4, height: 4, borderRadius: 2, backgroundColor: colors.primary }} />
+                        )}
+                        {/* OFF badge for closed days (not past, not out of range) */}
+                        {isClosed && !isPast && !isOutOfRange && !isSelected && (
+                          <View style={{ position: "absolute", top: 2, right: 2, backgroundColor: colors.error + "20", borderRadius: 3, paddingHorizontal: 2, paddingVertical: 0 }}>
+                            <Text style={{ fontSize: 7, color: colors.error, fontWeight: "700" }}>OFF</Text>
+                          </View>
+                        )}
+                        {/* FULL badge for fully-booked days */}
+                        {!isClosed && isNoSlots && !isPast && !isOutOfRange && !isSelected && (
+                          <View style={{ position: "absolute", top: 2, right: 2, backgroundColor: colors.warning + "20", borderRadius: 3, paddingHorizontal: 2, paddingVertical: 0 }}>
+                            <Text style={{ fontSize: 7, color: colors.warning, fontWeight: "700" }}>FULL</Text>
+                          </View>
                         )}
                       </Pressable>
                     );
                   })}
-                </ScrollView>
+                </View>
               </View>
             );
           })()}
