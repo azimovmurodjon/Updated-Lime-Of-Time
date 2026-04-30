@@ -1688,3 +1688,4 @@
 - [x] Date picker: add "Today" jump button to scroll back to today's date chip
 - [x] Date picker: show full date label (e.g., "Wednesday, April 30") above time slot grid
 - [x] Date picker: auto-scroll to pre-selected date when arriving from calendar "Book Appointment"
+- [x] Fix date strip scroll: selected chip appears as first visible chip from left (not hidden/cut off), works for any date including months ahead. Mount scroll is instant (animated: false), tap scroll is animated.

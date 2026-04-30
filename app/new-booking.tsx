@@ -58,23 +58,47 @@ export default function NewBookingScreen() {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(params.date ?? formatDateStr(new Date()));
   const dateScrollRef = useRef<import("react-native").ScrollView>(null);
-  // Scroll the date strip to the selected date on mount / when date changes from outside
-  const CHIP_WIDTH = 70; // chip width (62) + gap (8)
+  // CHIP_WIDTH = chip width (62) + gap (8) = 70px per slot.
+  // Scroll so the selected chip is the FIRST visible chip from the left with 4px breathing room.
+  const CHIP_WIDTH = 70;
   const todayStr2 = formatDateStr(new Date());
-  // Auto-scroll date strip to the selected date chip
-  useEffect(() => {
-    if (!dateScrollRef.current) return;
+
+  // Helper: compute the scroll offset that places the selected chip as the leftmost visible chip
+  const getChipOffset = useCallback((dateStr: string): number => {
     const today = new Date();
     const todayMs = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-    const selMs = new Date(selectedDate + "T12:00:00");
+    const selMs = new Date(dateStr + "T12:00:00");
     const diff = Math.round((selMs.getTime() - todayMs) / 86400000);
     const idx = Math.max(0, diff);
-    // Scroll so the selected chip is near the left with a small offset
-    const offset = Math.max(0, idx * CHIP_WIDTH - 8);
-    setTimeout(() => {
-      dateScrollRef.current?.scrollTo({ x: offset, animated: true });
-    }, 100);
-  }, [selectedDate]);
+    // idx * CHIP_WIDTH puts the chip's left edge at the scroll container's left edge.
+    // Subtract 4px so there's a tiny left breathing room (matches paddingHorizontal: 2 × 2).
+    return Math.max(0, idx * CHIP_WIDTH - 4);
+  }, [CHIP_WIDTH]);
+
+  // On mount: scroll instantly to the pre-selected date (e.g., date from calendar).
+  // Use a slightly longer delay so the ScrollView has finished layout.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (dateScrollRef.current) {
+        dateScrollRef.current.scrollTo({ x: getChipOffset(selectedDate), animated: false });
+      }
+    }, 200);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // mount only — intentionally no deps
+
+  // When the user taps a different chip or the Today button: animate to the new chip.
+  const prevDateRef = useRef(selectedDate);
+  useEffect(() => {
+    if (prevDateRef.current === selectedDate) return; // skip on mount
+    prevDateRef.current = selectedDate;
+    const timer = setTimeout(() => {
+      if (dateScrollRef.current) {
+        dateScrollRef.current.scrollTo({ x: getChipOffset(selectedDate), animated: true });
+      }
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [selectedDate, getChipOffset]);
 
 
   // Calendar month view: track which month is displayed (offset from today's month)
