@@ -427,9 +427,8 @@ export default function CalendarScreen() {
   }, [params.date, params.view]);
 
   const { activeLocation, activeLocations, hasMultipleLocations: hasMultiLoc, setActiveLocation } = useActiveLocation();
+  // calLocationFilter: single-location businesses auto-select via useActiveLocation hook
   const calLocationFilter = activeLocation?.id ?? null;
-
-  // Do NOT auto-select a location — null means "All locations" which is a valid state
 
   // Use per-location workingHours if available, fall back to global settings (same logic as schedule-settings.tsx)
   const effectiveWorkingHours = useMemo(() => {

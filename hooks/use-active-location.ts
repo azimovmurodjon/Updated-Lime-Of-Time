@@ -26,22 +26,30 @@ export function useActiveLocation(): ActiveLocationContext {
     [locations]
   );
 
+  // Auto-select the only location when there is exactly one and none is explicitly selected.
+  // This ensures single-location businesses never show "Location Required" errors.
+  const effectiveLocationId = useMemo(() => {
+    if (activeLocationId) return activeLocationId;
+    if (activeLocations.length === 1) return activeLocations[0].id;
+    return null;
+  }, [activeLocationId, activeLocations]);
+
   const activeLocation = useMemo(
-    () => (activeLocationId ? locations.find((l) => l.id === activeLocationId) ?? null : null),
-    [locations, activeLocationId]
+    () => (effectiveLocationId ? locations.find((l) => l.id === effectiveLocationId) ?? null : null),
+    [locations, effectiveLocationId]
   );
 
   const hasMultipleLocations = activeLocations.length > 1;
 
   const staffForLocation = useMemo(() => {
-    if (!activeLocationId) return staff.filter((s) => s.active);
+    if (!effectiveLocationId) return staff.filter((s) => s.active);
     return staff.filter((s) => {
       if (!s.active) return false;
       // null locationIds means staff works at all locations
       if (!s.locationIds || s.locationIds.length === 0) return true;
-      return s.locationIds.includes(activeLocationId);
+      return s.locationIds.includes(effectiveLocationId);
     });
-  }, [staff, activeLocationId]);
+  }, [staff, effectiveLocationId]);
 
   const effectiveWorkingHours = useMemo<Record<string, WorkingHours>>(() => {
     if (activeLocation?.workingHours && Object.keys(activeLocation.workingHours).length > 0) {

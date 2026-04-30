@@ -1682,3 +1682,6 @@
 - [x] Fix buy-gift URL not working: routes are live on local dev server; live site needs Publish to deploy new routes
 - [x] Fix app booking date picker: replace 14-day horizontal strip with full monthly calendar grid showing all dates, with month/year header and prev/next navigation (90-day range)
 - [x] Diagnose shared links: links work fine on local dev server; live site needs Publish to deploy new gift portal routes
+- [x] Fix: auto-select single location in New Booking (no "Location Required" error when only 1 location)
+- [x] Fix: calendar location filter — show all if multiple, show/preselect single if only one (via useActiveLocation hook)
+- [x] Redesign date picker: modern horizontal scrolling strip with month label, wider chips, smooth scroll (62px wide chips, day/number/month, OFF/FULL badges, today dot)
