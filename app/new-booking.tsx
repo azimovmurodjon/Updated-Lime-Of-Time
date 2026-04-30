@@ -57,6 +57,8 @@ export default function NewBookingScreen() {
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(params.date ?? formatDateStr(new Date()));
+  // Calendar month view: track which month is displayed (offset from today's month)
+  const [calMonthOffset, setCalMonthOffset] = useState(0);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [showTemplatesPicker, setShowTemplatesPicker] = useState(false);
@@ -382,7 +384,7 @@ export default function NewBookingScreen() {
     const endDate = state.settings.businessHoursEndDate;
     // All-locations mode: selectedLocationId is null and there are multiple active locations
     const isAllMode = !selectedLocationId && activeLocations.length > 1;
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < 90; i++) {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
       const ds = formatDateStr(d);
@@ -882,54 +884,125 @@ export default function NewBookingScreen() {
             <View style={{ width: 40 }} />
           </View>
 
-          {/* Date Selection */}
-          <Text className="text-xs font-medium text-muted mb-2 ml-1">Date</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
-            <View className="flex-row gap-2">
-              {dateOptions.map((opt) => {
-                const dateObj = new Date(opt.date + "T12:00:00");
-                const isSelected = opt.date === selectedDate;
-                const isToday = opt.date === formatDateStr(new Date());
-                const dayName = isToday ? "Today" : dateObj.toLocaleDateString("en-US", { weekday: "short" });
-                const dayNum = dateObj.getDate();
-                const isUnavailable = opt.closed || opt.noSlots;
-                return (
+          {/* Date Selection — Full Monthly Calendar Grid */}
+          {(() => {
+            const today = new Date();
+            // Compute the displayed month from the offset
+            const displayMonth = new Date(today.getFullYear(), today.getMonth() + calMonthOffset, 1);
+            const year = displayMonth.getFullYear();
+            const month = displayMonth.getMonth();
+            const monthLabel = displayMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+            // First day of month and how many days
+            const firstDow = displayMonth.getDay(); // 0=Sun
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            // Build a dateOptions lookup map for fast access
+            const dateMap: Record<string, { closed: boolean; noSlots: boolean }> = {};
+            dateOptions.forEach((o) => { dateMap[o.date] = o; });
+            // Build grid: pad start with nulls, then day numbers
+            const cells: (number | null)[] = Array(firstDow).fill(null);
+            for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+            // Pad end to complete last row
+            while (cells.length % 7 !== 0) cells.push(null);
+            const weeks: (number | null)[][] = [];
+            for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+            const todayStr = formatDateStr(today);
+            // Max month: today + 3 months
+            const maxMonth = new Date(today.getFullYear(), today.getMonth() + 3, 1);
+            const canGoNext = displayMonth < maxMonth;
+            const canGoPrev = calMonthOffset > 0;
+            return (
+              <View style={{ marginBottom: 16 }}>
+                {/* Month header with navigation */}
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10, paddingHorizontal: 4 }}>
                   <Pressable
-                    key={opt.date}
-                    onPress={() => {
-                      if (!isUnavailable) {
-                        setSelectedDate(opt.date);
-                        setSelectedTime(null);
-                      }
-                    }}
-                    style={({ pressed }) => [
-                      styles.dateChip,
-                      {
-                        backgroundColor: isSelected ? colors.primary : isUnavailable ? colors.border + "30" : colors.surface,
-                        borderColor: isSelected ? colors.primary : isToday && !isUnavailable ? colors.primary + "60" : colors.border,
-                        opacity: isUnavailable ? 0.35 : pressed ? 0.7 : 1,
-                      },
-                    ]}
+                    onPress={() => { if (canGoPrev) setCalMonthOffset(calMonthOffset - 1); }}
+                    style={({ pressed }) => ({ opacity: canGoPrev ? (pressed ? 0.5 : 1) : 0.2, padding: 8, borderRadius: 8 })}
                   >
-                    <Text
-                      className="text-xs font-medium"
-                      style={{ color: isSelected ? "#FFFFFF" : isToday ? colors.primary : colors.muted, fontWeight: isToday ? "700" : "500" }}
-                    >
-                      {dayName}
-                    </Text>
-                    <Text
-                      className="text-lg font-bold"
-                      style={{ color: isSelected ? "#FFFFFF" : isUnavailable ? colors.muted : colors.foreground }}
-                    >
-                      {dayNum}
-                    </Text>
-                    {opt.closed && <Text style={{ fontSize: 9, color: colors.error, fontWeight: "600" }}>OFF</Text>}
-                    {!opt.closed && opt.noSlots && <Text style={{ fontSize: 9, color: colors.warning, fontWeight: "600" }}>FULL</Text>}
+                    <Text style={{ fontSize: 18, color: colors.primary, fontWeight: "700" }}>‹</Text>
                   </Pressable>
-                );
-              })}
-            </View>
-          </ScrollView>
+                  <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>{monthLabel}</Text>
+                  <Pressable
+                    onPress={() => { if (canGoNext) setCalMonthOffset(calMonthOffset + 1); }}
+                    style={({ pressed }) => ({ opacity: canGoNext ? (pressed ? 0.5 : 1) : 0.2, padding: 8, borderRadius: 8 })}
+                  >
+                    <Text style={{ fontSize: 18, color: colors.primary, fontWeight: "700" }}>›</Text>
+                  </Pressable>
+                </View>
+                {/* Day-of-week headers */}
+                <View style={{ flexDirection: "row", marginBottom: 4 }}>
+                  {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
+                    <View key={d} style={{ flex: 1, alignItems: "center", paddingVertical: 4 }}>
+                      <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted }}>{d}</Text>
+                    </View>
+                  ))}
+                </View>
+                {/* Calendar grid */}
+                {weeks.map((week, wi) => (
+                  <View key={wi} style={{ flexDirection: "row", marginBottom: 4 }}>
+                    {week.map((day, di) => {
+                      if (!day) return <View key={di} style={{ flex: 1 }} />;
+                      const ds = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                      const opt = dateMap[ds];
+                      const isSelected = ds === selectedDate;
+                      const isToday = ds === todayStr;
+                      const isPast = ds < todayStr;
+                      const isUnavailable = isPast || !opt || opt.closed || opt.noSlots;
+                      const isClosed = opt?.closed || isPast;
+                      const isFull = !isPast && opt && !opt.closed && opt.noSlots;
+                      return (
+                        <Pressable
+                          key={di}
+                          onPress={() => {
+                            if (!isUnavailable) {
+                              setSelectedDate(ds);
+                              setSelectedTime(null);
+                            }
+                          }}
+                          style={({ pressed }) => ({
+                            flex: 1,
+                            marginHorizontal: 2,
+                            paddingVertical: 8,
+                            borderRadius: 10,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            backgroundColor: isSelected ? colors.primary : isToday && !isUnavailable ? colors.primary + "15" : "transparent",
+                            borderWidth: isToday && !isSelected ? 1.5 : 0,
+                            borderColor: isToday && !isSelected ? colors.primary : "transparent",
+                            opacity: isUnavailable ? 0.3 : pressed ? 0.6 : 1,
+                          })}
+                        >
+                          <Text style={{
+                            fontSize: 15,
+                            fontWeight: isToday || isSelected ? "700" : "400",
+                            color: isSelected ? "#FFFFFF" : isToday ? colors.primary : isUnavailable ? colors.muted : colors.foreground,
+                          }}>
+                            {day}
+                          </Text>
+                          {isFull && !isSelected && (
+                            <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.warning, marginTop: 2 }} />
+                          )}
+                          {isClosed && !isPast && !isSelected && (
+                            <Text style={{ fontSize: 7, color: colors.error, fontWeight: "700", marginTop: 1 }}>OFF</Text>
+                          )}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                ))}
+                {/* Legend */}
+                <View style={{ flexDirection: "row", gap: 12, marginTop: 6, paddingHorizontal: 4 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.warning }} />
+                    <Text style={{ fontSize: 10, color: colors.muted }}>Full</Text>
+                  </View>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    <Text style={{ fontSize: 9, color: colors.error, fontWeight: "700" }}>OFF</Text>
+                    <Text style={{ fontSize: 10, color: colors.muted }}>Closed</Text>
+                  </View>
+                </View>
+              </View>
+            );
+          })()}
 
           {/* Time Slots */}
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8, marginHorizontal: 4 }}>

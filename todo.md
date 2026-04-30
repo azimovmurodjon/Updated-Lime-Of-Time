@@ -1680,3 +1680,5 @@
 - [x] Add "Book for myself / Buy a Gift" choice card on booking portal landing page (after location step)
 - [x] Redesign buy-gift HTML page: mobile-first responsive, matching booking portal style (category tiles, service list rows, sticky footer, date toggle, step indicator)
 - [x] Fix buy-gift URL not working: routes are live on local dev server; live site needs Publish to deploy new routes
+- [x] Fix app booking date picker: replace 14-day horizontal strip with full monthly calendar grid showing all dates, with month/year header and prev/next navigation (90-day range)
+- [x] Diagnose shared links: links work fine on local dev server; live site needs Publish to deploy new gift portal routes
