@@ -99,6 +99,12 @@ export const businessOwners = mysqlTable("business_owners", {
   stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 255 }),
   /** Stripe current billing period end (Unix timestamp in seconds) */
   stripeCurrentPeriodEnd: bigint("stripeCurrentPeriodEnd", { mode: "number" }),
+  /** Scheduled downgrade/upgrade plan key - applied at period end (null = no change scheduled) */
+  scheduledPlanKey: mysqlEnum("scheduledPlanKey", ["solo", "growth", "studio", "enterprise"]),
+  /** Scheduled billing period for the next plan */
+  scheduledPlanPeriod: mysqlEnum("scheduledPlanPeriod", ["monthly", "yearly"]),
+  /** Whether the subscription is set to cancel at period end (no renewal) */
+  cancelAtPeriodEnd: boolean("cancelAtPeriodEnd").default(false).notNull(),
   /** Admin override: grant full Unlimited access for free (SaaS feature) */
   adminOverride: boolean("adminOverride").default(false).notNull(),
   /** Admin override note (reason/description) */

@@ -2,6 +2,10 @@
  * Choose a Plan Screen
  * ─────────────────────────────────────────────────────────────────────────────
  * Shows all subscription plans as a modern horizontal swipeable carousel.
+ * Implements proper downgrade flow:
+ * - Checks if current usage exceeds target plan limits before allowing downgrade
+ * - Schedules downgrade for period end (grace period) instead of immediate effect
+ * - Shows clear messaging about when the change takes effect
  */
 import { useState } from "react";
 import { useRouter } from "expo-router";
@@ -16,7 +20,6 @@ import { getApiBaseUrl } from "@/constants/oauth";
 import { useStore } from "@/lib/store";
 import { FuturisticBackground } from "@/components/futuristic-background";
 
-
 export default function ChoosePlanScreen() {
   const colors = useColors();
   const router = useRouter();
@@ -29,8 +32,42 @@ export default function ChoosePlanScreen() {
     refetchOnMount: true,
     refetchOnWindowFocus: true,
   });
-
+  const { data: planInfo } = trpc.subscription.getMyPlan.useQuery(
+    { businessOwnerId: state.businessOwnerId! },
+    { enabled: !!state.businessOwnerId, staleTime: 30_000 }
+  );
   const utils = trpc.useUtils();
+
+  /** Determine if the selected plan is a downgrade from the current effective plan. */
+  const isDowngrade = (targetPlanKey: string): boolean => {
+    if (!plans || !planInfo) return false;
+    const currentIdx = plans.findIndex((p) => p.planKey === planInfo.planKey);
+    const targetIdx = plans.findIndex((p) => p.planKey === targetPlanKey);
+    return targetIdx < currentIdx;
+  };
+
+  /** Check server-side if downgrade is allowed given current usage. */
+  const checkDowngradeEligibility = async (
+    businessOwnerId: number,
+    targetPlanKey: string
+  ): Promise<{ allowed: boolean; blockers: string[]; targetPlanName: string }> => {
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/api/stripe/check-downgrade`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessOwnerId, targetPlanKey }),
+      });
+      const data = await res.json();
+      return {
+        allowed: data.allowed ?? false,
+        blockers: data.blockers ?? [],
+        targetPlanName: data.targetPlanName ?? targetPlanKey,
+      };
+    } catch {
+      // Fail open on network error
+      return { allowed: true, blockers: [], targetPlanName: targetPlanKey };
+    }
+  };
 
   const handleSelectPlan = async (planKey: string, period: "monthly" | "yearly") => {
     const businessOwnerId = state.businessOwnerId;
@@ -38,20 +75,66 @@ export default function ChoosePlanScreen() {
       Alert.alert("Error", "Business owner not found. Please restart the app.");
       return;
     }
-
     const plan = plans?.find((p) => p.planKey === planKey);
     if (!plan) return;
 
+    // Don't allow re-selecting the same active plan
+    if (planKey === planInfo?.planKey && !(planInfo as any)?.isInGracePeriod && !(planInfo as any)?.cancelAtPeriodEnd) {
+      Alert.alert("Already on this plan", `You are currently on the ${plan.displayName} plan.`);
+      return;
+    }
+
+    const isDowngrading = isDowngrade(planKey);
     const isFree = plan.monthlyPrice === 0;
 
-    if (isFree) {
+    // For any downgrade, check usage limits first
+    if (isDowngrading || isFree) {
+      setLoadingPlanKey(planKey);
+      let eligibility: { allowed: boolean; blockers: string[]; targetPlanName: string };
+      try {
+        eligibility = await checkDowngradeEligibility(businessOwnerId, planKey);
+      } finally {
+        setLoadingPlanKey(null);
+      }
+      if (!eligibility.allowed) {
+        const blockerList = eligibility.blockers.map((b) => `• ${b}`).join("\n\n");
+        Alert.alert(
+          "Cannot Downgrade",
+          `To downgrade to the ${eligibility.targetPlanName} plan, reduce your usage first:\n\n${blockerList}`,
+          [{ text: "OK" }]
+        );
+        return;
+      }
+    }
+
+    if (isFree || isDowngrading) {
+      // Build confirmation message based on whether there's an active paid period
+      const periodEndSec = (planInfo as any)?.stripeCurrentPeriodEnd ?? null;
+      const hasActivePeriod = periodEndSec &&
+        periodEndSec > Math.floor(Date.now() / 1000) &&
+        planInfo?.subscriptionStatus === "active";
+
+      let confirmMessage: string;
+      if (hasActivePeriod && periodEndSec) {
+        const periodEndDate = new Date(periodEndSec * 1000).toLocaleDateString("en-US", {
+          year: "numeric", month: "long", day: "numeric"
+        });
+        confirmMessage = isFree
+          ? `Your subscription will be cancelled at the end of your billing period on ${periodEndDate}. You'll keep full access until then.`
+          : `Your plan will change to ${plan.displayName} on ${periodEndDate}. You'll keep your current plan's features until then.`;
+      } else {
+        confirmMessage = isFree
+          ? "You will be moved to the free Solo plan immediately."
+          : `You will be moved to the ${plan.displayName} plan immediately.`;
+      }
+
       Alert.alert(
-        "Downgrade to Free",
-        "Are you sure you want to downgrade to the Solo (Free) plan? You may lose access to paid features.",
+        isFree ? "Cancel Subscription" : `Downgrade to ${plan.displayName}`,
+        confirmMessage,
         [
-          { text: "Cancel", style: "cancel" },
+          { text: "Keep Current Plan", style: "cancel" },
           {
-            text: "Downgrade",
+            text: isFree ? "Cancel Subscription" : "Confirm Downgrade",
             style: "destructive",
             onPress: async () => {
               try {
@@ -62,11 +145,24 @@ export default function ChoosePlanScreen() {
                   body: JSON.stringify({ businessOwnerId, planKey, period }),
                 });
                 const data = await res.json();
-                if (data.activated || data.free) {
-                  await utils.subscription.getMyPlan.invalidate();
-                  Alert.alert("Plan Updated", "You are now on the free Solo plan.", [
+                await utils.subscription.getMyPlan.invalidate();
+                if (data.scheduled) {
+                  const scheduledDate = data.scheduledAt
+                    ? new Date(data.scheduledAt * 1000).toLocaleDateString("en-US", {
+                        year: "numeric", month: "long", day: "numeric"
+                      })
+                    : "your billing period end";
+                  Alert.alert(
+                    "Downgrade Scheduled",
+                    `Your subscription will downgrade to ${plan.displayName} on ${scheduledDate}. You'll keep full access until then.`,
+                    [{ text: "OK", onPress: () => router.back() }]
+                  );
+                } else if (data.activated || data.free) {
+                  Alert.alert("Plan Updated", `You are now on the ${plan.displayName} plan.`, [
                     { text: "OK", onPress: () => router.back() },
                   ]);
+                } else {
+                  Alert.alert("Error", data.error ?? "Could not update plan. Please try again.");
                 }
               } catch {
                 Alert.alert("Error", "Could not update plan. Please try again.");
@@ -80,6 +176,7 @@ export default function ChoosePlanScreen() {
       return;
     }
 
+    // Upgrade flow — go to Stripe Checkout
     try {
       setLoadingPlanKey(planKey);
       const res = await fetch(`${getApiBaseUrl()}/api/stripe/create-checkout`, {
@@ -122,6 +219,29 @@ export default function ChoosePlanScreen() {
       <Text style={{ fontSize: 14, color: colors.muted, paddingHorizontal: 20, marginBottom: 8 }}>
         Swipe to compare plans. Upgrade or downgrade anytime.
       </Text>
+
+      {/* Grace period / scheduled downgrade banner */}
+      {(planInfo as any)?.isInGracePeriod && (planInfo as any)?.stripeCurrentPeriodEnd && (
+        <View style={{
+          marginHorizontal: 20, marginBottom: 12, padding: 12,
+          backgroundColor: colors.warning + "22", borderRadius: 12,
+          borderWidth: 1, borderColor: colors.warning + "66",
+          flexDirection: "row", alignItems: "flex-start", gap: 8,
+        }}>
+          <Text style={{ fontSize: 16 }}>⏳</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.warning }}>
+              Downgrade Scheduled
+            </Text>
+            <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
+              {(planInfo as any)?.cancelAtPeriodEnd
+                ? `Your subscription cancels on ${new Date((planInfo as any).stripeCurrentPeriodEnd * 1000).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}. Full access until then.`
+                : `Your plan changes on ${new Date((planInfo as any).stripeCurrentPeriodEnd * 1000).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.`
+              }
+            </Text>
+          </View>
+        </View>
+      )}
 
       {/* Carousel */}
       <View style={{ flex: 1, paddingHorizontal: 20 }}>

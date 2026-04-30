@@ -122,18 +122,64 @@ export function registerStripeRoutes(app: Express): void {
 
     // Solo plan is free — no checkout needed
     if (planKey === "solo") {
-      // Just activate the free plan directly
       const db = await getDb();
       if (db) {
-        await db.update(businessOwners)
-          .set({
-            subscriptionPlan: "solo",
-            subscriptionStatus: "active",
-            subscriptionPeriod: period,
-          })
-          .where(eq(businessOwners.id, businessOwnerId));
+        const rows = await db.select().from(businessOwners)
+          .where(eq(businessOwners.id, businessOwnerId)).limit(1);
+        const owner = rows[0];
+        const nowSec = Math.floor(Date.now() / 1000);
+        const periodEnd = owner?.stripeCurrentPeriodEnd ?? null;
+        const hasActivePaidSub = owner?.stripeSubscriptionId &&
+          owner?.subscriptionStatus === "active" &&
+          owner?.subscriptionPlan !== "solo" &&
+          periodEnd && periodEnd > nowSec;
+
+        if (hasActivePaidSub) {
+          // Business still has paid time remaining — schedule downgrade for period end
+          // Also cancel the Stripe subscription at period end (no more renewals)
+          const stripe = await getStripeAsync();
+          if (stripe && owner?.stripeSubscriptionId) {
+            try {
+              await stripe.subscriptions.update(owner.stripeSubscriptionId, {
+                cancel_at_period_end: true,
+                metadata: { businessOwnerId: String(businessOwnerId) },
+              });
+            } catch (stripeErr) {
+              console.error("[Stripe] Failed to cancel subscription at period end:", stripeErr);
+            }
+          }
+          await db.update(businessOwners)
+            .set({
+              scheduledPlanKey: "solo",
+              scheduledPlanPeriod: "monthly",
+              cancelAtPeriodEnd: true,
+            } as any)
+            .where(eq(businessOwners.id, businessOwnerId));
+          res.json({
+            url: null,
+            free: false,
+            activated: false,
+            scheduled: true,
+            scheduledAt: periodEnd,
+            message: "Your subscription will downgrade to the free Solo plan at the end of your current billing period.",
+          });
+        } else {
+          // No active paid period — downgrade immediately
+          await db.update(businessOwners)
+            .set({
+              subscriptionPlan: "solo",
+              subscriptionStatus: "free",
+              subscriptionPeriod: period,
+              scheduledPlanKey: null,
+              scheduledPlanPeriod: null,
+              cancelAtPeriodEnd: false,
+            } as any)
+            .where(eq(businessOwners.id, businessOwnerId));
+          res.json({ url: null, free: true, activated: true });
+        }
+      } else {
+        res.json({ url: null, free: true, activated: true });
       }
-      res.json({ url: null, free: true, activated: true });
       return;
     }
 
@@ -259,14 +305,26 @@ export function registerStripeRoutes(app: Express): void {
                 periodEnd = (sub as Stripe.Subscription).billing_cycle_anchor ?? null;
               } catch {}
             }
+            // Fetch the actual current_period_end from Stripe subscription
+            let actualPeriodEnd: number | null = periodEnd;
+            if (subscriptionId && stripe) {
+              try {
+                const sub = await stripe.subscriptions.retrieve(subscriptionId) as any;
+                actualPeriodEnd = sub.current_period_end ?? sub.billing_cycle_anchor ?? periodEnd;
+              } catch {}
+            }
             await db.update(businessOwners)
               .set({
                 subscriptionPlan: planKey,
                 subscriptionStatus: "active",
                 subscriptionPeriod: period ?? "monthly",
                 stripeSubscriptionId: subscriptionId ?? null,
-                stripeCurrentPeriodEnd: periodEnd,
-              })
+                stripeCurrentPeriodEnd: actualPeriodEnd,
+                // Clear any scheduled downgrade/cancellation — user just subscribed/upgraded
+                scheduledPlanKey: null,
+                scheduledPlanPeriod: null,
+                cancelAtPeriodEnd: false,
+              } as any)
               .where(eq(businessOwners.id, businessOwnerId));
             console.log(`[Stripe] Activated ${planKey} plan for business ${businessOwnerId}`);
 
@@ -312,14 +370,72 @@ export function registerStripeRoutes(app: Express): void {
           const subscription = event.data.object as Stripe.Subscription;
           const businessOwnerId = parseInt(subscription.metadata?.businessOwnerId ?? "0");
           if (businessOwnerId) {
+            // Subscription fully ended — apply the downgrade now
+            // (grace period was already active; now the period has ended)
             await db.update(businessOwners)
               .set({
                 subscriptionPlan: "solo",
                 subscriptionStatus: "free",
                 stripeSubscriptionId: null,
-              })
+                scheduledPlanKey: null,
+                scheduledPlanPeriod: null,
+                cancelAtPeriodEnd: false,
+              } as any)
               .where(eq(businessOwners.id, businessOwnerId));
-            console.log(`[Stripe] Subscription cancelled for business ${businessOwnerId}`);
+            console.log(`[Stripe] Subscription fully ended for business ${businessOwnerId} — downgraded to solo`);
+          }
+          break;
+        }
+        case "customer.subscription.updated": {
+          // Fired when subscription changes: cancel_at_period_end set, plan changed, period renewed, etc.
+          const subscription = event.data.object as Stripe.Subscription & {
+            cancel_at_period_end: boolean;
+            current_period_end: number;
+            metadata: Record<string, string>;
+          };
+          const businessOwnerId = parseInt(subscription.metadata?.businessOwnerId ?? "0");
+          if (businessOwnerId) {
+            const cancelAtPeriodEnd = subscription.cancel_at_period_end ?? false;
+            const currentPeriodEnd = subscription.current_period_end ?? null;
+            await db.update(businessOwners)
+              .set({
+                stripeCurrentPeriodEnd: currentPeriodEnd,
+                cancelAtPeriodEnd: cancelAtPeriodEnd,
+                // If cancellation is reversed (user re-enabled auto-renew), clear scheduled downgrade
+                ...(cancelAtPeriodEnd === false ? { scheduledPlanKey: null, scheduledPlanPeriod: null } : {}),
+              } as any)
+              .where(eq(businessOwners.id, businessOwnerId));
+            console.log(`[Stripe] Subscription updated for business ${businessOwnerId}: cancelAtPeriodEnd=${cancelAtPeriodEnd}, periodEnd=${currentPeriodEnd}`);
+          }
+          break;
+        }
+        case "invoice.paid": {
+          // Fired on successful renewal — update period end and clear grace period flags
+          const invoice = event.data.object as any;
+          const subId = typeof invoice.subscription === "string" ? invoice.subscription : null;
+          if (subId) {
+            // Get the subscription to find the new period end
+            try {
+              const sub = await stripe.subscriptions.retrieve(subId) as any;
+              const newPeriodEnd = sub.current_period_end ?? null;
+              const rows = await db.select().from(businessOwners)
+                .where(eq(businessOwners.stripeSubscriptionId, subId)).limit(1);
+              if (rows[0]) {
+                await db.update(businessOwners)
+                  .set({
+                    stripeCurrentPeriodEnd: newPeriodEnd,
+                    subscriptionStatus: "active",
+                    // Clear grace period flags on successful renewal
+                    cancelAtPeriodEnd: false,
+                    scheduledPlanKey: null,
+                    scheduledPlanPeriod: null,
+                  } as any)
+                  .where(eq(businessOwners.id, rows[0].id));
+                console.log(`[Stripe] Invoice paid for business ${rows[0].id} — period renewed until ${newPeriodEnd}`);
+              }
+            } catch (err) {
+              console.error("[Stripe] invoice.paid handler error:", err);
+            }
           }
           break;
         }
@@ -542,4 +658,79 @@ export function registerStripeRoutes(app: Express): void {
 </body>
 </html>`);
   });
+  /**
+   * POST /api/stripe/check-downgrade
+   * Body: { businessOwnerId, targetPlanKey }
+   * Returns: { allowed: boolean, blockers: string[] }
+   * Checks if a business can downgrade to the target plan given current usage.
+   * Blockers are returned if usage exceeds target plan limits.
+   */
+  app.post("/api/stripe/check-downgrade", async (req: Request, res: Response) => {
+    const { businessOwnerId, targetPlanKey } = req.body as { businessOwnerId: number; targetPlanKey: string };
+    if (!businessOwnerId || !targetPlanKey) {
+      res.status(400).json({ error: "Missing required fields" });
+      return;
+    }
+    try {
+      const db = await getDb();
+      if (!db) {
+        res.status(500).json({ error: "DB not available" });
+        return;
+      }
+      // Get target plan limits
+      const { getAllPlansForAdmin, getBusinessSubscriptionInfo } = await import("./subscription");
+      const plans = await getAllPlansForAdmin();
+      const targetPlan = plans.find((p) => p.planKey === targetPlanKey);
+      if (!targetPlan) {
+        res.status(400).json({ error: "Invalid target plan key" });
+        return;
+      }
+      // Get current usage
+      const info = await getBusinessSubscriptionInfo(businessOwnerId);
+      if (!info) {
+        res.status(404).json({ error: "Business not found" });
+        return;
+      }
+      const usage = info.usage;
+      const blockers: string[] = [];
+      const maxL = targetPlan.maxLocations;
+      const maxS = targetPlan.maxStaff;
+      const maxC = targetPlan.maxClients;
+      const maxSvc = targetPlan.maxServices;
+      const maxP = targetPlan.maxProducts;
+      if (maxL !== -1 && usage.locations > maxL) {
+        blockers.push(`You have ${usage.locations} locations but the ${targetPlan.displayName} plan allows ${maxL}. Please remove ${usage.locations - maxL} location(s) before downgrading.`);
+      }
+      if (maxS !== -1 && usage.staff > maxS) {
+        blockers.push(`You have ${usage.staff} staff members but the ${targetPlan.displayName} plan allows ${maxS}. Please remove ${usage.staff - maxS} staff member(s) before downgrading.`);
+      }
+      if (maxC !== -1 && usage.clients > maxC) {
+        blockers.push(`You have ${usage.clients} clients but the ${targetPlan.displayName} plan allows ${maxC}. Please archive ${usage.clients - maxC} client(s) before downgrading.`);
+      }
+      if (maxSvc !== -1 && usage.services > maxSvc) {
+        blockers.push(`You have ${usage.services} services but the ${targetPlan.displayName} plan allows ${maxSvc}. Please remove ${usage.services - maxSvc} service(s) before downgrading.`);
+      }
+      if (maxP !== -1 && usage.products > maxP) {
+        blockers.push(`You have ${usage.products} products but the ${targetPlan.displayName} plan allows ${maxP}. Please remove ${usage.products - maxP} product(s) before downgrading.`);
+      }
+      res.json({
+        allowed: blockers.length === 0,
+        blockers,
+        targetPlanName: targetPlan.displayName,
+        usage,
+        limits: {
+          maxLocations: maxL,
+          maxStaff: maxS,
+          maxClients: maxC,
+          maxServices: maxSvc,
+          maxProducts: maxP,
+        },
+      });
+    } catch (err) {
+      console.error("[Stripe] check-downgrade error:", err);
+      res.status(500).json({ error: "Failed to check downgrade eligibility" });
+    }
+  });
+
+
 }

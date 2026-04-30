@@ -486,6 +486,24 @@ export default function SubscriptionScreen() {
             </View>
           </View>
 
+          {/* Grace period / scheduled downgrade banner */}
+          {(planInfo as any)?.isInGracePeriod && (planInfo as any)?.stripeCurrentPeriodEnd && (
+            <View style={{ backgroundColor: colors.warning + "15", borderRadius: 10, padding: 12, marginBottom: 12, flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+              <IconSymbol name="clock.fill" size={18} color={colors.warning} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, fontWeight: "700", color: colors.warning }}>
+                  {(planInfo as any)?.cancelAtPeriodEnd ? "Subscription Cancelling" : "Downgrade Scheduled"}
+                </Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
+                  {(planInfo as any)?.cancelAtPeriodEnd
+                    ? `Cancels on ${new Date((planInfo as any).stripeCurrentPeriodEnd * 1000).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}. Full access until then.`
+                    : `Changes to ${(planInfo as any)?.scheduledPlanKey ?? "lower tier"} on ${new Date((planInfo as any).stripeCurrentPeriodEnd * 1000).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.`
+                  }
+                </Text>
+              </View>
+            </View>
+          )}
+
           {/* Trial countdown */}
           {subscriptionStatus === "trial" && trialDaysRemaining !== null && (
             <View style={{ backgroundColor: colors.warning + "15", borderRadius: 10, padding: 12, marginBottom: 12, flexDirection: "row", alignItems: "center", gap: 10 }}>

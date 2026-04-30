@@ -136,6 +136,21 @@ export async function getBusinessSubscriptionInfo(businessOwnerId: number) {
       trialDaysRemaining = Math.max(0, Math.ceil(msRemaining / (1000 * 60 * 60 * 24)));
     }
 
+    // Grace period: are we still within the paid period?
+    const nowSec = Math.floor(Date.now() / 1000);
+    const periodEnd = business.stripeCurrentPeriodEnd ?? null;
+    const isInGracePeriod = !!(
+      periodEnd &&
+      periodEnd > nowSec &&
+      business.subscriptionStatus === "active" &&
+      business.subscriptionPlan !== "solo" &&
+      ((business as any).cancelAtPeriodEnd || (business as any).scheduledPlanKey)
+    );
+    // Days remaining in grace period
+    const gracePeriodDaysRemaining = isInGracePeriod && periodEnd
+      ? Math.max(0, Math.ceil((periodEnd - nowSec) / 86400))
+      : null;
+
     return {
       planKey: limits.planKey,
       displayName: limits.displayName,
@@ -148,6 +163,12 @@ export async function getBusinessSubscriptionInfo(businessOwnerId: number) {
       yearlyPrice: limits.yearlyPrice,
       stripeCurrentPeriodEnd: business.stripeCurrentPeriodEnd ?? null,
       stripeCustomerId: business.stripeCustomerId ?? null,
+      // Grace period / scheduled downgrade info
+      cancelAtPeriodEnd: (business as any).cancelAtPeriodEnd ?? false,
+      scheduledPlanKey: (business as any).scheduledPlanKey ?? null,
+      scheduledPlanPeriod: (business as any).scheduledPlanPeriod ?? null,
+      isInGracePeriod,
+      gracePeriodDaysRemaining,
       limits: {
         maxClients: limits.maxClients,
         maxServices: limits.maxServices,
@@ -232,6 +253,50 @@ export async function getAllPlatformConfig(): Promise<
   }
 }
 
+/**
+ * Determines the effective plan key for a business, respecting grace periods.
+ *
+ * Grace period logic (mirrors how Stripe/high-tech SaaS works):
+ * - If the business has an active Stripe subscription with stripeCurrentPeriodEnd in the future,
+ *   they keep their CURRENT paid plan limits until that date — even if cancelAtPeriodEnd=true
+ *   or a scheduledPlanKey downgrade is pending.
+ * - Once stripeCurrentPeriodEnd passes (or the subscription is deleted), the scheduledPlanKey
+ *   (or "solo" if none) takes effect.
+ * - This means: cancel on the 15th → keep paid features until the 30th (period end).
+ */
+function resolveEffectivePlanKey(business: {
+  subscriptionPlan: string;
+  subscriptionStatus: string;
+  stripeCurrentPeriodEnd: number | null;
+  cancelAtPeriodEnd: boolean | null;
+  scheduledPlanKey: string | null;
+  adminOverride: boolean;
+}): string {
+  // Admin override always wins
+  if (business.adminOverride) return "enterprise";
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  const periodEnd = business.stripeCurrentPeriodEnd;
+
+  // If we are still within the paid billing period, keep the current plan
+  // regardless of any scheduled downgrade or cancellation
+  if (
+    periodEnd &&
+    periodEnd > nowSec &&
+    business.subscriptionStatus === "active" &&
+    business.subscriptionPlan !== "solo"
+  ) {
+    return business.subscriptionPlan;
+  }
+
+  // Period has ended (or no active subscription) — apply scheduled plan or fall to solo
+  if (business.scheduledPlanKey) {
+    return business.scheduledPlanKey;
+  }
+
+  return business.subscriptionPlan;
+}
+
 // ─── Plan Limit Helpers ───────────────────────────────────────────────────────
 
 /**
@@ -274,7 +339,16 @@ export async function getPlanLimits(
     }
 
     const plans = await getPlans();
-    const plan = plans.find((p) => p.planKey === business.subscriptionPlan);
+    // Use grace-period-aware effective plan key
+    const effectivePlanKey = resolveEffectivePlanKey({
+      subscriptionPlan: business.subscriptionPlan,
+      subscriptionStatus: business.subscriptionStatus,
+      stripeCurrentPeriodEnd: business.stripeCurrentPeriodEnd ?? null,
+      cancelAtPeriodEnd: (business as any).cancelAtPeriodEnd ?? false,
+      scheduledPlanKey: (business as any).scheduledPlanKey ?? null,
+      adminOverride: business.adminOverride,
+    });
+    const plan = plans.find((p) => p.planKey === effectivePlanKey);
 
     if (!plan) {
       // Fallback to solo limits if plan not found
