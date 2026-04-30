@@ -1,4 +1,7 @@
-import { Text, View, Pressable, StyleSheet, TextInput, ScrollView, Alert, Platform, Image, ActivityIndicator } from "react-native";
+import {
+  Text, View, Pressable, StyleSheet, TextInput, ScrollView,
+  Alert, Platform, Image, ActivityIndicator, Modal, TouchableOpacity,
+} from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, generateId } from "@/lib/store";
@@ -15,7 +18,6 @@ import * as FileSystem from "expo-file-system/legacy";
 import { FuturisticBackground } from "@/components/futuristic-background";
 import { trpc } from "@/lib/trpc";
 
-
 export default function ServiceFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { state, dispatch, syncToDb } = useStore();
@@ -27,6 +29,7 @@ export default function ServiceFormScreen() {
   const hasSms = smsLevel !== "none";
   const [upgradeSheetVisible, setUpgradeSheetVisible] = useState(false);
   const [upgradeSheetInfo, setUpgradeSheetInfo] = useState<{ planKey: string; planName: string; limit: number } | null>(null);
+  const [lightboxVisible, setLightboxVisible] = useState(false);
 
   const existing = useMemo(
     () => (id ? state.services.find((s) => s.id === id) : undefined),
@@ -45,10 +48,8 @@ export default function ServiceFormScreen() {
     existing?.reminderHours != null ? String(existing.reminderHours) : ""
   );
   const uploadImageMut = trpc.files.uploadImage.useMutation();
-
   const isEdit = !!existing;
 
-  // Collect unique categories from existing services for suggestions
   const existingCategories = useMemo(() => {
     const cats = new Set<string>();
     state.services.forEach((s) => { if (s.category) cats.add(s.category); });
@@ -63,13 +64,11 @@ export default function ServiceFormScreen() {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.8,
+      allowsEditing: false,
+      quality: 0.85,
     });
     if (!result.canceled && result.assets[0]) {
       const localUri = result.assets[0].uri;
-      // Upload to S3 immediately so the URL is shareable on the client portal
       if (Platform.OS !== "web") {
         try {
           setUploadingPhoto(true);
@@ -78,7 +77,6 @@ export default function ServiceFormScreen() {
           const { url } = await uploadImageMut.mutateAsync({ base64, mimeType, folder: "services" });
           setPhotoUri(url);
         } catch {
-          // Fallback to local URI if upload fails
           setPhotoUri(localUri);
         } finally {
           setUploadingPhoto(false);
@@ -90,8 +88,10 @@ export default function ServiceFormScreen() {
   };
 
   const handleSave = () => {
-    if (!name.trim()) return;
-    // Only check limit for new services (not edits)
+    if (!name.trim()) {
+      Alert.alert("Required", "Please enter a service name.");
+      return;
+    }
     if (!isEdit) {
       const limitInfo = checkLimit("services");
       if (!limitInfo.allowed) {
@@ -132,7 +132,7 @@ export default function ServiceFormScreen() {
     if (Platform.OS === "web") {
       doIt();
     } else {
-      Alert.alert("Delete Service", "This will remove the service permanently.", [
+      Alert.alert("Delete Service", "This will permanently remove the service and all related data.", [
         { text: "Cancel", style: "cancel" },
         { text: "Delete", style: "destructive", onPress: doIt },
       ]);
@@ -142,250 +142,251 @@ export default function ServiceFormScreen() {
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} tabletMaxWidth={680}>
       <FuturisticBackground />
-      {/* Header */}
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 24, paddingTop: 16, paddingHorizontal: hp }}>
-        <View style={{ flexDirection: "row", alignItems: "center", flex: 1, marginRight: 12 }}>
-          <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, padding: 4 }]}>
-            <IconSymbol name="xmark" size={24} color={colors.foreground} />
-          </Pressable>
-          <Text style={{ fontSize: 20, fontWeight: "700", color: colors.foreground, marginLeft: 16, flex: 1 }} numberOfLines={1}>
-            {isEdit ? "Edit Service" : "New Service"}
-          </Text>
-        </View>
+
+      {/* ── Header ── */}
+      <View style={[styles.header, { paddingHorizontal: hp, borderBottomColor: colors.border }]}>
+        <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.5 : 1 }]}>
+          <IconSymbol name="xmark" size={22} color={colors.foreground} />
+        </Pressable>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>
+          {isEdit ? "Edit Service" : "New Service"}
+        </Text>
         <Pressable
           onPress={handleSave}
-          style={({ pressed }) => [
-            styles.saveButton,
-            { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 },
-          ]}
+          style={({ pressed }) => [styles.saveBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
         >
-          <Text style={{ fontSize: 14, fontWeight: "600", color: "#fff" }}>Save</Text>
+          <Text style={styles.saveBtnText}>Save</Text>
         </Pressable>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}>
-        {/* Name */}
-        <Text className="text-xs font-medium text-muted mb-1 ml-1">Service Name</Text>
-        <TextInput
-          className="bg-surface rounded-xl px-4 py-3.5 text-base mb-4 border border-border"
-          placeholder="e.g. Haircut, Consultation..."
-          placeholderTextColor={colors.muted}
-          value={name}
-          onChangeText={setName}
-          style={{ color: colors.foreground }}
-          returnKeyType="next"
-        />
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 48, paddingTop: 8 }}
+      >
 
-        {/* Duration */}
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8, marginLeft: 4, marginRight: 4 }}>
-          <Text className="text-xs font-medium text-muted">Duration</Text>
-          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.primary }}>{formatDuration(duration)}</Text>
+        {/* ── Hero Image Picker ── */}
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.sectionLabel, { color: colors.muted }]}>SERVICE PHOTO</Text>
+          {uploadingPhoto ? (
+            <View style={styles.imagePlaceholder}>
+              <ActivityIndicator color={colors.primary} size="large" />
+              <Text style={[styles.imageHint, { color: colors.muted, marginTop: 10 }]}>Uploading…</Text>
+            </View>
+          ) : photoUri ? (
+            <View style={styles.imageContainer}>
+              {/* Full-aspect preview — no cropping */}
+              <TouchableOpacity activeOpacity={0.9} onPress={() => setLightboxVisible(true)}>
+                <Image
+                  source={{ uri: photoUri }}
+                  style={styles.imagePreview}
+                  resizeMode="contain"
+                />
+                <View style={styles.imageOverlay}>
+                  <IconSymbol name="arrow.up.left.and.arrow.down.right" size={16} color="#fff" />
+                  <Text style={styles.imageOverlayText}>Tap to preview</Text>
+                </View>
+              </TouchableOpacity>
+              <View style={styles.imageActions}>
+                <Pressable
+                  onPress={pickPhoto}
+                  style={({ pressed }) => [styles.imageActionBtn, { backgroundColor: colors.primary + "18", opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <IconSymbol name="photo.badge.plus" size={16} color={colors.primary} />
+                  <Text style={[styles.imageActionText, { color: colors.primary }]}>Change</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setPhotoUri(undefined)}
+                  style={({ pressed }) => [styles.imageActionBtn, { backgroundColor: colors.error + "15", opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <IconSymbol name="trash.fill" size={16} color={colors.error} />
+                  <Text style={[styles.imageActionText, { color: colors.error }]}>Remove</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <Pressable
+              onPress={pickPhoto}
+              style={({ pressed }) => [styles.imagePlaceholder, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
+            >
+              <View style={[styles.imageIconCircle, { backgroundColor: colors.primary + "18" }]}>
+                <IconSymbol name="photo.badge.plus" size={28} color={colors.primary} />
+              </View>
+              <Text style={[styles.imageHint, { color: colors.foreground }]}>Add Service Photo</Text>
+              <Text style={[styles.imageSubHint, { color: colors.muted }]}>Shown to clients on the booking page</Text>
+            </Pressable>
+          )}
         </View>
-        <View style={{ marginBottom: 16 }}>
+
+        {/* ── Basic Info ── */}
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.sectionLabel, { color: colors.muted }]}>BASIC INFO</Text>
+
+          <Text style={[styles.fieldLabel, { color: colors.muted }]}>Service Name *</Text>
+          <TextInput
+            style={[styles.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
+            placeholder="e.g. Haircut, Consultation, Massage…"
+            placeholderTextColor={colors.muted}
+            value={name}
+            onChangeText={setName}
+            returnKeyType="next"
+          />
+
+          <Text style={[styles.fieldLabel, { color: colors.muted, marginTop: 16 }]}>Price ($)</Text>
+          <TextInput
+            style={[styles.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
+            placeholder="0.00"
+            placeholderTextColor={colors.muted}
+            value={price}
+            onChangeText={setPrice}
+            keyboardType="decimal-pad"
+            returnKeyType="done"
+          />
+
+          <Text style={[styles.fieldLabel, { color: colors.muted, marginTop: 16 }]}>Category (optional)</Text>
+          <TextInput
+            style={[styles.input, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
+            placeholder="e.g. Hair, Nails, Massage…"
+            placeholderTextColor={colors.muted}
+            value={category}
+            onChangeText={setCategory}
+            returnKeyType="done"
+          />
+          {existingCategories.length > 0 && !category && (
+            <View style={styles.chipRow}>
+              {existingCategories.map((cat) => (
+                <Pressable
+                  key={cat}
+                  onPress={() => setCategory(cat)}
+                  style={({ pressed }) => [styles.chip, { backgroundColor: colors.background, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <Text style={[styles.chipText, { color: colors.foreground }]}>{cat}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+
+          <Text style={[styles.fieldLabel, { color: colors.muted, marginTop: 16 }]}>Description (optional)</Text>
+          <TextInput
+            style={[styles.input, styles.textArea, { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
+            placeholder="Brief description shown to clients on the booking page…"
+            placeholderTextColor={colors.muted}
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            numberOfLines={3}
+            returnKeyType="done"
+          />
+        </View>
+
+        {/* ── Duration ── */}
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.cardRowHeader}>
+            <Text style={[styles.sectionLabel, { color: colors.muted }]}>DURATION</Text>
+            <Text style={[styles.durationValue, { color: colors.primary }]}>{formatDuration(duration)}</Text>
+          </View>
           <TapDurationPicker value={duration} onChange={setDuration} />
         </View>
 
-        {/* Price */}
-        <Text className="text-xs font-medium text-muted mb-1 ml-1">Price ($)</Text>
-        <TextInput
-          className="bg-surface rounded-xl px-4 py-3.5 text-base mb-4 border border-border"
-          placeholder="0.00"
-          placeholderTextColor={colors.muted}
-          value={price}
-          onChangeText={setPrice}
-          keyboardType="decimal-pad"
-          style={{ color: colors.foreground }}
-          returnKeyType="done"
-        />
-
-        {/* Category */}
-        <Text className="text-xs font-medium text-muted mb-1 ml-1">Category (optional)</Text>
-        <TextInput
-          className="bg-surface rounded-xl px-4 py-3.5 text-base mb-2 border border-border"
-          placeholder="e.g. Hair, Nails, Massage..."
-          placeholderTextColor={colors.muted}
-          value={category}
-          onChangeText={setCategory}
-          style={{ color: colors.foreground }}
-          returnKeyType="done"
-        />
-        {existingCategories.length > 0 && !category && (
-          <View className="flex-row flex-wrap gap-2 mb-4">
-            {existingCategories.map((cat) => (
+        {/* ── Color ── */}
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.sectionLabel, { color: colors.muted }]}>CALENDAR COLOR</Text>
+          <View style={styles.colorRow}>
+            {SERVICE_COLORS.map((c) => (
               <Pressable
-                key={cat}
-                onPress={() => setCategory(cat)}
+                key={c}
+                onPress={() => setColor(c)}
                 style={({ pressed }) => [
-                  styles.durationChip,
+                  styles.colorCircle,
                   {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
+                    backgroundColor: c,
+                    borderWidth: color === c ? 3 : 1.5,
+                    borderColor: color === c ? colors.foreground : "transparent",
                     opacity: pressed ? 0.7 : 1,
-                    paddingHorizontal: 12,
-                    paddingVertical: 6,
-                    minHeight: 32,
+                    transform: [{ scale: color === c ? 1.15 : 1 }],
                   },
                 ]}
-              >
-                <Text className="text-xs font-medium" style={{ color: colors.foreground }}>{cat}</Text>
-              </Pressable>
+              />
             ))}
           </View>
-        )}
-        {!existingCategories.length && <View style={{ height: 8 }} />}
-
-        {/* Description */}
-        <Text className="text-xs font-medium text-muted mb-1 ml-1">Description (optional)</Text>
-        <TextInput
-          className="bg-surface rounded-xl px-4 py-3.5 text-base mb-6 border border-border"
-          placeholder="Brief description shown to clients on the booking page..."
-          placeholderTextColor={colors.muted}
-          value={description}
-          onChangeText={setDescription}
-          style={{ color: colors.foreground, minHeight: 72, textAlignVertical: "top" }}
-          multiline
-          numberOfLines={3}
-          returnKeyType="done"
-        />
-
-        {/* SMS Reminder Timing — only shown when plan includes SMS */}
-        {hasSms ? (
-          <>
-            <Text className="text-xs font-medium text-muted mb-1 ml-1">SMS Reminder Timing (optional)</Text>
-            <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 6, marginLeft: 4, lineHeight: 15 }}>
-              Override the global reminder window for this service. Leave blank to use the default.
-            </Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 20 }}>
-              <TextInput
-                style={{
-                  flex: 1,
-                  backgroundColor: colors.surface,
-                  borderRadius: 12,
-                  paddingHorizontal: 16,
-                  paddingVertical: 12,
-                  fontSize: 16,
-                  color: colors.foreground,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                }}
-                placeholder={`Default (${state.settings.twilioReminderHoursBeforeAppt ?? 24} hrs)`}
-                placeholderTextColor={colors.muted}
-                value={reminderHours}
-                onChangeText={(v) => setReminderHours(v.replace(/[^0-9.]/g, ""))}
-                keyboardType="decimal-pad"
-                returnKeyType="done"
-              />
-              <Text style={{ fontSize: 14, color: colors.muted, minWidth: 30 }}>hrs</Text>
-            </View>
-          </>
-        ) : (
-          <View style={{
-            flexDirection: "row",
-            alignItems: "center",
-            backgroundColor: colors.surface,
-            borderRadius: 12,
-            borderWidth: 1,
-            borderColor: colors.border,
-            paddingHorizontal: 16,
-            paddingVertical: 12,
-            marginBottom: 20,
-            gap: 10,
-          }}>
-            <IconSymbol name="lock.fill" size={16} color={colors.muted} />
+          {/* Live preview */}
+          <View style={[styles.previewRow, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <View style={[styles.previewDot, { backgroundColor: color }]} />
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 14, color: colors.foreground, fontWeight: "600" }}>SMS Reminder Timing</Text>
-              <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Upgrade your plan to set per-service SMS reminder timing.</Text>
+              <Text style={[styles.previewName, { color: colors.foreground }]} numberOfLines={1}>
+                {name || "Service Name"}
+              </Text>
+              <Text style={[styles.previewMeta, { color: colors.muted }]}>
+                {formatDuration(duration)} · ${price || "0.00"}
+              </Text>
             </View>
           </View>
-        )}
-
-        {/* Color */}
-        <Text className="text-xs font-medium text-muted mb-2 ml-1">Color</Text>
-        <View className="flex-row gap-3 mb-6">
-          {SERVICE_COLORS.map((c) => (
-            <Pressable
-              key={c}
-              onPress={() => setColor(c)}
-              style={({ pressed }) => [
-                styles.colorCircle,
-                {
-                  backgroundColor: c,
-                  borderWidth: color === c ? 3 : 0,
-                  borderColor: colors.foreground,
-                  opacity: pressed ? 0.7 : 1,
-                },
-              ]}
-            />
-          ))}
         </View>
 
-        {/* Photo (optional) */}
-        <Text className="text-xs font-medium text-muted mb-2 ml-1">Service Photo (optional)</Text>
-        <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 8, marginLeft: 4, lineHeight: 15 }}>
-          Shown to clients on the booking page. Helps them understand what to expect.
-        </Text>
-        <Pressable
-          onPress={pickPhoto}
-          style={({ pressed }) => [{
-            borderRadius: 12, borderWidth: 1.5, borderColor: colors.border, borderStyle: "dashed",
-            overflow: "hidden", marginBottom: photoUri ? 6 : 16, opacity: pressed ? 0.7 : 1,
-            backgroundColor: colors.surface, minHeight: 110, alignItems: "center", justifyContent: "center",
-          }]}
-        >
-          {uploadingPhoto ? (
-            <View style={{ alignItems: "center", paddingVertical: 22, gap: 8 }}>
-              <ActivityIndicator color={colors.primary} />
-              <Text style={{ fontSize: 12, color: colors.muted }}>Uploading photo...</Text>
-            </View>
-          ) : photoUri ? (
-            <Image source={{ uri: photoUri }} style={{ width: "100%", height: 150, borderRadius: 10 }} resizeMode="cover" />
+        {/* ── SMS Reminder ── */}
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.sectionLabel, { color: colors.muted }]}>SMS REMINDER</Text>
+          {hasSms ? (
+            <>
+              <Text style={[styles.fieldHint, { color: colors.muted }]}>
+                Override the global reminder window for this service. Leave blank to use the default ({state.settings.twilioReminderHoursBeforeAppt ?? 24} hrs).
+              </Text>
+              <View style={styles.reminderRow}>
+                <TextInput
+                  style={[styles.input, { flex: 1, backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border }]}
+                  placeholder={`Default (${state.settings.twilioReminderHoursBeforeAppt ?? 24} hrs)`}
+                  placeholderTextColor={colors.muted}
+                  value={reminderHours}
+                  onChangeText={(v) => setReminderHours(v.replace(/[^0-9.]/g, ""))}
+                  keyboardType="decimal-pad"
+                  returnKeyType="done"
+                />
+                <Text style={[styles.reminderUnit, { color: colors.muted }]}>hrs</Text>
+              </View>
+            </>
           ) : (
-            <View style={{ alignItems: "center", paddingVertical: 22, gap: 6 }}>
-              <IconSymbol name="photo.badge.plus" size={28} color={colors.muted} />
-              <Text style={{ fontSize: 13, color: colors.muted }}>Tap to add a photo</Text>
+            <View style={[styles.lockedRow, { backgroundColor: colors.background, borderColor: colors.border }]}>
+              <IconSymbol name="lock.fill" size={16} color={colors.muted} />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={[styles.lockedTitle, { color: colors.foreground }]}>Per-Service SMS Timing</Text>
+                <Text style={[styles.lockedSub, { color: colors.muted }]}>Upgrade your plan to set custom reminder timing per service.</Text>
+              </View>
             </View>
           )}
-        </Pressable>
-        {photoUri && (
-          <Pressable
-            onPress={() => setPhotoUri(undefined)}
-            style={({ pressed }) => [{ alignSelf: "flex-start", marginBottom: 16, opacity: pressed ? 0.6 : 1 }]}
-          >
-            <Text style={{ fontSize: 12, color: colors.error }}>Remove photo</Text>
-          </Pressable>
-        )}
-
-        {/* Preview */}
-        <View className="bg-surface rounded-2xl p-4 mb-6 border border-border">
-          <Text className="text-xs text-muted mb-2">Preview</Text>
-          <View className="flex-row items-center">
-            <View style={[styles.previewDot, { backgroundColor: color }]} />
-            <Text className="text-base font-semibold text-foreground ml-3">
-              {name || "Service Name"}
-            </Text>
-          </View>
-          <Text className="text-sm text-muted mt-1 ml-7">
-            {duration} min · ${price || "0"}
-          </Text>
         </View>
 
-        {/* Delete */}
+        {/* ── Delete ── */}
         {isEdit && (
           <Pressable
             onPress={handleDelete}
-            style={({ pressed }) => [
-              styles.deleteButton,
-              { borderColor: colors.error, opacity: pressed ? 0.7 : 1 },
-            ]}
+            style={({ pressed }) => [styles.deleteBtn, { borderColor: colors.error, opacity: pressed ? 0.7 : 1 }]}
           >
-            <Text className="text-sm font-medium" style={{ color: colors.error }}>
-              Delete Service
-            </Text>
+            <IconSymbol name="trash.fill" size={16} color={colors.error} />
+            <Text style={[styles.deleteBtnText, { color: colors.error }]}>Delete Service</Text>
           </Pressable>
         )}
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: 32 }} />
       </ScrollView>
+
+      {/* ── Lightbox ── */}
+      <Modal visible={lightboxVisible} transparent animationType="fade" onRequestClose={() => setLightboxVisible(false)}>
+        <View style={styles.lightboxOverlay}>
+          <Pressable style={styles.lightboxClose} onPress={() => setLightboxVisible(false)}>
+            <View style={styles.lightboxCloseBtn}>
+              <IconSymbol name="xmark" size={20} color="#fff" />
+            </View>
+          </Pressable>
+          {photoUri && (
+            <Image
+              source={{ uri: photoUri }}
+              style={styles.lightboxImage}
+              resizeMode="contain"
+            />
+          )}
+        </View>
+      </Modal>
+
       {upgradeSheetInfo && (
         <UpgradePlanSheet
           visible={upgradeSheetVisible}
@@ -402,41 +403,268 @@ export default function ServiceFormScreen() {
 }
 
 const styles = StyleSheet.create({
-  saveButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 20,
+  header: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    minHeight: 36,
-    minWidth: 70,
+    paddingTop: 16,
+    paddingBottom: 14,
+    borderBottomWidth: 0.5,
+    gap: 12,
   },
-  durationChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 40,
-  },
-  colorCircle: {
+  iconBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+  },
+  saveBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 9,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  saveBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#fff",
+    letterSpacing: 0.2,
+  },
+  card: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginTop: 14,
+  },
+  sectionLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    marginBottom: 12,
+  },
+  cardRowHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  durationValue: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  fieldHint: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 10,
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+  },
+  textArea: {
+    minHeight: 80,
+    textAlignVertical: "top",
+    paddingTop: 12,
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 8,
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  chipText: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  colorRow: {
+    flexDirection: "row",
+    gap: 12,
+    flexWrap: "wrap",
+    marginBottom: 16,
+  },
+  colorCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+  },
+  previewRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 12,
   },
   previewDot: {
     width: 14,
     height: 14,
     borderRadius: 7,
   },
-  deleteButton: {
-    width: "100%",
+  previewName: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  previewMeta: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  reminderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  reminderUnit: {
+    fontSize: 14,
+    minWidth: 28,
+  },
+  lockedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  lockedTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  lockedSub: {
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  imagePlaceholder: {
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    minHeight: 160,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 12,
+    gap: 8,
+    paddingVertical: 28,
+  },
+  imageIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  imageHint: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  imageSubHint: {
+    fontSize: 12,
+    textAlign: "center",
+    paddingHorizontal: 20,
+  },
+  imageContainer: {
+    borderRadius: 14,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.08)",
+  },
+  imagePreview: {
+    width: "100%",
+    height: 220,
+    backgroundColor: "#000",
+  },
+  imageOverlay: {
+    position: "absolute",
+    bottom: 8,
+    right: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  imageOverlayText: {
+    fontSize: 11,
+    color: "#fff",
+    fontWeight: "500",
+  },
+  imageActions: {
+    flexDirection: "row",
+    gap: 8,
+    padding: 10,
+    backgroundColor: "rgba(0,0,0,0.04)",
+  },
+  imageActionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 9,
+    borderRadius: 10,
+  },
+  imageActionText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  deleteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 8,
+    paddingVertical: 14,
     borderRadius: 14,
     borderWidth: 1,
-    minHeight: 48,
+  },
+  deleteBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  lightboxOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.92)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lightboxClose: {
+    position: "absolute",
+    top: 52,
+    right: 20,
+    zIndex: 10,
+  },
+  lightboxCloseBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lightboxImage: {
+    width: "100%",
+    height: "80%",
   },
 });
