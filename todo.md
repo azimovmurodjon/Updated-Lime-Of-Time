@@ -1661,5 +1661,14 @@
 - [x] Remove "Expired" badge from client list cards (getExpireBadge was incorrectly treating birthday as an expiry date)
 - [x] Fix Birthday Campaigns: clients disappear after tapping Send Message — root cause was birthday not saved to DB, now fixed via birthday column in DB + tRPC mutations
 - [x] Fix birthday being cleared from client profile when returning from SMS app — added birthday column to DB schema, tRPC create/update schemas, and store sync calls
-- [ ] Redesign Service add/edit screen: professional layout, fix image preview (not cutting off, full preview)
-- [ ] Redesign Product add/edit screen: matching professional layout, fix image preview
+- [x] Redesign Service add/edit screen: professional layout, fix image preview (not cutting off, full preview)
+- [x] Redesign Product add/edit screen: matching professional layout, fix image preview
+- [x] Client Gift Portal: DB columns added to gift_cards table (purchaserName, purchaserEmail, recipientEmail, paymentMethod, paymentStatus, totalValue, purchasedPublicly, recipientChoosesDate, preselectedDate, preselectedTime)
+- [x] Client Gift Portal: /api/public/business/:slug/gift-info endpoint (services, products, payment methods)
+- [x] Client Gift Portal: POST /api/public/business/:slug/buy-gift endpoint (creates gift, sends confirmation emails)
+- [x] Client Gift Portal: GET /api/public/gift-purchase/:code endpoint (gift details for confirm page)
+- [x] Client Gift Portal: /api/buy-gift/:slug HTML page — 3-step gift purchase flow (pick items, enter info, pay)
+- [x] Client Gift Portal: /api/gift-confirm/:code HTML page — confirmation + share link + payment instructions
+- [x] Client Gift Portal: sendGiftNotificationEmail and sendGiftPurchaseConfirmationEmail added to email.ts
+- [x] Client Gift Portal: "Buy a Gift" share banner added to gift-cards.tsx business app screen
+- [x] Client Gift Portal: GiftCard type updated with new public gift fields

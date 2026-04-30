@@ -332,6 +332,16 @@ export const giftCards = mysqlTable("gift_cards", {
   expiresAt: varchar("expiresAt", { length: 10 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  purchaserName: varchar("purchaserName", { length: 255 }),
+  purchaserEmail: varchar("purchaserEmail", { length: 320 }),
+  recipientEmail: varchar("recipientEmail", { length: 320 }),
+  recipientChoosesDate: boolean("recipientChoosesDate").default(true),
+  paymentMethod: varchar("paymentMethod", { length: 30 }).default("unpaid"),
+  paymentStatus: varchar("paymentStatus", { length: 20 }).default("unpaid"),
+  totalValue: decimal("totalValue", { precision: 10, scale: 2 }),
+  purchasedPublicly: boolean("purchasedPublicly").default(false).notNull(),
+  preselectedDate: varchar("preselectedDate", { length: 10 }),
+  preselectedTime: varchar("preselectedTime", { length: 5 }),
 });
 
 export type DbGiftCard = typeof giftCards.$inferSelect;

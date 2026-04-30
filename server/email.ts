@@ -651,3 +651,75 @@ export async function sendPaymentReceiptEmail(
     return false;
   }
 }
+
+// ─── Gift Email Functions ─────────────────────────────────────────────────────
+export interface GiftNotificationEmailData {
+  recipientName: string;
+  recipientEmail: string;
+  purchaserName: string;
+  businessName: string;
+  businessSlug: string;
+  giftCode: string;
+  items: { name: string; price: number; type: string }[];
+  totalValue: number;
+  personalMessage?: string;
+  expiresAt?: string;
+  recipientChoosesDate: boolean;
+  preselectedDate?: string;
+  preselectedTime?: string;
+}
+
+export async function sendGiftNotificationEmail(data: GiftNotificationEmailData): Promise<boolean> {
+  const resend = getResend();
+  if (!resend) return false;
+  if (!data.recipientEmail || !data.recipientEmail.includes("@")) return false;
+  const redeemLink = "https://lime-of-time.com/api/gift/" + encodeURIComponent(data.giftCode);
+  let itemsHtml = "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:16px 0;\">";
+  for (const item of data.items) {
+    itemsHtml += detailRow(item.type === "service" ? "✂️" : "🛍️", item.name, "$" + item.price.toFixed(2));
+  }
+  if (data.items.length > 1) itemsHtml += detailRow("💰", "Total Value", "$" + data.totalValue.toFixed(2));
+  if (data.expiresAt) {
+    const expDate = new Date(data.expiresAt + "T12:00:00").toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    itemsHtml += detailRow("📅", "Valid Until", expDate);
+  }
+  itemsHtml += "</table>";
+  const messageBlock = data.personalMessage
+    ? "<div style=\"background:#f0fdf4;border-left:4px solid #4a8c3f;border-radius:8px;padding:16px;margin:16px 0;\"><div style=\"color:#2d5a27;font-size:12px;font-weight:600;margin-bottom:6px;\">Personal Message from " + escHtml(data.purchaserName) + "</div><div style=\"color:#374151;font-size:15px;font-style:italic;line-height:1.6;\">\"" + escHtml(data.personalMessage) + "\"</div></div>"
+    : "";
+  const dateNote = data.recipientChoosesDate
+    ? "<div style=\"color:#555;font-size:13px;margin-top:8px;\">You can choose your own appointment date when you redeem this gift.</div>"
+    : data.preselectedDate ? "<div style=\"color:#555;font-size:13px;margin-top:8px;\">A date has been pre-selected for you.</div>" : "";
+  const bodyHtml = "<div style=\"color:#333;font-size:15px;line-height:1.6;margin-bottom:16px;\">Hi <strong>" + escHtml(data.recipientName) + "</strong>!</div><div style=\"color:#333;font-size:15px;line-height:1.6;margin-bottom:20px;\"><strong>" + escHtml(data.purchaserName) + "</strong> has gifted you a special experience at <strong>" + escHtml(data.businessName) + "</strong>!</div>" + messageBlock + itemsHtml + dateNote + "<div style=\"margin-top:24px;text-align:center;\"><a href=\"" + redeemLink + "\" style=\"display:inline-block;background-color:#2d5a27;color:#ffffff;padding:14px 32px;border-radius:24px;font-size:16px;font-weight:700;text-decoration:none;\">Redeem Your Gift</a></div><div style=\"margin-top:16px;text-align:center;\"><div style=\"color:#888;font-size:12px;\">Or use code: <strong style=\"color:#2d5a27;font-size:14px;letter-spacing:2px;\">" + escHtml(data.giftCode) + "</strong></div></div>";
+  const html = brandedTemplate("You received a gift from " + data.purchaserName + "!", bodyHtml);
+  try {
+    await resend.emails.send({ from: FROM_EMAIL, to: [data.recipientEmail], subject: "Gift from " + data.purchaserName + " at " + data.businessName, html });
+    console.log("[Email] Gift notification email sent to recipient");
+    return true;
+  } catch (err) { console.error("[Email] Failed to send gift notification email:", err); return false; }
+}
+
+export async function sendGiftPurchaseConfirmationEmail(data: {
+  purchaserName: string; purchaserEmail: string; recipientName: string; businessName: string;
+  giftCode: string; items: { name: string; price: number; type: string }[]; totalValue: number;
+  paymentMethod: string; shareLink: string;
+}): Promise<boolean> {
+  const resend = getResend();
+  if (!resend) return false;
+  if (!data.purchaserEmail || !data.purchaserEmail.includes("@")) return false;
+  const methodLabels: Record<string, string> = { cash: "Cash (pay in person)", zelle: "Zelle", venmo: "Venmo", cashapp: "Cash App", card: "Credit/Debit Card" };
+  const methodLabel = methodLabels[data.paymentMethod] ?? data.paymentMethod;
+  let itemsHtml = "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:16px 0;\">";
+  for (const item of data.items) itemsHtml += detailRow(item.type === "service" ? "✂️" : "🛍️", item.name, "$" + item.price.toFixed(2));
+  itemsHtml += detailRow("💰", "Total", "$" + data.totalValue.toFixed(2));
+  itemsHtml += detailRow("💳", "Payment Method", methodLabel);
+  itemsHtml += detailRow("🎁", "Gift Code", data.giftCode);
+  itemsHtml += "</table>";
+  const bodyHtml = "<div style=\"color:#333;font-size:15px;line-height:1.6;margin-bottom:16px;\">Hi <strong>" + escHtml(data.purchaserName) + "</strong>, your gift for <strong>" + escHtml(data.recipientName) + "</strong> at <strong>" + escHtml(data.businessName) + "</strong> has been created!</div>" + itemsHtml + "<div style=\"background:#e8f5e3;border-radius:12px;padding:16px;margin:16px 0;text-align:center;\"><div style=\"color:#2d5a27;font-size:13px;font-weight:600;margin-bottom:8px;\">Share this link with " + escHtml(data.recipientName) + "</div><a href=\"" + data.shareLink + "\" style=\"color:#4a8c3f;font-size:13px;word-break:break-all;\">" + data.shareLink + "</a></div><div style=\"color:#555;font-size:13px;margin-top:8px;text-align:center;\">" + (data.paymentMethod === "card" ? "Your card has been charged." : "Please complete your payment via <strong>" + methodLabel + "</strong> to activate the gift.") + "</div>";
+  const html = brandedTemplate("Gift Purchase Confirmation — " + data.businessName, bodyHtml);
+  try {
+    await resend.emails.send({ from: FROM_EMAIL, to: [data.purchaserEmail], subject: "Your gift for " + data.recipientName + " at " + data.businessName + " — Confirmation", html });
+    console.log("[Email] Gift purchase confirmation email sent to buyer");
+    return true;
+  } catch (err) { console.error("[Email] Failed to send gift purchase confirmation email:", err); return false; }
+}

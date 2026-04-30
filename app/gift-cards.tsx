@@ -10,6 +10,7 @@ import {
   Platform,
   Linking,
   ScrollView,
+  Share,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -34,6 +35,10 @@ function generateGiftCode(): string {
 
 export default function GiftCardsScreen() {
   const { state, dispatch, syncToDb, getServiceById } = useStore();
+  const buyGiftLink = state.settings?.customSlug
+    ? `${PUBLIC_BOOKING_URL}/api/buy-gift/${state.settings.customSlug}`
+    : null;
+  const publicGiftCards = state.giftCards.filter(c => (c as any).purchasedPublicly);
   const colors = useColors();
   const router = useRouter();
   const { isTablet, hp } = useResponsive();
@@ -71,6 +76,19 @@ export default function GiftCardsScreen() {
     }
     return total;
   }, [selectedServiceIds, selectedProductIds, state.products, getServiceById]);
+
+  const handleShareBuyGiftLink = useCallback(async () => {
+    if (!buyGiftLink) return;
+    try {
+      await Share.share({ message: `Buy a gift for someone special at our salon! ${buyGiftLink}`, url: buyGiftLink });
+    } catch {}
+  }, [buyGiftLink]);
+
+  const handleCopyBuyGiftLink = useCallback(async () => {
+    if (!buyGiftLink) return;
+    await Clipboard.setStringAsync(buyGiftLink);
+    Alert.alert("Copied!", "The buy-a-gift link has been copied to your clipboard.");
+  }, [buyGiftLink]);
 
   const handleCreate = useCallback(() => {
     if (selectedServiceIds.length === 0 && selectedProductIds.length === 0) {
@@ -521,6 +539,32 @@ export default function GiftCardsScreen() {
         </View>
       </View>
 
+      {/* Buy a Gift Public Link Banner */}
+      {buyGiftLink && (
+        <View style={{ marginHorizontal: hp, marginTop: 14, marginBottom: 4, backgroundColor: colors.surface, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: colors.border }}>
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+            <Text style={{ fontSize: 18, marginRight: 8 }}>🎁</Text>
+            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, flex: 1 }}>Client Gift Portal</Text>
+          </View>
+          <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10, lineHeight: 17 }}>
+            Share this link so clients can buy gifts for friends & family. They pick services, pay, and the recipient gets a redemption link.
+          </Text>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <Pressable
+              onPress={handleCopyBuyGiftLink}
+              style={({ pressed }) => [{ flex: 1, backgroundColor: colors.primary, borderRadius: 10, paddingVertical: 9, alignItems: "center" }, pressed && { opacity: 0.75 }]}
+            >
+              <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>📋 Copy Link</Text>
+            </Pressable>
+            <Pressable
+              onPress={handleShareBuyGiftLink}
+              style={({ pressed }) => [{ flex: 1, borderRadius: 10, paddingVertical: 9, alignItems: "center", borderWidth: 1.5, borderColor: colors.primary }, pressed && { opacity: 0.75 }]}
+            >
+              <Text style={{ color: colors.primary, fontSize: 13, fontWeight: "700" }}>📤 Share</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
       {allCards.length === 0 && !showForm ? (
         <View style={styles.empty}>
           <IconSymbol name="gift.fill" size={48} color={colors.muted + "40"} />

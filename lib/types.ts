@@ -160,6 +160,16 @@ export interface GiftCard {
   redeemedAt?: string;
   expiresAt?: string;
   createdAt: string;
+  purchasedPublicly?: boolean;
+  purchaserName?: string;
+  purchaserEmail?: string;
+  recipientEmail?: string;
+  paymentMethod?: string;
+  paymentStatus?: string;
+  totalValue?: number;
+  recipientChoosesDate?: boolean;
+  preselectedDate?: string;
+  preselectedTime?: string;
 }
 
 export interface Product {

@@ -351,6 +351,13 @@
       "when": 1777564710098,
       "tag": "0049_elite_whirlwind",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "5",
+      "when": 1777571844764,
+      "tag": "0050_smooth_mister_fear",
+      "breakpoints": true
     }
   ]
 }

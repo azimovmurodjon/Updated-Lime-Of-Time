@@ -1,7 +1,7 @@
 import { Express, Request, Response } from "express";
 import * as db from "./db";
 import { getPlatformConfig } from "./subscription";
-import { sendBookingNotificationEmail } from "./email";
+import { sendBookingNotificationEmail, sendGiftNotificationEmail, sendGiftPurchaseConfirmationEmail } from "./email";
 import { notifyOwner } from "./_core/notification";
 import {
   notifyNewBooking,
@@ -1691,6 +1691,159 @@ export function registerPublicRoutes(app: Express) {
     res.send(giftCardPage(req.params.code));
   });
 
+  // ─── Public Gift Purchase Routes ─────────────────────────────────────────────
+
+  app.get("/api/public/business/:slug/gift-info", async (req: Request, res: Response) => {
+    try {
+      const owner = await db.getBusinessOwnerBySlug(req.params.slug);
+      if (!owner) { res.status(404).json({ error: "Business not found" }); return; }
+      const services = await db.getServicesByOwner(owner.id);
+      const products = await db.getProductsByOwner(owner.id);
+      const o = owner as any;
+      res.json({
+        businessName: owner.businessName,
+        businessLogoUri: o.businessLogoUri || null,
+        paymentMethods: {
+          zelle: o.zelleHandle || null,
+          cashApp: o.cashAppHandle || null,
+          venmo: o.venmoHandle || null,
+          cashEnabled: true,
+          stripeEnabled: !!(o.stripeConnectEnabled),
+        },
+        services: (services as any[]).filter(s => s.available !== false).map(s => ({
+          localId: s.localId, name: s.name, price: parseFloat(String(s.price)),
+          duration: s.duration, description: s.description || null, photoUri: s.photoUri || null,
+        })),
+        products: (products as any[]).filter(p => p.available !== false).map(p => ({
+          localId: p.localId, name: p.name, price: parseFloat(String(p.price)),
+          description: p.description || null, brand: p.brand || null,
+        })),
+      });
+    } catch (err) {
+      console.error("[Public] Error fetching gift info:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/public/business/:slug/buy-gift", async (req: Request, res: Response) => {
+    try {
+      const owner = await db.getBusinessOwnerBySlug(req.params.slug);
+      if (!owner) { res.status(404).json({ error: "Business not found" }); return; }
+      const { purchaserName, purchaserEmail, recipientName, recipientEmail, recipientPhone,
+        serviceIds = [], productIds = [], personalMessage, expiresInDays = 365,
+        paymentMethod = "unpaid", recipientChoosesDate = true, preselectedDate, preselectedTime } = req.body;
+      if (!purchaserName || !purchaserEmail || !recipientName) {
+        res.status(400).json({ error: "purchaserName, purchaserEmail, and recipientName are required" }); return;
+      }
+      if (!serviceIds.length && !productIds.length) {
+        res.status(400).json({ error: "At least one service or product must be selected" }); return;
+      }
+      const allServices = await db.getServicesByOwner(owner.id) as any[];
+      const allProducts = await db.getProductsByOwner(owner.id) as any[];
+      const selectedServices = serviceIds.map((id: string) => allServices.find(s => s.localId === id)).filter(Boolean);
+      const selectedProducts = productIds.map((id: string) => allProducts.find(p => p.localId === id)).filter(Boolean);
+      if (!selectedServices.length && !selectedProducts.length) {
+        res.status(400).json({ error: "Selected services or products not found" }); return;
+      }
+      const totalValue = [...selectedServices, ...selectedProducts].reduce((sum: number, item: any) => sum + parseFloat(String(item.price)), 0);
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let code = "GIFT-";
+      for (let i = 0; i < 8; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+      const localId = "pub-gift-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+      const expiry = new Date();
+      expiry.setDate(expiry.getDate() + (parseInt(String(expiresInDays)) || 365));
+      const expiresAt = expiry.toISOString().split("T")[0];
+      const giftData = JSON.stringify({ serviceIds, productIds, originalValue: totalValue, remainingBalance: totalValue, purchasedPublicly: true });
+      const messageWithData = (personalMessage || "") + "\n---GIFT_DATA---\n" + giftData;
+      const primaryServiceLocalId = selectedServices.length > 0 ? selectedServices[0].localId : selectedProducts[0].localId;
+      const dbase = await db.getDb();
+      if (!dbase) { res.status(500).json({ error: "Database not available" }); return; }
+      const { giftCards } = await import("../drizzle/schema");
+      await dbase.insert(giftCards).values({
+        businessOwnerId: owner.id, localId, code, serviceLocalId: primaryServiceLocalId,
+        recipientName, recipientPhone: recipientPhone || null, message: messageWithData,
+        redeemed: false, expiresAt, purchaserName, purchaserEmail,
+        recipientEmail: recipientEmail || null, recipientChoosesDate: !!recipientChoosesDate,
+        paymentMethod, paymentStatus: paymentMethod === "card" ? "paid" : "unpaid",
+        totalValue: String(totalValue.toFixed(2)), purchasedPublicly: true,
+        preselectedDate: preselectedDate || null, preselectedTime: preselectedTime || null,
+      } as any);
+      const items = [
+        ...selectedServices.map((s: any) => ({ name: s.name, price: parseFloat(String(s.price)), type: "service" })),
+        ...selectedProducts.map((p: any) => ({ name: p.name, price: parseFloat(String(p.price)), type: "product" })),
+      ];
+      const o = owner as any;
+      const slug = o.customSlug || owner.businessName.toLowerCase().replace(/\s+/g, "-");
+      const shareLink = "https://lime-of-time.com/api/gift/" + encodeURIComponent(code);
+      if (recipientEmail && recipientEmail.includes("@")) {
+        sendGiftNotificationEmail({ recipientName, recipientEmail, purchaserName, businessName: owner.businessName, businessSlug: slug, giftCode: code, items, totalValue, personalMessage: personalMessage || undefined, expiresAt, recipientChoosesDate: !!recipientChoosesDate, preselectedDate: preselectedDate || undefined, preselectedTime: preselectedTime || undefined }).catch((e: any) => console.error("[Gift] recipient email error:", e));
+      }
+      if (purchaserEmail && purchaserEmail.includes("@")) {
+        sendGiftPurchaseConfirmationEmail({ purchaserName, purchaserEmail, recipientName, businessName: owner.businessName, giftCode: code, items, totalValue, paymentMethod, shareLink }).catch((e: any) => console.error("[Gift] buyer email error:", e));
+      }
+      res.json({ success: true, code, shareLink, totalValue, paymentMethod, items });
+    } catch (err) {
+      console.error("[Public] Error creating gift purchase:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/public/gift-purchase/:code", async (req: Request, res: Response) => {
+    try {
+      const dbase = await db.getDb();
+      if (!dbase) { res.status(500).json({ error: "Database not available" }); return; }
+      const { giftCards } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const cards = await dbase.select().from(giftCards).where(eq(giftCards.code, req.params.code));
+      if (!cards.length) { res.status(404).json({ error: "Gift not found" }); return; }
+      const card = cards[0] as any;
+      const owner = await db.getBusinessOwnerById(card.businessOwnerId) as any;
+      if (!owner) { res.status(404).json({ error: "Business not found" }); return; }
+      const allServices = await db.getServicesByOwner(card.businessOwnerId) as any[];
+      const allProducts = await db.getProductsByOwner(card.businessOwnerId) as any[];
+      let serviceIds: string[] = [];
+      let productIds: string[] = [];
+      let totalValue = parseFloat(String(card.totalValue || 0));
+      const rawMsg = card.message ?? "";
+      const jsonMatch = rawMsg.match(/\n---GIFT_DATA---\n(.+)$/s);
+      if (jsonMatch) {
+        try { const d = JSON.parse(jsonMatch[1]); serviceIds = d.serviceIds ?? []; productIds = d.productIds ?? []; if (!totalValue) totalValue = d.originalValue ?? 0; } catch {}
+      }
+      const items: { name: string; price: number; type: string }[] = [];
+      for (const sid of serviceIds) { const s = allServices.find(sv => sv.localId === sid); if (s) items.push({ name: s.name, price: parseFloat(String(s.price)), type: "service" }); }
+      for (const pid of productIds) { const p = allProducts.find(pr => pr.localId === pid); if (p) items.push({ name: p.name, price: parseFloat(String(p.price)), type: "product" }); }
+      const cleanMessage = rawMsg.replace(/\n---GIFT_DATA---\n.+$/s, "");
+      const slug = owner.customSlug || owner.businessName.toLowerCase().replace(/\s+/g, "-");
+      res.json({ code: card.code, purchaserName: card.purchaserName || null, recipientName: card.recipientName || null, personalMessage: cleanMessage || null, totalValue, paymentMethod: card.paymentMethod || "unpaid", paymentStatus: card.paymentStatus || "unpaid", redeemed: card.redeemed, expiresAt: card.expiresAt || null, items, businessName: owner.businessName, businessSlug: slug, businessLogoUri: owner.businessLogoUri || null, paymentMethods: { zelle: owner.zelleHandle || null, cashApp: owner.cashAppHandle || null, venmo: owner.venmoHandle || null, stripeEnabled: !!(owner.stripeConnectEnabled) } });
+    } catch (err) {
+      console.error("[Public] Error fetching gift purchase:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/buy-gift/:slug", async (req: Request, res: Response) => {
+    try {
+      const owner = await db.getBusinessOwnerBySlug(req.params.slug);
+      if (!owner) { res.status(404).send("<h1>Business not found</h1>"); return; }
+      res.send(buyGiftPage(req.params.slug, owner));
+    } catch (err) {
+      console.error("[Public] Error serving buy-gift page:", err);
+      res.status(500).send("<h1>Server error</h1>");
+    }
+  });
+
+  app.get("/api/gift-confirm/:code", async (req: Request, res: Response) => {
+    res.send(giftConfirmPage(req.params.code));
+  });
+
+  app.get("/buy-gift/:slug", (req: Request, res: Response) => {
+    res.redirect(301, "/api/buy-gift/" + req.params.slug);
+  });
+
+  app.get("/gift-confirm/:code", (req: Request, res: Response) => {
+    res.redirect(301, "/api/gift-confirm/" + req.params.code);
+  });
+
   /** Homepage */
   app.get("/home", (_req: Request, res: Response) => {
     res.send(homePage());
@@ -2274,6 +2427,386 @@ function baseStyles(): string {
     </style>
   `;
 }
+
+// ─── Buy a Gift Page ─────────────────────────────────────────────────────────
+function buyGiftPage(slug: string, owner: any): string {
+  const bizName = (owner.businessName || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const logoUri = owner.businessLogoUri || "";
+  const logoTag = logoUri
+    ? `<img src="${logoUri.replace(/"/g,"&quot;")}" alt="${bizName}" style="width:72px;height:72px;border-radius:20px;object-fit:cover;border:2px solid var(--border);margin-bottom:12px;">`
+    : `<div style="width:72px;height:72px;border-radius:20px;background:var(--accent);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:32px;">🎁</div>`;
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
+  <title>Buy a Gift — ${bizName}</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    :root{--bg:#f5f7f5;--bg-card:#fff;--bg-input:#fafcfa;--bg-sel:#e8f5e3;--text:#1a1a1a;--text2:#666;--textm:#888;--accent:#4a8c3f;--adk:#2d5a27;--border:#e8ece8;--bdi:#dde3dd;--err:#dc2626;}
+    @media(prefers-color-scheme:dark){:root{--bg:#0f1210;--bg-card:#1a1f1a;--bg-input:#1e241e;--bg-sel:#1e3a1a;--text:#e8ece8;--text2:#a8b0a8;--textm:#8a928a;--accent:#5ca84f;--adk:#7cc070;--border:#2a322a;--bdi:#3a423a;--err:#f87171;}}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+    .con{max-width:480px;margin:0 auto;padding:16px 16px 80px;}
+    .hdr{text-align:center;padding:28px 0 20px;}
+    .hdr h1{font-size:22px;font-weight:800;color:var(--adk);margin-bottom:4px;}
+    .hdr .sub{font-size:13px;color:var(--textm);}
+    .card{background:var(--bg-card);border-radius:20px;padding:20px;margin-bottom:16px;border:1px solid var(--border);}
+    .ct{font-size:15px;font-weight:700;color:var(--text);margin-bottom:14px;}
+    label{display:block;font-size:13px;color:var(--text2);font-weight:600;margin-bottom:6px;}
+    input,textarea{width:100%;padding:12px 14px;border:1.5px solid var(--bdi);border-radius:12px;font-size:15px;background:var(--bg-input);color:var(--text);outline:none;transition:border-color .2s;}
+    input:focus,textarea:focus{border-color:var(--accent);}
+    textarea{resize:vertical;min-height:80px;font-family:inherit;}
+    .fld{margin-bottom:14px;}
+    .igrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+    .ic{border:2px solid var(--border);border-radius:14px;padding:12px;cursor:pointer;transition:all .15s;background:var(--bg-card);}
+    .ic.sel{border-color:var(--accent);background:var(--bg-sel);}
+    .ic .in{font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;line-height:1.3;}
+    .ic .ip{font-size:14px;font-weight:700;color:var(--accent);}
+    .ic .is{font-size:11px;color:var(--textm);margin-top:2px;}
+    .tabs{display:flex;gap:8px;margin-bottom:14px;}
+    .tab{flex:1;padding:8px;border:1.5px solid var(--border);border-radius:10px;background:var(--bg-card);color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;}
+    .tab.act{border-color:var(--accent);background:var(--bg-sel);color:var(--adk);}
+    .pm{display:flex;align-items:center;gap:12px;padding:14px;border:2px solid var(--border);border-radius:14px;cursor:pointer;transition:all .15s;margin-bottom:10px;}
+    .pm.sel{border-color:var(--accent);background:var(--bg-sel);}
+    .pm .pmi{font-size:24px;width:36px;text-align:center;}
+    .pm .pml{font-size:14px;font-weight:600;color:var(--text);}
+    .pm .pms{font-size:12px;color:var(--textm);}
+    .dtog{display:flex;align-items:center;justify-content:space-between;padding:14px;background:var(--bg-card);border:1.5px solid var(--border);border-radius:14px;cursor:pointer;}
+    .sw{width:44px;height:24px;background:var(--border);border-radius:12px;position:relative;transition:background .2s;}
+    .sw.on{background:var(--accent);}
+    .sw::after{content:'';position:absolute;top:2px;left:2px;width:20px;height:20px;background:#fff;border-radius:50%;transition:left .2s;}
+    .sw.on::after{left:22px;}
+    .sr{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);}
+    .sr:last-child{border-bottom:none;padding-top:12px;}
+    .stot{font-size:18px;font-weight:800;color:var(--adk);}
+    .nbtn{width:100%;padding:14px;background:var(--accent);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px;}
+    .bbtn{width:100%;padding:12px;background:transparent;color:var(--text2);border:1.5px solid var(--border);border-radius:14px;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px;}
+    .sbtn{width:100%;padding:16px;background:var(--accent);color:#fff;border:none;border-radius:16px;font-size:16px;font-weight:700;cursor:pointer;margin-top:8px;}
+    .sbtn:disabled{opacity:.5;cursor:not-allowed;}
+    .errmsg{color:var(--err);font-size:13px;margin-top:6px;display:none;}
+    .load{text-align:center;padding:40px;color:var(--textm);}
+    .empty{text-align:center;padding:24px;color:var(--textm);font-size:14px;}
+    .steps{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:20px;}
+    .step{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;}
+    .step.act{background:var(--accent);color:#fff;}
+    .step.done{background:#16a34a;color:#fff;}
+    .step.pend{background:var(--border);color:var(--textm);}
+    .sl{flex:1;height:2px;background:var(--border);max-width:40px;}
+    .sl.done{background:#16a34a;}
+    .sec{display:none;}
+    .sec.act{display:block;}
+    .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+    .chip{padding:4px 10px;background:var(--bg-sel);border:1px solid var(--accent);border-radius:20px;font-size:12px;color:var(--adk);font-weight:600;}
+  </style>
+</head>
+<body>
+<div class="con">
+  <div class="hdr">
+    ${logoTag}
+    <h1>${bizName}</h1>
+    <div class="sub">Buy a Gift</div>
+  </div>
+  <div class="steps">
+    <div class="step act" id="s1d">1</div>
+    <div class="sl" id="l1"></div>
+    <div class="step pend" id="s2d">2</div>
+    <div class="sl" id="l2"></div>
+    <div class="step pend" id="s3d">3</div>
+  </div>
+  <div id="ld" class="load">Loading...</div>
+  <div id="mc" style="display:none;">
+    <div class="sec act" id="sec1">
+      <div class="card">
+        <div class="ct">🛍️ Choose Gift Items</div>
+        <div class="tabs">
+          <button class="tab act" id="tSvc" onclick="swTab('s')">Services</button>
+          <button class="tab" id="tPrd" onclick="swTab('p')">Products</button>
+        </div>
+        <div id="sg" class="igrid"></div>
+        <div id="pg" class="igrid" style="display:none;"></div>
+        <div id="noitems" class="empty" style="display:none;">No items available</div>
+      </div>
+      <div class="card" id="selCard" style="display:none;">
+        <div class="ct">🎁 Selected Items</div>
+        <div id="selPrev" class="chips"></div>
+        <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:14px;color:var(--text2);">Total Value</span>
+          <span style="font-size:18px;font-weight:800;color:var(--adk);" id="tvd">$0.00</span>
+        </div>
+      </div>
+      <div id="e1" class="errmsg">Please select at least one item.</div>
+      <button class="nbtn" onclick="g2()">Continue →</button>
+    </div>
+    <div class="sec" id="sec2">
+      <div class="card">
+        <div class="ct">👤 Your Information</div>
+        <div class="fld"><label>Your Name *</label><input type="text" id="pn" placeholder="John Smith" autocomplete="name"/></div>
+        <div class="fld"><label>Your Email *</label><input type="email" id="pe" placeholder="john@example.com" autocomplete="email"/><div style="font-size:11px;color:var(--textm);margin-top:4px;">You'll receive a purchase confirmation here.</div></div>
+      </div>
+      <div class="card">
+        <div class="ct">🎁 Recipient Information</div>
+        <div class="fld"><label>Recipient's Name *</label><input type="text" id="rn" placeholder="Jane Smith" autocomplete="off"/></div>
+        <div class="fld"><label>Recipient's Email</label><input type="email" id="re" placeholder="jane@example.com" autocomplete="off"/><div style="font-size:11px;color:var(--textm);margin-top:4px;">They'll receive an email with their gift link.</div></div>
+        <div class="fld"><label>Recipient's Phone (optional)</label><input type="tel" id="rp" placeholder="+1 (555) 000-0000" autocomplete="off"/></div>
+      </div>
+      <div class="card">
+        <div class="ct">💌 Personal Message (optional)</div>
+        <textarea id="pm" placeholder="Write a heartfelt message for the recipient..."></textarea>
+      </div>
+      <div class="card">
+        <div class="ct">📅 Appointment Date</div>
+        <div class="dtog" onclick="togDate()">
+          <div>
+            <div style="font-size:14px;font-weight:600;color:var(--text);">Let recipient choose date</div>
+            <div style="font-size:12px;color:var(--textm);margin-top:2px;">Recipient picks their own appointment time</div>
+          </div>
+          <div class="sw on" id="dtog"></div>
+        </div>
+        <div id="dpSec" style="display:none;margin-top:12px;">
+          <div class="fld"><label>Preferred Date</label><input type="date" id="pd"/></div>
+        </div>
+      </div>
+      <div id="e2" class="errmsg">Please fill in all required fields.</div>
+      <button class="nbtn" onclick="g3()">Continue →</button>
+      <button class="bbtn" onclick="gs(1)">← Back</button>
+    </div>
+    <div class="sec" id="sec3">
+      <div class="card"><div class="ct">🧾 Order Summary</div><div id="os"></div></div>
+      <div class="card">
+        <div class="ct">💳 Choose Payment Method</div>
+        <div id="pmo"></div>
+        <div id="nopm" class="empty" style="display:none;">No payment methods configured.</div>
+      </div>
+      <div id="e3" class="errmsg">Please select a payment method.</div>
+      <button class="sbtn" id="subbtn" onclick="sub()">🎁 Purchase Gift</button>
+      <button class="bbtn" onclick="gs(2)">← Back</button>
+    </div>
+  </div>
+  <div style="text-align:center;padding:24px 0 8px;"><span style="font-size:12px;color:var(--textm);">Powered by Lime Of Time</span></div>
+</div>
+<script>
+  const SLUG=${JSON.stringify(slug)};
+  let biz=null,svcIds=[],prdIds=[],tab='s',rcd=true,spm=null;
+  async function load(){
+    try{
+      const r=await fetch('/api/public/business/'+SLUG+'/gift-info');
+      biz=await r.json();
+      document.getElementById('ld').style.display='none';
+      document.getElementById('mc').style.display='block';
+      render();
+    }catch(e){document.getElementById('ld').textContent='Failed to load. Please refresh.';}
+  }
+  function esc(s){if(!s)return'';return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  function render(){
+    const sg=document.getElementById('sg'),pg=document.getElementById('pg');
+    sg.innerHTML='';pg.innerHTML='';
+    if(!biz)return;
+    if(!biz.services.length&&!biz.products.length){document.getElementById('noitems').style.display='block';return;}
+    biz.services.forEach(s=>{
+      const el=document.createElement('div');
+      el.className='ic'+(svcIds.includes(s.localId)?' sel':'');
+      el.innerHTML='<div class="in">'+esc(s.name)+'</div><div class="ip">$'+s.price.toFixed(2)+'</div>'+(s.duration?'<div class="is">'+s.duration+' min</div>':'');
+      el.onclick=()=>tog('s',s.localId,el);sg.appendChild(el);
+    });
+    biz.products.forEach(p=>{
+      const el=document.createElement('div');
+      el.className='ic'+(prdIds.includes(p.localId)?' sel':'');
+      el.innerHTML='<div class="in">'+esc(p.name)+'</div><div class="ip">$'+p.price.toFixed(2)+'</div>'+(p.brand?'<div class="is">'+esc(p.brand)+'</div>':'');
+      el.onclick=()=>tog('p',p.localId,el);pg.appendChild(el);
+    });
+    upd();
+  }
+  function swTab(t){
+    tab=t;
+    document.getElementById('sg').style.display=t==='s'?'grid':'none';
+    document.getElementById('pg').style.display=t==='p'?'grid':'none';
+    document.getElementById('tSvc').className='tab'+(t==='s'?' act':'');
+    document.getElementById('tPrd').className='tab'+(t==='p'?' act':'');
+  }
+  function tog(type,id,el){
+    if(type==='s'){const i=svcIds.indexOf(id);if(i>=0){svcIds.splice(i,1);el.classList.remove('sel');}else{svcIds.push(id);el.classList.add('sel');}}
+    else{const i=prdIds.indexOf(id);if(i>=0){prdIds.splice(i,1);el.classList.remove('sel');}else{prdIds.push(id);el.classList.add('sel');}}
+    upd();
+  }
+  function getTotal(){if(!biz)return 0;let t=0;svcIds.forEach(id=>{const s=biz.services.find(x=>x.localId===id);if(s)t+=s.price;});prdIds.forEach(id=>{const p=biz.products.find(x=>x.localId===id);if(p)t+=p.price;});return t;}
+  function getItems(){if(!biz)return[];const a=[];svcIds.forEach(id=>{const s=biz.services.find(x=>x.localId===id);if(s)a.push({...s,type:'s'});});prdIds.forEach(id=>{const p=biz.products.find(x=>x.localId===id);if(p)a.push({...p,type:'p'});});return a;}
+  function upd(){
+    document.getElementById('tvd').textContent='$'+getTotal().toFixed(2);
+    const prev=document.getElementById('selPrev'),card=document.getElementById('selCard');
+    prev.innerHTML='';const items=getItems();
+    if(!items.length){card.style.display='none';return;}
+    card.style.display='block';
+    items.forEach(item=>{const c=document.createElement('div');c.className='chip';c.textContent=item.name;prev.appendChild(c);});
+  }
+  function g2(){if(!svcIds.length&&!prdIds.length){document.getElementById('e1').style.display='block';return;}document.getElementById('e1').style.display='none';gs(2);}
+  function g3(){
+    const pn=document.getElementById('pn').value.trim(),pe=document.getElementById('pe').value.trim(),rn=document.getElementById('rn').value.trim();
+    if(!pn||!pe||!rn){const e=document.getElementById('e2');e.textContent='Please fill in your name, email, and the recipient name.';e.style.display='block';return;}
+    if(!pe.includes('@')){const e=document.getElementById('e2');e.textContent='Please enter a valid email.';e.style.display='block';return;}
+    document.getElementById('e2').style.display='none';
+    renderOS();renderPM();gs(3);
+  }
+  function gs(n){
+    document.querySelectorAll('.sec').forEach((s,i)=>s.classList.toggle('act',i+1===n));
+    ['s1d','s2d','s3d'].forEach((id,i)=>{const el=document.getElementById(id);if(i+1<n){el.className='step done';el.textContent='✓';}else if(i+1===n){el.className='step act';el.textContent=String(i+1);}else{el.className='step pend';el.textContent=String(i+1);}});
+    ['l1','l2'].forEach((id,i)=>{document.getElementById(id).className='sl'+(i+1<n?' done':'');});
+    window.scrollTo(0,0);
+  }
+  function togDate(){rcd=!rcd;document.getElementById('dtog').className='sw'+(rcd?' on':'');document.getElementById('dpSec').style.display=rcd?'none':'block';}
+  function renderOS(){
+    const items=getItems(),total=getTotal();
+    let h='';
+    items.forEach(item=>{h+='<div class="sr"><span style="font-size:14px;">'+esc(item.name)+'</span><span style="font-size:14px;font-weight:600;">$'+item.price.toFixed(2)+'</span></div>';});
+    h+='<div class="sr"><span style="font-size:15px;font-weight:700;">Total</span><span class="stot">$'+total.toFixed(2)+'</span></div>';
+    document.getElementById('os').innerHTML=h;
+  }
+  function renderPM(){
+    if(!biz)return;const m=biz.paymentMethods,opts=[];
+    if(m.zelle)opts.push({id:'zelle',label:'Zelle',sub:m.zelle,icon:'💜'});
+    if(m.cashApp)opts.push({id:'cashapp',label:'Cash App',sub:m.cashApp.startsWith('$')?m.cashApp:'$'+m.cashApp,icon:'💚'});
+    if(m.venmo)opts.push({id:'venmo',label:'Venmo',sub:m.venmo.startsWith('@')?m.venmo:'@'+m.venmo,icon:'💙'});
+    if(m.cashEnabled)opts.push({id:'cash',label:'Cash',sub:'Pay in person at the appointment',icon:'💵'});
+    if(m.stripeEnabled)opts.push({id:'card',label:'Credit / Debit Card',sub:'Pay securely online',icon:'💳'});
+    const c=document.getElementById('pmo');c.innerHTML='';
+    if(!opts.length){document.getElementById('nopm').style.display='block';return;}
+    opts.forEach(opt=>{const el=document.createElement('div');el.className='pm';el.id='pm-'+opt.id;el.innerHTML='<div class="pmi">'+opt.icon+'</div><div><div class="pml">'+esc(opt.label)+'</div><div class="pms">'+esc(opt.sub)+'</div></div>';el.onclick=()=>selPM(opt.id);c.appendChild(el);});
+  }
+  function selPM(id){spm=id;document.querySelectorAll('.pm').forEach(el=>el.classList.remove('sel'));const el=document.getElementById('pm-'+id);if(el)el.classList.add('sel');document.getElementById('e3').style.display='none';}
+  async function sub(){
+    if(!spm){document.getElementById('e3').textContent='Please select a payment method.';document.getElementById('e3').style.display='block';return;}
+    const btn=document.getElementById('subbtn');btn.disabled=true;btn.textContent='Creating Gift...';
+    const pd=rcd?null:(document.getElementById('pd').value||null);
+    const body={purchaserName:document.getElementById('pn').value.trim(),purchaserEmail:document.getElementById('pe').value.trim(),recipientName:document.getElementById('rn').value.trim(),recipientEmail:document.getElementById('re').value.trim()||null,recipientPhone:document.getElementById('rp').value.trim()||null,personalMessage:document.getElementById('pm').value.trim()||null,serviceIds:svcIds,productIds:prdIds,paymentMethod:spm,recipientChoosesDate:rcd,preselectedDate:pd,expiresInDays:365};
+    try{
+      const r=await fetch('/api/public/business/'+SLUG+'/buy-gift',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      const d=await r.json();
+      if(r.ok&&d.success){window.location.href='/api/gift-confirm/'+encodeURIComponent(d.code);}
+      else{btn.disabled=false;btn.textContent='🎁 Purchase Gift';document.getElementById('e3').textContent=d.error||'Failed. Please try again.';document.getElementById('e3').style.display='block';}
+    }catch(e){btn.disabled=false;btn.textContent='🎁 Purchase Gift';document.getElementById('e3').textContent='Network error. Please try again.';document.getElementById('e3').style.display='block';}
+  }
+  load();
+</script>
+</body>
+</html>`;
+}
+
+// ─── Gift Confirm Page ────────────────────────────────────────────────────────
+function giftConfirmPage(code: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
+  <title>Gift Created!</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    :root{--bg:#f5f7f5;--bg-card:#fff;--bg-sel:#e8f5e3;--text:#1a1a1a;--text2:#666;--textm:#888;--accent:#4a8c3f;--adk:#2d5a27;--border:#e8ece8;}
+    @media(prefers-color-scheme:dark){:root{--bg:#0f1210;--bg-card:#1a1f1a;--bg-sel:#1e3a1a;--text:#e8ece8;--text2:#a8b0a8;--textm:#8a928a;--accent:#5ca84f;--adk:#7cc070;--border:#2a322a;}}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+    .con{max-width:480px;margin:0 auto;padding:24px 16px 80px;}
+    .card{background:var(--bg-card);border-radius:20px;padding:20px;margin-bottom:16px;border:1px solid var(--border);}
+    .hero{text-align:center;padding:32px 0 20px;}
+    .hero .ico{font-size:64px;margin-bottom:12px;}
+    .hero h1{font-size:24px;font-weight:800;color:var(--adk);margin-bottom:6px;}
+    .hero .sub{font-size:14px;color:var(--text2);line-height:1.5;}
+    .dr{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:14px;}
+    .dr:last-child{border-bottom:none;}
+    .dl{color:var(--text2);}
+    .dv{font-weight:600;text-align:right;max-width:60%;}
+    .cbox{background:var(--bg-sel);border:2px dashed var(--accent);border-radius:14px;padding:16px;text-align:center;margin:12px 0;}
+    .ct{font-size:22px;font-weight:800;letter-spacing:4px;color:var(--adk);font-family:monospace;}
+    .slink{font-size:12px;color:var(--textm);word-break:break-all;margin-top:6px;}
+    .cbtn{width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;margin-top:10px;}
+    .shbtn{width:100%;padding:12px;background:transparent;color:var(--accent);border:1.5px solid var(--accent);border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px;}
+    .pi{background:var(--bg-sel);border-radius:14px;padding:16px;margin-top:12px;}
+    .pi h3{font-size:14px;font-weight:700;color:var(--adk);margin-bottom:8px;}
+    .pi p{font-size:13px;color:var(--text2);line-height:1.5;}
+    .ph{font-size:15px;font-weight:700;color:var(--adk);margin-top:4px;}
+    .load{text-align:center;padding:60px;color:var(--textm);}
+  </style>
+</head>
+<body>
+<div class="con">
+  <div id="ld" class="load">Loading your gift...</div>
+  <div id="mc" style="display:none;">
+    <div class="hero">
+      <div class="ico">🎁</div>
+      <h1>Gift Created!</h1>
+      <div class="sub" id="hsub">Your gift has been created successfully.</div>
+    </div>
+    <div class="card">
+      <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px;">Gift Details</div>
+      <div id="gd"></div>
+    </div>
+    <div class="card">
+      <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:8px;">Gift Code</div>
+      <div class="cbox">
+        <div class="ct" id="gc"></div>
+        <div style="font-size:12px;color:var(--textm);margin-top:6px;">Recipient uses this code to redeem</div>
+      </div>
+    </div>
+    <div class="card">
+      <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:8px;">Share with Recipient</div>
+      <div style="background:var(--bg-card);border:1.5px solid var(--border);border-radius:14px;padding:14px;">
+        <div style="font-size:13px;color:var(--text2);">Redemption link:</div>
+        <div class="slink" id="sl"></div>
+      </div>
+      <button class="cbtn" id="cpbtn" onclick="cpLink()">📋 Copy Link</button>
+      <button class="shbtn" id="shbtn" onclick="shLink()" style="display:none;">📤 Share Link</button>
+    </div>
+    <div class="card" id="pmcard" style="display:none;">
+      <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:8px;">Complete Payment</div>
+      <div class="pi"><h3 id="pmt"></h3><p id="pmi"></p><div class="ph" id="pmh"></div></div>
+    </div>
+    <div style="text-align:center;margin-top:16px;"><a href="javascript:history.back()" style="font-size:13px;color:var(--textm);text-decoration:none;">← Buy Another Gift</a></div>
+  </div>
+  <div style="text-align:center;padding:24px 0 8px;"><span style="font-size:12px;color:var(--textm);">Powered by Lime Of Time</span></div>
+</div>
+<script>
+  const CODE=${JSON.stringify(code)};
+  let gd=null;
+  function esc(s){if(!s)return'';return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  async function load(){
+    try{
+      const r=await fetch('/api/public/gift-purchase/'+encodeURIComponent(CODE));
+      gd=await r.json();
+      document.getElementById('ld').style.display='none';
+      document.getElementById('mc').style.display='block';
+      render();
+    }catch(e){document.getElementById('ld').textContent='Failed to load. Please refresh.';}
+  }
+  function render(){
+    const d=gd;
+    document.getElementById('hsub').textContent='Your gift for '+(d.recipientName||'the recipient')+' at '+d.businessName+' has been created!';
+    document.getElementById('gc').textContent=d.code;
+    const link='https://lime-of-time.com/api/gift/'+encodeURIComponent(d.code);
+    document.getElementById('sl').textContent=link;
+    let h='';
+    d.items.forEach(item=>{h+='<div class="dr"><span class="dl">'+esc(item.name)+'</span><span class="dv">$'+item.price.toFixed(2)+'</span></div>';});
+    h+='<div class="dr"><span class="dl" style="font-weight:700;">Total Value</span><span class="dv" style="font-size:16px;color:var(--adk);">$'+d.totalValue.toFixed(2)+'</span></div>';
+    if(d.recipientName)h+='<div class="dr"><span class="dl">For</span><span class="dv">'+esc(d.recipientName)+'</span></div>';
+    if(d.expiresAt)h+='<div class="dr"><span class="dl">Valid Until</span><span class="dv">'+esc(d.expiresAt)+'</span></div>';
+    document.getElementById('gd').innerHTML=h;
+    if(navigator.share)document.getElementById('shbtn').style.display='block';
+    const pm=d.paymentMethod,pms=d.paymentMethods;
+    if(pm&&pm!=='unpaid'&&pm!=='card'){
+      document.getElementById('pmcard').style.display='block';
+      const map={zelle:{t:'Pay via Zelle',h:pms.zelle,i:'Open your bank app and send payment to the Zelle handle below. Include the gift code in the memo.'},cashapp:{t:'Pay via Cash App',h:pms.cashApp?(pms.cashApp.startsWith('$')?pms.cashApp:'$'+pms.cashApp):'',i:'Open Cash App and send payment to the $Cashtag below. Include the gift code in the note.'},venmo:{t:'Pay via Venmo',h:pms.venmo?(pms.venmo.startsWith('@')?pms.venmo:'@'+pms.venmo):'',i:'Open Venmo and send payment to the handle below. Include the gift code in the note.'},cash:{t:'Pay Cash In Person',h:'',i:'Bring cash to your appointment. The gift will be activated when you arrive.'}};
+      const info=map[pm];if(info){document.getElementById('pmt').textContent=info.t;document.getElementById('pmi').textContent=info.i;document.getElementById('pmh').textContent=info.h||'';}
+    }
+  }
+  function cpLink(){
+    const link='https://lime-of-time.com/api/gift/'+encodeURIComponent(CODE);
+    if(navigator.clipboard){navigator.clipboard.writeText(link).then(()=>{const b=document.getElementById('cpbtn');b.textContent='✅ Copied!';b.style.background='#16a34a';setTimeout(()=>{b.textContent='📋 Copy Link';b.style.background='var(--accent)';},2500);}).catch(()=>fb(link));}else{fb(link);}
+  }
+  function fb(t){const ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);const b=document.getElementById('cpbtn');b.textContent='✅ Copied!';setTimeout(()=>{b.textContent='📋 Copy Link';},2500);}
+  function shLink(){const link='https://lime-of-time.com/api/gift/'+encodeURIComponent(CODE);if(navigator.share)navigator.share({title:'Gift for '+(gd?gd.recipientName||'someone special':'someone special'),text:'I got you a gift at '+(gd?gd.businessName:'')+'. Use this link to redeem it.',url:link}).catch(()=>{});}
+  load();
+</script>
+</body>
+</html>`;
+}
+
 
 function homePage(): string {
   return `<!DOCTYPE html>
