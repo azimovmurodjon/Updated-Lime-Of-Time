@@ -57,7 +57,13 @@ export default function PaymentMethodsScreen() {
   const settings = state.settings;
   const businessOwnerId = state.businessOwnerId;
   const { planInfo } = usePlanLimitCheck();
-  const isStripePlan = planInfo && (planInfo.planKey === "studio" || planInfo.planKey === "enterprise");
+  // Use paymentLevel from admin panel plan config ("full" = Stripe Connect enabled)
+  // Falls back to checking plan key for backward compatibility
+  const isStripePlan = planInfo && (
+    (planInfo as any).limits?.paymentLevel === "full" ||
+    planInfo.planKey === "studio" ||
+    planInfo.planKey === "enterprise"
+  );
 
   // Stripe Connect state
   const [connectStatus, setConnectStatus] = useState<ConnectStatus | null>(null);

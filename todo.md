@@ -1702,3 +1702,12 @@
 - [ ] Fix Book for Myself: navigate to normal booking flow as a new page (not append fields below)
 - [ ] Fix Buy a Gift page: match regular portal design and load services/products from DB
 - [ ] Test end-to-end: book appointment and buy a gift using business phone 4124827733
+
+## Gift & Payment Features (Apr 30, 2026)
+
+- [ ] Add Gifts tab to bottom navigation bar in the business dashboard
+- [ ] Build recipient-facing gift redemption flow (public web page for booking with gift code)
+- [ ] Add Stripe card payment to Buy a Gift page (create Stripe checkout session before confirming gift)
+- [ ] Add Stripe gift payment webhook handler to mark gift as paid after Stripe checkout
+- [ ] Audit and fix subscription plan enforcement across the app
+- [ ] Fix all payment method connections (Zelle, Venmo, CashApp, Stripe) in gift and booking flows

@@ -587,6 +587,46 @@ export function registerStripeConnectRoutes(app: Express): void {
         const appointmentLocalId = session.metadata?.appointmentLocalId;
         const businessOwnerId = parseInt(session.metadata?.businessOwnerId ?? "0", 10);
 
+        // ── Gift purchase payment completed ─────────────────────────────────────
+        const giftCode = session.metadata?.giftCode;
+        const sessionType = session.metadata?.type;
+        if (sessionType === "gift_purchase" && giftCode && businessOwnerId) {
+          try {
+            const db = await getDb();
+            if (db) {
+              const { giftCards } = await import("../drizzle/schema");
+              await db
+                .update(giftCards)
+                .set({ paymentStatus: "paid", paymentMethod: "card" } as any)
+                .where(
+                  and(
+                    eq((giftCards as any).code, giftCode),
+                    eq((giftCards as any).businessOwnerId, businessOwnerId)
+                  )
+                );
+              console.log(`[StripeConnect] Gift ${giftCode} marked paid via card (owner ${businessOwnerId})`);
+              // Push notification to business owner
+              try {
+                const ownerRows = await db.select().from(businessOwners).where(eq(businessOwners.id, businessOwnerId)).limit(1);
+                const owner = ownerRows[0];
+                const pushToken = (owner as any)?.expoPushToken;
+                if (pushToken) {
+                  await sendExpoPush(pushToken, {
+                    title: "🎁 Gift Card Purchased",
+                    body: `A gift card (${giftCode}) was paid via card. Check your Gifts tab.`,
+                    data: { type: "payment_received" as const },
+                    sound: "default",
+                  });
+                }
+              } catch (notifErr) {
+                console.error("[StripeConnect] Gift payment notification error:", notifErr);
+              }
+            }
+          } catch (dbErr) {
+            console.error("[StripeConnect] Gift DB update error:", dbErr);
+          }
+        }
+
         if (appointmentLocalId && businessOwnerId) {
           try {
             const db = await getDb();
@@ -1402,6 +1442,113 @@ export function registerStripeConnectRoutes(app: Express): void {
     } catch (err: any) {
       console.error("[StripeConnect] transactions error:", err);
       res.status(500).json({ error: err?.message ?? "Failed to fetch transactions" });
+    }
+  });
+
+  // ── 11. Create Gift Card Stripe Checkout ─────────────────────────────────
+  // POST /api/stripe-connect/create-gift-checkout
+  // Body: { businessOwnerId, giftCode, recipientName, items, totalAmount, currency, successUrl, cancelUrl }
+  // Creates a Stripe Checkout session for a gift card purchase.
+  // Platform fee (from admin panel STRIPE_PLATFORM_FEE_PERCENT) is applied as application_fee_amount.
+  // The charge goes to the business owner's connected Stripe account.
+  // The platform's own Stripe account is NOT used for this transaction — it only collects the fee.
+  app.post("/api/stripe-connect/create-gift-checkout", async (req: Request, res: Response) => {
+    try {
+      const {
+        businessOwnerId,
+        giftCode,
+        recipientName,
+        items,          // [{ name, price }]
+        totalAmount,    // in dollars
+        currency = "usd",
+        successUrl,
+        cancelUrl,
+      } = req.body as {
+        businessOwnerId: number;
+        giftCode: string;
+        recipientName: string;
+        items: { name: string; price: number }[];
+        totalAmount: number;
+        currency?: string;
+        successUrl: string;
+        cancelUrl: string;
+      };
+
+      if (!businessOwnerId || !giftCode || !totalAmount || !successUrl || !cancelUrl) {
+        res.status(400).json({ error: "Missing required fields" }); return;
+      }
+
+      const stripe = await getStripe();
+      if (!stripe) { res.status(503).json({ error: "Stripe not configured" }); return; }
+
+      const owner = await getOwner(businessOwnerId);
+      const accountId = (owner as any)?.stripeConnectAccountId as string | null;
+      if (!accountId) { res.status(400).json({ error: "Business has not connected Stripe yet" }); return; }
+
+      const chargesEnabled = (owner as any)?.stripeConnectEnabled as boolean | null;
+      if (!chargesEnabled) { res.status(400).json({ error: "Stripe account is not yet fully set up. Please complete onboarding." }); return; }
+
+      const amountCents = Math.round(totalAmount * 100);
+      // Read platform fee percentage from admin panel (e.g. STRIPE_PLATFORM_FEE_PERCENT = "1.5" means 1.5%)
+      const feePercent = await getPlatformFeePercent();
+      const platformFeeCents = Math.round(amountCents * feePercent);
+
+      console.log(`[StripeConnect] create-gift-checkout: giftCode=${giftCode} amount=$${totalAmount} feePercent=${(feePercent*100).toFixed(2)}% feeCents=${platformFeeCents} accountId=${accountId}`);
+
+      // Build line items from gift items
+      const lineItems: any[] = (items || []).map((item: { name: string; price: number }) => ({
+        price_data: {
+          currency,
+          product_data: { name: item.name, description: `Gift for ${recipientName}` },
+          unit_amount: Math.round(item.price * 100),
+        },
+        quantity: 1,
+      }));
+
+      // Add platform processing fee as a separate line item (visible to buyer)
+      if (platformFeeCents > 0) {
+        lineItems.push({
+          price_data: {
+            currency,
+            product_data: { name: "Processing Fee", description: `${(feePercent * 100).toFixed(1)}% card processing fee` },
+            unit_amount: platformFeeCents,
+          },
+          quantity: 1,
+        });
+      }
+
+      const session = await stripe.checkout.sessions.create(
+        {
+          payment_method_types: ["card"],
+          line_items: lineItems,
+          mode: "payment",
+          success_url: successUrl,
+          cancel_url: cancelUrl,
+          metadata: {
+            giftCode,
+            businessOwnerId: String(businessOwnerId),
+            recipientName,
+            type: "gift_purchase",
+          },
+          payment_intent_data: {
+            // Platform fee is deducted from the business owner's payout
+            application_fee_amount: platformFeeCents,
+            metadata: {
+              giftCode,
+              businessOwnerId: String(businessOwnerId),
+              type: "gift_purchase",
+            },
+          },
+        } as any,
+        // Charge goes to the business owner's connected Stripe account
+        // The platform's own Stripe account only receives the application_fee_amount
+        { stripeAccount: accountId }
+      );
+
+      res.json({ sessionId: session.id, url: session.url });
+    } catch (err: any) {
+      console.error("[StripeConnect] create-gift-checkout error:", err);
+      res.status(500).json({ error: err?.message ?? "Failed to create gift checkout session" });
     }
   });
 }

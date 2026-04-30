@@ -926,7 +926,7 @@ export function registerPublicRoutes(app: Express) {
       res.json({
         success: true,
         appointmentId: appointmentLocalId,
-        manageUrl: `https://lime-of-time.com/manage/${req.params.slug}/${appointmentLocalId}`,
+        manageUrl: `${req.headers.origin || 'https://lime-of-time.com'}/manage/${req.params.slug}/${appointmentLocalId}`,
         message: "Appointment request submitted! The business will confirm your booking.",
       });
     } catch (err) {
@@ -1774,7 +1774,7 @@ export function registerPublicRoutes(app: Express) {
       ];
       const o = owner as any;
       const slug = o.customSlug || owner.businessName.toLowerCase().replace(/\s+/g, "-");
-      const shareLink = "https://lime-of-time.com/api/gift/" + encodeURIComponent(code);
+      const shareLink = (req.headers.origin || 'https://lime-of-time.com') + '/api/gift/' + encodeURIComponent(code);
       if (recipientEmail && recipientEmail.includes("@")) {
         sendGiftNotificationEmail({ recipientName, recipientEmail, purchaserName, businessName: owner.businessName, businessSlug: slug, giftCode: code, items, totalValue, personalMessage: personalMessage || undefined, expiresAt, recipientChoosesDate: !!recipientChoosesDate, preselectedDate: preselectedDate || undefined, preselectedTime: preselectedTime || undefined }).catch((e: any) => console.error("[Gift] recipient email error:", e));
       }
@@ -2744,6 +2744,7 @@ function buyGiftPage(slug: string, owner: any): string {
 <script>
 const SLUG = '${slug}';
 const BIZ_NAME = '${bizName}';
+const OWNER_ID = ${owner.id};
 let allServices = [], allProducts = [], paymentMethods = {};
 let selectedServiceIds = new Set(), selectedProductIds = new Set();
 let currentStep = 0;
@@ -3110,11 +3111,39 @@ async function submitGift() {
     preselectedTime: dateMode === 'me' ? selectedTime : null,
   };
   try {
+    // Step 1: Create the gift record in the database
     const r = await fetch('/api/public/business/' + SLUG + '/buy-gift', {
       method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
     });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || 'Failed to create gift');
+
+    // Step 2: If card payment, create a Stripe Checkout session and redirect
+    if (selectedPaymentMethod === 'card') {
+      const confirmUrl = window.location.origin + '/api/gift-confirm/' + encodeURIComponent(d.code);
+      const cancelUrl = window.location.href;
+      const stripeRes = await fetch('/api/stripe-connect/create-gift-checkout', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          businessOwnerId: OWNER_ID,
+          giftCode: d.code,
+          recipientName: payload.recipientName,
+          items: d.items || [],
+          totalAmount: d.totalValue,
+          successUrl: confirmUrl + '?paid=1',
+          cancelUrl: cancelUrl,
+        })
+      });
+      const stripeData = await stripeRes.json();
+      if (!stripeRes.ok) throw new Error(stripeData.error || 'Failed to create payment session');
+      if (stripeData.url) {
+        window.location.href = stripeData.url;
+        return;
+      }
+      // Stripe not available — fall through to confirm page
+    }
+
     window.location.href = '/api/gift-confirm/' + encodeURIComponent(d.code);
   } catch(e) {
     isSubmitting = false;
@@ -3206,6 +3235,7 @@ function giftConfirmPage(code: string): string {
 </div>
 <script>
   const CODE=${JSON.stringify(code)};
+  const PAID = new URLSearchParams(window.location.search).get('paid') === '1';
   let gd=null;
   function esc(s){if(!s)return'';return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
   async function load(){
@@ -3219,9 +3249,16 @@ function giftConfirmPage(code: string): string {
   }
   function render(){
     const d=gd;
-    document.getElementById('hsub').textContent='Your gift for '+(d.recipientName||'the recipient')+' at '+d.businessName+' has been created!';
+    // Show payment received banner if redirected from Stripe
+    if (PAID) {
+      document.querySelector('.hero .ico').textContent = '✅';
+      document.querySelector('.hero h1').textContent = 'Payment Received!';
+      document.getElementById('hsub').textContent = 'Your card payment was successful. Gift for '+(d.recipientName||'the recipient')+' at '+d.businessName+' is confirmed!';
+    } else {
+      document.getElementById('hsub').textContent='Your gift for '+(d.recipientName||'the recipient')+' at '+d.businessName+' has been created!';
+    }
     document.getElementById('gc').textContent=d.code;
-    const link='https://lime-of-time.com/api/gift/'+encodeURIComponent(d.code);
+    const link=window.location.origin+'/api/gift/'+encodeURIComponent(d.code);
     document.getElementById('sl').textContent=link;
     let h='';
     d.items.forEach(item=>{h+='<div class="dr"><span class="dl">'+esc(item.name)+'</span><span class="dv">$'+item.price.toFixed(2)+'</span></div>';});
@@ -3238,11 +3275,11 @@ function giftConfirmPage(code: string): string {
     }
   }
   function cpLink(){
-    const link='https://lime-of-time.com/api/gift/'+encodeURIComponent(CODE);
+    const link=window.location.origin+'/api/gift/'+encodeURIComponent(CODE);
     if(navigator.clipboard){navigator.clipboard.writeText(link).then(()=>{const b=document.getElementById('cpbtn');b.textContent='✅ Copied!';b.style.background='#16a34a';setTimeout(()=>{b.textContent='📋 Copy Link';b.style.background='var(--accent)';},2500);}).catch(()=>fb(link));}else{fb(link);}
   }
   function fb(t){const ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);const b=document.getElementById('cpbtn');b.textContent='✅ Copied!';setTimeout(()=>{b.textContent='📋 Copy Link';},2500);}
-  function shLink(){const link='https://lime-of-time.com/api/gift/'+encodeURIComponent(CODE);if(navigator.share)navigator.share({title:'Gift for '+(gd?gd.recipientName||'someone special':'someone special'),text:'I got you a gift at '+(gd?gd.businessName:'')+'. Use this link to redeem it.',url:link}).catch(()=>{});}
+  function shLink(){const link=window.location.origin+'/api/gift/'+encodeURIComponent(CODE);if(navigator.share)navigator.share({title:'Gift for '+(gd?gd.recipientName||'someone special':'someone special'),text:'I got you a gift at '+(gd?gd.businessName:'')+'. Use this link to redeem it.',url:link}).catch(()=>{});}
   load();
 </script>
 </body>
