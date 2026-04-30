@@ -1626,7 +1626,7 @@ export function registerPublicRoutes(app: Express) {
   /** Redirect /book/:slug → /api/book/:slug so shared links work on the platform domain */
   app.get("/book/:slug", (req: Request, res: Response) => {
     const qs = req.query.location ? `?location=${encodeURIComponent(req.query.location as string)}` : "";
-    res.redirect(301, `/api/book/${req.params.slug}${qs}`);
+    res.redirect(302, `/api/book/${req.params.slug}${qs}`);
   });
   app.get("/book/:slug/:locationId", (req: Request, res: Response) => {
     res.redirect(301, `/api/book/${req.params.slug}/${req.params.locationId}`);
@@ -2795,13 +2795,13 @@ function renderSvcCats() {
   });
   const grid = document.getElementById('svcCatGrid');
   const allCount = allServices.length;
-  let html = '<div class="tile" onclick="drillCat(\'__all__\')" id="cat___all__">';
+  let html = '<div class="tile" onclick="drillCat(\\x27__all__\\x27)" id="cat___all__">'; 
   html += '<span class="tile-icon">✨</span>';
   html += '<div class="tile-name">All</div>';
   html += '<div class="tile-dur">' + allCount + ' service' + (allCount !== 1 ? 's' : '') + '</div>';
   html += '</div>';
   Object.values(cats).forEach(function(c) {
-    html += '<div class="tile" onclick="drillCat(' + JSON.stringify(c.name) + ')" id="cat_' + c.name.replace(/[^a-z0-9]/gi,'_') + '">';
+    html += '<div class="tile" onclick="drillCat(\\x27' + c.name.replace(/'/g,'') + '\\x27)" id="cat_' + c.name.replace(/[^a-z0-9]/gi,'_') + '">';
     html += '<span class="tile-icon">' + c.emoji + '</span>';
     html += '<div class="tile-name">' + escH(c.name) + '</div>';
     html += '<div class="tile-dur">' + c.count + ' service' + (c.count !== 1 ? 's' : '') + '</div>';
@@ -2838,7 +2838,7 @@ function renderSvcList(svcs, container) {
   let html = '';
   svcs.forEach(function(s) {
     const checked = selectedServiceIds.has(s.localId);
-    html += '<div class="svc-row" onclick="toggleService(' + JSON.stringify(s.localId) + ')">';
+    html += '<div class="svc-row" onclick="toggleService(\\x27' + s.localId + '\\x27)">';
     html += '<div class="svc-row-check' + (checked ? ' checked' : '') + '" id="chk_' + s.localId + '">' + (checked ? '<span style="color:#fff;font-size:14px;">✓</span>' : '') + '</div>';
     html += '<div class="svc-row-info"><div class="svc-row-name">' + escH(s.name) + '</div>';
     const meta = [];
@@ -2860,7 +2860,7 @@ function renderProducts(filter) {
   let html = '';
   prods.forEach(function(p) {
     const checked = selectedProductIds.has(p.localId);
-    html += '<div class="svc-row" onclick="toggleProduct(' + JSON.stringify(p.localId) + ')">';
+    html += '<div class="svc-row" onclick="toggleProduct(\\x27' + p.localId + '\\x27)">'; 
     html += '<div class="svc-row-check' + (checked ? ' checked' : '') + '" id="pchk_' + p.localId + '">' + (checked ? '<span style="color:#fff;font-size:14px;">✓</span>' : '') + '</div>';
     html += '<div class="svc-row-info"><div class="svc-row-name">' + escH(p.name) + '</div>';
     if (p.brand || p.category) html += '<div class="svc-row-meta">' + escH([p.brand, p.category].filter(Boolean).join(' · ')) + '</div>';
@@ -2956,7 +2956,7 @@ function renderPaymentOptions() {
   let html = '';
   opts.forEach(function(o) {
     const sel = selectedPaymentMethod === o.id;
-    html += '<div class="pay-opt' + (sel ? ' selected' : '') + '" onclick="selectPayment(' + JSON.stringify(o.id) + ')">';
+    html += '<div class="pay-opt' + (sel ? ' selected' : '') + '" onclick="selectPayment(\\x27' + o.id + '\\x27)">';
     html += '<div class="pay-opt-icon">' + o.icon + '</div>';
     html += '<div class="pay-opt-info"><div class="pay-opt-label">' + escH(o.label) + '</div><div class="pay-opt-sub">' + escH(o.sub) + '</div></div>';
     html += '<div class="pay-opt-check">' + (sel ? '<span style="color:#fff;font-size:12px;">✓</span>' : '') + '</div>';
@@ -2994,7 +2994,7 @@ function renderCal() {
     const isPast = dt < now;
     const isSel = selectedDate === iso;
     const isToday = dt.getTime() === now.getTime();
-    html += '<div class="cal-day' + (isPast ? ' disabled' : '') + (isSel ? ' selected' : '') + (isToday && !isSel ? ' today' : '') + '"' + (!isPast ? ' onclick="selectDay(' + JSON.stringify(iso) + ')"' : '') + '>' + d + '</div>';
+    html += '<div class="cal-day' + (isPast ? ' disabled' : '') + (isSel ? ' selected' : '') + (isToday && !isSel ? ' today' : '') + '"' + (!isPast ? ' onclick="selectDay(\\x27' + iso + '\\x27)"' : '') + '>' + d + '</div>';
   }
   document.getElementById('calDays').innerHTML = html;
 }
@@ -3016,7 +3016,7 @@ function selectDay(iso) {
   const slots = ['9:00 AM','9:30 AM','10:00 AM','10:30 AM','11:00 AM','11:30 AM','12:00 PM','12:30 PM','1:00 PM','1:30 PM','2:00 PM','2:30 PM','3:00 PM','3:30 PM','4:00 PM','4:30 PM','5:00 PM'];
   let html = '';
   slots.forEach(function(t) {
-    html += '<div class="time-slot' + (selectedTime === t ? ' selected' : '') + '" onclick="selectTime(' + JSON.stringify(t) + ')">' + t + '</div>';
+    html += '<div class="time-slot' + (selectedTime === t ? ' selected' : '') + '" onclick="selectTime(\\x27' + t + '\\x27)">' + t + '</div>';
   });
   document.getElementById('timeGrid').innerHTML = html;
   document.getElementById('timeSection').style.display = 'block';
@@ -4485,14 +4485,14 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       <h2 style="margin-bottom:6px;">How would you like to continue?</h2>
       <p style="font-size:13px;color:var(--text-secondary);margin-bottom:20px;">Book an appointment for yourself, or purchase a gift for someone special.</p>
       <div style="display:flex;flex-direction:column;gap:14px;">
-        <button onclick="goToStep(1)" style="display:flex;align-items:center;gap:16px;padding:18px 20px;border-radius:16px;border:2px solid var(--accent);background:var(--accent-bg-light);cursor:pointer;text-align:left;width:100%;transition:all .15s;" onmouseover="this.style.background='var(--accent)';this.querySelector('.intent-title').style.color='#fff';this.querySelector('.intent-sub').style.color='rgba(255,255,255,0.8)'" onmouseout="this.style.background='var(--accent-bg-light)';this.querySelector('.intent-title').style.color='var(--accent)';this.querySelector('.intent-sub').style.color='var(--text-secondary)'">
+        <button onclick="bookForMyself()" style="display:flex;align-items:center;gap:16px;padding:18px 20px;border-radius:16px;border:2px solid var(--accent);background:var(--accent-bg-light);cursor:pointer;text-align:left;width:100%;transition:all .15s;" onmouseover="this.style.background='var(--accent)';this.querySelector('.intent-title').style.color='#fff';this.querySelector('.intent-sub').style.color='rgba(255,255,255,0.8)'" onmouseout="this.style.background='var(--accent-bg-light)';this.querySelector('.intent-title').style.color='var(--accent)';this.querySelector('.intent-sub').style.color='var(--text-secondary)'">
           <div style="font-size:36px;line-height:1;">📅</div>
           <div>
             <div class="intent-title" style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:3px;">Book for Myself</div>
             <div class="intent-sub" style="font-size:13px;color:var(--text-secondary);line-height:1.4;">Schedule an appointment at a time that works for you.</div>
           </div>
         </button>
-        <button onclick="window.location.href='/api/buy-gift/${slug}'" style="display:flex;align-items:center;gap:16px;padding:18px 20px;border-radius:16px;border:2px solid #e91e8c;background:#fce4f3;cursor:pointer;text-align:left;width:100%;transition:all .15s;" onmouseover="this.style.background='#e91e8c';this.querySelector('.gift-title').style.color='#fff';this.querySelector('.gift-sub').style.color='rgba(255,255,255,0.8)'" onmouseout="this.style.background='#fce4f3';this.querySelector('.gift-title').style.color='#e91e8c';this.querySelector('.gift-sub').style.color='#666'">
+        <button onclick="buyGiftIntent()" style="display:flex;align-items:center;gap:16px;padding:18px 20px;border-radius:16px;border:2px solid #e91e8c;background:#fce4f3;cursor:pointer;text-align:left;width:100%;transition:all .15s;" onmouseover="this.style.background='#e91e8c';this.querySelector('.gift-title').style.color='#fff';this.querySelector('.gift-sub').style.color='rgba(255,255,255,0.8)'" onmouseout="this.style.background='#fce4f3';this.querySelector('.gift-title').style.color='#e91e8c';this.querySelector('.gift-sub').style.color='#666'">
           <div style="font-size:36px;line-height:1;">🎁</div>
           <div>
             <div class="gift-title" style="font-size:16px;font-weight:700;color:#e91e8c;margin-bottom:3px;">Buy a Gift</div>
@@ -5304,6 +5304,16 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       updateSelectedLocBanner();
       window.scrollTo(0, 0);
     }
+    // Navigate to the normal booking flow with the selected location pre-filled
+    function bookForMyself() {
+      if (!selectedLocation) { alert("Please select a location"); return; }
+      window.location.href = '/api/book/${slug}?location=' + encodeURIComponent(selectedLocation) + '&intent=book';
+    }
+    // Navigate to the gift purchase page with the selected location
+    function buyGiftIntent() {
+      if (!selectedLocation) { alert("Please select a location"); return; }
+      window.location.href = '/api/buy-gift/${slug}?location=' + encodeURIComponent(selectedLocation);
+    }
     function goToStep(step) {
       if (step === 1 && !selectedLocation) { alert("Please select a location"); return; }
       if (step === 2 && currentStep === 1) {
@@ -5724,7 +5734,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
           var addThumbS = s.photoUri
             ? '<div class="service-dot"><img src="' + esc(s.photoUri) + '" /></div>'
             : '<div class="service-dot" style="background:' + (s.color||'#4a8c3f') + '20;color:' + (s.color||'#4a8c3f') + ';">' + esc((s.name||'?')[0].toUpperCase()) + '</div>';
-          html += '<div class="service-item" onclick="openServiceDetail(' + JSON.stringify(s.localId) + ')">' +
+          html += '<div class="service-item" onclick="openServiceDetail(\\x27' + s.localId + '\\x27)">' +
             addThumbS +
             '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div><div class="service-meta">' + dur + (s.category ? ' · ' + esc(s.category) : '') + '</div></div>' +
             '<div class="service-price">+ $' + parseFloat(s.price).toFixed(2) + '</div></div>';
@@ -5733,7 +5743,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       if (matchedProds.length > 0) {
         html += '<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.05em;margin:' + (matchedSvcs.length > 0 ? '12px' : '0') + ' 0 6px;">Products</div>';
         matchedProds.forEach(p => {
-          html += '<div class="product-item" onclick="openProductDetail(' + JSON.stringify(p.localId) + ')">' +
+          html += '<div class="product-item" onclick="openProductDetail(\\x27' + p.localId + '\\x27)">' +
             (p.photoUri ? '<img src="' + esc(p.photoUri) + '" style="width:48px;height:48px;border-radius:8px;object-fit:cover;margin-right:12px;flex-shrink:0;" />' : '') +
             '<div style="flex:1;"><div style="font-size:15px;font-weight:600;">' + esc(p.name) + '</div>' +
             (p.brand ? '<div style="font-size:12px;color:#888;margin-top:2px;">' + esc(p.brand) + '</div>' : '') + '</div>' +
@@ -6898,7 +6908,14 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       const _isPaymentReturn = _urlParamsInit.get('payment') === 'success';
       if (selectedLocation && !${JSON.stringify(!!owner.temporaryClosed)} && !_isPaymentReturn) {
         // Small delay to let the page render first
-        setTimeout(() => goToStep(1), 50);
+        const _intentParam = _urlParamsInit.get('intent');
+        if (_intentParam === 'book') {
+          // Came from "Book for Myself" on the intent page — skip intent step, go to Info
+          setTimeout(() => goToStep(1), 50);
+        } else {
+          // Show intent step (Book for Myself / Buy a Gift)
+          setTimeout(() => goToIntentStep(), 50);
+        }
       }
     });
 

@@ -1698,3 +1698,7 @@
 - [x] Fix client portal reschedule page: pass clientToday and nowMinutes to filter past time slots
 - [x] Fix Choose Plan popup: increase card padding and margins for better spacing from screen edges
 - [x] Fix New Service form: hide SMS Reminder Timing section when plan does not include SMS
+- [ ] Fix /book/slug: open Location selection step first (not skip to Info step)
+- [ ] Fix Book for Myself: navigate to normal booking flow as a new page (not append fields below)
+- [ ] Fix Buy a Gift page: match regular portal design and load services/products from DB
+- [ ] Test end-to-end: book appointment and buy a gift using business phone 4124827733
