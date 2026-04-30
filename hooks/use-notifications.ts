@@ -162,6 +162,10 @@ export function useNotifications() {
   const scheduledRef = useRef<Set<string>>(new Set());
   const listenerSetupRef = useRef(false);
   const tokenRegisteredRef = useRef(false);
+  const initialNotifHandledRef = useRef(false);
+  // Keep a ref to appointments so the listener can access latest without re-registering
+  const appointmentsRef = useRef(state.appointments);
+  useEffect(() => { appointmentsRef.current = state.appointments; }, [state.appointments]);
 
   // Get business name for notification titles
   const businessName = state.settings.businessName || "Your Business";
@@ -326,10 +330,10 @@ export function useNotifications() {
       const data = response.notification.request.content.data as NotificationData;
       const actionId = response.actionIdentifier;
 
-      // ── Inline action: Accept appointment ─────────────────────────────────
+      // ── Inline action: Accept appointment ─────────────────────────────────────
       if (actionId === "accept" && data?.appointmentId) {
         const apptId = data.appointmentId;
-        const appt = state.appointments.find((a) => a.id === apptId);
+        const appt = appointmentsRef.current.find((a) => a.id === apptId);
         if (appt && appt.status === "pending") {
           const updateAction = {
             type: "UPDATE_APPOINTMENT_STATUS" as const,
@@ -342,10 +346,10 @@ export function useNotifications() {
         return; // Don't navigate — action was handled silently
       }
 
-      // ── Inline action: Decline appointment ────────────────────────────────
+      // ── Inline action: Decline appointment ──────────────────────────────────
       if (actionId === "decline" && data?.appointmentId) {
         const apptId = data.appointmentId;
-        const appt = state.appointments.find((a) => a.id === apptId);
+        const appt = appointmentsRef.current.find((a) => a.id === apptId);
         if (appt && (appt.status === "pending" || appt.status === "confirmed")) {
           const updateAction = {
             type: "UPDATE_APPOINTMENT_STATUS" as const,
@@ -358,14 +362,12 @@ export function useNotifications() {
         return; // Don't navigate — action was handled silently
       }
 
-      // ── Default: tap on notification body → navigate ──────────────────────
+      // ── Default: tap on notification body → navigate ──────────────────────────
       if (data) {
         // For payment_received taps: immediately update local state to 'paid'
-        // so the appointment-detail screen shows 'Refund' instead of 'Mark as Paid'
-        // (the DB was already updated by the Stripe webhook; local state just lags behind)
         if (data.type === 'payment_received' && data.appointmentId) {
           const apptId = data.appointmentId;
-          const appt = state.appointments.find((a) => a.id === apptId);
+          const appt = appointmentsRef.current.find((a) => a.id === apptId);
           if (appt && appt.paymentStatus !== 'paid') {
             const updatedAppt = { ...appt, paymentStatus: 'paid' as const, paymentMethod: 'card' as const };
             const updateAction = { type: 'UPDATE_APPOINTMENT' as const, payload: updatedAppt };
@@ -379,13 +381,11 @@ export function useNotifications() {
     });
 
     // ── Foreground notification listener: auto-update payment status ────────
-    // When a payment_received notification arrives while the app is open,
-    // silently update the appointment's paymentStatus to "paid" in local state.
     const foregroundSubscription = Notifications.addNotificationReceivedListener((notification) => {
       const data = notification.request.content.data as NotificationData;
       if (data?.type === "payment_received" && data?.appointmentId) {
         const apptId = data.appointmentId;
-        const appt = state.appointments.find((a) => a.id === apptId);
+        const appt = appointmentsRef.current.find((a) => a.id === apptId);
         if (appt && appt.paymentStatus !== "paid") {
           const updatedAppt = { ...appt, paymentStatus: "paid" as const, paymentMethod: "card" as const };
           const updateAction = { type: "UPDATE_APPOINTMENT" as const, payload: updatedAppt };
@@ -396,40 +396,44 @@ export function useNotifications() {
       }
     });
 
-    // Handle cold-start: check if app was opened from a notification
-    const checkInitialNotification = async () => {
-      try {
-        const lastResponse = await Notifications.getLastNotificationResponseAsync();
-        if (lastResponse) {
-          const data = lastResponse.notification.request.content.data as NotificationData;
-          if (data) {
-            // For payment_received cold-start: pre-update local state to 'paid'
-            if (data.type === 'payment_received' && data.appointmentId) {
-              const apptId = data.appointmentId;
-              const appt = state.appointments.find((a) => a.id === apptId);
-              if (appt && appt.paymentStatus !== 'paid') {
-                const updatedAppt = { ...appt, paymentStatus: 'paid' as const, paymentMethod: 'card' as const };
-                const updateAction = { type: 'UPDATE_APPOINTMENT' as const, payload: updatedAppt };
-                dispatch(updateAction);
-                syncToDb(updateAction);
-                logger.log('[Notifications] Cold-start: pre-updated appointment to paid:', apptId);
+    // Handle cold-start: only run ONCE per app session (not on every re-register)
+    if (!initialNotifHandledRef.current) {
+      initialNotifHandledRef.current = true;
+      const checkInitialNotification = async () => {
+        try {
+          const lastResponse = await Notifications.getLastNotificationResponseAsync();
+          if (lastResponse) {
+            const data = lastResponse.notification.request.content.data as NotificationData;
+            if (data) {
+              if (data.type === 'payment_received' && data.appointmentId) {
+                const apptId = data.appointmentId;
+                const appt = appointmentsRef.current.find((a) => a.id === apptId);
+                if (appt && appt.paymentStatus !== 'paid') {
+                  const updatedAppt = { ...appt, paymentStatus: 'paid' as const, paymentMethod: 'card' as const };
+                  const updateAction = { type: 'UPDATE_APPOINTMENT' as const, payload: updatedAppt };
+                  dispatch(updateAction);
+                  syncToDb(updateAction);
+                  logger.log('[Notifications] Cold-start: pre-updated appointment to paid:', apptId);
+                }
               }
+              setTimeout(() => handleNotificationNavigation(data), 1000);
             }
-            setTimeout(() => handleNotificationNavigation(data), 1000);
           }
+        } catch (err) {
+          logger.warn("[Notifications] Failed to get last notification response:", err);
         }
-      } catch (err) {
-        logger.warn("[Notifications] Failed to get last notification response:", err);
-      }
-    };
-    checkInitialNotification();
+      };
+      checkInitialNotification();
+    }
 
     return () => {
       responseSubscription.remove();
       foregroundSubscription.remove();
       listenerSetupRef.current = false;
     };
-  }, [handleNotificationNavigation, dispatch, syncToDb, state.appointments]);
+  // Remove state.appointments from deps — use appointmentsRef instead to prevent re-registering
+  // the listener (and re-firing checkInitialNotification) on every appointment change
+  }, [handleNotificationNavigation, dispatch, syncToDb]);
 
   // Schedule local reminders and auto-complete notifications for upcoming appointments
   useEffect(() => {
@@ -447,6 +451,20 @@ export function useNotifications() {
       const diffMs = apptDate.getTime() - now.getTime();
       return diffMs > 0 && diffMs < 7 * 24 * 60 * 60 * 1000;
     });
+
+    // Get all currently scheduled notifications so we can skip already-scheduled ones
+    // This prevents duplicates when the component re-mounts (app background/foreground)
+    const scheduleIfNotExists = async (identifier: string, content: any, trigger: any) => {
+      try {
+        const existing = await Notifications.getAllScheduledNotificationsAsync();
+        const alreadyScheduled = existing.some((n) => n.identifier === identifier);
+        if (!alreadyScheduled) {
+          await Notifications.scheduleNotificationAsync({ identifier, content, trigger });
+        }
+      } catch (err) {
+        logger.warn("[Notifications] Failed to schedule notification:", identifier, err);
+      }
+    };
 
     upcomingAppts.forEach(async (appt) => {
       const svc = state.services.find((s) => s.id === appt.serviceId);
@@ -469,125 +487,100 @@ export function useNotifications() {
       apptDate.setHours(h, m, 0, 0);
 
       // ── 1-hour reminder ────────────────────────────────────────────────
-      const hourReminderKey = `reminder-1h-${appt.id}`;
-      if (!scheduledRef.current.has(hourReminderKey)) {
-        scheduledRef.current.add(hourReminderKey);
-        const hourReminderDate = new Date(apptDate.getTime() - 60 * 60 * 1000);
-        if (hourReminderDate.getTime() > now.getTime()) {
-          try {
-            await Notifications.scheduleNotificationAsync({
-              content: {
-                title: `⏰ Upcoming Appointment in 1 Hour — ${businessName}`,
-                body: [
-                  `Client: ${clientName}`,
-                  `Service: ${svcName} (${duration} min)`,
-                  `Time: ${startFmt} – ${endFmt}`,
-                  `Date: ${dateFmt}`,
-                  locationLine,
-                  staffLine,
-                ].filter(Boolean).join("\n"),
-                data: { type: "appointment_reminder", appointmentId: appt.id } as NotificationData,
-                sound: true,
-              },
-              trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: hourReminderDate },
-            });
-          } catch (err) {
-            logger.warn("[Notifications] Failed to schedule 1-hour reminder:", err);
-          }
-        }
+      const hourReminderDate = new Date(apptDate.getTime() - 60 * 60 * 1000);
+      if (hourReminderDate.getTime() > now.getTime()) {
+        await scheduleIfNotExists(
+          `reminder-1h-${appt.id}`,
+          {
+            title: `⏰ Upcoming Appointment in 1 Hour — ${businessName}`,
+            body: [
+              `Client: ${clientName}`,
+              `Service: ${svcName} (${duration} min)`,
+              `Time: ${startFmt} – ${endFmt}`,
+              `Date: ${dateFmt}`,
+              locationLine,
+              staffLine,
+            ].filter(Boolean).join("\n"),
+            data: { type: "appointment_reminder", appointmentId: appt.id } as NotificationData,
+            sound: true,
+          },
+          { type: Notifications.SchedulableTriggerInputTypes.DATE, date: hourReminderDate }
+        );
       }
 
       // ── 30-minute reminder ─────────────────────────────────────────────
-      const reminderKey = `reminder-30m-${appt.id}`;
-      if (!scheduledRef.current.has(reminderKey)) {
-        scheduledRef.current.add(reminderKey);
-        const reminderDate = new Date(apptDate.getTime() - 30 * 60 * 1000);
-        if (reminderDate.getTime() > now.getTime()) {
-          try {
-            await Notifications.scheduleNotificationAsync({
-              content: {
-                title: `⏰ Appointment in 30 min — ${businessName}`,
-                body: [
-                  `Client: ${clientName}`,
-                  `Service: ${svcName} (${duration} min)`,
-                  `Time: ${startFmt} – ${endFmt}`,
-                  `Date: ${dateFmt}`,
-                  locationLine,
-                  staffLine,
-                  `Please ensure everything is ready for your client's arrival.`,
-                ].filter(Boolean).join("\n"),
-                data: { type: "appointment_reminder", appointmentId: appt.id } as NotificationData,
-                sound: true,
-              },
-              trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: reminderDate },
-            });
-          } catch (err) {
-            logger.warn("[Notifications] Failed to schedule 30-min reminder:", err);
-          }
-        }
+      const reminderDate = new Date(apptDate.getTime() - 30 * 60 * 1000);
+      if (reminderDate.getTime() > now.getTime()) {
+        await scheduleIfNotExists(
+          `reminder-30m-${appt.id}`,
+          {
+            title: `⏰ Appointment in 30 min — ${businessName}`,
+            body: [
+              `Client: ${clientName}`,
+              `Service: ${svcName} (${duration} min)`,
+              `Time: ${startFmt} – ${endFmt}`,
+              `Date: ${dateFmt}`,
+              locationLine,
+              staffLine,
+              `Please ensure everything is ready for your client's arrival.`,
+            ].filter(Boolean).join("\n"),
+            data: { type: "appointment_reminder", appointmentId: appt.id } as NotificationData,
+            sound: true,
+          },
+          { type: Notifications.SchedulableTriggerInputTypes.DATE, date: reminderDate }
+        );
       }
 
       // ── Auto-complete notification ──────────────────────────────────────
       if (autoCompleteEnabled) {
-        const autoCompleteKey = `autocomplete-${appt.id}-${autoCompleteDelayMinutes}`;
-        if (!scheduledRef.current.has(autoCompleteKey)) {
-          scheduledRef.current.add(autoCompleteKey);
+        // End time = start time + duration + delay
+        const [endH, endM] = endTime.split(":").map(Number);
+        const autoCompleteDate = new Date(appt.date + "T00:00:00");
+        autoCompleteDate.setHours(endH, endM + autoCompleteDelayMinutes, 0, 0);
 
-          // End time = start time + duration + delay
-          const [endH, endM] = endTime.split(":").map(Number);
-          const autoCompleteDate = new Date(appt.date + "T00:00:00");
-          autoCompleteDate.setHours(endH, endM + autoCompleteDelayMinutes, 0, 0);
+        if (autoCompleteDate.getTime() > now.getTime()) {
+          await scheduleIfNotExists(
+            `autocomplete-${appt.id}-${autoCompleteDelayMinutes}`,
+            {
+              title: `✅ Appointment Completed — ${businessName}`,
+              body: [
+                `The following appointment has been automatically marked as completed:`,
+                ``,
+                `Client: ${clientName}`,
+                `Service: ${svcName} (${duration} min)`,
+                `Time: ${startFmt} – ${endFmt}`,
+                `Date: ${dateFmt}`,
+                locationLine,
+                staffLine,
+                ``,
+                `Tap to view the appointment details.`,
+              ].filter(Boolean).join("\n"),
+              data: {
+                type: "appointment_completed",
+                appointmentId: appt.id,
+                filter: "completed",
+              } as NotificationData,
+              sound: true,
+            },
+            { type: Notifications.SchedulableTriggerInputTypes.DATE, date: autoCompleteDate }
+          );
 
-          if (autoCompleteDate.getTime() > now.getTime()) {
-            try {
-              await Notifications.scheduleNotificationAsync({
-                content: {
-                  title: `✅ Appointment Completed — ${businessName}`,
-                  body: [
-                    `The following appointment has been automatically marked as completed:`,
-                    ``,
-                    `Client: ${clientName}`,
-                    `Service: ${svcName} (${duration} min)`,
-                    `Time: ${startFmt} – ${endFmt}`,
-                    `Date: ${dateFmt}`,
-                    locationLine,
-                    staffLine,
-                    ``,
-                    `Tap to view the appointment details.`,
-                  ].filter(Boolean).join("\n"),
-                  data: {
-                    type: "appointment_completed",
-                    appointmentId: appt.id,
-                    filter: "completed",
-                  } as NotificationData,
-                  sound: true,
-                },
-                trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: autoCompleteDate },
-              });
-
-              // Also schedule the actual status update via a separate silent notification
-              // The listener intercepts the _action flag to trigger the store update.
-              // We suppress the banner by using an empty title/body and no sound.
-              await Notifications.scheduleNotificationAsync({
-                identifier: `autocomplete-action-${appt.id}`,
-                content: {
-                  title: "",
-                  body: "",
-                  data: {
-                    type: "appointment_completed",
-                    appointmentId: appt.id,
-                    _action: "mark_complete",
-                  } as any,
-                  sound: false,
-                  // Suppress the banner on iOS — this is an internal action-only notification
-                  ...(Platform.OS === "ios" ? { interruptionLevel: "passive" as any } : {}),
-                },
-                trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: autoCompleteDate },
-              });
-            } catch (err) {
-              logger.warn("[Notifications] Failed to schedule auto-complete notification:", err);
-            }
-          }
+          // Silent action notification to trigger status update in store
+          await scheduleIfNotExists(
+            `autocomplete-action-${appt.id}`,
+            {
+              title: "",
+              body: "",
+              data: {
+                type: "appointment_completed",
+                appointmentId: appt.id,
+                _action: "mark_complete",
+              } as any,
+              sound: false,
+              ...(Platform.OS === "ios" ? { interruptionLevel: "passive" as any } : {}),
+            },
+            { type: Notifications.SchedulableTriggerInputTypes.DATE, date: autoCompleteDate }
+          );
         }
       }
     });

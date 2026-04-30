@@ -1653,3 +1653,6 @@
 - [x] Verify DB update pipeline for plan pricing saves correctly
 - [x] Fix discountExpiresAt input: change from datetime-local to date-only to avoid browser validation error
 - [x] Restore dirty-check Save button: only enable when form values have changed
+- [x] Fix duplicate push notifications: add deduplication/idempotency so each appointment+type fires only once
+- [x] Fix notification tap opening same screen multiple times in navigation stack
+- [x] Fix slow initial DB load (30-40 second delay for client data) — stale-while-revalidate: show AsyncStorage cache instantly, refresh from DB in background

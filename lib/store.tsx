@@ -947,7 +947,80 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       try {
         // First check if we have a stored business owner ID
         const storedOwnerId = await AsyncStorage.getItem(STORAGE_KEYS.businessOwnerId);
-        
+
+        // ── STEP 1: Load AsyncStorage cache immediately (stale-while-revalidate) ──
+        // Show the user their last-known data instantly (~50ms) while DB fetches in background
+        if (storedOwnerId) {
+          const [servicesRaw, clientsRaw, appointmentsRaw, reviewsRaw, settingsRaw, discountsRaw, giftCardsRaw, customScheduleRaw, productsRaw, staffRaw, locationsRaw, locationCustomScheduleRaw, clientPhotosRaw, packagesRaw, servicePhotosRaw] =
+            await Promise.all([
+              AsyncStorage.getItem(STORAGE_KEYS.services),
+              AsyncStorage.getItem(STORAGE_KEYS.clients),
+              AsyncStorage.getItem(STORAGE_KEYS.appointments),
+              AsyncStorage.getItem(STORAGE_KEYS.reviews),
+              AsyncStorage.getItem(STORAGE_KEYS.settings),
+              AsyncStorage.getItem(STORAGE_KEYS.discounts),
+              AsyncStorage.getItem(STORAGE_KEYS.giftCards),
+              AsyncStorage.getItem(STORAGE_KEYS.customSchedule),
+              AsyncStorage.getItem(STORAGE_KEYS.products),
+              AsyncStorage.getItem(STORAGE_KEYS.staff),
+              AsyncStorage.getItem(STORAGE_KEYS.locations),
+              AsyncStorage.getItem(STORAGE_KEYS.locationCustomSchedule),
+              AsyncStorage.getItem(STORAGE_KEYS.clientPhotos),
+              AsyncStorage.getItem(STORAGE_KEYS.packages),
+              AsyncStorage.getItem(STORAGE_KEYS.servicePhotos),
+            ]);
+          if (servicesRaw || clientsRaw || appointmentsRaw || locationsRaw) {
+            const parsedSettingsCache = settingsRaw ? JSON.parse(settingsRaw) : {};
+            const cachedSettings: BusinessSettings = settingsRaw
+              ? {
+                  ...initialSettings,
+                  ...parsedSettingsCache,
+                  notificationPreferences: {
+                    ...DEFAULT_NOTIFICATION_PREFERENCES,
+                    ...(parsedSettingsCache.notificationPreferences ?? {}),
+                  },
+                }
+              : initialSettings;
+            dispatch({
+              type: "LOAD_DATA",
+              payload: {
+                services: servicesRaw ? JSON.parse(servicesRaw) : [],
+                clients: clientsRaw ? JSON.parse(clientsRaw) : [],
+                appointments: appointmentsRaw ? JSON.parse(appointmentsRaw) : [],
+                reviews: reviewsRaw ? JSON.parse(reviewsRaw) : [],
+                discounts: discountsRaw ? JSON.parse(discountsRaw) : [],
+                giftCards: giftCardsRaw ? JSON.parse(giftCardsRaw) : [],
+                customSchedule: customScheduleRaw ? JSON.parse(customScheduleRaw) : [],
+                locationCustomSchedule: locationCustomScheduleRaw ? JSON.parse(locationCustomScheduleRaw) : {},
+                products: productsRaw ? JSON.parse(productsRaw) : [],
+                staff: staffRaw ? JSON.parse(staffRaw) : [],
+                locations: locationsRaw ? (JSON.parse(locationsRaw) as Location[]).map((l) => ({
+                  ...l,
+                  workingHours: (l.workingHours && Object.keys(l.workingHours).length > 0)
+                    ? normalizeWorkingHours(l.workingHours)
+                    : null,
+                })) : [],
+                settings: cachedSettings,
+                businessOwnerId: parseInt(storedOwnerId, 10),
+                clientPhotos: clientPhotosRaw ? JSON.parse(clientPhotosRaw) : [],
+                packages: packagesRaw ? JSON.parse(packagesRaw) : [],
+                servicePhotos: servicePhotosRaw ? JSON.parse(servicePhotosRaw) : [],
+              },
+            });
+            // Restore active location
+            const storedActiveLocEarly = await AsyncStorage.getItem(STORAGE_KEYS.activeLocationId);
+            const parsedLocsEarly: Location[] = locationsRaw ? JSON.parse(locationsRaw) : [];
+            const activeLocsEarly = parsedLocsEarly.filter((l) => l.active);
+            if (storedActiveLocEarly && activeLocsEarly.some((l) => l.id === storedActiveLocEarly)) {
+              dispatch({ type: "SET_ACTIVE_LOCATION", payload: storedActiveLocEarly });
+            } else if (activeLocsEarly.length === 1) {
+              dispatch({ type: "SET_ACTIVE_LOCATION", payload: activeLocsEarly[0].id });
+            }
+            logger.log("[Store] Loaded from AsyncStorage cache instantly, refreshing from DB in background...");
+          }
+        }
+
+        // ── STEP 2: Refresh from DB in background (revalidate) ──
         if (storedOwnerId) {
           const ownerId = parseInt(storedOwnerId, 10);
           try {
