@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useCallback } from "react";
-import { FlatList, Text, View, Pressable, StyleSheet, TextInput, LayoutAnimation, Platform, UIManager } from "react-native";
+import { FlatList, Text, View, Pressable, StyleSheet, TextInput, LayoutAnimation, Platform, UIManager, Image } from "react-native";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
@@ -269,7 +269,11 @@ export default function ServicesScreen() {
                   onPress={() => router.push({ pathname: "/service-form" as any, params: { id: svc.id } })}
                   style={({ pressed }) => [styles.serviceCard, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
                 >
-                  <View style={[styles.colorBar, { backgroundColor: svc.color }]} />
+                  {svc.photoUri ? (
+                    <Image source={{ uri: svc.photoUri }} style={{ width: 44, height: 44, borderRadius: 8, marginRight: 10, marginLeft: 4 }} />
+                  ) : (
+                    <View style={[styles.colorBar, { backgroundColor: svc.color }]} />
+                  )}
                   <View style={styles.cardContent}>
                     <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }} numberOfLines={1}>{svc.name}</Text>
                     <View style={styles.metaRow}>
@@ -386,9 +390,13 @@ export default function ServicesScreen() {
                   onPress={() => router.push({ pathname: "/product-form" as any, params: { id: item.id } })}
                   style={({ pressed }) => [styles.productCard, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
                 >
-                  <View style={[styles.productIcon, { backgroundColor: colors.primary + "18" }]}>
-                    <IconSymbol name="bag.fill" size={20} color={colors.primary} />
-                  </View>
+                  {item.photoUri ? (
+                    <Image source={{ uri: item.photoUri }} style={{ width: 44, height: 44, borderRadius: 8, marginRight: 10, marginLeft: 4 }} />
+                  ) : (
+                    <View style={[styles.productIcon, { backgroundColor: colors.primary + "18" }]}>
+                      <IconSymbol name="bag.fill" size={20} color={colors.primary} />
+                    </View>
+                  )}
                   <View style={styles.cardContent}>
                     <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }} numberOfLines={1}>{item.name}</Text>
                     <View style={styles.metaRow}>

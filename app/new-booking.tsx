@@ -760,7 +760,11 @@ export default function NewBookingScreen() {
                       },
                     ]}
                   >
-                    <View style={[styles.colorDot, { backgroundColor: item.color }]} />
+                    {item.photoUri ? (
+                      <Image source={{ uri: item.photoUri }} style={{ width: 40, height: 40, borderRadius: 8, marginRight: 12 }} />
+                    ) : (
+                      <View style={[styles.colorDot, { backgroundColor: item.color }]} />
+                    )}
                     <View style={styles.optionContent}>
                       <Text className="text-base font-semibold text-foreground">{item.name}</Text>
                       <Text className="text-xs text-muted mt-0.5">{item.duration} min · ${item.price}</Text>
@@ -1095,11 +1099,20 @@ export default function NewBookingScreen() {
               )}
             </View>
           ) : (
+<<<<<<< Updated upstream
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12, justifyContent: "center" }}>
+=======
+<<<<<<< Updated upstream
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12, justifyContent: "center" }}>
+=======
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
               {timeSlots.map((t) => {
                 const isSelected = t === selectedTime;
                 const locCount = isAllMode ? (slotLocationCount[t] ?? 1) : 1;
                 const multiLoc = isAllMode && locCount > 1;
+                const slotChipWidth = Math.floor((screenWidth - hp * 2 - 12) / 3);
                 return (
                   <Pressable
                     key={t}
@@ -1110,7 +1123,7 @@ export default function NewBookingScreen() {
                         backgroundColor: isSelected ? colors.primary : colors.surface,
                         borderColor: isSelected ? colors.primary : multiLoc ? colors.primary + "60" : colors.border,
                         opacity: pressed ? 0.7 : 1,
-                        width: 100,
+                        width: slotChipWidth,
                       },
                     ]}
                   >
@@ -1178,6 +1191,80 @@ export default function NewBookingScreen() {
             style={{ color: colors.foreground, minHeight: 50, textAlignVertical: "top" }}
           />
 
+          {/* Staff Selector */}
+          {activeStaff.length > 0 && (
+            <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
+              <Text className="text-xs font-medium text-muted mb-3">Assign Staff (Optional)</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable
+                    onPress={() => setSelectedStaffId(null)}
+                    style={({ pressed }) => [{
+                      paddingHorizontal: 14,
+                      paddingVertical: 10,
+                      borderRadius: 12,
+                      borderWidth: 1.5,
+                      backgroundColor: !selectedStaffId ? colors.primary + "15" : colors.background,
+                      borderColor: !selectedStaffId ? colors.primary : colors.border,
+                      opacity: pressed ? 0.7 : 1,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                    }]}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: "600", color: !selectedStaffId ? colors.primary : colors.foreground }}>Any Available</Text>
+                  </Pressable>
+                  {activeStaff.map((member) => {
+                    // Availability dot: green = available, grey = busy (only shown when date+time selected)
+                    const hasTimeSelected = !!(selectedDate && selectedTime);
+                    const isAvailable = staffAvailabilityMap[member.id] !== false;
+                    const dotColor = !hasTimeSelected ? colors.border : isAvailable ? colors.success : colors.muted;
+                    return (
+                      <Pressable
+                        key={member.id}
+                        onPress={() => setSelectedStaffId(member.id)}
+                        style={({ pressed }) => [{
+                          paddingHorizontal: 14,
+                          paddingVertical: 10,
+                          borderRadius: 12,
+                          borderWidth: 1.5,
+                          backgroundColor: selectedStaffId === member.id ? (member.color || colors.primary) + "15" : colors.background,
+                          borderColor: selectedStaffId === member.id ? (member.color || colors.primary) : colors.border,
+                          opacity: pressed ? 0.7 : 1,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                        }]}
+                      >
+                        <View style={{ position: "relative" }}>
+                          <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: member.color || colors.primary, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                            {member.photoUri ? (
+                              <Image source={{ uri: member.photoUri }} style={{ width: 28, height: 28, borderRadius: 14 }} />
+                            ) : (
+                              <Text style={{ color: "#FFF", fontSize: 12, fontWeight: "700" }}>{member.name.charAt(0).toUpperCase()}</Text>
+                            )}
+                          </View>
+                          {/* Availability dot — bottom-right of avatar */}
+                          <View style={{
+                            position: "absolute",
+                            bottom: -1,
+                            right: -1,
+                            width: 9,
+                            height: 9,
+                            borderRadius: 5,
+                            backgroundColor: dotColor,
+                            borderWidth: 1.5,
+                            borderColor: colors.background,
+                          }} />
+                        </View>
+                        <Text style={{ fontSize: 13, fontWeight: "600", color: selectedStaffId === member.id ? (member.color || colors.primary) : colors.foreground }}>{member.name}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            </View>
+          )}
           {/* Continue to Add More or Book */}
           {selectedTime && (
             <Pressable
@@ -1272,80 +1359,6 @@ export default function NewBookingScreen() {
             </View>
           </View>
 
-          {/* Staff Selector */}
-          {activeStaff.length > 0 && (
-            <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
-              <Text className="text-xs font-medium text-muted mb-3">Assign Staff (Optional)</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  <Pressable
-                    onPress={() => setSelectedStaffId(null)}
-                    style={({ pressed }) => [{
-                      paddingHorizontal: 14,
-                      paddingVertical: 10,
-                      borderRadius: 12,
-                      borderWidth: 1.5,
-                      backgroundColor: !selectedStaffId ? colors.primary + "15" : colors.background,
-                      borderColor: !selectedStaffId ? colors.primary : colors.border,
-                      opacity: pressed ? 0.7 : 1,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 6,
-                    }]}
-                  >
-                    <Text style={{ fontSize: 13, fontWeight: "600", color: !selectedStaffId ? colors.primary : colors.foreground }}>Any Available</Text>
-                  </Pressable>
-                  {activeStaff.map((member) => {
-                    // Availability dot: green = available, grey = busy (only shown when date+time selected)
-                    const hasTimeSelected = !!(selectedDate && selectedTime);
-                    const isAvailable = staffAvailabilityMap[member.id] !== false;
-                    const dotColor = !hasTimeSelected ? colors.border : isAvailable ? colors.success : colors.muted;
-                    return (
-                      <Pressable
-                        key={member.id}
-                        onPress={() => setSelectedStaffId(member.id)}
-                        style={({ pressed }) => [{
-                          paddingHorizontal: 14,
-                          paddingVertical: 10,
-                          borderRadius: 12,
-                          borderWidth: 1.5,
-                          backgroundColor: selectedStaffId === member.id ? (member.color || colors.primary) + "15" : colors.background,
-                          borderColor: selectedStaffId === member.id ? (member.color || colors.primary) : colors.border,
-                          opacity: pressed ? 0.7 : 1,
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 8,
-                        }]}
-                      >
-                        <View style={{ position: "relative" }}>
-                          <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: member.color || colors.primary, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                            {member.photoUri ? (
-                              <Image source={{ uri: member.photoUri }} style={{ width: 28, height: 28, borderRadius: 14 }} />
-                            ) : (
-                              <Text style={{ color: "#FFF", fontSize: 12, fontWeight: "700" }}>{member.name.charAt(0).toUpperCase()}</Text>
-                            )}
-                          </View>
-                          {/* Availability dot — bottom-right of avatar */}
-                          <View style={{
-                            position: "absolute",
-                            bottom: -1,
-                            right: -1,
-                            width: 9,
-                            height: 9,
-                            borderRadius: 5,
-                            backgroundColor: dotColor,
-                            borderWidth: 1.5,
-                            borderColor: colors.background,
-                          }} />
-                        </View>
-                        <Text style={{ fontSize: 13, fontWeight: "600", color: selectedStaffId === member.id ? (member.color || colors.primary) : colors.foreground }}>{member.name}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </ScrollView>
-            </View>
-          )}
 
           {/* Location Selector */}
           {activeLocations.length > 0 && (
@@ -1389,11 +1402,7 @@ export default function NewBookingScreen() {
                             <Text style={{ fontSize: 10, color: colors.error, marginTop: 1, fontWeight: "600" }}>Time unavailable here</Text>
                           )}
                         </View>
-                        {loc.isDefault && isAvailable && (
-                          <View style={{ backgroundColor: colors.primary + "20", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
-                            <Text style={{ fontSize: 9, fontWeight: "700", color: colors.primary }}>DEFAULT</Text>
-                          </View>
-                        )}
+
                       </Pressable>
                     );
                   })}
@@ -1485,7 +1494,11 @@ export default function NewBookingScreen() {
                           { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
                         ]}
                       >
-                        <View style={[styles.colorDot, { backgroundColor: s.color }]} />
+                        {s.photoUri ? (
+                          <Image source={{ uri: s.photoUri }} style={{ width: 36, height: 36, borderRadius: 8, marginRight: 12 }} />
+                        ) : (
+                          <View style={[styles.colorDot, { backgroundColor: s.color }]} />
+                        )}
                         <View style={styles.optionContent}>
                           <Text className="text-sm font-semibold text-foreground">{s.name}</Text>
                           <Text className="text-xs text-muted">{s.duration} min{s.category ? " · " + s.category : ""}</Text>
@@ -1547,7 +1560,13 @@ export default function NewBookingScreen() {
                           { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
                         ]}
                       >
-                        <IconSymbol name="bag.fill" size={18} color={colors.primary} style={{ marginRight: 12 }} />
+                        {p.photoUri ? (
+                          <Image source={{ uri: p.photoUri }} style={{ width: 36, height: 36, borderRadius: 8, marginRight: 12 }} />
+                        ) : (
+                          <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                            <IconSymbol name="bag.fill" size={18} color={colors.primary} />
+                          </View>
+                        )}
                         <View style={styles.optionContent}>
                           <Text className="text-sm font-semibold text-foreground">{p.name}</Text>
                           {p.brand ? <Text className="text-xs text-muted">{p.brand}{p.description ? " · " + p.description : ""}</Text> : p.description ? <Text className="text-xs text-muted">{p.description}</Text> : null}
