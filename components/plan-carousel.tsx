@@ -102,6 +102,7 @@ function PlanCard({
   isLoading,
   isCurrentPlan,
   isHighlighted = false,
+  isUpgrade,
 }: {
   plan: PlanData;
   isYearly: boolean;
@@ -109,6 +110,7 @@ function PlanCard({
   isLoading: boolean;
   isCurrentPlan: boolean;
   isHighlighted?: boolean;
+  isUpgrade?: boolean;
 }) {
   const colors = useColors();
   const gradients = (PLAN_GRADIENTS[plan.planKey] ?? PLAN_GRADIENTS.solo) as [string, string, string];
@@ -119,8 +121,11 @@ function PlanCard({
   // Use effective prices (after admin discount) for display and Stripe
   const effectiveMonthly = plan.effectiveMonthlyPrice ?? plan.monthlyPrice;
   const effectiveYearly = plan.effectiveYearlyPrice ?? plan.yearlyPrice;
-  const price = isYearly ? Math.round(effectiveYearly / 12) : Math.round(effectiveMonthly);
-  const originalPrice = isYearly ? Math.round(plan.yearlyPrice / 12) : plan.monthlyPrice;
+  // Show exact price — whole numbers as integers, decimals to 2 places
+  const rawPrice = isYearly ? effectiveYearly / 12 : effectiveMonthly;
+  const price = Number.isInteger(rawPrice) ? rawPrice : parseFloat(rawPrice.toFixed(2));
+  const rawOriginal = isYearly ? plan.yearlyPrice / 12 : plan.monthlyPrice;
+  const originalPrice = Number.isInteger(rawOriginal) ? rawOriginal : parseFloat(rawOriginal.toFixed(2));
   const hasDiscount = (plan.discountPercent ?? 0) > 0;
   // Compute days until discount expires (null = no expiry)
   const discExpiresAt = plan.discountExpiresAt ? new Date(plan.discountExpiresAt) : null;
@@ -261,7 +266,7 @@ function PlanCard({
             <ActivityIndicator color="#fff" size="small" />
           ) : (
             <Text style={[styles.ctaText, { color: isCurrentPlan ? colors.muted : "#fff" }]}>
-              {isCurrentPlan ? "Current Plan" : isFree ? "Start Free" : "Select Plan"}
+              {isCurrentPlan ? "Current Plan" : isFree ? "Downgrade to Free" : isUpgrade ? "Upgrade" : "Downgrade"}
             </Text>
           )}
         </Pressable>
@@ -347,18 +352,23 @@ export function PlanCarousel({
       </View>
 
       {/* ── Vertical plan list ── */}
-      {plans.map((plan) => (
-        <View key={plan.planKey} style={{ marginBottom: 20 }}>
-          <PlanCard
-            plan={plan}
-            isYearly={isYearly}
-            onSelect={() => onSelectPlan(plan.planKey, isYearly ? "yearly" : "monthly")}
-            isLoading={loadingPlanKey === plan.planKey}
-            isCurrentPlan={currentPlanKey === plan.planKey}
-            isHighlighted={false}
-          />
-        </View>
-      ))}
+      {(() => {
+        // Determine sort order of current plan to know if a plan is upgrade or downgrade
+        const currentIdx = plans.findIndex((p) => p.planKey === currentPlanKey);
+        return plans.map((plan, idx) => (
+          <View key={plan.planKey} style={{ marginBottom: 20 }}>
+            <PlanCard
+              plan={plan}
+              isYearly={isYearly}
+              onSelect={() => onSelectPlan(plan.planKey, isYearly ? "yearly" : "monthly")}
+              isLoading={loadingPlanKey === plan.planKey}
+              isCurrentPlan={currentPlanKey === plan.planKey}
+              isHighlighted={false}
+              isUpgrade={currentIdx !== -1 ? idx > currentIdx : true}
+            />
+          </View>
+        ));
+      })()}
 
       {/* Compare all plans link */}
       <Pressable

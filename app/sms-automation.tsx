@@ -177,14 +177,14 @@ export default function SmsAutomationScreen() {
           </View>
         )}
         {hasSmsAccess && !hasFullSms && (
-          <View style={{ backgroundColor: colors.primary + "12", borderRadius: 12, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: colors.primary + "30", flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <IconSymbol name="info.circle.fill" size={16} color={colors.primary} />
-            <Text style={{ fontSize: 13, color: colors.primary, flex: 1, lineHeight: 18 }}>
-              Your Growth plan includes booking confirmations only. Upgrade to Studio or above for full automation (reminders, rebooking nudges, birthday SMS).
+          <View style={{ backgroundColor: colors.warning + "18", borderRadius: 12, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: colors.warning + "40", flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+            <IconSymbol name="lock.fill" size={16} color={colors.warning} />
+            <Text style={{ fontSize: 13, color: colors.warning, flex: 1, lineHeight: 18 }}>
+              Your Growth plan includes booking confirmation SMS only. The Appointment Reminder rule below is available. Upgrade to Studio or above for full automation (reminders, rebooking nudges, birthday SMS).
             </Text>
           </View>
         )}
-        {/* Master toggle */}
+        {/* Master toggle — only available on Studio+ or Admin override */}
         <View
           style={{
             flexDirection: "row",
@@ -196,6 +196,7 @@ export default function SmsAutomationScreen() {
             borderColor: colors.border,
             padding: 14,
             marginBottom: 20,
+            opacity: hasSmsAccess && !hasFullSms ? 0.55 : 1,
           }}
         >
           <View style={{ flex: 1, marginRight: 12 }}>
@@ -211,13 +212,17 @@ export default function SmsAutomationScreen() {
             <Text
               style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}
             >
-              {settings.twilioEnabled
-                ? "SMS reminders are active"
-                : "Enable to send automated SMS to clients"}
+              {hasFullSms
+                ? settings.twilioEnabled
+                  ? "Full SMS automation is active"
+                  : "Enable to send automated SMS to clients"
+                : hasSmsAccess
+                ? "Upgrade to Studio to enable full automation"
+                : "Upgrade to Growth or above to enable SMS"}
             </Text>
           </View>
-          {!hasSmsAccess ? (
-            <Pressable onPress={() => handleLockedSmsTap("SMS Automation", "growth")}>
+          {!hasFullSms ? (
+            <Pressable onPress={() => handleLockedSmsTap("SMS Automation", hasSmsAccess ? "studio" : "growth")}>
               <IconSymbol name="lock.fill" size={20} color={colors.muted} />
             </Pressable>
           ) : (

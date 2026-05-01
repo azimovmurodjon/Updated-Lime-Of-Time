@@ -120,6 +120,15 @@ export async function getBusinessSubscriptionInfo(businessOwnerId: number) {
     const limits = await getPlanLimits(businessOwnerId);
     if (!limits) return null;
 
+    // Get discount info from the plan to compute effective prices
+    const allPlans = await getPlans();
+    const currentPlanData = allPlans.find((p) => p.planKey === limits.planKey);
+    const discPct = currentPlanData ? (parseFloat(String(currentPlanData.discountPercent ?? 0)) || 0) : 0;
+    const baseMonthly = limits.monthlyPrice;
+    const baseYearly = limits.yearlyPrice;
+    const effectiveMonthlyPrice = discPct > 0 ? parseFloat((baseMonthly * (1 - discPct / 100)).toFixed(2)) : baseMonthly;
+    const effectiveYearlyPrice = discPct > 0 ? parseFloat((baseYearly * (1 - discPct / 100)).toFixed(2)) : baseYearly;
+
     // Count current usage in parallel
     const [clientRows, serviceRows, productRows, staffRows, locationRows] = await Promise.all([
       dbConn.select().from(clients).where(eq(clients.businessOwnerId, businessOwnerId)),
@@ -161,6 +170,8 @@ export async function getBusinessSubscriptionInfo(businessOwnerId: number) {
       isAdminOverride: limits.isAdminOverride,
       monthlyPrice: limits.monthlyPrice,
       yearlyPrice: limits.yearlyPrice,
+      effectiveMonthlyPrice,
+      effectiveYearlyPrice,
       stripeCurrentPeriodEnd: business.stripeCurrentPeriodEnd ?? null,
       stripeCustomerId: business.stripeCustomerId ?? null,
       // Grace period / scheduled downgrade info

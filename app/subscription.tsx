@@ -467,15 +467,16 @@ export default function SubscriptionScreen() {
     periodStartStr = new Date(startMs).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
   }
 
-  // Compute the effective price the user is paying
+  // Compute the effective price the user is paying (use effective price which accounts for discounts)
   let billingAmountStr: string | null = null;
   if (!planInfo.isAdminOverride && planInfo.monthlyPrice > 0) {
+    const effMonthly = (planInfo as any).effectiveMonthlyPrice ?? planInfo.monthlyPrice;
+    const effYearly = (planInfo as any).effectiveYearlyPrice ?? planInfo.yearlyPrice;
+    const fmtPrice = (n: number) => Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`;
     if (planInfo.subscriptionPeriod === "yearly") {
-      billingAmountStr = `$${planInfo.yearlyPrice}/year`;
-    } else if (planInfo.subscriptionPeriod === "monthly") {
-      billingAmountStr = `$${planInfo.monthlyPrice}/month`;
+      billingAmountStr = `${fmtPrice(effYearly)}/year`;
     } else {
-      billingAmountStr = `$${planInfo.monthlyPrice}/month`;
+      billingAmountStr = `${fmtPrice(effMonthly)}/month`;
     }
   }
 
@@ -661,9 +662,19 @@ export default function SubscriptionScreen() {
                 onPress={() => router.push("/choose-plan" as any)}
                 style={({ pressed }) => [styles.primaryBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
               >
-                <IconSymbol name="arrow.up.right" size={16} color="#fff" />
+                <IconSymbol
+                  name={subscriptionStatus === "expired" || planKey === "solo" || planKey === "growth" ? "arrow.up.right" : "arrow.up.arrow.down"}
+                  size={16}
+                  color="#fff"
+                />
                 <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15, marginLeft: 6 }}>
-                  {subscriptionStatus === "expired" || planKey === "solo" ? "Upgrade Plan" : "Change Plan"}
+                  {subscriptionStatus === "expired" || planKey === "solo"
+                    ? "Upgrade Plan"
+                    : planKey === "growth"
+                    ? "Upgrade or Downgrade"
+                    : planKey === "enterprise"
+                    ? "Downgrade Plan"
+                    : "Upgrade or Downgrade"}
                 </Text>
               </Pressable>
             )}
