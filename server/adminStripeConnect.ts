@@ -576,7 +576,7 @@ function stripeConnectPage(data: {
 </head>
 <body>
   <div class="sidebar">
-    <div class="sidebar-logo">🗓️ Admin</div>
+    <div class="sidebar-logo" style="display:flex;align-items:center;gap:10px;"><img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/UOLKqjLoVSsyFKRD.png" alt="Lime Of Time" style="width:32px;height:32px;border-radius:8px;object-fit:cover;" /><span>Admin</span></div>
     <a href="/api/admin" class="nav-item">📊 Dashboard</a>
     <div class="nav-section">BUSINESSES</div>
     <a href="/api/admin/businesses" class="nav-item">🏢 Businesses</a>
