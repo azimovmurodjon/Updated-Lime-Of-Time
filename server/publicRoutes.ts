@@ -154,6 +154,22 @@ function formatTime12(time: string): string {
 // ─── Register Public Routes ─────────────────────────────────────────
 
 export function registerPublicRoutes(app: Express) {
+  // ── Landing page at root ──────────────────────────────────────────
+  app.get("/", (_req: Request, res: Response) => {
+    import("path").then((pathMod) => {
+      import("fs").then((fsMod) => {
+        const landingPath = pathMod.join(process.cwd(), "public/landing.html");
+        try {
+          const html = fsMod.readFileSync(landingPath, "utf-8");
+          res.setHeader("Content-Type", "text/html");
+          res.send(html);
+        } catch {
+          res.status(404).send("Landing page not found");
+        }
+      });
+    });
+  });
+
   // ── Public REST API endpoints ──────────────────────────────────────
 
   /** Get business info by slug */
@@ -4487,18 +4503,22 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       </div>
       <div class="step-item" id="step-item-3">
         <div class="step-dot" id="dot-3">4</div>
-        <span class="step-label">Date</span>
+        <span class="step-label">Staff</span>
       </div>
       <div class="step-item" id="step-item-4">
         <div class="step-dot" id="dot-4">5</div>
-        <span class="step-label">Extras</span>
+        <span class="step-label">Date</span>
       </div>
       <div class="step-item" id="step-item-5">
         <div class="step-dot" id="dot-5">6</div>
-        <span class="step-label">Payment</span>
+        <span class="step-label">Extras</span>
       </div>
       <div class="step-item" id="step-item-6">
         <div class="step-dot" id="dot-6">7</div>
+        <span class="step-label">Payment</span>
+      </div>
+      <div class="step-item" id="step-item-7">
+        <div class="step-dot" id="dot-7">8</div>
         <span class="step-label">Confirm</span>
       </div>
     </div>
@@ -4609,13 +4629,19 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       <div id="svcSearchResults" style="display:none;"></div>
       <!-- Selected service summary -->
       <div id="svcSelectedSummary" style="display:none;margin-top:12px;padding:10px 14px;background:var(--accent-bg-light);border:1.5px solid var(--accent);border-radius:10px;font-size:14px;color:var(--accent);font-weight:600;"></div>
-      <div id="staffSection" style="display:none;margin-top:20px;">
-        <h3 style="font-size:15px;font-weight:600;margin-bottom:10px;">Choose a Staff Member <span style="font-size:12px;color:#888;font-weight:400;">(optional)</span></h3>
-        <div id="staffList" class="service-list"></div>
-      </div>
       <div style="display:flex;gap:8px;margin-top:16px;">
         <button class="btn btn-secondary" onclick="goToStep(1)" style="flex:1">Back</button>
-        <button class="btn btn-primary" onclick="goToStep(3)" id="btnToDate" disabled style="flex:1">Continue</button>
+        <button class="btn btn-primary" onclick="goToStep(3)" id="btnToStaff" disabled style="flex:1">Continue</button>
+      </div>
+    </div>
+    <!-- Step 3: Staff Selection -->
+    <div id="step-3" class="card" style="display:none">
+      <h2>Choose a Staff Member</h2>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">Select a staff member for your appointment, or choose <strong>Any Available</strong> to let us assign the first available.</p>
+      <div id="staffListStep3" class="service-list"></div>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button class="btn btn-secondary" onclick="goToStep(2)" style="flex:1">Back</button>
+        <button class="btn btn-primary" onclick="goToStep(4)" style="flex:1">Continue</button>
       </div>
     </div>
     <!-- Service primary detail overlay -->
@@ -4623,8 +4649,8 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       <div id="svcDetailContent" class="detail-sheet" style="background:var(--bg-card);border-radius:20px 20px 0 0;padding:24px 20px 36px;width:100%;max-width:520px;max-height:85vh;overflow-y:auto;"></div>
     </div>
 
-    <!-- Step 2: Select Date & Time (Monthly Calendar) -->
-    <div id="step-3" class="card" style="display:none">
+    <!-- Step 4: Select Date & Time (Monthly Calendar) -->
+    <div id="step-4" class="card" style="display:none">
       <h2>Select Date & Time</h2>
       <div id="locClosedBanner" class="loc-closed-banner">
         <div class="lc-title">&#9888;&#65039; Location Temporarily Closed</div>
@@ -4648,13 +4674,13 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       </div>
       <div id="discountInfo" style="display:none;margin-top:12px;"></div>
       <div style="display:flex;gap:8px;margin-top:16px;">
-        <button class="btn btn-secondary" onclick="goToStep(2)" style="flex:1">Back</button>
-        <button class="btn btn-primary" onclick="goToStep(4)" id="btnToConfirm" disabled style="flex:1">Continue</button>
+        <button class="btn btn-secondary" onclick="goToStep(3)" style="flex:1">Back</button>
+        <button class="btn btn-primary" onclick="goToStep(5)" id="btnToConfirm" disabled style="flex:1">Continue</button>
       </div>
     </div>
 
-    <!-- Step 3: Add More Services/Products -->
-    <div id="step-4" class="card" style="display:none">
+    <!-- Step 5: Add More Services/Products -->
+    <div id="step-5" class="card" style="display:none">
       <h2>Add More (Optional)</h2>
       <p style="font-size:13px;color:#888;margin-bottom:12px;">Add extra services or products to your booking.</p>
       <div id="cartSummary" class="cart-items"></div>
@@ -4681,8 +4707,8 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       </div>
       <div id="cartTotal" class="cart-total" style="display:none"></div>
       <div style="display:flex;gap:8px;margin-top:16px;">
-        <button class="btn btn-secondary" onclick="goToStep(3)" style="flex:1">Back</button>
-        <button class="btn btn-primary" onclick="goToStep(5)" style="flex:1">Continue to Payment</button>
+        <button class="btn btn-secondary" onclick="goToStep(4)" style="flex:1">Back</button>
+        <button class="btn btn-primary" onclick="goToStep(6)" style="flex:1">Continue to Payment</button>
       </div>
     </div>
     <!-- Item detail bottom sheet (shared for services + products) -->
@@ -4693,19 +4719,19 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       </div>
     </div>
 
-    <!-- Step 4: Payment -->
-    <div id="step-5" class="card" style="display:none">
+    <!-- Step 6: Payment -->
+    <div id="step-6" class="card" style="display:none">
       <h2>Payment Method</h2>
       <p style="font-size:13px;color:#888;margin-bottom:16px;">Choose how you'd like to pay, or skip and decide later.</p>
       <div id="paymentMethodList"></div>
       <div style="display:flex;gap:8px;margin-top:20px;">
-        <button class="btn btn-secondary" onclick="goToStep(4)" style="flex:1">Back</button>
+        <button class="btn btn-secondary" onclick="goToStep(5)" style="flex:1">Back</button>
         <button class="btn btn-primary" onclick="goToPaymentConfirm()" style="flex:1">Continue to Confirm</button>
       </div>
     </div>
 
-    <!-- Step 5: Confirm -->
-    <div id="step-6" class="card" style="display:none">
+    <!-- Step 7: Confirm -->
+    <div id="step-7" class="card" style="display:none">
       <h2>Confirm Booking</h2>
       <div id="confirmDetails"></div>
       <div id="selectedPaymentSummary" style="margin:12px 0;"></div>
@@ -4722,7 +4748,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         <textarea id="bookingNotes" placeholder="Any special requests..."></textarea>
       </div>
       <div style="margin-top:12px;">
-        <button class="btn btn-secondary" onclick="goToStep(4)" style="width:100%;margin-bottom:8px;font-size:13px;">+ Add More Services / Products</button>
+        <button class="btn btn-secondary" onclick="goToStep(5)" style="width:100%;margin-bottom:8px;font-size:13px;">+ Add More Services / Products</button>
       </div>
       <div class="consent-row">
         <input type="checkbox" id="consentCheck" aria-label="I agree to the Terms and Privacy Policy">
@@ -4730,13 +4756,13 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       </div>
       <div id="bookError" class="error-msg" style="display:none"></div>
       <div style="display:flex;gap:8px;margin-top:12px;">
-        <button class="btn btn-secondary" onclick="goToStep(5)" style="flex:1">Back</button>
+        <button class="btn btn-secondary" onclick="goToStep(6)" style="flex:1">Back</button>
         <button class="btn btn-primary" onclick="submitBooking()" id="btnSubmit" style="flex:1">Confirm Booking</button>
       </div>
     </div>
 
-    <!-- Step 6: Success -->
-    <div id="step-7" class="card" style="display:none;text-align:center;">
+    <!-- Step 8: Success -->
+    <div id="step-8" class="card" style="display:none;text-align:center;">
       <div class="success-icon">✓</div>
       <h2 style="font-size:20px;margin-bottom:8px;">Booking Submitted!</h2>
       <p style="color:#666;font-size:14px;margin-bottom:16px;">Your appointment request has been sent to ${escHtml(owner.businessName)}. They will confirm your booking shortly.</p>
@@ -4992,10 +5018,10 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       loadServices(locId);
       loadWorkingDays(locId).then(() => {
         // Re-render calendar with updated working days if already on date step
-        if (currentStep === 3) renderCalendar();
+        if (currentStep === 4) renderCalendar();
       });
-      // If a service is already selected, re-render staff filtered by new location
-      if (selectedService) {
+      // If a service is already selected and we're on the staff step, re-render
+      if (selectedService && currentStep === 3) {
         renderStaffForService(selectedService.localId);
       }
     }
@@ -5210,8 +5236,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
 
     function deselectSvc() {
       selectedService = null;
-      document.getElementById('btnToDate').disabled = true;
-      document.getElementById('staffSection').style.display = 'none';
+      document.getElementById('btnToStaff').disabled = true;
       document.getElementById('svcSelectedSummary').style.display = 'none';
     }
 
@@ -5266,7 +5291,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     function selectService(id) {
       selectedService = services.find(function(s) { return s.localId === id; });
       selectedStaff = null;
-      document.getElementById('btnToDate').disabled = false;
+      document.getElementById('btnToStaff').disabled = false;
       // Show selected service summary banner
       var summaryEl = document.getElementById('svcSelectedSummary');
       if (selectedService) {
@@ -5282,27 +5307,23 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       renderStaffForService(id);
     }
 
+    function renderStaffStep() {
+      if (selectedService) renderStaffForService(selectedService.localId);
+    }
     function renderStaffForService(serviceId) {
-      const section = document.getElementById("staffSection");
-      const list = document.getElementById("staffList");
+      const list = document.getElementById("staffListStep3");
+      if (!list) return;
       // Filter staff who can perform this service AND are assigned to the selected location
       const eligible = staffMembers.filter(s => {
-        // Service check: null/empty serviceIds means all services
         const canDoService = s.serviceIds.length === 0 || s.serviceIds.includes(serviceId);
         if (!canDoService) return false;
-        // Location check: null locationIds means all locations
-        if (!selectedLocation) return true; // no location selected, show all
-        if (!s.locationIds) return true; // staff works at all locations
+        if (!selectedLocation) return true;
+        if (!s.locationIds) return true;
         return s.locationIds.includes(selectedLocation);
       });
-      if (eligible.length === 0) {
-        section.style.display = "none";
-        return;
-      }
-      section.style.display = "block";
       // "Any available" option + eligible staff
       let html = '<div class="service-item selected" id="staff-any" onclick="selectStaff(null)">' +
-        '<div class="service-dot" style="background:#88888820;color:#888;border-radius:50%;">?</div>' +
+        '<div class="service-dot" style="background:#88888820;color:#888;border-radius:50%;">&#128100;</div>' +
         '<div class="service-info"><div class="service-name">Any Available</div>' +
         '<div class="service-meta">First available staff member</div></div></div>';
       eligible.forEach(s => {
@@ -5316,7 +5337,6 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       });
       list.innerHTML = html;
     }
-
     function selectStaff(id) {
       selectedStaff = id ? staffMembers.find(s => s.localId === id) : null;
       slotCache = {}; // Clear cache when staff changes
@@ -5331,7 +5351,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       const banner = document.getElementById('selectedLocBanner');
       const nameEl = document.getElementById('selectedLocName');
       if (!banner || !nameEl) return;
-      if (selectedLocation && currentStep >= 1 && currentStep <= 6) {
+      if (selectedLocation && currentStep >= 1 && currentStep <= 7) {
         const loc = locations.find(function(l) { return l.localId === selectedLocation; });
         if (loc) {
           nameEl.textContent = loc.name;
@@ -5343,14 +5363,14 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     }
     function goToIntentStep() {
       if (!selectedLocation) { alert("Please select a location"); return; }
-      for (let i = 0; i <= 7; i++) {
+      for (let i = 0; i <= 8; i++) {
         const el = document.getElementById("step-" + i);
         if (el) el.style.display = "none";
       }
       const intentEl = document.getElementById("step-intent");
       if (intentEl) intentEl.style.display = "block";
       // Reset step dots
-      for (let i = 0; i < 7; i++) {
+      for (let i = 0; i < 8; i++) {
         const dot = document.getElementById("dot-" + i);
         if (dot) dot.className = "step-dot";
         const item = document.getElementById("step-item-" + i);
@@ -5376,24 +5396,26 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         if (!name) { alert("Please enter your name"); return; }
       }
       if (step === 3 && !selectedService) { alert("Please select a service"); return; }
-      if (step === 4 && (!selectedDate || !selectedTime)) { alert("Please select a date and time"); return; }
-      for (let i = 0; i <= 7; i++) {
+      // step 3 = staff (optional, always allowed)
+      if (step === 5 && (!selectedDate || !selectedTime)) { alert("Please select a date and time"); return; }
+      for (let i = 0; i <= 8; i++) {
         const el = document.getElementById("step-" + i);
         if (el) el.style.display = "none";
       }
       document.getElementById("step-" + step).style.display = "block";
       currentStep = step;
-      for (let i = 0; i < 7; i++) {
+      for (let i = 0; i < 8; i++) {
         const dot = document.getElementById("dot-" + i);
         if (dot) dot.className = "step-dot" + (i < step ? " done" : i === step ? " active" : "");
         const item = document.getElementById("step-item-" + i);
         if (item) item.className = "step-item" + (i < step ? " done" : i === step ? " active" : "");
       }
       updateSelectedLocBanner();
-      if (step === 3) renderCalendar();
-      if (step === 4) initAddMoreStep();
-      if (step === 5) renderPaymentStep();
-      if (step === 6) renderConfirmation();
+      if (step === 3) renderStaffStep();
+      if (step === 4) renderCalendar();
+      if (step === 5) initAddMoreStep();
+      if (step === 6) renderPaymentStep();
+      if (step === 7) renderConfirmation();
       window.scrollTo(0, 0);
     }
     function renderPaymentStep() {
@@ -5433,7 +5455,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       if (!selectedPaymentMethod) {
         selectedPaymentMethod = 'later';
       }
-      goToStep(6);
+      goToStep(7);
     }
 
     // ── Monthly Calendar ──
@@ -6454,10 +6476,10 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
           return;
         }
         // Show success with detailed receipt
-        for (let i = 0; i <= 7; i++) { const el = document.getElementById("step-" + i); if (el) el.style.display = "none"; }
+        for (let i = 0; i <= 8; i++) { const el = document.getElementById("step-" + i); if (el) el.style.display = "none"; }
         document.getElementById("step-indicator").style.display = "none";
         const locBanner = document.getElementById('selectedLocBanner'); if (locBanner) locBanner.classList.remove('show');
-        document.getElementById("step-7").style.display = "block";
+        document.getElementById("step-8").style.display = "block";
         renderSuccessReceipt();
         renderPaymentSection();
         // Show manage link
@@ -7019,10 +7041,10 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       const sessionId = params.get('session_id');
       if (paymentParam === 'success' && sessionId) {
         // Show a loading state while we fetch the appointment
-        for (let i = 0; i <= 7; i++) { const el = document.getElementById('step-' + i); if (el) el.style.display = 'none'; }
+        for (let i = 0; i <= 8; i++) { const el = document.getElementById('step-' + i); if (el) el.style.display = 'none'; }
         document.getElementById('step-indicator').style.display = 'none';
         const locBannerL = document.getElementById('selectedLocBanner'); if (locBannerL) locBannerL.classList.remove('show');
-        const loadingEl = document.getElementById('step-7');
+        const loadingEl = document.getElementById('step-8');
         if (loadingEl) {
           loadingEl.style.display = 'block';
           loadingEl.innerHTML = '<div style="text-align:center;padding:40px 20px;"><div style="font-size:48px;margin-bottom:16px;">⏳</div><p style="color:#666;">Confirming your payment...</p></div>';
@@ -7072,19 +7094,19 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
               selectedService = { name: a.serviceName, duration: a.duration || 60, price: a.totalPrice || '0', localId: '' };
             }
             // Re-render the step-6 success screen properly
-            for (let i = 0; i <= 7; i++) { const el = document.getElementById('step-' + i); if (el) el.style.display = 'none'; }
+            for (let i = 0; i <= 8; i++) { const el = document.getElementById('step-' + i); if (el) el.style.display = 'none'; }
             document.getElementById('step-indicator').style.display = 'none';
             const locBannerS = document.getElementById('selectedLocBanner'); if (locBannerS) locBannerS.classList.remove('show');
-            document.getElementById('step-7').style.display = 'block';
+            document.getElementById('step-8').style.display = 'block';
             // Clear the URL params so a refresh doesn't re-trigger this
             window.history.replaceState({}, '', window.location.pathname);
           } else {
             // Appointment not found — render the full success screen using booking context
             renderSuccessReceipt();
-            for (let i = 0; i <= 6; i++) { const el = document.getElementById('step-' + i); if (el) el.style.display = 'none'; }
+            for (let i = 0; i <= 8; i++) { const el = document.getElementById('step-' + i); if (el) el.style.display = 'none'; }
             document.getElementById('step-indicator').style.display = 'none';
             const locBannerF = document.getElementById('selectedLocBanner'); if (locBannerF) locBannerF.classList.remove('show');
-            document.getElementById('step-7').style.display = 'block';
+            document.getElementById('step-8').style.display = 'block';
             // Override the receipt to show card payment badge
             const receiptEl = document.getElementById('successReceipt');
             if (receiptEl && selectedService) {
@@ -7096,10 +7118,10 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         } catch(e) {
           // On error — render the full success screen using booking context
           renderSuccessReceipt();
-          for (let i = 0; i <= 6; i++) { const el = document.getElementById('step-' + i); if (el) el.style.display = 'none'; }
+          for (let i = 0; i <= 8; i++) { const el = document.getElementById('step-' + i); if (el) el.style.display = 'none'; }
           document.getElementById('step-indicator').style.display = 'none';
           const locBannerE = document.getElementById('selectedLocBanner'); if (locBannerE) locBannerE.classList.remove('show');
-          document.getElementById('step-7').style.display = 'block';
+          document.getElementById('step-8').style.display = 'block';
           window.history.replaceState({}, '', window.location.pathname);
         }
       } else if (paymentParam === 'cancelled') {
@@ -7109,8 +7131,8 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
           errEl.textContent = 'Payment was cancelled. Please try again or choose a different payment method.';
           errEl.style.display = 'block';
         }
-        // Navigate back to step 5 (payment step)
-        goToStep(5);
+        // Navigate back to step 6 (payment step)
+        goToStep(6);
         window.history.replaceState({}, '', window.location.pathname);
       }
     })();

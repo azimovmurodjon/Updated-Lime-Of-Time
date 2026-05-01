@@ -1420,6 +1420,20 @@ export default function HomeScreen() {
           end={{ x: 1, y: 1 }}
           style={[styles.headerGradientBanner, { borderColor: colors.primary + "20" }]}
         >
+          {/* App logo watermark — decorative background */}
+          <Image
+            source={require("@/assets/images/icon.png")}
+            style={{
+              position: "absolute",
+              right: -14,
+              bottom: -14,
+              width: 120,
+              height: 120,
+              opacity: 0.06,
+              borderRadius: 24,
+            }}
+            resizeMode="cover"
+          />
           <View style={styles.businessHeader}>
             <Pressable
               onPress={handlePickLogo}
