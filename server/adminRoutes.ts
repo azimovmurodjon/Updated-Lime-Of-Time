@@ -5286,6 +5286,11 @@ function platformConfigPage(
           ${field("stripe_live_secret_key", "Live Secret Key (stored)", "Stored separately - used by the mode toggle to activate live mode", true, "sk_live_...", cfgMap["STRIPE_LIVE_SECRET_KEY"] || "")}
           ${field("stripe_live_publishable_key", "Live Publishable Key (stored)", "Stored separately - used by the mode toggle to activate live mode", false, "pk_live_...", cfgMap["STRIPE_LIVE_PUBLISHABLE_KEY"] || "")}
           ${field("stripe_live_webhook_secret", "Live Webhook Secret (stored)", "Stripe Dashboard → Webhooks → Signing Secret (whsec_...) - for live mode", true, "whsec_...", cfgMap["STRIPE_LIVE_WEBHOOK_SECRET"] || "")}
+          <button type="button" id="saveLiveKeysBtn" onclick="saveLiveKeys()"
+            style="background:#22c55e;color:white;padding:8px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:12px;">
+            💾 Save Live Keys
+          </button>
+          <span id="saveLiveKeysResult" style="font-size:12px;margin-left:10px;"></span>
           <div style="margin-top:10px;padding:10px 12px;background:#22c55e08;border:1px solid #22c55e20;border-radius:6px;">
             <div style="font-size:11px;font-weight:700;color:#22c55e;margin-bottom:4px;">Active rows (read by Stripe at runtime):</div>
             ${field("stripe_secret_key", "Active Secret Key", "Currently active - auto-updated by mode toggle", true, "sk_live_...", cfgMap["STRIPE_SECRET_KEY"] || "")}
@@ -5309,26 +5314,54 @@ function platformConfigPage(
           ${field("stripe_test_secret_key", "Test Secret Key", "Stripe Dashboard → Developers → API Keys (sk_test_...)", true, "sk_test_...", cfgMap["STRIPE_TEST_SECRET_KEY"] || "")}
           ${field("stripe_test_publishable_key", "Test Publishable Key", "Stripe Dashboard → Developers → API Keys (pk_test_...)", false, "pk_test_...", cfgMap["STRIPE_TEST_PUBLISHABLE_KEY"] || "")}
           ${field("stripe_test_webhook_secret", "Test Webhook Secret", "Stripe Dashboard → Webhooks → Signing Secret (whsec_...)", true, "whsec_...", cfgMap["STRIPE_TEST_WEBHOOK_SECRET"] || "")}
+          <button type="button" id="saveTestKeysBtn" onclick="saveTestKeys()"
+            style="background:#f59e0b;color:white;padding:8px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:8px;">
+            💾 Save Test Keys
+          </button>
+          <span id="saveTestKeysResult" style="font-size:12px;margin-left:10px;"></span>
           <div style="font-size:12px;color:#f59e0b;margin-top:8px;">⚠️ Test Mode is ON. All Stripe charges use test keys. Real cards will NOT be charged. Disable before going live.</div>
         </div>
 
-        <div style="margin-top:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <button type="button" id="testStripeBtn" onclick="testStripe()"
-            style="background:#635bff;color:white;padding:8px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">
-            🔌 Test Connection
-          </button>
-          <button type="button" id="saveStripeBtn" onclick="saveThenTestStripe()"
-            style="background:#4A7C59;color:white;padding:8px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">
-            💾 Save &amp; Test
-          </button>
-          <button type="button" id="stripeFullSuiteBtn" onclick="runStripeSuite()"
-            style="background:#0f172a;color:#a78bfa;border:1px solid #7c3aed;padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">
-            🧪 Run Full Transaction Suite
-          </button>
-          <button type="button" id="registerWebhooksBtn" onclick="registerWebhooks()"
-            style="background:#0f766e;color:white;padding:8px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">
-            🔗 Register Webhooks
-          </button>
+        <!-- Connection Test Buttons Row -->
+        <div style="margin-top:16px;">
+          <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Connection Tests</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+            <button type="button" id="testStripeLiveBtn" onclick="testStripeLive()"
+              style="background:#22c55e;color:white;padding:8px 16px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">
+              🟢 Test Live Connection
+            </button>
+            <button type="button" id="testStripeTestBtn" onclick="testStripeTest()"
+              style="background:#f59e0b;color:white;padding:8px 16px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">
+              🟡 Test Test Connection
+            </button>
+            <button type="button" id="saveStripeBtn" onclick="saveThenTestStripe()"
+              style="background:#4A7C59;color:white;padding:8px 16px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">
+              💾 Save &amp; Test
+            </button>
+            <button type="button" id="stripeFullSuiteBtn" onclick="runStripeSuite()"
+              style="background:#0f172a;color:#a78bfa;border:1px solid #7c3aed;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">
+              🧪 Run Full Transaction Suite
+            </button>
+          </div>
+          <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Webhook Tests</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+            <button type="button" id="testWebhookLiveBtn" onclick="testWebhookLive()"
+              style="background:#0f766e;color:white;padding:8px 16px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">
+              🟢 Test Live Webhook
+            </button>
+            <button type="button" id="testWebhookTestBtn" onclick="testWebhookTest()"
+              style="background:#78350f;color:#fde68a;padding:8px 16px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">
+              🟡 Test Test Webhook
+            </button>
+            <button type="button" id="registerWebhooksBtn" onclick="registerWebhooks()"
+              style="background:#1d4ed8;color:white;padding:8px 16px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">
+              🔗 Register Webhooks
+            </button>
+          </div>
+          <div style="display:flex;gap:16px;flex-wrap:wrap;">
+            <span id="stripeLiveTestResult" style="font-size:13px;"></span>
+            <span id="stripeTestTestResult" style="font-size:13px;"></span>
+          </div>
           <span id="stripeTestResult" style="font-size:13px;"></span>
         </div>
         <!-- Webhook Auto-Registration Section -->
@@ -5891,6 +5924,136 @@ function platformConfigPage(
       }
     };
 
+    // -- Save Live Keys / Save Test Keys helpers --
+    async function saveStripeFields(fieldNames, resultSpanId, btnId, btnLabel) {
+      var btn = document.getElementById(btnId);
+      var result = document.getElementById(resultSpanId);
+      if (btn) { btn.disabled = true; btn.textContent = '\u23f3 Saving...'; }
+      if (result) { result.textContent = ''; }
+      try {
+        var params = new URLSearchParams();
+        fieldNames.forEach(function(name) {
+          var el = document.querySelector('[name="' + name + '"]');
+          if (el) params.set(name, el.value.trim());
+        });
+        // Also include the test mode checkbox so it doesn't get reset
+        var testModeChk = document.getElementById('stripeTestModeChk');
+        if (testModeChk) params.set('stripe_test_mode', testModeChk.checked ? 'true' : 'false');
+        var res = await fetch('/api/admin/platform-config', { credentials: 'include',
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: params.toString(),
+          redirect: 'manual'
+        });
+        if (result) { result.textContent = '\u2705 Saved to DB'; result.style.color = '#22c55e'; }
+        setTimeout(function() { if (result) result.textContent = ''; }, 3000);
+      } catch (e) {
+        if (result) { result.textContent = '\u274c Save failed: ' + (e.message || 'error'); result.style.color = '#ef4444'; }
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = btnLabel; }
+      }
+    }
+    window.saveLiveKeys = async function saveLiveKeys() {
+      await saveStripeFields(
+        ['stripe_live_secret_key','stripe_live_publishable_key','stripe_live_webhook_secret'],
+        'saveLiveKeysResult', 'saveLiveKeysBtn', '\ud83d\udcbe Save Live Keys'
+      );
+    };
+    window.saveTestKeys = async function saveTestKeys() {
+      await saveStripeFields(
+        ['stripe_test_secret_key','stripe_test_publishable_key','stripe_test_webhook_secret'],
+        'saveTestKeysResult', 'saveTestKeysBtn', '\ud83d\udcbe Save Test Keys'
+      );
+    };
+    window.testStripeLive = async function testStripeLive() {
+      var btn = document.getElementById('testStripeLiveBtn');
+      var result = document.getElementById('stripeLiveTestResult');
+      if (!btn) return;
+      btn.disabled = true;
+      btn.textContent = '⏳ Testing...';
+      if (result) result.textContent = '';
+      try {
+        var res = await fetch('/api/admin/stripe/test-live', { credentials: 'include' });
+        var data = await res.json();
+        if (result) {
+          result.textContent = data.ok ? '✅ ' + data.message : '❌ ' + data.message;
+          result.style.color = data.ok ? '#22c55e' : '#ef4444';
+        }
+      } catch (e) {
+        if (result) { result.textContent = '❌ Network error'; result.style.color = '#ef4444'; }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🟢 Test Live Connection';
+      }
+    };
+    window.testStripeTest = async function testStripeTest() {
+      var btn = document.getElementById('testStripeTestBtn');
+      var result = document.getElementById('stripeTestTestResult');
+      if (!btn) return;
+      btn.disabled = true;
+      btn.textContent = '⏳ Testing...';
+      if (result) result.textContent = '';
+      try {
+        var res = await fetch('/api/admin/stripe/test-test', { credentials: 'include' });
+        var data = await res.json();
+        if (result) {
+          result.textContent = data.ok ? '✅ ' + data.message : '❌ ' + data.message;
+          result.style.color = data.ok ? '#22c55e' : '#f59e0b';
+        }
+      } catch (e) {
+        if (result) { result.textContent = '❌ Network error'; result.style.color = '#ef4444'; }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🟡 Test Test Connection';
+      }
+    };
+    window.testWebhookLive = async function testWebhookLive() {
+      var btn = document.getElementById('testWebhookLiveBtn');
+      var result = document.getElementById('webhookRegResult');
+      if (!btn) return;
+      btn.disabled = true;
+      btn.textContent = '⏳ Testing...';
+      try {
+        var res = await fetch('/api/admin/stripe/test-webhook-live', { credentials: 'include' });
+        var data = await res.json();
+        var lines = [(data.ok ? '✅' : '⚠️') + ' Live: ' + data.message];
+        if (data.endpoints && data.endpoints.length > 0) {
+          data.endpoints.forEach(function(e) { lines.push('  → ' + e.url + ' (' + e.status + ')'); });
+        }
+        if (result) { result.textContent = lines.join('\n'); result.style.color = data.ok ? '#22c55e' : '#f59e0b'; }
+      } catch (e) {
+        if (result) { result.textContent = '❌ Network error'; result.style.color = '#ef4444'; }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🟢 Test Live Webhook';
+      }
+    };
+    window.testWebhookTest = async function testWebhookTest() {
+      var btn = document.getElementById('testWebhookTestBtn');
+      var result = document.getElementById('webhookRegResult');
+      if (!btn) return;
+      btn.disabled = true;
+      btn.textContent = '⏳ Testing...';
+      try {
+        var res = await fetch('/api/admin/stripe/test-webhook-test', { credentials: 'include' });
+        var data = await res.json();
+        var lines = [(data.ok ? '✅' : '⚠️') + ' Test: ' + data.message];
+        if (data.endpoints && data.endpoints.length > 0) {
+          data.endpoints.forEach(function(e) { lines.push('  → ' + e.url + ' (' + e.status + ')'); });
+        }
+        if (result) { result.textContent = lines.join('\n'); result.style.color = data.ok ? '#22c55e' : '#f59e0b'; }
+      } catch (e) {
+        if (result) { result.textContent = '❌ Network error'; result.style.color = '#ef4444'; }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🟡 Test Test Webhook';
+      }
+    };
+    // Auto-run both connection tests on page load
+    setTimeout(function() {
+      if (typeof testStripeLive === 'function') testStripeLive();
+      if (typeof testStripeTest === 'function') testStripeTest();
+    }, 1400);
     window.testStripe = async function testStripe() {
       var btn = document.getElementById('testStripeBtn');
       var result = document.getElementById('stripeTestResult');
@@ -5930,8 +6093,7 @@ function platformConfigPage(
         btn.textContent = '🔌 Test Connection';
       }
     }
-    // Auto-run Stripe Test Connection on page load (silent - only shows result if key is set)
-    setTimeout(function() { if (typeof testStripe === 'function') testStripe(); }, 1200);
+    // (Auto-run is now handled by testStripeLive + testStripeTest above)
 
     // -- Full Stripe Transaction Suite -------------------------------------------------
     window.runStripeSuite = async function runStripeSuite() {

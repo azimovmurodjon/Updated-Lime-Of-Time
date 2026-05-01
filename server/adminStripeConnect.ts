@@ -585,6 +585,148 @@ export function registerAdminStripeConnectRoutes(app: Express): void {
       res.status(500).json({ ok: false, error: err?.message || "Toggle failed" });
     }
   });
+
+  // GET /api/admin/stripe/test-live
+  // Tests STRIPE_LIVE_SECRET_KEY by calling Stripe balance API
+  app.get("/api/admin/stripe/test-live", async (req: Request, res: Response) => {
+    if (!requireAdminAuth(req, res)) return;
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(503).json({ ok: false, error: "DB unavailable" }); return; }
+      const { platformConfig } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const keyRow = await dbase.select().from(platformConfig).where(eq(platformConfig.configKey, "STRIPE_LIVE_SECRET_KEY")).limit(1);
+      const secretKey = keyRow[0]?.configValue || "";
+      if (!secretKey || !secretKey.startsWith("sk_live_")) {
+        res.json({ ok: false, message: "Live Secret Key not configured (must start with sk_live_)" }); return;
+      }
+      const stripeRes = await fetch("https://api.stripe.com/v1/balance", {
+        headers: { Authorization: `Bearer ${secretKey}` },
+      });
+      if (stripeRes.ok) {
+        const data = await stripeRes.json() as any;
+        const available = data.available?.[0];
+        const balanceStr = available ? `Balance: ${(available.amount / 100).toFixed(2)} ${available.currency.toUpperCase()}` : "Balance retrieved";
+        res.json({ ok: true, message: `Connected (Live Mode) - ${balanceStr}` });
+      } else {
+        const errData = await stripeRes.json().catch(() => ({})) as any;
+        res.json({ ok: false, message: errData?.error?.message || `HTTP ${stripeRes.status}` });
+      }
+    } catch (err: any) {
+      res.json({ ok: false, message: err?.message || "Unknown error" });
+    }
+  });
+
+  // GET /api/admin/stripe/test-test
+  // Tests STRIPE_TEST_SECRET_KEY by calling Stripe balance API
+  app.get("/api/admin/stripe/test-test", async (req: Request, res: Response) => {
+    if (!requireAdminAuth(req, res)) return;
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(503).json({ ok: false, error: "DB unavailable" }); return; }
+      const { platformConfig } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const keyRow = await dbase.select().from(platformConfig).where(eq(platformConfig.configKey, "STRIPE_TEST_SECRET_KEY")).limit(1);
+      const secretKey = keyRow[0]?.configValue || "";
+      if (!secretKey || !secretKey.startsWith("sk_test_")) {
+        res.json({ ok: false, message: "Test Secret Key not configured (must start with sk_test_)" }); return;
+      }
+      const stripeRes = await fetch("https://api.stripe.com/v1/balance", {
+        headers: { Authorization: `Bearer ${secretKey}` },
+      });
+      if (stripeRes.ok) {
+        const data = await stripeRes.json() as any;
+        const available = data.available?.[0];
+        const balanceStr = available ? `Balance: ${(available.amount / 100).toFixed(2)} ${available.currency.toUpperCase()}` : "Balance retrieved";
+        res.json({ ok: true, message: `Connected (Test Mode) - ${balanceStr}` });
+      } else {
+        const errData = await stripeRes.json().catch(() => ({})) as any;
+        res.json({ ok: false, message: errData?.error?.message || `HTTP ${stripeRes.status}` });
+      }
+    } catch (err: any) {
+      res.json({ ok: false, message: err?.message || "Unknown error" });
+    }
+  });
+
+  // GET /api/admin/stripe/test-webhook-live
+  // Tests live webhook by listing Stripe live webhook endpoints
+  app.get("/api/admin/stripe/test-webhook-live", async (req: Request, res: Response) => {
+    if (!requireAdminAuth(req, res)) return;
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(503).json({ ok: false, error: "DB unavailable" }); return; }
+      const { platformConfig } = await import("../drizzle/schema");
+      const allRows = await dbase.select().from(platformConfig);
+      const cfgMap: Record<string, string> = {};
+      for (const row of allRows) cfgMap[row.configKey] = row.configValue || "";
+      const secretKey = cfgMap["STRIPE_LIVE_SECRET_KEY"] || "";
+      const webhookSecret = cfgMap["STRIPE_LIVE_WEBHOOK_SECRET"] || "";
+      if (!secretKey.startsWith("sk_live_")) {
+        res.json({ ok: false, message: "Live Secret Key not configured" }); return;
+      }
+      const hasWebhookSecret = webhookSecret.startsWith("whsec_");
+      const r = await fetch("https://api.stripe.com/v1/webhook_endpoints?limit=20", {
+        headers: { Authorization: `Bearer ${secretKey}` },
+      });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({})) as any;
+        res.json({ ok: false, message: e?.error?.message || `Stripe error ${r.status}` }); return;
+      }
+      const json = await r.json() as any;
+      const endpoints: any[] = json.data || [];
+      const registered = endpoints.filter((e: any) => e.url && (e.url.includes("/api/stripe/webhook") || e.url.includes("/api/stripe-connect/webhook")));
+      res.json({
+        ok: registered.length > 0 && hasWebhookSecret,
+        message: registered.length > 0
+          ? `Live webhooks OK - ${registered.length} endpoint(s) registered${hasWebhookSecret ? ", secret stored" : ", WARNING: no live webhook secret stored"}`
+          : `No live webhooks registered yet (${endpoints.length} total endpoints on Stripe)`,
+        endpoints: registered.map((e: any) => ({ url: e.url, status: e.status })),
+        hasWebhookSecret,
+      });
+    } catch (err: any) {
+      res.json({ ok: false, message: err?.message || "Unknown error" });
+    }
+  });
+
+  // GET /api/admin/stripe/test-webhook-test
+  // Tests test webhook by listing Stripe test webhook endpoints
+  app.get("/api/admin/stripe/test-webhook-test", async (req: Request, res: Response) => {
+    if (!requireAdminAuth(req, res)) return;
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(503).json({ ok: false, error: "DB unavailable" }); return; }
+      const { platformConfig } = await import("../drizzle/schema");
+      const allRows = await dbase.select().from(platformConfig);
+      const cfgMap: Record<string, string> = {};
+      for (const row of allRows) cfgMap[row.configKey] = row.configValue || "";
+      const secretKey = cfgMap["STRIPE_TEST_SECRET_KEY"] || "";
+      const webhookSecret = cfgMap["STRIPE_TEST_WEBHOOK_SECRET"] || "";
+      if (!secretKey.startsWith("sk_test_")) {
+        res.json({ ok: false, message: "Test Secret Key not configured" }); return;
+      }
+      const hasWebhookSecret = webhookSecret.startsWith("whsec_");
+      const r = await fetch("https://api.stripe.com/v1/webhook_endpoints?limit=20", {
+        headers: { Authorization: `Bearer ${secretKey}` },
+      });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({})) as any;
+        res.json({ ok: false, message: e?.error?.message || `Stripe error ${r.status}` }); return;
+      }
+      const json = await r.json() as any;
+      const endpoints: any[] = json.data || [];
+      const registered = endpoints.filter((e: any) => e.url && (e.url.includes("/api/stripe/webhook") || e.url.includes("/api/stripe-connect/webhook")));
+      res.json({
+        ok: registered.length > 0 && hasWebhookSecret,
+        message: registered.length > 0
+          ? `Test webhooks OK - ${registered.length} endpoint(s) registered${hasWebhookSecret ? ", secret stored" : ", WARNING: no test webhook secret stored"}`
+          : `No test webhooks registered yet (${endpoints.length} total endpoints on Stripe)`,
+        endpoints: registered.map((e: any) => ({ url: e.url, status: e.status })),
+        hasWebhookSecret,
+      });
+    } catch (err: any) {
+      res.json({ ok: false, message: err?.message || "Unknown error" });
+    }
+  });
 }
 
 function stripeConnectPage(data: {
