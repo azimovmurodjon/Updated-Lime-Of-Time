@@ -51,9 +51,15 @@ const FALLBACK_PRICES: Record<string, { monthly: number; yearly: number; name: s
 };
 
 /** Read plan price from DB (Admin Panel), falling back to hardcoded values.
- * Returns EFFECTIVE prices (after any admin-set discount).
+ * Returns FULL prices (before discount) + discount info.
+ * Discount is applied via Stripe coupon:
+ *   discountMonths > 0  → coupon with duration: "repeating" (introductory, N months then full price)
+ *   discountMonths === 0 → coupon with duration: "forever" (permanent discount)
  */
-async function getPlanPrice(planKey: string): Promise<{ monthly: number; yearly: number; name: string; discountPercent: number; discountLabel: string | null } | null> {
+async function getPlanPrice(planKey: string): Promise<{
+  monthly: number; yearly: number; name: string;
+  discountPercent: number; discountLabel: string | null; discountMonths: number;
+} | null> {
   try {
     const plans = await getPublicPlans();
     const plan = plans.find((p) => p.planKey === planKey);
@@ -65,22 +71,22 @@ async function getPlanPrice(planKey: string): Promise<{ monthly: number; yearly:
       const isExpired = expiresAt ? new Date(expiresAt).getTime() < Date.now() : false;
       const discPct = isExpired ? 0 : ((plan as any).discountPercent ?? 0);
       const discLabel = isExpired ? null : ((plan as any).discountLabel ?? null);
-      // Apply discount to get effective price
-      const effectiveMonthly = discPct > 0 ? monthly * (1 - discPct / 100) : monthly;
-      const effectiveYearly = discPct > 0 ? yearly * (1 - discPct / 100) : yearly;
+      const discMonths = isExpired ? 0 : ((plan as any).discountMonths ?? 0);
+      // Return FULL prices — discount applied via Stripe coupon, not baked into price
       return {
-        monthly: Math.round(effectiveMonthly * 100),  // cents
-        yearly: Math.round(effectiveYearly * 100),    // cents
+        monthly: Math.round(monthly * 100),  // cents (full price)
+        yearly: Math.round(yearly * 100),    // cents (full price)
         name: plan.displayName,
         discountPercent: discPct,
         discountLabel: discLabel,
+        discountMonths: discMonths,
       };
     }
   } catch (e) {
     console.warn("[Stripe] Could not read plan price from DB, using fallback", e);
   }
   const fb = FALLBACK_PRICES[planKey];
-  return fb ? { ...fb, discountPercent: 0, discountLabel: null } : null;
+  return fb ? { ...fb, discountPercent: 0, discountLabel: null, discountMonths: 0 } : null;
 }
 
 async function getStripeAsync(): Promise<Stripe | null> {
@@ -209,26 +215,37 @@ export function registerStripeRoutes(app: Express): void {
         }
       }
 
-      // Build product name — include discount label if applicable
-      const productName = planInfo.discountPercent > 0
-        ? `${planInfo.name} Plan (${period}) — ${planInfo.discountLabel ?? planInfo.discountPercent + '% off'}`
-        : `${planInfo.name} Plan (${period})`;
-
-      // Create a price on the fly with the effective (post-discount) amount
+      // Create a price on the fly with the FULL (pre-discount) amount
+      const productName = `${planInfo.name} Plan (${period})`;
       const price = await stripe.prices.create({
-        unit_amount: priceAmount,  // already discounted in getPlanPrice()
+        unit_amount: priceAmount,  // full price in cents
         currency: "usd",
         recurring: { interval },
-        product_data: {
-          name: productName,
-        },
+        product_data: { name: productName },
       });
+
+      // Build Stripe coupon if a discount is configured
+      let stripeCouponId: string | undefined;
+      if (planInfo.discountPercent > 0) {
+        const couponName = planInfo.discountLabel ?? `${planInfo.discountPercent}% off`;
+        const couponParams: Stripe.CouponCreateParams = {
+          percent_off: planInfo.discountPercent,
+          name: couponName,
+          // discountMonths > 0 = introductory (N months then full price)
+          // discountMonths === 0 = permanent discount
+          duration: planInfo.discountMonths > 0 ? "repeating" : "forever",
+          ...(planInfo.discountMonths > 0 ? { duration_in_months: planInfo.discountMonths } : {}),
+        };
+        const coupon = await stripe.coupons.create(couponParams);
+        stripeCouponId = coupon.id;
+      }
 
       // Create checkout session
       const session = await stripe.checkout.sessions.create({
         mode: "subscription",
         customer: stripeCustomerId,
         line_items: [{ price: price.id, quantity: 1 }],
+        ...(stripeCouponId ? { discounts: [{ coupon: stripeCouponId }] } : {}),
         success_url: successUrl || `${req.headers.origin}/api/stripe/success?session_id={CHECKOUT_SESSION_ID}&boid=${businessOwnerId}`,
         cancel_url: cancelUrl || `${req.headers.origin}/api/stripe/cancel?boid=${businessOwnerId}`,
         metadata: {
@@ -729,6 +746,141 @@ export function registerStripeRoutes(app: Express): void {
     } catch (err) {
       console.error("[Stripe] check-downgrade error:", err);
       res.status(500).json({ error: "Failed to check downgrade eligibility" });
+    }
+  });
+
+  /**
+   * POST /api/stripe/cancel-subscription
+   * Body: { businessOwnerId }
+   * Cancels the subscription at the end of the current billing period.
+   * The user retains access until stripeCurrentPeriodEnd.
+   */
+  app.post("/api/stripe/cancel-subscription", async (req: Request, res: Response) => {
+    const stripe = await getStripeAsync();
+    if (!stripe) {
+      res.status(500).json({ error: "Stripe not configured" });
+      return;
+    }
+    const { businessOwnerId } = req.body as { businessOwnerId: number };
+    if (!businessOwnerId) {
+      res.status(400).json({ error: "Missing businessOwnerId" });
+      return;
+    }
+    try {
+      const db = await getDb();
+      if (!db) {
+        res.status(500).json({ error: "DB not available" });
+        return;
+      }
+      const rows = await db.select().from(businessOwners).where(eq(businessOwners.id, businessOwnerId)).limit(1);
+      const owner = rows[0];
+      if (!owner?.stripeSubscriptionId) {
+        res.status(400).json({ error: "No active subscription found" });
+        return;
+      }
+      // Cancel at period end (user keeps access until then)
+      await stripe.subscriptions.update(owner.stripeSubscriptionId, {
+        cancel_at_period_end: true,
+      });
+      // Update DB
+      await db.update(businessOwners)
+        .set({ cancelAtPeriodEnd: true } as any)
+        .where(eq(businessOwners.id, businessOwnerId));
+      res.json({ success: true, message: "Subscription will cancel at the end of the billing period." });
+    } catch (err) {
+      console.error("[Stripe] cancel-subscription error:", err);
+      res.status(500).json({ error: "Failed to cancel subscription" });
+    }
+  });
+
+  /**
+   * POST /api/stripe/resume-subscription
+   * Body: { businessOwnerId }
+   * Resumes a subscription that was set to cancel at period end.
+   */
+  app.post("/api/stripe/resume-subscription", async (req: Request, res: Response) => {
+    const stripe = await getStripeAsync();
+    if (!stripe) {
+      res.status(500).json({ error: "Stripe not configured" });
+      return;
+    }
+    const { businessOwnerId } = req.body as { businessOwnerId: number };
+    if (!businessOwnerId) {
+      res.status(400).json({ error: "Missing businessOwnerId" });
+      return;
+    }
+    try {
+      const db = await getDb();
+      if (!db) {
+        res.status(500).json({ error: "DB not available" });
+        return;
+      }
+      const rows = await db.select().from(businessOwners).where(eq(businessOwners.id, businessOwnerId)).limit(1);
+      const owner = rows[0];
+      if (!owner?.stripeSubscriptionId) {
+        res.status(400).json({ error: "No active subscription found" });
+        return;
+      }
+      // Remove cancel_at_period_end flag
+      await stripe.subscriptions.update(owner.stripeSubscriptionId, {
+        cancel_at_period_end: false,
+      });
+      // Update DB
+      await db.update(businessOwners)
+        .set({ cancelAtPeriodEnd: false } as any)
+        .where(eq(businessOwners.id, businessOwnerId));
+      res.json({ success: true, message: "Subscription resumed. It will continue to renew automatically." });
+    } catch (err) {
+      console.error("[Stripe] resume-subscription error:", err);
+      res.status(500).json({ error: "Failed to resume subscription" });
+    }
+  });
+
+  /**
+   * GET /api/stripe/next-invoice?businessOwnerId=X
+   * Returns the upcoming invoice amount and date for the customer.
+   */
+  app.get("/api/stripe/next-invoice", async (req: Request, res: Response) => {
+    const stripe = await getStripeAsync();
+    if (!stripe) {
+      res.status(500).json({ error: "Stripe not configured" });
+      return;
+    }
+    const businessOwnerId = parseInt(req.query.businessOwnerId as string, 10);
+    if (!businessOwnerId) {
+      res.status(400).json({ error: "Missing businessOwnerId" });
+      return;
+    }
+    try {
+      const db = await getDb();
+      if (!db) {
+        res.status(500).json({ error: "DB not available" });
+        return;
+      }
+      const rows = await db.select().from(businessOwners).where(eq(businessOwners.id, businessOwnerId)).limit(1);
+      const owner = rows[0];
+      if (!owner?.stripeCustomerId) {
+        res.status(400).json({ error: "No Stripe customer found" });
+        return;
+      }
+      // Retrieve upcoming invoice
+      const upcoming = await (stripe.invoices as any).retrieveUpcoming({
+        customer: owner.stripeCustomerId,
+      });
+      res.json({
+        amount: upcoming.amount_due / 100,          // dollars
+        amountFormatted: `$${(upcoming.amount_due / 100).toFixed(2)}`,
+        date: upcoming.next_payment_attempt,        // Unix timestamp (seconds)
+        periodEnd: upcoming.period_end,             // Unix timestamp (seconds)
+      });
+    } catch (err: any) {
+      // Stripe returns 404 if there's no upcoming invoice (e.g., subscription cancelled)
+      if (err?.statusCode === 404 || err?.code === "invoice_upcoming_none") {
+        res.json({ amount: null, amountFormatted: null, date: null, periodEnd: null });
+        return;
+      }
+      console.error("[Stripe] next-invoice error:", err);
+      res.status(500).json({ error: "Failed to retrieve upcoming invoice" });
     }
   });
 

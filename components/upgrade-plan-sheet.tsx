@@ -18,13 +18,16 @@ import { useState } from "react";
 import { useRouter } from "expo-router";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { trpc } from "@/lib/trpc";
+import { formatPrice } from "@/lib/utils";
 
-// ─── Plan upgrade path ────────────────────────────────────────────────────────
+// ─── Plan upgrade path ──────────────────────────────────────────────────────────────────────────────────
 
-const NEXT_TIER: Record<string, { planKey: string; displayName: string; monthlyPrice: number; color: string }> = {
-  solo: { planKey: "growth", displayName: "Growth", monthlyPrice: 19, color: "#3B82F6" },
-  growth: { planKey: "studio", displayName: "Studio", monthlyPrice: 39, color: "#8B5CF6" },
-  studio: { planKey: "enterprise", displayName: "Enterprise", monthlyPrice: 69, color: "#F59E0B" },
+// Static fallback (used only if server is unreachable)
+const NEXT_TIER_KEYS: Record<string, { planKey: string; color: string }> = {
+  solo:   { planKey: "growth",     color: "#3B82F6" },
+  growth: { planKey: "studio",     color: "#8B5CF6" },
+  studio: { planKey: "enterprise", color: "#F59E0B" },
 };
 
 const PLAN_COLORS: Record<string, string> = {
@@ -91,7 +94,21 @@ export function UpgradePlanSheet({
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  const nextTier = NEXT_TIER[currentPlanKey];
+  // Fetch live plan prices from server (admin-controlled)
+  const { data: livePlans } = trpc.subscription.getPublicPlans.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
+
+  const nextTierKey = NEXT_TIER_KEYS[currentPlanKey];
+  const livePlan = livePlans?.find((p) => p.planKey === nextTierKey?.planKey);
+  // Build nextTier with live effective price, fall back to static if server unavailable
+  const nextTier = nextTierKey ? {
+    planKey: nextTierKey.planKey,
+    displayName: livePlan?.displayName ?? nextTierKey.planKey.charAt(0).toUpperCase() + nextTierKey.planKey.slice(1),
+    monthlyPrice: livePlan?.effectiveMonthlyPrice ?? livePlan?.monthlyPrice ?? 0,
+    color: nextTierKey.color,
+    discountLabel: livePlan?.discountLabel ?? null,
+    discountPercent: livePlan?.discountPercent ?? 0,
+  } : null;
+
   const resourceLabel = resource === "staff" ? "staff members" : resource;
   const benefit = nextTier ? RESOURCE_UPGRADE_BENEFIT[resource]?.[nextTier.planKey] : null;
 
@@ -171,7 +188,12 @@ export function UpgradePlanSheet({
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
                 <IconSymbol name="crown.fill" size={16} color={nextTier.color} />
                 <Text style={{ fontSize: 15, fontWeight: "700", color: nextTier.color }}>
-                  {nextTier.displayName} Plan · ${nextTier.monthlyPrice}/mo
+                  {nextTier.displayName} Plan · {formatPrice(nextTier.monthlyPrice)}/mo
+                  {nextTier.discountPercent > 0 && (
+                    <Text style={{ fontSize: 12, fontWeight: "500", color: nextTier.color, opacity: 0.8 }}>
+                      {" "}({nextTier.discountLabel ?? `${nextTier.discountPercent}% off`})
+                    </Text>
+                  )}
                 </Text>
               </View>
               {benefit && (

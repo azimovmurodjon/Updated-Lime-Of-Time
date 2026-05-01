@@ -2,6 +2,13 @@ import React from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/use-colors";
+import { trpc } from "@/lib/trpc";
+import { formatPrice as _formatPrice } from "@/lib/utils";
+
+/** Format price as $X.XX/mo or Free */
+function formatPrice(n: number): string {
+  return n === 0 ? "Free" : `${_formatPrice(n)}/mo`;
+}
 
 // ─── Comparison Data ──────────────────────────────────────────────────────────
 
@@ -86,6 +93,19 @@ interface PlanCompareModalProps {
 
 export function PlanCompareModal({ visible, onClose }: PlanCompareModalProps) {
   const colors = useColors();
+  // Fetch live plan prices from server (admin-controlled)
+  const { data: livePlans } = trpc.subscription.getPublicPlans.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
+
+  // Merge live prices into COMPARE_PLANS (keep feature rows from static data)
+  const mergedPlans = COMPARE_PLANS.map((p) => {
+    const live = livePlans?.find((lp) => lp.planKey === p.planKey);
+    return {
+      ...p,
+      monthlyPrice: live?.effectiveMonthlyPrice ?? live?.monthlyPrice ?? p.monthlyPrice,
+      discountLabel: live?.discountLabel ?? null,
+      discountPercent: live?.discountPercent ?? 0,
+    };
+  });
 
   return (
     <Modal
@@ -118,13 +138,18 @@ export function PlanCompareModal({ visible, onClose }: PlanCompareModalProps) {
               <View style={[styles.cell, styles.labelCol, { backgroundColor: colors.background }]}>
                 <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted }}>FEATURE</Text>
               </View>
-              {COMPARE_PLANS.map((p) => (
+              {mergedPlans.map((p) => (
                 <View key={p.planKey} style={[styles.cell, styles.planCol, { backgroundColor: p.color + "18" }]}>
                   <View style={[styles.dot, { backgroundColor: p.color }]} />
                   <Text style={{ fontSize: 13, fontWeight: "700", color: p.color }} numberOfLines={1}>{p.displayName}</Text>
                   <Text style={{ fontSize: 11, color: colors.muted, marginTop: 1 }}>
-                    {p.monthlyPrice === 0 ? "Free" : `$${p.monthlyPrice}/mo`}
+                    {formatPrice(p.monthlyPrice)}
                   </Text>
+                  {p.discountPercent > 0 && (
+                    <Text style={{ fontSize: 10, color: p.color, marginTop: 1 }} numberOfLines={1}>
+                      {p.discountLabel ?? `${p.discountPercent}% off`}
+                    </Text>
+                  )}
                 </View>
               ))}
             </View>
@@ -135,7 +160,7 @@ export function PlanCompareModal({ visible, onClose }: PlanCompareModalProps) {
                 <View style={[styles.cell, styles.labelCol]}>
                   <Text style={{ fontSize: 12, color: colors.foreground, fontWeight: "500" }}>{row}</Text>
                 </View>
-                {COMPARE_PLANS.map((p) => {
+                {mergedPlans.map((p) => {
                   const feat = p.features.find((f) => f.label === row);
                   const isDim = (feat as any)?.dim;
                   return (

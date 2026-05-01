@@ -1218,6 +1218,8 @@ const subscriptionRouter = router({
         const discPct = isExpired ? 0 : ((p as any).discountPercent ?? 0);
         const discLabel = isExpired ? null : ((p as any).discountLabel ?? null);
         const discExpiresAt = expiresAt ? new Date(expiresAt).toISOString() : null;
+        // discountMonths: 0 = discount applies forever, 1+ = introductory (N months then full price)
+        const discMonths = isExpired ? 0 : ((p as any).discountMonths ?? 0);
         return {
           planKey: p.planKey,
           displayName: p.displayName,
@@ -1229,6 +1231,7 @@ const subscriptionRouter = router({
           discountPercent: discPct,
           discountLabel: discLabel,
           discountExpiresAt: discExpiresAt,
+          discountMonths: discMonths,
           maxClients: p.maxClients,
           maxAppointments: p.maxAppointments,
           maxLocations: p.maxLocations,

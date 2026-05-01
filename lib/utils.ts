@@ -50,3 +50,12 @@ export function formatPhone(raw: string | null | undefined): string {
 export function generateId(): string {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
+
+/**
+ * Formats a price number as a USD string with exactly 2 decimal places.
+ * e.g. formatPrice(16.9) → "$16.90", formatPrice(19) → "$19.00"
+ */
+export function formatPrice(amount: number | null | undefined): string {
+  if (amount == null || isNaN(amount)) return "$0.00";
+  return `$${Number(amount).toFixed(2)}`;
+}

@@ -19,6 +19,7 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  Modal,
 } from "react-native";
 import { useCallback, useEffect, useState } from "react";
 import { ScreenContainer } from "@/components/screen-container";
@@ -29,6 +30,7 @@ import { useStore } from "@/lib/store";
 import { trpc } from "@/lib/trpc";
 import { getApiBaseUrl } from "@/constants/oauth";
 import { FuturisticBackground } from "@/components/futuristic-background";
+import { formatPrice } from "@/lib/utils";
 
 
 // ─── Plan Colors ──────────────────────────────────────────────────────────────
@@ -302,10 +304,10 @@ function PlanBenefitsCard({
                   </View>
                 )}
                 {discPct > 0 && (
-                  <Text style={{ fontSize: 11, color: colors.muted, textDecorationLine: "line-through" }}>${plan.monthlyPrice}/mo</Text>
+                  <Text style={{ fontSize: 11, color: colors.muted, textDecorationLine: "line-through" }}>{formatPrice(plan.monthlyPrice)}/mo</Text>
                 )}
-                <Text style={{ fontSize: 18, fontWeight: "800", color: colors.foreground }}>${effMonthly}<Text style={{ fontSize: 12, fontWeight: "400", color: colors.muted }}>/mo</Text></Text>
-                <Text style={{ fontSize: 11, color: colors.muted }}>${effYearly}/yr</Text>
+                <Text style={{ fontSize: 18, fontWeight: "800", color: colors.foreground }}>{formatPrice(effMonthly)}<Text style={{ fontSize: 12, fontWeight: "400", color: colors.muted }}>/mo</Text></Text>
+                <Text style={{ fontSize: 11, color: colors.muted }}>{formatPrice(effYearly)}/yr</Text>
               </>
             );
           })()}
@@ -338,6 +340,10 @@ export default function SubscriptionScreen() {
   const { state } = useStore();
   const businessOwnerId = state.businessOwnerId;
   const [portalLoading, setPortalLoading] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [resumeLoading, setResumeLoading] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [nextInvoice, setNextInvoice] = useState<{ amount: number | null; amountFormatted: string | null; date: number | null } | null>(null);
 
   const { data: planInfo, isLoading, isError, refetch } = trpc.subscription.getMyPlan.useQuery(
     { businessOwnerId: businessOwnerId! },
@@ -399,6 +405,62 @@ export default function SubscriptionScreen() {
       setPortalLoading(false);
     }
   }, [businessOwnerId]);
+
+  // Fetch next invoice when plan info is available and subscription is active
+  useEffect(() => {
+    if (!businessOwnerId || !planInfo?.stripeCustomerId || planInfo?.planKey === "solo") return;
+    fetch(`${getApiBaseUrl()}/api/stripe/next-invoice?businessOwnerId=${businessOwnerId}`)
+      .then((r) => r.json())
+      .then((data: any) => setNextInvoice(data))
+      .catch(() => {});
+  }, [businessOwnerId, planInfo?.stripeCustomerId, planInfo?.planKey]);
+
+  const handleCancelSubscription = useCallback(async () => {
+    if (!businessOwnerId) return;
+    setCancelLoading(true);
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/api/stripe/cancel-subscription`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessOwnerId }),
+      });
+      const data = await res.json() as { success?: boolean; error?: string };
+      if (data.success) {
+        Alert.alert("Subscription Cancelled", "Your subscription will cancel at the end of the current billing period. You'll keep full access until then.");
+        setShowCancelModal(false);
+        refetch();
+      } else {
+        Alert.alert("Error", data.error ?? "Failed to cancel subscription. Please try again.");
+      }
+    } catch {
+      Alert.alert("Error", "Could not connect to server. Please check your connection.");
+    } finally {
+      setCancelLoading(false);
+    }
+  }, [businessOwnerId, refetch]);
+
+  const handleResumeSubscription = useCallback(async () => {
+    if (!businessOwnerId) return;
+    setResumeLoading(true);
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/api/stripe/resume-subscription`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessOwnerId }),
+      });
+      const data = await res.json() as { success?: boolean; error?: string };
+      if (data.success) {
+        Alert.alert("Subscription Resumed", "Your subscription has been resumed and will continue to renew automatically.");
+        refetch();
+      } else {
+        Alert.alert("Error", data.error ?? "Failed to resume subscription. Please try again.");
+      }
+    } catch {
+      Alert.alert("Error", "Could not connect to server. Please check your connection.");
+    } finally {
+      setResumeLoading(false);
+    }
+  }, [businessOwnerId, refetch]);
 
   if (!businessOwnerId || isLoading) {
     return (
@@ -472,11 +534,10 @@ export default function SubscriptionScreen() {
   if (!planInfo.isAdminOverride && planInfo.monthlyPrice > 0) {
     const effMonthly = (planInfo as any).effectiveMonthlyPrice ?? planInfo.monthlyPrice;
     const effYearly = (planInfo as any).effectiveYearlyPrice ?? planInfo.yearlyPrice;
-    const fmtPrice = (n: number) => Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`;
     if (planInfo.subscriptionPeriod === "yearly") {
-      billingAmountStr = `${fmtPrice(effYearly)}/year`;
+      billingAmountStr = `${formatPrice(effYearly)}/year`;
     } else {
-      billingAmountStr = `${fmtPrice(effMonthly)}/month`;
+      billingAmountStr = `${formatPrice(effMonthly)}/month`;
     }
   }
 
@@ -600,6 +661,18 @@ export default function SubscriptionScreen() {
                 ]}>{renewalDateStr}</Text>
               </View>
             )}
+            {/* Next invoice amount */}
+            {nextInvoice?.amountFormatted && nextInvoice?.date && !(planInfo as any).cancelAtPeriodEnd && (
+              <View style={styles.infoRow}>
+                <View style={styles.infoRowLeft}>
+                  <IconSymbol name="dollarsign.circle.fill" size={14} color={colors.success} />
+                  <Text style={[styles.infoLabel, { color: colors.muted }]}>Next charge</Text>
+                </View>
+                <Text style={[styles.infoValue, { color: colors.foreground }]}>
+                  {nextInvoice.amountFormatted} on {new Date(nextInvoice.date * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                </Text>
+              </View>
+            )}
             {/* Trial end date */}
             {subscriptionStatus === "trial" && planInfo.trialEndsAt && (
               <View style={styles.infoRow}>
@@ -678,8 +751,102 @@ export default function SubscriptionScreen() {
                 </Text>
               </Pressable>
             )}
+
+            {/* Cancel / Resume Subscription */}
+            {hasStripeSubscription && !isAdminOverride && (
+              (planInfo as any).cancelAtPeriodEnd ? (
+                <Pressable
+                  onPress={handleResumeSubscription}
+                  disabled={resumeLoading}
+                  style={({ pressed }) => [
+                    styles.secondaryBtn,
+                    { borderColor: colors.success, opacity: pressed || resumeLoading ? 0.7 : 1 },
+                  ]}
+                >
+                  {resumeLoading ? (
+                    <ActivityIndicator size="small" color={colors.success} />
+                  ) : (
+                    <IconSymbol name="arrow.clockwise" size={16} color={colors.success} />
+                  )}
+                  <Text style={{ color: colors.success, fontWeight: "600", fontSize: 14, marginLeft: 6 }}>
+                    Resume Subscription
+                  </Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={() => setShowCancelModal(true)}
+                  style={({ pressed }) => [
+                    styles.secondaryBtn,
+                    { borderColor: colors.error + "60", opacity: pressed ? 0.7 : 1 },
+                  ]}
+                >
+                  <IconSymbol name="xmark.circle" size={16} color={colors.error} />
+                  <Text style={{ color: colors.error, fontWeight: "600", fontSize: 14, marginLeft: 6 }}>
+                    Cancel Subscription
+                  </Text>
+                </Pressable>
+              )
+            )}
           </View>
         </View>
+
+        {/* Cancel Subscription Confirmation Modal */}
+        <Modal visible={showCancelModal} transparent animationType="fade" onRequestClose={() => setShowCancelModal(false)}>
+          <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>
+            <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, margin: 16, marginBottom: 32, padding: 24 }]}>
+              <View style={{ alignItems: "center", marginBottom: 16 }}>
+                <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: colors.error + "18", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+                  <IconSymbol name="xmark.circle.fill" size={28} color={colors.error} />
+                </View>
+                <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground, textAlign: "center" }}>Cancel Subscription?</Text>
+                <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center", marginTop: 8, lineHeight: 20 }}>
+                  Your subscription will remain active until the end of the current billing period. After that, you'll be moved to the free Solo plan.
+                </Text>
+              </View>
+
+              {/* Next billing date reminder */}
+              {renewalDateStr && (
+                <View style={{ backgroundColor: colors.warning + "15", borderRadius: 10, padding: 12, marginBottom: 16, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <IconSymbol name="calendar" size={16} color={colors.warning} />
+                  <Text style={{ fontSize: 13, color: colors.warning, flex: 1 }}>
+                    Access continues until {renewalDateStr}
+                  </Text>
+                </View>
+              )}
+
+              {/* Pause suggestion */}
+              <View style={{ backgroundColor: colors.primary + "12", borderRadius: 10, padding: 12, marginBottom: 20, flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+                <IconSymbol name="lightbulb.fill" size={16} color={colors.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: colors.primary }}>Thinking of pausing?</Text>
+                  <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 17 }}>
+                    Contact us to pause your subscription for up to 3 months instead of cancelling.
+                  </Text>
+                </View>
+              </View>
+
+              <Pressable
+                onPress={handleCancelSubscription}
+                disabled={cancelLoading}
+                style={({ pressed }) => [styles.primaryBtn, { backgroundColor: colors.error, opacity: pressed || cancelLoading ? 0.8 : 1, marginBottom: 10 }]}
+              >
+                {cancelLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <IconSymbol name="xmark.circle.fill" size={16} color="#fff" />
+                )}
+                <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15, marginLeft: 6 }}>Yes, Cancel at Period End</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setShowCancelModal(false)}
+                style={({ pressed }) => [styles.secondaryBtn, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
+              >
+                <Text style={{ color: colors.foreground, fontWeight: "600", fontSize: 14 }}>Keep My Subscription</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
 
         {/* Usage Meters */}
         <Text style={[styles.sectionLabel, { color: colors.muted }]}>Usage</Text>

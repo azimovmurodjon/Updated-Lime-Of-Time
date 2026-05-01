@@ -544,6 +544,8 @@ export const subscriptionPlans = mysqlTable("subscription_plans", {
   discountLabel: varchar("discountLabel", { length: 100 }),
   /** Optional expiry date for the discount — auto-expires when this date passes */
   discountExpiresAt: timestamp("discountExpiresAt"),
+  /** Number of months the discount applies (0 = forever, 1+ = introductory). Admin-controlled. */
+  discountMonths: int("discountMonths").notNull().default(0),
   /** Sort order for display */
   sortOrder: int("sortOrder").notNull().default(0),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

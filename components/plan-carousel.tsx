@@ -24,6 +24,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
+import { formatPrice } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -121,11 +122,9 @@ function PlanCard({
   // Use effective prices (after admin discount) for display and Stripe
   const effectiveMonthly = plan.effectiveMonthlyPrice ?? plan.monthlyPrice;
   const effectiveYearly = plan.effectiveYearlyPrice ?? plan.yearlyPrice;
-  // Show exact price — whole numbers as integers, decimals to 2 places
+  // Show exact price with 2 decimal places always
   const rawPrice = isYearly ? effectiveYearly / 12 : effectiveMonthly;
-  const price = Number.isInteger(rawPrice) ? rawPrice : parseFloat(rawPrice.toFixed(2));
   const rawOriginal = isYearly ? plan.yearlyPrice / 12 : plan.monthlyPrice;
-  const originalPrice = Number.isInteger(rawOriginal) ? rawOriginal : parseFloat(rawOriginal.toFixed(2));
   const hasDiscount = (plan.discountPercent ?? 0) > 0;
   // Compute days until discount expires (null = no expiry)
   const discExpiresAt = plan.discountExpiresAt ? new Date(plan.discountExpiresAt) : null;
@@ -215,12 +214,12 @@ function PlanCard({
               <View style={{ alignItems: "flex-end" }}>
                 {hasDiscount && (
                   <Text style={{ fontSize: 11, color: colors.muted, textDecorationLine: "line-through", marginBottom: 1 }}>
-                    ${originalPrice}
+                    {formatPrice(rawOriginal)}
                   </Text>
                 )}
                 <View style={styles.priceRow}>
                   <Text style={[styles.priceCurrency, { color: accent }]}>$</Text>
-                  <Text style={[styles.priceMain, { color: accent }]}>{price}</Text>
+                  <Text style={[styles.priceMain, { color: accent }]}>{rawPrice.toFixed(2)}</Text>
                 </View>
               </View>
             )}
@@ -413,7 +412,7 @@ export function PlanCarousel({
                     <View style={[styles.comparePlanDot, { backgroundColor: p.color }]} />
                     <Text style={{ fontSize: 13, fontWeight: "700", color: p.color }} numberOfLines={1}>{p.displayName}</Text>
                     <Text style={{ fontSize: 11, color: colors.muted, marginTop: 1 }}>
-                      {p.monthlyPrice === 0 ? "Free" : `$${p.monthlyPrice}/mo`}
+                      {p.monthlyPrice === 0 ? "Free" : `${formatPrice(p.monthlyPrice)}/mo`}
                     </Text>
                   </View>
                 ))}
