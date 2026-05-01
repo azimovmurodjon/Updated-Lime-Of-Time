@@ -14,7 +14,12 @@ import {
   Platform,
   Switch,
   Modal,
+  Image,
+  ActivityIndicator,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
+import { trpc } from "@/lib/trpc";
 import * as Clipboard from "expo-clipboard";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -78,6 +83,40 @@ export default function LocationFormScreen() {
     formatPhoneNumber(existing?.phone ?? (isFirstLocation ? (state.settings.profile?.phone ?? "") : ""))
   );
   const [email, setEmail] = useState(existing?.email ?? "");
+  const [photoUri, setPhotoUri] = useState<string>(existing?.photoUri ?? "");
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const uploadImageMut = trpc.files.uploadImage.useMutation();
+  const pickLocationPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Please allow access to your photo library to add a location photo.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.85,
+    });
+    if (!result.canceled && result.assets[0]) {
+      const localUri = result.assets[0].uri;
+      if (Platform.OS !== "web") {
+        try {
+          setUploadingPhoto(true);
+          const base64 = await FileSystem.readAsStringAsync(localUri, { encoding: FileSystem.EncodingType.Base64 });
+          const mimeType = result.assets[0].mimeType ?? "image/jpeg";
+          const { url } = await uploadImageMut.mutateAsync({ base64, mimeType, folder: "locations" });
+          setPhotoUri(url);
+        } catch {
+          setPhotoUri(localUri);
+        } finally {
+          setUploadingPhoto(false);
+        }
+      } else {
+        setPhotoUri(localUri);
+      }
+    }
+  };
   // Validation errors
   const [errors, setErrors] = useState<{ name?: string; address?: string }>({});
   // First-action prompt (shown once after saving the very first location)
@@ -120,6 +159,7 @@ export default function LocationFormScreen() {
       reopenOn: existing?.reopenOn,
       activeUntil: activeUntil,
       workingHours: useLocationHours ? locationHours : {},
+      photoUri: photoUri.trim() || undefined,
       createdAt: existing?.createdAt ?? new Date().toISOString(),
     };
 
@@ -468,6 +508,59 @@ export default function LocationFormScreen() {
             style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
             returnKeyType="done"
           />
+          {/* Studio Photo */}
+          <Text className="text-xs font-medium text-muted mb-1 mt-4">Studio Photo (optional)</Text>
+          <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 8, lineHeight: 15 }}>
+            Shown on the client booking page as a cover image for this location.
+          </Text>
+          <Pressable
+            onPress={pickLocationPhoto}
+            style={({ pressed }) => ({
+              borderRadius: 12,
+              overflow: "hidden",
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.surface,
+              height: photoUri ? 160 : 80,
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            {uploadingPhoto ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : photoUri ? (
+              <>
+                <Image
+                  source={{ uri: photoUri }}
+                  style={{ width: "100%", height: "100%" }}
+                  resizeMode="cover"
+                />
+                <View style={{
+                  position: "absolute", bottom: 8, right: 8,
+                  backgroundColor: "rgba(0,0,0,0.55)",
+                  borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5,
+                  flexDirection: "row", alignItems: "center", gap: 5,
+                }}>
+                  <IconSymbol name="pencil" size={12} color="#fff" />
+                  <Text style={{ color: "#fff", fontSize: 11, fontWeight: "600" }}>Change</Text>
+                </View>
+              </>
+            ) : (
+              <View style={{ alignItems: "center", gap: 6 }}>
+                <IconSymbol name="photo.badge.plus" size={28} color={colors.muted} />
+                <Text style={{ fontSize: 12, color: colors.muted }}>Tap to add a studio photo</Text>
+              </View>
+            )}
+          </Pressable>
+          {photoUri ? (
+            <Pressable
+              onPress={() => setPhotoUri("")}
+              style={({ pressed }) => ({ alignSelf: "flex-end", marginTop: 6, opacity: pressed ? 0.6 : 1 })}
+            >
+              <Text style={{ fontSize: 12, color: colors.error }}>Remove photo</Text>
+            </Pressable>
+          ) : null}
         </View>
 
         {/* Booking Link (edit mode only) */}

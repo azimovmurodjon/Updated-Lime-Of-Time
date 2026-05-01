@@ -333,6 +333,8 @@ export interface BusinessProfile {
   cashAppHandle?: string;
   /** Venmo @handle for payment SMS */
   venmoHandle?: string;
+  /** Optional business logo URI (local file URI or remote S3 URL) shown on the public booking page */
+  businessLogoUri?: string;
 }
 
 export interface CancellationPolicy {

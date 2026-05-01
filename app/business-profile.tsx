@@ -10,7 +10,12 @@ import {
   Linking,
   KeyboardAvoidingView,
   Platform,
+  Image,
+  ActivityIndicator,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
+import { trpc } from "@/lib/trpc";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore } from "@/lib/store";
@@ -70,6 +75,40 @@ export default function BusinessProfileScreen() {
   const [description, setDescription] = useState(profile.description ?? "");
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [logoUri, setLogoUri] = useState<string>(profile.businessLogoUri ?? "");
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const uploadImageMut = trpc.files.uploadImage.useMutation();
+  const pickLogo = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Please allow access to your photo library to upload a logo.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.9,
+    });
+    if (!result.canceled && result.assets[0]) {
+      const localUri = result.assets[0].uri;
+      if (Platform.OS !== "web") {
+        try {
+          setUploadingLogo(true);
+          const base64 = await FileSystem.readAsStringAsync(localUri, { encoding: FileSystem.EncodingType.Base64 });
+          const mimeType = result.assets[0].mimeType ?? "image/jpeg";
+          const { url } = await uploadImageMut.mutateAsync({ base64, mimeType, folder: "logos" });
+          setLogoUri(url);
+        } catch {
+          setLogoUri(localUri);
+        } finally {
+          setUploadingLogo(false);
+        }
+      } else {
+        setLogoUri(localUri);
+      }
+    }
+  };
 
   const ownerRef = useRef<TextInput>(null);
   const phoneRef = useRef<TextInput>(null);
@@ -105,6 +144,7 @@ export default function BusinessProfileScreen() {
           email: email.trim(),
           website: website.trim(),
           description: description.trim(),
+          businessLogoUri: logoUri.trim() || undefined,
         },
       },
     };
@@ -309,6 +349,72 @@ export default function BusinessProfileScreen() {
                     <IconSymbol name="arrow.up.right.square" size={18} color={colors.primary} />
                   </Pressable>
                 )}
+              </View>
+            </Field>
+
+            {/* Business Logo */}
+            <Field
+              label="Business Logo (optional)"
+              errorColor={colors.error}
+              foregroundColor={colors.foreground}
+            >
+              <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 8, lineHeight: 15 }}>
+                Shown on your public booking page and client-facing screens.
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+                <Pressable
+                  onPress={pickLogo}
+                  style={({ pressed }) => ({
+                    width: 80, height: 80,
+                    borderRadius: 16,
+                    overflow: "hidden",
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.surface,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    opacity: pressed ? 0.7 : 1,
+                  })}
+                >
+                  {uploadingLogo ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : logoUri ? (
+                    <Image
+                      source={{ uri: logoUri }}
+                      style={{ width: 80, height: 80 }}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <IconSymbol name="photo.badge.plus" size={28} color={colors.muted} />
+                  )}
+                </Pressable>
+                <View style={{ flex: 1, gap: 8 }}>
+                  <Pressable
+                    onPress={pickLogo}
+                    style={({ pressed }) => ({
+                      backgroundColor: colors.primary + "18",
+                      borderColor: colors.primary + "40",
+                      borderWidth: 1,
+                      borderRadius: 10,
+                      paddingVertical: 9,
+                      paddingHorizontal: 14,
+                      alignItems: "center",
+                      opacity: pressed ? 0.7 : 1,
+                    })}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: "600", color: colors.primary }}>
+                      {logoUri ? "Change Logo" : "Upload Logo"}
+                    </Text>
+                  </Pressable>
+                  {logoUri ? (
+                    <Pressable
+                      onPress={() => setLogoUri("")}
+                      style={({ pressed }) => ({ alignItems: "center", opacity: pressed ? 0.6 : 1 })}
+                    >
+                      <Text style={{ fontSize: 12, color: colors.error }}>Remove</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
               </View>
             </Field>
 

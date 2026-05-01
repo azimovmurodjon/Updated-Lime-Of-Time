@@ -130,6 +130,7 @@ export default function PublicBookingScreen() {
   const selectedService = selectedServiceId ? getServiceById(selectedServiceId) : null;
   const businessName = state.settings.businessName || "Our Business";
   const profile = state.settings.profile;
+  const businessLogoUri = profile.businessLogoUri;
   const isClosed = state.settings.temporaryClosed;
 
   // Resolve the selected location object
@@ -376,6 +377,9 @@ export default function PublicBookingScreen() {
             <IconSymbol name="chevron.left" size={24} color={colors.foreground} />
           </Pressable>
           <View style={{ flex: 1, alignItems: "center" }}>
+            {businessLogoUri ? (
+              <Image source={{ uri: businessLogoUri }} style={{ width: 32, height: 32, borderRadius: 8, marginBottom: 3 }} resizeMode="cover" />
+            ) : null}
             <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground }}>Book with {businessName}</Text>
             <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>Powered by Lime Of Time</Text>
           </View>
@@ -441,6 +445,9 @@ export default function PublicBookingScreen() {
           <IconSymbol name="chevron.left" size={24} color={colors.foreground} />
         </Pressable>
         <View style={{ flex: 1, alignItems: "center" }}>
+          {businessLogoUri ? (
+            <Image source={{ uri: businessLogoUri }} style={{ width: 32, height: 32, borderRadius: 8, marginBottom: 3 }} resizeMode="cover" />
+          ) : null}
           <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground }}>Book with {businessName}</Text>
           <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>Powered by Lime Of Time</Text>
         </View>
