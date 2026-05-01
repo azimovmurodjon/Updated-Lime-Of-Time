@@ -9,7 +9,6 @@ import {
   ScrollView,
   Alert,
   Image,
-  Linking,
   Platform,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
@@ -29,14 +28,62 @@ import { useActiveLocation } from "@/hooks/use-active-location";
 import { useResponsive } from "@/hooks/use-responsive";
 import { useScrollToTopOnFocus } from "@/hooks/use-scroll-to-top-on-focus";
 
-type TabKey = "business" | "notifications" | "tools" | "account";
+// ─── Tab definitions ──────────────────────────────────────────────────────────
+
+type TabKey = "business" | "payments" | "clients" | "comms" | "account";
 
 const TABS: { key: TabKey; label: string; icon: string }[] = [
-  { key: "business",      label: "Business",      icon: "building.2.fill" },
-  { key: "notifications", label: "Alerts",         icon: "bell.fill" },
-  { key: "tools",         label: "Tools",          icon: "wrench.fill" },
-  { key: "account",       label: "Account",        icon: "person.fill" },
+  { key: "business",  label: "Business",  icon: "building.2.fill" },
+  { key: "payments",  label: "Payments",  icon: "creditcard.fill" },
+  { key: "clients",   label: "Clients",   icon: "person.2.fill" },
+  { key: "comms",     label: "Comms",     icon: "message.fill" },
+  { key: "account",   label: "Account",   icon: "person.fill" },
 ];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Uppercase section header with optional count badge and accent line */
+function SectionHeader({
+  label,
+  count,
+  accentColor,
+  colors,
+  topSpacing = true,
+}: {
+  label: string;
+  count?: number;
+  accentColor?: string;
+  colors: ReturnType<typeof useColors>;
+  topSpacing?: boolean;
+}) {
+  return (
+    <View style={[sectionStyles.row, topSpacing && { marginTop: 24 }]}>
+      {accentColor && <View style={[sectionStyles.accent, { backgroundColor: accentColor }]} />}
+      <Text style={[sectionStyles.label, { color: colors.muted }]}>{label}</Text>
+      {count !== undefined && count > 0 && (
+        <View style={[sectionStyles.badge, { backgroundColor: (accentColor ?? colors.primary) + "20" }]}>
+          <Text style={[sectionStyles.badgeText, { color: accentColor ?? colors.primary }]}>{count}</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const sectionStyles = StyleSheet.create({
+  row:       { flexDirection: "row", alignItems: "center", marginBottom: 10, gap: 8 },
+  accent:    { width: 3, height: 14, borderRadius: 2 },
+  label:     { fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.9, flex: 1 },
+  badge:     { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
+  badgeText: { fontSize: 11, fontWeight: "700" },
+});
+
+/** Status dot for nav cards */
+function StatusDot({ status, colors }: { status: "ok" | "warn" | "off"; colors: ReturnType<typeof useColors> }) {
+  const color = status === "ok" ? colors.success : status === "warn" ? colors.warning : colors.muted;
+  return <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />;
+}
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function SettingsScreen() {
   const { state, dispatch, syncToDb, filterAppointmentsByLocation, clientsForActiveLocation } = useStore();
@@ -104,9 +151,9 @@ export default function SettingsScreen() {
   );
 
   const themeOptions: { key: "light" | "dark" | "system"; label: string; icon: string }[] = [
-    { key: "light", label: "Light", icon: "sun.max.fill" },
-    { key: "dark",  label: "Dark",  icon: "moon.fill" },
-    { key: "system",label: "Auto",  icon: "gear" },
+    { key: "light",  label: "Light",  icon: "sun.max.fill" },
+    { key: "dark",   label: "Dark",   icon: "moon.fill" },
+    { key: "system", label: "Auto",   icon: "gear" },
   ];
 
   const handleLogout = useCallback(() => {
@@ -126,9 +173,7 @@ export default function SettingsScreen() {
               "@bookease_locations","@bookease_active_location_id",
               "@bookease_client_photos","@bookease_packages","@bookease_service_photos",
               "@bookease_biometric_enabled",
-              "@lime_tutorial_seen",
-              "@lime_tour_analytics",
-              "@lime_first_action_shown",
+              "@lime_tutorial_seen","@lime_tour_analytics","@lime_first_action_shown",
             ]);
           } catch {}
           try { await removeSessionToken(); } catch {}
@@ -149,33 +194,22 @@ export default function SettingsScreen() {
           text: "Delete Everything",
           style: "destructive",
           onPress: async () => {
-            // 1. Delete all records from DB (cascade: appointments, clients, services,
-            //    reviews, discounts, giftCards, customSchedule, products, staffMembers,
-            //    locations, waitlist, promoCodes, then businessOwner itself)
             if (state.businessOwnerId) {
               try { await deleteBusinessMut.mutateAsync({ id: state.businessOwnerId }); } catch {}
             }
-            // 2. Reset in-memory store
             dispatch({ type: "RESET_ALL_DATA" });
-            // 3. Wipe ALL AsyncStorage keys used by this app
             try {
               await AsyncStorage.multiRemove([
-                // Business data
                 "@bookease_services","@bookease_clients","@bookease_appointments",
                 "@bookease_reviews","@bookease_settings","@bookease_business_owner_id",
                 "@bookease_discounts","@bookease_gift_cards","@bookease_custom_schedule",
                 "@bookease_location_custom_schedule","@bookease_products","@bookease_staff",
                 "@bookease_locations","@bookease_active_location_id",
                 "@bookease_client_photos","@bookease_packages","@bookease_service_photos",
-                // App preferences
                 "@bookease_biometric_enabled",
-                // Tour / onboarding state
-                "@lime_tutorial_seen",
-                "@lime_tour_analytics",
-                "@lime_first_action_shown",
+                "@lime_tutorial_seen","@lime_tour_analytics","@lime_first_action_shown",
               ]);
             } catch {}
-            // 4. Wipe SecureStore (session token + user info)
             try { await removeSessionToken(); } catch {}
             try { await clearUserInfo(); } catch {}
             router.replace("/onboarding");
@@ -190,29 +224,11 @@ export default function SettingsScreen() {
     return (state.reviews.reduce((s, r) => s + r.rating, 0) / state.reviews.length).toFixed(1);
   }, [state.reviews]);
 
-  // ── Nav item lists ──────────────────────────────────────────────────────────
-  const locationNavItems = [
-    { title: "Schedule & Hours",  subtitle: hasMultipleLocations && activeLocation ? `${activeLocation.name} hours` : "Working hours, buffer time, custom days", icon: "calendar.badge.clock" as const, route: "/schedule-settings" as const, color: "#10B981" },
-    { title: "Booking Policies",  subtitle: "Cancellation fees, booking URL, temp closure", icon: "exclamationmark.triangle.fill" as const, route: "/booking-policies" as const, color: "#FF9800" },
-    { title: "Locations",         subtitle: `${state.locations.length} location${state.locations.length !== 1 ? "s" : ""} configured`, icon: "building.2.fill" as const, route: "/locations" as const, color: "#3B82F6" },
-    { title: "Payment Methods",   subtitle: (() => { const m=[]; if(settings.zelleHandle)m.push("Zelle"); if(settings.cashAppHandle)m.push("Cash App"); if(settings.venmoHandle)m.push("Venmo"); return m.length>0?m.join(" \u00b7 "):"Not configured"; })(), icon: "creditcard.fill" as const, route: "/payment-methods" as const, color: "#10B981" },
-    { title: "Payments History",   subtitle: "Charges, refunds & payouts audit trail", icon: "list.bullet" as const, route: "/payments-history" as const, color: "#635BFF" },
-    { title: "Social Links",        subtitle: (() => { const s=[]; if(settings.instagramHandle)s.push("Instagram"); if(settings.facebookHandle)s.push("Facebook"); if(settings.tiktokHandle)s.push("TikTok"); return s.length>0?s.join(" \u00b7 "):"Instagram, Facebook, TikTok"; })(), icon: "link" as const, route: "/social-links" as const, color: "#E1306C" },
-  ];
+  // ── Shared nav card renderer ─────────────────────────────────────────────────
 
-  const toolsNavItems = [
-    { title: "Subscription",      subtitle: "Plan, usage & billing", icon: "crown.fill" as const, route: "/subscription" as const, color: "#F59E0B" },
-    { title: "Analytics",         subtitle: "Revenue, clients, appointments insights", icon: "chart.bar.fill" as const, route: "/analytics-detail?tab=overview" as const, color: "#8b5cf6" },
-    { title: "Note Templates",    subtitle: `${(state.noteTemplates ?? []).length} template${(state.noteTemplates ?? []).length !== 1 ? "s" : ""} saved`, icon: "note.text" as const, route: "/note-templates" as const, color: "#6366F1" },
-    { title: "Promo Codes",        subtitle: `${(state.promoCodes ?? []).filter((p) => p.active).length} active code${(state.promoCodes ?? []).filter((p) => p.active).length !== 1 ? "s" : ""}`, icon: "ticket.fill" as const, route: "/promo-codes" as const, color: "#0EA5E9" },
-    { title: "Category Management",subtitle: "Manage service and product categories", icon: "tag.fill" as const, route: "/category-management" as const, color: "#10B981" },
-    { title: "Export Data",       subtitle: "PDF reports for clients, appointments, revenue", icon: "square.and.arrow.up.fill" as const, route: "/data-export" as const, color: colors.primary },
-    { title: "Usage Guide",        subtitle: "How to use every feature in the app", icon: "book.fill" as const, route: "/usage-guide" as const, color: "#0EA5E9" },
-    { title: "Onboarding Analytics", subtitle: "See where new users drop off during sign-up", icon: "chart.line.uptrend.xyaxis" as const, route: "/onboarding-analytics" as const, color: "#14B8A6" },
-  ];
-
-  // ── Tab content renderers ───────────────────────────────────────────────────
-  const renderNavList = (items: Array<{ title: string; subtitle: string; icon: any; route: any; color: string }>) => (
+  const renderNavList = (
+    items: Array<{ title: string; subtitle: string; icon: any; route: any; color: string; status?: "ok" | "warn" | "off" }>
+  ) => (
     <View style={isTablet ? { flexDirection: "row", flexWrap: "wrap", gap: 10 } : undefined}>
       {items.map((item) => (
         <Pressable
@@ -229,13 +245,18 @@ export default function SettingsScreen() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{item.title}</Text>
-            <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{item.subtitle}</Text>
+            <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 17 }}>{item.subtitle}</Text>
           </View>
-          <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            {item.status && <StatusDot status={item.status} colors={colors} />}
+            <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+          </View>
         </Pressable>
       ))}
     </View>
   );
+
+  // ── BUSINESS TAB ─────────────────────────────────────────────────────────────
 
   const renderBusinessTab = () => (
     <>
@@ -249,7 +270,7 @@ export default function SettingsScreen() {
 
       {/* Location Switcher */}
       {hasMultipleLocations && (
-        <View style={[{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12, flexDirection: "row", alignItems: "center", gap: 10 }]}>
+        <View style={[{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 14, padding: 12, marginBottom: 14, flexDirection: "row", alignItems: "center", gap: 10 }]}>
           <IconSymbol name="mappin.and.ellipse" size={18} color={colors.primary} />
           <Text style={{ fontSize: 13, color: colors.muted, flex: 1 }}>Active Location</Text>
           <LocationSwitcher />
@@ -290,36 +311,33 @@ export default function SettingsScreen() {
 
       {/* Quick Stats */}
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Text style={[styles.cardLabel, { color: colors.muted }]}>Quick Stats{hasMultipleLocations && activeLocation ? ` — ${activeLocation.name}` : ""}</Text>
+        <Text style={[styles.cardLabel, { color: colors.muted }]}>
+          Quick Stats{hasMultipleLocations && activeLocation ? ` — ${activeLocation.name}` : ""}
+        </Text>
         <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Text style={[styles.statNumber, { color: colors.primary }]}>{state.services.length}</Text>
-            <Text style={{ fontSize: 12, color: colors.muted }}>Services</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={[styles.statNumber, { color: colors.primary }]}>{clientsForActiveLocation.length}</Text>
-            <Text style={{ fontSize: 12, color: colors.muted }}>Clients</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={[styles.statNumber, { color: colors.primary }]}>{filterAppointmentsByLocation(state.appointments).length}</Text>
-            <Text style={{ fontSize: 12, color: colors.muted }}>Bookings</Text>
-          </View>
+          {[
+            { label: "Services",  value: state.services.length },
+            { label: "Clients",   value: clientsForActiveLocation.length },
+            { label: "Bookings",  value: filterAppointmentsByLocation(state.appointments).length },
+          ].map((s) => (
+            <View key={s.label} style={styles.statItem}>
+              <Text style={[styles.statNumber, { color: colors.primary }]}>{s.value}</Text>
+              <Text style={{ fontSize: 12, color: colors.muted }}>{s.label}</Text>
+            </View>
+          ))}
         </View>
       </View>
 
-      {/* Section: Location */}
-      <Text style={styles.sectionLabel}>Location Settings</Text>
-      {renderNavList(locationNavItems)}
-
-      {/* Engagement */}
-      <Text style={[styles.sectionLabel, { marginTop: 8 }]}>Engagement</Text>
+      {/* Operations */}
+      <SectionHeader label="Operations" accentColor="#10B981" colors={colors} topSpacing={false} />
       {renderNavList([
-        { title: "Client Reviews",    subtitle: reviewAvg ? `${reviewAvg} ★ — ${state.reviews.length} review${state.reviews.length !== 1 ? "s" : ""}` : "No reviews yet", icon: "star.fill" as const, route: "/reviews" as const, color: "#f59e0b" },
-        { title: "Packages & Bundles",subtitle: `${(state.packages ?? []).filter((p) => p.active).length} active package${(state.packages ?? []).filter((p) => p.active).length !== 1 ? "s" : ""}`, icon: "gift.fill" as const, route: "/packages" as const, color: "#E91E63" },
+        { title: "Schedule & Hours",  subtitle: hasMultipleLocations && activeLocation ? `${activeLocation.name} hours` : "Working hours, buffer time, custom days", icon: "calendar.badge.clock", route: "/schedule-settings", color: "#10B981", status: "ok" },
+        { title: "Booking Policies",  subtitle: "Cancellation fees, booking URL, temp closure",  icon: "exclamationmark.triangle.fill", route: "/booking-policies",  color: "#FF9800" },
+        { title: "Locations",         subtitle: `${state.locations.length} location${state.locations.length !== 1 ? "s" : ""} configured`, icon: "building.2.fill", route: "/locations", color: "#3B82F6", status: state.locations.length > 0 ? "ok" : "warn" },
       ])}
 
-      {/* Goals & Alerts */}
-      <Text style={[styles.sectionLabel, { marginTop: 8 }]}>Goals & Alerts</Text>
+      {/* Goals & Targets */}
+      <SectionHeader label="Goals & Targets" accentColor="#FF9800" colors={colors} />
 
       {/* Monthly Revenue Goal */}
       <View style={[styles.navCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -364,7 +382,7 @@ export default function SettingsScreen() {
       </View>
 
       {/* Staff Alert Threshold */}
-      <View style={[styles.navCard, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 8 }]}>
+      <View style={[styles.navCard, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 10 }]}>
         <View style={[styles.navIcon, { backgroundColor: "#EF444415" }]}>
           <IconSymbol name="person.2.fill" size={22} color="#EF4444" />
         </View>
@@ -410,10 +428,103 @@ export default function SettingsScreen() {
     </>
   );
 
-  const renderNotificationsTab = () => (
+  // ── PAYMENTS TAB ─────────────────────────────────────────────────────────────
+
+  const renderPaymentsTab = () => {
+    const hasStripe = !!(settings as any).stripeConnected;
+    const p2pCount = [settings.zelleHandle, settings.cashAppHandle, settings.venmoHandle].filter(Boolean).length;
+    return (
+      <>
+        <SectionHeader label="Subscription" accentColor="#F59E0B" colors={colors} topSpacing={false} />
+        {renderNavList([
+          { title: "Subscription", subtitle: "Plan, usage & billing", icon: "crown.fill", route: "/subscription", color: "#F59E0B", status: "ok" },
+        ])}
+
+        <SectionHeader label="Accept Payments" accentColor="#10B981" colors={colors} />
+        {renderNavList([
+          {
+            title: "Payment Methods",
+            subtitle: p2pCount > 0
+              ? `${p2pCount} method${p2pCount !== 1 ? "s" : ""} configured`
+              : "Stripe, Zelle, Cash App, Venmo",
+            icon: "creditcard.fill",
+            route: "/payment-methods",
+            color: "#10B981",
+            status: p2pCount > 0 || hasStripe ? "ok" : "warn",
+          },
+        ])}
+
+        <SectionHeader label="History & Reports" accentColor="#635BFF" colors={colors} />
+        {renderNavList([
+          { title: "Payments History", subtitle: "Charges, refunds & payouts audit trail", icon: "list.bullet", route: "/payments-history", color: "#635BFF" },
+        ])}
+      </>
+    );
+  };
+
+  // ── CLIENTS TAB ──────────────────────────────────────────────────────────────
+
+  const renderClientsTab = () => {
+    const activePackages = (state.packages ?? []).filter((p) => p.active).length;
+    const activeCodes    = (state.promoCodes ?? []).filter((p) => p.active).length;
+    const noteCount      = (state.noteTemplates ?? []).length;
+    return (
+      <>
+        <SectionHeader label="Client Experience" accentColor="#E91E63" colors={colors} topSpacing={false} />
+        {renderNavList([
+          {
+            title: "Client Reviews",
+            subtitle: reviewAvg ? `${reviewAvg} ★ — ${state.reviews.length} review${state.reviews.length !== 1 ? "s" : ""}` : "No reviews yet",
+            icon: "star.fill",
+            route: "/reviews",
+            color: "#F59E0B",
+            status: state.reviews.length > 0 ? "ok" : undefined,
+          },
+          {
+            title: "Packages & Bundles",
+            subtitle: `${activePackages} active package${activePackages !== 1 ? "s" : ""}`,
+            icon: "gift.fill",
+            route: "/packages",
+            color: "#E91E63",
+            status: activePackages > 0 ? "ok" : undefined,
+          },
+          {
+            title: "Promo Codes",
+            subtitle: `${activeCodes} active code${activeCodes !== 1 ? "s" : ""}`,
+            icon: "ticket.fill",
+            route: "/promo-codes",
+            color: "#0EA5E9",
+            status: activeCodes > 0 ? "ok" : undefined,
+          },
+        ])}
+
+        <SectionHeader label="Organisation" accentColor="#10B981" colors={colors} />
+        {renderNavList([
+          {
+            title: "Category Management",
+            subtitle: "Manage service and product categories",
+            icon: "tag.fill",
+            route: "/category-management",
+            color: "#10B981",
+          },
+          {
+            title: "Note Templates",
+            subtitle: `${noteCount} template${noteCount !== 1 ? "s" : ""} saved`,
+            icon: "note.text",
+            route: "/note-templates",
+            color: "#6366F1",
+            status: noteCount > 0 ? "ok" : undefined,
+          },
+        ])}
+      </>
+    );
+  };
+
+  // ── COMMS TAB ────────────────────────────────────────────────────────────────
+
+  const renderCommsTab = () => (
     <>
-      {/* Push Notifications */}
-      <Text style={[styles.sectionLabel, { color: colors.muted }]}>Push Notifications</Text>
+      <SectionHeader label="Push Notifications" accentColor={colors.primary} colors={colors} topSpacing={false} />
       <Pressable
         onPress={() => router.push("/notification-settings")}
         style={({ pressed }) => [styles.navCard, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.75 : 1 }]}
@@ -423,117 +534,71 @@ export default function SettingsScreen() {
         </View>
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Notification Preferences</Text>
-          <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
+          <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 17 }}>
             {settings.notificationsEnabled ? "Active — push, email & reminder settings" : "Paused — tap to manage"}
           </Text>
         </View>
-        <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <StatusDot status={settings.notificationsEnabled ? "ok" : "off"} colors={colors} />
+          <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+        </View>
       </Pressable>
 
-      {/* SMS */}
-      <Text style={[styles.sectionLabel, { color: colors.muted, marginTop: 8 }]}>SMS Messaging</Text>
-      <Pressable
-        onPress={() => router.push("/sms-templates")}
-        style={({ pressed }) => [styles.navCard, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.75 : 1 }]}
-      >
-        <View style={[styles.navIcon, { backgroundColor: "#00897B15" }]}>
-          <IconSymbol name="message.fill" size={22} color="#00897B" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>SMS Messages</Text>
-          <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Customize messages sent to clients</Text>
-        </View>
-        <IconSymbol name="chevron.right" size={16} color={colors.muted} />
-      </Pressable>
-      <Pressable
-        onPress={() => router.push("/sms-automation")}
-        style={({ pressed }) => [styles.navCard, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.75 : 1 }]}
-      >
-        <View style={[styles.navIcon, { backgroundColor: "#00897B15" }]}>
-          <IconSymbol name="wand.and.stars" size={22} color="#00897B" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>SMS Automation</Text>
-          <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{state.settings.twilioEnabled ? "Enabled — messages send automatically" : "Disabled — tap to configure Twilio"}</Text>
-        </View>
-        <IconSymbol name="chevron.right" size={16} color={colors.muted} />
-      </Pressable>
-      {/* Security */}
-      {Platform.OS !== "web" && biometricAvailable && (
-        <Text style={[styles.sectionLabel, { color: colors.muted, marginTop: 8 }]}>Security</Text>
-      )}
-      {Platform.OS !== "web" && biometricAvailable && (
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 4 }]}>
-          <View style={styles.switchRow}>
-            <View style={styles.switchLabel}>
-              <IconSymbol name="lock.fill" size={20} color={colors.primary} />
-              <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground, marginLeft: 12 }}>
-                {biometricType === "face" ? "Face ID" : "Fingerprint"} Lock
-              </Text>
-            </View>
-            <Switch
-              value={biometricEnabled}
-              onValueChange={async (val) => { await toggleBiometric(val); }}
-              trackColor={{ false: colors.border, true: colors.primary + "60" }}
-              thumbColor={biometricEnabled ? colors.primary : colors.muted}
-            />
-          </View>
-          <Text style={{ fontSize: 12, color: colors.muted, marginTop: 4, marginLeft: 32 }}>
-            {biometricEnabled ? "App will require authentication on launch" : "Enable to secure your app on launch"}
-          </Text>
-        </View>
-      )}
-
-    </>
-  );
-
-  const renderToolsTab = () => (
-    <>
-      {/* Billing */}
-      <Text style={[styles.sectionLabel, { color: colors.muted }]}>Billing</Text>
+      <SectionHeader label="SMS Messaging" accentColor="#00897B" colors={colors} />
       {renderNavList([
-        { title: "Subscription",      subtitle: "Plan, usage & billing",                               icon: "crown.fill" as const,                      color: "#F59E0B", route: "/subscription" as const },
-        { title: "Payments History",  subtitle: "Charges, refunds & payouts audit trail",              icon: "list.bullet" as const,                     color: "#635BFF", route: "/payments-history" as const },
-      ])}
-
-      {/* Insights */}
-      <Text style={[styles.sectionLabel, { color: colors.muted, marginTop: 8 }]}>Insights & Reports</Text>
-      {renderNavList([
-        { title: "Analytics",         subtitle: "Revenue, clients, appointments insights",             icon: "chart.bar.fill" as const,                  color: "#8b5cf6", route: "/analytics-detail?tab=overview" as const },
-        { title: "Export Data",       subtitle: "PDF reports for clients, appointments, revenue",      icon: "square.and.arrow.up.fill" as const,         color: colors.primary, route: "/data-export" as const },
-        { title: "Onboarding Analytics", subtitle: "See where new users drop off during sign-up",    icon: "chart.line.uptrend.xyaxis" as const,        color: "#14B8A6", route: "/onboarding-analytics" as const },
-      ])}
-
-      {/* Content & Promotions */}
-      <Text style={[styles.sectionLabel, { color: colors.muted, marginTop: 8 }]}>Content & Promotions</Text>
-      {renderNavList([
-        { title: "Note Templates",    subtitle: `${(state.noteTemplates ?? []).length} template${(state.noteTemplates ?? []).length !== 1 ? "s" : ""} saved`, icon: "note.text" as const, color: "#6366F1", route: "/note-templates" as const },
-        { title: "Promo Codes",       subtitle: `${(state.promoCodes ?? []).filter((p) => p.active).length} active code${(state.promoCodes ?? []).filter((p) => p.active).length !== 1 ? "s" : ""}`, icon: "ticket.fill" as const, color: "#0EA5E9", route: "/promo-codes" as const },
-        { title: "Category Management",subtitle: "Manage service and product categories",             icon: "tag.fill" as const,                        color: "#10B981", route: "/category-management" as const },
-        { title: "Usage Guide",       subtitle: "How to use every feature in the app",                icon: "book.fill" as const,                       color: "#0EA5E9", route: "/usage-guide" as const },
+        {
+          title: "SMS Messages",
+          subtitle: "Customise messages sent to clients",
+          icon: "message.fill",
+          route: "/sms-templates",
+          color: "#00897B",
+        },
+        {
+          title: "SMS Automation",
+          subtitle: state.settings.twilioEnabled ? "Enabled — messages send automatically" : "Disabled — tap to configure",
+          icon: "wand.and.stars",
+          route: "/sms-automation",
+          color: "#00897B",
+          status: state.settings.twilioEnabled ? "ok" : "warn",
+        },
       ])}
     </>
   );
+
+  // ── ACCOUNT TAB ──────────────────────────────────────────────────────────────
 
   const renderAccountTab = () => (
     <>
       {/* Profile */}
-      <Text style={[styles.sectionLabel, { color: colors.muted }]}>Profile</Text>
-      <Pressable
-        onPress={() => router.push("/business-profile")}
-        style={({ pressed }) => [styles.navCard, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.75 : 1 }]}
-      >
-        <View style={[styles.navIcon, { backgroundColor: colors.primary + "15" }]}>
-          <IconSymbol name="person.fill" size={22} color={colors.primary} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Business Profile</Text>
-          <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{settings.profile.ownerName ? `${settings.profile.ownerName} \u00b7 ${settings.businessName}` : "Name, owner, phone, email, website"}</Text>
-        </View>
-        <IconSymbol name="chevron.right" size={16} color={colors.muted} />
-      </Pressable>
+      <SectionHeader label="Profile" accentColor={colors.primary} colors={colors} topSpacing={false} />
+      {renderNavList([
+        {
+          title: "Business Profile",
+          subtitle: settings.profile.ownerName
+            ? `${settings.profile.ownerName} · ${settings.businessName}`
+            : "Name, owner, phone, email, website",
+          icon: "person.fill",
+          route: "/business-profile",
+          color: colors.primary,
+        },
+        {
+          title: "Social Links",
+          subtitle: (() => {
+            const s: string[] = [];
+            if (settings.instagramHandle) s.push("Instagram");
+            if (settings.facebookHandle)  s.push("Facebook");
+            if (settings.tiktokHandle)    s.push("TikTok");
+            return s.length > 0 ? s.join(" · ") : "Instagram, Facebook, TikTok";
+          })(),
+          icon: "link",
+          route: "/social-links",
+          color: "#E1306C",
+          status: (settings.instagramHandle || settings.facebookHandle || settings.tiktokHandle) ? "ok" : undefined,
+        },
+      ])}
+
       {/* Appearance */}
-      <Text style={[styles.sectionLabel, { marginTop: 8 }]}>Appearance</Text>
+      <SectionHeader label="Appearance" accentColor="#8B5CF6" colors={colors} />
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <Text style={[styles.cardLabel, { color: colors.muted }]}>Theme Mode</Text>
         <View style={styles.themeRow}>
@@ -563,12 +628,47 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      {/* Replay App Tour */}
-      <Text style={[styles.sectionLabel, { marginTop: 8 }]}>Help</Text>
+      {/* Security — only on native with biometrics */}
+      {Platform.OS !== "web" && biometricAvailable && (
+        <>
+          <SectionHeader label="Security" accentColor="#EF4444" colors={colors} />
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={styles.switchRow}>
+              <View style={styles.switchLabel}>
+                <IconSymbol name="lock.fill" size={20} color={colors.primary} />
+                <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground, marginLeft: 12 }}>
+                  {biometricType === "face" ? "Face ID" : "Fingerprint"} Lock
+                </Text>
+              </View>
+              <Switch
+                value={biometricEnabled}
+                onValueChange={async (val) => { await toggleBiometric(val); }}
+                trackColor={{ false: colors.border, true: colors.primary + "60" }}
+                thumbColor={biometricEnabled ? colors.primary : colors.muted}
+              />
+            </View>
+            <Text style={{ fontSize: 12, color: colors.muted, marginTop: 6, marginLeft: 32, lineHeight: 17 }}>
+              {biometricEnabled ? "App will require authentication on launch" : "Enable to secure your app on launch"}
+            </Text>
+          </View>
+        </>
+      )}
+
+      {/* Reports & Data */}
+      <SectionHeader label="Reports & Data" accentColor="#8B5CF6" colors={colors} />
+      {renderNavList([
+        { title: "Analytics",    subtitle: "Revenue, clients, appointments insights", icon: "chart.bar.fill",             route: "/analytics-detail?tab=overview", color: "#8B5CF6" },
+        { title: "Export Data",  subtitle: "PDF reports for clients, appointments, revenue", icon: "square.and.arrow.up.fill", route: "/data-export",                   color: colors.primary },
+      ])}
+
+      {/* Help */}
+      <SectionHeader label="Help" accentColor="#6366F1" colors={colors} />
+      {renderNavList([
+        { title: "Usage Guide",  subtitle: "How to use every feature in the app", icon: "book.fill", route: "/usage-guide", color: "#0EA5E9" },
+      ])}
       <Pressable
         onPress={async () => {
           try { await AsyncStorage.removeItem("@lime_tutorial_seen"); } catch {}
-          // Navigate to Home tab — use push so focus event always fires even if already on Home
           router.push("/(tabs)/" as any);
         }}
         style={({ pressed }) => [styles.navCard, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.75 : 1 }]}
@@ -577,14 +677,14 @@ export default function SettingsScreen() {
           <IconSymbol name="play.fill" size={22} color="#6366F1" />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Replay App Tour</Text>
-          <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Re-watch the onboarding walkthrough</Text>
+          <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Restart Onboarding Tour</Text>
+          <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Re-watch the app walkthrough</Text>
         </View>
         <IconSymbol name="chevron.right" size={16} color={colors.muted} />
       </Pressable>
 
-      {/* Log Out */}
-      <Text style={[styles.sectionLabel, { marginTop: 8 }]}>Account Actions</Text>
+      {/* Danger Zone */}
+      <SectionHeader label="Danger Zone" accentColor={colors.error} colors={colors} />
       <Pressable
         onPress={handleLogout}
         style={({ pressed }) => [styles.dangerButton, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
@@ -595,8 +695,6 @@ export default function SettingsScreen() {
         <Text style={{ fontSize: 15, fontWeight: "600", color: colors.primary, flex: 1 }}>Log Out</Text>
         <IconSymbol name="chevron.right" size={16} color={colors.muted} />
       </Pressable>
-
-      {/* Delete Business */}
       <Pressable
         onPress={handleDeleteBusiness}
         style={({ pressed }) => [styles.dangerButton, { backgroundColor: colors.error + "08", borderColor: colors.error + "30", opacity: pressed ? 0.7 : 1 }]}
@@ -608,7 +706,7 @@ export default function SettingsScreen() {
         <IconSymbol name="chevron.right" size={16} color={colors.error + "60"} />
       </Pressable>
 
-      {/* Dev Testing Entry (hidden — tap version box 5 times) */}
+      {/* Dev Testing (hidden easter egg) */}
       {devTapCount >= 5 && (
         <Pressable
           onPress={() => router.push("/dev-testing" as any)}
@@ -625,47 +723,56 @@ export default function SettingsScreen() {
         </Pressable>
       )}
 
-      {/* App Info — version box at the bottom */}
+      {/* App Info */}
       <Pressable
         onPress={() => setDevTapCount((n) => n + 1)}
         style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
       >
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: devTapCount >= 3 && devTapCount < 5 ? "#F59E0B40" : colors.border, alignItems: "center", paddingVertical: 24, marginTop: 16, marginBottom: 8 }]}>
-        <Image source={require("@/assets/images/icon.png")} style={{ width: 56, height: 56, borderRadius: 14, marginBottom: 8 }} resizeMode="contain" />
-        <Text style={{ fontSize: 16, fontWeight: "700", color: colors.primary }}>Lime Of Time</Text>
-        <Text style={{ fontSize: 12, color: colors.muted, marginTop: 3 }}>Version 1.0.0</Text>
-        <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>Smart Scheduling for Small Business</Text>
-      </View>
+        <View style={[styles.card, {
+          backgroundColor: colors.surface,
+          borderColor: devTapCount >= 3 && devTapCount < 5 ? "#F59E0B40" : colors.border,
+          alignItems: "center",
+          paddingVertical: 28,
+          marginTop: 20,
+          marginBottom: 8,
+        }]}>
+          <Image source={require("@/assets/images/icon.png")} style={{ width: 60, height: 60, borderRadius: 16, marginBottom: 10 }} resizeMode="contain" />
+          <Text style={{ fontSize: 17, fontWeight: "700", color: colors.primary }}>Lime Of Time</Text>
+          <Text style={{ fontSize: 12, color: colors.muted, marginTop: 3 }}>Version 1.0.0</Text>
+          <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>Smart Scheduling for Small Business</Text>
+        </View>
       </Pressable>
     </>
   );
 
-  // ── All searchable items (flat list across all tabs) ─────────────────────
+  // ── Search ────────────────────────────────────────────────────────────────────
+
   const allSearchableItems = useMemo(() => [
-    // Business tab
-    { title: "Schedule & Hours",     subtitle: "Working hours, buffer time, custom days",             icon: "calendar.badge.clock" as const,           color: "#10B981", route: "/schedule-settings" as const },
-    { title: "Booking Policies",     subtitle: "Cancellation fees, booking URL, temp closure",        icon: "exclamationmark.triangle.fill" as const,   color: "#FF9800", route: "/booking-policies" as const },
-    { title: "Locations",            subtitle: `${state.locations.length} location${state.locations.length !== 1 ? "s" : ""} configured`, icon: "building.2.fill" as const, color: "#3B82F6", route: "/locations" as const },
-    { title: "Payment Methods",      subtitle: "Zelle, Cash App, Venmo handles",                      icon: "creditcard.fill" as const,                 color: "#10B981", route: "/payment-methods" as const },
-    { title: "Payments History",     subtitle: "Charges, refunds & payouts audit trail",              icon: "list.bullet" as const,                     color: "#635BFF", route: "/payments-history" as const },
-    { title: "Social Links",         subtitle: "Instagram, Facebook, TikTok",                         icon: "link" as const,                            color: "#E1306C", route: "/social-links" as const },
-    { title: "Client Reviews",       subtitle: reviewAvg ? `${reviewAvg} ★ · ${state.reviews.length} reviews` : "No reviews yet", icon: "star.fill" as const, color: "#f59e0b", route: "/reviews" as const },
-    { title: "Packages & Bundles",   subtitle: `${(state.packages ?? []).filter((p) => p.active).length} active packages`, icon: "gift.fill" as const, color: "#E91E63", route: "/packages" as const },
-    // Notifications tab
-    { title: "Notification Preferences", subtitle: "Push, email & reminder settings",                icon: "bell.fill" as const,                       color: colors.primary, route: "/notification-settings" as const },
-    { title: "SMS Messages",         subtitle: "Customize messages sent to clients",                  icon: "message.fill" as const,                    color: "#00897B", route: "/sms-templates" as const },
-    { title: "SMS Automation",       subtitle: state.settings.twilioEnabled ? "Enabled" : "Disabled", icon: "message.fill" as const,                    color: "#00897B", route: "/sms-automation" as const },
-    // Tools tab
-    { title: "Subscription",         subtitle: "Plan, usage & billing",                               icon: "crown.fill" as const,                      color: "#F59E0B", route: "/subscription" as const },
-    { title: "Analytics",            subtitle: "Revenue, clients, appointments insights",             icon: "chart.bar.fill" as const,                  color: "#8b5cf6", route: "/analytics-detail?tab=overview" as const },
-    { title: "Note Templates",       subtitle: `${(state.noteTemplates ?? []).length} templates saved`, icon: "note.text" as const,                     color: "#6366F1", route: "/note-templates" as const },
-    { title: "Promo Codes",          subtitle: `${(state.promoCodes ?? []).filter((p) => p.active).length} active codes`, icon: "ticket.fill" as const, color: "#0EA5E9", route: "/promo-codes" as const },
-    { title: "Category Management",  subtitle: "Manage service and product categories",               icon: "tag.fill" as const,                        color: "#10B981", route: "/category-management" as const },
-    { title: "Export Data",          subtitle: "PDF reports for clients, appointments, revenue",      icon: "square.and.arrow.up.fill" as const,         color: colors.primary, route: "/data-export" as const },
-    { title: "Usage Guide",          subtitle: "How to use every feature in the app",                 icon: "book.fill" as const,                       color: "#0EA5E9", route: "/usage-guide" as const },
-    // Account tab
-    { title: "Business Profile",     subtitle: "Name, owner, phone, email, website",                  icon: "person.fill" as const,                     color: colors.primary, route: "/business-profile" as const },
-    { title: "Replay App Tour",      subtitle: "Re-watch the onboarding walkthrough",                 icon: "play.fill" as const,                       color: "#6366F1", route: "/(tabs)/" as const },
+    // Business
+    { title: "Schedule & Hours",       subtitle: "Working hours, buffer time, custom days",             icon: "calendar.badge.clock" as const,           color: "#10B981", route: "/schedule-settings" as const },
+    { title: "Booking Policies",       subtitle: "Cancellation fees, booking URL, temp closure",        icon: "exclamationmark.triangle.fill" as const,   color: "#FF9800", route: "/booking-policies" as const },
+    { title: "Locations",              subtitle: `${state.locations.length} location${state.locations.length !== 1 ? "s" : ""} configured`, icon: "building.2.fill" as const, color: "#3B82F6", route: "/locations" as const },
+    // Payments
+    { title: "Subscription",           subtitle: "Plan, usage & billing",                               icon: "crown.fill" as const,                      color: "#F59E0B", route: "/subscription" as const },
+    { title: "Payment Methods",        subtitle: "Stripe, Zelle, Cash App, Venmo",                      icon: "creditcard.fill" as const,                 color: "#10B981", route: "/payment-methods" as const },
+    { title: "Payments History",       subtitle: "Charges, refunds & payouts audit trail",              icon: "list.bullet" as const,                     color: "#635BFF", route: "/payments-history" as const },
+    // Clients
+    { title: "Client Reviews",         subtitle: reviewAvg ? `${reviewAvg} ★ · ${state.reviews.length} reviews` : "No reviews yet", icon: "star.fill" as const, color: "#F59E0B", route: "/reviews" as const },
+    { title: "Packages & Bundles",     subtitle: `${(state.packages ?? []).filter((p) => p.active).length} active packages`, icon: "gift.fill" as const, color: "#E91E63", route: "/packages" as const },
+    { title: "Promo Codes",            subtitle: `${(state.promoCodes ?? []).filter((p) => p.active).length} active codes`, icon: "ticket.fill" as const, color: "#0EA5E9", route: "/promo-codes" as const },
+    { title: "Category Management",    subtitle: "Manage service and product categories",               icon: "tag.fill" as const,                        color: "#10B981", route: "/category-management" as const },
+    { title: "Note Templates",         subtitle: `${(state.noteTemplates ?? []).length} templates saved`, icon: "note.text" as const,                     color: "#6366F1", route: "/note-templates" as const },
+    // Comms
+    { title: "Notification Preferences", subtitle: "Push, email & reminder settings",                  icon: "bell.fill" as const,                       color: colors.primary, route: "/notification-settings" as const },
+    { title: "SMS Messages",           subtitle: "Customise messages sent to clients",                  icon: "message.fill" as const,                    color: "#00897B", route: "/sms-templates" as const },
+    { title: "SMS Automation",         subtitle: state.settings.twilioEnabled ? "Enabled" : "Disabled", icon: "wand.and.stars" as const,                  color: "#00897B", route: "/sms-automation" as const },
+    // Account
+    { title: "Business Profile",       subtitle: "Name, owner, phone, email, website",                  icon: "person.fill" as const,                     color: colors.primary, route: "/business-profile" as const },
+    { title: "Social Links",           subtitle: "Instagram, Facebook, TikTok",                         icon: "link" as const,                            color: "#E1306C", route: "/social-links" as const },
+    { title: "Analytics",              subtitle: "Revenue, clients, appointments insights",             icon: "chart.bar.fill" as const,                  color: "#8B5CF6", route: "/analytics-detail?tab=overview" as const },
+    { title: "Export Data",            subtitle: "PDF reports for clients, appointments, revenue",      icon: "square.and.arrow.up.fill" as const,         color: colors.primary, route: "/data-export" as const },
+    { title: "Usage Guide",            subtitle: "How to use every feature in the app",                 icon: "book.fill" as const,                       color: "#0EA5E9", route: "/usage-guide" as const },
+    { title: "Restart Onboarding Tour",subtitle: "Re-watch the app walkthrough",                        icon: "play.fill" as const,                       color: "#6366F1", route: "/(tabs)/" as const },
   ], [state.locations.length, state.reviews.length, state.packages, state.noteTemplates, state.promoCodes, state.settings.twilioEnabled, reviewAvg, colors.primary]);
 
   const renderSearchResults = () => {
@@ -684,7 +791,9 @@ export default function SettingsScreen() {
     }
     return (
       <View>
-        <Text style={[styles.sectionLabel, { color: colors.muted, marginBottom: 10 }]}>{filtered.length} result{filtered.length !== 1 ? "s" : ""}</Text>
+        <Text style={[styles.sectionLabel, { color: colors.muted, marginBottom: 10 }]}>
+          {filtered.length} result{filtered.length !== 1 ? "s" : ""}
+        </Text>
         {filtered.map((item) => (
           <Pressable
             key={item.title}
@@ -706,22 +815,26 @@ export default function SettingsScreen() {
   };
 
   const tabContent: Record<TabKey, () => React.ReactElement> = {
-    business:      renderBusinessTab,
-    notifications: renderNotificationsTab,
-    tools:         renderToolsTab,
-    account:       renderAccountTab,
+    business: renderBusinessTab,
+    payments: renderPaymentsTab,
+    clients:  renderClientsTab,
+    comms:    renderCommsTab,
+    account:  renderAccountTab,
   };
+
+  // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
     <ScreenContainer tabletMaxWidth={0}>
       <FuturisticBackground />
-      {/* ── Header ── */}
+
+      {/* Header */}
       <View style={[styles.headerRow, { paddingHorizontal: hp, paddingTop: 8 }]}>
         <Text style={{ fontSize: 24, fontWeight: "700", color: colors.foreground }}>Settings</Text>
         <Image source={require("@/assets/images/icon.png")} style={styles.headerLogo} resizeMode="contain" />
       </View>
 
-      {/* ── Tab Bar ── */}
+      {/* Tab Bar */}
       <View style={[styles.tabBar, { borderBottomColor: colors.border, paddingHorizontal: hp }]}>
         {TABS.map((tab) => {
           const isActive = activeTab === tab.key;
@@ -734,8 +847,8 @@ export default function SettingsScreen() {
                 { borderBottomColor: isActive ? colors.primary : "transparent", opacity: pressed ? 0.7 : 1 },
               ]}
             >
-              <IconSymbol name={tab.icon as any} size={16} color={isActive ? colors.primary : colors.muted} />
-              <Text style={{ fontSize: 12, fontWeight: isActive ? "700" : "500", color: isActive ? colors.primary : colors.muted, marginTop: 3 }}>
+              <IconSymbol name={tab.icon as any} size={20} color={isActive ? colors.primary : colors.muted} />
+              <Text style={{ fontSize: 13, fontWeight: isActive ? "700" : "500", color: isActive ? colors.primary : colors.muted, marginTop: 3 }}>
                 {tab.label}
               </Text>
             </Pressable>
@@ -743,7 +856,7 @@ export default function SettingsScreen() {
         })}
       </View>
 
-      {/* ── Search Bar ── */}
+      {/* Search Bar */}
       <View style={{ paddingHorizontal: hp, paddingTop: 10, paddingBottom: 6 }}>
         <View style={[styles.searchBar, { backgroundColor: colors.surface, borderColor: searchQuery ? colors.primary : colors.border }]}>
           <IconSymbol name="magnifyingglass" size={16} color={colors.muted} />
@@ -764,11 +877,11 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      {/* ── Tab Content ── */}
+      {/* Tab Content */}
       <ScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: hp, paddingTop: 12, paddingBottom: 100, alignSelf: "center", width: "100%", maxWidth: maxContentWidth }}
+        contentContainerStyle={{ paddingHorizontal: hp, paddingTop: 14, paddingBottom: 100, alignSelf: "center", width: "100%", maxWidth: maxContentWidth }}
       >
         {searchQuery.trim() ? renderSearchResults() : tabContent[activeTab]()}
       </ScrollView>
@@ -776,33 +889,33 @@ export default function SettingsScreen() {
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  headerRow:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 0, paddingBottom: 8 },
-  headerLogo:    { width: 32, height: 32, borderRadius: 8 },
-  tabBar:        { flexDirection: "row", borderBottomWidth: 1, marginBottom: 0 },
-  tabItem:       { flex: 1, alignItems: "center", paddingVertical: 10, borderBottomWidth: 2.5 },
-  closedBanner:  { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 14 },
-  card:          { borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1 },
-  cardLabel:     { fontSize: 12, fontWeight: "500", marginBottom: 10 },
-  cardHeader:    { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
-  cardHeaderLeft:{ flexDirection: "row", alignItems: "center" },
-  cardTitle:     { fontSize: 15, fontWeight: "600", marginLeft: 10 },
-  editRow:       { flexDirection: "row", alignItems: "center", gap: 8, width: "100%" },
-  editInput:     { flex: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, lineHeight: 20, borderWidth: 1 },
-  smallButton:   { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, alignItems: "center", justifyContent: "center", minHeight: 36 },
+  headerRow:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 0, paddingBottom: 8 },
+  headerLogo:     { width: 32, height: 32, borderRadius: 8 },
+  tabBar:         { flexDirection: "row", borderBottomWidth: StyleSheet.hairlineWidth, marginBottom: 0 },
+  tabItem:        { flex: 1, alignItems: "center", paddingVertical: 10, borderBottomWidth: 2.5 },
+  closedBanner:   { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 14, borderWidth: 1, marginBottom: 14 },
+  card:           { borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: StyleSheet.hairlineWidth },
+  cardLabel:      { fontSize: 12, fontWeight: "500", marginBottom: 10 },
+  cardHeader:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
+  cardHeaderLeft: { flexDirection: "row", alignItems: "center" },
+  cardTitle:      { fontSize: 15, fontWeight: "600", marginLeft: 10 },
+  editRow:        { flexDirection: "row", alignItems: "center", gap: 8, width: "100%" },
+  editInput:      { flex: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, lineHeight: 20, borderWidth: 1 },
+  smallButton:    { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, alignItems: "center", justifyContent: "center", minHeight: 36 },
   smallButtonText:{ color: "#FFFFFF", fontSize: 12, fontWeight: "600", lineHeight: 18 },
-  themeRow:      { flexDirection: "row", gap: 10, width: "100%" },
-  themeOption:   { alignItems: "center", justifyContent: "center", paddingVertical: 14, borderRadius: 14, borderWidth: 1.5 },
-  switchRow:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  switchLabel:   { flexDirection: "row", alignItems: "center", flex: 1 },
-  statsRow:      { flexDirection: "row", justifyContent: "space-between", width: "100%" },
-  statItem:      { flex: 1, alignItems: "center" },
-  statNumber:    { fontSize: 24, fontWeight: "700", lineHeight: 30 },
-  navCard:       { flexDirection: "row", alignItems: "center", borderRadius: 16, padding: 16, marginBottom: 10, borderWidth: 1, gap: 14 },
-  navIcon:       { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  dangerButton:  { flexDirection: "row", alignItems: "center", borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1, width: "100%", gap: 14 },
-  sectionLabel:  { fontSize: 11, fontWeight: "700", color: "#687076", marginBottom: 8, marginTop: 4, textTransform: "uppercase", letterSpacing: 0.8 },
-  searchBar:     { flexDirection: "row", alignItems: "center", borderRadius: 14, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, gap: 4 },
-  appInfo:       { alignItems: "center", paddingVertical: 24 },
-  appName:       { fontSize: 16, fontWeight: "700" },
+  themeRow:       { flexDirection: "row", gap: 10, width: "100%" },
+  themeOption:    { alignItems: "center", justifyContent: "center", paddingVertical: 14, borderRadius: 14, borderWidth: 1.5 },
+  switchRow:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  switchLabel:    { flexDirection: "row", alignItems: "center", flex: 1 },
+  statsRow:       { flexDirection: "row", justifyContent: "space-between", width: "100%" },
+  statItem:       { flex: 1, alignItems: "center" },
+  statNumber:     { fontSize: 24, fontWeight: "700", lineHeight: 30 },
+  navCard:        { flexDirection: "row", alignItems: "center", borderRadius: 16, padding: 16, marginBottom: 10, borderWidth: StyleSheet.hairlineWidth, gap: 14 },
+  navIcon:        { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  dangerButton:   { flexDirection: "row", alignItems: "center", borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: StyleSheet.hairlineWidth, width: "100%", gap: 14 },
+  sectionLabel:   { fontSize: 11, fontWeight: "700", color: "#687076", marginBottom: 8, marginTop: 4, textTransform: "uppercase", letterSpacing: 0.8 },
+  searchBar:      { flexDirection: "row", alignItems: "center", borderRadius: 14, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, gap: 4 },
 });
