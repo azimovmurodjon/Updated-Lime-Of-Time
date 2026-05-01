@@ -931,7 +931,7 @@ export default function NewBookingScreen() {
             const canGoPrev = calMonthOffset > 0;
             const canGoNext = calMonthOffset < 3; // max ~3 months ahead covers 90 days
             return (
-              <View style={{ marginBottom: 16 }}>
+              <View style={{ marginBottom: 8 }}>
                 {/* Month Navigation Header */}
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                   <Pressable
@@ -1064,14 +1064,14 @@ export default function NewBookingScreen() {
 
           {/* Selected date full label */}
           {selectedDate && (
-            <View style={{ marginBottom: 12, marginHorizontal: 2 }}>
+            <View style={{ marginBottom: 8, marginHorizontal: 2 }}>
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>
                 {new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
               </Text>
             </View>
           )}
           {/* Time Slots */}
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8, marginHorizontal: 4 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6, marginHorizontal: 4 }}>
             <Text className="text-xs font-medium text-muted">Available Times</Text>
             <Pressable
               onPress={() => setRefreshKey((k) => k + 1)}
@@ -1095,7 +1095,7 @@ export default function NewBookingScreen() {
               )}
             </View>
           ) : (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16, justifyContent: "center" }}>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12, justifyContent: "center" }}>
               {timeSlots.map((t) => {
                 const isSelected = t === selectedTime;
                 const locCount = isAllMode ? (slotLocationCount[t] ?? 1) : 1;
@@ -1115,17 +1115,17 @@ export default function NewBookingScreen() {
                     ]}
                   >
                     <Text
-                      className="text-sm font-semibold"
-                      style={{ color: isSelected ? "#FFFFFF" : colors.foreground, textAlign: "center" }}
+                      style={{ fontSize: 13, fontWeight: "700", color: isSelected ? "#FFFFFF" : colors.foreground, textAlign: "center", lineHeight: 17 }}
                     >
                       {formatTime(t)}
                     </Text>
                     <Text
                       style={{
-                        fontSize: 10,
+                        fontSize: 9,
                         color: isSelected ? "#FFFFFF99" : colors.muted,
                         marginTop: 1,
                         textAlign: "center",
+                        lineHeight: 12,
                       }}
                     >
                       to {getEndTime(t)}
@@ -1155,7 +1155,7 @@ export default function NewBookingScreen() {
           )}
 
           {/* Notes */}
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4, marginTop: 8 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4, marginTop: 6 }}>
             <Text className="text-xs font-medium text-muted ml-1">Notes (optional)</Text>
             {(state.noteTemplates ?? []).length > 0 && (
               <Pressable
@@ -1817,14 +1817,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   timeChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
     minWidth: 84,
-    minHeight: 44,
+    minHeight: 38,
   },
   summaryDot: {
     width: 10,
