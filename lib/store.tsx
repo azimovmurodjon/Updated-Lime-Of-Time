@@ -791,6 +791,7 @@ export function dbLocationToLocal(l: any): Location {
     temporarilyClosed: l.temporarilyClosed ?? false,
     reopenOn: l.reopenOn ?? undefined,
     workingHours: (l.workingHours && Object.keys(l.workingHours).length > 0) ? normalizeWorkingHours(l.workingHours) : null,
+    photoUri: l.photoUri ?? undefined,
     createdAt: l.createdAt ? new Date(l.createdAt).toISOString() : new Date().toISOString(),
   };
 }
