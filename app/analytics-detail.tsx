@@ -854,20 +854,34 @@ export default function AnalyticsDetailScreen() {
         {/* Overview Tab */}
         {tab === "overview" && (
           <View>
-            {/* KPI Grid */}
-            {/* KPI Grid — 2 cards per row, equal width, centered */}
+            {/* KPI Grid — dark-mode safe, icon-enhanced */}
             <View style={{ gap: 10, marginTop: 12, marginBottom: 4 }}>
               {([
-                [{ label: "Total Revenue", value: `$${totalRevenue.toLocaleString()}`, color: "#FF9800", bg: "#FFF3E0" }, { label: "Avg / Appt", value: `$${overviewData.avgRevenue}`, color: "#FF9800", bg: "#FFF3E0" }],
-                [{ label: "Total Clients", value: overviewData.totalClients, color: "#4CAF50", bg: "#E8F5E9" }, { label: "New (30d)", value: overviewData.newClientsLast30, color: "#4CAF50", bg: "#E8F5E9" }],
-                [{ label: "Completed", value: overviewData.completed, color: "#2196F3", bg: "#E3F2FD" }, { label: "Completion %", value: `${overviewData.completionRate}%`, color: "#2196F3", bg: "#E3F2FD" }],
-                [{ label: "Cancelled", value: overviewData.cancelled, color: "#EF4444", bg: "#FEF2F2" }, { label: "Cancel Rate", value: `${overviewData.cancellationRate}%`, color: "#EF4444", bg: "#FEF2F2" }],
+                [
+                  { label: "Total Revenue", value: `$${totalRevenue.toLocaleString()}`, color: "#FF9800", icon: "chart.bar.fill" as const },
+                  { label: "Avg / Appt", value: `$${overviewData.avgRevenue}`, color: "#FF9800", icon: "dollarsign.circle.fill" as const },
+                ],
+                [
+                  { label: "Total Clients", value: overviewData.totalClients, color: "#4CAF50", icon: "person.2.fill" as const },
+                  { label: "New (30d)", value: overviewData.newClientsLast30, color: "#4CAF50", icon: "person.badge.plus" as const },
+                ],
+                [
+                  { label: "Completed", value: overviewData.completed, color: "#2196F3", icon: "checkmark.circle.fill" as const },
+                  { label: "Completion %", value: `${overviewData.completionRate}%`, color: "#2196F3", icon: "percent" as const },
+                ],
+                [
+                  { label: "Cancelled", value: overviewData.cancelled, color: "#EF4444", icon: "xmark.circle.fill" as const },
+                  { label: "Cancel Rate", value: `${overviewData.cancellationRate}%`, color: "#EF4444", icon: "exclamationmark.triangle.fill" as const },
+                ],
               ] as const).map((row, rowIdx) => (
                 <View key={rowIdx} style={{ flexDirection: "row", gap: 10 }}>
                   {row.map((kpi) => (
-                    <View key={kpi.label} style={[styles.kpiCard, { backgroundColor: kpi.bg, borderColor: kpi.color + "30" }]}>
-                      <Text style={{ fontSize: 24, fontWeight: "800", color: kpi.color }}>{String(kpi.value)}</Text>
-                      <Text style={{ fontSize: 12, color: kpi.color + "CC", marginTop: 4, textAlign: "center" }}>{kpi.label}</Text>
+                    <View key={kpi.label} style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: kpi.color + "40" }]}>
+                      <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: kpi.color + "18", alignItems: "center", justifyContent: "center", marginBottom: 8 }}>
+                        <IconSymbol name={kpi.icon} size={18} color={kpi.color} />
+                      </View>
+                      <Text style={{ fontSize: 22, fontWeight: "800", color: kpi.color }}>{String(kpi.value)}</Text>
+                      <Text style={{ fontSize: 11, color: colors.muted, marginTop: 4, textAlign: "center" }}>{kpi.label}</Text>
                     </View>
                   ))}
                 </View>
@@ -1007,16 +1021,14 @@ export default function AnalyticsDetailScreen() {
         {/* Clients Tab */}
         {tab === "clients" && (
           <View>
-            <View
-              style={[
-                styles.summaryCard,
-                { backgroundColor: "#E8F5E9", borderColor: "#4CAF5030" },
-              ]}
-            >
-              <Text style={{ fontSize: 36, fontWeight: "800", color: "#4CAF50" }}>
+            <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: "#4CAF5040" }]}>
+              <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: "#4CAF5018", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
+                <IconSymbol name="person.2.fill" size={24} color="#4CAF50" />
+              </View>
+              <Text style={{ fontSize: 40, fontWeight: "800", color: "#4CAF50" }}>
                 {clientsForActiveLocation.length}
               </Text>
-              <Text style={{ fontSize: 14, color: "#4CAF50CC", marginTop: 4 }}>
+              <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4 }}>
                 Total Clients
               </Text>
             </View>
@@ -1111,16 +1123,14 @@ export default function AnalyticsDetailScreen() {
         {/* Appointments Tab */}
         {tab === "appointments" && (
           <View>
-            <View
-              style={[
-                styles.summaryCard,
-                { backgroundColor: "#E3F2FD", borderColor: "#2196F330" },
-              ]}
-            >
-              <Text style={{ fontSize: 36, fontWeight: "800", color: "#2196F3" }}>
+            <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: "#2196F340" }]}>
+              <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: "#2196F318", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
+                <IconSymbol name="calendar" size={24} color="#2196F3" />
+              </View>
+              <Text style={{ fontSize: 40, fontWeight: "800", color: "#2196F3" }}>
                 {state.appointments.filter((a) => a.status !== "cancelled").length}
               </Text>
-              <Text style={{ fontSize: 14, color: "#2196F3CC", marginTop: 4 }}>
+              <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4 }}>
                 Total Appointments
               </Text>
             </View>
@@ -1151,65 +1161,28 @@ export default function AnalyticsDetailScreen() {
                 <Text style={{ fontSize: 10, color: colors.muted }}>Cancelled</Text>
               </View>
             </View>
-            <View style={styles.barChart}>
+            <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 4 }]}>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, marginBottom: 12 }}>Monthly Breakdown</Text>
               {appointmentsData.map((m) => {
                 const total = m.confirmed + m.completed + m.pending;
+                const grandTotal = Math.max(total + m.cancelled, 1);
                 const monthLabel = new Date(m.month + "-01").toLocaleDateString(
                   "en-US",
                   { month: "short", year: "2-digit" }
                 );
                 return (
-                  <View key={m.month} style={styles.barRow}>
-                    <Text style={{ width: 60, fontSize: 12, color: colors.muted }}>
+                  <View key={m.month} style={[styles.barRow, { marginBottom: 14 }]}>
+                    <Text style={{ width: 56, fontSize: 12, fontWeight: "600", color: colors.muted }}>
                       {monthLabel}
                     </Text>
-                    <View style={styles.barTrack}>
-                      <View
-                        style={[
-                          styles.barFill,
-                          {
-                            width: `${Math.max(
-                              (m.completed / Math.max(total + m.cancelled, 1)) * 100,
-                              0
-                            )}%`,
-                            backgroundColor: "#4CAF50",
-                          },
-                        ]}
-                      />
-                      <View
-                        style={[
-                          styles.barFill,
-                          {
-                            width: `${Math.max(
-                              (m.confirmed / Math.max(total + m.cancelled, 1)) * 100,
-                              0
-                            )}%`,
-                            backgroundColor: "#2196F3",
-                          },
-                        ]}
-                      />
-                      <View
-                        style={[
-                          styles.barFill,
-                          {
-                            width: `${Math.max(
-                              (m.pending / Math.max(total + m.cancelled, 1)) * 100,
-                              0
-                            )}%`,
-                            backgroundColor: "#FF9800",
-                          },
-                        ]}
-                      />
+                    <View style={{ flex: 1, marginHorizontal: 8 }}>
+                      <View style={{ height: 20, borderRadius: 10, backgroundColor: colors.border, flexDirection: "row", overflow: "hidden" }}>
+                        <View style={{ height: 20, width: `${(m.completed / grandTotal) * 100}%`, backgroundColor: "#4CAF50" }} />
+                        <View style={{ height: 20, width: `${(m.confirmed / grandTotal) * 100}%`, backgroundColor: "#2196F3" }} />
+                        <View style={{ height: 20, width: `${(m.pending / grandTotal) * 100}%`, backgroundColor: "#FF9800" }} />
+                      </View>
                     </View>
-                    <Text
-                      style={{
-                        width: 30,
-                        fontSize: 12,
-                        color: colors.foreground,
-                        textAlign: "right",
-                        fontWeight: "600",
-                      }}
-                    >
+                    <Text style={{ width: 32, fontSize: 13, color: colors.foreground, textAlign: "right", fontWeight: "700" }}>
                       {total}
                     </Text>
                   </View>
@@ -1277,16 +1250,14 @@ export default function AnalyticsDetailScreen() {
         {/* Revenue Tab */}
         {tab === "revenue" && (
           <View>
-            <View
-              style={[
-                styles.summaryCard,
-                { backgroundColor: "#FFF3E0", borderColor: "#FF980030" },
-              ]}
-            >
-              <Text style={{ fontSize: 36, fontWeight: "800", color: "#FF9800" }}>
+            <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: "#FF980040" }]}>
+              <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: "#FF980018", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
+                <IconSymbol name="chart.bar.fill" size={24} color="#FF9800" />
+              </View>
+              <Text style={{ fontSize: 40, fontWeight: "800", color: "#FF9800" }}>
                 ${totalRevenue.toLocaleString()}
               </Text>
-              <Text style={{ fontSize: 14, color: "#FF9800CC", marginTop: 4 }}>
+              <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4 }}>
                 Total Revenue
               </Text>
             </View>
@@ -1307,45 +1278,31 @@ export default function AnalyticsDetailScreen() {
                 <Text style={{ fontSize: 10, color: colors.muted }}>Avg/Appt</Text>
               </View>
             </View>
-            {revenueData.map((r) => (
-              <View
-                key={r.name}
-                style={[
-                  styles.listItem,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
-                ]}
-              >
-                <View style={[styles.avatar, { backgroundColor: r.color + "18" }]}>
-                  <View
-                    style={{
-                      width: 12,
-                      height: 12,
-                      borderRadius: 6,
-                      backgroundColor: r.color,
-                    }}
-                  />
-                </View>
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text
-                    style={{
-                      fontSize: 15,
-                      fontWeight: "600",
-                      color: colors.foreground,
-                    }}
-                  >
-                    {r.name}
-                  </Text>
-                  <Text style={{ fontSize: 12, color: colors.muted }}>
-                    {r.count} completed
-                  </Text>
-                </View>
-                <Text
-                  style={{ fontSize: 16, fontWeight: "700", color: "#FF9800" }}
-                >
-                  ${r.revenue.toLocaleString()}
-                </Text>
+            {revenueData.length > 0 && (
+              <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border, marginBottom: 8 }]}>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, marginBottom: 12 }}>Revenue by Service</Text>
+                {revenueData.map((r) => {
+                  const pct = totalRevenue > 0 ? Math.round((r.revenue / totalRevenue) * 100) : 0;
+                  return (
+                    <View key={r.name} style={{ marginBottom: 14 }}>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+                          <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: r.color }} />
+                          <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground, flex: 1 }} numberOfLines={1}>{r.name}</Text>
+                        </View>
+                        <View style={{ alignItems: "flex-end" }}>
+                          <Text style={{ fontSize: 15, fontWeight: "800", color: "#FF9800" }}>${r.revenue.toLocaleString()}</Text>
+                          <Text style={{ fontSize: 11, color: colors.muted }}>{r.count} appts · {pct}%</Text>
+                        </View>
+                      </View>
+                      <View style={{ height: 8, backgroundColor: colors.border, borderRadius: 4, overflow: "hidden" }}>
+                        <View style={{ height: 8, width: `${pct}%`, backgroundColor: r.color, borderRadius: 4 }} />
+                      </View>
+                    </View>
+                  );
+                })}
               </View>
-            ))}
+            )}
             {revenueData.length === 0 && (
               <Text
                 style={{
@@ -1363,113 +1320,54 @@ export default function AnalyticsDetailScreen() {
         {/* Top Service Tab */}
         {tab === "topservice" && (
           <View>
-            <View
-              style={[
-                styles.summaryCard,
-                { backgroundColor: "#F3E5F5", borderColor: "#9C27B030" },
-              ]}
-            >
+            <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: "#9C27B040" }]}>
+              <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: "#9C27B018", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
+                <IconSymbol name="crown.fill" size={24} color="#9C27B0" />
+              </View>
               {serviceRanking.length > 0 ? (
                 <>
-                  <IconSymbol name="crown.fill" size={28} color="#9C27B0" />
-                  <Text
-                    style={{
-                      fontSize: 24,
-                      fontWeight: "800",
-                      color: "#9C27B0",
-                      marginTop: 8,
-                    }}
-                  >
+                  <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Top Service</Text>
+                  <Text style={{ fontSize: 26, fontWeight: "800", color: "#9C27B0", textAlign: "center" }}>
                     {serviceRanking[0].name}
                   </Text>
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      color: "#9C27B0CC",
-                      marginTop: 4,
-                    }}
-                  >
+                  <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4 }}>
                     {serviceRanking[0].bookings} bookings
                   </Text>
                 </>
               ) : (
-                <Text style={{ fontSize: 14, color: "#9C27B0CC" }}>
-                  No services yet
-                </Text>
+                <Text style={{ fontSize: 14, color: colors.muted }}>No services yet</Text>
               )}
             </View>
-            {serviceRanking.map((s, idx) => (
-              <View
-                key={s.id}
-                style={[
-                  styles.listItem,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.rankBadge,
-                    {
-                      backgroundColor:
-                        idx === 0
-                          ? "#FFD700"
-                          : idx === 1
-                          ? "#C0C0C0"
-                          : idx === 2
-                          ? "#CD7F32"
-                          : colors.muted + "30",
-                    },
-                  ]}
-                >
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      fontWeight: "700",
-                      color: idx < 3 ? "#FFF" : colors.muted,
-                    }}
-                  >
-                    #{idx + 1}
-                  </Text>
-                </View>
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text
-                    style={{
-                      fontSize: 15,
-                      fontWeight: "600",
-                      color: colors.foreground,
-                    }}
-                  >
-                    {s.name}
-                  </Text>
-                  <Text style={{ fontSize: 12, color: colors.muted }}>
-                    ${s.price} · {s.duration} min
-                  </Text>
-                </View>
-                <View style={{ alignItems: "flex-end" }}>
-                  <Text
-                    style={{
-                      fontSize: 16,
-                      fontWeight: "700",
-                      color: "#9C27B0",
-                    }}
-                  >
-                    {s.bookings}
-                  </Text>
-                  <Text style={{ fontSize: 10, color: colors.muted }}>
-                    bookings
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.barSmall,
-                    {
-                      width: `${(s.bookings / maxBar) * 100}%`,
-                      backgroundColor: s.color + "30",
-                    },
-                  ]}
-                 />
+            {serviceRanking.length > 0 && (
+              <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, marginBottom: 12 }}>Service Rankings</Text>
+                {serviceRanking.map((s, idx) => {
+                  const pct = maxBar > 0 ? Math.round((s.bookings / maxBar) * 100) : 0;
+                  const medalColors = ["#FFD700", "#C0C0C0", "#CD7F32"];
+                  const rankColor = idx < 3 ? medalColors[idx] : colors.muted;
+                  return (
+                    <View key={s.id} style={{ marginBottom: 14 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
+                        <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: rankColor + "22", alignItems: "center", justifyContent: "center", marginRight: 10 }}>
+                          <Text style={{ fontSize: 11, fontWeight: "800", color: rankColor }}>#{idx + 1}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }} numberOfLines={1}>{s.name}</Text>
+                          <Text style={{ fontSize: 11, color: colors.muted }}>${s.price} · {s.duration} min</Text>
+                        </View>
+                        <View style={{ alignItems: "flex-end" }}>
+                          <Text style={{ fontSize: 16, fontWeight: "800", color: "#9C27B0" }}>{s.bookings}</Text>
+                          <Text style={{ fontSize: 10, color: colors.muted }}>bookings</Text>
+                        </View>
+                      </View>
+                      <View style={{ height: 8, backgroundColor: colors.border, borderRadius: 4, overflow: "hidden" }}>
+                        <View style={{ height: 8, width: `${pct}%`, backgroundColor: s.color, borderRadius: 4 }} />
+                      </View>
+                    </View>
+                  );
+                })}
               </View>
-            ))}
+            )}
           </View>
         )}
 
@@ -1536,8 +1434,7 @@ export default function AnalyticsDetailScreen() {
                     {top3.map((sm, idx) => {
                       const medals = ["🥇", "🥈", "🥉"];
                       const podiumColors = ["#FFD700", "#C0C0C0", "#CD7F32"];
-                      const podiumBg = ["#FFF9E6", "#F8F8F8", "#FDF3E7"];
-                      const podiumBorder = ["#FFD70040", "#C0C0C040", "#CD7F3240"];
+                      const podiumBorder = ["#FFD70050", "#C0C0C050", "#CD7F3250"];
                       return (
                         <View
                           key={sm.id}
@@ -1549,7 +1446,7 @@ export default function AnalyticsDetailScreen() {
                             gap: 4,
                             borderWidth: 1.5,
                           }, {
-                            backgroundColor: podiumBg[idx] ?? colors.surface,
+                            backgroundColor: colors.surface,
                             borderColor: podiumBorder[idx] ?? colors.border,
                           }]}
                         >
@@ -1593,24 +1490,27 @@ export default function AnalyticsDetailScreen() {
               )}
 
               {/* Summary */}
-              <View style={[styles.summaryCard, { backgroundColor: "#F3E8FF", borderColor: "#9C27B030" }]}>
-                <Text style={{ fontSize: 36, fontWeight: "800", color: "#9C27B0" }}>{staffData.length}</Text>
-                <Text style={{ fontSize: 14, color: "#9C27B0CC", marginTop: 4 }}>Active Staff Members</Text>
+              <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: "#9C27B040" }]}>
+                <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: "#9C27B018", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
+                  <IconSymbol name="person.2.fill" size={24} color="#9C27B0" />
+                </View>
+                <Text style={{ fontSize: 40, fontWeight: "800", color: "#9C27B0" }}>{staffData.length}</Text>
+                <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4 }}>Active Staff Members</Text>
                 <View style={[styles.quickStats, { marginTop: 16, alignSelf: "stretch" }]}>
-                  <View style={[styles.quickStatCard, { backgroundColor: "#FFF3E0", borderColor: "#FF980030" }]}>
+                  <View style={[styles.quickStatCard, { backgroundColor: colors.surface, borderColor: "#FF980040" }]}>
                     <Text style={{ fontSize: 18, fontWeight: "700", color: "#FF9800" }}>${totalStaffRevenue.toLocaleString()}</Text>
-                    <Text style={{ fontSize: 11, color: "#FF9800CC" }}>Total Revenue</Text>
+                    <Text style={{ fontSize: 11, color: colors.muted }}>Total Revenue</Text>
                   </View>
-                  <View style={[styles.quickStatCard, { backgroundColor: "#E3F2FD", borderColor: "#2196F330" }]}>
+                  <View style={[styles.quickStatCard, { backgroundColor: colors.surface, borderColor: "#2196F340" }]}>
                     <Text style={{ fontSize: 18, fontWeight: "700", color: "#2196F3" }}>{staffData.reduce((s, m) => s + m.apptCount, 0)}</Text>
-                    <Text style={{ fontSize: 11, color: "#2196F3CC" }}>Total Appts</Text>
+                    <Text style={{ fontSize: 11, color: colors.muted }}>Total Appts</Text>
                   </View>
                   {staffData.some((m) => m.commissionDue != null) && (
-                    <View style={[styles.quickStatCard, { backgroundColor: "#E8F5E9", borderColor: "#4CAF5030" }]}>
+                    <View style={[styles.quickStatCard, { backgroundColor: colors.surface, borderColor: "#4CAF5040" }]}>
                       <Text style={{ fontSize: 18, fontWeight: "700", color: "#4CAF50" }}>
                         ${staffData.reduce((s, m) => s + (m.commissionDue ?? 0), 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </Text>
-                      <Text style={{ fontSize: 11, color: "#4CAF50CC" }}>Commission Due</Text>
+                      <Text style={{ fontSize: 11, color: colors.muted }}>Commission Due</Text>
                     </View>
                   )}
                 </View>
@@ -1730,16 +1630,19 @@ export default function AnalyticsDetailScreen() {
             <View>
               {/* Summary cards */}
               <View style={{ flexDirection: "row", gap: 10, marginVertical: 16 }}>
-                <View style={{ flex: 1, backgroundColor: "#0369a115", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#0369a130", alignItems: "center" }}>
-                  <Text style={{ fontSize: 22, fontWeight: "800", color: "#0369a1" }}>{totalUses}</Text>
+                <View style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#0369a140", alignItems: "center" }}>
+                  <IconSymbol name="tag.fill" size={18} color="#0369a1" />
+                  <Text style={{ fontSize: 22, fontWeight: "800", color: "#0369a1", marginTop: 4 }}>{totalUses}</Text>
                   <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2, textAlign: "center" }}>Total Uses</Text>
                 </View>
-                <View style={{ flex: 1, backgroundColor: "#ef444415", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#ef444430", alignItems: "center" }}>
-                  <Text style={{ fontSize: 22, fontWeight: "800", color: "#ef4444" }}>${totalDiscountGiven.toFixed(0)}</Text>
+                <View style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#ef444440", alignItems: "center" }}>
+                  <IconSymbol name="minus.circle.fill" size={18} color="#ef4444" />
+                  <Text style={{ fontSize: 22, fontWeight: "800", color: "#ef4444", marginTop: 4 }}>${totalDiscountGiven.toFixed(0)}</Text>
                   <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2, textAlign: "center" }}>Discount Given</Text>
                 </View>
-                <View style={{ flex: 1, backgroundColor: "#22c55e15", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#22c55e30", alignItems: "center" }}>
-                  <Text style={{ fontSize: 22, fontWeight: "800", color: "#22c55e" }}>${totalRevenueViaPromo.toFixed(0)}</Text>
+                <View style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#22c55e40", alignItems: "center" }}>
+                  <IconSymbol name="checkmark.circle.fill" size={18} color="#22c55e" />
+                  <Text style={{ fontSize: 22, fontWeight: "800", color: "#22c55e", marginTop: 4 }}>${totalRevenueViaPromo.toFixed(0)}</Text>
                   <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2, textAlign: "center" }}>Revenue via Promo</Text>
                 </View>
               </View>
@@ -1925,7 +1828,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 16,
     borderRadius: 8,
-    backgroundColor: "#E0E0E0",
+    backgroundColor: "transparent",
     flexDirection: "row",
     overflow: "hidden",
     marginHorizontal: 8,

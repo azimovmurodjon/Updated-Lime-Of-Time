@@ -120,6 +120,7 @@ const MAPPING = {
   "person.fill.xmark": "person-off",
   "arrow.up.left.and.arrow.down.right": "fullscreen",
   "checkmark.seal.fill": "verified",
+  "minus.circle.fill": "remove-circle",
 } as unknown as IconMapping;
 
 export function IconSymbol({
