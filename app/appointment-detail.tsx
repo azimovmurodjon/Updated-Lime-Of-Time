@@ -115,7 +115,8 @@ export default function AppointmentDetailScreen() {
 
   const getCancellationInfo = () => {
     if (!policy.enabled) return { feeApplies: false, fee: 0 };
-    const apptDateTime = new Date(`${appointment.date}T${appointment.time}:00`);
+    const appt = appointment!;
+    const apptDateTime = new Date(`${appt.date}T${appt.time}:00`);
     const now = new Date();
     const hoursUntil = (apptDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
     const feeApplies = hoursUntil <= policy.hoursBeforeAppointment;
@@ -124,8 +125,9 @@ export default function AppointmentDetailScreen() {
   };
 
   const handleAccept = () => {
-    dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status: "confirmed" } });
-    syncToDb({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status: "confirmed" } });
+    const appt = appointment!;
+    dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appt.id, status: "confirmed" } });
+    syncToDb({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appt.id, status: "confirmed" } });
     if (client?.phone) {
       const customTpl = biz.smsTemplates?.confirmation;
       let msg: string;
@@ -145,9 +147,9 @@ export default function AppointmentDetailScreen() {
           clientName: client.name,
           businessName: biz.businessName,
           serviceName: service ? getServiceDisplayName(service) : "Service",
-          duration: String(appointment.duration),
-          date: appointment.date,
-          time: appointment.time,
+          duration: String(appt.duration),
+          date: appt.date,
+          time: appt.time,
           location: locLine,
           phone: formatPhoneNumber(stripPhoneFormat(assignedLocation?.phone || profile.phone)),
           clientPhone: client.phone,
@@ -161,12 +163,12 @@ export default function AppointmentDetailScreen() {
           assignedLocation?.address || profile.address,
           client.name,
           service ? getServiceDisplayName(service) : "Service",
-          appointment.duration,
-          appointment.date,
-          appointment.time,
+          appt.duration,
+          appt.date,
+          appt.time,
           assignedLocation?.phone || profile.phone,
           client.phone,
-          appointment.id,
+          appt.id,
           assignedLocation?.name,
           assignedLocation?.id,
           biz.customSlug,
@@ -206,7 +208,7 @@ export default function AppointmentDetailScreen() {
 
   const handleReschedule = useCallback(() => {
     if (!reschedTime) return;
-    const updated = { ...appointment, date: reschedDate, time: reschedTime };
+    const updated = { ...appointment!, date: reschedDate, time: reschedTime };
     dispatch({ type: "UPDATE_APPOINTMENT", payload: updated });
     syncToDb({ type: "UPDATE_APPOINTMENT", payload: updated });
     setShowRescheduleModal(false);
@@ -219,7 +221,7 @@ export default function AppointmentDetailScreen() {
       const locLine = assignedLocation?.name ? `\n📍 ${assignedLocation.name}` : "";
       const slug = biz.customSlug || biz.businessName.replace(/\s+/g, "-").toLowerCase();
       const bookingLink = `${PUBLIC_BOOKING_URL}/book/${slug}${assignedLocation?.id ? "?location=" + assignedLocation.id : ""}`;
-      const manageLink = appointment.id ? `${PUBLIC_BOOKING_URL}/manage/${slug}/${appointment.id}` : "";
+      const manageLink = appointment!.id ? `${PUBLIC_BOOKING_URL}/manage/${slug}/${appointment!.id}` : "";
       const calendarLine = manageLink ? `\n\n🗓️ Add to calendar / manage: ${manageLink}` : "";
       const msg = `Hi ${client.name}, your appointment for ${svcName} has been rescheduled to ${reschedDate} at ${formatTime(reschedTime)}.${locLine}${calendarLine}\n\n📅 Book again: ${bookingLink}\n\n— ${biz.businessName}${LIME_OF_TIME_FOOTER}`;
       const rawPhone = stripPhoneFormat(client.phone);
@@ -309,7 +311,7 @@ export default function AppointmentDetailScreen() {
         const rawPhone = stripPhoneFormat(client.phone);
         const toNumber = rawPhone.startsWith('+') ? rawPhone : `+1${rawPhone.replace(/\D/g, '')}`;
         try {
-          await sendSmsMutation.mutateAsync({ to: toNumber, body: smsBody });
+          await sendSmsMutation.mutateAsync({ businessOwnerId: state.businessOwnerId!, toNumber, body: smsBody, smsAction: "confirmation" });
           setPaymentLinkSent(true);
           Alert.alert("Payment Link Sent", `A payment link has been sent to ${client.name} via SMS.\n\nThey will be taken to a secure card payment page.`);
         } catch {
@@ -389,18 +391,19 @@ export default function AppointmentDetailScreen() {
   }, [appointment?.id, appointment?.paymentStatus, state.businessOwnerId, (state.settings as any).stripeConnectEnabled]);
 
   const handleMarkPaid = (confirmationNumber?: string) => {
+    const appt = appointment!;
     // Use the method from the picker if the appointment doesn't have one set
-    const effectiveMethod = appointment.paymentMethod && appointment.paymentMethod !== 'unpaid'
-      ? appointment.paymentMethod
+    const effectiveMethod = appt.paymentMethod && appt.paymentMethod !== 'unpaid'
+      ? appt.paymentMethod
       : selectedPayMethod;
     const updated = {
-      ...appointment,
+      ...appt,
       paymentStatus: 'paid' as const,
       paymentMethod: effectiveMethod,
       paymentConfirmationNumber: confirmationNumber || undefined,
     };
-    dispatch({ type: "UPDATE_APPOINTMENT", payload: updated });
-    syncToDb({ type: "UPDATE_APPOINTMENT", payload: updated });
+    dispatch({ type: "UPDATE_APPOINTMENT", payload: updated as any });
+    syncToDb({ type: "UPDATE_APPOINTMENT", payload: updated as any });
     setShowPaymentModal(false);
     setPaymentConfirmInput("");
     // Send payment receipt SMS to client — respect master notificationsEnabled
@@ -409,13 +412,13 @@ export default function AppointmentDetailScreen() {
     const _smsPaymentOn = (_notifPrefsP as any).smsClientOnConfirmation !== false; // reuse confirmation toggle for payment receipt
     if (client?.phone && _masterNotifOnP && _smsPaymentOn) {
       const methodLabel =
-        appointment.paymentMethod === 'zelle' ? 'Zelle' :
-        appointment.paymentMethod === 'cashapp' ? 'Cash App' :
-        appointment.paymentMethod === 'venmo' ? 'Venmo' : 'Cash';
+        appt.paymentMethod === 'zelle' ? 'Zelle' :
+        appt.paymentMethod === 'cashapp' ? 'Cash App' :
+        appt.paymentMethod === 'venmo' ? 'Venmo' : 'Cash';
       const confLine = confirmationNumber ? `\nConfirmation #: ${confirmationNumber}` : '';
       const serviceName = service ? getServiceDisplayName(service) : 'your appointment';
       const locLine = assignedLocation?.name ? `\n\uD83D\uDCCD ${assignedLocation.name}` : '';
-      const msg = `Hi ${client.name}, your payment of $${(appointment.totalPrice ?? 0).toFixed(2)} via ${methodLabel} for ${serviceName} on ${formatDateDisplay(appointment.date)} at ${appointment.time} has been received.${confLine}${locLine}\n\nThank you! — ${biz.businessName}${LIME_OF_TIME_FOOTER}`;
+      const msg = `Hi ${client.name}, your payment of $${(appt.totalPrice ?? 0).toFixed(2)} via ${methodLabel} for ${serviceName} on ${formatDateDisplay(appt.date)} at ${appt.time} has been received.${confLine}${locLine}\n\nThank you! — ${biz.businessName}${LIME_OF_TIME_FOOTER}`;
       // Try server-side SMS first (subscription-gated), fall back to native SMS
       const rawPhone = stripPhoneFormat(client.phone);
       const smsEnabled = state.settings.twilioEnabled;
@@ -447,8 +450,8 @@ export default function AppointmentDetailScreen() {
   const handleStatusChange = (status: "completed" | "cancelled") => {
     const cancInfo = getCancellationInfo();
     const doIt = (cancellationReason?: string) => {
-      dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status, ...(cancellationReason ? { cancellationReason } : {}) } });
-      syncToDb({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment.id, status, ...(cancellationReason ? { cancellationReason } : {}) } });
+      dispatch({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment!.id, status, ...(cancellationReason ? { cancellationReason } : {}) } });
+      syncToDb({ type: "UPDATE_APPOINTMENT_STATUS", payload: { id: appointment!.id, status, ...(cancellationReason ? { cancellationReason } : {}) } });
       // Respect master notificationsEnabled and per-event SMS toggles
       const _notifPrefs2 = state.settings.notificationPreferences ?? {};
       const _masterNotifOn2 = state.settings.notificationsEnabled !== false;
@@ -471,8 +474,8 @@ export default function AppointmentDetailScreen() {
               clientName: client.name,
               businessName: biz.businessName,
               serviceName: service ? getServiceDisplayName(service) : "service",
-              date: formatDateDisplay(appointment.date),
-              time: appointment.time,
+              date: formatDateDisplay(appointment!.date),
+              time: appointment!.time,
               location: completedLocLine,
               phone: formatPhoneNumber(stripPhoneFormat(assignedLocation?.phone || profile.phone)),
               clientPhone: client.phone,
@@ -480,7 +483,7 @@ export default function AppointmentDetailScreen() {
               reviewUrl: `${PUBLIC_BOOKING_URL}/review/${completedSlug}`,
             });
           } else {
-            msg = `Dear ${client.name},\n\nThank you for visiting ${biz.businessName}! Your appointment for ${service ? getServiceDisplayName(service) : "service"} on ${formatDateDisplay(appointment.date)} has been completed.\n\nWe hope you had a great experience. We\u2019d love to see you again!\n\n\uD83D\uDCCD ${completedLocLine}\n\uD83D\uDCDE ${formatPhoneNumber(stripPhoneFormat(assignedLocation?.phone || profile.phone))}\n\n\uD83D\uDD17 Book again: ${PUBLIC_BOOKING_URL}/book/${completedSlug}${assignedLocation?.id ? "?location=" + assignedLocation.id : ""}\n\nBest regards,\n${biz.businessName}${LIME_OF_TIME_FOOTER}`;
+            msg = `Dear ${client.name},\n\nThank you for visiting ${biz.businessName}! Your appointment for ${service ? getServiceDisplayName(service) : "service"} on ${formatDateDisplay(appointment!.date)} has been completed.\n\nWe hope you had a great experience. We\u2019d love to see you again!\n\n\uD83D\uDCCD ${completedLocLine}\n\uD83D\uDCDE ${formatPhoneNumber(stripPhoneFormat(assignedLocation?.phone || profile.phone))}\n\n\uD83D\uDD17 Book again: ${PUBLIC_BOOKING_URL}/book/${completedSlug}${assignedLocation?.id ? "?location=" + assignedLocation.id : ""}\n\nBest regards,\n${biz.businessName}${LIME_OF_TIME_FOOTER}`;
           }
         } else {
           const feeStr = cancInfo.feeApplies && cancInfo.fee > 0 ? `$${cancInfo.fee} (${policy.feePercentage}%)` : "";
@@ -496,8 +499,8 @@ export default function AppointmentDetailScreen() {
               clientName: client.name,
               businessName: biz.businessName,
               serviceName: service ? getServiceDisplayName(service) : "Service",
-              date: appointment.date,
-              time: appointment.time,
+              date: appointment!.date,
+              time: appointment!.time,
               location: cancelLocLine,
               phone: formatPhoneNumber(stripPhoneFormat(assignedLocation?.phone || profile.phone)),
               clientPhone: client.phone,
@@ -507,8 +510,8 @@ export default function AppointmentDetailScreen() {
               biz.businessName,
               client.name,
               service ? getServiceDisplayName(service) : "Service",
-              appointment.date,
-              appointment.time,
+              appointment!.date,
+              appointment!.time,
               feeStr,
               assignedLocation?.phone || profile.phone,
               assignedLocation?.name,
@@ -1178,10 +1181,10 @@ Would you also like to charge a no-show fee via Stripe?`,
                           if (isPaidByCard) {
                             try {
                               if (feeApplies && fee > 0) {
-                                await apiCall('/api/stripe-connect/cancellation-fee', { appointmentId: appointment.id, businessOwnerId: state.businessOwnerId, feeAmount: fee });
+                                await apiCall('/api/stripe-connect/cancellation-fee', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appointmentId: appointment.id, businessOwnerId: state.businessOwnerId, feeAmount: fee }) });
                               }
                               const refundAmt = feeApplies ? total - fee : undefined;
-                              const result = await apiCall<{ ok: boolean; refundId: string; amount: number }>('/api/stripe-connect/refund', { appointmentId: appointment.id, businessOwnerId: state.businessOwnerId, amount: refundAmt });
+                              const result = await apiCall<{ ok: boolean; refundId: string; amount: number }>('/api/stripe-connect/refund', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appointmentId: appointment.id, businessOwnerId: state.businessOwnerId, amount: refundAmt }) });
                               const refundedAppt = { ...updatedAppt, status: 'cancelled' as const, refundedAmount: result.amount, stripeRefundId: result.refundId, cancellationReason: appointment.cancelRequest?.reason || 'Client requested cancellation' };
                               dispatch({ type: 'UPDATE_APPOINTMENT', payload: refundedAppt });
                               syncToDb({ type: 'UPDATE_APPOINTMENT', payload: refundedAppt });
@@ -1299,7 +1302,7 @@ Would you also like to charge a no-show fee via Stripe?`,
               <Text style={{ fontSize: 12, color: approved ? '#166534' : '#78350F', marginBottom: 10, lineHeight: 18 }}>{smsText}</Text>
               <Pressable
                 onPress={() => {
-                  sendSmsMutation.mutate({ to: client.phone!, body: smsText });
+                  sendSmsMutation.mutate({ businessOwnerId: state.businessOwnerId!, toNumber: client.phone!.replace(/\D/g, '').startsWith('1') ? `+${client.phone!.replace(/\D/g, '')}` : `+1${client.phone!.replace(/\D/g, '')}`, body: smsText, smsAction: 'confirmation' });
                 }}
                 style={({ pressed }) => [{ backgroundColor: approved ? '#22C55E' : '#F59E0B', borderRadius: 10, paddingVertical: 9, alignItems: 'center', opacity: pressed ? 0.7 : 1 }]}
               >

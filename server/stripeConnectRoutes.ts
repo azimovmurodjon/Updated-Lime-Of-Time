@@ -406,7 +406,7 @@ export function registerStripeConnectRoutes(app: Express): void {
       const appt = apptRows[0];
       if (!appt) { res.status(404).json({ error: "Appointment not found" }); return; }
 
-      const amount = parseFloat(String(appt.totalPrice ?? appt.price ?? 0));
+      const amount = parseFloat(String(appt.totalPrice ?? 0));
       if (!amount || amount <= 0) { res.status(400).json({ error: "Appointment has no charge amount" }); return; }
 
       // Load client and service names for the checkout page
@@ -532,6 +532,7 @@ export function registerStripeConnectRoutes(app: Express): void {
         res.status(400).json({ error: "businessOwnerId and appointmentLocalId are required" }); return;
       }
       const db = await getDb();
+      if (!db) { res.status(503).json({ error: "Database unavailable" }); return; }
 
       // Look up the appointment directly by businessOwnerId + localId
       const apptRows = await db

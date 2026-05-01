@@ -2160,8 +2160,8 @@ export function registerAdminRoutes(app: Express): void {
             role, email, phone,
             color: pick(COLORS), active: true,
             commissionRate: pick([10,15,20,25,30,35,40]),
-            serviceLocalIds: JSON.stringify(assignedServices),
-          });
+            serviceIds: JSON.stringify(assignedServices),
+          } as any);
           createdStaffIds.push(localId);
         }
         summary.staff = staffCount;
@@ -2184,8 +2184,8 @@ export function registerAdminRoutes(app: Express): void {
           const visitCount = randInt(1, 24);
           const lastVisit = dateStr(randDate(new Date(now.getTime() - 365 * 86400000), now));
           await dbase.insert(clients).values({
-            businessOwnerId: businessId, localId, name, phone, email, birthday, address,
-            notes: `Total visits: ${visitCount}. Last visit: ${lastVisit}. ${SEED_TAG}`,
+            businessOwnerId: businessId, localId, name, phone, email, birthday,
+            notes: `Total visits: ${visitCount}. Last visit: ${lastVisit}. Address: ${address}. ${SEED_TAG}`,
           });
           createdClientIds.push(localId);
           createdClientNames.push(name);
@@ -2252,7 +2252,7 @@ export function registerAdminRoutes(app: Express): void {
           const staffName = createdStaffIds.length > 0 ? `${pick(FIRST_NAMES)}` : "the team";
           const comment = pick(commentPool).replace("{name}", staffName) + ` ${SEED_TAG}`;
           const reviewDate = dateStr(randDate(new Date(now.getTime() - 180 * 86400000), now));
-          await dbase.insert(reviews).values({ businessOwnerId: businessId, localId, clientLocalId, clientName, rating, comment, date: reviewDate });
+          await dbase.insert(reviews).values({ businessOwnerId: businessId, localId, clientLocalId, rating, comment } as any);
         }
         summary.reviews = reviewCount;
       }
@@ -2277,7 +2277,7 @@ export function registerAdminRoutes(app: Express): void {
             percentage: tmpl.pct,
             active: Math.random() > 0.2,
             usedCount: randInt(0, 50),
-            expiryDate: expiry.toISOString().slice(0, 10),
+            expiresAt: expiry.toISOString().slice(0, 10),
           });
         }
         summary.promoCodes = promoCount;
@@ -2315,12 +2315,10 @@ export function registerAdminRoutes(app: Express): void {
           await dbase.insert(giftCards).values({
             businessOwnerId: businessId, localId, code, serviceLocalId,
             recipientName: `${recipientFirst} ${recipientLast}`,
-            senderName: `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`,
-            message: `${pick(GIFT_MSGS)} ${SEED_TAG}`,
-            value: val,
+            message: `From ${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}: ${pick(GIFT_MSGS)} ${SEED_TAG}`,
             redeemed: isRedeemed,
-            redeemedDate: isRedeemed ? dateStr(randDate(new Date(now.getTime() - 90 * 86400000), now)) : null,
-          });
+            redeemedAt: isRedeemed ? new Date(randDate(new Date(now.getTime() - 90 * 86400000), now)) : null,
+          } as any);
         }
         summary.giftCards = giftCount;
       }
@@ -2339,10 +2337,7 @@ export function registerAdminRoutes(app: Express): void {
             businessOwnerId: businessId, localId,
             name: `${prod.name} ${SEED_TAG}`,
             price,
-            description: `${prod.brand} ${prod.name} — professional-grade ${prod.category.toLowerCase()} product. Recommended for salon use and retail.`,
-            brand: prod.brand,
-            category: prod.category,
-            stock,
+            description: `${prod.brand} ${prod.name} — professional-grade product. Recommended for salon use and retail.`,
             available: stock > 0,
           });
         }

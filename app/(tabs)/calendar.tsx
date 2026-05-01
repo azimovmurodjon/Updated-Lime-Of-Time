@@ -1509,7 +1509,7 @@ export default function CalendarScreen() {
                         <Text style={{ fontSize: 11, fontWeight: "600", color: statusColor, textTransform: "capitalize" }}>{appt.status}</Text>
                       </View>
                       {/* Payment method badge — always shown when method is known */}
-                      {appt.paymentMethod && appt.paymentMethod !== "skip" && (() => {
+                      {appt.paymentMethod && appt.paymentMethod !== "unpaid" && (() => {
                         const methodLabel =
                           appt.paymentMethod === "card" || appt.paymentMethod === "cashapp" ? "💳 Card"
                           : appt.paymentMethod === "cash" ? "💵 Cash"

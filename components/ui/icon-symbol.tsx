@@ -119,6 +119,7 @@ const MAPPING = {
   "play.circle.fill": "play-circle",
   "person.fill.xmark": "person-off",
   "arrow.up.left.and.arrow.down.right": "fullscreen",
+  "checkmark.seal.fill": "verified",
 } as unknown as IconMapping;
 
 export function IconSymbol({

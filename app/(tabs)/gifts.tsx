@@ -192,7 +192,7 @@ export default function GiftCardsScreen() {
     try {
       await markAsPaidMut.mutateAsync({
         localId: card.id,
-        businessOwnerId: state.businessOwner?.id ?? 0,
+        businessOwnerId: state.businessOwnerId ?? 0,
         paymentStatus: newStatus as "paid" | "unpaid" | "pending_cash",
       });
       dispatch({ type: "UPDATE_GIFT_CARD", payload: { ...card, paymentStatus: newStatus } as any });
@@ -200,7 +200,7 @@ export default function GiftCardsScreen() {
     } catch (e: any) {
       Alert.alert("Error", e.message ?? "Failed to update payment status.");
     }
-  }, [markAsPaidMut, state.businessOwner, dispatch]);
+  }, [markAsPaidMut, state.businessOwnerId, dispatch]);
 
   const handleCreate = useCallback(() => {
     if (selectedServiceIds.length === 0 && selectedProductIds.length === 0) {

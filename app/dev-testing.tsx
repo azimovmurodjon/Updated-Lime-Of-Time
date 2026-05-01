@@ -686,7 +686,7 @@ export default function DevTestingScreen() {
           description: `Auto-generated test package ${SEED_TAG}`,
           serviceIds: svcSubset,
           price: randInt(50, 350),
-          sessions: pick([null, 3, 5, 10]),
+          sessions: pick([undefined, 3, 5, 10]),
           active: true,
           expiryDays: pick([null, 30, 60, 90]),
           createdAt: isoNow(),

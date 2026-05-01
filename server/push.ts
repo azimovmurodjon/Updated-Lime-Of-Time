@@ -370,7 +370,7 @@ export async function notifyCardPayment(
   return sendExpoPush(expoPushToken, {
     title: `💳 Card Payment Received — ${businessName}`,
     body: lines,
-    data: { type: "payment_received", appointmentId, filter: "confirmed" },
+    data: { type: "payment_received", appointmentId, filter: "upcoming" },
     channelId: "appointments",
   });
 }

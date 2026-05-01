@@ -459,6 +459,26 @@ export default function SubscriptionScreen() {
     renewalDateStr = d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
   }
 
+  // Format period start (estimate: period end minus billing interval)
+  let periodStartStr: string | null = null;
+  if (planInfo.stripeCurrentPeriodEnd && planInfo.subscriptionPeriod) {
+    const intervalMs = planInfo.subscriptionPeriod === "yearly" ? 365 * 86400 * 1000 : 30 * 86400 * 1000;
+    const startMs = planInfo.stripeCurrentPeriodEnd * 1000 - intervalMs;
+    periodStartStr = new Date(startMs).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  }
+
+  // Compute the effective price the user is paying
+  let billingAmountStr: string | null = null;
+  if (!planInfo.isAdminOverride && planInfo.monthlyPrice > 0) {
+    if (planInfo.subscriptionPeriod === "yearly") {
+      billingAmountStr = `$${planInfo.yearlyPrice}/year`;
+    } else if (planInfo.subscriptionPeriod === "monthly") {
+      billingAmountStr = `$${planInfo.monthlyPrice}/month`;
+    } else {
+      billingAmountStr = `$${planInfo.monthlyPrice}/month`;
+    }
+  }
+
   const hasStripeSubscription = !!planInfo.stripeCustomerId && planKey !== "solo";
 
   return (
@@ -526,30 +546,91 @@ export default function SubscriptionScreen() {
             </View>
           )}
 
-          {/* Pricing & Renewal */}
-          {!isAdminOverride && planInfo.monthlyPrice > 0 && (
-            <View style={{ marginBottom: 12 }}>
-              <Text style={{ fontSize: 13, color: colors.muted }}>
-                ${planInfo.monthlyPrice}/mo · ${planInfo.yearlyPrice}/yr
-                {subscriptionPeriod && ` · Billed ${subscriptionPeriod}`}
-              </Text>
-              {renewalDateStr && (
-                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 3 }}>
-                  Next renewal: {renewalDateStr}
+          {/* ── Subscription Details Grid ── */}
+          <View style={{ marginBottom: 14, marginTop: 4 }}>
+            {/* Billing Amount */}
+            {billingAmountStr && (
+              <View style={styles.infoRow}>
+                <View style={styles.infoRowLeft}>
+                  <IconSymbol name="creditcard.fill" size={14} color={colors.muted} />
+                  <Text style={[styles.infoLabel, { color: colors.muted }]}>Billing</Text>
+                </View>
+                <Text style={[styles.infoValue, { color: colors.foreground }]}>{billingAmountStr}</Text>
+              </View>
+            )}
+            {/* Billing Cycle */}
+            {subscriptionPeriod && (
+              <View style={styles.infoRow}>
+                <View style={styles.infoRowLeft}>
+                  <IconSymbol name="arrow.clockwise" size={14} color={colors.muted} />
+                  <Text style={[styles.infoLabel, { color: colors.muted }]}>Cycle</Text>
+                </View>
+                <Text style={[styles.infoValue, { color: colors.foreground }]}>
+                  {subscriptionPeriod.charAt(0).toUpperCase() + subscriptionPeriod.slice(1)}
                 </Text>
-              )}
-            </View>
-          )}
-          {isAdminOverride && (
-            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 12 }}>
-              Complimentary access — no charge
-            </Text>
-          )}
-          {planKey === "solo" && !isAdminOverride && (
-            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 12 }}>
-              Free forever · No credit card required
-            </Text>
-          )}
+              </View>
+            )}
+            {/* Period Start */}
+            {periodStartStr && (
+              <View style={styles.infoRow}>
+                <View style={styles.infoRowLeft}>
+                  <IconSymbol name="calendar" size={14} color={colors.muted} />
+                  <Text style={[styles.infoLabel, { color: colors.muted }]}>Started</Text>
+                </View>
+                <Text style={[styles.infoValue, { color: colors.foreground }]}>{periodStartStr}</Text>
+              </View>
+            )}
+            {/* Next Renewal / Cancellation */}
+            {renewalDateStr && (
+              <View style={styles.infoRow}>
+                <View style={styles.infoRowLeft}>
+                  <IconSymbol
+                    name={(planInfo as any).cancelAtPeriodEnd ? "xmark.circle.fill" : "arrow.clockwise"}
+                    size={14}
+                    color={(planInfo as any).cancelAtPeriodEnd ? colors.error : colors.success}
+                  />
+                  <Text style={[styles.infoLabel, { color: colors.muted }]}>
+                    {(planInfo as any).cancelAtPeriodEnd ? "Cancels on" : "Renews on"}
+                  </Text>
+                </View>
+                <Text style={[
+                  styles.infoValue,
+                  { color: (planInfo as any).cancelAtPeriodEnd ? colors.error : colors.foreground },
+                ]}>{renewalDateStr}</Text>
+              </View>
+            )}
+            {/* Trial end date */}
+            {subscriptionStatus === "trial" && planInfo.trialEndsAt && (
+              <View style={styles.infoRow}>
+                <View style={styles.infoRowLeft}>
+                  <IconSymbol name="clock.fill" size={14} color={colors.warning} />
+                  <Text style={[styles.infoLabel, { color: colors.muted }]}>Trial ends</Text>
+                </View>
+                <Text style={[styles.infoValue, { color: colors.warning }]}>
+                  {new Date(planInfo.trialEndsAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+                </Text>
+              </View>
+            )}
+            {/* Free / Complimentary */}
+            {isAdminOverride && (
+              <View style={styles.infoRow}>
+                <View style={styles.infoRowLeft}>
+                  <IconSymbol name="gift.fill" size={14} color={colors.muted} />
+                  <Text style={[styles.infoLabel, { color: colors.muted }]}>Billing</Text>
+                </View>
+                <Text style={[styles.infoValue, { color: colors.success }]}>Complimentary — no charge</Text>
+              </View>
+            )}
+            {planKey === "solo" && !isAdminOverride && (
+              <View style={styles.infoRow}>
+                <View style={styles.infoRowLeft}>
+                  <IconSymbol name="checkmark.seal.fill" size={14} color={colors.success} />
+                  <Text style={[styles.infoLabel, { color: colors.muted }]}>Billing</Text>
+                </View>
+                <Text style={[styles.infoValue, { color: colors.success }]}>Free forever</Text>
+              </View>
+            )}
+          </View>
 
           {/* Action buttons */}
           <View style={{ gap: 10 }}>
@@ -648,5 +729,29 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     marginTop: 4,
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(128,128,128,0.15)",
+  },
+  infoRowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  infoLabel: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  infoValue: {
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "right",
+    flex: 1,
+    marginLeft: 12,
   },
 });
