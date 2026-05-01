@@ -40,6 +40,7 @@ export default function DataExportScreen() {
       const { generateClientsPdf, generateAppointmentsPdf, generateServicesPdf, generateRevenuePdf, exportPdf } = await import("@/lib/pdf-export");
       const accent = colors.primary;
       const bizName = state.settings.businessName;
+      const logoUri = state.settings.businessLogoUri || undefined;
       const activeLocation = state.activeLocationId ? state.locations.find((l) => l.id === state.activeLocationId) : null;
       const locName = activeLocation?.name;
       const locAddress = activeLocation?.address;
@@ -47,13 +48,13 @@ export default function DataExportScreen() {
       const filteredClients = clientsForActiveLocation;
       let html = "";
       if (label === "Clients") {
-        html = generateClientsPdf(bizName, filteredClients, accent, locName, locAddress);
+        html = generateClientsPdf(bizName, filteredClients, accent, locName, locAddress, logoUri);
       } else if (label === "Appointments") {
-        html = generateAppointmentsPdf(bizName, filteredAppts, state.services, filteredClients, accent, locName, locAddress);
+        html = generateAppointmentsPdf(bizName, filteredAppts, state.services, filteredClients, accent, locName, locAddress, logoUri);
       } else if (label === "Services") {
-        html = generateServicesPdf(bizName, state.services, filteredAppts, accent, locName, locAddress);
+        html = generateServicesPdf(bizName, state.services, filteredAppts, accent, locName, locAddress, logoUri);
       } else {
-        html = generateRevenuePdf(bizName, filteredAppts, state.services, accent, locName, locAddress);
+        html = generateRevenuePdf(bizName, filteredAppts, state.services, accent, locName, locAddress, logoUri);
       }
       await exportPdf(html, `${bizName}${locName ? `_${locName}` : ""}_${label}_Report.pdf`);
     } catch (err) {

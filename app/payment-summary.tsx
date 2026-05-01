@@ -263,7 +263,8 @@ export default function PaymentSummaryScreen() {
         "#22C55E",
         rangeLabel,
         activeLocation?.name,
-        activeLocation?.address
+        activeLocation?.address,
+        state.settings.businessLogoUri || undefined
       );
       await exportPdf(html, `payment-summary-${dateRange}-${Date.now()}.pdf`);
     } catch (e) {
