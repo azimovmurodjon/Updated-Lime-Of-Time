@@ -5252,7 +5252,21 @@ function platformConfigPage(
             style="background:#0f172a;color:#a78bfa;border:1px solid #7c3aed;padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">
             🧪 Run Full Transaction Suite
           </button>
+          <button type="button" id="registerWebhooksBtn" onclick="registerWebhooks()"
+            style="background:#0f766e;color:white;padding:8px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">
+            🔗 Register Webhooks
+          </button>
           <span id="stripeTestResult" style="font-size:13px;"></span>
+        </div>
+        <!-- Webhook Auto-Registration Section -->
+        <div style="margin-top:14px;background:#0f766e10;border:1px solid #0f766e30;border-radius:8px;padding:14px 16px;">
+          <div style="font-size:13px;font-weight:700;color:#0f766e;margin-bottom:8px;">🔗 Webhook Auto-Registration</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">Enter your public server URL and click Register. Signing secrets are saved to the DB automatically. Leave blank to use the current server URL.</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <input type="text" id="serverUrlInput" placeholder="https://your-domain.com" value="${cfgMap['SERVER_URL'] || ''}" style="flex:1;min-width:220px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:13px;" />
+            <button type="button" onclick="registerWebhooks()" style="background:#0f766e;color:white;padding:8px 16px;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Register</button>
+          </div>
+          <div id="webhookRegResult" style="margin-top:10px;font-size:12px;font-family:monospace;white-space:pre-wrap;"></div>
         </div>
         <div id="stripeSuiteLog" style="display:none;margin-top:14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;max-height:260px;overflow-y:auto;"></div>
       </div>
@@ -5951,11 +5965,43 @@ function platformConfigPage(
         btn.textContent = '\ud83d\udcbe Save & Test';
       }
     };
+
+    window.registerWebhooks = async function registerWebhooks() {
+      var btn = document.getElementById('registerWebhooksBtn');
+      var resultEl = document.getElementById('webhookRegResult');
+      var urlInput = document.getElementById('serverUrlInput');
+      if (!resultEl) return;
+      var serverUrl = urlInput ? urlInput.value.trim() : '';
+      if (btn) { btn.disabled = true; btn.textContent = '\u23f3 Registering...'; }
+      resultEl.textContent = 'Registering webhook endpoints with Stripe...';
+      resultEl.style.color = 'var(--text-muted)';
+      try {
+        var resp = await fetch('/api/admin/stripe/register-webhooks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ serverUrl: serverUrl }),
+        });
+        var data = await resp.json();
+        var lines = [data.ok ? '\u2705 ' + data.message : '\u26a0\ufe0f ' + (data.message || data.error || 'Registration failed'), ''];
+        if (data.results) {
+          data.results.forEach(function(r) {
+            var icon = r.status === 'error' ? '\u274c' : '\u2705';
+            lines.push(icon + ' ' + r.endpoint + ': ' + r.status + (r.webhookId ? ' (ID: ' + r.webhookId + ')' : '') + (r.secretSaved ? ' \u2014 secret saved to DB' : '') + (r.error ? ' \u2014 ' + r.error : ''));
+          });
+        }
+        resultEl.textContent = lines.join('\n');
+        resultEl.style.color = data.ok ? '#22c55e' : '#f59e0b';
+      } catch (e) {
+        resultEl.textContent = '\u274c Error: ' + (e.message || 'Request failed');
+        resultEl.style.color = '#ef4444';
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '\ud83d\udd17 Register Webhooks'; }
+      }
+    };
     </script>
   `);
 }
-
-// ─── Financial Page ─────────────────────────────────────────────────
+// ─── Financial Page ──────────────────────────────────────────────────
 function financialPage(data: {
   monthlyData: { month: string; rev: number; apptCount: number }[];
   yearlyData: { year: string; apptRev: number; subRev: number; total: number; apptCount: number }[];

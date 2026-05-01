@@ -1167,6 +1167,43 @@ const subscriptionRouter = router({
       return info ?? null;
     }),
 
+  /** Get over-limit warnings for businesses in a grace period */
+  getOverLimitWarnings: publicProcedure
+    .input(z.object({ businessOwnerId: z.number() }))
+    .query(async ({ input }) => {
+      const info = await getBusinessSubscriptionInfo(input.businessOwnerId);
+      if (!info) return { warnings: [], isInGracePeriod: false, scheduledPlanKey: null, periodEndDate: null };
+      const { isInGracePeriod, scheduledPlanKey, stripeCurrentPeriodEnd } = info as any;
+      if (!isInGracePeriod || !scheduledPlanKey) {
+        return { warnings: [], isInGracePeriod: false, scheduledPlanKey: null, periodEndDate: null };
+      }
+      // Get the scheduled plan's limits
+      const plans = await getPublicPlans();
+      const targetPlan = plans.find((p) => p.planKey === scheduledPlanKey);
+      if (!targetPlan) return { warnings: [], isInGracePeriod: true, scheduledPlanKey, periodEndDate: null };
+      // Get current usage counts
+      const usage = await db.getBusinessUsageCounts(input.businessOwnerId);
+      const warnings: { resource: string; current: number; limit: number; route: string }[] = [];
+      const maxLoc = targetPlan.maxLocations ?? 0;
+      const maxStaff = targetPlan.maxStaff ?? 0;
+      const maxClients = targetPlan.maxClients ?? 0;
+      const maxServices = targetPlan.maxServices ?? 0;
+      const maxProducts = targetPlan.maxProducts ?? 0;
+      if (maxLoc > 0 && usage.locations > maxLoc)
+        warnings.push({ resource: 'Locations', current: usage.locations, limit: maxLoc, route: '/locations' });
+      if (maxStaff > 0 && usage.staff > maxStaff)
+        warnings.push({ resource: 'Staff Members', current: usage.staff, limit: maxStaff, route: '/staff' });
+      if (maxClients > 0 && usage.clients > maxClients)
+        warnings.push({ resource: 'Clients', current: usage.clients, limit: maxClients, route: '/clients' });
+      if (maxServices > 0 && usage.services > maxServices)
+        warnings.push({ resource: 'Services', current: usage.services, limit: maxServices, route: '/services' });
+      if (maxProducts > 0 && usage.products > maxProducts)
+        warnings.push({ resource: 'Products', current: usage.products, limit: maxProducts, route: '/products' });
+      const periodEndDate = stripeCurrentPeriodEnd
+        ? new Date(stripeCurrentPeriodEnd * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : null;
+      return { warnings, isInGracePeriod: true, scheduledPlanKey, periodEndDate };
+    }),
   /** Get all publicly-visible plans (for plan selection screen) */
   getPublicPlans: publicProcedure
     .query(async () => {

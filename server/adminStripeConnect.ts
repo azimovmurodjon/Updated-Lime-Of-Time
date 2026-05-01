@@ -289,6 +289,139 @@ export function registerAdminStripeConnectRoutes(app: Express): void {
       res.status(500).json({ error: "Failed to disconnect" });
     }
   });
+
+  // ── Auto-register Stripe webhook endpoints ──────────────────────────
+  // POST /api/admin/stripe/register-webhooks
+  // Registers both /api/stripe/webhook and /api/stripe-connect/webhook with
+  // Stripe and saves the returned signing secrets to the DB automatically.
+  app.post("/api/admin/stripe/register-webhooks", async (req: Request, res: Response) => {
+    if (!requireAdminAuth(req, res)) return;
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(503).json({ error: "DB unavailable" }); return; }
+      const { platformConfig } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+
+      // Determine server URL: from body, DB config, or request origin
+      const bodyUrl = ((req.body?.serverUrl as string) || "").trim().replace(/\/$/, "");
+      let serverUrl = bodyUrl;
+      if (!serverUrl) {
+        const row = await dbase.select().from(platformConfig).where(eq(platformConfig.configKey, "SERVER_URL")).limit(1);
+        serverUrl = (row[0]?.configValue || "").trim().replace(/\/$/, "");
+      }
+      if (!serverUrl) {
+        serverUrl = `${req.protocol}://${req.get("host")}`;
+      }
+
+      // Save SERVER_URL to DB if provided via body
+      if (bodyUrl) {
+        const existingUrl = await dbase.select().from(platformConfig).where(eq(platformConfig.configKey, "SERVER_URL")).limit(1);
+        if (existingUrl.length > 0) {
+          await dbase.update(platformConfig).set({ configValue: bodyUrl, updatedAt: new Date() }).where(eq(platformConfig.configKey, "SERVER_URL"));
+        } else {
+          await dbase.insert(platformConfig).values({ configKey: "SERVER_URL", configValue: bodyUrl, isSensitive: false, description: "Public server URL for Stripe webhook registration" });
+        }
+      }
+
+      // Get the active Stripe secret key
+      const isTestMode = (await dbase.select().from(platformConfig).where(eq(platformConfig.configKey, "STRIPE_TEST_MODE")).limit(1))[0]?.configValue === "true";
+      const keyConfigKey = isTestMode ? "STRIPE_TEST_SECRET_KEY" : "STRIPE_SECRET_KEY";
+      const stripeKeyRow = await dbase.select().from(platformConfig).where(eq(platformConfig.configKey, keyConfigKey)).limit(1);
+      const stripeKey = stripeKeyRow[0]?.configValue || "";
+      if (!stripeKey || !stripeKey.startsWith("sk_")) {
+        res.status(400).json({ error: `Stripe ${isTestMode ? "test" : "live"} secret key is not configured. Please save a valid key first.` });
+        return;
+      }
+
+      // Define both webhook endpoints to register
+      const webhooksToRegister = [
+        {
+          url: `${serverUrl}/api/stripe/webhook`,
+          events: ["checkout.session.completed", "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted", "invoice.paid", "invoice.payment_failed"],
+          secretConfigKey: isTestMode ? "STRIPE_TEST_WEBHOOK_SECRET" : "STRIPE_WEBHOOK_SECRET",
+          label: "Subscription Webhook (/api/stripe/webhook)",
+        },
+        {
+          url: `${serverUrl}/api/stripe-connect/webhook`,
+          events: ["checkout.session.completed", "payment_intent.succeeded", "payment_intent.payment_failed", "account.updated"],
+          secretConfigKey: isTestMode ? "STRIPE_CONNECT_TEST_WEBHOOK_SECRET" : "STRIPE_CONNECT_WEBHOOK_SECRET",
+          label: "Connect Webhook (/api/stripe-connect/webhook)",
+        },
+      ];
+
+      const results: Array<{ endpoint: string; status: string; webhookId?: string; secretSaved?: boolean; error?: string }> = [];
+
+      for (const wh of webhooksToRegister) {
+        try {
+          // Check if this URL is already registered
+          const listResp = await fetch(`https://api.stripe.com/v1/webhook_endpoints?limit=100`, {
+            headers: { Authorization: `Bearer ${stripeKey}` },
+          });
+          const listJson = await listResp.json() as any;
+          if (!listResp.ok) throw new Error(listJson?.error?.message || `Stripe list error ${listResp.status}`);
+          const existingEndpoint = (listJson.data || []).find((e: any) => e.url === wh.url);
+
+          if (existingEndpoint) {
+            // Update existing endpoint events
+            const updateBody = new URLSearchParams();
+            wh.events.forEach((e) => updateBody.append("enabled_events[]", e));
+            const updateResp = await fetch(`https://api.stripe.com/v1/webhook_endpoints/${existingEndpoint.id}`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${stripeKey}`, "Content-Type": "application/x-www-form-urlencoded" },
+              body: updateBody.toString(),
+            });
+            const updateJson = await updateResp.json() as any;
+            if (!updateResp.ok) throw new Error(updateJson?.error?.message || `Update failed: ${updateResp.status}`);
+            results.push({ endpoint: wh.label, status: "updated (events refreshed)", webhookId: existingEndpoint.id, secretSaved: false });
+          } else {
+            // Create new endpoint
+            const createBody = new URLSearchParams();
+            createBody.append("url", wh.url);
+            wh.events.forEach((e) => createBody.append("enabled_events[]", e));
+            const createResp = await fetch("https://api.stripe.com/v1/webhook_endpoints", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${stripeKey}`, "Content-Type": "application/x-www-form-urlencoded" },
+              body: createBody.toString(),
+            });
+            const createJson = await createResp.json() as any;
+            if (!createResp.ok) throw new Error(createJson?.error?.message || `Create failed: ${createResp.status}`);
+            const webhookId = createJson.id;
+            const secret: string = createJson.secret || "";
+
+            // Save the signing secret to DB
+            let secretSaved = false;
+            if (secret) {
+              const existingRow = await dbase.select().from(platformConfig).where(eq(platformConfig.configKey, wh.secretConfigKey)).limit(1);
+              if (existingRow.length > 0) {
+                await dbase.update(platformConfig).set({ configValue: secret, updatedAt: new Date() }).where(eq(platformConfig.configKey, wh.secretConfigKey));
+              } else {
+                await dbase.insert(platformConfig).values({ configKey: wh.secretConfigKey, configValue: secret, isSensitive: true, description: `Stripe webhook signing secret for ${wh.label}` });
+              }
+              secretSaved = true;
+            }
+            results.push({ endpoint: wh.label, status: "created", webhookId, secretSaved });
+          }
+        } catch (whErr: any) {
+          results.push({ endpoint: wh.label, status: "error", error: whErr?.message || "Unknown error" });
+        }
+      }
+
+      const allOk = results.every((r) => r.status !== "error");
+      console.log(`[Admin] Webhook registration complete for ${serverUrl}:`, results);
+      res.json({
+        ok: allOk,
+        serverUrl,
+        isTestMode,
+        results,
+        message: allOk
+          ? `Webhook endpoints registered successfully for ${serverUrl}`
+          : `Some endpoints failed — check results`,
+      });
+    } catch (err: any) {
+      console.error("[Admin] Register webhooks error:", err);
+      res.status(500).json({ ok: false, error: err?.message || "Registration failed" });
+    }
+  });
 }
 
 function stripeConnectPage(data: {

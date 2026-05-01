@@ -1041,3 +1041,42 @@ export async function deleteLocation(localId: string, businessOwnerId: number): 
       )
     );
 }
+
+// ─── Business Usage Counts ────────────────────────────────────────────
+export async function getBusinessUsageCounts(businessOwnerId: number): Promise<{
+  locations: number;
+  staff: number;
+  clients: number;
+  services: number;
+  products: number;
+}> {
+  const db = await getDb();
+  if (!db) return { locations: 0, staff: 0, clients: 0, services: 0, products: 0 };
+  const [locCount] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(locations)
+    .where(eq(locations.businessOwnerId, businessOwnerId));
+  const [staffCount] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(staffMembers)
+    .where(eq(staffMembers.businessOwnerId, businessOwnerId));
+  const [clientCount] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(clients)
+    .where(eq(clients.businessOwnerId, businessOwnerId));
+  const [svcCount] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(services)
+    .where(eq(services.businessOwnerId, businessOwnerId));
+  const [prodCount] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(products)
+    .where(eq(products.businessOwnerId, businessOwnerId));
+  return {
+    locations: Number(locCount?.count ?? 0),
+    staff: Number(staffCount?.count ?? 0),
+    clients: Number(clientCount?.count ?? 0),
+    services: Number(svcCount?.count ?? 0),
+    products: Number(prodCount?.count ?? 0),
+  };
+}

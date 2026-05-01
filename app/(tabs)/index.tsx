@@ -41,6 +41,7 @@ import { PaymentSummaryCard } from "@/components/payment-summary-card";
 import { ChartDrillDownSheet, type DrillDownAppointment } from "@/components/chart-drilldown-sheet";
 import { ScheduleCard } from "@/components/schedule-card";
 import { apiCall } from "@/lib/_core/api";
+import { trpc } from "@/lib/trpc";
 
 // App logo URL (same as app.config.ts logoUrl)
 const APP_LOGO_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/jHoNjHdLsUGgpFhz.png";
@@ -1311,6 +1312,12 @@ export default function HomeScreen() {
   const { planInfo } = usePlanLimitCheck();
   const isFreeplan = !planInfo || planInfo.planKey === "solo";
   const isStripePlan = planInfo && (planInfo.planKey === "studio" || planInfo.planKey === "enterprise");
+  // ─── Over-limit warnings (grace period) ──────────────────────────
+  const { data: overLimitData } = trpc.subscription.getOverLimitWarnings.useQuery(
+    { businessOwnerId: state.businessOwnerId! },
+    { enabled: !!state.businessOwnerId, staleTime: 5 * 60 * 1000 }
+  );
+  const [overLimitDismissed, setOverLimitDismissed] = useState(false);
   const stripeConnected = !!(state.settings as any).stripeConnectEnabled;
 
   // ─── Stripe Balance (Studio/Enterprise plan only) ──────────────
@@ -1699,6 +1706,61 @@ export default function HomeScreen() {
           </View>
         )}
 
+        {/* ─── Over-Limit Grace Period Warning Banner ─────────── */}
+        {overLimitData?.isInGracePeriod && (overLimitData?.warnings?.length ?? 0) > 0 && !overLimitDismissed && (
+          <View style={{
+            backgroundColor: "#FEF3C7",
+            borderRadius: 14,
+            padding: 14,
+            marginBottom: 12,
+            borderWidth: 1,
+            borderColor: "#F59E0B",
+          }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, fontWeight: "700", color: "#92400E", marginBottom: 4 }}>
+                  Action Required Before {overLimitData.periodEndDate}
+                </Text>
+                <Text style={{ fontSize: 12, color: "#78350F", marginBottom: 8, lineHeight: 18 }}>
+                  Your plan downgrades to {overLimitData.scheduledPlanKey?.charAt(0).toUpperCase()}{overLimitData.scheduledPlanKey?.slice(1)} on {overLimitData.periodEndDate}. Reduce the following to avoid automatic removal:
+                </Text>
+                {overLimitData.warnings.map((w: { resource: string; current: number; limit: number; route: string }) => (
+                  <Pressable
+                    key={w.resource}
+                    onPress={() => router.push(w.route as any)}
+                    style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1, flexDirection: "row", alignItems: "center", marginBottom: 4 }]}
+                  >
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#F59E0B", marginRight: 8 }} />
+                    <Text style={{ fontSize: 12, color: "#92400E", fontWeight: "600" }}>
+                      {w.resource}: {w.current} / {w.limit} allowed
+                    </Text>
+                    <Text style={{ fontSize: 11, color: "#B45309", marginLeft: 6 }}>Tap to manage ›</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Pressable
+                onPress={() => setOverLimitDismissed(true)}
+                style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, padding: 4, marginLeft: 8 }]}
+              >
+                <Text style={{ fontSize: 18, color: "#92400E", fontWeight: "300" }}>×</Text>
+              </Pressable>
+            </View>
+            <Pressable
+              onPress={() => router.push("/subscription" as any)}
+              style={({ pressed }) => [{
+                marginTop: 10,
+                backgroundColor: "#F59E0B",
+                borderRadius: 8,
+                paddingVertical: 8,
+                paddingHorizontal: 14,
+                alignSelf: "flex-start",
+                opacity: pressed ? 0.8 : 1,
+              }]}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#FFFFFF" }}>Keep Current Plan</Text>
+            </Pressable>
+          </View>
+        )}
         {/* ─── KPI Cards (swipeable groups) ─────────────────── */}
         <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 20 }]}>
           Overview
