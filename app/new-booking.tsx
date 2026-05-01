@@ -1096,8 +1096,16 @@ export default function NewBookingScreen() {
           {/* Time Slots */}
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6, marginHorizontal: 4 }}>
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
             <Text className="text-xs font-medium text-muted">Available Times</Text>
 =======
+=======
+<<<<<<< Updated upstream
+            <Text className="text-xs font-medium text-muted">Available Times</Text>
+=======
+=======
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Text className="text-xs font-medium text-muted">Available Times</Text>
               {selectedStaffId && selectedStaff && (
@@ -1107,6 +1115,12 @@ export default function NewBookingScreen() {
                 </View>
               )}
             </View>
+<<<<<<< Updated upstream
+=======
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
 >>>>>>> Stashed changes
             <Pressable
               onPress={() => setRefreshKey((k) => k + 1)}
@@ -1137,9 +1151,19 @@ export default function NewBookingScreen() {
           ) : (
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+=======
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
               {timeSlots.map((t) => {
 =======
               {staffFilteredTimeSlots.map((t) => {
+>>>>>>> Stashed changes
+<<<<<<< Updated upstream
+=======
+=======
+              {staffFilteredTimeSlots.map((t) => {
+>>>>>>> Stashed changes
 >>>>>>> Stashed changes
                 const isSelected = t === selectedTime;
                 const locCount = isAllMode ? (slotLocationCount[t] ?? 1) : 1;
