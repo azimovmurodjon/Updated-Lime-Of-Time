@@ -370,11 +370,30 @@ export default function NewBookingScreen() {
       state.appointments, state.settings.workingHours, state.settings.scheduleMode,
       state.settings.bufferTime, (state as any).locationCustomSchedule]);
 
+  // Staff-filtered time slots: when a specific staff member is selected,
+  // remove any slot where that staff member already has a conflicting appointment.
+  const staffFilteredTimeSlots = useMemo(() => {
+    if (!selectedStaffId) return timeSlots;
+    const staffAppts = state.appointments.filter(
+      (a) =>
+        a.staffId === selectedStaffId &&
+        a.date === selectedDate &&
+        (a.status === "confirmed" || a.status === "pending")
+    );
+    return timeSlots.filter(
+      (t) => !staffAppts.some((a) => timeSlotsOverlap(t, totalDuration, a.time, a.duration))
+    );
+  }, [timeSlots, selectedStaffId, state.appointments, selectedDate, totalDuration]);
+
   // Bidirectional sync (location → time):
   // If a specific location is selected and the previously chosen time is no longer in its
   // slot list, clear it. Only applies in single-location mode to avoid clearing valid
   // union-mode times when switching to All.
   if (!isAllMode && selectedTime && timeSlots.length > 0 && !timeSlots.includes(selectedTime)) {
+    setSelectedTime(null);
+  }
+  // If selected staff changes and the chosen time is no longer available for them, clear it.
+  if (selectedStaffId && selectedTime && staffFilteredTimeSlots.length > 0 && !staffFilteredTimeSlots.includes(selectedTime)) {
     setSelectedTime(null);
   }
 
@@ -1076,7 +1095,19 @@ export default function NewBookingScreen() {
           )}
           {/* Time Slots */}
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6, marginHorizontal: 4 }}>
+<<<<<<< Updated upstream
             <Text className="text-xs font-medium text-muted">Available Times</Text>
+=======
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text className="text-xs font-medium text-muted">Available Times</Text>
+              {selectedStaffId && selectedStaff && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: (selectedStaff.color || colors.primary) + "20", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: selectedStaff.color || colors.primary }} />
+                  <Text style={{ fontSize: 10, fontWeight: "600", color: selectedStaff.color || colors.primary }}>{selectedStaff.name}</Text>
+                </View>
+              )}
+            </View>
+>>>>>>> Stashed changes
             <Pressable
               onPress={() => setRefreshKey((k) => k + 1)}
               style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, padding: 4 })}
@@ -1084,9 +1115,14 @@ export default function NewBookingScreen() {
               <IconSymbol name="arrow.clockwise" size={16} color={colors.muted} />
             </Pressable>
           </View>
-          {timeSlots.length === 0 ? (
+          {staffFilteredTimeSlots.length === 0 ? (
             <View className="items-center py-8 bg-surface rounded-2xl border border-border">
-              {selectedDate === formatDateStr(new Date()) ? (
+              {selectedStaffId && timeSlots.length > 0 ? (
+                <>
+                  <Text className="text-sm font-semibold text-muted">{selectedStaff?.name ?? "This staff member"} is fully booked</Text>
+                  <Text className="text-xs text-muted mt-1">Select another staff member or a different date</Text>
+                </>
+              ) : selectedDate === formatDateStr(new Date()) ? (
                 <>
                   <Text className="text-sm font-semibold text-warning">All slots for today have passed</Text>
                   <Text className="text-xs text-muted mt-1">Select another date to book an appointment</Text>
@@ -1100,7 +1136,11 @@ export default function NewBookingScreen() {
             </View>
           ) : (
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+<<<<<<< Updated upstream
               {timeSlots.map((t) => {
+=======
+              {staffFilteredTimeSlots.map((t) => {
+>>>>>>> Stashed changes
                 const isSelected = t === selectedTime;
                 const locCount = isAllMode ? (slotLocationCount[t] ?? 1) : 1;
                 const multiLoc = isAllMode && locCount > 1;
