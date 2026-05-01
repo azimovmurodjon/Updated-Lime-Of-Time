@@ -501,6 +501,90 @@ export function registerAdminStripeConnectRoutes(app: Express): void {
       res.status(500).json({ ok: false, error: err?.message || "Toggle failed" });
     }
   });
+
+  // POST /api/admin/twilio/toggle-mode
+  // Atomically swaps TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_VERIFY_SERVICE_SID / TWILIO_FROM_NUMBER
+  // to point to either the live or test credential values, and sets TWILIO_TEST_MODE.
+  app.post("/api/admin/twilio/toggle-mode", async (req: Request, res: Response) => {
+    if (!requireAdminAuth(req, res)) return;
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(503).json({ ok: false, error: "DB unavailable" }); return; }
+      const { platformConfig } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const { invalidateConfigCache } = await import("./subscription");
+
+      const targetMode = (req.body?.mode as string || "").toLowerCase();
+      if (targetMode !== "live" && targetMode !== "test") {
+        res.status(400).json({ ok: false, error: "mode must be 'live' or 'test'" }); return;
+      }
+
+      // Read all relevant config rows
+      const allRows = await dbase.select().from(platformConfig);
+      const cfgMap: Record<string, string> = {};
+      for (const row of allRows) {
+        cfgMap[row.configKey] = row.configValue || "";
+      }
+
+      // Determine source keys based on target mode
+      const isLive = targetMode === "live";
+      const srcAccountSid = isLive ? "TWILIO_LIVE_ACCOUNT_SID" : "TWILIO_TEST_ACCOUNT_SID";
+      const srcAuthToken = isLive ? "TWILIO_LIVE_AUTH_TOKEN" : "TWILIO_TEST_AUTH_TOKEN";
+      const srcVerifySid = isLive ? "TWILIO_LIVE_VERIFY_SERVICE_SID" : "TWILIO_TEST_VERIFY_SERVICE_SID";
+      const srcFromNumber = isLive ? "TWILIO_LIVE_FROM_NUMBER" : "TWILIO_TEST_FROM_NUMBER";
+
+      const newAccountSid = cfgMap[srcAccountSid] || "";
+      const newAuthToken = cfgMap[srcAuthToken] || "";
+      const newVerifySid = cfgMap[srcVerifySid] || "";
+      const newFromNumber = cfgMap[srcFromNumber] || "";
+
+      if (!newAccountSid) {
+        res.status(400).json({ ok: false, error: `${srcAccountSid} is not set. Please save the ${targetMode} Account SID first.` }); return;
+      }
+
+      // Upsert helper
+      const upsert = async (key: string, value: string, sensitive: boolean, desc: string) => {
+        const existing = await dbase.select().from(platformConfig).where(eq(platformConfig.configKey, key)).limit(1);
+        if (existing.length > 0) {
+          await dbase.update(platformConfig).set({ configValue: value }).where(eq(platformConfig.configKey, key));
+        } else {
+          await dbase.insert(platformConfig).values({ configKey: key, configValue: value, isSensitive: sensitive, description: desc });
+        }
+      };
+
+      // Swap active credentials
+      await upsert("TWILIO_ACCOUNT_SID", newAccountSid, true, "Twilio Account SID (active)");
+      await upsert("TWILIO_AUTH_TOKEN", newAuthToken, true, "Twilio Auth Token (active)");
+      if (newVerifySid) {
+        await upsert("TWILIO_VERIFY_SERVICE_SID", newVerifySid, true, "Twilio Verify Service SID (active)");
+      }
+      if (newFromNumber) {
+        await upsert("TWILIO_FROM_NUMBER", newFromNumber, false, "Twilio From Phone Number (active)");
+      }
+      await upsert("TWILIO_TEST_MODE", isLive ? "false" : "true", false, "Twilio Test Mode (true/false)");
+
+      // Invalidate config cache
+      invalidateConfigCache("TWILIO_ACCOUNT_SID");
+      invalidateConfigCache("TWILIO_AUTH_TOKEN");
+      invalidateConfigCache("TWILIO_VERIFY_SERVICE_SID");
+      invalidateConfigCache("TWILIO_FROM_NUMBER");
+      invalidateConfigCache("TWILIO_TEST_MODE");
+
+      const sessionId = req.cookies?.session_id || "";
+      console.log(`[Admin] Twilio mode switched to ${targetMode.toUpperCase()} by ${sessionId || "admin"}`);
+
+      res.json({
+        ok: true,
+        mode: targetMode,
+        message: `Switched to ${targetMode.toUpperCase()} mode. Active Twilio credentials updated.`,
+        accountSidPrefix: newAccountSid.substring(0, 6) + "...",
+        fromNumber: newFromNumber,
+      });
+    } catch (err: any) {
+      console.error("[Admin] Twilio toggle-mode error:", err);
+      res.status(500).json({ ok: false, error: err?.message || "Toggle failed" });
+    }
+  });
 }
 
 function stripeConnectPage(data: {

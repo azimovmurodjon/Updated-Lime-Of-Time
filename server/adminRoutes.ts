@@ -1000,6 +1000,14 @@ export function registerAdminRoutes(app: Express): void {
         { key: "TWILIO_FROM_NUMBER", sensitive: false, desc: "Twilio From Phone Number" },
         { key: "TWILIO_TEST_MODE", sensitive: false, desc: "Twilio Test Mode (true/false)" },
         { key: "TWILIO_TEST_OTP", sensitive: false, desc: "Test OTP code (default: 123456)" },
+        { key: "TWILIO_LIVE_ACCOUNT_SID", sensitive: true, desc: "Twilio Live Account SID" },
+        { key: "TWILIO_LIVE_AUTH_TOKEN", sensitive: true, desc: "Twilio Live Auth Token" },
+        { key: "TWILIO_LIVE_VERIFY_SERVICE_SID", sensitive: true, desc: "Twilio Live Verify Service SID" },
+        { key: "TWILIO_LIVE_FROM_NUMBER", sensitive: false, desc: "Twilio Live From Phone Number" },
+        { key: "TWILIO_TEST_ACCOUNT_SID", sensitive: true, desc: "Twilio Test Account SID" },
+        { key: "TWILIO_TEST_AUTH_TOKEN", sensitive: true, desc: "Twilio Test Auth Token" },
+        { key: "TWILIO_TEST_VERIFY_SERVICE_SID", sensitive: true, desc: "Twilio Test Verify Service SID" },
+        { key: "TWILIO_TEST_FROM_NUMBER", sensitive: false, desc: "Twilio Test From Phone Number" },
         { key: "STRIPE_SECRET_KEY", sensitive: true, desc: "Stripe Secret Key (Live)" },
         { key: "STRIPE_PUBLISHABLE_KEY", sensitive: false, desc: "Stripe Publishable Key (Live)" },
         { key: "STRIPE_WEBHOOK_SECRET", sensitive: true, desc: "Stripe Webhook Secret (Live)" },
@@ -5050,7 +5058,6 @@ function platformConfigPage(
   return adminLayout("Platform Config", "platform-config", `
     <h1 style="font-size:24px;font-weight:700;margin-bottom:24px;">Platform Configuration</h1>
 
-    <form id="platformConfigForm" method="POST" action="/api/admin/platform-config">
       <!-- Twilio Section -->
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:24px;">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
@@ -5061,14 +5068,38 @@ function platformConfigPage(
           </div>
           ${isTwilioTestMode ? '<span style="background:#f59e0b20;color:#f59e0b;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;margin-left:auto;">⚠️ TEST MODE ACTIVE</span>' : '<span style="background:#05996920;color:#059669;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;margin-left:auto;">✓ LIVE MODE</span>'}
         </div>
-        ${field("twilio_account_sid", "Account SID", "Found in your Twilio Console dashboard", true, "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", cfgMap["TWILIO_ACCOUNT_SID"] || "")}
-        ${field("twilio_auth_token", "Auth Token", "Found in your Twilio Console dashboard", true, "Your Twilio Auth Token", cfgMap["TWILIO_AUTH_TOKEN"] || "")}
-        ${field("twilio_verify_service_sid", "Verify Service SID", "From Twilio Console → Verify → Services - starts with VA...", true, "VAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", cfgMap["TWILIO_VERIFY_SERVICE_SID"] || "")}
-        ${field("twilio_from_number", "From Phone Number", "Your Twilio phone number in E.164 format", false, "+14155551234", cfgMap["TWILIO_FROM_NUMBER"] || "")}
+        <!-- One-click Mode Toggle -->
+        <div style="background:${isTwilioTestMode ? '#f59e0b10' : '#05996910'};border:1px solid ${isTwilioTestMode ? '#f59e0b30' : '#05996930'};border-radius:10px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:200px;">
+            <div style="font-size:13px;font-weight:700;margin-bottom:2px;">Current Mode: ${isTwilioTestMode ? '🧪 TEST' : '🟢 LIVE'}</div>
+            <div style="font-size:12px;color:var(--text-muted);">${isTwilioTestMode ? 'All SMS/OTP operations use test credentials. Real SMS are NOT sent.' : 'All SMS/OTP operations use live credentials. Real SMS are sent.'}</div>
+          </div>
+          <button type="button" id="twilioModeToggleBtn" onclick="toggleTwilioMode('${isTwilioTestMode ? 'live' : 'test'}')"
+            style="background:${isTwilioTestMode ? '#059669' : '#f59e0b'};color:white;padding:10px 20px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">
+            ${isTwilioTestMode ? '🟢 Switch to LIVE Mode' : '🧪 Switch to TEST Mode'}
+          </button>
+        </div>
+        <!-- Live Credentials -->
+        <div style="margin-bottom:20px;">
+          <div style="font-size:13px;font-weight:700;color:#059669;margin-bottom:12px;padding:6px 12px;background:#05996910;border-radius:6px;border-left:3px solid #059669;">🟢 Live Credentials - used when Test Mode is OFF</div>
+          ${field("twilio_live_account_sid", "Live Account SID", "Your production Twilio Account SID (starts with AC...)", true, "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", cfgMap["TWILIO_LIVE_ACCOUNT_SID"] || "")}
+          ${field("twilio_live_auth_token", "Live Auth Token", "Your production Twilio Auth Token", true, "Your Twilio Auth Token", cfgMap["TWILIO_LIVE_AUTH_TOKEN"] || "")}
+          ${field("twilio_live_verify_service_sid", "Live Verify Service SID", "From Twilio Console → Verify → Services (starts with VA...)", true, "VAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", cfgMap["TWILIO_LIVE_VERIFY_SERVICE_SID"] || "")}
+          ${field("twilio_live_from_number", "Live From Phone Number", "Your production Twilio phone number in E.164 format", false, "+14155551234", cfgMap["TWILIO_LIVE_FROM_NUMBER"] || "")}
+        </div>
+        <!-- Active (runtime) credentials - read-only display -->
+        <div style="margin-bottom:20px;opacity:0.75;">
+          <div style="font-size:13px;font-weight:700;color:var(--text-muted);margin-bottom:12px;padding:6px 12px;background:var(--bg);border-radius:6px;border-left:3px solid var(--border);">Active Credentials (read by SMS at runtime - auto-updated by mode toggle)</div>
+          ${field("twilio_account_sid", "Active Account SID", "Currently active - auto-updated by mode toggle", true, "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", cfgMap["TWILIO_ACCOUNT_SID"] || "")}
+          ${field("twilio_auth_token", "Active Auth Token", "Currently active - auto-updated by mode toggle", true, "Your Twilio Auth Token", cfgMap["TWILIO_AUTH_TOKEN"] || "")}
+          ${field("twilio_verify_service_sid", "Active Verify Service SID", "Currently active - auto-updated by mode toggle", true, "VAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", cfgMap["TWILIO_VERIFY_SERVICE_SID"] || "")}
+          ${field("twilio_from_number", "Active From Phone Number", "Currently active - auto-updated by mode toggle", false, "+14155551234", cfgMap["TWILIO_FROM_NUMBER"] || "")}
+        </div>
+        <!-- Test Mode checkbox + OTP code (kept exactly as before) -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
           <div>
             <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;">
-              <input type="checkbox" name="twilio_test_mode" value="true" ${(cfgMap["TWILIO_TEST_MODE"] === "true") ? "checked" : ""} style="width:16px;height:16px;" />
+              <input type="checkbox" name="twilio_test_mode" id="twilioTestModeChk" value="true" ${(cfgMap["TWILIO_TEST_MODE"] === "true") ? "checked" : ""} style="width:16px;height:16px;" />
               <span><strong>Test Mode</strong> - OTP bypassed with code below</span>
             </label>
           </div>
@@ -5080,6 +5111,15 @@ function platformConfigPage(
           </div>
         </div>
         ${isTwilioTestMode ? '<div style="background:#f59e0b15;border:1px solid #f59e0b40;border-radius:8px;padding:10px 14px;margin-top:12px;font-size:13px;color:#f59e0b;"><strong>⚠️ Test Mode is ON.</strong> All OTP codes will be bypassed with the test code above. Disable before going live.</div>' : ""}
+        <!-- Test Credentials (shown when test mode is active) -->
+        <div style="margin-top:20px;">
+          <div style="font-size:13px;font-weight:700;color:#f59e0b;margin-bottom:12px;padding:6px 12px;background:#f59e0b10;border-radius:6px;border-left:3px solid #f59e0b;">🟡 Test Credentials - used when Test Mode is ON</div>
+          ${field("twilio_test_account_sid", "Test Account SID", "Your test/dev Twilio Account SID (starts with AC...)", true, "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", cfgMap["TWILIO_TEST_ACCOUNT_SID"] || "")}
+          ${field("twilio_test_auth_token", "Test Auth Token", "Your test/dev Twilio Auth Token", true, "Your Twilio Auth Token", cfgMap["TWILIO_TEST_AUTH_TOKEN"] || "")}
+          ${field("twilio_test_verify_service_sid", "Test Verify Service SID", "From Twilio Console → Verify → Services for test account (starts with VA...)", true, "VAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", cfgMap["TWILIO_TEST_VERIFY_SERVICE_SID"] || "")}
+          ${field("twilio_test_from_number", "Test From Phone Number", "Your test Twilio phone number in E.164 format", false, "+14155551234", cfgMap["TWILIO_TEST_FROM_NUMBER"] || "")}
+          ${isTwilioTestMode ? '<div style="background:#f59e0b15;border:1px solid #f59e0b40;border-radius:8px;padding:10px 14px;margin-top:4px;font-size:13px;color:#f59e0b;"><strong>⚠️ Test Mode is ON.</strong> All Twilio operations use test credentials. Real SMS will NOT be sent. Disable before going live.</div>' : ""}
+        </div>
 
         <!-- Per-Business OTP Overrides -->
         <div id="perPhoneOtpSection" style="margin-top:20px;${isTwilioTestMode ? '' : 'display:none;'}">
@@ -5211,6 +5251,7 @@ function platformConfigPage(
         </div>
       </div>
 
+    <form id="platformConfigForm" method="POST" action="/api/admin/platform-config">
       <button id="savePlatformBtn" type="submit" disabled style="background:var(--border);color:var(--text-muted);padding:12px 28px;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:not-allowed;width:100%;transition:background 0.2s,color 0.2s;">
         💾 Save Platform Configuration
       </button>
@@ -5441,10 +5482,10 @@ function platformConfigPage(
     window.testTwilio = async function testTwilio() {
       var btn = document.getElementById('testTwilioBtn');
       var result = document.getElementById('twilioTestResult');
-      var f = document.getElementById('platformConfigForm');
-      if (!f || !btn || !result) return;
-      var sidEl = f.querySelector('[name="twilio_account_sid"]');
-      var tokenEl = f.querySelector('[name="twilio_auth_token"]');
+      if (!btn || !result) return;
+      // Read active credentials (outside form, use document.querySelector)
+      var sidEl = document.querySelector('[name="twilio_account_sid"]');
+      var tokenEl = document.querySelector('[name="twilio_auth_token"]');
       var sid = sidEl ? sidEl.value.trim() : '';
       var token = tokenEl ? tokenEl.value.trim() : '';
       if (!sid || !token) {
@@ -5613,7 +5654,7 @@ function platformConfigPage(
     setTimeout(function() { if (typeof testTwilio === 'function') testTwilio(); }, 800);
 
     // Show/hide per-business OTP section when test mode checkbox changes
-    var testModeChk = form ? form.querySelector('[name="twilio_test_mode"]') : null;
+    var testModeChk = document.getElementById('twilioTestModeChk');
     if (testModeChk) {
       testModeChk.addEventListener('change', function() {
         var section = document.getElementById('perPhoneOtpSection');
@@ -5952,6 +5993,11 @@ function platformConfigPage(
         var formData = new FormData(f);
         var params = new URLSearchParams();
         formData.forEach(function(v, k) { params.append(k, v.toString()); });
+        // Collect Twilio inputs that are outside the form
+        var twilioNames = ['twilio_account_sid','twilio_auth_token','twilio_verify_service_sid','twilio_from_number','twilio_live_account_sid','twilio_live_auth_token','twilio_live_verify_service_sid','twilio_live_from_number','twilio_test_account_sid','twilio_test_auth_token','twilio_test_verify_service_sid','twilio_test_from_number','twilio_test_otp'];
+        twilioNames.forEach(function(name) { var el = document.querySelector('[name="' + name + '"]'); if (el && el.value !== undefined) params.set(name, el.value); });
+        var testModeChk = document.getElementById('twilioTestModeChk');
+        if (testModeChk) params.set('twilio_test_mode', testModeChk.checked ? 'true' : '');
         var saveRes = await fetch('/api/admin/platform-config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -6007,6 +6053,37 @@ function platformConfigPage(
       } finally {
         btn.disabled = false;
         btn.textContent = '\ud83d\udcbe Save & Test';
+      }
+    };
+
+    window.toggleTwilioMode = async function toggleTwilioMode(targetMode) {
+      var btn = document.getElementById('twilioModeToggleBtn');
+      var result = document.getElementById('twilioTestResult');
+      if (!btn) return;
+      var modeLabel = targetMode === 'live' ? 'LIVE' : 'TEST';
+      if (!confirm('Switch Twilio to ' + modeLabel + ' mode?\\n\\nThis will update the active Twilio credentials to the ' + modeLabel + ' credentials you have saved. Make sure you have saved the ' + modeLabel + ' credentials first.')) return;
+      btn.disabled = true;
+      btn.textContent = '\u23f3 Switching...';
+      if (result) { result.textContent = ''; }
+      try {
+        var resp = await fetch('/api/admin/twilio/toggle-mode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: targetMode })
+        });
+        var data = await resp.json();
+        if (data.ok) {
+          if (result) { result.textContent = '\u2705 ' + data.message; result.style.color = '#22c55e'; }
+          setTimeout(function() { window.location.reload(); }, 1200);
+        } else {
+          if (result) { result.textContent = '\u274c ' + (data.error || 'Toggle failed'); result.style.color = '#ef4444'; }
+          btn.disabled = false;
+          btn.textContent = targetMode === 'live' ? '\ud83d\udfe2 Switch to LIVE Mode' : '\ud83e\uddea Switch to TEST Mode';
+        }
+      } catch (e) {
+        if (result) { result.textContent = '\u274c Network error'; result.style.color = '#ef4444'; }
+        btn.disabled = false;
+        btn.textContent = targetMode === 'live' ? '\ud83d\udfe2 Switch to LIVE Mode' : '\ud83e\uddea Switch to TEST Mode';
       }
     };
 
