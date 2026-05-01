@@ -53,6 +53,7 @@ const businessRouter = router({
         website: z.string().optional(),
         description: z.string().optional(),
         workingHours: z.any().optional(),
+        photoUri: z.string().optional().nullable(),
         cancellationPolicy: z.any().optional(),
       })
     )
@@ -93,6 +94,7 @@ const businessRouter = router({
         temporaryClosed: z.boolean().optional(),
         scheduleMode: z.enum(["weekly", "custom"]).optional(),
         workingHours: z.any().optional(),
+        photoUri: z.string().optional().nullable(),
         cancellationPolicy: z.any().optional(),
         phone: z.string().optional(),
         bufferTime: z.number().optional(),
@@ -797,8 +799,8 @@ const staffRouter = router({
         serviceIds: z.any().optional(),
         locationIds: z.any().optional(),
         workingHours: z.any().optional(),
-        active: z.boolean().default(true),
         photoUri: z.string().optional().nullable(),
+        active: z.boolean().default(true),
         commissionRate: z.number().optional().nullable(),
       })
     )
@@ -820,8 +822,8 @@ const staffRouter = router({
         serviceIds: z.any().optional(),
         locationIds: z.any().optional(),
         workingHours: z.any().optional(),
-        active: z.boolean().optional(),
         photoUri: z.string().optional().nullable(),
+        active: z.boolean().optional(),
         commissionRate: z.number().optional().nullable(),
       })
     )
@@ -865,6 +867,7 @@ const locationsRouter = router({
         temporarilyClosed: z.boolean().optional(),
         reopenOn: z.string().optional().nullable(),
         workingHours: z.any().optional(),
+        photoUri: z.string().optional().nullable(),
       })
     )
     .mutation(async ({ input }) => {
@@ -889,6 +892,7 @@ const locationsRouter = router({
         temporarilyClosed: z.boolean().optional(),
         reopenOn: z.string().optional().nullable(),
         workingHours: z.any().optional(),
+        photoUri: z.string().optional().nullable(),
       })
     )
     .mutation(async ({ input }) => {

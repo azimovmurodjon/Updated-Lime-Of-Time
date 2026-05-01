@@ -501,6 +501,8 @@ export const locations = mysqlTable("locations", {
   /** ISO date YYYY-MM-DD: if set, location auto-reopens on this date */
   reopenOn: varchar("reopenOn", { length: 10 }),
   /** Individual working hours JSON: Record<string, { enabled: boolean, start: string, end: string }> */
+  /** Optional cover photo URL for this location */
+  photoUri: text("photoUri"),
   workingHours: json("workingHours"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

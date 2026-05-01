@@ -79,8 +79,15 @@ export default function TabLayout() {
         tabBarLabelStyle: {
           fontSize: labelSize,
           fontWeight: "600",
+          marginTop: 2,
         },
-        tabBarItemStyle: isTablet ? { paddingVertical: 4 } : undefined,
+        tabBarIconStyle: {
+          marginBottom: 2,
+        },
+        tabBarItemStyle: {
+          paddingVertical: isTablet ? 6 : 4,
+          gap: 3,
+        },
       }}
     >
       <Tabs.Screen

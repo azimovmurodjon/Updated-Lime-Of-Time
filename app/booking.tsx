@@ -547,27 +547,44 @@ export default function PublicBookingScreen() {
                     setStep("info");
                   }}
                   style={({ pressed }) => [
-                    styles.locationOption,
                     {
-                      backgroundColor: selectedLocationId === loc.id ? colors.primary + "10" : colors.background,
+                      borderRadius: 16,
+                      marginBottom: 12,
+                      borderWidth: 1.5,
+                      overflow: "hidden",
+                      backgroundColor: selectedLocationId === loc.id ? colors.primary + "10" : colors.surface,
                       borderColor: selectedLocationId === loc.id ? colors.primary : colors.border,
-                      opacity: pressed ? 0.7 : 1,
+                      opacity: pressed ? 0.85 : 1,
                     },
                   ]}
                 >
-                  <View style={[styles.locationDot, { backgroundColor: colors.primary + "20" }]}>
-                    <IconSymbol name="mappin" size={16} color={colors.primary} />
+                  {/* Cover photo */}
+                  {(loc as any).photoUri ? (
+                    <Image
+                      source={{ uri: (loc as any).photoUri }}
+                      style={{ width: "100%", height: 110, borderTopLeftRadius: 14, borderTopRightRadius: 14 }}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={{ width: "100%", height: 70, backgroundColor: colors.primary + "15", alignItems: "center", justifyContent: "center" }}>
+                      <IconSymbol name="mappin" size={28} color={colors.primary} />
+                    </View>
+                  )}
+                  {/* Info row */}
+                  <View style={{ flexDirection: "row", alignItems: "center", padding: 12 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>{loc.name}</Text>
+                      {loc.address ? (
+                        <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{formatFullAddress(loc.address, loc.city, loc.state, loc.zipCode)}</Text>
+                      ) : null}
+                      {loc.phone ? (
+                        <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>{formatPhoneNumber(stripPhoneFormat(loc.phone))}</Text>
+                      ) : null}
+                    </View>
+                    <View style={{ backgroundColor: selectedLocationId === loc.id ? colors.primary : colors.border, borderRadius: 20, padding: 6, marginLeft: 8 }}>
+                      <IconSymbol name="chevron.right" size={14} color={selectedLocationId === loc.id ? "#fff" : colors.muted} />
+                    </View>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{loc.name}</Text>
-                    {loc.address ? (
-                      <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{formatFullAddress(loc.address, loc.city, loc.state, loc.zipCode)}</Text>
-                    ) : null}
-                    {loc.phone ? (
-                      <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>{formatPhoneNumber(stripPhoneFormat(loc.phone))}</Text>
-                    ) : null}
-                  </View>
-                  <IconSymbol name="chevron.right" size={16} color={colors.muted} />
                 </Pressable>
               ))}
 

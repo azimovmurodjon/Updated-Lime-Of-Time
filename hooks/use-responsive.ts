@@ -94,8 +94,8 @@ export function useResponsive(): ResponsiveLayout {
       formMaxWidth,
       cardGap: isPhysicalTablet ? 16 : 12,
       useSideBySide: isPhysicalTablet && isLandscape,
-      iconSize: isLargeTablet ? 30 : isPhysicalTablet ? 28 : 26,
-      tabBarBaseHeight: isLargeTablet ? 72 : isPhysicalTablet ? 64 : 56,
+      iconSize: isLargeTablet ? 28 : isPhysicalTablet ? 26 : 22,
+      tabBarBaseHeight: isLargeTablet ? 76 : isPhysicalTablet ? 68 : 60,
     };
   }, [width, height]);
 }

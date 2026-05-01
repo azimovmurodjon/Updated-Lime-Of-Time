@@ -203,6 +203,8 @@ export interface Location {
   activeUntil?: string;
   workingHours: Record<string, WorkingHours> | null; // null = use business hours
   createdAt: string;
+  /** Optional cover photo URL for the location */
+  photoUri?: string | null;
 }
 
 export const LOCATION_COLORS = [
