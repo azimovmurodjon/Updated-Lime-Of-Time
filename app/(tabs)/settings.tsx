@@ -27,6 +27,7 @@ import { useAppLockContext } from "@/lib/app-lock-provider";
 import { LocationSwitcher } from "@/components/location-switcher";
 import { useActiveLocation } from "@/hooks/use-active-location";
 import { useResponsive } from "@/hooks/use-responsive";
+import { useScrollToTopOnFocus } from "@/hooks/use-scroll-to-top-on-focus";
 
 type TabKey = "business" | "notifications" | "tools" | "account";
 
@@ -47,6 +48,7 @@ export default function SettingsScreen() {
   const { biometricAvailable, biometricEnabled, biometricType, toggleBiometric } = useAppLockContext();
   const settings = state.settings;
   const { hasMultipleLocations, activeLocation } = useActiveLocation();
+  const scrollRef = useScrollToTopOnFocus<ScrollView>();
 
   const [activeTab, setActiveTab] = useState<TabKey>("business");
   const [devTapCount, setDevTapCount] = useState(0);
@@ -648,6 +650,7 @@ export default function SettingsScreen() {
 
       {/* ── Tab Content ── */}
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: hp, paddingTop: 16, paddingBottom: 100, alignSelf: "center", width: "100%", maxWidth: maxContentWidth }}
       >

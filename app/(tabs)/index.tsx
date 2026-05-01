@@ -36,6 +36,7 @@ import QRCode from "react-native-qrcode-svg";
 import Svg, { Path as SvgPath } from "react-native-svg";
 import { TourOverlay } from "@/components/tour-overlay";
 import { usePlanLimitCheck } from "@/hooks/use-plan-limit-check";
+import { useScrollToTopOnFocus } from "@/hooks/use-scroll-to-top-on-focus";
 import { RevenueChartCard } from "@/components/revenue-chart-card";
 import { PaymentSummaryCard } from "@/components/payment-summary-card";
 import { ChartDrillDownSheet, type DrillDownAppointment } from "@/components/chart-drilldown-sheet";
@@ -1312,6 +1313,8 @@ export default function HomeScreen() {
   const { planInfo } = usePlanLimitCheck();
   const isFreeplan = !planInfo || planInfo.planKey === "solo";
   const isStripePlan = planInfo && (planInfo.planKey === "studio" || planInfo.planKey === "enterprise");
+  // ─── Scroll to top on every focus ────────────────────────────────
+  const mainScrollRef = useScrollToTopOnFocus<ScrollView>();
   // ─── Over-limit warnings (grace period) ──────────────────────────
   const { data: overLimitData } = trpc.subscription.getOverLimitWarnings.useQuery(
     { businessOwnerId: state.businessOwnerId! },
@@ -1399,6 +1402,7 @@ export default function HomeScreen() {
       {/* ─── Animated gradient orbs background ──────────────────────── */}
       <FuturisticBackground />
       <ScrollView
+        ref={mainScrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           paddingHorizontal: hp,

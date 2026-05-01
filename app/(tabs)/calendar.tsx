@@ -39,6 +39,7 @@ import { TapTimePicker, timeToMinutes as tapTimeToMinutes } from "@/components/t
 import { formatPhone } from "@/lib/utils";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SwipeableRequestCard } from "@/components/swipeable-request-card";
+import { useScrollToTopOnFocus } from "@/hooks/use-scroll-to-top-on-focus";
 
 type CalendarView = "month" | "day" | "week";
 
@@ -282,6 +283,8 @@ export default function CalendarScreen() {
     const id = setInterval(() => setLiveNow(new Date()), 60_000);
     return () => clearInterval(id);
   }, []);
+  // ─── Scroll to top on every focus ────────────────────────────────
+  const mainScrollRef = useScrollToTopOnFocus<ScrollView>();
 
   const [calendarView, setCalendarView] = useState<CalendarView>("month");
   const [currentMonth, setCurrentMonth] = useState(() => new Date().getMonth());
@@ -1872,7 +1875,7 @@ export default function CalendarScreen() {
   return (
     <ScreenContainer tabletMaxWidth={0}>
       <FuturisticBackground />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100, alignSelf: "center", width: "100%", maxWidth: maxContentWidth }}>
+      <ScrollView ref={mainScrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100, alignSelf: "center", width: "100%", maxWidth: maxContentWidth }}>
         {/* Header */}
         <View style={{ paddingHorizontal: hp, paddingTop: 4 }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>

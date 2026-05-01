@@ -14,6 +14,7 @@ import * as Contacts from "expo-contacts";
 import { usePlanLimitCheck } from "@/hooks/use-plan-limit-check";
 import { UpgradePlanSheet } from "@/components/upgrade-plan-sheet";
 import { BirthdayPicker } from "@/components/birthday-picker";
+import { useScrollToTopOnFocus } from "@/hooks/use-scroll-to-top-on-focus";
 
 export default function ClientsScreen() {
   const { state, dispatch, getReviewsForClient, getAppointmentsForClient, syncToDb, clientsForActiveLocation, filterAppointmentsByLocation } = useStore();
@@ -22,6 +23,7 @@ export default function ClientsScreen() {
   const router = useRouter();
   const { isTablet, isLargeTablet, hp, maxContentWidth } = useResponsive();
   const { checkLimit } = usePlanLimitCheck();
+  const listRef = useScrollToTopOnFocus<FlatList>();
   const [search, setSearch] = useState("");
   const [sortOrder, setSortOrder] = useState<"name" | "recent" | "appts">("name");
   const [showAdd, setShowAdd] = useState(false);
@@ -315,6 +317,7 @@ export default function ClientsScreen() {
       </View>
 
       <FlatList
+        ref={listRef}
         data={filteredClients}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}

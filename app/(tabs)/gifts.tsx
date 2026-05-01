@@ -22,6 +22,7 @@ import { useState, useCallback, useMemo } from "react";
 import { GiftCard, formatPhoneNumber, stripPhoneFormat, PUBLIC_BOOKING_URL } from "@/lib/types";
 import * as Clipboard from "expo-clipboard";
 import { FuturisticBackground } from "@/components/futuristic-background";
+import { useScrollToTopOnFocus } from "@/hooks/use-scroll-to-top-on-focus";
 
 
 function generateGiftCode(): string {
@@ -134,6 +135,8 @@ export default function GiftCardsScreen() {
   const publicRedeemed = publicGiftCards.filter(c => c.redeemed);
   const colors = useColors();
   const { isTablet, hp } = useResponsive();
+  const giftsListRef = useScrollToTopOnFocus<FlatList>();
+  const publicScrollRef = useScrollToTopOnFocus<ScrollView>();
 
   const [showForm, setShowForm] = useState(false);
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
@@ -705,6 +708,7 @@ export default function GiftCardsScreen() {
           </View>
         ) : (
           <FlatList
+            ref={giftsListRef}
             data={allCards}
             keyExtractor={(item) => item.id}
             renderItem={renderCard}
@@ -723,7 +727,7 @@ export default function GiftCardsScreen() {
             </Text>
           </View>
         ) : (
-          <ScrollView contentContainerStyle={{ paddingHorizontal: hp, paddingTop: 12, paddingBottom: 100 }}>
+          <ScrollView ref={publicScrollRef} contentContainerStyle={{ paddingHorizontal: hp, paddingTop: 12, paddingBottom: 100 }}>
             {/* Pending Payment Section */}
             {publicPendingPayment.length > 0 && (
               <View style={{ marginBottom: 16 }}>

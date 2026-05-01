@@ -7,6 +7,7 @@ import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useResponsive } from "@/hooks/use-responsive";
 import { FuturisticBackground } from "@/components/futuristic-background";
+import { useScrollToTopOnFocus } from "@/hooks/use-scroll-to-top-on-focus";
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -29,6 +30,8 @@ export default function ServicesScreen() {
   const router = useRouter();
   const { hp } = useResponsive();
   const [activeTab, setActiveTab] = useState<Tab>("services");
+  const servicesListRef = useScrollToTopOnFocus<FlatList>();
+  const productsListRef = useScrollToTopOnFocus<FlatList>();
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [serviceSearch, setServiceSearch] = useState("");
@@ -232,6 +235,7 @@ export default function ServicesScreen() {
           )}
           {/* Services list */}
           <FlatList
+            ref={servicesListRef}
             data={serviceListData}
             keyExtractor={(item) => item.key}
             showsVerticalScrollIndicator={false}
@@ -347,6 +351,7 @@ export default function ServicesScreen() {
           )}
           {/* Products list */}
           <FlatList
+            ref={productsListRef}
             data={productListData}
             keyExtractor={(item) => item.key}
             showsVerticalScrollIndicator={false}
