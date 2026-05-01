@@ -5211,6 +5211,11 @@ function platformConfigPage(
         </div>
       </div>
 
+      <button id="savePlatformBtn" type="submit" disabled style="background:var(--border);color:var(--text-muted);padding:12px 28px;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:not-allowed;width:100%;transition:background 0.2s,color 0.2s;">
+        💾 Save Platform Configuration
+      </button>
+    </form>
+
       <!-- Stripe Section -->
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:24px;">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
@@ -5297,11 +5302,6 @@ function platformConfigPage(
         </div>
         <div id="stripeSuiteLog" style="display:none;margin-top:14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;max-height:260px;overflow-y:auto;"></div>
       </div>
-
-      <button id="savePlatformBtn" type="submit" disabled style="background:var(--border);color:var(--text-muted);padding:12px 28px;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:not-allowed;width:100%;transition:background 0.2s,color 0.2s;">
-        💾 Save Platform Configuration
-      </button>
-    </form>
 
     <script>
     var form = document.querySelector('form[action="/api/admin/platform-config"]');
