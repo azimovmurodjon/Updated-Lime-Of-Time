@@ -565,7 +565,7 @@ export default function NotificationSettingsScreen() {
           <View style={{ backgroundColor: colors.warning + "18", borderRadius: 12, padding: 12, marginTop: 16, marginBottom: 4, borderWidth: 1, borderColor: colors.warning + "40", flexDirection: "row", alignItems: "center", gap: 8 }}>
             <IconSymbol name="lock.fill" size={16} color={colors.warning} />
             <Text style={{ fontSize: 13, color: colors.warning, flex: 1, lineHeight: 18 }}>
-              Email notifications are available on Growth and above. Upgrade your plan to unlock.
+              Email notifications are available on all paid plans (Growth, Studio, Enterprise). Upgrade from Solo to unlock.
             </Text>
           </View>
         )}
