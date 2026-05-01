@@ -3,11 +3,10 @@ import { getDb } from "./db";
 import { businessOwners } from "../drizzle/schema";
 import { sql } from "drizzle-orm";
 import { getPlatformConfig } from "./subscription";
+import { isAuthenticated } from "./adminRoutes";
 
 function requireAdminAuth(req: Request, res: Response): boolean {
-  const cookieHeader = req.headers.cookie || "";
-  const match = cookieHeader.match(/admin_session=([^;]+)/);
-  if (!match) { res.redirect("/api/admin/login"); return false; }
+  if (!isAuthenticated(req)) { res.redirect("/api/admin/login"); return false; }
   return true;
 }
 

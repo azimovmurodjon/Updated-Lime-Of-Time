@@ -32,7 +32,7 @@ const ADMIN_PASS = process.env.ADMIN_PASSWORD || "Admin123$";
 const SESSION_SECRET = process.env.JWT_SECRET || "admin-session-secret";
 
 // Simple session store (in-memory, resets on server restart)
-const sessions = new Map<string, { user: string; expiresAt: number }>();
+export const sessions = new Map<string, { user: string; expiresAt: number }>();
 
 function generateSessionId(): string {
   const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -49,7 +49,7 @@ function getSessionFromCookie(req: Request): string | null {
   return match ? match[1] : null;
 }
 
-function isAuthenticated(req: Request): boolean {
+export function isAuthenticated(req: Request): boolean {
   const sessionId = getSessionFromCookie(req);
   if (!sessionId) return false;
   const session = sessions.get(sessionId);
@@ -119,7 +119,7 @@ export function registerAdminRoutes(app: Express): void {
       });
       res.setHeader(
         "Set-Cookie",
-        `admin_session=${sessionId}; Path=/api/admin; HttpOnly; SameSite=Lax; Max-Age=${150 * 24 * 60 * 60}`
+        `admin_session=${sessionId}; Path=/; HttpOnly; SameSite=None; Secure; Max-Age=${150 * 24 * 60 * 60}`
       );
       res.redirect("/api/admin");
     } else {
@@ -150,7 +150,7 @@ export function registerAdminRoutes(app: Express): void {
     if (sessionId) sessions.delete(sessionId);
     res.setHeader(
       "Set-Cookie",
-      `admin_session=; Path=/api/admin; HttpOnly; SameSite=Lax; Max-Age=0`
+      `admin_session=; Path=/; HttpOnly; SameSite=None; Secure; Max-Age=0`
     );
     res.redirect("/api/admin/login");
   });
