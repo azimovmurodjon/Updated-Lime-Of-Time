@@ -1730,8 +1730,10 @@ export function registerPublicRoutes(app: Express) {
       const owner = await db.getBusinessOwnerBySlug(req.params.slug);
       if (!owner) { res.status(404).json({ error: "Business not found" }); return; }
       const { purchaserName, purchaserEmail, recipientName, recipientEmail, recipientPhone,
-        serviceIds = [], productIds = [], personalMessage, expiresInDays = 365,
+        serviceIds = [], productIds = [], personalMessage,
         paymentMethod = "unpaid", recipientChoosesDate = true, preselectedDate, preselectedTime } = req.body;
+      // Use business-configured validity (default 90 days) instead of client-supplied value
+      const expiresInDays = (owner as any).giftValidDays ?? 90;
       if (!purchaserName || !purchaserEmail || !recipientName) {
         res.status(400).json({ error: "purchaserName, purchaserEmail, and recipientName are required" }); return;
       }
@@ -2451,7 +2453,7 @@ function buyGiftPage(slug: string, owner: any): string {
       --accent:#4a8c3f;--adk:#2d5a27;--accent-bg:#e8f0e6;--accent-bg-light:#f0f7ef;
       --border:#e8ece8;--bdi:#dde3dd;
       --err:#dc2626;--err-bg:#fef2f2;
-      --gift:#e91e8c;--gift-bg:#fce4f3;
+      --gift:#4a8c3f;--gift-bg:#e8f0e6;
       --shadow:rgba(0,0,0,0.04);
     }
     @media(prefers-color-scheme:dark){:root{
@@ -2461,7 +2463,7 @@ function buyGiftPage(slug: string, owner: any): string {
       --accent:#5ca84f;--adk:#7cc070;--accent-bg:#1e3a1a;--accent-bg-light:#243024;
       --border:#2a322a;--bdi:#3a423a;
       --err:#f87171;--err-bg:#2a1515;
-      --gift:#f06ab0;--gift-bg:#3a1a2a;
+      --gift:#6db563;--gift-bg:#1a2e1a;
       --shadow:rgba(0,0,0,0.2);
     }}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
@@ -2551,7 +2553,7 @@ function buyGiftPage(slug: string, owner: any): string {
     .footer-total .ft-amount{font-size:18px;font-weight:800;color:var(--text);}
     .btn{padding:14px 20px;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;transition:all .15s;letter-spacing:-0.1px;-webkit-tap-highlight-color:transparent;}
     .btn:active{transform:scale(0.97);}
-    .btn-primary{background:linear-gradient(135deg,var(--gift) 0%,#c0166e 100%);color:#fff;box-shadow:0 4px 14px rgba(233,30,140,0.35);}
+    .btn-primary{background:linear-gradient(135deg,var(--gift) 0%,#2d5a27 100%);color:#fff;box-shadow:0 4px 14px rgba(74,140,63,0.35);}
     .btn-primary:disabled{background:#ccc;box-shadow:none;cursor:not-allowed;}
     .btn-secondary{background:var(--accent-bg);color:var(--adk);border:1.5px solid var(--border);}
     .btn-full{width:100%;}
@@ -2703,11 +2705,10 @@ function buyGiftPage(slug: string, owner: any): string {
         <div class="cal-month-label" id="calMonthLabel"></div>
         <button class="cal-nav-btn" onclick="changeCalMonth(1)">›</button>
       </div>
-      <div class="cal-grid">
+      <div class="cal-grid" id="calGrid">
         <div class="cal-day-label">Su</div><div class="cal-day-label">Mo</div><div class="cal-day-label">Tu</div>
         <div class="cal-day-label">We</div><div class="cal-day-label">Th</div><div class="cal-day-label">Fr</div>
         <div class="cal-day-label">Sa</div>
-        <div id="calDays"></div>
       </div>
       <div id="timeSection" style="display:none;margin-top:16px;">
         <div class="section-title">Select a Time</div>
@@ -2987,17 +2988,26 @@ function renderCal() {
   const now = new Date(); now.setHours(0,0,0,0);
   const first = new Date(calYear, calMonth, 1).getDay();
   const days = new Date(calYear, calMonth + 1, 0).getDate();
-  let html = '';
-  for (let i = 0; i < first; i++) html += '<div></div>';
+  // Remove old day cells (keep the 7 label divs at the start)
+  const grid = document.getElementById('calGrid');
+  while (grid.children.length > 7) grid.removeChild(grid.lastChild);
+  // Add empty spacers for offset
+  for (let i = 0; i < first; i++) {
+    const el = document.createElement('div');
+    grid.appendChild(el);
+  }
   for (let d = 1; d <= days; d++) {
     const dt = new Date(calYear, calMonth, d);
     const iso = calYear + '-' + String(calMonth+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
     const isPast = dt < now;
     const isSel = selectedDate === iso;
     const isToday = dt.getTime() === now.getTime();
-    html += '<div class="cal-day' + (isPast ? ' disabled' : '') + (isSel ? ' selected' : '') + (isToday && !isSel ? ' today' : '') + '"' + (!isPast ? ' onclick="selectDay(\\x27' + iso + '\\x27)"' : '') + '>' + d + '</div>';
+    const el = document.createElement('div');
+    el.className = 'cal-day' + (isPast ? ' disabled' : '') + (isSel ? ' selected' : '') + (isToday && !isSel ? ' today' : '');
+    el.textContent = String(d);
+    if (!isPast) { (function(dateIso) { el.onclick = function() { selectDay(dateIso); }; })(iso); }
+    grid.appendChild(el);
   }
-  document.getElementById('calDays').innerHTML = html;
 }
 function changeCalMonth(d) {
   calMonth += d;

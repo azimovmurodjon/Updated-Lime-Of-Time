@@ -20,6 +20,13 @@ export default function BookingPoliciesScreen() {
   const autoComplete = settings.autoCompleteEnabled;
   const autoCompleteDelay = settings.autoCompleteDelayMinutes ?? 5;
   const responseWindow = settings.requestResponseWindowHours ?? 48;
+  const giftValidDays = settings.giftValidDays ?? 90;
+
+  const setGiftValidDays = useCallback((days: number) => {
+    const action = { type: "UPDATE_SETTINGS" as const, payload: { giftValidDays: days } };
+    dispatch(action);
+    syncToDb(action);
+  }, [dispatch, syncToDb]);
 
   const toggleAutoComplete = useCallback(() => {
     const action = { type: "UPDATE_SETTINGS" as const, payload: { autoCompleteEnabled: !autoComplete } };
@@ -240,6 +247,34 @@ export default function BookingPoliciesScreen() {
           )}
         </View>
 
+        {/* Gift Card Validity */}
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.switchRow}>
+            <View style={styles.switchLabel}>
+              <IconSymbol name="gift.fill" size={20} color="#E91E63" />
+              <Text style={{ fontSize: 15, fontWeight: "500", color: colors.foreground, marginLeft: 12 }}>Gift Card Validity</Text>
+            </View>
+          </View>
+          <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10, marginTop: 4 }}>
+            How many days a publicly-purchased gift card remains valid
+          </Text>
+          <View style={styles.chipRow}>
+            {[30, 60, 90, 180, 365].map((d) => (
+              <Pressable
+                key={d}
+                onPress={() => setGiftValidDays(d)}
+                style={[styles.chip, {
+                  backgroundColor: giftValidDays === d ? "#E91E63" : colors.background,
+                  borderColor: giftValidDays === d ? "#E91E63" : colors.border,
+                }]}
+              >
+                <Text style={{ fontSize: 13, fontWeight: "600", color: giftValidDays === d ? "#fff" : colors.foreground }}>
+                  {d === 365 ? "1 year" : `${d} days`}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
         {/* Custom Booking Slug */}
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.switchRow}>

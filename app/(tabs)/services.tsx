@@ -216,8 +216,8 @@ export default function ServicesScreen() {
               showsHorizontalScrollIndicator={false}
               data={[null, ...allCategories]}
               keyExtractor={(item) => item ?? "__all__"}
-              style={{ marginBottom: 8, flexGrow: 0 }}
-              contentContainerStyle={{ gap: 8, paddingVertical: 2 }}
+              style={{ marginBottom: 8, flexGrow: 0, height: 44 }}
+              contentContainerStyle={{ gap: 8, paddingVertical: 4, alignItems: 'center' }}
               renderItem={({ item: cat }) => (
                 <Pressable
                   onPress={() => setSelectedCategory(cat)}
@@ -332,8 +332,8 @@ export default function ServicesScreen() {
               showsHorizontalScrollIndicator={false}
               data={[null, ...allBrands]}
               keyExtractor={(item) => item ?? "__all__"}
-              style={{ marginBottom: 8, flexGrow: 0 }}
-              contentContainerStyle={{ gap: 8, paddingVertical: 2 }}
+              style={{ marginBottom: 8, flexGrow: 0, height: 44 }}
+              contentContainerStyle={{ gap: 8, paddingVertical: 4, alignItems: 'center' }}
               renderItem={({ item: brand }) => (
                 <Pressable
                   onPress={() => setSelectedBrand(brand)}

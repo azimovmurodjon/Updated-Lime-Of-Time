@@ -78,6 +78,8 @@ export const businessOwners = mysqlTable("business_owners", {
   autoCompleteDelayMinutes: int("autoCompleteDelayMinutes").default(5).notNull(),
   /** Hours before auto-declining pending cancel/reschedule requests (12, 24, 48, 72) */
   requestResponseWindowHours: int("requestResponseWindowHours").default(48).notNull(),
+  /** Number of days a publicly-purchased gift card is valid for. Default 90. */
+  giftValidDays: int("giftValidDays").default(90).notNull(),
   /** Notification preferences JSON: per-event push/email toggles */
   notificationPreferences: json("notificationPreferences"),
   /** SMS message templates JSON: per-event custom message bodies */

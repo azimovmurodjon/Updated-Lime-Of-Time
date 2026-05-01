@@ -473,6 +473,8 @@ export interface BusinessSettings {
   tiktokHandle?: string; // TikTok username (without @)
   // Request response window
   requestResponseWindowHours?: number; // hours before a pending cancel/reschedule request auto-expires (default: 48)
+  /** Number of days a publicly-purchased gift card is valid for. Default 90. */
+  giftValidDays?: number;
 }
 
 export const SERVICE_COLORS = [

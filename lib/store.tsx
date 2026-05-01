@@ -86,6 +86,7 @@ const initialSettings: BusinessSettings = {
   autoCompleteEnabled: false,
   autoCompleteDelayMinutes: 5,
   requestResponseWindowHours: 48,
+  giftValidDays: 90,
   smsTemplates: DEFAULT_SMS_TEMPLATES,
   monthlyRevenueGoal: 0,
   staffAlertThreshold: 80,
@@ -846,6 +847,7 @@ export function dbOwnerToSettings(owner: any): Partial<BusinessSettings> {
     autoCompleteEnabled: (owner as any).autoCompleteEnabled ?? false,
     autoCompleteDelayMinutes: (owner as any).autoCompleteDelayMinutes ?? 5,
     requestResponseWindowHours: (owner as any).requestResponseWindowHours ?? 48,
+    giftValidDays: (owner as any).giftValidDays ?? 90,
     // Merge with defaults so new fields are always present even for old DB records
     notificationPreferences: {
       ...DEFAULT_NOTIFICATION_PREFERENCES,
@@ -1776,6 +1778,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             if ((settings as any).autoCompleteEnabled !== undefined) updateData.autoCompleteEnabled = (settings as any).autoCompleteEnabled;
             if ((settings as any).autoCompleteDelayMinutes !== undefined) updateData.autoCompleteDelayMinutes = (settings as any).autoCompleteDelayMinutes;
             if ((settings as any).requestResponseWindowHours !== undefined) updateData.requestResponseWindowHours = (settings as any).requestResponseWindowHours;
+            if ((settings as any).giftValidDays !== undefined) updateData.giftValidDays = (settings as any).giftValidDays;
             if ((settings as any).notificationPreferences !== undefined) updateData.notificationPreferences = (settings as any).notificationPreferences;
             if ((settings as any).smsTemplates !== undefined) updateData.smsTemplates = (settings as any).smsTemplates;
             // Payment methods

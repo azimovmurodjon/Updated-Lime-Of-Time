@@ -1,0 +1,1 @@
+ALTER TABLE `business_owners` ADD `giftValidDays` int DEFAULT 90 NOT NULL;

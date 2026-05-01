@@ -143,7 +143,7 @@ export default function GiftCardsScreen() {
   const [recipientName, setRecipientName] = useState("");
   const [recipientPhone, setRecipientPhone] = useState("");
   const [message, setMessage] = useState("");
-  const [expiresInDays, setExpiresInDays] = useState("30");
+  const [expiresInDays, setExpiresInDays] = useState(String(state.settings.giftValidDays ?? 90));
   const [showItemPicker, setShowItemPicker] = useState(false);
   const [pickerTab, setPickerTab] = useState<"services" | "products">("services");
   const [mainTab, setMainTab] = useState<"my" | "public">("my");
@@ -155,9 +155,9 @@ export default function GiftCardsScreen() {
     setRecipientName("");
     setRecipientPhone("");
     setMessage("");
-    setExpiresInDays("30");
+    setExpiresInDays(String(state.settings.giftValidDays ?? 90));
     setShowForm(false);
-  }, []);
+  }, [state.settings.giftValidDays]);
 
   // Calculate total value of selected items
   const totalValue = useMemo(() => {
