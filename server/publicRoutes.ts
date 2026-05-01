@@ -2480,7 +2480,8 @@ function buyGiftPage(slug: string, owner: any): string {
   const logoUri = owner.logoUrl || owner.businessLogoUri || "";
   // Always show the original app icon (Lime Of Time brand) on the gift page
   const APP_ICON_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/app-icon-lime-of-time.png";
-  const logoTag = `<img src="${APP_ICON_URL}" alt="Lime Of Time" class="biz-logo" onerror="this.src='${logoUri || ''}';this.onerror=null;">`;
+  const fallbackSrc = logoUri || '';
+  const logoTag = `<img src="${APP_ICON_URL}" alt="Lime Of Time" class="biz-logo" onerror="this.src='${fallbackSrc}';this.onerror=null;">`;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2608,7 +2609,7 @@ function buyGiftPage(slug: string, owner: any): string {
     .date-toggle-btn.active{background:var(--gift);color:#fff;}
     .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:8px;}
     .cal-day-label{text-align:center;font-size:11px;font-weight:700;color:var(--textm);padding:4px 0;}
-    .cal-day{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:50%;font-size:13px;font-weight:600;cursor:pointer;color:var(--text);-webkit-tap-highlight-color:transparent;}
+    .cal-day{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:50%;font-size:13px;font-weight:600;cursor:pointer;color:var(--text);-webkit-tap-highlight-color:transparent;}
     .cal-day:active{transform:scale(0.9);}
     .cal-day.today{border:2px solid var(--gift);}
     .cal-day.selected{background:var(--gift);color:#fff;}
@@ -2899,9 +2900,9 @@ function renderPopularServices() {
   top.forEach(function(s) {
     var checked = selectedServiceIds.has(s.localId);
     var imgHtml = s.photoUri
-      ? '<img src="' + s.photoUri + '" style="width:100%;height:70px;object-fit:cover;border-radius:10px 10px 0 0;display:block;" onerror="this.style.display='none'">'
-      : '<div style="width:100%;height:70px;background:var(--accent-bg-light);border-radius:10px 10px 0 0;display:flex;align-items:center;justify-content:center;font-size:22px;">✂️</div>';
-    html += '<div onclick="toggleService(\x27' + s.localId + '\x27)" style="min-width:110px;max-width:130px;flex-shrink:0;border-radius:12px;border:2px solid ' + (checked ? 'var(--gift)' : 'var(--bdi)') + ';background:var(--bg-card);cursor:pointer;overflow:hidden;transition:border-color .15s;" id="pop_' + s.localId + '">';
+      ? '<img src="' + s.photoUri + '" style="width:100%;height:70px;object-fit:cover;border-radius:10px 10px 0 0;display:block;" onerror="this.style.display=\\x27none\\x27">'
+      : '<div style="width:100%;height:70px;background:var(--accent-bg-light);border-radius:10px 10px 0 0;display:flex;align-items:center;justify-content:center;font-size:22px;">&#9986;</div>';
+    html += '<div data-id="' + escH(s.localId) + '" onclick="toggleService(this.dataset.id)" style="min-width:110px;max-width:130px;flex-shrink:0;border-radius:12px;border:2px solid ' + (checked ? 'var(--gift)' : 'var(--bdi)') + ';background:var(--bg-card);cursor:pointer;overflow:hidden;transition:border-color .15s;" id="pop_' + s.localId + '">' ;
     html += imgHtml;
     html += '<div style="padding:8px 8px 10px;">';
     html += '<div style="font-size:12px;font-weight:700;color:var(--text1);line-height:1.3;margin-bottom:3px;">' + escH(s.name) + '</div>';
@@ -2921,7 +2922,7 @@ function renderLocationSelector() {
   var html = '<div onclick="selectGiftLocation(null)" style="padding:7px 14px;border-radius:20px;border:1.5px solid ' + (!giftSelectedLocationId ? 'var(--gift)' : 'var(--bdi)') + ';background:' + (!giftSelectedLocationId ? 'var(--accent-bg-light)' : 'var(--bg-card)') + ';font-size:12px;font-weight:600;color:' + (!giftSelectedLocationId ? 'var(--gift)' : 'var(--text2)') + ';cursor:pointer;white-space:nowrap;" id="locBtn_all">Any Location</div>';
   locs.forEach(function(loc) {
     var sel = giftSelectedLocationId === loc.localId;
-    html += '<div onclick="selectGiftLocation(\x27' + loc.localId + '\x27)" style="padding:7px 14px;border-radius:20px;border:1.5px solid ' + (sel ? 'var(--gift)' : 'var(--bdi)') + ';background:' + (sel ? 'var(--accent-bg-light)' : 'var(--bg-card)') + ';font-size:12px;font-weight:600;color:' + (sel ? 'var(--gift)' : 'var(--text2)') + ';cursor:pointer;white-space:nowrap;" id="locBtn_' + loc.localId + '">' + escH(loc.name) + '</div>';
+    html += '<div data-locid="' + escH(loc.localId) + '" onclick="selectGiftLocation(this.dataset.locid)" style="padding:7px 14px;border-radius:20px;border:1.5px solid ' + (sel ? 'var(--gift)' : 'var(--bdi)') + ';background:' + (sel ? 'var(--accent-bg-light)' : 'var(--bg-card)') + ';font-size:12px;font-weight:600;color:' + (sel ? 'var(--gift)' : 'var(--text2)') + ';cursor:pointer;white-space:nowrap;" id="locBtn_' + loc.localId + '">' + escH(loc.name) + '</div>';
   });
   list.innerHTML = html;
   wrap.style.display = 'block';
@@ -2954,7 +2955,7 @@ function renderGiftStaffList() {
     var avatar = s.photoUri
       ? '<img src="' + escH(s.photoUri) + '" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0;" />'
       : '<div style="width:40px;height:40px;border-radius:50%;background:' + (s.color || '#6366f1') + '20;color:' + (s.color || '#6366f1') + ';display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;flex-shrink:0;">' + escH((s.name||'?')[0].toUpperCase()) + '</div>';
-    html += '<div onclick="giftSelectStaff(' + JSON.stringify(s.localId) + ')" id="gstaff-' + escH(s.localId) + '" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;border:2px solid ' + (isSelected ? 'var(--gift)' : 'var(--border)') + ';background:' + (isSelected ? 'var(--gift-bg)' : 'var(--bg-card)') + ';cursor:pointer;margin-bottom:6px;">' +
+    html += '<div data-staffid="' + escH(s.localId) + '" onclick="giftSelectStaff(this.dataset.staffid)" id="gstaff-' + escH(s.localId) + '" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;border:2px solid ' + (isSelected ? 'var(--gift)' : 'var(--border)') + ';background:' + (isSelected ? 'var(--gift-bg)' : 'var(--bg-card)') + ';cursor:pointer;margin-bottom:6px;">' +
       avatar +
       '<div style="flex:1;"><div style="font-size:14px;font-weight:700;color:var(--text);">' + escH(s.name) + '</div>' +
       '<div style="font-size:12px;color:var(--textm);">' + escH(s.role || 'Staff') + '</div></div>' +
@@ -3034,13 +3035,13 @@ function renderSvcCats() {
   });
   const grid = document.getElementById('svcCatGrid');
   const allCount = allServices.length;
-  let html = '<div class="tile" onclick="drillCat(\\x27__all__\\x27)" id="cat___all__">'; 
+  let html = '<div class="tile" onclick="drillCat(&apos;__all__&apos;)" id="cat___all__">'; 
   html += '<span class="tile-icon">✨</span>';
   html += '<div class="tile-name">All</div>';
   html += '<div class="tile-dur">' + allCount + ' service' + (allCount !== 1 ? 's' : '') + '</div>';
   html += '</div>';
   Object.values(cats).forEach(function(c) {
-    html += '<div class="tile" onclick="drillCat(\\x27' + c.name.replace(/'/g,'') + '\\x27)" id="cat_' + c.name.replace(/[^a-z0-9]/gi,'_') + '">';
+    html += '<div class="tile" data-cat="' + escH(c.name) + '" onclick="drillCat(this.dataset.cat)" id="cat_' + c.name.replace(/[^a-z0-9]/gi,'_') + '">';
     html += '<span class="tile-icon">' + c.emoji + '</span>';
     html += '<div class="tile-name">' + escH(c.name) + '</div>';
     html += '<div class="tile-dur">' + c.count + ' service' + (c.count !== 1 ? 's' : '') + '</div>';
@@ -3077,7 +3078,7 @@ function renderSvcList(svcs, container) {
   let html = '';
   svcs.forEach(function(s) {
     const checked = selectedServiceIds.has(s.localId);
-    html += '<div class="svc-row" onclick="toggleService(\\x27' + s.localId + '\\x27)">';
+    html += '<div class="svc-row" data-id="' + escH(s.localId) + '" onclick="toggleService(this.dataset.id)">';
     html += '<div class="svc-row-check' + (checked ? ' checked' : '') + '" id="chk_' + s.localId + '">' + (checked ? '<span style="color:#fff;font-size:14px;">✓</span>' : '') + '</div>';
     html += '<div class="svc-row-info"><div class="svc-row-name">' + escH(s.name) + '</div>';
     const meta = [];
@@ -3099,7 +3100,7 @@ function renderProducts(filter) {
   let html = '';
   prods.forEach(function(p) {
     const checked = selectedProductIds.has(p.localId);
-    html += '<div class="svc-row" onclick="toggleProduct(\\x27' + p.localId + '\\x27)">'; 
+    html += '<div class="svc-row" data-id="' + escH(p.localId) + '" onclick="toggleProduct(this.dataset.id)">';
     html += '<div class="svc-row-check' + (checked ? ' checked' : '') + '" id="pchk_' + p.localId + '">' + (checked ? '<span style="color:#fff;font-size:14px;">✓</span>' : '') + '</div>';
     html += '<div class="svc-row-info"><div class="svc-row-name">' + escH(p.name) + '</div>';
     if (p.brand || p.category) html += '<div class="svc-row-meta">' + escH([p.brand, p.category].filter(Boolean).join(' · ')) + '</div>';
@@ -3198,7 +3199,7 @@ function renderPaymentOptions() {
   let html = '';
   opts.forEach(function(o) {
     const sel = selectedPaymentMethod === o.id;
-    html += '<div class="pay-opt' + (sel ? ' selected' : '') + '" onclick="selectPayment(\\x27' + o.id + '\\x27)">';
+    html += '<div class="pay-opt' + (sel ? ' selected' : '') + '" data-id="' + escH(o.id) + '" onclick="selectPayment(this.dataset.id)">';
     html += '<div class="pay-opt-icon">' + o.icon + '</div>';
     html += '<div class="pay-opt-info"><div class="pay-opt-label">' + escH(o.label) + '</div><div class="pay-opt-sub">' + escH(o.sub) + '</div></div>';
     html += '<div class="pay-opt-check">' + (sel ? '<span style="color:#fff;font-size:12px;">✓</span>' : '') + '</div>';
@@ -3322,16 +3323,18 @@ function selectDay(iso) {
   const slots = ['9:00 AM','9:30 AM','10:00 AM','10:30 AM','11:00 AM','11:30 AM','12:00 PM','12:30 PM','1:00 PM','1:30 PM','2:00 PM','2:30 PM','3:00 PM','3:30 PM','4:00 PM','4:30 PM','5:00 PM'];
   let html = '';
   slots.forEach(function(t) {
-    html += '<div class="time-slot' + (selectedTime === t ? ' selected' : '') + '" onclick="selectTime(\\x27' + t + '\\x27)">' + t + '</div>';
+    html += '<div class="time-slot' + (selectedTime === t ? ' selected' : '') + '" data-time="' + escH(t) + '" onclick="selectTime(this.dataset.time)">' + t + '</div>';
   });
   document.getElementById('timeGrid').innerHTML = html;
   document.getElementById('timeSection').style.display = 'block';
+  updateFooterBtn();
 }
 function selectTime(t) {
   selectedTime = t;
   document.querySelectorAll('.time-slot').forEach(function(el) {
     el.className = 'time-slot' + (el.textContent === t ? ' selected' : '');
   });
+  updateFooterBtn();
 }
 
 // ── Step navigation ────────────────────────────────────────────────────
@@ -6155,7 +6158,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
           var addThumbS = s.photoUri
             ? '<div class="service-dot"><img src="' + esc(s.photoUri) + '" /></div>'
             : '<div class="service-dot" style="background:' + (s.color||'#4a8c3f') + '20;color:' + (s.color||'#4a8c3f') + ';">' + esc((s.name||'?')[0].toUpperCase()) + '</div>';
-          html += '<div class="service-item" onclick="openServiceDetail(\\x27' + s.localId + '\\x27)">' +
+          html += '<div class="service-item" data-id="' + escH(s.localId) + '" onclick="openServiceDetail(this.dataset.id)">' +
             addThumbS +
             '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div><div class="service-meta">' + dur + (s.category ? ' · ' + esc(s.category) : '') + '</div></div>' +
             '<div class="service-price">+ $' + parseFloat(s.price).toFixed(2) + '</div></div>';
@@ -6164,7 +6167,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       if (matchedProds.length > 0) {
         html += '<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.05em;margin:' + (matchedSvcs.length > 0 ? '12px' : '0') + ' 0 6px;">Products</div>';
         matchedProds.forEach(p => {
-          html += '<div class="product-item" onclick="openProductDetail(\\x27' + p.localId + '\\x27)">' +
+          html += '<div class="product-item" data-id="' + escH(p.localId) + '" onclick="openProductDetail(this.dataset.id)">' +
             (p.photoUri ? '<img src="' + esc(p.photoUri) + '" style="width:48px;height:48px;border-radius:8px;object-fit:cover;margin-right:12px;flex-shrink:0;" />' : '') +
             '<div style="flex:1;"><div style="font-size:15px;font-weight:600;">' + esc(p.name) + '</div>' +
             (p.brand ? '<div style="font-size:12px;color:#888;margin-top:2px;">' + esc(p.brand) + '</div>' : '') + '</div>' +
