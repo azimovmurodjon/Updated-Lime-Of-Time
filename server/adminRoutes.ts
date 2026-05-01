@@ -3226,7 +3226,7 @@ function dashboardPage(data: {
       const btn = document.getElementById('auditRefreshBtn');
       if (btn) btn.textContent = '⏳ Loading...';
       try {
-        const res = await fetch('/api/admin/audit-log');
+        const res = await fetch('/api/admin/audit-log', { credentials: 'include' });
         const logs = await res.json();
         if (!Array.isArray(logs) || logs.length === 0) {
           container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;">No config changes recorded yet. Changes will appear here after you save Platform Config, Plan Pricing, or Subscription Overrides.</div>';
@@ -3529,7 +3529,7 @@ function businessDetailPage(data: any): string {
         const body = {};
         fd.forEach((v,k) => body[k]=v);
         try {
-          const r = await fetch('/api/admin/businesses/${o.id}/social', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+          const r = await fetch('/api/admin/businesses/${o.id}/social', { credentials: 'include',method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
           if (r.ok) {
             const m = document.getElementById('socialSaveMsg');
             m.style.display='inline';
@@ -5518,7 +5518,7 @@ function platformConfigPage(
       btn.textContent = '⏳ Testing...';
       result.textContent = '';
       try {
-        var res = await fetch('/api/admin/test-twilio', {
+        var res = await fetch('/api/admin/test-twilio', { credentials: 'include',
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sid: sid, token: token })
@@ -5608,7 +5608,7 @@ function platformConfigPage(
       btn.textContent = '⏳ Saving...';
       result.textContent = '';
       try {
-        var res = await fetch('/api/admin/save-phone-otp-overrides', {
+        var res = await fetch('/api/admin/save-phone-otp-overrides', { credentials: 'include',
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ overrides: overrides })
@@ -5635,7 +5635,7 @@ function platformConfigPage(
       if (!confirm('Clear all per-phone OTP overrides? This cannot be undone.')) return;
       var result = document.getElementById('savePhoneOtpResult');
       try {
-        var res = await fetch('/api/admin/save-phone-otp-overrides', {
+        var res = await fetch('/api/admin/save-phone-otp-overrides', { credentials: 'include',
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ overrides: {} })
@@ -5658,7 +5658,7 @@ function platformConfigPage(
     // Load Twilio account status (trial vs full) and show banner if trial
     window.loadTwilioAccountStatus = async function loadTwilioAccountStatus() {
       try {
-        var res = await fetch('/api/admin/twilio-account-status');
+        var res = await fetch('/api/admin/twilio-account-status', { credentials: 'include' });
         var data = await res.json();
         var banner = document.getElementById('twilioTrialBanner');
         if (!banner) return;
@@ -5719,7 +5719,7 @@ function platformConfigPage(
       if (countEl) countEl.textContent = '⏳';
       if (costEl) costEl.textContent = '';
       try {
-        var res = await fetch('/api/admin/otp/usage');
+        var res = await fetch('/api/admin/otp/usage', { credentials: 'include' });
         var data = await res.json();
         if (data.ok) {
           if (countEl) countEl.textContent = data.count;
@@ -5741,7 +5741,7 @@ function platformConfigPage(
       if (!container) return;
       container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:12px;">Loading…</div>';
       try {
-        var res = await fetch('/api/admin/otp/log');
+        var res = await fetch('/api/admin/otp/log', { credentials: 'include' });
         var data = await res.json();
         if (!data.ok || !data.entries || data.entries.length === 0) {
           container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:12px;">No OTP sends recorded yet.</div>';
@@ -5793,7 +5793,7 @@ function platformConfigPage(
       btn.textContent = '⏳ Sending...';
       showOtpBanner('info', '⏳ Sending OTP to <strong>' + phone + '</strong> via Twilio Verify…');
       try {
-        var res = await fetch('/api/admin/otp/send', {
+        var res = await fetch('/api/admin/otp/send', { credentials: 'include',
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ phone: phone })
@@ -5866,7 +5866,7 @@ function platformConfigPage(
       btn.textContent = '⏳ Verifying...';
       showOtpBanner('info', '⏳ Verifying code with Twilio…');
       try {
-        var res = await fetch('/api/admin/otp/verify', {
+        var res = await fetch('/api/admin/otp/verify', { credentials: 'include',
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ phone: phone, code: code })
@@ -5909,7 +5909,7 @@ function platformConfigPage(
       btn.textContent = '⏳ Testing...';
       result.textContent = '';
       try {
-        var res = await fetch('/api/admin/test-stripe', {
+        var res = await fetch('/api/admin/test-stripe', { credentials: 'include',
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ secretKey: key })
@@ -5969,7 +5969,7 @@ function platformConfigPage(
       }
 
       try {
-        var res = await fetch('/api/admin/test-stripe-suite', {
+        var res = await fetch('/api/admin/test-stripe-suite', { credentials: 'include',
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ secretKey: key })
@@ -6019,7 +6019,7 @@ function platformConfigPage(
         twilioNames.forEach(function(name) { var el = document.querySelector('[name="' + name + '"]'); if (el && el.value !== undefined) params.set(name, el.value); });
         var testModeChk = document.getElementById('twilioTestModeChk');
         if (testModeChk) params.set('twilio_test_mode', testModeChk.checked ? 'true' : '');
-        var saveRes = await fetch('/api/admin/platform-config', {
+        var saveRes = await fetch('/api/admin/platform-config', { credentials: 'include',
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: params.toString(),
@@ -6058,7 +6058,7 @@ function platformConfigPage(
         stripeNames.forEach(function(name) { var el = document.querySelector('[name="' + name + '"]'); if (el && el.value) params.set(name, el.value); });
         var testModeChk = document.getElementById('stripeTestModeChk');
         if (testModeChk) params.set('stripe_test_mode', testModeChk.checked ? '1' : '0');
-        await fetch('/api/admin/platform-config', {
+        await fetch('/api/admin/platform-config', { credentials: 'include',
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: params.toString(),
@@ -6088,7 +6088,7 @@ function platformConfigPage(
       btn.textContent = '\u23f3 Switching...';
       if (result) { result.textContent = ''; }
       try {
-        var resp = await fetch('/api/admin/twilio/toggle-mode', {
+        var resp = await fetch('/api/admin/twilio/toggle-mode', { credentials: 'include',
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ mode: targetMode })
@@ -6119,7 +6119,7 @@ function platformConfigPage(
       btn.textContent = '\u23f3 Switching...';
       if (result) { result.textContent = ''; }
       try {
-        var resp = await fetch('/api/admin/stripe/toggle-mode', {
+        var resp = await fetch('/api/admin/stripe/toggle-mode', { credentials: 'include',
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ mode: targetMode }),
@@ -6150,7 +6150,7 @@ function platformConfigPage(
       resultEl.textContent = 'Registering webhook endpoints with Stripe...';
       resultEl.style.color = 'var(--text-muted)';
       try {
-        var resp = await fetch('/api/admin/stripe/register-webhooks', {
+        var resp = await fetch('/api/admin/stripe/register-webhooks', { credentials: 'include',
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ serverUrl: serverUrl }),
@@ -6878,7 +6878,7 @@ function devTestingPage(bizOptions: string): string {
         const bizId = document.getElementById('bizSelect').value;
         if (!bizId) return;
         try {
-          const r = await fetch('/api/admin/dev-testing/count?businessId=' + bizId);
+          const r = await fetch('/api/admin/dev-testing/count?businessId=' + bizId, { credentials: 'include' });
           const data = await r.json();
           const banner = document.getElementById('seedBanner');
           const detail = document.getElementById('seedBannerDetail');
@@ -6911,7 +6911,7 @@ function devTestingPage(bizOptions: string): string {
         prog.style.display = 'block';
         log('🚀 Generating: ' + JSON.stringify(categories));
         try {
-          const r = await fetch('/api/admin/dev-testing/seed', {
+          const r = await fetch('/api/admin/dev-testing/seed', { credentials: 'include',
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ businessId: parseInt(bizId), from: fromDate, to: toDate, locked: document.getElementById('lockToggle').checked, categories })
@@ -6941,7 +6941,7 @@ function devTestingPage(bizOptions: string): string {
         btn.disabled = true; btn.textContent = 'Removing...';
         log('🗑️ Removing all seed data...');
         try {
-          const r = await fetch('/api/admin/dev-testing/cleanup', {
+          const r = await fetch('/api/admin/dev-testing/cleanup', { credentials: 'include',
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ businessId: parseInt(bizId) })
