@@ -13,8 +13,11 @@ import {
   Platform,
   Modal,
   Image,
+  ActivityIndicator,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
+import { trpc } from "@/lib/trpc";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, generateId } from "@/lib/store";
@@ -126,6 +129,25 @@ export default function StaffFormScreen() {
 
   // Profile photo
   const [photoUri, setPhotoUri] = useState<string | null>(existing?.photoUri ?? null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const uploadImageMut = trpc.files.uploadImage.useMutation();
+
+  const uploadAndSetPhoto = async (localUri: string, mimeType: string) => {
+    if (Platform.OS !== "web") {
+      try {
+        setUploadingPhoto(true);
+        const base64 = await FileSystem.readAsStringAsync(localUri, { encoding: FileSystem.EncodingType.Base64 });
+        const { url } = await uploadImageMut.mutateAsync({ base64, mimeType, folder: "staff" });
+        setPhotoUri(url);
+      } catch {
+        setPhotoUri(localUri);
+      } finally {
+        setUploadingPhoto(false);
+      }
+    } else {
+      setPhotoUri(localUri);
+    }
+  };
 
   const pickPhoto = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -140,7 +162,7 @@ export default function StaffFormScreen() {
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0]) {
-      setPhotoUri(result.assets[0].uri);
+      await uploadAndSetPhoto(result.assets[0].uri, result.assets[0].mimeType ?? "image/jpeg");
     }
   };
 
@@ -156,7 +178,7 @@ export default function StaffFormScreen() {
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0]) {
-      setPhotoUri(result.assets[0].uri);
+      await uploadAndSetPhoto(result.assets[0].uri, result.assets[0].mimeType ?? "image/jpeg");
     }
   };
 
@@ -275,8 +297,12 @@ export default function StaffFormScreen() {
 
           {/* Profile Photo */}
           <View style={{ alignItems: "center", marginBottom: 20 }}>
-            <Pressable onPress={handlePhotoPress} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
-              {photoUri ? (
+            <Pressable onPress={handlePhotoPress} disabled={uploadingPhoto} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+              {uploadingPhoto ? (
+                <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: colors.primary }}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                </View>
+              ) : photoUri ? (
                 <Image
                   source={{ uri: photoUri }}
                   style={{ width: 88, height: 88, borderRadius: 44, borderWidth: 2, borderColor: colors.primary }}
@@ -288,11 +314,15 @@ export default function StaffFormScreen() {
                   </Text>
                 </View>
               )}
-              <View style={{ position: "absolute", bottom: 0, right: 0, backgroundColor: colors.primary, borderRadius: 12, width: 24, height: 24, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>+</Text>
-              </View>
+              {!uploadingPhoto && (
+                <View style={{ position: "absolute", bottom: 0, right: 0, backgroundColor: colors.primary, borderRadius: 12, width: 24, height: 24, alignItems: "center", justifyContent: "center" }}>
+                  <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>+</Text>
+                </View>
+              )}
             </Pressable>
-            <Text style={{ color: colors.muted, fontSize: 12, marginTop: 6 }}>Tap to add photo</Text>
+            <Text style={{ color: colors.muted, fontSize: 12, marginTop: 6 }}>
+              {uploadingPhoto ? "Uploading photo..." : "Tap to add photo"}
+            </Text>
           </View>
 
           <Text className="text-xs font-medium text-muted mb-1">Name *</Text>

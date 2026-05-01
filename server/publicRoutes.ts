@@ -1715,6 +1715,11 @@ export function registerPublicRoutes(app: Express) {
       if (!owner) { res.status(404).json({ error: "Business not found" }); return; }
       const services = await db.getServicesByOwner(owner.id);
       const products = await db.getProductsByOwner(owner.id);
+      const locations = await db.getLocationsByOwner(owner.id);
+      // Count appointments per service for popularity ranking
+      const appts = await db.getAppointmentsByOwner(owner.id);
+      const apptCountMap: Record<string, number> = {};
+      (appts as any[]).forEach(a => { if (a.serviceLocalId) apptCountMap[a.serviceLocalId] = (apptCountMap[a.serviceLocalId] || 0) + 1; });
       const o = owner as any;
       res.json({
         businessName: owner.businessName,
@@ -1729,10 +1734,14 @@ export function registerPublicRoutes(app: Express) {
         services: (services as any[]).filter(s => s.available !== false).map(s => ({
           localId: s.localId, name: s.name, price: parseFloat(String(s.price)),
           duration: s.duration, description: s.description || null, photoUri: s.photoUri || null,
+          category: s.category || null, appointmentCount: apptCountMap[s.localId] || 0,
         })),
         products: (products as any[]).filter(p => p.available !== false).map(p => ({
           localId: p.localId, name: p.name, price: parseFloat(String(p.price)),
           description: p.description || null, brand: p.brand || null,
+        })),
+        locations: (locations as any[]).filter(l => l.active !== false).map(l => ({
+          localId: l.localId, name: l.name,
         })),
       });
     } catch (err) {
@@ -2665,6 +2674,16 @@ function buyGiftPage(slug: string, owner: any): string {
   <div id="step0" class="card" style="margin-top:8px;">
     <h2>Select Services &amp; Products</h2>
     <p class="card-sub">Choose one or more items to include in this gift.</p>
+    <!-- Most Popular Services -->
+    <div id="popularSection" style="display:none;margin-bottom:16px;">
+      <div style="font-size:11px;font-weight:700;color:var(--textm);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:10px;">⭐ Most Popular</div>
+      <div id="popularList" style="display:flex;flex-direction:row;gap:10px;overflow-x:auto;padding-bottom:4px;"></div>
+    </div>
+    <!-- Location selector (for staff filtering) -->
+    <div id="locationSelectorWrap" style="display:none;margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:700;color:var(--textm);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:8px;">📍 Location</div>
+      <div id="locationSelectorList" style="display:flex;flex-direction:row;gap:8px;flex-wrap:wrap;"></div>
+    </div>
     <!-- Tab switcher -->
     <div style="display:flex;background:var(--bg-input);border-radius:12px;padding:3px;border:1.5px solid var(--bdi);margin-bottom:14px;">
       <button onclick="switchItemTab('services')" id="tabSvc" style="flex:1;padding:9px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:var(--gift);color:#fff;transition:all .15s;">Services</button>
@@ -2798,6 +2817,7 @@ const SLUG = '${slug}';
 const BIZ_NAME = '${bizName}';
 const OWNER_ID = ${owner.id};
 let allServices = [], allProducts = [], paymentMethods = {};
+let giftSelectedLocationId = null; // for staff filtering
 let selectedServiceIds = new Set(), selectedProductIds = new Set();
 let currentStep = 0;
 let dateMode = 'recipient'; // 'recipient' | 'me'
@@ -2822,6 +2842,9 @@ async function loadData() {
     allServices = d.services || [];
     allProducts = d.products || [];
     paymentMethods = d.paymentMethods || {};
+    window._giftLocations = d.locations || [];
+    renderPopularServices();
+    renderLocationSelector();
     renderSvcCats();
     renderProducts();
     renderPaymentOptions();
@@ -2861,6 +2884,54 @@ function isGiftWorkingDay(dateStr) {
   const d = new Date(dateStr + 'T12:00:00');
   const dayName = GIFT_DAYS_MAP[d.getDay()];
   return !!(giftWorkingDays.weeklyDays && giftWorkingDays.weeklyDays[dayName]);
+}
+
+function renderPopularServices() {
+  if (!allServices.length) return;
+  // Sort by appointmentCount desc, take top 5
+  var sorted = allServices.slice().sort(function(a,b){ return (b.appointmentCount||0)-(a.appointmentCount||0); });
+  var top = sorted.slice(0, 5);
+  if (!top.length) return;
+  var list = document.getElementById('popularList');
+  var section = document.getElementById('popularSection');
+  if (!list || !section) return;
+  var html = '';
+  top.forEach(function(s) {
+    var checked = selectedServiceIds.has(s.localId);
+    var imgHtml = s.photoUri
+      ? '<img src="' + s.photoUri + '" style="width:100%;height:70px;object-fit:cover;border-radius:10px 10px 0 0;display:block;" onerror="this.style.display='none'">'
+      : '<div style="width:100%;height:70px;background:var(--accent-bg-light);border-radius:10px 10px 0 0;display:flex;align-items:center;justify-content:center;font-size:22px;">✂️</div>';
+    html += '<div onclick="toggleService(\x27' + s.localId + '\x27)" style="min-width:110px;max-width:130px;flex-shrink:0;border-radius:12px;border:2px solid ' + (checked ? 'var(--gift)' : 'var(--bdi)') + ';background:var(--bg-card);cursor:pointer;overflow:hidden;transition:border-color .15s;" id="pop_' + s.localId + '">';
+    html += imgHtml;
+    html += '<div style="padding:8px 8px 10px;">';
+    html += '<div style="font-size:12px;font-weight:700;color:var(--text1);line-height:1.3;margin-bottom:3px;">' + escH(s.name) + '</div>';
+    html += '<div style="font-size:11px;color:var(--gift);font-weight:600;">$' + parseFloat(s.price||0).toFixed(2) + '</div>';
+    if (s.duration) html += '<div style="font-size:10px;color:var(--textm);margin-top:2px;">' + s.duration + ' min</div>';
+    html += '</div></div>';
+  });
+  list.innerHTML = html;
+  section.style.display = 'block';
+}
+
+function renderLocationSelector() {
+  var locs = (window._giftLocations || []);
+  var wrap = document.getElementById('locationSelectorWrap');
+  var list = document.getElementById('locationSelectorList');
+  if (!wrap || !list || locs.length < 2) return;
+  var html = '<div onclick="selectGiftLocation(null)" style="padding:7px 14px;border-radius:20px;border:1.5px solid ' + (!giftSelectedLocationId ? 'var(--gift)' : 'var(--bdi)') + ';background:' + (!giftSelectedLocationId ? 'var(--accent-bg-light)' : 'var(--bg-card)') + ';font-size:12px;font-weight:600;color:' + (!giftSelectedLocationId ? 'var(--gift)' : 'var(--text2)') + ';cursor:pointer;white-space:nowrap;" id="locBtn_all">Any Location</div>';
+  locs.forEach(function(loc) {
+    var sel = giftSelectedLocationId === loc.localId;
+    html += '<div onclick="selectGiftLocation(\x27' + loc.localId + '\x27)" style="padding:7px 14px;border-radius:20px;border:1.5px solid ' + (sel ? 'var(--gift)' : 'var(--bdi)') + ';background:' + (sel ? 'var(--accent-bg-light)' : 'var(--bg-card)') + ';font-size:12px;font-weight:600;color:' + (sel ? 'var(--gift)' : 'var(--text2)') + ';cursor:pointer;white-space:nowrap;" id="locBtn_' + loc.localId + '">' + escH(loc.name) + '</div>';
+  });
+  list.innerHTML = html;
+  wrap.style.display = 'block';
+}
+
+function selectGiftLocation(locId) {
+  giftSelectedLocationId = locId;
+  renderLocationSelector();
+  // Re-render staff list if already loaded
+  if (window._giftStaffLoaded) renderGiftStaffList();
 }
 
 function renderGiftStaffList() {
@@ -3072,6 +3143,9 @@ function toggleService(id) {
     el.className = 'svc-row-check' + (selectedServiceIds.has(id) ? ' checked' : '');
     el.innerHTML = selectedServiceIds.has(id) ? '<span style="color:#fff;font-size:14px;">✓</span>' : '';
   });
+  // Update popular card border
+  var popCard = document.getElementById('pop_' + id);
+  if (popCard) popCard.style.borderColor = selectedServiceIds.has(id) ? 'var(--gift)' : 'var(--bdi)';
   updateSummary();
 }
 function toggleProduct(id) {
