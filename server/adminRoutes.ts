@@ -5345,6 +5345,27 @@ function platformConfigPage(
       </div>
 
     <script>
+    // --- Inline confirmation modal (replaces browser confirm() which may be blocked) ---
+    window.showConfirmModal = function showConfirmModal(title, message) {
+      return new Promise(function(resolve) {
+        var overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;';
+        var box = document.createElement('div');
+        box.style.cssText = 'background:var(--bg-card,#1a1d27);border:1px solid var(--border,#2a2d3a);border-radius:12px;padding:24px 28px;max-width:420px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.5);';
+        box.innerHTML = '<div style="font-size:16px;font-weight:700;color:var(--text,#e4e6eb);margin-bottom:10px;">' + title + '</div>' +
+          '<div style="font-size:13px;color:var(--text-muted,#8b8fa3);margin-bottom:20px;line-height:1.5;">' + message + '</div>' +
+          '<div style="display:flex;gap:10px;justify-content:flex-end;">' +
+          '<button id="_confirmNo" style="padding:8px 18px;border:1px solid var(--border,#2a2d3a);background:transparent;color:var(--text,#e4e6eb);border-radius:8px;cursor:pointer;font-size:13px;">Cancel</button>' +
+          '<button id="_confirmYes" style="padding:8px 18px;background:#4a8c3f;color:white;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;">Confirm</button>' +
+          '</div>';
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+        function cleanup(result) { document.body.removeChild(overlay); resolve(result); }
+        box.querySelector('#_confirmYes').addEventListener('click', function() { cleanup(true); });
+        box.querySelector('#_confirmNo').addEventListener('click', function() { cleanup(false); });
+        overlay.addEventListener('click', function(e) { if (e.target === overlay) cleanup(false); });
+      });
+    };
     var form = document.getElementById('platformConfigForm');
     (function() {
       var btn = document.getElementById('savePlatformBtn');
@@ -6061,7 +6082,8 @@ function platformConfigPage(
       var result = document.getElementById('twilioTestResult');
       if (!btn) return;
       var modeLabel = targetMode === 'live' ? 'LIVE' : 'TEST';
-      if (!confirm('Switch Twilio to ' + modeLabel + ' mode?\\n\\nThis will update the active Twilio credentials to the ' + modeLabel + ' credentials you have saved. Make sure you have saved the ' + modeLabel + ' credentials first.')) return;
+      var confirmed = await showConfirmModal('Switch Twilio to ' + modeLabel + ' mode', 'This will update the active Twilio credentials to the ' + modeLabel + ' credentials you have saved. Make sure you have saved the ' + modeLabel + ' credentials first.');
+      if (!confirmed) return;
       btn.disabled = true;
       btn.textContent = '\u23f3 Switching...';
       if (result) { result.textContent = ''; }
@@ -6091,7 +6113,7 @@ function platformConfigPage(
       var btn = document.getElementById('stripeModeToggleBtn');
       var result = document.getElementById('stripeTestResult');
       if (!btn) return;
-      var confirmed = confirm('Switch Stripe to ' + targetMode.toUpperCase() + ' mode?\\n\\nThis will update the active Stripe keys immediately. All new Stripe operations will use the ' + targetMode + ' keys.');
+      var confirmed = await showConfirmModal('Switch Stripe to ' + targetMode.toUpperCase() + ' mode', 'This will update the active Stripe keys immediately. All new Stripe operations will use the ' + targetMode + ' keys.');
       if (!confirmed) return;
       btn.disabled = true;
       btn.textContent = '\u23f3 Switching...';
