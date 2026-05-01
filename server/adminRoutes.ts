@@ -26,7 +26,7 @@ import { sql, eq, count as drizzleCount } from "drizzle-orm";
 import { ADMIN_LOGO_BASE64 } from "./admin-logo-data";
 import { invalidatePlanCache, invalidateConfigCache, getPlatformConfig } from "./subscription";
 
-// ─── Admin Auth ─────────────────────────────────────────────────────
+// --- Admin Auth -----------------------------------------------------
 const ADMIN_USER = process.env.ADMIN_USERNAME || "Admin";
 const ADMIN_PASS = process.env.ADMIN_PASSWORD || "Admin123$";
 const SESSION_SECRET = process.env.JWT_SECRET || "admin-session-secret";
@@ -69,7 +69,7 @@ function requireAuth(req: Request, res: Response, next: NextFunction): void {
   }
 }
 
-// ─── Helper: format currency ────────────────────────────────────────
+// --- Helper: format currency ----------------------------------------
 function fmtCurrency(val: number): string {
   return "$" + val.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
@@ -80,7 +80,7 @@ function fmtDate(d: Date | string | null): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-// ─── Audit Log Helper ──────────────────────────────────────────────
+// --- Audit Log Helper ----------------------------------------------
 async function writeAuditLog(
   actor: string,
   category: string,
@@ -101,7 +101,7 @@ async function writeAuditLog(
   }
 }
 
-// ─── Register Admin Routes ──────────────────────────────────────────
+// --- Register Admin Routes ------------------------------------------
 export function registerAdminRoutes(app: Express): void {
   // Login page
   app.get("/api/admin/login", (_req: Request, res: Response) => {
@@ -155,7 +155,7 @@ export function registerAdminRoutes(app: Express): void {
     res.redirect("/api/admin/login");
   });
 
-  // ── Dashboard Overview ────────────────────────────────────────────
+  // -- Dashboard Overview --------------------------------------------
   app.get("/api/admin", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -222,7 +222,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Businesses List ───────────────────────────────────────────────
+  // -- Businesses List -----------------------------------------------
   app.get("/api/admin/businesses", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -235,7 +235,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Business Detail ───────────────────────────────────────────────
+  // -- Business Detail -----------------------------------------------
   app.get("/api/admin/businesses/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
@@ -248,7 +248,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Update Social & Payment Accounts ─────────────────────────────
+  // -- Update Social & Payment Accounts -----------------------------
   app.post("/api/admin/businesses/:id/social", requireAuth, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
@@ -271,7 +271,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Delete Business ───────────────────────────────────────────────
+  // -- Delete Business -----------------------------------------------
   app.post("/api/admin/businesses/:id/delete", requireAuth, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
@@ -283,7 +283,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── All Clients ───────────────────────────────────────────────────
+  // -- All Clients ---------------------------------------------------
   app.get("/api/admin/clients", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -297,7 +297,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── All Appointments ──────────────────────────────────────────────
+  // -- All Appointments ----------------------------------------------
   // Alias: /admin/dashboard → /admin
   app.get("/api/admin/dashboard", requireAuth, (_req: Request, res: Response) => {
     res.redirect("/api/admin");
@@ -350,7 +350,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── DB Explorer ───────────────────────────────────────────────────
+  // -- DB Explorer ---------------------------------------------------
   app.get("/api/admin/db", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -390,7 +390,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Analytics ─────────────────────────────────────────────────────
+  // -- Analytics -----------------------------------------------------
   app.get("/api/admin/analytics", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -523,7 +523,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Staff Management ──────────────────────────────────────────────
+  // -- Staff Management ----------------------------------------------
   app.get("/api/admin/staff", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -542,12 +542,12 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Settings ──────────────────────────────────────────────────────
+  // -- Settings ------------------------------------------------------
   app.get("/api/admin/settings", requireAuth, (_req: Request, res: Response) => {
     res.send(settingsPage());
   });
 
-  // ── Individual Delete Routes ─────────────────────────────────────
+  // -- Individual Delete Routes -------------------------------------
   app.post("/api/admin/delete/client/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       await db.deleteClientById(parseInt(req.params.id));
@@ -638,7 +638,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Discounts Page ────────────────────────────────────────────────
+  // -- Discounts Page ------------------------------------------------
   app.get("/api/admin/discounts", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -652,7 +652,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Gift Cards Page ───────────────────────────────────────────────
+  // -- Gift Cards Page -----------------------------------------------
   app.get("/api/admin/giftcards", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -666,7 +666,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Reviews Page ──────────────────────────────────────────────────
+  // -- Reviews Page --------------------------------------------------
   app.get("/api/admin/reviews", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -703,7 +703,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Products Page ─────────────────────────────────────────────────
+  // -- Products Page -------------------------------------------------
   app.get("/api/admin/products", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -717,7 +717,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Locations Page ────────────────────────────────────────────────
+  // -- Locations Page ------------------------------------------------
   app.get("/api/admin/locations", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -731,7 +731,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Subscriptions Page ────────────────────────────────────────────
+  // -- Subscriptions Page --------------------------------------------
   app.get("/api/admin/subscriptions", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -745,7 +745,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Plan Pricing Page ─────────────────────────────────────────────
+  // -- Plan Pricing Page ---------------------------------------------
   app.get("/api/admin/plans", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -758,7 +758,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Update Plan ───────────────────────────────────────────────────
+  // -- Update Plan ---------------------------------------------------
   app.post("/api/admin/plans/:id/update", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -803,7 +803,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Business Override ─────────────────────────────────────────────
+  // -- Business Override ---------------------------------------------
   app.post("/api/admin/businesses/:id/override", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -830,7 +830,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Expense CRUD ─────────────────────────────────────────────────────
+  // -- Expense CRUD -----------------------------------------------------
   app.post("/api/admin/financial/expenses", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -858,7 +858,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── CSV Export ───────────────────────────────────────────────────────
+  // -- CSV Export -------------------------------------------------------
   app.get("/api/admin/financial/export/monthly", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -887,10 +887,10 @@ export function registerAdminRoutes(app: Express): void {
         const mo = e.date.substring(0, 7);
         expByMonth[mo] = (expByMonth[mo] || 0) + (parseFloat(String(e.amount)) || 0);
       });
-      let csv = 'Month,Appointment Revenue,Appointments,Expenses,Net Income\n';
+      let csv = 'Month,Appointment Revenue,Appointments,Expenses,Net Income\\n';
       Object.entries(monthlyRevMap).sort((a, b) => a[0].localeCompare(b[0])).forEach(([month, d]) => {
         const exp = expByMonth[month] || 0;
-        csv += `${month},${d.rev.toFixed(2)},${d.count},${exp.toFixed(2)},${(d.rev - exp).toFixed(2)}\n`;
+        csv += `${month},${d.rev.toFixed(2)},${d.count},${exp.toFixed(2)},${(d.rev - exp).toFixed(2)}\\n`;
       });
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', `attachment; filename="monthly-revenue-${now.getFullYear()}.csv"`);
@@ -930,13 +930,13 @@ export function registerAdminRoutes(app: Express): void {
       const allExpenses = await (dbase as any).select().from(adminExpenses).catch(() => [] as any[]);
       const expByYear: Record<string, number> = {};
       allExpenses.forEach((e: any) => { if (!e.date) return; const yr = e.date.substring(0, 4); expByYear[yr] = (expByYear[yr] || 0) + (parseFloat(String(e.amount)) || 0); });
-      let csv = 'Year,Appointment Revenue,Subscription Revenue,Total Revenue,Appointments,Expenses,Net Income,Est. Tax (30%)\n';
+      let csv = 'Year,Appointment Revenue,Subscription Revenue,Total Revenue,Appointments,Expenses,Net Income,Est. Tax (30%)\\n';
       Object.entries(yearlyRevMap).sort((a, b) => a[0].localeCompare(b[0])).forEach(([year, d]) => {
         const total = d.apptRev + d.subRev;
         const exp = expByYear[year] || 0;
         const net = total - exp;
         const tax = Math.max(0, net) * 0.30;
-        csv += `${year},${d.apptRev.toFixed(2)},${d.subRev.toFixed(2)},${total.toFixed(2)},${d.apptCount},${exp.toFixed(2)},${net.toFixed(2)},${tax.toFixed(2)}\n`;
+        csv += `${year},${d.apptRev.toFixed(2)},${d.subRev.toFixed(2)},${total.toFixed(2)},${d.apptCount},${exp.toFixed(2)},${net.toFixed(2)},${tax.toFixed(2)}\\n`;
       });
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', `attachment; filename="yearly-revenue-summary.csv"`);
@@ -954,11 +954,11 @@ export function registerAdminRoutes(app: Express): void {
       const year = req.query.year as string;
       const allExpenses = await (dbase as any).select().from(adminExpenses).catch(() => [] as any[]);
       const filtered = year ? allExpenses.filter((e: any) => e.date && e.date.startsWith(year)) : allExpenses;
-      let csv = 'Date,Category,Description,Amount,Notes\n';
+      let csv = 'Date,Category,Description,Amount,Notes\\n';
       filtered.forEach((e: any) => {
         const desc = (e.description || '').replace(/"/g, '""');
         const notes = (e.notes || '').replace(/"/g, '""');
-        csv += `${e.date},${e.category},"${desc}",${parseFloat(String(e.amount)).toFixed(2)},"${notes}"\n`;
+        csv += `${e.date},${e.category},"${desc}",${parseFloat(String(e.amount)).toFixed(2)},"${notes}"\\n`;
       });
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', `attachment; filename="expenses${year ? '-' + year : ''}.csv"`);
@@ -969,7 +969,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Platform Config (Twilio / Stripe) ─────────────────────────────
+  // -- Platform Config (Twilio / Stripe) -----------------------------
   app.get("/api/admin/platform-config", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -1011,7 +1011,7 @@ export function registerAdminRoutes(app: Express): void {
         { key: "STRIPE_TEST_PUBLISHABLE_KEY", sensitive: false, desc: "Stripe Publishable Key (Test)" },
         { key: "STRIPE_TEST_WEBHOOK_SECRET", sensitive: true, desc: "Stripe Webhook Secret (Test)" },
       ];
-      // Checkbox fields — only present in body when checked; absent means unchecked
+      // Checkbox fields - only present in body when checked; absent means unchecked
       const checkboxKeys = new Set(['TWILIO_TEST_MODE', 'STRIPE_TEST_MODE']);
       for (const def of keyDefs) {
         const formKey = def.key.toLowerCase();
@@ -1025,7 +1025,7 @@ export function registerAdminRoutes(app: Express): void {
         // Upsert: update if exists, insert if not
         const existing = await dbase.select().from(platformConfig).where(eq(platformConfig.configKey, def.key)).limit(1);
         if (existing.length > 0) {
-          // Do NOT pass updatedAt — let onUpdateNow() handle it to avoid Drizzle MySQL2 conflicts
+          // Do NOT pass updatedAt - let onUpdateNow() handle it to avoid Drizzle MySQL2 conflicts
           await dbase.update(platformConfig).set({ configValue: value }).where(eq(platformConfig.configKey, def.key));
         } else {
           await dbase.insert(platformConfig).values({ configKey: def.key, configValue: value, isSensitive: def.sensitive, description: def.desc });
@@ -1045,7 +1045,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Test Twilio Connection ──────────────────────────────────────────
+  // -- Test Twilio Connection ------------------------------------------
   app.post("/api/admin/test-twilio", requireAuth, async (req: Request, res: Response) => {
     try {
       const sid = (req.body.sid || "").toString().trim();
@@ -1056,7 +1056,7 @@ export function registerAdminRoutes(app: Express): void {
       if (!/^AC[a-f0-9]{32}$/i.test(sid)) {
         res.json({ ok: false, message: "Invalid Account SID format (must start with AC, 34 chars)." }); return;
       }
-      // Call Twilio REST API — fetch account details
+      // Call Twilio REST API - fetch account details
       const credentials = Buffer.from(`${sid}:${token}`).toString("base64");
       const twilioRes = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}.json`, {
         headers: { Authorization: `Basic ${credentials}` },
@@ -1065,7 +1065,7 @@ export function registerAdminRoutes(app: Express): void {
         const data = await twilioRes.json() as any;
         const friendlyName = data.friendly_name || sid;
         const status = data.status || "active";
-        res.json({ ok: true, message: `✓ Connected — Account: "${friendlyName}" (${status})` });
+        res.json({ ok: true, message: `✓ Connected - Account: "${friendlyName}" (${status})` });
       } else {
         const errData = await twilioRes.json().catch(() => ({})) as any;
         const msg = errData?.message || `HTTP ${twilioRes.status}`;
@@ -1076,7 +1076,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Twilio Account Status (trial vs full) ─────────────────────────────
+  // -- Twilio Account Status (trial vs full) -----------------------------
   app.get("/api/admin/twilio-account-status", requireAuth, async (_req: Request, res: Response) => {
     try {
       const sid = await getPlatformConfig("TWILIO_ACCOUNT_SID");
@@ -1092,13 +1092,13 @@ export function registerAdminRoutes(app: Express): void {
       const isTrial = (data.type || "").toLowerCase() === "trial";
       const friendlyName = data.friendly_name || sid;
       const status = data.status || "active";
-      res.json({ ok: true, trial: isTrial, friendlyName, status, message: isTrial ? `Trial account — add a payment method to send to unverified numbers.` : `Full account (${status}) — no restrictions.` });
+      res.json({ ok: true, trial: isTrial, friendlyName, status, message: isTrial ? `Trial account - add a payment method to send to unverified numbers.` : `Full account (${status}) - no restrictions.` });
     } catch (err: any) {
       res.json({ ok: false, trial: null, message: `Error: ${err?.message || "Unknown error"}` });
     }
   });
 
-  // ── Test Stripe Connection (simple balance check) ────────────────────────
+  // -- Test Stripe Connection (simple balance check) ------------------------
   app.post("/api/admin/test-stripe", requireAuth, async (req: Request, res: Response) => {
     try {
       const secretKey = (req.body.secretKey || "").toString().trim();
@@ -1117,7 +1117,7 @@ export function registerAdminRoutes(app: Express): void {
         const balanceStr = available
           ? `Balance: ${(available.amount / 100).toFixed(2)} ${available.currency.toUpperCase()}`
           : "Balance retrieved";
-        res.json({ ok: true, message: `✓ Connected (${mode} Mode) — ${balanceStr}` });
+        res.json({ ok: true, message: `✓ Connected (${mode} Mode) - ${balanceStr}` });
       } else {
         const errData = await stripeRes.json().catch(() => ({})) as any;
         const msg = errData?.error?.message || `HTTP ${stripeRes.status}`;
@@ -1128,7 +1128,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Full Stripe Transaction Suite (test mode only) ────────────────────────
+  // -- Full Stripe Transaction Suite (test mode only) ------------------------
   app.post("/api/admin/test-stripe-suite", requireAuth, async (req: Request, res: Response) => {
     const steps: { step: string; ok: boolean; detail: string }[] = [];
     const secretKey = (req.body.secretKey || "").toString().trim();
@@ -1174,7 +1174,7 @@ export function registerAdminRoutes(app: Express): void {
       const custRes = await stripe("/customers", "POST", {
         name: "Stripe Suite Test Customer",
         email: "stripe-suite-test@example.com",
-        description: "Auto-created by admin suite test — safe to delete",
+        description: "Auto-created by admin suite test - safe to delete",
       });
       if (custRes.ok) {
         customerId = custRes.data.id;
@@ -1191,7 +1191,7 @@ export function registerAdminRoutes(app: Express): void {
       piBody.append("currency", "usd");
       piBody.append("customer", customerId);
       piBody.append("payment_method_types[]", "card");
-      piBody.append("description", "Admin suite test charge — auto-refunded");
+      piBody.append("description", "Admin suite test charge - auto-refunded");
       piBody.append("metadata[suite_test]", "true");
       const piRaw = await fetch("https://api.stripe.com/v1/payment_intents", {
         method: "POST",
@@ -1230,7 +1230,7 @@ export function registerAdminRoutes(app: Express): void {
           steps.push({ step: "5. Refund charge", ok: false, detail: refRes.data?.error?.message || `HTTP ${refRes.status}` });
         }
       } else {
-        steps.push({ step: "5. Refund charge", ok: false, detail: "Skipped — no charge ID (confirm step did not produce a charge)" });
+        steps.push({ step: "5. Refund charge", ok: false, detail: "Skipped - no charge ID (confirm step did not produce a charge)" });
       }
 
       // Step 6: Cancel the PaymentIntent if not succeeded (cleanup)
@@ -1262,7 +1262,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-    // ── Save Per-Phone OTP Overrides ───────────────────────────────────────────
+    // -- Save Per-Phone OTP Overrides -------------------------------------------
   app.post("/api/admin/save-phone-otp-overrides", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -1301,7 +1301,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Admin OTP Send (Twilio Verify) ─────────────────────────────────────
+  // -- Admin OTP Send (Twilio Verify) -------------------------------------
   app.post("/api/admin/otp/send", requireAuth, async (req: Request, res: Response) => {
     try {
       const phone = (req.body.phone || "").toString().trim();
@@ -1366,7 +1366,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Admin OTP Verify (Twilio Verify) ─────────────────────────────────────
+  // -- Admin OTP Verify (Twilio Verify) -------------------------------------
   app.post("/api/admin/otp/verify", requireAuth, async (req: Request, res: Response) => {
     try {
       const phone = (req.body.phone || "").toString().trim();
@@ -1419,7 +1419,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Admin OTP Log (last 10 sends) ───────────────────────────────────
+  // -- Admin OTP Log (last 10 sends) -----------------------------------
   app.get("/api/admin/otp/log", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -1436,7 +1436,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Admin OTP Usage Counter (Twilio Usage Records) ───────────────────────
+  // -- Admin OTP Usage Counter (Twilio Usage Records) -----------------------
   app.get("/api/admin/otp/usage", requireAuth, async (_req: Request, res: Response) => {
     try {
       let sid = process.env.TWILIO_ACCOUNT_SID || "";
@@ -1459,7 +1459,7 @@ export function registerAdminRoutes(app: Express): void {
       const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
       const endDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
       const credentials = Buffer.from(`${sid}:${token}`).toString("base64");
-      // Twilio Usage Records API — category: verify-authentications
+      // Twilio Usage Records API - category: verify-authentications
       const url = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Usage/Records.json?Category=verify-authentications&StartDate=${startDate}&EndDate=${endDate}`;
       const twilioRes = await fetch(url, { headers: { Authorization: `Basic ${credentials}` } });
       if (twilioRes.ok) {
@@ -1478,7 +1478,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Audit Log JSON (with optional filters) ───────────────────────────────────
+  // -- Audit Log JSON (with optional filters) -----------------------------------
   app.get("/api/admin/audit-log", requireAuth, async (req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -1501,12 +1501,12 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Audit Log Page ─────────────────────────────────────────────────────
+  // -- Audit Log Page -----------------------------------------------------
   app.get("/api/admin/audit-log-page", requireAuth, async (_req: Request, res: Response) => {
     res.send(adminLayout("Audit Log", "audit-log", `
       <div class="page-header">
         <h2>Audit Log</h2>
-        <span style="font-size:13px;color:var(--text-muted);">All admin actions — config changes, OTP sends, and more</span>
+        <span style="font-size:13px;color:var(--text-muted);">All admin actions - config changes, OTP sends, and more</span>
       </div>
       <div class="card" style="margin-bottom:16px;">
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
@@ -1558,9 +1558,9 @@ export function registerAdminRoutes(app: Express): void {
               }
               var rows = logs.map(function(l) {
                 var dt2 = l.createdAt ? new Date(l.createdAt) : null;
-                var dtStr = dt2 ? dt2.toLocaleDateString() + ' ' + dt2.toLocaleTimeString() : '—';
-                var catBadge = '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:var(--bg-hover);color:var(--text-muted);">' + (l.category || '—') + '</span>';
-                return '<tr><td style="font-size:12px;color:var(--text-muted);white-space:nowrap;">' + dtStr + '</td><td>' + (l.actor || 'admin') + '</td><td>' + catBadge + '</td><td style="max-width:400px;word-break:break-word;">' + (l.action || '—') + '</td><td style="font-size:12px;color:var(--text-muted);max-width:200px;word-break:break-word;">' + (l.details ? '<details><summary style="cursor:pointer;">View</summary><pre style="font-size:11px;margin:4px 0 0;white-space:pre-wrap;">' + l.details + '</pre></details>' : '—') + '</td></tr>';
+                var dtStr = dt2 ? dt2.toLocaleDateString() + ' ' + dt2.toLocaleTimeString() : '-';
+                var catBadge = '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:var(--bg-hover);color:var(--text-muted);">' + (l.category || '-') + '</span>';
+                return '<tr><td style="font-size:12px;color:var(--text-muted);white-space:nowrap;">' + dtStr + '</td><td>' + (l.actor || 'admin') + '</td><td>' + catBadge + '</td><td style="max-width:400px;word-break:break-word;">' + (l.action || '-') + '</td><td style="font-size:12px;color:var(--text-muted);max-width:200px;word-break:break-word;">' + (l.details ? '<details><summary style="cursor:pointer;">View</summary><pre style="font-size:11px;margin:4px 0 0;white-space:pre-wrap;">' + l.details + '</pre></details>' : '-') + '</td></tr>';
               }).join('');
               container.innerHTML = '<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Date/Time</th><th>Actor</th><th>Category</th><th>Action</th><th>Details</th></tr></thead><tbody>' + rows + '</tbody></table></div><div style="font-size:12px;color:var(--text-muted);margin-top:10px;text-align:right;">' + logs.length + ' entries</div>';
             })
@@ -1579,7 +1579,7 @@ export function registerAdminRoutes(app: Express): void {
     `));
   });
 
-  // ── Financial / Revenue Analytics ────────────────────────────────────
+  // -- Financial / Revenue Analytics ------------------------------------
   app.get("/api/admin/financial", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -1741,7 +1741,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Stripe Connect Admin Page ─────────────────────────────────────────
+  // -- Stripe Connect Admin Page -----------------------------------------
   app.get("/api/admin/stripe-connect", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -1751,10 +1751,10 @@ export function registerAdminRoutes(app: Express): void {
 
       const rows = allBiz.map((b: any) => ({
         id: b.id,
-        businessName: b.businessName || b.name || "—",
-        ownerName: b.ownerName || "—",
-        email: b.email || "—",
-        phone: b.phone || "—",
+        businessName: b.businessName || b.name || "-",
+        ownerName: b.ownerName || "-",
+        email: b.email || "-",
+        phone: b.phone || "-",
         stripeConnectAccountId: b.stripeConnectAccountId || null,
         stripeConnectEnabled: b.stripeConnectEnabled || false,
         stripeConnectOnboardingComplete: b.stripeConnectOnboardingComplete || false,
@@ -1805,7 +1805,7 @@ export function registerAdminRoutes(app: Express): void {
                           <input type="hidden" name="businessOwnerId" value="${r.id}">
                           <button type="submit" class="btn btn-sm" style="background:var(--error);color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px;">Disconnect</button>
                         </form>
-                      ` : '<span style="color:var(--text-muted);font-size:12px;">—</span>'}
+                      ` : '<span style="color:var(--text-muted);font-size:12px;">-</span>'}
                     </td>
                   </tr>
                 `).join('')}
@@ -1830,7 +1830,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Promo Codes Admin Page ────────────────────────────────────────────
+  // -- Promo Codes Admin Page --------------------------------------------
   app.get("/api/admin/promo-codes", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -1853,13 +1853,13 @@ export function registerAdminRoutes(app: Express): void {
               <tbody>
                 ${allPromos.length === 0 ? '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);">No promo codes yet</td></tr>' : allPromos.map((p: any) => `
                   <tr>
-                    <td><strong style="font-family:monospace;">${p.code || '—'}</strong></td>
-                    <td>${bizMap[p.businessOwnerId] || p.businessOwnerId || '—'}</td>
-                    <td>${p.discountType || '—'}</td>
+                    <td><strong style="font-family:monospace;">${p.code || '-'}</strong></td>
+                    <td>${bizMap[p.businessOwnerId] || p.businessOwnerId || '-'}</td>
+                    <td>${p.discountType || '-'}</td>
                     <td>${p.discountType === 'percentage' ? (p.discountValue || 0) + '%' : '$' + (p.discountValue || 0)}</td>
                     <td>${p.usedCount ?? 0}</td>
                     <td>${p.maxUses ?? '∞'}</td>
-                    <td>${p.expiresAt ? new Date(p.expiresAt).toLocaleDateString() : '—'}</td>
+                    <td>${p.expiresAt ? new Date(p.expiresAt).toLocaleDateString() : '-'}</td>
                     <td>${p.isActive ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-error">Inactive</span>'}</td>
                   </tr>
                 `).join('')}
@@ -1874,7 +1874,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ── Waitlist Admin Page ───────────────────────────────────────────────
+  // -- Waitlist Admin Page -----------------------------------------------
   app.get("/api/admin/waitlist", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -1897,12 +1897,12 @@ export function registerAdminRoutes(app: Express): void {
               <tbody>
                 ${allWaitlist.length === 0 ? '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">No waitlist entries yet</td></tr>' : allWaitlist.map((w: any) => `
                   <tr>
-                    <td>${w.clientName || w.clientId || '—'}</td>
-                    <td>${bizMap[w.businessOwnerId] || w.businessOwnerId || '—'}</td>
-                    <td>${w.serviceName || w.serviceId || '—'}</td>
-                    <td>${w.requestedDate ? new Date(w.requestedDate).toLocaleDateString() : '—'}</td>
-                    <td>${w.status ? `<span class="badge badge-${w.status === 'pending' ? 'warning' : w.status === 'booked' ? 'success' : 'error'}">${w.status}</span>` : '—'}</td>
-                    <td>${w.createdAt ? new Date(w.createdAt).toLocaleDateString() : '—'}</td>
+                    <td>${w.clientName || w.clientId || '-'}</td>
+                    <td>${bizMap[w.businessOwnerId] || w.businessOwnerId || '-'}</td>
+                    <td>${w.serviceName || w.serviceId || '-'}</td>
+                    <td>${w.requestedDate ? new Date(w.requestedDate).toLocaleDateString() : '-'}</td>
+                    <td>${w.status ? `<span class="badge badge-${w.status === 'pending' ? 'warning' : w.status === 'booked' ? 'success' : 'error'}">${w.status}</span>` : '-'}</td>
+                    <td>${w.createdAt ? new Date(w.createdAt).toLocaleDateString() : '-'}</td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -1916,7 +1916,7 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
-  // ─── Dev Testing Panel ────────────────────────────────────────────────────
+  // --- Dev Testing Panel ----------------------------------------------------
   app.get("/api/admin/dev-testing", requireAuth, async (_req: Request, res: Response) => {
     try {
       const dbase = await getDb();
@@ -1951,7 +1951,7 @@ export function registerAdminRoutes(app: Express): void {
       const from = fromDate ? new Date(fromDate) : new Date(Date.now() - 90 * 86400000);
       const to = toDate ? new Date(toDate) : new Date(Date.now() + 60 * 86400000);
       const pick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
-      // ── Hyper-realistic data pools ──────────────────────────────────────
+      // -- Hyper-realistic data pools --------------------------------------
       const FIRST_NAMES_F = ["Sophia","Isabella","Olivia","Emma","Ava","Mia","Charlotte","Amelia","Harper","Evelyn","Abigail","Emily","Elizabeth","Sofia","Madison","Avery","Ella","Scarlett","Grace","Chloe","Victoria","Riley","Aria","Lily","Aubrey","Zoey","Penelope","Lillian","Addison","Layla","Natalie","Camila","Hannah","Brooklyn","Zoe","Nora","Leah","Savannah","Audrey","Claire"];
       const FIRST_NAMES_M = ["Liam","Noah","William","James","Oliver","Benjamin","Elijah","Lucas","Mason","Logan","Alexander","Ethan","Jacob","Michael","Daniel","Henry","Jackson","Sebastian","Aiden","Matthew","Samuel","David","Joseph","Carter","Owen","Wyatt","John","Jack","Luke","Jayden","Dylan","Grayson","Levi","Isaac","Gabriel","Julian","Mateo","Anthony","Jaxon","Lincoln"];
       const FIRST_NAMES = [...FIRST_NAMES_F, ...FIRST_NAMES_M];
@@ -1995,7 +1995,7 @@ export function registerAdminRoutes(app: Express): void {
       const COLORS = ["#3B82F6","#EF4444","#10B981","#F59E0B","#8B5CF6","#EC4899","#14B8A6","#F97316","#6366F1","#84CC16","#06B6D4","#D946EF"];
       // Realistic review comments with varied sentiment
       const REVIEW_COMMENTS_5 = [
-        "Absolutely love my hair! {name} did an incredible job with my balayage — exactly what I wanted.",
+        "Absolutely love my hair! {name} did an incredible job with my balayage - exactly what I wanted.",
         "Best salon experience I've had in years. The attention to detail is unmatched.",
         "I've been coming here for 3 years and never disappointed. Highly recommend!",
         "My highlights turned out perfect. Everyone keeps asking who does my hair!",
@@ -2032,7 +2032,7 @@ export function registerAdminRoutes(app: Express): void {
       ];
       // Realistic discount names
       const DISCOUNT_CATALOG = [
-        {name:"Happy Hour (2–5 PM)",startH:14,endH:17,pct:15},
+        {name:"Happy Hour (2-5 PM)",startH:14,endH:17,pct:15},
         {name:"Early Bird Special",startH:8,endH:10,pct:20},
         {name:"Lunch Break Deal",startH:11,endH:13,pct:10},
         {name:"Late Evening Discount",startH:18,endH:20,pct:25},
@@ -2052,7 +2052,7 @@ export function registerAdminRoutes(app: Express): void {
         "Happy Birthday! Treat yourself to something special 🎂",
         "Congratulations on your promotion! You deserve it!",
         "Happy Anniversary! Enjoy a day of pampering 💕",
-        "Just because you're amazing — enjoy!",
+        "Just because you're amazing - enjoy!",
         "Get well soon! A little treat to brighten your day.",
         "Thank you for everything. You're the best!",
         "Merry Christmas! Wishing you a beautiful holiday 🎄",
@@ -2086,13 +2086,13 @@ export function registerAdminRoutes(app: Express): void {
         "Flexible on timing, prefers mornings",
         "Available weekdays only",
         "Afternoons work best for me",
-        "ASAP please — wedding coming up!",
+        "ASAP please - wedding coming up!",
         "Weekends only",
         "Any day works, just need 24h notice",
         "Prefer same stylist as last time",
-        "Allergic to certain dyes — please note",
+        "Allergic to certain dyes - please note",
         "First time client, referred by a friend",
-        "Flexible — just let me know what's available",
+        "Flexible - just let me know what's available",
       ];
       // Phone area codes by region
       const AREA_CODES = ["305","786","954","561","407","813","212","718","310","312","713","602","215","210","214","619","404","720","615","704"];
@@ -2206,7 +2206,7 @@ export function registerAdminRoutes(app: Express): void {
         const PAYMENT_METHODS: Array<"cash"|"card"|"zelle"|"venmo"|"cashapp"|"unpaid"> = ["cash","card","card","zelle","venmo","cashapp","unpaid"];
         const APPT_NOTES = [
           "Client prefers minimal product use.",
-          "First-time client — consultation needed.",
+          "First-time client - consultation needed.",
           "Allergic to ammonia-based dyes.",
           "Wants to go 2 shades lighter.",
           "Regular client, knows what she wants.",
@@ -2342,7 +2342,7 @@ export function registerAdminRoutes(app: Express): void {
             businessOwnerId: businessId, localId,
             name: `${prod.name} ${SEED_TAG}`,
             price,
-            description: `${prod.brand} ${prod.name} — professional-grade product. Recommended for salon use and retail.`,
+            description: `${prod.brand} ${prod.name} - professional-grade product. Recommended for salon use and retail.`,
             available: stock > 0,
           });
         }
@@ -2355,12 +2355,12 @@ export function registerAdminRoutes(app: Express): void {
         const WAITLIST_NOTES = [
           "Flexible on timing, any slot works.",
           "Prefers morning appointments before 11am.",
-          "Afternoon only — works mornings.",
+          "Afternoon only - works mornings.",
           "ASAP please, event coming up this weekend.",
           "Weekends preferred, hard to get away weekdays.",
           "Any day works, just need 24h notice.",
           "Prefer same stylist as last time.",
-          "First time on waitlist — very excited!",
+          "First time on waitlist - very excited!",
           "Referred by a friend, flexible schedule.",
           "Has a tight schedule, please confirm ASAP.",
         ];
@@ -2499,7 +2499,7 @@ export function registerAdminRoutes(app: Express): void {
 
 }
 
-// ─── HTML Templates ─────────────────────────────────────────────────
+// --- HTML Templates -------------------------------------------------
 
 function adminStyles(): string {
   return `
@@ -2649,7 +2649,7 @@ function adminStyles(): string {
       .btn-delete-sm:hover { background: var(--danger); color: #fff; }
       .delete-form { display: inline; }
 
-      /* ── Mobile hamburger button ── */
+      /* -- Mobile hamburger button -- */
       .mobile-menu-btn {
         display: none;
         position: fixed;
@@ -2875,7 +2875,7 @@ function adminLayout(title: string, activePage: string, content: string): string
       });
     });
 
-    // ── Theme toggle ──────────────────────────────────────────────────
+    // -- Theme toggle --------------------------------------------------
     (function() {
       var saved = localStorage.getItem('admin_theme');
       var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -2909,7 +2909,7 @@ function adminLayout(title: string, activePage: string, content: string): string
       });
     }
 
-    // ── Back to top button (mobile only) ─────────────────────────────────
+    // -- Back to top button (mobile only) ---------------------------------
     (function() {
       var btn = document.getElementById('backToTopBtn');
       if (!btn) return;
@@ -2927,7 +2927,7 @@ function adminLayout(title: string, activePage: string, content: string): string
       updateBtn();
     })();
 
-    // ── Session keep-alive: ping every 10 minutes ──────────────────────
+    // -- Session keep-alive: ping every 10 minutes ----------------------
     (function() {
       var PING_INTERVAL = 10 * 60 * 1000; // 10 minutes
       var indicator = document.getElementById('sessionPingIndicator');
@@ -2935,17 +2935,17 @@ function adminLayout(title: string, activePage: string, content: string): string
         fetch('/api/admin/ping', { method: 'GET', credentials: 'same-origin', redirect: 'manual' })
           .then(function(r) {
             if ((r.ok || r.status === 200) && indicator) {
-              // Session alive — keep indicator hidden
+              // Session alive - keep indicator hidden
               indicator.style.display = 'none';
             } else if (r.status === 0 || r.status === 302 || r.status === 401) {
-              // Session expired — show warning banner
+              // Session expired - show warning banner
               if (indicator) {
-                indicator.textContent = '\u26a0\ufe0f Session expired — please reload and log in again';
+                indicator.textContent = '\u26a0\ufe0f Session expired - please reload and log in again';
                 indicator.style.display = 'inline-block';
               }
             }
           })
-          .catch(function() { /* network error — ignore silently */ });
+          .catch(function() { /* network error - ignore silently */ });
       }
       setInterval(ping, PING_INTERVAL);
       // First ping after 1 minute to confirm session is alive on page load
@@ -2956,7 +2956,7 @@ function adminLayout(title: string, activePage: string, content: string): string
 </html>`;
 }
 
-// ─── Login Page ─────────────────────────────────────────────────────
+// --- Login Page -----------------------------------------------------
 function loginPage(error?: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -3003,7 +3003,7 @@ function loginPage(error?: string): string {
 </html>`;
 }
 
-// ─── Error Page ─────────────────────────────────────────────────────
+// --- Error Page -----------------------------------------------------
 function errorPage(message: string): string {
   return adminLayout("Error", "", `
     <div class="empty-state">
@@ -3014,7 +3014,7 @@ function errorPage(message: string): string {
   `);
 }
 
-// ─── Dashboard Page ─────────────────────────────────────────────────
+// --- Dashboard Page -------------------------------------------------
 function dashboardPage(data: {
   totalBusinesses: number;
   totalClients: number;
@@ -3263,7 +3263,7 @@ function dashboardPage(data: {
   `);
 }
 
-// ─── Businesses Page ───────────────────────────────────────────────
+// --- Businesses Page -----------------------------------------------
 function planColor(plan: string): string {
   const colors: Record<string, string> = { solo: '#6b7280', growth: '#0a7ea4', studio: '#7c3aed', enterprise: '#059669' };
   return colors[plan] || '#6b7280';
@@ -3292,11 +3292,11 @@ function businessesPage(businesses: any[]): string {
           <div style="width:38px;height:38px;border-radius:50%;background:${pc}22;color:${pc};font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1.5px solid ${pc}44;">${initials}</div>
           <div>
             <div style="font-weight:600;font-size:14px;"><a href="/api/admin/businesses/${b.id}" style="color:var(--text);text-decoration:none;">${escHtml(b.businessName)}</a></div>
-            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${escHtml(b.email || b.phone || '—')}</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${escHtml(b.email || b.phone || '-')}</div>
           </div>
         </div>
       </td>
-      <td style="padding:12px 16px;font-size:13px;color:var(--text-muted);">${escHtml(b.phone || '—')}</td>
+      <td style="padding:12px 16px;font-size:13px;color:var(--text-muted);">${escHtml(b.phone || '-')}</td>
       <td style="padding:12px 16px;"><span style="background:${pc}18;color:${pc};padding:3px 10px;border-radius:10px;font-size:12px;font-weight:600;border:1px solid ${pc}33;">${plan.charAt(0).toUpperCase() + plan.slice(1)}${b.adminOverride ? ' ⭐' : ''}</span></td>
       <td style="padding:12px 16px;"><span style="background:${statusColor}18;color:${statusColor};padding:3px 10px;border-radius:10px;font-size:12px;font-weight:500;border:1px solid ${statusColor}33;">${status.charAt(0).toUpperCase() + status.slice(1)}</span></td>
       <td style="padding:12px 16px;">${b.temporaryClosed ? '<span class="badge badge-danger" style="font-size:11px;">Closed</span>' : '<span class="badge badge-success" style="font-size:11px;">Open</span>'}</td>
@@ -3420,7 +3420,7 @@ function businessesPage(businesses: any[]): string {
   `);
 }
 
-// ─── Business Detail Page ───────────────────────────────────────────
+// --- Business Detail Page -------------------------------------------
 function businessDetailPage(data: any): string {
   const o = data.owner;
   const slug = o.businessName.toLowerCase().replace(/\s+/g, "-");
@@ -3640,7 +3640,7 @@ function businessDetailPage(data: any): string {
         </div>
         <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;">
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Trial Ends</div>
-          <div style="font-size:14px;font-weight:600;">${o.trialEndsAt ? new Date(o.trialEndsAt).toLocaleDateString() : '—'}</div>
+          <div style="font-size:14px;font-weight:600;">${o.trialEndsAt ? new Date(o.trialEndsAt).toLocaleDateString() : '-'}</div>
         </div>
       </div>
       ${o.adminOverride ? '<div style="background:#05996915;border:1px solid #05996940;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#059669;"><strong>⭐ Admin Override is ACTIVE.</strong> This business has full Unlimited access at no charge.</div>' : ''}
@@ -3694,15 +3694,15 @@ function businessDetailPage(data: any): string {
   `);
 }
 
-// ─── Clients Page ───────────────────────────────────────────────────
+// --- Clients Page ---------------------------------------------------
 function clientsPage(allClients: any[], allBiz: any[]): string {
   const bizMap = new Map(allBiz.map((b: any) => [b.id, b.businessName]));
   const bizOptions = allBiz.map((b: any) => `<option value="${b.id}">${escHtml(b.businessName)}</option>`).join('');
 
   const rows = allClients.map((c: any) => `<tr class="cli-row" data-name="${escHtml((c.name || '').toLowerCase())}" data-phone="${escHtml((c.phone || '').toLowerCase())}" data-email="${escHtml((c.email || '').toLowerCase())}" data-biz="${c.businessOwnerId}">
     <td style="font-weight:500;">${escHtml(c.name)}</td>
-    <td style="font-size:13px;color:var(--text-muted);">${c.phone || '—'}</td>
-    <td style="font-size:13px;">${c.email || '—'}</td>
+    <td style="font-size:13px;color:var(--text-muted);">${c.phone || '-'}</td>
+    <td style="font-size:13px;">${c.email || '-'}</td>
     <td><a href="/api/admin/businesses/${c.businessOwnerId}" style="color:var(--primary);">${escHtml(bizMap.get(c.businessOwnerId) || 'Unknown')}</a></td>
     <td style="font-size:12px;color:var(--text-muted);">${fmtDate(c.createdAt)}</td>
     <td><form class="delete-form" method="POST" action="/api/admin/delete/client/${c.id}" onsubmit="return confirm('Delete client ${escHtml(c.name)}? This will also delete their appointments and reviews.')"><button type="submit" class="btn-delete-sm">Delete</button></form></td>
@@ -3761,7 +3761,7 @@ function clientsPage(allClients: any[], allBiz: any[]): string {
   `);
 }
 
-// ─── Appointments Page ──────────────────────────────────────────────
+// --- Appointments Page ----------------------------------------------
 function appointmentsPage(allAppts: any[], allBiz: any[], allCli: any[], allSvc: any[], statusFilter: string, bizFilter = "", searchQ = "", page = 1, totalPages = 1, totalCount = 0): string {
   const bizMap = new Map(allBiz.map((b: any) => [b.id, b.businessName]));
   const cliMap = new Map(allCli.map((c: any) => [`${c.businessOwnerId}-${c.localId}`, c.name]));
@@ -3857,7 +3857,7 @@ function appointmentsPage(allAppts: any[], allBiz: any[], allCli: any[], allSvc:
   `);
 }
 
-// ─── DB Explorer Page ───────────────────────────────────────────────
+// --- DB Explorer Page -----------------------------------------------
 function dbExplorerPage(table: string, rows: any[], page: number, totalPages: number, totalRows: number, tables: string[]): string {
   const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
   return adminLayout("DB Explorer", "db", `
@@ -3898,7 +3898,7 @@ function dbExplorerPage(table: string, rows: any[], page: number, totalPages: nu
   `);
 }
 
-// ─── Analytics Page ─────────────────────────────────────────────────
+// --- Analytics Page -------------------------------------------------
 function analyticsPage(data: {
   mrr: number;
   arr: number;
@@ -3928,7 +3928,7 @@ function analyticsPage(data: {
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════════════
-         SECTION 1 — DEVELOPER / PLATFORM REVENUE
+         SECTION 1 - DEVELOPER / PLATFORM REVENUE
          This is YOUR income as the developer selling this SaaS to businesses.
     ═══════════════════════════════════════════════════════════════════════ -->
     <div style="margin-bottom:8px;">
@@ -4022,7 +4022,7 @@ function analyticsPage(data: {
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════════════
-         SECTION 2 — BUSINESS OWNER ACTIVITY
+         SECTION 2 - BUSINESS OWNER ACTIVITY
          Aggregated operational data from all businesses using the app.
          This is what business owners see in their own dashboards.
     ═══════════════════════════════════════════════════════════════════════ -->
@@ -4183,7 +4183,7 @@ function analyticsPage(data: {
   `);
 }
 
-// ─── Settings Page ──────────────────────────────────────────────────
+// --- Settings Page --------------------------------------------------
 function settingsPage(): string {
   return adminLayout("Settings", "settings", `
     <div class="page-header">
@@ -4277,9 +4277,9 @@ function staffPage(allStaff: any[], allBiz: any[], allSvc: any[], bizFilter = ""
       data-phone="${escHtml((s.phone || '').toLowerCase())}">
       <td style="font-weight:600;">${escHtml(s.name)}</td>
       <td><a href="/api/admin/businesses/${s.businessOwnerId}" style="color:var(--primary);">${escHtml(bizName)}</a></td>
-      <td>${s.email ? escHtml(s.email) : '<span style="color:var(--text-muted);">—</span>'}</td>
-      <td>${s.phone ? escHtml(s.phone) : '<span style="color:var(--text-muted);">—</span>'}</td>
-      <td>${s.role ? `<span style="font-size:12px;color:var(--text-muted);">${escHtml(s.role)}</span>` : '<span style="color:var(--text-muted);">—</span>'}</td>
+      <td>${s.email ? escHtml(s.email) : '<span style="color:var(--text-muted);">-</span>'}</td>
+      <td>${s.phone ? escHtml(s.phone) : '<span style="color:var(--text-muted);">-</span>'}</td>
+      <td>${s.role ? `<span style="font-size:12px;color:var(--text-muted);">${escHtml(s.role)}</span>` : '<span style="color:var(--text-muted);">-</span>'}</td>
       <td><span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:${s.color || '#4a8c3f'};vertical-align:middle;margin-right:4px;"></span>${s.color || '#4a8c3f'}</td>
       <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;" title="${escHtml(serviceNames)}">${escHtml(serviceNames)}</td>
       <td style="font-size:12px;">${workingDays}</td>
@@ -4390,7 +4390,7 @@ function staffPage(allStaff: any[], allBiz: any[], allSvc: any[], bizFilter = ""
   return adminLayout('Staff Management', 'staff', content);
 }
 
-// ─── Discounts Page ────────────────────────────────────────────────
+// --- Discounts Page ------------------------------------------------
 function discountsPage(allDisc: any[], allBiz: any[]): string {
   const bizMap = new Map(allBiz.map((b: any) => [b.id, b.businessName]));
   return adminLayout("Discounts", "discounts", `
@@ -4454,7 +4454,7 @@ function discountsPage(allDisc: any[], allBiz: any[]): string {
   `);
 }
 
-// ─── Gift Cards Page ───────────────────────────────────────────────
+// --- Gift Cards Page -----------------------------------------------
 function giftCardsPage(allGC: any[], allBiz: any[]): string {
   const bizMap = new Map(allBiz.map((b: any) => [b.id, b.businessName]));
   return adminLayout("Gift Cards", "giftcards", `
@@ -4518,7 +4518,7 @@ function giftCardsPage(allGC: any[], allBiz: any[]): string {
   `);
 }
 
-// ─── Reviews Page ──────────────────────────────────────────────────
+// --- Reviews Page --------------------------------------------------
 function reviewsPage(allRev: any[], allBiz: any[], bizFilter = "", ratingFilter = "", page = 1, totalPages = 1, totalCount = 0): string {
   const bizMap = new Map(allBiz.map((b: any) => [b.id, b.businessName]));
   const buildUrl = (p: number) => {
@@ -4580,7 +4580,7 @@ function reviewsPage(allRev: any[], allBiz: any[], bizFilter = "", ratingFilter 
   `);
 }
 
-// ─── Products Page ─────────────────────────────────────────────────
+// --- Products Page -------------------------------------------------
 function productsPage(allProd: any[], allBiz: any[]): string {
   const bizMap = new Map(allBiz.map((b: any) => [b.id, b.businessName]));
   return adminLayout("Products", "products", `
@@ -4633,7 +4633,7 @@ function productsPage(allProd: any[], allBiz: any[]): string {
   `);
 }
 
-// ─── Locations Page ────────────────────────────────────────────────
+// --- Locations Page ------------------------------------------------
 function locationsPage(allLoc: any[], allBiz: any[]): string {
   const bizMap = new Map(allBiz.map((b: any) => [b.id, b.businessName]));
   return adminLayout("Locations", "locations", `
@@ -4707,7 +4707,7 @@ function escHtml(str: string): string {
     .replace(/'/g, "&#039;");
 }
 
-// ─── Subscriptions Page ──────────────────────────────────────────────────────
+// --- Subscriptions Page ------------------------------------------------------
 function subscriptionsPage(businesses: any[], plans: any[]): string {
   const planMap: Record<string, string> = {};
   plans.forEach((p) => { planMap[p.planKey] = p.displayName; });
@@ -4738,16 +4738,16 @@ function subscriptionsPage(businesses: any[], plans: any[]): string {
     const plan = b.subscriptionPlan || 'solo';
     const status = b.subscriptionStatus || 'free';
     const trialDate = b.trialEndsAt ? new Date(b.trialEndsAt) : null;
-    const trialStr = trialDate ? trialDate.toLocaleDateString() : '—';
+    const trialStr = trialDate ? trialDate.toLocaleDateString() : '-';
     const daysLeft = trialDate ? Math.ceil((trialDate.getTime() - Date.now()) / 86400000) : null;
-    const trialDisplay = daysLeft !== null ? `${trialStr} <span style="font-size:11px;color:${daysLeft <= 3 ? '#ef4444' : '#f59e0b'}">(${daysLeft}d left)</span>` : '—';
+    const trialDisplay = daysLeft !== null ? `${trialStr} <span style="font-size:11px;color:${daysLeft <= 3 ? '#ef4444' : '#f59e0b'}">(${daysLeft}d left)</span>` : '-';
     return `<tr class="sub-row" data-name="${escHtml((b.businessName || '').toLowerCase())}" data-plan="${plan}" data-status="${status}" data-override="${b.adminOverride ? 'yes' : 'no'}" data-trial-ts="${trialDate ? trialDate.getTime() : 0}">
       <td style="font-weight:600;"><a href="/api/admin/businesses/${b.id}" style="color:var(--text);text-decoration:none;">${escHtml(b.businessName)}</a></td>
-      <td style="font-size:13px;color:var(--text-muted);">${escHtml(b.phone || '—')}</td>
+      <td style="font-size:13px;color:var(--text-muted);">${escHtml(b.phone || '-')}</td>
       <td>${planBadge(plan, !!b.adminOverride)}</td>
       <td>${statusBadge(status)}</td>
-      <td style="font-size:13px;">${status === 'trial' ? trialDisplay : '—'}</td>
-      <td>${b.adminOverride ? '<span style="color:#059669;font-weight:600;">✓ Complimentary</span>' : '<span style="color:var(--text-muted);">—</span>'}</td>
+      <td style="font-size:13px;">${status === 'trial' ? trialDisplay : '-'}</td>
+      <td>${b.adminOverride ? '<span style="color:#059669;font-weight:600;">✓ Complimentary</span>' : '<span style="color:var(--text-muted);">-</span>'}</td>
       <td><a href="/api/admin/businesses/${b.id}" class="btn btn-secondary btn-sm">Manage →</a></td>
     </tr>`;
   }).join('');
@@ -4857,7 +4857,7 @@ function subscriptionsPage(businesses: any[], plans: any[]): string {
   `);
 }
 
-// ─── Plans Page ──────────────────────────────────────────────────────────────
+// --- Plans Page --------------------------------------------------------------
 function plansPage(plans: any[]): string {
   const saved = "";
   const planCards = plans.map((p) => `
@@ -5025,7 +5025,7 @@ function plansPage(plans: any[]): string {
   `);
 }
 
-// ─── Platform Config Page ────────────────────────────────────────────────────
+// --- Platform Config Page ----------------------------------------------------
 function platformConfigPage(
   cfgMap: Record<string, string>,
   bizList: Array<{ id: number; businessName: string; phone: string }> = []
@@ -5050,7 +5050,7 @@ function platformConfigPage(
   return adminLayout("Platform Config", "platform-config", `
     <h1 style="font-size:24px;font-weight:700;margin-bottom:24px;">Platform Configuration</h1>
 
-    <form method="POST" action="/api/admin/platform-config">
+    <form id="platformConfigForm" method="POST" action="/api/admin/platform-config">
       <!-- Twilio Section -->
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:24px;">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
@@ -5063,13 +5063,13 @@ function platformConfigPage(
         </div>
         ${field("twilio_account_sid", "Account SID", "Found in your Twilio Console dashboard", true, "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", cfgMap["TWILIO_ACCOUNT_SID"] || "")}
         ${field("twilio_auth_token", "Auth Token", "Found in your Twilio Console dashboard", true, "Your Twilio Auth Token", cfgMap["TWILIO_AUTH_TOKEN"] || "")}
-        ${field("twilio_verify_service_sid", "Verify Service SID", "From Twilio Console → Verify → Services — starts with VA...", true, "VAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", cfgMap["TWILIO_VERIFY_SERVICE_SID"] || "")}
+        ${field("twilio_verify_service_sid", "Verify Service SID", "From Twilio Console → Verify → Services - starts with VA...", true, "VAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", cfgMap["TWILIO_VERIFY_SERVICE_SID"] || "")}
         ${field("twilio_from_number", "From Phone Number", "Your Twilio phone number in E.164 format", false, "+14155551234", cfgMap["TWILIO_FROM_NUMBER"] || "")}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
           <div>
             <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;">
               <input type="checkbox" name="twilio_test_mode" value="true" ${(cfgMap["TWILIO_TEST_MODE"] === "true") ? "checked" : ""} style="width:16px;height:16px;" />
-              <span><strong>Test Mode</strong> — OTP bypassed with code below</span>
+              <span><strong>Test Mode</strong> - OTP bypassed with code below</span>
             </label>
           </div>
           <div>
@@ -5086,7 +5086,7 @@ function platformConfigPage(
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
             <div>
               <h3 style="font-size:14px;font-weight:700;margin:0;">Per-Business Static OTP</h3>
-              <p style="font-size:12px;color:var(--text-muted);margin:4px 0 0;">Select specific businesses that can log in with a fixed OTP code — no SMS sent.</p>
+              <p style="font-size:12px;color:var(--text-muted);margin:4px 0 0;">Select specific businesses that can log in with a fixed OTP code - no SMS sent.</p>
             </div>
             <button type="button" onclick="addPhoneOtpRow()" style="background:var(--primary);color:white;border:none;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">+ Add Business</button>
           </div>
@@ -5150,7 +5150,7 @@ function platformConfigPage(
               <span style="font-size:20px;">📲</span>
               <div>
                 <h3 style="font-size:15px;font-weight:700;margin:0;">Send OTP to Any Number</h3>
-                <p style="font-size:12px;color:var(--text-muted);margin:3px 0 0;">Uses Twilio Verify — sends a real SMS. Enter phone in E.164 format (e.g. +14155551234).</p>
+                <p style="font-size:12px;color:var(--text-muted);margin:3px 0 0;">Uses Twilio Verify - sends a real SMS. Enter phone in E.164 format (e.g. +14155551234).</p>
               </div>
             </div>
             <!-- Usage counter badge -->
@@ -5178,7 +5178,7 @@ function platformConfigPage(
           </div>
           <!-- Verify OTP panel: always visible, works independently of Send OTP -->
           <div id="otpVerifyRow" style="display:block;border-top:1px dashed var(--border);padding-top:14px;margin-top:4px;">
-            <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:10px;">VERIFY OTP — Enter the code you received via SMS to confirm the full flow works</div>
+            <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:10px;">VERIFY OTP - Enter the code you received via SMS to confirm the full flow works</div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px;">
               <div style="flex:1;min-width:160px;">
                 <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;color:var(--text-muted);">Phone (E.164 or 10-digit)</label>
@@ -5222,7 +5222,7 @@ function platformConfigPage(
           <span style="font-size:24px;">💳</span>
           <div>
             <h2 style="font-size:18px;font-weight:700;margin:0;">Stripe Payment Configuration</h2>
-            <p style="font-size:13px;color:var(--text-muted);margin:4px 0 0;">Subscription billing — live and test credentials</p>
+            <p style="font-size:13px;color:var(--text-muted);margin:4px 0 0;">Subscription billing - live and test credentials</p>
           </div>
           ${isStripeTestMode ? '<span style="background:#f59e0b20;color:#f59e0b;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;margin-left:auto;">⚠️ TEST MODE ACTIVE</span>' : '<span style="background:#22c55e20;color:#22c55e;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;margin-left:auto;">✅ LIVE MODE</span>'}
         </div>
@@ -5241,15 +5241,15 @@ function platformConfigPage(
 
         <!-- Live Keys -->
         <div style="background:#22c55e10;border:1px solid #22c55e30;border-radius:8px;padding:14px 16px;margin-bottom:16px;">
-          <div style="font-size:13px;font-weight:700;color:#22c55e;margin-bottom:12px;">🟢 Live Keys — used when Test Mode is OFF</div>
-          ${field("stripe_live_secret_key", "Live Secret Key (stored)", "Stored separately — used by the mode toggle to activate live mode", true, "sk_live_...", cfgMap["STRIPE_LIVE_SECRET_KEY"] || "")}
-          ${field("stripe_live_publishable_key", "Live Publishable Key (stored)", "Stored separately — used by the mode toggle to activate live mode", false, "pk_live_...", cfgMap["STRIPE_LIVE_PUBLISHABLE_KEY"] || "")}
-          ${field("stripe_live_webhook_secret", "Live Webhook Secret (stored)", "Stripe Dashboard → Webhooks → Signing Secret (whsec_...) — for live mode", true, "whsec_...", cfgMap["STRIPE_LIVE_WEBHOOK_SECRET"] || "")}
+          <div style="font-size:13px;font-weight:700;color:#22c55e;margin-bottom:12px;">🟢 Live Keys - used when Test Mode is OFF</div>
+          ${field("stripe_live_secret_key", "Live Secret Key (stored)", "Stored separately - used by the mode toggle to activate live mode", true, "sk_live_...", cfgMap["STRIPE_LIVE_SECRET_KEY"] || "")}
+          ${field("stripe_live_publishable_key", "Live Publishable Key (stored)", "Stored separately - used by the mode toggle to activate live mode", false, "pk_live_...", cfgMap["STRIPE_LIVE_PUBLISHABLE_KEY"] || "")}
+          ${field("stripe_live_webhook_secret", "Live Webhook Secret (stored)", "Stripe Dashboard → Webhooks → Signing Secret (whsec_...) - for live mode", true, "whsec_...", cfgMap["STRIPE_LIVE_WEBHOOK_SECRET"] || "")}
           <div style="margin-top:10px;padding:10px 12px;background:#22c55e08;border:1px solid #22c55e20;border-radius:6px;">
             <div style="font-size:11px;font-weight:700;color:#22c55e;margin-bottom:4px;">Active rows (read by Stripe at runtime):</div>
-            ${field("stripe_secret_key", "Active Secret Key", "Currently active — auto-updated by mode toggle", true, "sk_live_...", cfgMap["STRIPE_SECRET_KEY"] || "")}
-            ${field("stripe_publishable_key", "Active Publishable Key", "Currently active — auto-updated by mode toggle", false, "pk_live_...", cfgMap["STRIPE_PUBLISHABLE_KEY"] || "")}
-            ${field("stripe_webhook_secret", "Active Webhook Secret", "Currently active — auto-updated by mode toggle", true, "whsec_...", cfgMap["STRIPE_WEBHOOK_SECRET"] || "")}
+            ${field("stripe_secret_key", "Active Secret Key", "Currently active - auto-updated by mode toggle", true, "sk_live_...", cfgMap["STRIPE_SECRET_KEY"] || "")}
+            ${field("stripe_publishable_key", "Active Publishable Key", "Currently active - auto-updated by mode toggle", false, "pk_live_...", cfgMap["STRIPE_PUBLISHABLE_KEY"] || "")}
+            ${field("stripe_webhook_secret", "Active Webhook Secret", "Currently active - auto-updated by mode toggle", true, "whsec_...", cfgMap["STRIPE_WEBHOOK_SECRET"] || "")}
           </div>
         </div>
 
@@ -5257,14 +5257,14 @@ function platformConfigPage(
         <label style="display:flex;align-items:center;gap:10px;font-size:14px;cursor:pointer;margin-bottom:16px;background:#f59e0b10;border:1px solid #f59e0b30;border-radius:8px;padding:12px 14px;" id="stripeTestModeLabel">
           <input type="checkbox" name="stripe_test_mode" id="stripeTestModeChk" value="true" ${(cfgMap["STRIPE_TEST_MODE"] === "true") ? "checked" : ""} style="width:18px;height:18px;cursor:pointer;" />
           <div>
-            <div style="font-weight:700;">🧪 Test Mode — Use test keys instead of live keys</div>
+            <div style="font-weight:700;">🧪 Test Mode - Use test keys instead of live keys</div>
             <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">When checked, all Stripe operations use the test credentials below. Safe for development and QA.</div>
           </div>
         </label>
 
         <!-- Test Keys (shown/hidden based on checkbox) -->
         <div id="stripeTestKeysSection" style="display:${isStripeTestMode ? 'block' : 'none'};background:#f59e0b10;border:1px solid #f59e0b30;border-radius:8px;padding:14px 16px;margin-bottom:16px;">
-          <div style="font-size:13px;font-weight:700;color:#f59e0b;margin-bottom:12px;">🟡 Test Keys — used when Test Mode is ON</div>
+          <div style="font-size:13px;font-weight:700;color:#f59e0b;margin-bottom:12px;">🟡 Test Keys - used when Test Mode is ON</div>
           ${field("stripe_test_secret_key", "Test Secret Key", "Stripe Dashboard → Developers → API Keys (sk_test_...)", true, "sk_test_...", cfgMap["STRIPE_TEST_SECRET_KEY"] || "")}
           ${field("stripe_test_publishable_key", "Test Publishable Key", "Stripe Dashboard → Developers → API Keys (pk_test_...)", false, "pk_test_...", cfgMap["STRIPE_TEST_PUBLISHABLE_KEY"] || "")}
           ${field("stripe_test_webhook_secret", "Test Webhook Secret", "Stripe Dashboard → Webhooks → Signing Secret (whsec_...)", true, "whsec_...", cfgMap["STRIPE_TEST_WEBHOOK_SECRET"] || "")}
@@ -5304,12 +5304,12 @@ function platformConfigPage(
       </div>
 
     <script>
-    var form = document.querySelector('form[action="/api/admin/platform-config"]');
+    var form = document.getElementById('platformConfigForm');
     (function() {
       var btn = document.getElementById('savePlatformBtn');
       if (!form || !btn) return;
 
-      // ── Validation rules (only applied when field is non-empty) ──────────────
+      // -- Validation rules (only applied when field is non-empty) --------------
       var RULES = {
         twilio_account_sid: {
           test: function(v) { return new RegExp('^AC[a-f0-9]{32}$', 'i').test(v); },
@@ -5361,7 +5361,7 @@ function platformConfigPage(
         }
       };
 
-      // ── Test Mode toggle: show/hide test keys section ─────────────────────────
+      // -- Test Mode toggle: show/hide test keys section -------------------------
       var testModeChk = document.getElementById('stripeTestModeChk');
       var testKeysSection = document.getElementById('stripeTestKeysSection');
       if (testModeChk && testKeysSection) {
@@ -5370,7 +5370,7 @@ function platformConfigPage(
         });
       }
 
-      // ── Inject error hint elements next to each validated input ──────────────
+      // -- Inject error hint elements next to each validated input --------------
       Object.keys(RULES).forEach(function(name) {
         var input = form.querySelector('[name="' + name + '"]');
         if (!input) return;
@@ -5381,7 +5381,7 @@ function platformConfigPage(
         input.parentNode.insertBefore(hint, input.nextSibling);
       });
 
-      // ── Snapshot initial values ──────────────────────────────────────────────
+      // -- Snapshot initial values ----------------------------------------------
       var initial = {};
       form.querySelectorAll('input, textarea, select').forEach(function(el) {
         var key = el.name || el.id;
@@ -5389,14 +5389,14 @@ function platformConfigPage(
         initial[key] = el.type === 'checkbox' ? el.checked : el.value;
       });
 
-      // ── Validate a single field, show/hide hint, return isValid ─────────────
+      // -- Validate a single field, show/hide hint, return isValid -------------
       function validateField(name, value) {
         var rule = RULES[name];
         var hint = document.getElementById('hint_' + name);
         if (!rule || !hint) return true;
         var input = form.querySelector('[name="' + name + '"]');
         if (!value || value.trim() === '') {
-          // Empty is allowed — clear error state
+          // Empty is allowed - clear error state
           hint.style.display = 'none';
           if (input) input.style.borderColor = 'var(--border)';
           return true;
@@ -5407,7 +5407,7 @@ function platformConfigPage(
         return valid;
       }
 
-      // ── Check dirty + all validations, then update Save button ──────────────
+      // -- Check dirty + all validations, then update Save button --------------
       function checkForm() {
         var dirty = false;
         var allValid = true;
@@ -5437,11 +5437,11 @@ function platformConfigPage(
       form.addEventListener('change', checkForm);
     })();
 
-    // ── Test Connection helpers (global scope so onclick= can call them) ────
+    // -- Test Connection helpers (global scope so onclick= can call them) ----
     window.testTwilio = async function testTwilio() {
       var btn = document.getElementById('testTwilioBtn');
       var result = document.getElementById('twilioTestResult');
-      var f = document.querySelector('form[action="/api/admin/platform-config"]');
+      var f = document.getElementById('platformConfigForm');
       if (!f || !btn || !result) return;
       var sidEl = f.querySelector('[name="twilio_account_sid"]');
       var tokenEl = f.querySelector('[name="twilio_auth_token"]');
@@ -5478,7 +5478,7 @@ function platformConfigPage(
       }
     }
 
-    // ── Per-Business OTP Override helpers ─────────────────────────────────
+    // -- Per-Business OTP Override helpers ---------------------------------
     var BIZ_LIST = ${JSON.stringify(bizList.map(b => ({ id: b.id, name: b.businessName, phone: b.phone })))};
 
     function checkPhoneOtpRows() {
@@ -5609,7 +5609,7 @@ function platformConfigPage(
       } catch (e) { /* ignore */ }
     };
     loadTwilioAccountStatus();
-    // Auto-run Test Connection on page load (silent — only shows result if credentials are set)
+    // Auto-run Test Connection on page load (silent - only shows result if credentials are set)
     setTimeout(function() { if (typeof testTwilio === 'function') testTwilio(); }, 800);
 
     // Show/hide per-business OTP section when test mode checkbox changes
@@ -5621,7 +5621,7 @@ function platformConfigPage(
       });
     }
 
-    // ── Admin OTP Send / Verify / Usage ────────────────────────────────────────
+    // -- Admin OTP Send / Verify / Usage ----------------------------------------
 
     // Helper: show a coloured banner above the send row
     function showOtpBanner(type, html) {
@@ -5642,7 +5642,7 @@ function platformConfigPage(
     }
 
     window.resetOtpPanel = function resetOtpPanel() {
-      // Verify row is always visible — just clear the code input and banner
+      // Verify row is always visible - just clear the code input and banner
       document.getElementById('otpPanelResult').textContent = '';
       document.getElementById('otpPanelResult').style.color = '';
       hideOtpBanner();
@@ -5693,7 +5693,7 @@ function platformConfigPage(
             : '<span style="background:#ef444420;color:#ef4444;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;">Failed</span>';
           var errCell = e.errorMessage
             ? '<span style="font-size:11px;color:#ef4444;">' + e.errorMessage.substring(0, 60) + (e.errorMessage.length > 60 ? '…' : '') + '</span>'
-            : '<span style="color:var(--text-muted);font-size:11px;">—</span>';
+            : '<span style="color:var(--text-muted);font-size:11px;">-</span>';
           return '<tr style="border-bottom:1px solid var(--border);">'
             + '<td style="padding:8px 10px;font-size:13px;font-family:monospace;">' + e.phone + '</td>'
             + '<td style="padding:8px 10px;font-size:12px;color:var(--text-muted);white-space:nowrap;">' + timeStr + '</td>'
@@ -5769,14 +5769,14 @@ function platformConfigPage(
             '❌ <strong>Failed to send OTP.</strong><br>' +
             '<span style="font-weight:400;">' + (data.message || 'Unknown error from Twilio.') + '</span><br>' +
             '<span style="font-size:12px;opacity:0.8;">Check that Account SID, Auth Token, and Verify Service SID are saved correctly above.</span>');
-          // Re-enable button on failure (no cooldown — let them retry immediately)
+          // Re-enable button on failure (no cooldown - let them retry immediately)
           btn.disabled = false;
           btn.textContent = '📤 Send OTP';
           // Also refresh log so failure row appears
           setTimeout(loadOtpLog, 1500);
         }
       } catch (e) {
-        showOtpBanner('error', '❌ <strong>Network error</strong> — could not reach the server. Please try again.');
+        showOtpBanner('error', '❌ <strong>Network error</strong> - could not reach the server. Please try again.');
         // Re-enable button on network error (no cooldown)
         btn.disabled = false;
         btn.textContent = '📤 Send OTP';
@@ -5822,7 +5822,7 @@ function platformConfigPage(
             '<span style="font-size:12px;opacity:0.8;">Codes expire after 10 minutes. Try sending a new OTP.</span>');
         }
       } catch (e) {
-        showOtpBanner('error', '❌ <strong>Network error</strong> — could not reach the server.');
+        showOtpBanner('error', '❌ <strong>Network error</strong> - could not reach the server.');
       } finally {
         btn.disabled = false;
         btn.textContent = '✅ Verify Code';
@@ -5832,11 +5832,11 @@ function platformConfigPage(
     window.testStripe = async function testStripe() {
       var btn = document.getElementById('testStripeBtn');
       var result = document.getElementById('stripeTestResult');
-      var f2 = document.querySelector('form[action="/api/admin/platform-config"]');
-      if (!f2 || !btn || !result) return;
+      var f2 = document.getElementById('platformConfigForm');
+      if (!btn || !result) return;
       var isTestMode = document.getElementById('stripeTestModeChk') && document.getElementById('stripeTestModeChk').checked;
       var keyName = isTestMode ? 'stripe_test_secret_key' : 'stripe_secret_key';
-      var keyEl = f2.querySelector('[name="' + keyName + '"]');
+      var keyEl = document.querySelector('[name="' + keyName + '"]');
       var key = keyEl ? keyEl.value.trim() : '';
       if (!key) {
         result.textContent = isTestMode ? '⚠️ Enter Test Secret Key first' : '⚠️ Enter Live Secret Key first';
@@ -5868,18 +5868,18 @@ function platformConfigPage(
         btn.textContent = '🔌 Test Connection';
       }
     }
-    // Auto-run Stripe Test Connection on page load (silent — only shows result if key is set)
+    // Auto-run Stripe Test Connection on page load (silent - only shows result if key is set)
     setTimeout(function() { if (typeof testStripe === 'function') testStripe(); }, 1200);
 
-    // ── Full Stripe Transaction Suite ─────────────────────────────────────────────────
+    // -- Full Stripe Transaction Suite -------------------------------------------------
     window.runStripeSuite = async function runStripeSuite() {
       var btn = document.getElementById('stripeFullSuiteBtn');
       var logEl = document.getElementById('stripeSuiteLog');
       var resultEl = document.getElementById('stripeTestResult');
-      var f2 = document.querySelector('form[action="/api/admin/platform-config"]');
-      if (!btn || !logEl || !f2) return;
+      var f2 = document.getElementById('platformConfigForm');
+      if (!btn || !logEl) return;
       var isTestModeS = document.getElementById('stripeTestModeChk') && document.getElementById('stripeTestModeChk').checked;
-      var suiteKeyEl = f2.querySelector(isTestModeS ? '[name="stripe_test_secret_key"]' : '[name="stripe_secret_key"]');
+      var suiteKeyEl = document.querySelector(isTestModeS ? '[name="stripe_test_secret_key"]' : '[name="stripe_secret_key"]');
       var key = suiteKeyEl ? suiteKeyEl.value.trim() : '';
       if (!key) {
         resultEl.textContent = isTestModeS ? '⚠️ Enter Test Secret Key first' : '⚠️ Enter Live Secret Key first';
@@ -5895,14 +5895,14 @@ function platformConfigPage(
       btn.textContent = '⏳ Running suite...';
       resultEl.textContent = '';
       logEl.style.display = 'block';
-      logEl.innerHTML = '<div style="color:#a78bfa;font-weight:700;margin-bottom:8px;">Stripe Transaction Suite — ' + new Date().toLocaleTimeString() + '</div>';
+      logEl.innerHTML = '<div style="color:#a78bfa;font-weight:700;margin-bottom:8px;">Stripe Transaction Suite - ' + new Date().toLocaleTimeString() + '</div>';
 
       function logStep(step, ok, detail) {
         var color = ok ? '#22c55e' : '#ef4444';
         var icon = ok ? '✅' : '❌';
         logEl.innerHTML += '<div style="padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.06);">' +
           '<span style="color:' + color + ';">' + icon + ' ' + step + '</span>' +
-          (detail ? '<span style="color:#94a3b8;"> — ' + detail + '</span>' : '') + '</div>';
+          (detail ? '<span style="color:#94a3b8;"> - ' + detail + '</span>' : '') + '</div>';
         logEl.scrollTop = logEl.scrollHeight;
       }
 
@@ -5923,7 +5923,7 @@ function platformConfigPage(
           var total = (data.steps || []).length;
           var summary = passed + '/' + total + ' steps passed';
           logEl.innerHTML += '<div style="margin-top:10px;font-weight:700;color:' + (data.ok ? '#22c55e' : '#f59e0b') + ';">' +
-            (data.ok ? '✅ All tests passed — ' : '⚠️ Partial pass — ') + summary + '</div>';
+            (data.ok ? '✅ All tests passed - ' : '⚠️ Partial pass - ') + summary + '</div>';
           resultEl.textContent = (data.ok ? '✅ Suite passed (' : '⚠️ Suite partial (') + summary + ')';
           resultEl.style.color = data.ok ? '#22c55e' : '#f59e0b';
         }
@@ -5937,7 +5937,7 @@ function platformConfigPage(
       }
     };
 
-    // ── Save & Test helpers ─────────────────────────────────────────────────
+    // -- Save & Test helpers -------------------------------------------------
     window.saveThenTestTwilio = async function saveThenTestTwilio() {
       var btn = document.getElementById('saveTwilioBtn');
       var result = document.getElementById('twilioTestResult');
@@ -5946,7 +5946,7 @@ function platformConfigPage(
       btn.textContent = '\u23f3 Saving...';
       result.textContent = '';
       // Submit the form via fetch (same endpoint as the form POST)
-      var f = document.querySelector('form[action="/api/admin/platform-config"]');
+      var f = document.getElementById('platformConfigForm');
       if (!f) { btn.disabled = false; btn.textContent = '\ud83d\udcbe Save & Test'; return; }
       try {
         var formData = new FormData(f);
@@ -5980,12 +5980,17 @@ function platformConfigPage(
       btn.disabled = true;
       btn.textContent = '\u23f3 Saving...';
       result.textContent = '';
-      var f = document.querySelector('form[action="/api/admin/platform-config"]');
+      var f = document.getElementById('platformConfigForm');
       if (!f) { btn.disabled = false; btn.textContent = '\ud83d\udcbe Save & Test'; return; }
       try {
         var formData = new FormData(f);
         var params = new URLSearchParams();
         formData.forEach(function(v, k) { params.append(k, v.toString()); });
+        // Collect Stripe inputs that are outside the form
+        var stripeNames = ['stripe_live_secret_key','stripe_live_publishable_key','stripe_live_webhook_secret','stripe_secret_key','stripe_publishable_key','stripe_webhook_secret','stripe_test_secret_key','stripe_test_publishable_key','stripe_test_webhook_secret'];
+        stripeNames.forEach(function(name) { var el = document.querySelector('[name="' + name + '"]'); if (el && el.value) params.set(name, el.value); });
+        var testModeChk = document.getElementById('stripeTestModeChk');
+        if (testModeChk) params.set('stripe_test_mode', testModeChk.checked ? '1' : '0');
         await fetch('/api/admin/platform-config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -6009,7 +6014,7 @@ function platformConfigPage(
       var btn = document.getElementById('stripeModeToggleBtn');
       var result = document.getElementById('stripeTestResult');
       if (!btn) return;
-      var confirmed = confirm('Switch Stripe to ' + targetMode.toUpperCase() + ' mode?\n\nThis will update the active Stripe keys immediately. All new Stripe operations will use the ' + targetMode + ' keys.');
+      var confirmed = confirm('Switch Stripe to ' + targetMode.toUpperCase() + ' mode?\\n\\nThis will update the active Stripe keys immediately. All new Stripe operations will use the ' + targetMode + ' keys.');
       if (!confirmed) return;
       btn.disabled = true;
       btn.textContent = '\u23f3 Switching...';
@@ -6059,7 +6064,7 @@ function platformConfigPage(
             lines.push(icon + ' ' + r.endpoint + ': ' + r.status + (r.webhookId ? ' (ID: ' + r.webhookId + ')' : '') + (r.secretSaved ? ' \u2014 secret saved to DB' : '') + (r.error ? ' \u2014 ' + r.error : ''));
           });
         }
-        resultEl.textContent = lines.join('\n');
+        resultEl.textContent = lines.join('\\n');
         resultEl.style.color = data.ok ? '#22c55e' : '#f59e0b';
       } catch (e) {
         resultEl.textContent = '\u274c Error: ' + (e.message || 'Request failed');
@@ -6071,7 +6076,7 @@ function platformConfigPage(
     </script>
   `);
 }
-// ─── Financial Page ──────────────────────────────────────────────────
+// --- Financial Page --------------------------------------------------
 function financialPage(data: {
   monthlyData: { month: string; rev: number; apptCount: number }[];
   yearlyData: { year: string; apptRev: number; subRev: number; total: number; apptCount: number }[];
@@ -6138,14 +6143,14 @@ function financialPage(data: {
     </style>
 
     <div class="print-header">
-      <h1 style="font-size:24px;font-weight:700;">Lime Of Time — Financial Report</h1>
+      <h1 style="font-size:24px;font-weight:700;">Lime Of Time - Financial Report</h1>
       <p style="color:#666;margin-top:4px;">Generated on ${printDate} &nbsp;|&nbsp; Fiscal Year ${data.currentYear}</p>
     </div>
 
     <div class="page-header no-print">
       <div>
         <h2>Financial Analytics</h2>
-        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">Revenue, tax estimates &amp; year-end reporting — Fiscal Year ${data.currentYear}</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">Revenue, tax estimates &amp; year-end reporting - Fiscal Year ${data.currentYear}</div>
       </div>
       <div style="display:flex;gap:8px;">
         <button onclick="window.print()" class="btn btn-primary no-print" style="gap:6px;">🖨️ Print / Save PDF</button>
@@ -6278,7 +6283,7 @@ function financialPage(data: {
     <div id="tab-quarterly" class="tab-panel">
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-          <h3 style="margin:0;">Quarterly Revenue &amp; Tax Estimates — ${data.currentYear}</h3>
+          <h3 style="margin:0;">Quarterly Revenue &amp; Tax Estimates - ${data.currentYear}</h3>
           <span style="font-size:12px;color:var(--text-muted);">Click bars to see quarter details</span>
         </div>
         <div class="chart-container">
@@ -6336,7 +6341,7 @@ function financialPage(data: {
     <div id="tab-expenses" class="tab-panel">
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-          <h3 style="margin:0;">💸 Expenses — ${data.currentYear}</h3>
+          <h3 style="margin:0;">💸 Expenses - ${data.currentYear}</h3>
           <div style="display:flex;gap:8px;">
             <a href="/api/admin/financial/export/expenses?year=${data.currentYear}" class="btn btn-secondary btn-sm no-print">⬇️ Download CSV</a>
           </div>
@@ -6433,7 +6438,7 @@ function financialPage(data: {
     <div id="tab-taxprep" class="tab-panel">
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-          <h3 style="margin:0;">📋 Year-End Tax Preparation — ${data.currentYear}</h3>
+          <h3 style="margin:0;">📋 Year-End Tax Preparation - ${data.currentYear}</h3>
           <button onclick="window.print()" class="btn btn-primary no-print" style="font-size:13px;">🖨️ Print / Save PDF</button>
         </div>
 
@@ -6472,7 +6477,7 @@ function financialPage(data: {
             ${data.quarters.map((q, i) => {
               const total = q.apptRev + q.subRev;
               const tax = total * 0.30;
-              const periods = ['Jan 1 – Mar 31', 'Apr 1 – May 31', 'Jun 1 – Aug 31', 'Sep 1 – Dec 31'];
+              const periods = ['Jan 1 - Mar 31', 'Apr 1 - May 31', 'Jun 1 - Aug 31', 'Sep 1 - Dec 31'];
               const dueDates = [`Apr 15, ${data.currentYear}`, `Jun 16, ${data.currentYear}`, `Sep 15, ${data.currentYear}`, `Jan 15, ${data.currentYear + 1}`];
               return `<tr>
                 <td style="font-size:12px;color:var(--text-muted);">${periods[i]}</td>
@@ -6510,7 +6515,7 @@ function financialPage(data: {
           const i = els[0].index;
           const d = document.getElementById('monthlyDetail');
           d.style.display = 'block';
-          d.innerHTML = '<strong>' + monthlyRevData.labels[i] + '</strong> — Revenue: <strong style="color:#4a8c3f">$' + monthlyRevData.values[i].toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + '</strong> &nbsp;|&nbsp; Appointments: <strong>' + monthlyRevData.appts[i] + '</strong>';
+          d.innerHTML = '<strong>' + monthlyRevData.labels[i] + '</strong> - Revenue: <strong style="color:#4a8c3f">$' + monthlyRevData.values[i].toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + '</strong> &nbsp;|&nbsp; Appointments: <strong>' + monthlyRevData.appts[i] + '</strong>';
         }}
       });
 
@@ -6537,7 +6542,7 @@ function financialPage(data: {
           const total = yearlyRevData.apptRev[i] + yearlyRevData.subRev[i];
           const d = document.getElementById('yearlyDetail');
           d.style.display = 'block';
-          d.innerHTML = '<strong>' + yearlyRevData.labels[i] + '</strong> — Appt: <strong style="color:#0a7ea4">$' + yearlyRevData.apptRev[i].toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + '</strong> &nbsp;|&nbsp; Sub: <strong style="color:#7c3aed">$' + yearlyRevData.subRev[i].toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + '</strong> &nbsp;|&nbsp; Total: <strong style="color:#059669">$' + total.toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + '</strong>';
+          d.innerHTML = '<strong>' + yearlyRevData.labels[i] + '</strong> - Appt: <strong style="color:#0a7ea4">$' + yearlyRevData.apptRev[i].toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + '</strong> &nbsp;|&nbsp; Sub: <strong style="color:#7c3aed">$' + yearlyRevData.subRev[i].toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + '</strong> &nbsp;|&nbsp; Total: <strong style="color:#059669">$' + total.toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + '</strong>';
         }}
       });
 
@@ -6557,7 +6562,7 @@ function financialPage(data: {
           const total = qData.apptRev[i] + qData.subRev[i];
           const d = document.getElementById('quarterlyDetail');
           d.style.display = 'block';
-          d.innerHTML = '<strong>' + qData.labels[i] + '</strong> — Revenue: <strong style="color:#059669">$' + total.toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + '</strong> &nbsp;|&nbsp; Est. Tax: <strong style="color:#ef4444">$' + qData.tax[i].toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + '</strong>';
+          d.innerHTML = '<strong>' + qData.labels[i] + '</strong> - Revenue: <strong style="color:#059669">$' + total.toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + '</strong> &nbsp;|&nbsp; Est. Tax: <strong style="color:#ef4444">$' + qData.tax[i].toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + '</strong>';
         }}
       });
 
@@ -6604,7 +6609,7 @@ function financialPage(data: {
   `);
 }
 
-// ─── Dev Testing Page ─────────────────────────────────────────────────────────
+// --- Dev Testing Page ---------------------------------------------------------
 function devTestingPage(bizOptions: string): string {
   return `
     <div class="page-header">
