@@ -1740,6 +1740,25 @@ export function registerPublicRoutes(app: Express) {
       res.status(500).json({ error: "Internal server error" });
     }
   });
+  /** Public staff list for gift page */
+  app.get("/api/public/business/:slug/staff-list", async (req: Request, res: Response) => {
+    try {
+      const owner = await db.getBusinessOwnerBySlug(req.params.slug);
+      if (!owner) { res.status(404).json({ error: "Business not found" }); return; }
+      const staffList = await db.getStaffByOwner(owner.id);
+      res.json({
+        staff: (staffList as any[]).filter(s => s.available !== false).map(s => ({
+          localId: s.localId, name: s.name, role: s.role || null,
+          photoUri: s.photoUri || null, color: s.color || null,
+          serviceIds: s.serviceIds ? (Array.isArray(s.serviceIds) ? s.serviceIds : JSON.parse(s.serviceIds)) : [],
+          locationIds: s.locationIds ? (Array.isArray(s.locationIds) ? s.locationIds : JSON.parse(s.locationIds)) : [],
+        })),
+      });
+    } catch (err) {
+      console.error("[Public] Error fetching staff list:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
 
   app.post("/api/public/business/:slug/buy-gift", async (req: Request, res: Response) => {
     try {
@@ -2450,9 +2469,9 @@ function baseStyles(): string {
 function buyGiftPage(slug: string, owner: any): string {
   const bizName = (owner.businessName || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   const logoUri = owner.logoUrl || owner.businessLogoUri || "";
-  const logoTag = logoUri
-    ? `<img src="${logoUri.replace(/"/g,"&quot;")}" alt="${bizName}" class="biz-logo">`
-    : `<div class="biz-logo-placeholder">🎁</div>`;
+  // Always show the original app icon (Lime Of Time brand) on the gift page
+  const APP_ICON_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/app-icon-lime-of-time.png";
+  const logoTag = `<img src="${APP_ICON_URL}" alt="Lime Of Time" class="biz-logo" onerror="this.src='${logoUri || ''}';this.onerror=null;">`;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2634,6 +2653,10 @@ function buyGiftPage(slug: string, owner: any): string {
     </div>
     <div class="step-item" id="si3">
       <div class="step-dot" id="sd3">4</div>
+      <div class="step-label">Staff</div>
+    </div>
+    <div class="step-item" id="si4">
+      <div class="step-dot" id="sd4">5</div>
       <div class="step-label">Payment</div>
     </div>
   </div>
@@ -2736,12 +2759,24 @@ function buyGiftPage(slug: string, owner: any): string {
     </div>
   </div>
 
-  <!-- Step 3: Payment -->
+  <!-- Step 3: Staff Selection (shown when I Pick the Date) -->
   <div id="step3" class="hidden card" style="margin-top:8px;">
+    <h2>Choose a Staff Member</h2>
+    <p class="card-sub">Select a staff member for the appointment, or choose <strong>Any Available</strong>.</p>
+    <button onclick="giftSkipStaff()" style="width:100%;padding:11px 16px;background:var(--bg-card);border:1.5px dashed var(--border);border-radius:12px;font-size:13px;font-weight:600;color:var(--textm);cursor:pointer;margin-bottom:14px;transition:all .15s;">Skip → Any Available</button>
+    <div id="giftStaffList" style="display:flex;flex-direction:column;gap:8px;"></div>
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button class="btn btn-secondary" onclick="goToStep(2)" style="flex:1">Back</button>
+      <button class="btn btn-primary btn-flex" onclick="goToStep(4)">Continue</button>
+    </div>
+  </div>
+
+  <!-- Step 4: Payment -->
+  <div id="step4" class="hidden card" style="margin-top:8px;">
     <h2>Complete Payment</h2>
     <p class="card-sub">Choose how you'd like to pay for this gift.</p>
     <div id="paymentList"></div>
-    <div id="paymentError" class="err-msg hidden"></div>
+    <div id="paymentError" class="err-msg hidden" style="color:var(--err);font-size:13px;margin-top:8px;"></div>
   </div>
 
   <!-- Sticky footer -->
@@ -2772,6 +2807,11 @@ let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
 let currentCat = null;
 let currentItemTab = 'services';
 let isSubmitting = false;
+// ── Gift staff state ──────────────────────────────────────────────────
+let giftStaffMembers = [];
+let giftSelectedStaff = null; // null = any available
+let giftWorkingDays = { weeklyDays: {}, customDays: {}, scheduleMode: 'weekly', businessHoursEndDate: null, _loaded: false };
+const GIFT_DAYS_MAP = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
 // ── Load data ──────────────────────────────────────────────────────────
 async function loadData() {
@@ -2788,6 +2828,116 @@ async function loadData() {
   } catch(e) {
     document.getElementById('svcCatGrid').innerHTML = '<p style="color:var(--err);font-size:13px;">Failed to load services. Please refresh.</p>';
   }
+}
+
+// ── Gift staff functions ───────────────────────────────────────────────
+async function loadGiftStaff() {
+  try {
+    const r = await fetch('/api/public/business/' + SLUG + '/staff-list');
+    if (r.ok) {
+      const d = await r.json();
+      giftStaffMembers = d.staff || [];
+    }
+  } catch(e) {}
+  renderGiftStaffList();
+}
+
+async function loadGiftWorkingDays() {
+  try {
+    const r = await fetch('/api/public/business/' + SLUG + '/working-days');
+    if (r.ok) {
+      const d = await r.json();
+      giftWorkingDays = Object.assign(d, { _loaded: true });
+    }
+  } catch(e) {}
+}
+
+function isGiftWorkingDay(dateStr) {
+  if (giftWorkingDays.businessHoursEndDate && dateStr > giftWorkingDays.businessHoursEndDate) return false;
+  if (giftWorkingDays.scheduleMode === 'custom') {
+    return giftWorkingDays.customDays.hasOwnProperty(dateStr) && giftWorkingDays.customDays[dateStr] === true;
+  }
+  if (giftWorkingDays.customDays && giftWorkingDays.customDays.hasOwnProperty(dateStr)) return giftWorkingDays.customDays[dateStr];
+  const d = new Date(dateStr + 'T12:00:00');
+  const dayName = GIFT_DAYS_MAP[d.getDay()];
+  return !!(giftWorkingDays.weeklyDays && giftWorkingDays.weeklyDays[dayName]);
+}
+
+function renderGiftStaffList() {
+  const list = document.getElementById('giftStaffList');
+  if (!list) return;
+  const svcIds = Array.from(selectedServiceIds);
+  const eligible = giftStaffMembers.filter(function(s) {
+    if (!s.serviceIds || s.serviceIds.length === 0) return true;
+    return svcIds.length === 0 || svcIds.some(function(id) { return s.serviceIds.includes(id); });
+  });
+  const anySelected = !giftSelectedStaff;
+  let html = '<div onclick="giftSelectStaff(null)" id="gstaff-any" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;border:2px solid ' + (anySelected ? 'var(--gift)' : 'var(--border)') + ';background:' + (anySelected ? 'var(--gift-bg)' : 'var(--bg-card)') + ';cursor:pointer;margin-bottom:6px;">' +
+    '<div style="width:40px;height:40px;border-radius:50%;background:#88888820;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">👤</div>' +
+    '<div style="flex:1;"><div style="font-size:14px;font-weight:700;color:var(--text);">Any Available</div>' +
+    '<div style="font-size:12px;color:var(--textm);">First available staff member</div></div>' +
+    '<span style="width:9px;height:9px;border-radius:50%;background:#22c55e;display:inline-block;flex-shrink:0;" title="Available"></span>' +
+    '</div>';
+  eligible.forEach(function(s) {
+    var isSelected = giftSelectedStaff && giftSelectedStaff.localId === s.localId;
+    var avatar = s.photoUri
+      ? '<img src="' + escH(s.photoUri) + '" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0;" />'
+      : '<div style="width:40px;height:40px;border-radius:50%;background:' + (s.color || '#6366f1') + '20;color:' + (s.color || '#6366f1') + ';display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;flex-shrink:0;">' + escH((s.name||'?')[0].toUpperCase()) + '</div>';
+    html += '<div onclick="giftSelectStaff(' + JSON.stringify(s.localId) + ')" id="gstaff-' + escH(s.localId) + '" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;border:2px solid ' + (isSelected ? 'var(--gift)' : 'var(--border)') + ';background:' + (isSelected ? 'var(--gift-bg)' : 'var(--bg-card)') + ';cursor:pointer;margin-bottom:6px;">' +
+      avatar +
+      '<div style="flex:1;"><div style="font-size:14px;font-weight:700;color:var(--text);">' + escH(s.name) + '</div>' +
+      '<div style="font-size:12px;color:var(--textm);">' + escH(s.role || 'Staff') + '</div></div>' +
+      '<span id="gavail-' + escH(s.localId) + '" style="width:9px;height:9px;border-radius:50%;background:#d1d5db;display:inline-block;flex-shrink:0;" title="Checking..."></span>' +
+      '</div>';
+  });
+  list.innerHTML = html;
+  checkGiftStaffAvailability(eligible);
+}
+
+async function checkGiftStaffAvailability(eligible) {
+  const today = new Date();
+  const todayStr = today.toLocaleDateString('en-CA');
+  const nowMinutes = today.getHours() * 60 + today.getMinutes();
+  let dur = 60;
+  if (allServices.length > 0 && selectedServiceIds.size > 0) {
+    const svc = allServices.find(function(s) { return selectedServiceIds.has(s.localId); });
+    if (svc) dur = svc.duration || 60;
+  }
+  const checkDates = [];
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(today); d.setDate(d.getDate() + i);
+    checkDates.push(d.toLocaleDateString('en-CA'));
+  }
+  for (const s of eligible) {
+    let hasSlots = false;
+    for (const ds of checkDates) {
+      try {
+        const r = await fetch('/api/public/business/' + SLUG + '/slots?date=' + ds + '&duration=' + dur + '&staffId=' + encodeURIComponent(s.localId) + '&clientToday=' + encodeURIComponent(todayStr) + '&nowMinutes=' + nowMinutes);
+        const data = await r.json();
+        if (data.slots && data.slots.length > 0) { hasSlots = true; break; }
+      } catch(e) {}
+    }
+    const dot = document.getElementById('gavail-' + s.localId);
+    if (dot) {
+      dot.style.background = hasSlots ? '#22c55e' : '#d1d5db';
+      dot.title = hasSlots ? 'Available' : 'No upcoming availability';
+    }
+  }
+}
+
+function giftSelectStaff(localId) {
+  giftSelectedStaff = localId ? giftStaffMembers.find(function(s) { return s.localId === localId; }) : null;
+  document.querySelectorAll('[id^="gstaff-"]').forEach(function(el) {
+    const isAny = el.id === 'gstaff-any';
+    const isThis = localId ? el.id === 'gstaff-' + localId : isAny;
+    el.style.borderColor = isThis ? 'var(--gift)' : 'var(--border)';
+    el.style.background = isThis ? 'var(--gift-bg)' : 'var(--bg-card)';
+  });
+}
+
+function giftSkipStaff() {
+  giftSelectedStaff = null;
+  goToStep(4);
 }
 
 // ── Item Tab ───────────────────────────────────────────────────────────
@@ -2994,7 +3144,14 @@ function setDateMode(mode) {
   document.getElementById('dtMe').className = 'date-toggle-btn' + (mode === 'me' ? ' active' : '');
   document.getElementById('datePickerWrap').style.display = mode === 'me' ? 'block' : 'none';
   document.getElementById('recipientChooseMsg').style.display = mode === 'recipient' ? 'block' : 'none';
-  if (mode === 'me') renderCal();
+  if (mode === 'me') {
+    if (!giftWorkingDays._loaded) {
+      loadGiftWorkingDays().then(function() { renderCal(); });
+    } else {
+      renderCal();
+    }
+  }
+  updateFooterBtn();
 }
 
 // ── Calendar ───────────────────────────────────────────────────────────
@@ -3002,6 +3159,7 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 function renderCal() {
   document.getElementById('calMonthLabel').textContent = MONTHS[calMonth] + ' ' + calYear;
   const now = new Date(); now.setHours(0,0,0,0);
+  const nowStr = now.toLocaleDateString('en-CA');
   const first = new Date(calYear, calMonth, 1).getDay();
   const days = new Date(calYear, calMonth + 1, 0).getDate();
   // Remove old day cells (keep the 7 label divs at the start)
@@ -3012,18 +3170,65 @@ function renderCal() {
     const el = document.createElement('div');
     grid.appendChild(el);
   }
+  const workingDates = [];
   for (let d = 1; d <= days; d++) {
     const dt = new Date(calYear, calMonth, d);
     const iso = calYear + '-' + String(calMonth+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
     const isPast = dt < now;
     const isSel = selectedDate === iso;
-    const isToday = dt.getTime() === now.getTime();
+    const isToday = iso === nowStr;
+    const isWorking = isGiftWorkingDay(iso);
+    const isDisabled = isPast || !isWorking;
     const el = document.createElement('div');
-    el.className = 'cal-day' + (isPast ? ' disabled' : '') + (isSel ? ' selected' : '') + (isToday && !isSel ? ' today' : '');
-    el.textContent = String(d);
-    if (!isPast) { (function(dateIso) { el.onclick = function() { selectDay(dateIso); }; })(iso); }
+    // Build inner HTML: number + avail dot placeholder
+    el.innerHTML = '<span>' + String(d) + '</span>';
+    el.className = 'cal-day' + (isDisabled ? ' disabled' : '') + (isSel ? ' selected' : '') + (isToday && !isDisabled ? ' today' : '');
+    el.id = 'gcal-day-' + iso;
+    el.dataset.date = iso;
+    if (!isDisabled) {
+      (function(dateIso) { el.onclick = function() { selectDay(dateIso); }; })(iso);
+      workingDates.push(iso);
+    }
     grid.appendChild(el);
   }
+  // Batch check availability for working days
+  checkGiftCalAvailability(workingDates);
+}
+
+async function checkGiftCalAvailability(dates) {
+  const today = new Date();
+  const todayStr = today.toLocaleDateString('en-CA');
+  const nowMinutes = today.getHours() * 60 + today.getMinutes();
+  let dur = 60;
+  if (allServices.length > 0 && selectedServiceIds.size > 0) {
+    const svc = allServices.find(s => selectedServiceIds.has(s.localId));
+    if (svc) dur = svc.duration || 60;
+  }
+  const staffParam = giftSelectedStaff ? '&staffId=' + encodeURIComponent(giftSelectedStaff.localId) : '';
+  const promises = dates.map(async function(ds) {
+    try {
+      const r = await fetch('/api/public/business/' + SLUG + '/slots?date=' + ds + '&duration=' + dur + staffParam + '&clientToday=' + encodeURIComponent(todayStr) + '&nowMinutes=' + nowMinutes);
+      const data = await r.json();
+      return { date: ds, count: data.slots ? data.slots.length : 0 };
+    } catch(e) { return { date: ds, count: 0 }; }
+  });
+  const results = await Promise.all(promises);
+  results.forEach(function(r) {
+    const el = document.getElementById('gcal-day-' + r.date);
+    if (!el) return;
+    if (r.count === 0) {
+      el.classList.add('disabled');
+      el.onclick = null;
+    } else {
+      // Add green availability dot
+      if (!el.querySelector('.avail-dot')) {
+        const dot = document.createElement('span');
+        dot.className = 'avail-dot';
+        dot.style.cssText = 'display:block;width:5px;height:5px;border-radius:50%;background:#22c55e;margin:1px auto 0;';
+        el.appendChild(dot);
+      }
+    }
+  });
 }
 function changeCalMonth(d) {
   calMonth += d;
@@ -3056,16 +3261,22 @@ function selectTime(t) {
 }
 
 // ── Step navigation ────────────────────────────────────────────────────
+function giftGoToStep(n) {
+  // Alias for goToStep in gift page
+  goToStep(n);
+}
 function goToStep(n) {
-  for (let i = 0; i <= 3; i++) {
+  for (let i = 0; i <= 4; i++) {
     const el = document.getElementById('step' + i);
     if (el) { el.classList.add('hidden'); el.style.display = ''; }
   }
   const target = document.getElementById('step' + n);
   if (target) { target.classList.remove('hidden'); target.style.display = 'block'; }
   currentStep = n;
-  // Update step dots
-  for (let i = 0; i < 4; i++) {
+  // When entering step3 (staff), load staff if not loaded yet
+  if (n === 3 && giftStaffMembers.length === 0) loadGiftStaff();
+  // Update step dots (5 steps: 0-4)
+  for (let i = 0; i <= 4; i++) {
     const dot = document.getElementById('sd' + i);
     const item = document.getElementById('si' + i);
     if (dot) dot.className = 'step-dot' + (i < n ? ' done' : i === n ? ' active' : '');
@@ -3085,9 +3296,17 @@ function updateFooterBtn() {
     btn.disabled = false;
     btn.textContent = 'Continue →';
   } else if (currentStep === 2) {
-    btn.disabled = false;
-    btn.textContent = 'Continue →';
+    if (dateMode === 'recipient') {
+      btn.disabled = false;
+      btn.textContent = 'Continue →';
+    } else {
+      btn.disabled = !selectedDate || !selectedTime;
+      btn.textContent = 'Continue →';
+    }
   } else if (currentStep === 3) {
+    btn.disabled = false;
+    btn.textContent = 'Continue to Payment →';
+  } else if (currentStep === 4) {
     btn.disabled = false;
     btn.textContent = isSubmitting ? '' : 'Purchase Gift 🎁';
     if (isSubmitting) btn.innerHTML = '<span class="spinner"></span>';
@@ -3110,8 +3329,16 @@ function handleMainBtn() {
   } else if (currentStep === 2) {
     if (dateMode === 'me' && !selectedDate) { alert('Please select a date.'); return; }
     if (dateMode === 'me' && !selectedTime) { alert('Please select a time.'); return; }
-    goToStep(3);
+    // If picking date, go to staff step; otherwise skip to payment
+    if (dateMode === 'me') {
+      goToStep(3);
+    } else {
+      goToStep(4);
+    }
   } else if (currentStep === 3) {
+    // Staff step — go to payment
+    goToStep(4);
+  } else if (currentStep === 4) {
     if (!selectedPaymentMethod) { document.getElementById('paymentError').textContent = 'Please select a payment method.'; document.getElementById('paymentError').classList.remove('hidden'); return; }
     submitGift();
   }
@@ -3135,6 +3362,7 @@ async function submitGift() {
     recipientChoosesDate: dateMode === 'recipient',
     preselectedDate: dateMode === 'me' ? selectedDate : null,
     preselectedTime: dateMode === 'me' ? selectedTime : null,
+    preselectedStaffId: giftSelectedStaff ? giftSelectedStaff.localId : null,
   };
   try {
     // Step 1: Create the gift record in the database
@@ -4483,7 +4711,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
 <body>
   <div class="container" id="app">
     <div class="header" role="banner">
-      ${owner.logoUrl ? `<img src="${escHtml(owner.logoUrl)}" alt="${escHtml(owner.businessName)} logo" class="biz-logo">` : ''}
+      <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/app-icon-lime-of-time.png" alt="Lime Of Time" class="biz-logo" style="border-radius:20px;">
       <h1>Book with ${escHtml(owner.businessName)}</h1>
       <div class="subtitle">Powered by Lime Of Time</div>
     </div>
@@ -4637,7 +4865,8 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     <!-- Step 3: Staff Selection -->
     <div id="step-3" class="card" style="display:none">
       <h2>Choose a Staff Member</h2>
-      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">Select a staff member for your appointment, or choose <strong>Any Available</strong> to let us assign the first available.</p>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">Select a staff member for your appointment, or choose <strong>Any Available</strong> to let us assign the first available.</p>
+      <button onclick="skipStaffSelection()" style="width:100%;padding:11px 16px;background:var(--bg-card);border:1.5px dashed var(--border);border-radius:12px;font-size:13px;font-weight:600;color:var(--text-secondary);cursor:pointer;margin-bottom:14px;transition:all .15s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">Skip → Any Available</button>
       <div id="staffListStep3" class="service-list"></div>
       <div style="display:flex;gap:8px;margin-top:16px;">
         <button class="btn btn-secondary" onclick="goToStep(2)" style="flex:1">Back</button>
@@ -5325,7 +5554,9 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       let html = '<div class="service-item selected" id="staff-any" onclick="selectStaff(null)">' +
         '<div class="service-dot" style="background:#88888820;color:#888;border-radius:50%;">&#128100;</div>' +
         '<div class="service-info"><div class="service-name">Any Available</div>' +
-        '<div class="service-meta">First available staff member</div></div></div>';
+        '<div class="service-meta">First available staff member</div></div>' +
+        '<span class="staff-avail-dot" id="avail-staff-any" style="width:9px;height:9px;border-radius:50%;background:#22c55e;display:inline-block;margin-left:auto;flex-shrink:0;"></span>' +
+        '</div>';
       eligible.forEach(s => {
         var staffAvatar = s.photoUri
           ? '<div class="service-dot" style="padding:0;overflow:hidden;border-radius:50%;"><img src="' + esc(s.photoUri) + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" /></div>'
@@ -5333,14 +5564,53 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         html += '<div class="service-item" id="staff-' + s.localId + '" onclick="selectStaff(&apos;' + s.localId + '&apos;)">' +
           staffAvatar +
           '<div class="service-info"><div class="service-name">' + esc(s.name) + '</div>' +
-          '<div class="service-meta">' + esc(s.role || 'Staff') + '</div></div></div>';
+          '<div class="service-meta">' + esc(s.role || 'Staff') + '</div></div>' +
+          '<span class="staff-avail-dot" id="avail-staff-' + s.localId + '" style="width:9px;height:9px;border-radius:50%;background:#d1d5db;display:inline-block;margin-left:auto;flex-shrink:0;" title="Checking availability..."></span>' +
+          '</div>';
       });
       list.innerHTML = html;
+      // Check availability for each staff member (using today or first available date)
+      checkStaffAvailability(eligible);
+    }
+    async function checkStaffAvailability(eligible) {
+      // Use the next 7 days to check if each staff member has any availability
+      const today = new Date();
+      const todayStr = today.toLocaleDateString('en-CA');
+      const dur = selectedService ? selectedService.duration : 60;
+      const locParam = selectedLocation ? '&locationId=' + encodeURIComponent(selectedLocation) : '';
+      const nowMinutes = today.getHours() * 60 + today.getMinutes();
+      const clientToday = todayStr;
+      // Check availability for each staff member over the next 14 days
+      const checkDates = [];
+      for (let i = 0; i < 14; i++) {
+        const d = new Date(today); d.setDate(d.getDate() + i);
+        checkDates.push(d.toLocaleDateString('en-CA'));
+      }
+      for (const s of eligible) {
+        let hasSlots = false;
+        for (const ds of checkDates) {
+          try {
+            const r = await fetch(API + '/slots?date=' + ds + '&duration=' + dur + '&staffId=' + encodeURIComponent(s.localId) + locParam + '&clientToday=' + encodeURIComponent(clientToday) + '&nowMinutes=' + nowMinutes);
+            const data = await r.json();
+            if (data.slots && data.slots.length > 0) { hasSlots = true; break; }
+          } catch(e) {}
+        }
+        const dot = document.getElementById('avail-staff-' + s.localId);
+        if (dot) {
+          dot.style.background = hasSlots ? '#22c55e' : '#d1d5db';
+          dot.title = hasSlots ? 'Available' : 'No upcoming availability';
+        }
+      }
+    }
+    function skipStaffSelection() {
+      selectedStaff = null;
+      slotCache = {};
+      goToStep(4);
     }
     function selectStaff(id) {
       selectedStaff = id ? staffMembers.find(s => s.localId === id) : null;
       slotCache = {}; // Clear cache when staff changes
-      document.querySelectorAll("#staffList .service-item").forEach(el => el.classList.remove("selected"));
+      document.querySelectorAll("#staffListStep3 .service-item").forEach(el => el.classList.remove("selected"));
       const el = document.getElementById(id ? "staff-" + id : "staff-any");
       if (el) el.classList.add("selected");
     }
