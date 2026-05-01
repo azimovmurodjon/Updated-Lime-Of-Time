@@ -1004,6 +1004,9 @@ export function registerAdminRoutes(app: Express): void {
         { key: "STRIPE_PUBLISHABLE_KEY", sensitive: false, desc: "Stripe Publishable Key (Live)" },
         { key: "STRIPE_WEBHOOK_SECRET", sensitive: true, desc: "Stripe Webhook Secret (Live)" },
         { key: "STRIPE_TEST_MODE", sensitive: false, desc: "Stripe Test Mode (true/false)" },
+        { key: "STRIPE_LIVE_SECRET_KEY", sensitive: true, desc: "Stripe Secret Key (Live, stored separately)" },
+        { key: "STRIPE_LIVE_PUBLISHABLE_KEY", sensitive: false, desc: "Stripe Publishable Key (Live, stored separately)" },
+        { key: "STRIPE_LIVE_WEBHOOK_SECRET", sensitive: true, desc: "Stripe Webhook Secret (Live, stored separately)" },
         { key: "STRIPE_TEST_SECRET_KEY", sensitive: true, desc: "Stripe Secret Key (Test)" },
         { key: "STRIPE_TEST_PUBLISHABLE_KEY", sensitive: false, desc: "Stripe Publishable Key (Test)" },
         { key: "STRIPE_TEST_WEBHOOK_SECRET", sensitive: true, desc: "Stripe Webhook Secret (Test)" },
@@ -5219,12 +5222,30 @@ function platformConfigPage(
           ${isStripeTestMode ? '<span style="background:#f59e0b20;color:#f59e0b;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;margin-left:auto;">⚠️ TEST MODE ACTIVE</span>' : '<span style="background:#22c55e20;color:#22c55e;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;margin-left:auto;">✅ LIVE MODE</span>'}
         </div>
 
+        <!-- One-click Mode Toggle -->
+        <div style="margin-bottom:18px;background:${isStripeTestMode ? '#f59e0b10' : '#22c55e10'};border:1px solid ${isStripeTestMode ? '#f59e0b40' : '#22c55e40'};border-radius:10px;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+          <div>
+            <div style="font-size:14px;font-weight:700;color:${isStripeTestMode ? '#f59e0b' : '#22c55e'};">Current Mode: ${isStripeTestMode ? '🧪 TEST' : '🟢 LIVE'}</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">${isStripeTestMode ? 'All Stripe operations use test keys. Real cards are NOT charged.' : 'All Stripe operations use live keys. Real charges are processed.'}</div>
+          </div>
+          <button type="button" id="stripeModeToggleBtn" onclick="toggleStripeMode('${isStripeTestMode ? 'live' : 'test'}')"
+            style="background:${isStripeTestMode ? '#22c55e' : '#f59e0b'};color:white;padding:10px 20px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">
+            ${isStripeTestMode ? '🟢 Switch to LIVE Mode' : '🧪 Switch to TEST Mode'}
+          </button>
+        </div>
+
         <!-- Live Keys -->
         <div style="background:#22c55e10;border:1px solid #22c55e30;border-radius:8px;padding:14px 16px;margin-bottom:16px;">
           <div style="font-size:13px;font-weight:700;color:#22c55e;margin-bottom:12px;">🟢 Live Keys — used when Test Mode is OFF</div>
-          ${field("stripe_secret_key", "Live Secret Key", "Stripe Dashboard → Developers → API Keys (sk_live_...)", true, "sk_live_...", cfgMap["STRIPE_SECRET_KEY"] || "")}
-          ${field("stripe_publishable_key", "Live Publishable Key", "Stripe Dashboard → Developers → API Keys (pk_live_...)", false, "pk_live_...", cfgMap["STRIPE_PUBLISHABLE_KEY"] || "")}
-          ${field("stripe_webhook_secret", "Live Webhook Secret", "Stripe Dashboard → Webhooks → Signing Secret (whsec_...)", true, "whsec_...", cfgMap["STRIPE_WEBHOOK_SECRET"] || "")}
+          ${field("stripe_live_secret_key", "Live Secret Key (stored)", "Stored separately — used by the mode toggle to activate live mode", true, "sk_live_...", cfgMap["STRIPE_LIVE_SECRET_KEY"] || "")}
+          ${field("stripe_live_publishable_key", "Live Publishable Key (stored)", "Stored separately — used by the mode toggle to activate live mode", false, "pk_live_...", cfgMap["STRIPE_LIVE_PUBLISHABLE_KEY"] || "")}
+          ${field("stripe_live_webhook_secret", "Live Webhook Secret (stored)", "Stripe Dashboard → Webhooks → Signing Secret (whsec_...) — for live mode", true, "whsec_...", cfgMap["STRIPE_LIVE_WEBHOOK_SECRET"] || "")}
+          <div style="margin-top:10px;padding:10px 12px;background:#22c55e08;border:1px solid #22c55e20;border-radius:6px;">
+            <div style="font-size:11px;font-weight:700;color:#22c55e;margin-bottom:4px;">Active rows (read by Stripe at runtime):</div>
+            ${field("stripe_secret_key", "Active Secret Key", "Currently active — auto-updated by mode toggle", true, "sk_live_...", cfgMap["STRIPE_SECRET_KEY"] || "")}
+            ${field("stripe_publishable_key", "Active Publishable Key", "Currently active — auto-updated by mode toggle", false, "pk_live_...", cfgMap["STRIPE_PUBLISHABLE_KEY"] || "")}
+            ${field("stripe_webhook_secret", "Active Webhook Secret", "Currently active — auto-updated by mode toggle", true, "whsec_...", cfgMap["STRIPE_WEBHOOK_SECRET"] || "")}
+          </div>
         </div>
 
         <!-- Test Mode Toggle -->
@@ -5311,6 +5332,18 @@ function platformConfigPage(
           hint: 'Must start with pk_live_ or pk_test_'
         },
         stripe_webhook_secret: {
+          test: function(v) { return v.startsWith('whsec_'); },
+          hint: 'Must start with whsec_'
+        },
+        stripe_live_secret_key: {
+          test: function(v) { return v.startsWith('sk_live_'); },
+          hint: 'Must start with sk_live_'
+        },
+        stripe_live_publishable_key: {
+          test: function(v) { return v.startsWith('pk_live_'); },
+          hint: 'Must start with pk_live_'
+        },
+        stripe_live_webhook_secret: {
           test: function(v) { return v.startsWith('whsec_'); },
           hint: 'Must start with whsec_'
         },
@@ -5969,6 +6002,37 @@ function platformConfigPage(
       } finally {
         btn.disabled = false;
         btn.textContent = '\ud83d\udcbe Save & Test';
+      }
+    };
+
+    window.toggleStripeMode = async function toggleStripeMode(targetMode) {
+      var btn = document.getElementById('stripeModeToggleBtn');
+      var result = document.getElementById('stripeTestResult');
+      if (!btn) return;
+      var confirmed = confirm('Switch Stripe to ' + targetMode.toUpperCase() + ' mode?\n\nThis will update the active Stripe keys immediately. All new Stripe operations will use the ' + targetMode + ' keys.');
+      if (!confirmed) return;
+      btn.disabled = true;
+      btn.textContent = '\u23f3 Switching...';
+      if (result) { result.textContent = ''; }
+      try {
+        var resp = await fetch('/api/admin/stripe/toggle-mode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: targetMode }),
+        });
+        var data = await resp.json();
+        if (data.ok) {
+          if (result) { result.textContent = '\u2705 ' + data.message; result.style.color = '#22c55e'; }
+          setTimeout(function() { window.location.reload(); }, 1200);
+        } else {
+          if (result) { result.textContent = '\u274c ' + (data.error || 'Toggle failed'); result.style.color = '#ef4444'; }
+          btn.disabled = false;
+          btn.textContent = targetMode === 'live' ? '\ud83d\udfe2 Switch to LIVE Mode' : '\ud83e\uddea Switch to TEST Mode';
+        }
+      } catch (e) {
+        if (result) { result.textContent = '\u274c Network error: ' + (e.message || 'Request failed'); result.style.color = '#ef4444'; }
+        btn.disabled = false;
+        btn.textContent = targetMode === 'live' ? '\ud83d\udfe2 Switch to LIVE Mode' : '\ud83e\uddea Switch to TEST Mode';
       }
     };
 

@@ -422,6 +422,86 @@ export function registerAdminStripeConnectRoutes(app: Express): void {
       res.status(500).json({ ok: false, error: err?.message || "Registration failed" });
     }
   });
+
+  // ── One-click Stripe mode toggle ──────────────────────────────────────
+  // POST /api/admin/stripe/toggle-mode
+  // Atomically swaps STRIPE_SECRET_KEY / STRIPE_PUBLISHABLE_KEY / STRIPE_WEBHOOK_SECRET
+  // to point to either the live or test key values, and sets STRIPE_TEST_MODE.
+  app.post("/api/admin/stripe/toggle-mode", async (req: Request, res: Response) => {
+    if (!requireAdminAuth(req, res)) return;
+    try {
+      const dbase = await getDb();
+      if (!dbase) { res.status(503).json({ ok: false, error: "DB unavailable" }); return; }
+      const { platformConfig } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const { invalidateConfigCache } = await import("./subscription");
+
+      const targetMode = (req.body?.mode as string || "").toLowerCase();
+      if (targetMode !== "live" && targetMode !== "test") {
+        res.status(400).json({ ok: false, error: "mode must be 'live' or 'test'" }); return;
+      }
+
+      // Read all relevant config rows
+      const allRows = await dbase.select().from(platformConfig);
+      const cfgMap: Record<string, string> = {};
+      for (const row of allRows) {
+        cfgMap[row.configKey] = row.configValue || "";
+      }
+
+      // Determine source keys based on target mode
+      const isLive = targetMode === "live";
+      const srcSecretKey = isLive ? "STRIPE_LIVE_SECRET_KEY" : "STRIPE_TEST_SECRET_KEY";
+      const srcPublishableKey = isLive ? "STRIPE_LIVE_PUBLISHABLE_KEY" : "STRIPE_TEST_PUBLISHABLE_KEY";
+      const srcWebhookSecret = isLive ? "STRIPE_LIVE_WEBHOOK_SECRET" : "STRIPE_TEST_WEBHOOK_SECRET";
+
+      const newSecretKey = cfgMap[srcSecretKey] || "";
+      const newPublishableKey = cfgMap[srcPublishableKey] || "";
+      const newWebhookSecret = cfgMap[srcWebhookSecret] || "";
+
+      if (!newSecretKey) {
+        res.status(400).json({ ok: false, error: `${srcSecretKey} is not set. Please save the ${targetMode} secret key first.` }); return;
+      }
+
+      // Upsert helper
+      const upsert = async (key: string, value: string, sensitive: boolean, desc: string) => {
+        const existing = await dbase.select().from(platformConfig).where(eq(platformConfig.configKey, key)).limit(1);
+        if (existing.length > 0) {
+          await dbase.update(platformConfig).set({ configValue: value }).where(eq(platformConfig.configKey, key));
+        } else {
+          await dbase.insert(platformConfig).values({ configKey: key, configValue: value, isSensitive: sensitive, description: desc });
+        }
+      };
+
+      // Swap active keys
+      await upsert("STRIPE_SECRET_KEY", newSecretKey, true, "Stripe Secret Key (active)");
+      await upsert("STRIPE_PUBLISHABLE_KEY", newPublishableKey, false, "Stripe Publishable Key (active)");
+      if (newWebhookSecret) {
+        await upsert("STRIPE_WEBHOOK_SECRET", newWebhookSecret, true, "Stripe Webhook Secret (active)");
+      }
+      await upsert("STRIPE_TEST_MODE", isLive ? "false" : "true", false, "Stripe Test Mode (true/false)");
+
+      // Invalidate all Stripe-related cache entries
+      invalidateConfigCache("STRIPE_SECRET_KEY");
+      invalidateConfigCache("STRIPE_PUBLISHABLE_KEY");
+      invalidateConfigCache("STRIPE_WEBHOOK_SECRET");
+      invalidateConfigCache("STRIPE_TEST_MODE");
+
+      const sessionId = req.cookies?.session_id || "";
+      console.log(`[Admin] Stripe mode switched to ${targetMode.toUpperCase()} by ${sessionId || "admin"}`);
+
+      res.json({
+        ok: true,
+        mode: targetMode,
+        message: `Switched to ${targetMode.toUpperCase()} mode. Active keys updated.`,
+        secretKeyPrefix: newSecretKey.substring(0, 10) + "...",
+        publishableKeyPrefix: newPublishableKey.substring(0, 10) + "...",
+        webhookSecretSet: !!newWebhookSecret,
+      });
+    } catch (err: any) {
+      console.error("[Admin] Stripe toggle-mode error:", err);
+      res.status(500).json({ ok: false, error: err?.message || "Toggle failed" });
+    }
+  });
 }
 
 function stripeConnectPage(data: {

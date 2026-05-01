@@ -195,7 +195,7 @@ describe("Admin Dashboard Integration", () => {
     const fs = await import("fs");
     const content = fs.readFileSync("server/adminRoutes.ts", "utf-8");
     expect(content).toContain("/api/admin/staff");
-    expect(content).toContain('"Staff"');
+    expect(content).toContain("'Staff'");
   });
 
   it("should have staff route handler", async () => {
@@ -280,5 +280,78 @@ describe("Staff DB Helpers", () => {
     expect(fullDataMatch).toBeTruthy();
     // getFullBusinessData returns staff as 'staff' key
     expect(content).toContain("staff: staffList");
+  });
+});
+
+// ── Stripe Mode Toggle Tests ─────────────────────────────────────────
+
+describe("Stripe Mode Toggle", () => {
+  it("should have toggle-mode endpoint in adminStripeConnect.ts", async () => {
+    const fs = await import("fs");
+    const content = fs.readFileSync("server/adminStripeConnect.ts", "utf-8");
+    expect(content).toContain('"/api/admin/stripe/toggle-mode"');
+    expect(content).toContain("toggle-mode");
+  });
+
+  it("should swap STRIPE_SECRET_KEY in toggle-mode endpoint", async () => {
+    const fs = await import("fs");
+    const content = fs.readFileSync("server/adminStripeConnect.ts", "utf-8");
+    expect(content).toContain("STRIPE_LIVE_SECRET_KEY");
+    expect(content).toContain("STRIPE_TEST_SECRET_KEY");
+    expect(content).toContain('upsert("STRIPE_SECRET_KEY"');
+    expect(content).toContain('upsert("STRIPE_PUBLISHABLE_KEY"');
+    expect(content).toContain('upsert("STRIPE_WEBHOOK_SECRET"');
+    expect(content).toContain('upsert("STRIPE_TEST_MODE"');
+  });
+
+  it("should invalidate config cache after toggle", async () => {
+    const fs = await import("fs");
+    const content = fs.readFileSync("server/adminStripeConnect.ts", "utf-8");
+    expect(content).toContain("invalidateConfigCache");
+    expect(content).toContain('invalidateConfigCache("STRIPE_SECRET_KEY")');
+    expect(content).toContain('invalidateConfigCache("STRIPE_TEST_MODE")');
+  });
+
+  it("should have STRIPE_LIVE_* keys in platform-config keyDefs", async () => {
+    const fs = await import("fs");
+    const content = fs.readFileSync("server/adminRoutes.ts", "utf-8");
+    expect(content).toContain("STRIPE_LIVE_SECRET_KEY");
+    expect(content).toContain("STRIPE_LIVE_PUBLISHABLE_KEY");
+    expect(content).toContain("STRIPE_LIVE_WEBHOOK_SECRET");
+  });
+
+  it("should have mode toggle button in platformConfigPage HTML", async () => {
+    const fs = await import("fs");
+    const content = fs.readFileSync("server/adminRoutes.ts", "utf-8");
+    expect(content).toContain("stripeModeToggleBtn");
+    expect(content).toContain("toggleStripeMode");
+    expect(content).toContain("Switch to LIVE Mode");
+    expect(content).toContain("Switch to TEST Mode");
+  });
+
+  it("should have toggleStripeMode JS function in platformConfigPage", async () => {
+    const fs = await import("fs");
+    const content = fs.readFileSync("server/adminRoutes.ts", "utf-8");
+    expect(content).toContain("window.toggleStripeMode");
+    expect(content).toContain("/api/admin/stripe/toggle-mode");
+    expect(content).toContain("window.location.reload()");
+  });
+
+  it("should have live webhook secret field in platformConfigPage", async () => {
+    const fs = await import("fs");
+    const content = fs.readFileSync("server/adminRoutes.ts", "utf-8");
+    expect(content).toContain("stripe_live_webhook_secret");
+    expect(content).toContain("STRIPE_LIVE_WEBHOOK_SECRET");
+    expect(content).toContain("Live Webhook Secret (stored)");
+  });
+
+  it("should have validation rules for live key fields", async () => {
+    const fs = await import("fs");
+    const content = fs.readFileSync("server/adminRoutes.ts", "utf-8");
+    expect(content).toContain("stripe_live_secret_key:");
+    expect(content).toContain("stripe_live_publishable_key:");
+    expect(content).toContain("stripe_live_webhook_secret:");
+    expect(content).toContain("sk_live_");
+    expect(content).toContain("pk_live_");
   });
 });
