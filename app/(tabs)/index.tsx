@@ -45,7 +45,7 @@ import { apiCall } from "@/lib/_core/api";
 import { trpc } from "@/lib/trpc";
 
 // App logo URL (same as app.config.ts logoUrl)
-const APP_LOGO_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/jHoNjHdLsUGgpFhz.png";
+const APP_LOGO_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/IvzpqiWWzFzYmkTo.png";
 // ─── Live clock hook (updates every second) ────────────────────────────
 function useLiveClock() {
   const [now, setNow] = useState(() => new Date());

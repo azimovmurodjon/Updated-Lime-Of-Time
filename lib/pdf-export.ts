@@ -49,13 +49,14 @@ function pdfHeader(businessName: string, reportTitle: string, dateRange?: string
   const locationLine = locationName
     ? (locationAddress ? `${escHtml(locationName)} — ${escHtml(locationAddress)}` : escHtml(locationName))
     : (locationAddress ? escHtml(locationAddress) : "");
-  const logoHtml = logoUri
-    ? `<img src="${logoUri}" alt="${escHtml(businessName)}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;margin-bottom:8px;border:2px solid rgba(0,0,0,0.08);" /><br/>`
-    : "";
+  const DEFAULT_LOGO_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/IvzpqiWWzFzYmkTo.png";
+  const resolvedLogoUri = logoUri || DEFAULT_LOGO_URL;
+  const logoHtml = `<img src="${resolvedLogoUri}" alt="${escHtml(businessName)}" style="width:64px;height:64px;border-radius:14px;object-fit:cover;margin-bottom:8px;border:2px solid rgba(0,0,0,0.08);" /><br/>`;
   return `
     <div class="header">
       ${logoHtml}
       <h1>${escHtml(businessName)}</h1>
+      <p style="font-size:11px;color:#888;margin-top:2px;letter-spacing:0.5px;">Lime Of Time</p>
       ${locationLine ? `<p style="font-size:12px;color:#555;margin-top:2px;">📍 ${locationLine}</p>` : ""}
       <p style="font-size:16px;font-weight:600;color:#333;margin-top:6px;">${reportTitle}</p>
       <p>Generated on ${now}${dateRange ? ` | ${dateRange}` : ""}</p>
