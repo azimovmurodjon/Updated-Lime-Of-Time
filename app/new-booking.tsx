@@ -1099,15 +1099,7 @@ export default function NewBookingScreen() {
               )}
             </View>
           ) : (
-<<<<<<< Updated upstream
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12, justifyContent: "center" }}>
-=======
-<<<<<<< Updated upstream
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12, justifyContent: "center" }}>
-=======
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
->>>>>>> Stashed changes
->>>>>>> Stashed changes
               {timeSlots.map((t) => {
                 const isSelected = t === selectedTime;
                 const locCount = isAllMode ? (slotLocationCount[t] ?? 1) : 1;
