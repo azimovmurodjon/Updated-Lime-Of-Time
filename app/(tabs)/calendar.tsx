@@ -641,30 +641,46 @@ export default function CalendarScreen() {
   }, [locationAppointments]);
 
   // Per-day slot counts for Full/Off indicators in month view
-  const daySlotCounts = useMemo(() => {
-    const result: Record<string, { total: number; booked: number }> = {};
-    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    const slotStep = (state.settings as any).slotInterval ?? 30;
-    const defaultDuration = state.settings.defaultDuration ?? 30;
-    for (let day = 1; day <= daysInMonth; day++) {
-      const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      const slots = generateAvailableSlots(
-        dateStr,
-        defaultDuration,
-        effectiveWorkingHours,
-        locationAppointments,
-        slotStep,
-        activeCustomSchedule,
-        state.settings.scheduleMode,
-        state.settings.bufferTime ?? 0
-      );
-      const bookedOnDay = locationAppointments.filter(
-        (a) => a.date === dateStr && (a.status === 'confirmed' || a.status === 'pending')
-      ).length;
-      result[dateStr] = { total: slots.length, booked: bookedOnDay };
-    }
-    return result;
-  }, [currentMonth, currentYear, isDayAvailable, effectiveWorkingHours, locationAppointments, activeCustomSchedule, state.settings]);
+  // Computed lazily via useEffect + setTimeout to avoid blocking the JS thread on navigation
+  const [daySlotCounts, setDaySlotCounts] = useState<Record<string, { total: number; booked: number }>>({});
+
+  useEffect(() => {
+    // Clear immediately so stale data from previous month doesn't show
+    setDaySlotCounts({});
+    // Defer the heavy computation until after the first render frame
+    const timer = setTimeout(() => {
+      const result: Record<string, { total: number; booked: number }> = {};
+      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+      const slotStep = (state.settings as any).slotInterval ?? 30;
+      const defaultDuration = state.settings.defaultDuration ?? 30;
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        // Skip closed/off days — no need to compute slots
+        if (!isDayAvailable(dateStr)) {
+          result[dateStr] = { total: 0, booked: 0 };
+          continue;
+        }
+        const slots = generateAvailableSlots(
+          dateStr,
+          defaultDuration,
+          effectiveWorkingHours,
+          locationAppointments,
+          slotStep,
+          activeCustomSchedule,
+          state.settings.scheduleMode,
+          state.settings.bufferTime ?? 0
+        );
+        const bookedOnDay = locationAppointments.filter(
+          (a) => a.date === dateStr && (a.status === 'confirmed' || a.status === 'pending')
+        ).length;
+        result[dateStr] = { total: slots.length, booked: bookedOnDay };
+      }
+      setDaySlotCounts(result);
+    }, 150); // 150ms delay — calendar renders first, then badges appear
+    return () => clearTimeout(timer);
+  // Use specific settings values (not the whole object) to avoid re-firing on every store update
+  }, [currentMonth, currentYear, isDayAvailable, effectiveWorkingHours, locationAppointments, activeCustomSchedule,
+    (state.settings as any).slotInterval, state.settings.defaultDuration, state.settings.scheduleMode, state.settings.bufferTime]);
 
   // Find the next date after a given date that has available slots
   const findNextAvailableDate = useCallback((afterDate: string): string | null => {
@@ -695,7 +711,8 @@ export default function CalendarScreen() {
       if (slots.some((t) => !bookedOnDay.has(t))) return ds;
     }
     return null;
-  }, [isDayAvailable, effectiveWorkingHours, locationAppointments, activeCustomSchedule, state.settings]);
+  }, [isDayAvailable, effectiveWorkingHours, locationAppointments, activeCustomSchedule,
+    (state.settings as any).slotInterval, state.settings.defaultDuration, state.settings.scheduleMode, state.settings.bufferTime]);
 
   // locFilter kept for backward-compat (already filtered by location above)
   const locFilter = useCallback((appts: Appointment[]) => appts, []);
