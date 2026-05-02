@@ -91,7 +91,7 @@ export default function BookingsScreen() {
   const colors = useColors();
   const router = useRouter();
   const params = useLocalSearchParams<{ filter?: string }>();
-  const { hp } = useResponsive();
+  const { hp, width } = useResponsive();
   const { state, dispatch, getServiceById, getClientById, getStaffById, getLocationById, syncToDb, filterAppointmentsByLocation, bulkMarkPaid, bulkMarkUnpaid } = useStore();
   const { activeLocation, activeLocations, hasMultipleLocations: hasMultiLoc } = useActiveLocation();
   const scrollRef = useScrollToTopOnFocus<ScrollView>();
@@ -161,9 +161,19 @@ export default function BookingsScreen() {
     }).start();
   };
 
+  // Compute calendar height dynamically based on number of weeks in the month
+  const calendarContentHeight = useMemo(() => {
+    const firstDay = new Date(calYear, calMonth, 1).getDay();
+    const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+    const totalCells = firstDay + daysInMonth;
+    const weeks = Math.ceil(totalCells / 7);
+    const cellW = Math.floor((width - hp * 2 - 24) / 7); // 24 = card horizontal padding
+    return 44 + 28 + weeks * cellW + 24; // header + day labels + rows + padding
+  }, [calYear, calMonth, width, hp]);
+
   const calendarHeight = calendarAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, 320],
+    outputRange: [0, calendarContentHeight + 16],
   });
 
   // ─── Calendar grid days ───────────────────────────────────────────────
@@ -505,11 +515,12 @@ export default function BookingsScreen() {
   // ─── Mini calendar renderer ───────────────────────────────────────────
 
   const renderMiniCalendar = () => {
-    const cellSize = 40;
+    const cellW = Math.floor((width - hp * 2 - 24) / 7); // 24 = card horizontal padding (12 each side)
+    const cellH = cellW; // square cells
     return (
-      <View style={{ paddingHorizontal: hp, paddingBottom: 12 }}>
+      <View style={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 12 }}>
         {/* Month navigation */}
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
           <Pressable
             onPress={() => {
               if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); }
@@ -517,9 +528,9 @@ export default function BookingsScreen() {
             }}
             style={({ pressed }) => [{ padding: 8, opacity: pressed ? 0.5 : 1 }]}
           >
-            <IconSymbol name="chevron.left" size={20} color={colors.foreground} />
+            <IconSymbol name="chevron.left" size={18} color={colors.foreground} />
           </Pressable>
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>
+          <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>
             {MONTH_NAMES[calMonth]} {calYear}
           </Text>
           <Pressable
@@ -529,14 +540,14 @@ export default function BookingsScreen() {
             }}
             style={({ pressed }) => [{ padding: 8, opacity: pressed ? 0.5 : 1 }]}
           >
-            <IconSymbol name="chevron.right" size={20} color={colors.foreground} />
+            <IconSymbol name="chevron.right" size={18} color={colors.foreground} />
           </Pressable>
         </View>
 
         {/* Day headers */}
-        <View style={{ flexDirection: "row", marginBottom: 4 }}>
+        <View style={{ flexDirection: "row", marginBottom: 2 }}>
           {DAY_HEADERS.map((d) => (
-            <View key={d} style={{ width: cellSize, alignItems: "center" }}>
+            <View key={d} style={{ width: cellW, alignItems: "center", paddingVertical: 4 }}>
               <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted }}>{d}</Text>
             </View>
           ))}
@@ -546,30 +557,27 @@ export default function BookingsScreen() {
         <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
           {calendarDays.map((day, idx) => {
             if (day === null) {
-              return <View key={`empty-${idx}`} style={{ width: cellSize, height: cellSize }} />;
+              return <View key={`empty-${idx}`} style={{ width: cellW, height: cellH }} />;
             }
             const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
             const isToday = dateStr === todayStr;
             const isSelected = dateStr === selectedDateFilter;
             const statuses = dayStatuses[dateStr];
             const hasAppts = statuses && statuses.size > 0;
+            const radius = Math.floor(cellW / 2);
 
             return (
               <Pressable
                 key={dateStr}
                 onPress={() => {
-                  if (selectedDateFilter === dateStr) {
-                    setSelectedDateFilter(null);
-                  } else {
-                    setSelectedDateFilter(dateStr);
-                  }
+                  setSelectedDateFilter(selectedDateFilter === dateStr ? null : dateStr);
                 }}
                 style={({ pressed }) => [{
-                  width: cellSize,
-                  height: cellSize,
+                  width: cellW,
+                  height: cellH,
                   alignItems: "center",
                   justifyContent: "center",
-                  borderRadius: cellSize / 2,
+                  borderRadius: radius,
                   backgroundColor: isSelected
                     ? colors.primary
                     : isToday
@@ -579,7 +587,7 @@ export default function BookingsScreen() {
                 }]}
               >
                 <Text style={{
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: isToday || isSelected ? "700" : "400",
                   color: isSelected ? "#FFF" : isToday ? colors.primary : colors.foreground,
                 }}>
@@ -590,7 +598,7 @@ export default function BookingsScreen() {
                     flexDirection: "row",
                     gap: 2,
                     position: "absolute",
-                    bottom: 4,
+                    bottom: Math.max(3, Math.floor(cellH * 0.08)),
                   }}>
                     {Array.from(statuses).slice(0, 3).map((status, si) => {
                       const dotColor =
