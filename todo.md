@@ -1727,3 +1727,12 @@
 - [x] Calendar booking flow Step 6: Send message option after confirmation
 - [x] Calendar booking flow: pre-fill date and time from calendar selection (not editable in flow)
 - [x] Calendar booking flow: completely separate from Home page New Booking flow (no changes to new-booking.tsx)
+
+## Client Booking Portal Fixes (May 2026)
+
+- [x] Fix service image in detail sheet — change from height:180px/cover to height:auto/contain so full image is visible
+- [x] Replace broken Google Charts QR code with in-browser QR generation using qrcode.js CDN
+- [x] QR codes now shown in a modal overlay — client taps Zelle/CashApp/Venmo button to open QR modal
+- [x] Added openQrModal/closeQrModal JS functions with canvas-based QR generation
+- [x] Added qrcode.js CDN script to booking page head
+- [x] Added QR modal overlay HTML to booking confirmation page (step-8)

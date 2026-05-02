@@ -2440,7 +2440,7 @@ function baseStyles(): string {
       .detail-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; display:flex; align-items:flex-end; justify-content:center; }
       .detail-sheet { background:var(--bg-card); border-radius:24px 24px 0 0; padding:24px 20px 40px; max-width:480px; width:100%; max-height:85vh; overflow-y:auto; position:relative; }
       .detail-sheet .drag-handle { width:40px; height:4px; background:var(--border); border-radius:2px; margin:0 auto 20px; }
-      .detail-sheet .detail-photo { width:100%; height:180px; object-fit:cover; border-radius:12px; margin-bottom:14px; }
+      .detail-sheet .detail-photo { width:100%; height:auto; max-height:none; object-fit:contain; border-radius:12px; margin-bottom:14px; display:block; }
       .detail-sheet .detail-photo-placeholder { width:100%; height:120px; background:var(--border); border-radius:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; margin-bottom:14px; font-size:36px; opacity:0.7; }
       .detail-sheet .detail-photo-placeholder .ph-hint { font-size:11px; color:var(--text-muted); font-weight:500; text-align:center; padding:0 12px; }
       .detail-sheet .detail-badge { display:inline-block; background:var(--accent-bg-light); color:var(--accent-dark); font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; margin-bottom:8px; }
@@ -4785,6 +4785,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://lime-of-time.com/book/${escHtml(owner.businessName.toLowerCase().replace(/\s+/g, '-'))}">  
   ${baseStyles()}
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 </head>
 <body>
   <div class="container" id="app">
@@ -5075,6 +5076,17 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       <p style="color:#666;font-size:14px;margin-bottom:16px;">Your appointment request has been sent to ${escHtml(owner.businessName)}. They will confirm your booking shortly.</p>
       <div id="successReceipt" class="receipt-box" style="text-align:left;margin-bottom:16px;"></div>
       <div id="paymentSection" style="display:none;margin-bottom:16px;"></div>
+      <!-- QR Code Modal Overlay -->
+      <div id="qrModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;" onclick="closeQrModal()">
+        <div style="background:#fff;border-radius:20px;padding:28px 24px 20px;text-align:center;max-width:300px;width:90%;position:relative;" onclick="event.stopPropagation()">
+          <div id="qrModalTitle" style="font-size:16px;font-weight:700;margin-bottom:4px;"></div>
+          <div id="qrModalHandle" style="font-size:13px;color:#666;margin-bottom:16px;word-break:break-all;"></div>
+          <div id="qrModalCanvas" style="display:flex;align-items:center;justify-content:center;margin-bottom:16px;"></div>
+          <div id="qrModalHint" style="font-size:12px;color:#888;margin-bottom:16px;"></div>
+          <a id="qrModalLink" href="#" target="_blank" style="display:block;padding:12px;background:#f0f0f0;border-radius:10px;font-size:14px;font-weight:600;color:#333;text-decoration:none;margin-bottom:10px;">Open App</a>
+          <button onclick="closeQrModal()" style="width:100%;padding:10px;background:none;border:none;color:#888;font-size:14px;cursor:pointer;">Close</button>
+        </div>
+      </div>
       <div id="manageLink" style="margin-bottom:12px;display:none;">
         <a id="manageLinkHref" href="#" style="color:var(--accent);font-size:14px;text-decoration:none;font-weight:600;">Manage or Cancel This Appointment →</a>
       </div>
@@ -6933,79 +6945,105 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     }
 
     function renderPaymentSection() {
-      const methods = PAYMENT_METHODS;
-      const hasPayment = methods.zelle || methods.cashApp || methods.venmo;
-      if (!hasPayment) return;
-      const chargedPrice = getChargedPrice();
-      if (chargedPrice <= 0) return; // Free booking — no payment needed
-      // Don't show if client already paid via Stripe card
-      if (selectedPaymentMethod === 'card') return;
+      const methods = paymentMethods || {};
+      if (!methods.zelle && !methods.cashApp && !methods.venmo) return;
+      const chargedPrice = getChargedPrice ? getChargedPrice() : (getTotalPrice ? getTotalPrice() : 0);
       const amountStr = '$' + chargedPrice.toFixed(2);
       const isPaylater = !selectedPaymentMethod || selectedPaymentMethod === 'later';
-      // Build QR URL using Google Charts API (no API key needed)
-      function qrUrl(text) {
-        return 'https://chart.googleapis.com/chart?cht=qr&chs=180x180&choe=UTF-8&chl=' + encodeURIComponent(text);
-      }
-      // Build deep-link URLs for each payment app
-      function zelleUrl(handle) {
-        // Zelle doesn't have a universal deep link; use plain handle as QR value
-        // so Google Charts can render it (zelle: scheme is not a valid URL)
-        return handle;
-      }
-      function cashAppUrl(handle) {
-        const tag = handle.startsWith('$') ? handle : '$' + handle;
-        return 'https://cash.app/' + encodeURIComponent(tag) + '/' + chargedPrice.toFixed(2);
-      }
-      function venmoUrl(handle) {
-        const tag = handle.startsWith('@') ? handle.slice(1) : handle;
-        return 'https://venmo.com/' + encodeURIComponent(tag) + '?txn=pay&amount=' + chargedPrice.toFixed(2) + '&note=' + encodeURIComponent('Appointment payment');
-      }
-      // Determine which method to show — if client selected one, show only that one; otherwise show all
       const showMethod = (!isPaylater && selectedPaymentMethod) ? selectedPaymentMethod : null;
-      const sectionTitle = isPaylater ? '💰 How to Pay' : '💰 Payment Confirmation';
+      const sectionTitle = isPaylater ? '\uD83D\uDCB0 How to Pay' : '\uD83D\uDCB0 Payment Confirmation';
       const sectionSubtitle = isPaylater
-        ? 'Scan the QR code or use the handle below to send <strong>' + amountStr + '</strong> before your appointment'
+        ? 'Tap a payment method to view the QR code and send <strong>' + amountStr + '</strong> before your appointment'
         : 'Please send <strong>' + amountStr + '</strong> using the payment method you selected';
       let html = '<div style="border:1.5px solid var(--border);border-radius:14px;padding:16px;background:var(--accent-bg);">';
       html += '<div style="font-weight:700;font-size:15px;color:var(--accent-dark);margin-bottom:4px;">' + sectionTitle + '</div>';
       html += '<div style="font-size:13px;color:var(--accent-dark);margin-bottom:14px;">' + sectionSubtitle + '</div>';
       html += '<div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">';
-      // Show only the selected method, or all methods if pay-later
       if (methods.zelle && (!showMethod || showMethod === 'zelle')) {
-        const url = zelleUrl(methods.zelle);
-        html += '<div style="flex:1;min-width:130px;max-width:200px;background:#fff;border-radius:12px;padding:12px;border:2px solid #6d28d9;text-align:center;">';
-        html += '<div style="font-weight:700;font-size:13px;color:#6d28d9;margin-bottom:8px;">💜 Zelle</div>';
-        html += '<img src="' + qrUrl(url) + '" alt="Zelle QR" style="width:140px;height:140px;border-radius:8px;" loading="lazy">';
-        html += '<div style="font-size:12px;color:#6d28d9;font-weight:600;margin-top:8px;word-break:break-all;">' + esc(methods.zelle) + '</div>';
-        html += '</div>';
+        const handle = methods.zelle;
+        const deepLink = 'zelle://' + encodeURIComponent(handle);
+        html += '<button onclick="openQrModal('Zelle',' + JSON.stringify(handle) + ',' + JSON.stringify(deepLink) + ','#6d28d9','\uD83D\uDC9C')" style="flex:1;min-width:130px;max-width:200px;background:#fff;border-radius:12px;padding:16px 12px;border:2px solid #6d28d9;text-align:center;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;">';
+        html += '<div style="font-size:28px;">\uD83D\uDC9C</div>';
+        html += '<div style="font-weight:700;font-size:14px;color:#6d28d9;">Zelle</div>';
+        html += '<div style="font-size:11px;color:#888;word-break:break-all;">' + esc(handle) + '</div>';
+        html += '<div style="font-size:11px;color:#6d28d9;font-weight:600;background:#f3e8ff;border-radius:6px;padding:4px 8px;">Tap to view QR</div>';
+        html += '</button>';
       }
       if (methods.cashApp && (!showMethod || showMethod === 'cashapp')) {
         const tag = methods.cashApp.startsWith('$') ? methods.cashApp : '$' + methods.cashApp;
-        const url = cashAppUrl(methods.cashApp);
-        html += '<div style="flex:1;min-width:130px;max-width:200px;background:#fff;border-radius:12px;padding:12px;border:2px solid #00d632;text-align:center;">';
-        html += '<div style="font-weight:700;font-size:13px;color:#00a827;margin-bottom:8px;">💚 Cash App</div>';
-        html += '<a href="' + url + '" target="_blank" style="display:block;">';
-        html += '<img src="' + qrUrl(url) + '" alt="Cash App QR" style="width:140px;height:140px;border-radius:8px;" loading="lazy">';
-        html += '</a>';
-        html += '<div style="font-size:12px;color:#00a827;font-weight:600;margin-top:8px;">' + esc(tag) + '</div>';
-        html += '</div>';
+        const deepLink = 'https://cash.app/' + encodeURIComponent(tag) + '/' + chargedPrice.toFixed(2);
+        html += '<button onclick="openQrModal('Cash App',' + JSON.stringify(tag) + ',' + JSON.stringify(deepLink) + ','#00a827','\uD83D\uDC9A')" style="flex:1;min-width:130px;max-width:200px;background:#fff;border-radius:12px;padding:16px 12px;border:2px solid #00d632;text-align:center;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;">';
+        html += '<div style="font-size:28px;">\uD83D\uDC9A</div>';
+        html += '<div style="font-weight:700;font-size:14px;color:#00a827;">Cash App</div>';
+        html += '<div style="font-size:11px;color:#888;word-break:break-all;">' + esc(tag) + '</div>';
+        html += '<div style="font-size:11px;color:#00a827;font-weight:600;background:#dcfce7;border-radius:6px;padding:4px 8px;">Tap to view QR</div>';
+        html += '</button>';
       }
       if (methods.venmo && (!showMethod || showMethod === 'venmo')) {
         const tag = methods.venmo.startsWith('@') ? methods.venmo : '@' + methods.venmo;
-        const url = venmoUrl(methods.venmo);
-        html += '<div style="flex:1;min-width:130px;max-width:200px;background:#fff;border-radius:12px;padding:12px;border:2px solid #3d95ce;text-align:center;">';
-        html += '<div style="font-weight:700;font-size:13px;color:#3d95ce;margin-bottom:8px;">💙 Venmo</div>';
-        html += '<a href="' + url + '" target="_blank" style="display:block;">';
-        html += '<img src="' + qrUrl(url) + '" alt="Venmo QR" style="width:140px;height:140px;border-radius:8px;" loading="lazy">';
-        html += '</a>';
-        html += '<div style="font-size:12px;color:#3d95ce;font-weight:600;margin-top:8px;">' + esc(tag) + '</div>';
-        html += '</div>';
+        const deepLink = 'https://venmo.com/' + encodeURIComponent(tag.replace('@','')) + '?txn=pay&amount=' + chargedPrice.toFixed(2) + '&note=' + encodeURIComponent('Appointment payment');
+        html += '<button onclick="openQrModal('Venmo',' + JSON.stringify(tag) + ',' + JSON.stringify(deepLink) + ','#3d95ce','\uD83D\uDC99')" style="flex:1;min-width:130px;max-width:200px;background:#fff;border-radius:12px;padding:16px 12px;border:2px solid #3d95ce;text-align:center;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;">';
+        html += '<div style="font-size:28px;">\uD83D\uDC99</div>';
+        html += '<div style="font-weight:700;font-size:14px;color:#3d95ce;">Venmo</div>';
+        html += '<div style="font-size:11px;color:#888;word-break:break-all;">' + esc(tag) + '</div>';
+        html += '<div style="font-size:11px;color:#3d95ce;font-weight:600;background:#dbeafe;border-radius:6px;padding:4px 8px;">Tap to view QR</div>';
+        html += '</button>';
       }
       html += '</div>';
-      html += '<div style="font-size:11px;color:#888;margin-top:10px;">Tap a QR code to open the payment app directly on your phone.</div>';
+      html += '<div style="font-size:11px;color:#888;margin-top:10px;">Tap a payment method to open the QR code and pay directly from your phone.</div>';
       html += '</div>';
       const el = document.getElementById('paymentSection');
       if (el) { el.innerHTML = html; el.style.display = 'block'; }
+    }
+    function openQrModal(method, handle, deepLink, color, icon) {
+      const overlay = document.getElementById('qrModalOverlay');
+      if (!overlay) return;
+      document.getElementById('qrModalTitle').textContent = icon + ' ' + method;
+      document.getElementById('qrModalTitle').style.color = color;
+      document.getElementById('qrModalHandle').textContent = handle;
+      const canvasContainer = document.getElementById('qrModalCanvas');
+      canvasContainer.innerHTML = '';
+      const canvas = document.createElement('canvas');
+      canvasContainer.appendChild(canvas);
+      // Generate QR code using qrcode.js library
+      const qrValue = deepLink || handle;
+      function generateQR() {
+        if (typeof QRCode !== 'undefined') {
+          QRCode.toCanvas(canvas, qrValue, { width: 200, margin: 2, color: { dark: color || '#000000', light: '#ffffff' } }, function(err) {
+            if (err) {
+              canvasContainer.innerHTML = '<div style="font-size:13px;color:#888;padding:20px;">QR code unavailable</div>';
+            }
+          });
+        } else {
+          // Fallback: load qrcode.js dynamically if not already loaded
+          const script = document.createElement('script');
+          script.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
+          script.onload = function() {
+            QRCode.toCanvas(canvas, qrValue, { width: 200, margin: 2, color: { dark: color || '#000000', light: '#ffffff' } }, function(err) {
+              if (err) canvasContainer.innerHTML = '<div style="font-size:13px;color:#888;padding:20px;">QR code unavailable</div>';
+            });
+          };
+          document.head.appendChild(script);
+        }
+      }
+      generateQR();
+      const linkEl = document.getElementById('qrModalLink');
+      if (linkEl) {
+        linkEl.href = deepLink || '#';
+        linkEl.textContent = 'Open ' + method + ' App';
+        linkEl.style.color = color;
+        linkEl.style.background = color + '15';
+        linkEl.style.border = '1.5px solid ' + color;
+      }
+      const hintEl = document.getElementById('qrModalHint');
+      if (hintEl) hintEl.textContent = 'Scan with ' + method + ' to pay ' + (document.getElementById('qrModalHandle') ? document.getElementById('qrModalHandle').textContent : '');
+      overlay.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+    }
+    function closeQrModal() {
+      const overlay = document.getElementById('qrModalOverlay');
+      if (overlay) overlay.style.display = 'none';
+      document.body.style.overflow = '';
     }
 
     function addToCalendar() {
