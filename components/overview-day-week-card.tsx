@@ -12,6 +12,7 @@
  *              bottom. Swipeable ← → to navigate to previous/next weeks.
  *
  * Both views respect the active location filter passed in from the parent.
+ * Navigation uses a smooth directional slide animation (like iOS page transitions).
  */
 
 import React, { useState, useCallback, useMemo, useRef } from "react";
@@ -104,8 +105,6 @@ function formatWeekRange(sun: Date): string {
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const WEEKEND_DAYS = [0, 6]; // Sunday, Saturday
 
-const HOURS = Array.from({ length: 24 }, (_, i) => i); // 0–23
-
 function formatHour(h: number): string {
   if (h === 0) return "12 AM";
   if (h < 12) return `${h} AM`;
@@ -134,24 +133,14 @@ function getEndTime(a: Appointment, services: Service[]): string {
 
 // ─── Column layout algorithm ─────────────────────────────────────────────────
 
-/**
- * Assigns a column index and total column count to each appointment block
- * so that overlapping appointments are rendered side-by-side instead of
- * stacking on top of each other.
- */
 function assignColumns(
   blocks: Array<{ a: Appointment; top: number; height: number; svc: Service | undefined; client: Client | undefined }>
 ): Array<{ a: Appointment; top: number; height: number; svc: Service | undefined; client: Client | undefined; col: number; totalCols: number }> {
   if (blocks.length === 0) return [];
-
-  // Sort by start time
   const sorted = [...blocks].sort((a, b) => a.top - b.top);
-
-  // Assign columns using a greedy interval-graph coloring
-  const colEndTimes: number[] = []; // tracks the bottom edge of the last block in each column
+  const colEndTimes: number[] = [];
   const assigned = sorted.map((block) => {
     const blockEnd = block.top + block.height;
-    // Find first column where this block fits (no overlap)
     let col = colEndTimes.findIndex((end) => end <= block.top + 1);
     if (col === -1) {
       col = colEndTimes.length;
@@ -159,11 +148,8 @@ function assignColumns(
     } else {
       colEndTimes[col] = blockEnd;
     }
-    return { ...block, col, totalCols: 0 }; // totalCols filled in next pass
+    return { ...block, col, totalCols: 0 };
   });
-
-  // Second pass: for each block, find how many columns overlap its time range
-  // (i.e., the max column count among all blocks that overlap with it)
   assigned.forEach((block) => {
     const blockEnd = block.top + block.height;
     const overlapping = assigned.filter(
@@ -172,7 +158,6 @@ function assignColumns(
     const maxCol = Math.max(...overlapping.map((o) => o.col)) + 1;
     block.totalCols = maxCol;
   });
-
   return assigned;
 }
 
@@ -192,53 +177,59 @@ function DayTimeline({ dayDate, dayAppts, services, clients, colors, onApptPress
   const LABEL_WIDTH = 48;
   const [gridWidth, setGridWidth] = useState(0);
 
-  // Build appointment blocks with pixel positions
   const rawBlocks = useMemo(() => {
     return dayAppts
       .filter((a) => a.status !== "cancelled")
       .map((a) => {
         const startMin = timeToMinutes(a.time);
         const dur = getApptDuration(a, services);
-        const top = (startMin / 60) * HOUR_HEIGHT;
-        const height = Math.max(28, (dur / 60) * HOUR_HEIGHT);
         const svc = services.find((s) => s.id === a.serviceId);
         const client = clients.find((c) => c.id === a.clientId);
-        return { a, top, height, svc, client };
+        return {
+          a,
+          top: (startMin / 60) * HOUR_HEIGHT,
+          height: Math.max((dur / 60) * HOUR_HEIGHT, 28),
+          svc,
+          client,
+        };
       });
   }, [dayAppts, services, clients]);
 
-  // Assign side-by-side columns to overlapping blocks
   const blocks = useMemo(() => assignColumns(rawBlocks), [rawBlocks]);
 
-  // Scroll to current hour on mount if today
-  const scrollRef = useRef<ScrollView>(null);
-  const todayStr = dateStr(new Date());
-  const isToday = dateStr(dayDate) === todayStr;
+  // Determine visible hour range (show 6 AM – 10 PM by default, or expand to fit appts)
+  const startHour = useMemo(() => {
+    if (blocks.length === 0) return 8;
+    const minTop = Math.min(...blocks.map((b) => b.top));
+    return Math.max(0, Math.floor(minTop / HOUR_HEIGHT) - 1);
+  }, [blocks]);
+  const endHour = useMemo(() => {
+    if (blocks.length === 0) return 20;
+    const maxBottom = Math.max(...blocks.map((b) => b.top + b.height));
+    return Math.min(24, Math.ceil(maxBottom / HOUR_HEIGHT) + 1);
+  }, [blocks]);
 
-  const handleLayout = useCallback(() => {
-    if (isToday && scrollRef.current) {
-      const now = new Date();
-      const currentHour = now.getHours();
-      const scrollY = Math.max(0, (currentHour - 1) * HOUR_HEIGHT);
-      scrollRef.current.scrollTo({ y: scrollY, animated: false });
-    }
-  }, [isToday]);
+  const visibleHours = useMemo(
+    () => Array.from({ length: endHour - startHour }, (_, i) => startHour + i),
+    [startHour, endHour]
+  );
 
-  const totalHeight = 24 * HOUR_HEIGHT;
+  const totalHeight = (endHour - startHour) * HOUR_HEIGHT;
+  const offsetTop = startHour * HOUR_HEIGHT;
+
+  // Current time indicator
+  const now = new Date();
+  const isToday = dateStr(dayDate) === dateStr(now);
+  const nowTop = isToday
+    ? ((now.getHours() * 60 + now.getMinutes()) / 60) * HOUR_HEIGHT - offsetTop
+    : -1;
 
   return (
-    <ScrollView
-      ref={scrollRef}
-      style={{ flex: 1 }}
-      showsVerticalScrollIndicator={false}
-      onLayout={handleLayout}
-      nestedScrollEnabled
-      scrollEventThrottle={16}
-    >
-      <View style={{ height: totalHeight, flexDirection: "row" }}>
+    <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+      <View style={{ flexDirection: "row", minHeight: totalHeight + 24 }}>
         {/* Hour labels */}
         <View style={{ width: LABEL_WIDTH }}>
-          {HOURS.map((h) => (
+          {visibleHours.map((h) => (
             <View key={h} style={{ height: HOUR_HEIGHT, justifyContent: "flex-start", paddingTop: 4 }}>
               <Text style={{ fontSize: 10, color: colors.muted, textAlign: "right", paddingRight: 8 }}>
                 {formatHour(h)}
@@ -247,71 +238,67 @@ function DayTimeline({ dayDate, dayAppts, services, clients, colors, onApptPress
           ))}
         </View>
 
-        {/* Timeline grid + appointment blocks */}
+        {/* Grid + appointment blocks */}
         <View
           style={{ flex: 1, position: "relative" }}
           onLayout={(e) => setGridWidth(e.nativeEvent.layout.width)}
         >
-          {/* Hour grid lines */}
-          {HOURS.map((h) => (
+          {/* Hour lines */}
+          {visibleHours.map((h) => (
             <View
               key={h}
               style={{
                 position: "absolute",
-                top: h * HOUR_HEIGHT,
+                top: (h - startHour) * HOUR_HEIGHT,
                 left: 0,
                 right: 0,
-                height: 1,
+                height: StyleSheet.hairlineWidth,
                 backgroundColor: colors.border,
-                opacity: 0.5,
               }}
             />
           ))}
 
           {/* Current time indicator */}
-          {isToday && (() => {
-            const now = new Date();
-            const nowMins = now.getHours() * 60 + now.getMinutes();
-            const top = (nowMins / 60) * HOUR_HEIGHT;
-            return (
+          {isToday && nowTop >= 0 && nowTop <= totalHeight && (
+            <View
+              style={{
+                position: "absolute",
+                top: nowTop,
+                left: 0,
+                right: 0,
+                height: 2,
+                backgroundColor: "#E53935",
+                zIndex: 10,
+              }}
+            >
               <View
                 style={{
                   position: "absolute",
-                  top: top - 1,
-                  left: 0,
-                  right: 0,
-                  height: 2,
-                  backgroundColor: colors.error,
-                  zIndex: 10,
+                  left: -4,
+                  top: -4,
+                  width: 10,
+                  height: 10,
+                  borderRadius: 5,
+                  backgroundColor: "#E53935",
                 }}
-              >
-                <View
-                  style={{
-                    position: "absolute",
-                    left: -4,
-                    top: -4,
-                    width: 10,
-                    height: 10,
-                    borderRadius: 5,
-                    backgroundColor: colors.error,
-                  }}
-                />
-              </View>
-            );
-          })()}
+              />
+            </View>
+          )}
 
-          {/* Appointment blocks — side-by-side columns for overlaps */}
+          {/* Appointment blocks */}
           {gridWidth > 0 && blocks.map(({ a, top, height, svc, client, col, totalCols }) => {
             const colW = gridWidth / totalCols;
             const blockLeft = col * colW + (col === 0 ? 2 : 1);
             const blockWidth = colW - (col === 0 ? 3 : 2);
+            const adjustedTop = top - offsetTop;
+            if (adjustedTop + height < 0 || adjustedTop > totalHeight) return null;
             return (
               <Pressable
                 key={a.id}
                 onPress={() => onApptPress(a.id)}
                 style={({ pressed }) => ({
                   position: "absolute",
-                  top: top + 1,
+                  top: adjustedTop + 1,
                   left: blockLeft,
                   width: blockWidth,
                   height: height - 2,
@@ -359,11 +346,11 @@ export function OverviewDayWeekCard({
   const [mode, setMode] = useState<"day" | "week">("week");
 
   // ── Day navigation ──
-  const [dayOffset, setDayOffset] = useState(0); // 0 = today
+  const [dayOffset, setDayOffset] = useState(0);
   const selectedDay = useMemo(() => addDays(new Date(), dayOffset), [dayOffset]);
 
   // ── Week navigation ──
-  const [weekOffset, setWeekOffset] = useState(0); // 0 = current week
+  const [weekOffset, setWeekOffset] = useState(0);
   const weekSun = useMemo(() => {
     const base = weekSunday(new Date());
     return addDays(base, weekOffset * 7);
@@ -414,13 +401,88 @@ export function OverviewDayWeekCard({
     [router]
   );
 
+  // ── Smooth slide animation ──
+  // slideX animates the content: 0 = in place, negative = slide left, positive = slide right
+  const slideX = useRef(new Animated.Value(0)).current;
+  const contentOpacity = useRef(new Animated.Value(1)).current;
+  const isAnimating = useRef(false);
+
+  /**
+   * Slide the current content out in `direction`, update state, then slide new content in.
+   * direction: "left" = going forward (next), "right" = going back (prev)
+   */
+  const animateNavigate = useCallback(
+    (direction: "left" | "right", updateFn: () => void) => {
+      if (isAnimating.current) return;
+      isAnimating.current = true;
+
+      const outX = direction === "left" ? -width * 0.35 : width * 0.35;
+      const inX = direction === "left" ? width * 0.35 : -width * 0.35;
+
+      // Phase 1: slide out + fade out
+      Animated.parallel([
+        Animated.timing(slideX, {
+          toValue: outX,
+          duration: 180,
+          useNativeDriver: true,
+        }),
+        Animated.timing(contentOpacity, {
+          toValue: 0,
+          duration: 160,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        // Update state
+        updateFn();
+        // Reset to incoming position instantly (no animation)
+        slideX.setValue(inX);
+        // Phase 2: slide in + fade in
+        Animated.parallel([
+          Animated.timing(slideX, {
+            toValue: 0,
+            duration: 200,
+            useNativeDriver: true,
+          }),
+          Animated.timing(contentOpacity, {
+            toValue: 1,
+            duration: 180,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          isAnimating.current = false;
+        });
+      });
+    },
+    [slideX, contentOpacity, width]
+  );
+
+  const goNext = useCallback(() => {
+    animateNavigate("left", () => {
+      if (mode === "day") setDayOffset((o) => o + 1);
+      else setWeekOffset((o) => o + 1);
+    });
+  }, [animateNavigate, mode]);
+
+  const goPrev = useCallback(() => {
+    animateNavigate("right", () => {
+      if (mode === "day") setDayOffset((o) => o - 1);
+      else setWeekOffset((o) => o - 1);
+    });
+  }, [animateNavigate, mode]);
+
+  const goToday = useCallback(() => {
+    const isAlreadyCurrent = mode === "day" ? dayOffset === 0 : weekOffset === 0;
+    if (isAlreadyCurrent) return;
+    const direction = (mode === "day" ? dayOffset : weekOffset) > 0 ? "left" : "right";
+    animateNavigate(direction, () => {
+      if (mode === "day") setDayOffset(0);
+      else setWeekOffset(0);
+    });
+  }, [animateNavigate, mode, dayOffset, weekOffset]);
+
   // ── Mode ref for PanResponder (avoids stale closure) ──
   const modeRef = useRef(mode);
   modeRef.current = mode;
-  const dayOffsetRef = useRef(dayOffset);
-  dayOffsetRef.current = dayOffset;
-  const weekOffsetRef = useRef(weekOffset);
-  weekOffsetRef.current = weekOffset;
 
   // ── Mode switch animation ──
   const modeAnim = useRef(new Animated.Value(mode === "week" ? 1 : 0)).current;
@@ -441,29 +503,28 @@ export function OverviewDayWeekCard({
   const todayStr = dateStr(new Date());
   const isWeekCurrent = dateStr(weekSunday(new Date())) === dateStr(weekSun);
 
-  // ── Horizontal swipe for day/week navigation ──
-  const swipeStartX = useRef(0);
+  // ── Horizontal swipe gesture ──
   const swipePan = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gs) => {
-        // Only claim the gesture if horizontal movement dominates
-        return Math.abs(gs.dx) > 12 && Math.abs(gs.dx) > Math.abs(gs.dy) * 1.5;
-      },
-      onPanResponderGrant: (_, gs) => {
-        swipeStartX.current = gs.x0;
-      },
+      onMoveShouldSetPanResponder: (_, gs) =>
+        Math.abs(gs.dx) > 14 && Math.abs(gs.dx) > Math.abs(gs.dy) * 1.8,
       onPanResponderRelease: (_, gs) => {
-        const dx = gs.dx;
-        if (Math.abs(dx) < 40) return; // too short
-        if (dx < 0) {
-          // swipe left → next day/week
-          if (modeRef.current === "day") setDayOffset((o) => o + 1);
-          else setWeekOffset((o) => o + 1);
+        if (Math.abs(gs.dx) < 50) return;
+        if (gs.dx < 0) {
+          // swipe left → next
+          if (modeRef.current === "day") {
+            animateNavigate("left", () => setDayOffset((o) => o + 1));
+          } else {
+            animateNavigate("left", () => setWeekOffset((o) => o + 1));
+          }
         } else {
-          // swipe right → previous day/week
-          if (modeRef.current === "day") setDayOffset((o) => o - 1);
-          else setWeekOffset((o) => o - 1);
+          // swipe right → prev
+          if (modeRef.current === "day") {
+            animateNavigate("right", () => setDayOffset((o) => o - 1));
+          } else {
+            animateNavigate("right", () => setWeekOffset((o) => o - 1));
+          }
         }
       },
     })
@@ -474,45 +535,34 @@ export function OverviewDayWeekCard({
       style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, width }]}
       {...swipePan.panHandlers}
     >
-      {/* ── Header: Day / Week toggle ── */}
+      {/* ── Header: Day / Week toggle + navigation ── */}
       <View style={styles.header}>
-        {/* Mode toggle pills */}
         <View style={[styles.toggleRow, { backgroundColor: colors.background, borderColor: colors.border }]}>
           <Pressable
             onPress={() => switchMode("day")}
-            style={[
-              styles.toggleBtn,
-              mode === "day" && { backgroundColor: colors.primary },
-            ]}
+            style={[styles.toggleBtn, mode === "day" && { backgroundColor: colors.primary }]}
           >
             <IconSymbol name="calendar.day.timeline.left" size={14} color={mode === "day" ? "#FFF" : colors.muted} />
             <Text style={[styles.toggleLabel, { color: mode === "day" ? "#FFF" : colors.muted }]}>Day</Text>
           </Pressable>
           <Pressable
             onPress={() => switchMode("week")}
-            style={[
-              styles.toggleBtn,
-              mode === "week" && { backgroundColor: colors.primary },
-            ]}
+            style={[styles.toggleBtn, mode === "week" && { backgroundColor: colors.primary }]}
           >
             <IconSymbol name="calendar" size={14} color={mode === "week" ? "#FFF" : colors.muted} />
             <Text style={[styles.toggleLabel, { color: mode === "week" ? "#FFF" : colors.muted }]}>Week</Text>
           </Pressable>
         </View>
 
-        {/* Navigation arrows */}
         <View style={styles.navRow}>
           <Pressable
-            onPress={() => mode === "day" ? setDayOffset((o) => o - 1) : setWeekOffset((o) => o - 1)}
+            onPress={goPrev}
             style={({ pressed }) => [styles.navBtn, { borderColor: colors.border, opacity: pressed ? 0.6 : 1 }]}
           >
             <IconSymbol name="chevron.left" size={14} color={colors.foreground} />
           </Pressable>
           <Pressable
-            onPress={() => {
-              if (mode === "day") setDayOffset(0);
-              else setWeekOffset(0);
-            }}
+            onPress={goToday}
             style={({ pressed }) => [
               styles.todayBtn,
               {
@@ -529,7 +579,7 @@ export function OverviewDayWeekCard({
             </Text>
           </Pressable>
           <Pressable
-            onPress={() => mode === "day" ? setDayOffset((o) => o + 1) : setWeekOffset((o) => o + 1)}
+            onPress={goNext}
             style={({ pressed }) => [styles.navBtn, { borderColor: colors.border, opacity: pressed ? 0.6 : 1 }]}
           >
             <IconSymbol name="chevron.right" size={14} color={colors.foreground} />
@@ -537,66 +587,73 @@ export function OverviewDayWeekCard({
         </View>
       </View>
 
-      {/* ── Day View ── */}
-      {mode === "day" && (
-        <View style={{ flex: 1 }}>
-          {/* Day header with stats */}
-          <View style={[styles.dayStatRow, { borderBottomColor: colors.border }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>
-                {formatDayHeader(selectedDay)}
-              </Text>
-              <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>
-                {selectedDay.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
-              </Text>
+      {/* ── Animated content wrapper ── */}
+      <Animated.View
+        style={{
+          transform: [{ translateX: slideX }],
+          opacity: contentOpacity,
+          overflow: "hidden",
+        }}
+      >
+        {/* ── Day View ── */}
+        {mode === "day" && (
+          <View>
+            {/* Day header with stats */}
+            <View style={[styles.dayStatRow, { borderBottomColor: colors.border }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>
+                  {formatDayHeader(selectedDay)}
+                </Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>
+                  {selectedDay.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+                </Text>
+              </View>
+              <View style={styles.statPill}>
+                <View style={[styles.statBadge, { backgroundColor: colors.primary + "18" }]}>
+                  <Text style={{ fontSize: 13, fontWeight: "800", color: colors.primary }}>{dayAppts.length}</Text>
+                  <Text style={{ fontSize: 10, color: colors.muted, marginTop: 1 }}>appts</Text>
+                </View>
+                <View style={[styles.statBadge, { backgroundColor: colors.success + "18" }]}>
+                  <Text style={{ fontSize: 13, fontWeight: "800", color: colors.success }}>${dayIncome.toFixed(2)}</Text>
+                  <Text style={{ fontSize: 10, color: colors.muted, marginTop: 1 }}>booked</Text>
+                </View>
+              </View>
             </View>
-            <View style={styles.statPill}>
-              <View style={[styles.statBadge, { backgroundColor: colors.primary + "18" }]}>
-                <Text style={{ fontSize: 13, fontWeight: "800", color: colors.primary }}>{dayAppts.length}</Text>
-                <Text style={{ fontSize: 10, color: colors.muted, marginTop: 1 }}>appts</Text>
+
+            {/* Timeline — fixed height so card doesn't grow unbounded */}
+            <View style={{ height: 340 }}>
+              <DayTimeline
+                dayDate={selectedDay}
+                dayAppts={dayAppts}
+                services={services}
+                clients={clients}
+                colors={colors}
+                onApptPress={handleApptPress}
+              />
+            </View>
+          </View>
+        )}
+
+        {/* ── Week View ── */}
+        {mode === "week" && (
+          <View>
+            {/* Week range header */}
+            <View style={[styles.dayStatRow, { borderBottomColor: colors.border }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>
+                  {formatWeekRange(weekSun)}
+                </Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>
+                  {weekTotalAppts} appointment{weekTotalAppts !== 1 ? "s" : ""} this week
+                </Text>
               </View>
               <View style={[styles.statBadge, { backgroundColor: colors.success + "18" }]}>
-                <Text style={{ fontSize: 13, fontWeight: "800", color: colors.success }}>${dayIncome.toFixed(2)}</Text>
-                <Text style={{ fontSize: 10, color: colors.muted, marginTop: 1 }}>booked</Text>
+                <Text style={{ fontSize: 13, fontWeight: "800", color: colors.success }}>${weekTotalIncome.toFixed(2)}</Text>
+                <Text style={{ fontSize: 10, color: colors.muted, marginTop: 1 }}>total</Text>
               </View>
             </View>
-          </View>
 
-          {/* Timeline */}
-          <View style={{ height: 340 }}>
-            <DayTimeline
-              dayDate={selectedDay}
-              dayAppts={dayAppts}
-              services={services}
-              clients={clients}
-              colors={colors}
-              onApptPress={handleApptPress}
-            />
-          </View>
-        </View>
-      )}
-
-      {/* ── Week View ── */}
-      {mode === "week" && (
-        <View style={{ flex: 1 }}>
-          {/* Week range header */}
-          <View style={[styles.dayStatRow, { borderBottomColor: colors.border }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>
-                {formatWeekRange(weekSun)}
-              </Text>
-              <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>
-                {weekTotalAppts} appointment{weekTotalAppts !== 1 ? "s" : ""} this week
-              </Text>
-            </View>
-            <View style={[styles.statBadge, { backgroundColor: colors.success + "18" }]}>
-              <Text style={{ fontSize: 13, fontWeight: "800", color: colors.success }}>${weekTotalIncome.toFixed(2)}</Text>
-              <Text style={{ fontSize: 10, color: colors.muted, marginTop: 1 }}>total</Text>
-            </View>
-          </View>
-
-          {/* Per-day rows */}
-          <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+            {/* Per-day rows — no ScrollView, render all 7 rows at natural height */}
             {weekDays.map(({ date, dateStr: dStr, appts, income, dayIndex }) => {
               const isWeekend = WEEKEND_DAYS.includes(dayIndex);
               const isToday = dStr === todayStr;
@@ -608,9 +665,8 @@ export function OverviewDayWeekCard({
                 <Pressable
                   key={dStr}
                   onPress={() => {
-                    // Switch to day view for this date
                     const today = new Date();
-                    const diff = Math.round((date.getTime() - today.setHours(0, 0, 0, 0)) / 86400000);
+                    const diff = Math.round((date.getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 86400000);
                     setDayOffset(diff);
                     switchMode("day");
                   }}
@@ -628,38 +684,21 @@ export function OverviewDayWeekCard({
                 >
                   {/* Day label */}
                   <View style={styles.weekDayLabel}>
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        fontWeight: "700",
-                        color: isToday ? colors.primary : isWeekend ? "#E53935" : colors.muted,
-                      }}
-                    >
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: isToday ? colors.primary : isWeekend ? "#E53935" : colors.muted }}>
                       {dayName}
                     </Text>
-                    <View
-                      style={[
-                        styles.dayNumCircle,
-                        isToday && { backgroundColor: colors.primary },
-                      ]}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 13,
-                          fontWeight: "800",
-                          color: isToday ? "#FFF" : isWeekend ? "#E53935" : colors.foreground,
-                        }}
-                      >
+                    <View style={[styles.dayNumCircle, isToday && { backgroundColor: colors.primary }]}>
+                      <Text style={{ fontSize: 13, fontWeight: "800", color: isToday ? "#FFF" : isWeekend ? "#E53935" : colors.foreground }}>
                         {dayNum}
                       </Text>
                     </View>
                     <Text style={{ fontSize: 10, color: colors.muted }}>{monthShort}</Text>
                   </View>
 
-                  {/* Appointment count + mini dots */}
+                  {/* Appointment time chips */}
                   <View style={styles.weekDayMid}>
                     {appts.length === 0 ? (
-                      <Text style={{ fontSize: 12, color: colors.muted }}>No appointments</Text>
+                      <Text style={{ fontSize: 11, color: colors.muted }}>—</Text>
                     ) : (
                       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4 }}>
                         {appts.slice(0, 4).map((a) => {
@@ -672,19 +711,12 @@ export function OverviewDayWeekCard({
                                 alignItems: "center",
                                 backgroundColor: (svc?.color ?? colors.primary) + "20",
                                 borderRadius: 6,
-                                paddingHorizontal: 6,
+                                paddingHorizontal: 5,
                                 paddingVertical: 2,
                                 gap: 3,
                               }}
                             >
-                              <View
-                                style={{
-                                  width: 6,
-                                  height: 6,
-                                  borderRadius: 3,
-                                  backgroundColor: svc?.color ?? colors.primary,
-                                }}
-                              />
+                              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: svc?.color ?? colors.primary }} />
                               <Text style={{ fontSize: 10, color: colors.foreground, fontWeight: "600" }}>
                                 {formatTime(a.time)}
                               </Text>
@@ -725,9 +757,9 @@ export function OverviewDayWeekCard({
                 </Text>
               </View>
             </View>
-          </ScrollView>
-        </View>
-      )}
+          </View>
+        )}
+      </Animated.View>
     </View>
   );
 }
@@ -740,7 +772,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: "hidden",
     marginTop: 8,
-    minHeight: 460,
   },
   header: {
     flexDirection: "row",

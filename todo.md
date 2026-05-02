@@ -1749,3 +1749,5 @@
 - [ ] Calendar-booking flow: service/product picker — collapsible categories (services) and brands (products), list hidden until category/brand tapped
 - [ ] New-booking flow: service/product picker — same collapsible categories/brands UX as calendar-booking
 - [ ] Continue button disabled until location selected when multiple locations available for chosen time (already done in new-booking.tsx)
+- [ ] Fix Week card height — all 7 days visible, card must not be cut off or overflow into next section
+- [ ] Smooth slide animation when swiping/navigating between days and weeks in Day/Week KPI card
