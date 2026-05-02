@@ -688,10 +688,14 @@ export default function CalendarScreen() {
         state.settings.scheduleMode,
         state.settings.bufferTime ?? 0
       );
-      const bookedOnDay = locationAppointments.filter(
-        (a) => a.date === dateStr && (a.status === 'confirmed' || a.status === 'pending')
-      ).length;
-      return [dateStr, { total: slots.length, booked: bookedOnDay }];
+      // Use same filtering as slot panel: exclude times that have a confirmed/pending appointment
+      const bookedTimes = new Set(
+        locationAppointments
+          .filter((a) => a.date === dateStr && (a.status === 'confirmed' || a.status === 'pending'))
+          .map((a) => a.time)
+      );
+      const availableCount = slots.filter((t) => !bookedTimes.has(t)).length;
+      return [dateStr, { total: slots.length, booked: slots.length - availableCount }];
     };
 
     // Pass 1: compute current week (7 days around today) first — appears in ~50ms
@@ -1454,8 +1458,9 @@ export default function CalendarScreen() {
 
       {/* Inline time-slot expansion panel */}
       {expandedDate && isDayAvailable(expandedDate) && !isDateInPast(expandedDate) && (() => {
-        const slotStep = (state.settings as any).slotInterval ?? 30;
+        const rawSlotStepPanel = (state.settings as any).slotInterval ?? 30;
         const defaultDuration = state.settings.defaultDuration ?? 30;
+        const slotStep = Math.max(rawSlotStepPanel, defaultDuration);
         // generateAvailableSlots returns string[] of time strings (e.g. "09:00")
         const allSlotTimes = generateAvailableSlots(
           expandedDate,

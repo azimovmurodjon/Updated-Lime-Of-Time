@@ -585,42 +585,42 @@ export default function CalendarBookingScreen() {
               const hasMultiCat = entries.length > 1;
 
               if (hasMultiCat && step1CategoryFilter === null) {
+                const CATEGORY_EMOJI: Record<string, string> = {
+                  Hair: "✂️", Massage: "💆", Nails: "💅", Skincare: "🧴",
+                  "Waxing & Brows": "🪮", Waxing: "🪮", Brows: "🪮",
+                  Makeup: "💄", Lashes: "👁️", Spa: "🛁", Fitness: "🏋️",
+                  Tattoo: "🖊️", Piercing: "💎", Barber: "💈", General: "⭐",
+                };
+                const getCatEmoji = (c: string) => CATEGORY_EMOJI[c] ?? "✨";
                 return (
                   <View>
                     <Text className="text-base font-semibold text-foreground mb-3">
                       Select a Category
                     </Text>
-                    {entries.map(([cat, svcs]) => (
-                      <Pressable
-                        key={cat}
-                        onPress={() => setStep1CategoryFilter(cat)}
-                        style={({ pressed }) => [
-                          styles.optionCard,
-                          {
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                      {entries.map(([cat, svcs]) => (
+                        <Pressable
+                          key={cat}
+                          onPress={() => setStep1CategoryFilter(cat)}
+                          style={({ pressed }) => ({
+                            width: "47%",
                             backgroundColor: colors.surface,
                             borderColor: colors.border,
+                            borderWidth: 1,
+                            borderRadius: 14,
+                            paddingVertical: 18,
+                            paddingHorizontal: 14,
+                            alignItems: "center",
+                            gap: 8,
                             opacity: pressed ? 0.7 : 1,
-                          },
-                        ]}
-                      >
-                        <View
-                          style={[styles.colorDot, { backgroundColor: colors.primary }]}
-                        />
-                        <View style={styles.optionContent}>
-                          <Text className="text-base font-semibold text-foreground">
-                            {cat}
-                          </Text>
-                          <Text className="text-xs text-muted mt-0.5">
-                            {svcs.length} service{svcs.length !== 1 ? "s" : ""}
-                          </Text>
-                        </View>
-                        <IconSymbol
-                          name="chevron.right"
-                          size={16}
-                          color={colors.muted}
-                        />
-                      </Pressable>
-                    ))}
+                          })}
+                        >
+                          <Text style={{ fontSize: 32 }}>{getCatEmoji(cat)}</Text>
+                          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, textAlign: "center" }}>{cat}</Text>
+                          <Text style={{ fontSize: 11, color: colors.muted }}>{svcs.length} service{svcs.length !== 1 ? "s" : ""}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
                   </View>
                 );
               }
