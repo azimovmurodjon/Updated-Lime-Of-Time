@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import {
   Text,
   View,
@@ -46,8 +46,18 @@ import { FuturisticBackground } from "@/components/futuristic-background";
 // 2 = Client selection
 // 3 = Location selection (only if multiple locations)
 // 4 = Staff selection (filtered by location)
-// 5 = Confirm
-type Step = 1 | 2 | 3 | 4 | 5;
+// 5 = Review & Add More
+// 6 = Payment Method
+// 7 = Confirm
+type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+
+type CartItem = {
+  type: "service" | "product";
+  id: string;
+  name: string;
+  price: number;
+  duration: number;
+};
 
 export default function CalendarBookingScreen() {
   const {
@@ -86,6 +96,11 @@ export default function CalendarBookingScreen() {
   const [quickName, setQuickName] = useState("");
   const [quickPhone, setQuickPhone] = useState("");
   const [step1CategoryFilter, setStep1CategoryFilter] = useState<string | null>(null);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [addMoreTab, setAddMoreTab] = useState<"services" | "products">("services");
+  const [addMoreCategoryFilter, setAddMoreCategoryFilter] = useState<string | null>(null);
+  const [addMoreBrandFilter, setAddMoreBrandFilter] = useState<string | null>(null);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
 
   // Location selection — pre-select if only one active location or if passed from calendar
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(() => {
@@ -107,8 +122,18 @@ export default function CalendarBookingScreen() {
   );
 
   const totalDuration = useMemo(
-    () => selectedService?.duration ?? state.settings.defaultDuration,
-    [selectedService, state.settings.defaultDuration]
+    () => (selectedService?.duration ?? state.settings.defaultDuration) + cart.reduce((s, i) => s + i.duration, 0),
+    [selectedService, state.settings.defaultDuration, cart]
+  );
+
+  const servicePrice = useMemo(() => {
+    if (!selectedService) return 0;
+    return parseFloat(String(selectedService.price));
+  }, [selectedService]);
+
+  const subtotal = useMemo(
+    () => servicePrice + cart.reduce((s, i) => s + i.price, 0),
+    [servicePrice, cart]
   );
 
   const effectiveStep = useMemo(() => {
@@ -205,17 +230,28 @@ export default function CalendarBookingScreen() {
     );
   }, [state.discounts, preselectedDate, preselectedTime, selectedServiceId, state.appointments]);
 
-  const servicePrice = useMemo(() => {
-    if (!selectedService) return 0;
-    return parseFloat(String(selectedService.price));
-  }, [selectedService]);
-
   const discountAmount = useMemo(() => {
     if (!appliedDiscount) return 0;
-    return servicePrice * (appliedDiscount.percentage / 100);
-  }, [appliedDiscount, servicePrice]);
+    return subtotal * (appliedDiscount.percentage / 100);
+  }, [appliedDiscount, subtotal]);
 
-  const totalPrice = servicePrice - discountAmount;
+  const totalPrice = subtotal - discountAmount;
+
+  // Available extra services (exclude the primary service already selected)
+  const availableExtraServices = useMemo(
+    () => state.services.filter((s) => s.id !== selectedServiceId),
+    [state.services, selectedServiceId]
+  );
+
+  const availableProducts = useMemo(() => state.products ?? [], [state.products]);
+
+  const addToCart = useCallback((item: CartItem) => {
+    setCart((prev) => [...prev, item]);
+  }, []);
+
+  const removeFromCart = useCallback((index: number) => {
+    setCart((prev) => prev.filter((_, i) => i !== index));
+  }, []);
 
   const filteredClients = useMemo(() => {
     const q = clientSearch.toLowerCase();
@@ -250,17 +286,14 @@ export default function CalendarBookingScreen() {
     setShowQuickAdd(false);
     setQuickName("");
     setQuickPhone("");
-    // Advance to next step after client creation
     advanceAfterClient();
   }, [quickName, quickPhone, dispatch, syncToDb]);
 
   // Determine next step after client selection
   const advanceAfterClient = useCallback(() => {
-    // If multiple active locations and no pre-selected location, go to location step
     if (activeLocations.length > 1 && !selectedLocationId) {
       setStep(3);
     } else {
-      // Skip location step — go to staff
       setStep(4);
     }
   }, [activeLocations.length, selectedLocationId]);
@@ -279,6 +312,14 @@ export default function CalendarBookingScreen() {
       return;
     }
 
+    const extraItems = cart.map((item) => ({
+      type: item.type,
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      duration: item.duration,
+    }));
+
     const appointment: Appointment = {
       id: generateId(),
       serviceId: selectedServiceId,
@@ -295,7 +336,9 @@ export default function CalendarBookingScreen() {
       discountPercent: appliedDiscount?.percentage,
       discountAmount: discountAmount > 0 ? discountAmount : undefined,
       discountName: appliedDiscount?.name,
-      paymentStatus: totalPrice <= 0 ? "paid" : undefined,
+      paymentStatus: totalPrice <= 0 ? "paid" : "unpaid",
+      paymentMethod: selectedPaymentMethod ?? undefined,
+      extraItems: extraItems.length > 0 ? extraItems : undefined,
     };
     dispatch({ type: "ADD_APPOINTMENT", payload: appointment });
     syncToDb({ type: "ADD_APPOINTMENT", payload: appointment });
@@ -360,13 +403,16 @@ export default function CalendarBookingScreen() {
     totalDuration,
     notes,
     totalPrice,
+    subtotal,
+    discountAmount,
     selectedStaffId,
     selectedLocationId,
     activeLocations,
     dispatch,
     syncToDb,
     appliedDiscount,
-    discountAmount,
+    cart,
+    selectedPaymentMethod,
     state.settings,
     sendSmsMutation,
     router,
@@ -377,15 +423,18 @@ export default function CalendarBookingScreen() {
 
   // Determine step count based on whether location selection is needed
   const needsLocationStep = activeLocations.length > 1 && !preselectedLocationId;
-  const TOTAL_STEPS = needsLocationStep ? 5 : 4;
+  // Steps: 1=Service, 2=Client, [3=Location if needed], 4=Staff, 5=Review+Add More, 6=Payment, 7=Confirm
+  const TOTAL_STEPS = needsLocationStep ? 7 : 6;
 
-  // Map logical steps to display step numbers
+  // Map logical steps to display step numbers (skip location step if not needed)
   const displayStep = useMemo(() => {
     if (!needsLocationStep) {
-      // Steps: 1=Service, 2=Client, 3=Staff(was 4), 4=Confirm(was 5)
+      // No location step: 1→1, 2→2, 4→3, 5→4, 6→5, 7→6
       if (step <= 2) return step;
       if (step === 4) return 3;
       if (step === 5) return 4;
+      if (step === 6) return 5;
+      if (step === 7) return 6;
     }
     return step;
   }, [step, needsLocationStep]);
@@ -395,6 +444,10 @@ export default function CalendarBookingScreen() {
     const ap = h >= 12 ? "PM" : "AM";
     const hr = h === 0 ? 12 : h > 12 ? h - 12 : h;
     return `${hr}:${String(m).padStart(2, "0")} ${ap}`;
+  };
+
+  const getEndTime = (time: string) => {
+    return formatTime(minutesToTime(timeToMinutes(time) + totalDuration));
   };
 
   return (
@@ -691,106 +744,81 @@ export default function CalendarBookingScreen() {
               </Pressable>
             </View>
           ) : (
-            <>
-              <View
-                className="flex-row items-center rounded-xl px-3 mb-3 border"
-                style={{ backgroundColor: colors.surface, borderColor: colors.border }}
-              >
-                <IconSymbol name="magnifyingglass" size={18} color={colors.muted} />
-                <TextInput
-                  className="flex-1 py-3 px-2 text-sm"
-                  placeholder="Search clients..."
-                  placeholderTextColor={colors.muted}
-                  value={clientSearch}
-                  onChangeText={setClientSearch}
-                  style={{ color: colors.foreground }}
-                />
-              </View>
-              <FlatList
-                data={filteredClients}
-                keyExtractor={(item) => item.id}
-                showsVerticalScrollIndicator={false}
-                renderItem={({ item }) => (
-                  <Pressable
-                    onPress={() => {
-                      setSelectedClientId(item.id);
-                      advanceAfterClient();
-                    }}
-                    style={({ pressed }) => [
-                      styles.optionCard,
-                      {
-                        backgroundColor:
-                          selectedClientId === item.id
-                            ? colors.primary + "15"
-                            : colors.surface,
-                        borderColor:
-                          selectedClientId === item.id
-                            ? colors.primary
-                            : colors.border,
-                        opacity: pressed ? 0.7 : 1,
-                      },
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.avatar,
-                        { backgroundColor: colors.primary + "20" },
-                      ]}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 13,
-                          fontWeight: "700",
-                          color: colors.primary,
-                        }}
-                      >
-                        {getInitials(item.name)}
-                      </Text>
-                    </View>
-                    <View style={styles.optionContent}>
-                      <Text className="text-base font-semibold text-foreground">
-                        {item.name}
-                      </Text>
-                      {item.phone ? (
-                        <Text className="text-xs text-muted mt-0.5">
-                          {item.phone}
-                        </Text>
-                      ) : null}
-                    </View>
-                    <IconSymbol
-                      name="chevron.right"
-                      size={16}
-                      color={colors.muted}
-                    />
-                  </Pressable>
-                )}
-                ListEmptyComponent={
-                  <View className="items-center py-8">
-                    <Text className="text-sm text-muted">No clients found</Text>
-                    <Pressable
-                      onPress={() => setShowQuickAdd(true)}
-                      style={({ pressed }) => [
-                        { opacity: pressed ? 0.7 : 1, marginTop: 8 },
-                      ]}
-                    >
-                      <Text
-                        className="text-sm font-medium"
-                        style={{ color: colors.primary }}
-                      >
-                        + Add New Client
-                      </Text>
-                    </Pressable>
-                  </View>
-                }
-                contentContainerStyle={{ paddingBottom: 40 }}
-              />
-            </>
+            <TextInput
+              className="bg-surface rounded-xl px-3 py-3 text-sm mb-3 border border-border"
+              placeholder="Search clients..."
+              placeholderTextColor={colors.muted}
+              value={clientSearch}
+              onChangeText={setClientSearch}
+              style={{ color: colors.foreground }}
+              returnKeyType="search"
+            />
           )}
+
+          <FlatList
+            data={filteredClients}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            renderItem={({ item }) => (
+              <Pressable
+                onPress={() => {
+                  setSelectedClientId(item.id);
+                  advanceAfterClient();
+                }}
+                style={({ pressed }) => [
+                  styles.optionCard,
+                  {
+                    backgroundColor:
+                      selectedClientId === item.id
+                        ? colors.primary + "15"
+                        : colors.surface,
+                    borderColor:
+                      selectedClientId === item.id
+                        ? colors.primary
+                        : colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.avatar,
+                    { backgroundColor: colors.primary + "20" },
+                  ]}
+                >
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontWeight: "700",
+                      color: colors.primary,
+                    }}
+                  >
+                    {getInitials(item.name)}
+                  </Text>
+                </View>
+                <View style={styles.optionContent}>
+                  <Text className="text-base font-semibold text-foreground">
+                    {item.name}
+                  </Text>
+                  {item.phone ? (
+                    <Text className="text-xs text-muted mt-0.5">{item.phone}</Text>
+                  ) : null}
+                </View>
+                <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+              </Pressable>
+            )}
+            ListEmptyComponent={
+              <View className="items-center py-8">
+                <Text className="text-sm text-muted">No clients found</Text>
+              </View>
+            }
+          />
         </View>
       )}
 
       {/* ─── Step 3: Location Selection (only if multiple locations) ─── */}
-      {step === 3 && needsLocationStep && (
+      {step === 3 && (
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: hp }}
@@ -812,7 +840,6 @@ export default function CalendarBookingScreen() {
 
           {/* Show locations that are open on the selected date */}
           {activeLocations.map((loc) => {
-            // Check if location is open on the selected date
             const d = new Date(preselectedDate + "T12:00:00");
             const dayName = DAYS_OF_WEEK[d.getDay()];
             const locWH =
@@ -834,7 +861,6 @@ export default function CalendarBookingScreen() {
               isOpen = !!(wh && wh.enabled);
             }
 
-            // Check if the pre-selected time is available at this location
             let timeAvailable = true;
             if (preselectedTime && isOpen) {
               const locAppts = state.appointments.filter(
@@ -888,15 +914,27 @@ export default function CalendarBookingScreen() {
                   },
                 ]}
               >
-                <View
-                  style={[
-                    styles.colorDot,
-                    {
-                      backgroundColor:
-                        (loc as any).color || colors.primary,
-                    },
-                  ]}
-                />
+                {/* Location photo or map-pin icon */}
+                {(loc as any).photoUri ? (
+                  <Image
+                    source={{ uri: (loc as any).photoUri }}
+                    style={{ width: 44, height: 44, borderRadius: 10, marginRight: 12 }}
+                  />
+                ) : (
+                  <View
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 10,
+                      backgroundColor: isSelected ? colors.primary + "20" : colors.primary + "12",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      marginRight: 12,
+                    }}
+                  >
+                    <IconSymbol name="location.fill" size={20} color={isSelected ? colors.primary : colors.muted} />
+                  </View>
+                )}
                 <View style={styles.optionContent}>
                   <Text
                     className="text-base font-semibold"
@@ -1034,12 +1072,12 @@ export default function CalendarBookingScreen() {
                     styles.optionCard,
                     {
                       backgroundColor: isSelected
-                        ? colors.primary + "15"
+                        ? (member.color || colors.primary) + "15"
                         : !isAvailable
                         ? colors.surface + "80"
                         : colors.surface,
                       borderColor: isSelected
-                        ? colors.primary
+                        ? (member.color || colors.primary)
                         : !isAvailable
                         ? colors.border + "60"
                         : colors.border,
@@ -1047,24 +1085,56 @@ export default function CalendarBookingScreen() {
                     },
                   ]}
                 >
-                  <View
-                    style={[
-                      styles.avatar,
-                      {
-                        backgroundColor:
-                          (member.color || colors.primary) + "20",
-                      },
-                    ]}
-                  >
-                    <Text
+                  {/* Staff photo or initials avatar */}
+                  <View style={{ position: "relative", marginRight: 12 }}>
+                    <View
                       style={{
-                        fontSize: 13,
-                        fontWeight: "700",
-                        color: member.color || colors.primary,
+                        width: 44,
+                        height: 44,
+                        borderRadius: 22,
+                        backgroundColor: (member.color || colors.primary) + "20",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        overflow: "hidden",
+                        borderWidth: isSelected ? 2 : 0,
+                        borderColor: member.color || colors.primary,
                       }}
                     >
-                      {getInitials(member.name)}
-                    </Text>
+                      {member.photoUri ? (
+                        <Image
+                          source={{ uri: member.photoUri }}
+                          style={{ width: 44, height: 44, borderRadius: 22 }}
+                        />
+                      ) : (
+                        <Text
+                          style={{
+                            fontSize: 15,
+                            fontWeight: "700",
+                            color: member.color || colors.primary,
+                          }}
+                        >
+                          {getInitials(member.name)}
+                        </Text>
+                      )}
+                    </View>
+                    {/* Availability dot */}
+                    <View
+                      style={{
+                        position: "absolute",
+                        bottom: 0,
+                        right: 0,
+                        width: 12,
+                        height: 12,
+                        borderRadius: 6,
+                        backgroundColor: preselectedTime
+                          ? isAvailable
+                            ? colors.success
+                            : colors.muted
+                          : colors.border,
+                        borderWidth: 2,
+                        borderColor: colors.background,
+                      }}
+                    />
                   </View>
                   <View style={styles.optionContent}>
                     <Text
@@ -1075,6 +1145,9 @@ export default function CalendarBookingScreen() {
                     >
                       {member.name}
                     </Text>
+                    {member.role ? (
+                      <Text className="text-xs text-muted mt-0.5">{member.role}</Text>
+                    ) : null}
                     {!isAvailable && preselectedTime && (
                       <Text
                         style={{
@@ -1102,15 +1175,329 @@ export default function CalendarBookingScreen() {
         </ScrollView>
       )}
 
-      {/* ─── Step 5: Confirm ─── */}
+      {/* ─── Step 5: Review & Add More ─── */}
       {step === 5 && (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}
+        >
+          <View className="flex-row items-center justify-between mb-3">
+            <Pressable onPress={() => setStep(4)} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+              <Text className="text-sm" style={{ color: colors.primary }}>← Back</Text>
+            </Pressable>
+            <Text className="text-base font-semibold text-foreground">Review & Add More</Text>
+            <View style={{ width: 40 }} />
+          </View>
+
+          {/* Cart Summary */}
+          <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border, marginBottom: 16 }]}>
+            <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 12 }}>Booking Items</Text>
+
+            {/* Primary Service */}
+            {selectedService && (
+              <View style={styles.cartItem}>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: selectedService.color, marginRight: 8 }} />
+                    <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{selectedService.name}</Text>
+                  </View>
+                  <Text style={{ fontSize: 12, color: colors.muted, marginLeft: 18 }}>{selectedService.duration} min</Text>
+                </View>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: colors.primary }}>${servicePrice.toFixed(2)}</Text>
+                  <Text style={{ fontSize: 10, color: colors.success, fontWeight: "600" }}>PRIMARY</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Cart Items */}
+            {cart.map((item, index) => (
+              <View key={`${item.type}-${item.id}-${index}`} style={styles.cartItem}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{item.name}</Text>
+                  <Text style={{ fontSize: 12, color: colors.muted }}>
+                    {item.type === "product" ? "Product" : `${item.duration} min`}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: colors.primary }}>${item.price.toFixed(2)}</Text>
+                  <Pressable
+                    onPress={() => removeFromCart(index)}
+                    style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}
+                  >
+                    <IconSymbol name="xmark" size={16} color={colors.error} />
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+
+            {/* Discount */}
+            {appliedDiscount && discountAmount > 0 && (
+              <>
+                <View style={[styles.cartItem, { borderTopWidth: 1, borderTopColor: colors.border, marginTop: 4, paddingTop: 8 }]}>
+                  <Text style={{ fontSize: 13, color: colors.muted }}>Subtotal</Text>
+                  <Text style={{ fontSize: 13, color: colors.muted }}>${subtotal.toFixed(2)}</Text>
+                </View>
+                <View style={styles.cartItem}>
+                  <Text style={{ fontSize: 13, fontWeight: "500", color: colors.warning }}>{appliedDiscount.name} ({appliedDiscount.percentage}% off)</Text>
+                  <Text style={{ fontSize: 13, fontWeight: "500", color: colors.warning }}>-${discountAmount.toFixed(2)}</Text>
+                </View>
+              </>
+            )}
+
+            {/* Total */}
+            <View style={[styles.cartItem, { borderTopWidth: 2, borderTopColor: colors.border, marginTop: 4, paddingTop: 10 }]}>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Total ({totalDuration} min)</Text>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.primary }}>${totalPrice.toFixed(2)}</Text>
+            </View>
+          </View>
+
+          {/* Add More Section */}
+          <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 8, marginLeft: 2 }}>Add More (Optional)</Text>
+
+          {/* Segmented Control */}
+          <View style={[styles.segControl, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Pressable
+              onPress={() => setAddMoreTab("services")}
+              style={[styles.segBtn, addMoreTab === "services" && { backgroundColor: colors.primary }]}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "600", color: addMoreTab === "services" ? "#FFF" : colors.muted }}>Services</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setAddMoreTab("products")}
+              style={[styles.segBtn, addMoreTab === "products" && { backgroundColor: colors.primary }]}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "600", color: addMoreTab === "products" ? "#FFF" : colors.muted }}>Products</Text>
+            </Pressable>
+          </View>
+
+          {/* Extra Services */}
+          {addMoreTab === "services" && (
+            <View style={{ marginBottom: 16 }}>
+              {availableExtraServices.length === 0 ? (
+                <View style={{ alignItems: "center", paddingVertical: 24, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border }}>
+                  <Text style={{ fontSize: 12, color: colors.muted }}>No additional services available</Text>
+                </View>
+              ) : (() => {
+                const svcCats = Array.from(new Set(availableExtraServices.map((s) => s.category?.trim() || "General"))).sort();
+                const hasMultiCat = svcCats.length > 1;
+                const filteredSvcs = addMoreCategoryFilter
+                  ? availableExtraServices.filter((s) => (s.category?.trim() || "General") === addMoreCategoryFilter)
+                  : availableExtraServices;
+                return (
+                  <View>
+                    {hasMultiCat && (
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{ gap: 8, paddingBottom: 8, flexDirection: "row" }}
+                        style={{ marginBottom: 8 }}
+                      >
+                        <Pressable
+                          onPress={() => setAddMoreCategoryFilter(null)}
+                          style={[styles.filterChip, { backgroundColor: !addMoreCategoryFilter ? colors.primary : colors.surface, borderColor: !addMoreCategoryFilter ? colors.primary : colors.border }]}
+                        >
+                          <Text style={{ fontSize: 12, fontWeight: "600", color: !addMoreCategoryFilter ? "#fff" : colors.muted }}>All</Text>
+                        </Pressable>
+                        {svcCats.map((cat) => (
+                          <Pressable
+                            key={cat}
+                            onPress={() => setAddMoreCategoryFilter(addMoreCategoryFilter === cat ? null : cat)}
+                            style={[styles.filterChip, { backgroundColor: addMoreCategoryFilter === cat ? colors.primary : colors.surface, borderColor: addMoreCategoryFilter === cat ? colors.primary : colors.border }]}
+                          >
+                            <Text style={{ fontSize: 12, fontWeight: "600", color: addMoreCategoryFilter === cat ? "#fff" : colors.muted }} numberOfLines={1}>{cat}</Text>
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    )}
+                    {filteredSvcs.map((s) => (
+                      <Pressable
+                        key={s.id}
+                        onPress={() => addToCart({ type: "service", id: s.id, name: s.name, price: parseFloat(String(s.price)), duration: s.duration })}
+                        style={({ pressed }) => [styles.optionCard, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
+                      >
+                        {s.photoUri ? (
+                          <Image source={{ uri: s.photoUri }} style={{ width: 36, height: 36, borderRadius: 8, marginRight: 12 }} />
+                        ) : (
+                          <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: s.color, marginRight: 12 }} />
+                        )}
+                        <View style={styles.optionContent}>
+                          <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{s.name}</Text>
+                          <Text style={{ fontSize: 12, color: colors.muted }}>{s.duration} min{s.category ? " · " + s.category : ""}</Text>
+                        </View>
+                        <Text style={{ fontSize: 14, fontWeight: "700", color: colors.primary }}>+ ${parseFloat(String(s.price)).toFixed(2)}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                );
+              })()}
+            </View>
+          )}
+
+          {/* Products */}
+          {addMoreTab === "products" && (
+            <View style={{ marginBottom: 16 }}>
+              {availableProducts.length === 0 ? (
+                <View style={{ alignItems: "center", paddingVertical: 24, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border }}>
+                  <Text style={{ fontSize: 12, color: colors.muted }}>No products available</Text>
+                </View>
+              ) : (() => {
+                const allBrands = Array.from(new Set(availableProducts.map((p) => (p as any).brand?.trim() || "Other"))).sort();
+                const hasMultiBrand = allBrands.length > 1;
+                const filteredProds = addMoreBrandFilter
+                  ? availableProducts.filter((p) => ((p as any).brand?.trim() || "Other") === addMoreBrandFilter)
+                  : availableProducts;
+                return (
+                  <View>
+                    {hasMultiBrand && (
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{ gap: 8, paddingBottom: 8, flexDirection: "row" }}
+                        style={{ marginBottom: 8 }}
+                      >
+                        <Pressable
+                          onPress={() => setAddMoreBrandFilter(null)}
+                          style={[styles.filterChip, { backgroundColor: !addMoreBrandFilter ? colors.primary : colors.surface, borderColor: !addMoreBrandFilter ? colors.primary : colors.border }]}
+                        >
+                          <Text style={{ fontSize: 12, fontWeight: "600", color: !addMoreBrandFilter ? "#fff" : colors.muted }}>All</Text>
+                        </Pressable>
+                        {allBrands.map((brand) => (
+                          <Pressable
+                            key={brand}
+                            onPress={() => setAddMoreBrandFilter(addMoreBrandFilter === brand ? null : brand)}
+                            style={[styles.filterChip, { backgroundColor: addMoreBrandFilter === brand ? colors.primary : colors.surface, borderColor: addMoreBrandFilter === brand ? colors.primary : colors.border }]}
+                          >
+                            <Text style={{ fontSize: 12, fontWeight: "600", color: addMoreBrandFilter === brand ? "#fff" : colors.muted }} numberOfLines={1}>{brand}</Text>
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    )}
+                    {filteredProds.map((p) => (
+                      <Pressable
+                        key={p.id}
+                        onPress={() => addToCart({ type: "product", id: p.id, name: p.name, price: parseFloat(String(p.price)), duration: 0 })}
+                        style={({ pressed }) => [styles.optionCard, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
+                      >
+                        {(p as any).photoUri ? (
+                          <Image source={{ uri: (p as any).photoUri }} style={{ width: 36, height: 36, borderRadius: 8, marginRight: 12 }} />
+                        ) : (
+                          <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                            <IconSymbol name="bag.fill" size={18} color={colors.primary} />
+                          </View>
+                        )}
+                        <View style={styles.optionContent}>
+                          <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{p.name}</Text>
+                          {(p as any).brand ? <Text style={{ fontSize: 12, color: colors.muted }}>{(p as any).brand}{(p as any).description ? " · " + (p as any).description : ""}</Text> : null}
+                        </View>
+                        <Text style={{ fontSize: 14, fontWeight: "700", color: colors.primary }}>+ ${parseFloat(String(p.price)).toFixed(2)}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                );
+              })()}
+            </View>
+          )}
+
+          {/* Continue to Payment */}
+          <Pressable
+            onPress={() => setStep(6)}
+            style={({ pressed }) => [
+              styles.confirmBtn,
+              { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 },
+            ]}
+          >
+            <Text style={{ color: "#FFF", fontSize: 16, fontWeight: "700" }}>Continue to Payment →</Text>
+          </Pressable>
+        </ScrollView>
+      )}
+
+      {/* ─── Step 6: Payment Method ─── */}
+      {step === 6 && (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}
+        >
+          <View className="flex-row items-center justify-between mb-3">
+            <Pressable onPress={() => setStep(5)} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+              <Text className="text-sm" style={{ color: colors.primary }}>← Back</Text>
+            </Pressable>
+            <Text className="text-base font-semibold text-foreground">Payment Method</Text>
+            <View style={{ width: 40 }} />
+          </View>
+
+          {/* Amount Due */}
+          <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border, marginBottom: 16 }]}>
+            <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 4 }}>Amount Due</Text>
+            <Text style={{ fontSize: 28, fontWeight: "700", color: colors.primary }}>${totalPrice.toFixed(2)}</Text>
+            {selectedService && (
+              <Text style={{ fontSize: 12, color: colors.muted, marginTop: 4 }}>
+                {selectedService.name}{cart.length > 0 ? ` + ${cart.length} extra item${cart.length > 1 ? "s" : ""}` : ""}
+              </Text>
+            )}
+          </View>
+
+          {/* Payment Options */}
+          <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border, marginBottom: 16 }]}>
+            <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 12 }}>How will the client pay?</Text>
+            {(() => {
+              const pm = state.settings;
+              const opts: { id: string; label: string; sub: string; color: string }[] = [];
+              if ((pm as any).zelleHandle) opts.push({ id: "zelle", label: "💜 Zelle", sub: (pm as any).zelleHandle, color: "#6d28d9" });
+              if ((pm as any).cashAppHandle) opts.push({ id: "cashapp", label: "💚 Cash App", sub: (pm as any).cashAppHandle.startsWith("$") ? (pm as any).cashAppHandle : "$" + (pm as any).cashAppHandle, color: "#00d632" });
+              if ((pm as any).venmoHandle) opts.push({ id: "venmo", label: "💙 Venmo", sub: (pm as any).venmoHandle.startsWith("@") ? (pm as any).venmoHandle : "@" + (pm as any).venmoHandle, color: "#3d95ce" });
+              opts.push({ id: "cash", label: "💵 Cash", sub: "Collect in person", color: "#888" });
+              return opts.map((opt) => (
+                <Pressable
+                  key={opt.id}
+                  onPress={() => setSelectedPaymentMethod(opt.id)}
+                  style={[{
+                    flexDirection: "row", alignItems: "center", gap: 12,
+                    padding: 14, borderRadius: 14, marginBottom: 8,
+                    borderWidth: 2,
+                    borderColor: selectedPaymentMethod === opt.id ? opt.color : colors.border,
+                    backgroundColor: selectedPaymentMethod === opt.id ? opt.color + "18" : colors.background,
+                  }]}
+                >
+                  <Text style={{ fontSize: 22 }}>{opt.label.split(" ")[0]}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontWeight: "600", fontSize: 14, color: colors.foreground }}>{opt.label.slice(opt.label.indexOf(" ") + 1)}</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{opt.sub}</Text>
+                  </View>
+                  {selectedPaymentMethod === opt.id && (
+                    <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: opt.color, alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>✓</Text>
+                    </View>
+                  )}
+                </Pressable>
+              ));
+            })()}
+          </View>
+
+          {/* Continue to Confirm */}
+          <Pressable
+            onPress={() => {
+              if (!selectedPaymentMethod) {
+                Alert.alert("Payment Method", "Please select a payment method to continue.");
+                return;
+              }
+              setStep(7);
+            }}
+            style={({ pressed }) => [
+              styles.confirmBtn,
+              { backgroundColor: selectedPaymentMethod ? colors.primary : colors.muted, opacity: pressed ? 0.8 : 1 },
+            ]}
+          >
+            <Text style={{ color: "#FFF", fontSize: 16, fontWeight: "700" }}>Continue →</Text>
+          </Pressable>
+        </ScrollView>
+      )}
+
+      {/* ─── Step 7: Confirm ─── */}
+      {step === 7 && (
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: hp }}
         >
           <View className="flex-row items-center justify-between mb-4">
             <Pressable
-              onPress={() => setStep(4)}
+              onPress={() => setStep(6)}
               style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}
             >
               <Text className="text-sm" style={{ color: colors.primary }}>
@@ -1158,7 +1545,14 @@ export default function CalendarBookingScreen() {
             {selectedService && (
               <SummaryRow
                 label="Service"
-                value={`${selectedService.name} (${selectedService.duration} min)`}
+                value={`${selectedService.name} (${totalDuration} min)`}
+                colors={colors}
+              />
+            )}
+            {cart.length > 0 && (
+              <SummaryRow
+                label="Extras"
+                value={`${cart.length} item${cart.length > 1 ? "s" : ""} added`}
                 colors={colors}
               />
             )}
@@ -1182,6 +1576,13 @@ export default function CalendarBookingScreen() {
                 <SummaryRow label="Staff" value={staff.name} colors={colors} />
               ) : null;
             })()}
+            {selectedPaymentMethod && (
+              <SummaryRow
+                label="Payment"
+                value={selectedPaymentMethod === "zelle" ? "Zelle" : selectedPaymentMethod === "cashapp" ? "Cash App" : selectedPaymentMethod === "venmo" ? "Venmo" : "Cash"}
+                colors={colors}
+              />
+            )}
 
             {/* Divider */}
             <View
@@ -1196,10 +1597,17 @@ export default function CalendarBookingScreen() {
             {servicePrice > 0 && (
               <>
                 <SummaryRow
-                  label="Service Price"
+                  label="Service"
                   value={`$${servicePrice.toFixed(2)}`}
                   colors={colors}
                 />
+                {cart.length > 0 && (
+                  <SummaryRow
+                    label="Extras"
+                    value={`$${cart.reduce((s, i) => s + i.price, 0).toFixed(2)}`}
+                    colors={colors}
+                  />
+                )}
                 {appliedDiscount && discountAmount > 0 && (
                   <SummaryRow
                     label={`Discount (${appliedDiscount.name})`}
@@ -1384,5 +1792,36 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginTop: 16,
     gap: 8,
+  },
+  cartItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#e5e7eb",
+  },
+  segControl: {
+    flexDirection: "row",
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 3,
+    marginBottom: 12,
+  },
+  segBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignSelf: "flex-start",
+    height: 34,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

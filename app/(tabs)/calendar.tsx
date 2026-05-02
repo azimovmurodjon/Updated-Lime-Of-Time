@@ -382,6 +382,7 @@ export default function CalendarScreen() {
 
   // Inline time-slot expansion state (month view)
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
+  const [selectedSlotTime, setSelectedSlotTime] = useState<string | null>(null);
 
   // Swipe gesture for month navigation
   const swipeStartX = useRef<number>(0);
@@ -1354,6 +1355,7 @@ export default function CalendarScreen() {
               onPress={() => {
                 if (noLocation) return;
                 setSelectedDate(dateStr);
+                setSelectedSlotTime(null);
                 setExpandedDate((prev) => (prev === dateStr ? null : dateStr));
               }}
               style={({ pressed }) => [
@@ -1422,13 +1424,14 @@ export default function CalendarScreen() {
                     </View>
                   );
                 }
-                // Show remaining slot count badge
-                if (slotInfo && slotInfo.total > 0) {
+                // Show remaining slot count badge (hidden on selected day)
+                if (!isSelected && slotInfo && slotInfo.total > 0) {
                   const remaining = slotInfo.total - slotInfo.booked;
                   if (remaining > 0) {
+                    const badgeColor = remaining <= 2 ? "#F59E0B" : "#22C55E";
                     return (
-                      <View style={{ backgroundColor: colors.primary + "20", borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1, marginTop: 1 }}>
-                        <Text style={{ fontSize: 7, fontWeight: "700", color: colors.primary }}>{remaining} left</Text>
+                      <View style={{ backgroundColor: badgeColor + "25", borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1, marginTop: 1 }}>
+                        <Text style={{ fontSize: 7, fontWeight: "700", color: badgeColor }}>{remaining}</Text>
                       </View>
                     );
                   }
@@ -1473,67 +1476,67 @@ export default function CalendarScreen() {
             {/* Panel header */}
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
               <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground }}>
-                {availableSlots.length > 0 ? `${availableSlots.length} slot${availableSlots.length !== 1 ? "s" : ""} available` : "No slots available"}
+                {availableSlots.length > 0 ? `${availableSlots.length} slot${availableSlots.length !== 1 ? "s" : ""} available — tap a time` : "No slots available"}
               </Text>
-              <Pressable onPress={() => setExpandedDate(null)} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}>
+              <Pressable onPress={() => { setExpandedDate(null); setSelectedSlotTime(null); }} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}>
                 <IconSymbol name="xmark" size={16} color={colors.muted} />
               </Pressable>
             </View>
             {availableSlots.length > 0 ? (
               <>
-                {/* Scrollable time slots */}
+                {/* Scrollable time slot chips — tap to select */}
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingVertical: 10 }} contentContainerStyle={{ paddingHorizontal: 12, gap: 8, flexDirection: "row" }}>
-                  {availableSlots.slice(0, 20).map((slotTime) => (
+                  {availableSlots.slice(0, 20).map((slotTime) => {
+                    const isChipSelected = selectedSlotTime === slotTime;
+                    return (
+                      <Pressable
+                        key={slotTime}
+                        onPress={() => setSelectedSlotTime(isChipSelected ? null : slotTime)}
+                        style={({ pressed }) => ({
+                          paddingHorizontal: 14,
+                          paddingVertical: 8,
+                          borderRadius: 20,
+                          backgroundColor: isChipSelected ? colors.primary : colors.primary + "18",
+                          borderWidth: 1,
+                          borderColor: isChipSelected ? colors.primary : colors.primary + "40",
+                          opacity: pressed ? 0.7 : 1,
+                        })}
+                      >
+                        <Text style={{ fontSize: 13, fontWeight: "600", color: isChipSelected ? "#FFF" : colors.primary }}>
+                          {formatTimeDisplay(slotTime)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+                {/* +Book Appointment CTA — only shown after a time is selected */}
+                {selectedSlotTime && (
+                  <View style={{ paddingHorizontal: 14, paddingBottom: 12 }}>
                     <Pressable
-                      key={slotTime}
                       onPress={() => {
                         router.push({
                           pathname: "/calendar-booking",
-                          params: { date: expandedDate, time: slotTime },
+                          params: { date: expandedDate, time: selectedSlotTime },
                         });
                         setExpandedDate(null);
+                        setSelectedSlotTime(null);
                       }}
                       style={({ pressed }) => ({
-                        paddingHorizontal: 14,
-                        paddingVertical: 8,
-                        borderRadius: 20,
-                        backgroundColor: colors.primary + "18",
-                        borderWidth: 1,
-                        borderColor: colors.primary + "40",
-                        opacity: pressed ? 0.7 : 1,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: colors.primary,
+                        borderRadius: 12,
+                        paddingVertical: 12,
+                        gap: 6,
+                        opacity: pressed ? 0.8 : 1,
                       })}
                     >
-                      <Text style={{ fontSize: 13, fontWeight: "600", color: colors.primary }}>
-                        {formatTimeDisplay(slotTime)}
-                      </Text>
+                      <IconSymbol name="plus" size={16} color="#FFF" />
+                      <Text style={{ color: "#FFF", fontSize: 14, fontWeight: "700" }}>Book Appointment</Text>
                     </Pressable>
-                  ))}
-                </ScrollView>
-                {/* +Book Appointment CTA */}
-                <View style={{ paddingHorizontal: 14, paddingBottom: 12 }}>
-                  <Pressable
-                    onPress={() => {
-                      router.push({
-                        pathname: "/calendar-booking",
-                        params: { date: expandedDate },
-                      });
-                      setExpandedDate(null);
-                    }}
-                    style={({ pressed }) => ({
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: colors.primary,
-                      borderRadius: 12,
-                      paddingVertical: 12,
-                      gap: 6,
-                      opacity: pressed ? 0.8 : 1,
-                    })}
-                  >
-                    <IconSymbol name="plus" size={16} color="#FFF" />
-                    <Text style={{ color: "#FFF", fontSize: 14, fontWeight: "700" }}>Book Appointment</Text>
-                  </Pressable>
-                </View>
+                  </View>
+                )}
               </>
             ) : (
               <View style={{ paddingHorizontal: 14, paddingVertical: 16, alignItems: "center", gap: 8 }}>
