@@ -6962,7 +6962,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       if (methods.zelle && (!showMethod || showMethod === 'zelle')) {
         const handle = methods.zelle;
         const deepLink = 'zelle://' + encodeURIComponent(handle);
-        html += '<button onclick="openQrModal('Zelle',' + JSON.stringify(handle) + ',' + JSON.stringify(deepLink) + ','#6d28d9','\uD83D\uDC9C')" style="flex:1;min-width:130px;max-width:200px;background:#fff;border-radius:12px;padding:16px 12px;border:2px solid #6d28d9;text-align:center;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;">';
+        html += '<button onclick="openQrModal(\x27Zelle\x27,' + JSON.stringify(handle) + ',' + JSON.stringify(deepLink) + ',\x27#6d28d9\x27,\x27\uD83D\uDC9C\x27)" style="flex:1;min-width:130px;max-width:200px;background:#fff;border-radius:12px;padding:16px 12px;border:2px solid #6d28d9;text-align:center;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;">';
         html += '<div style="font-size:28px;">\uD83D\uDC9C</div>';
         html += '<div style="font-weight:700;font-size:14px;color:#6d28d9;">Zelle</div>';
         html += '<div style="font-size:11px;color:#888;word-break:break-all;">' + esc(handle) + '</div>';
@@ -6972,7 +6972,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       if (methods.cashApp && (!showMethod || showMethod === 'cashapp')) {
         const tag = methods.cashApp.startsWith('$') ? methods.cashApp : '$' + methods.cashApp;
         const deepLink = 'https://cash.app/' + encodeURIComponent(tag) + '/' + chargedPrice.toFixed(2);
-        html += '<button onclick="openQrModal('Cash App',' + JSON.stringify(tag) + ',' + JSON.stringify(deepLink) + ','#00a827','\uD83D\uDC9A')" style="flex:1;min-width:130px;max-width:200px;background:#fff;border-radius:12px;padding:16px 12px;border:2px solid #00d632;text-align:center;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;">';
+        html += '<button onclick="openQrModal(\x27Cash App\x27,' + JSON.stringify(tag) + ',' + JSON.stringify(deepLink) + ',\x27#00a827\x27,\x27\uD83D\uDC9A\x27)" style="flex:1;min-width:130px;max-width:200px;background:#fff;border-radius:12px;padding:16px 12px;border:2px solid #00d632;text-align:center;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;">';
         html += '<div style="font-size:28px;">\uD83D\uDC9A</div>';
         html += '<div style="font-weight:700;font-size:14px;color:#00a827;">Cash App</div>';
         html += '<div style="font-size:11px;color:#888;word-break:break-all;">' + esc(tag) + '</div>';
@@ -6982,7 +6982,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
       if (methods.venmo && (!showMethod || showMethod === 'venmo')) {
         const tag = methods.venmo.startsWith('@') ? methods.venmo : '@' + methods.venmo;
         const deepLink = 'https://venmo.com/' + encodeURIComponent(tag.replace('@','')) + '?txn=pay&amount=' + chargedPrice.toFixed(2) + '&note=' + encodeURIComponent('Appointment payment');
-        html += '<button onclick="openQrModal('Venmo',' + JSON.stringify(tag) + ',' + JSON.stringify(deepLink) + ','#3d95ce','\uD83D\uDC99')" style="flex:1;min-width:130px;max-width:200px;background:#fff;border-radius:12px;padding:16px 12px;border:2px solid #3d95ce;text-align:center;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;">';
+        html += '<button onclick="openQrModal(\x27Venmo\x27,' + JSON.stringify(tag) + ',' + JSON.stringify(deepLink) + ',\x27#3d95ce\x27,\x27\uD83D\uDC99\x27)" style="flex:1;min-width:130px;max-width:200px;background:#fff;border-radius:12px;padding:16px 12px;border:2px solid #3d95ce;text-align:center;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;">';
         html += '<div style="font-size:28px;">\uD83D\uDC99</div>';
         html += '<div style="font-weight:700;font-size:14px;color:#3d95ce;">Venmo</div>';
         html += '<div style="font-size:11px;color:#888;word-break:break-all;">' + esc(tag) + '</div>';

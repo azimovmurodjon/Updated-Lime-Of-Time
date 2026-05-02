@@ -1736,3 +1736,8 @@
 - [x] Added openQrModal/closeQrModal JS functions with canvas-based QR generation
 - [x] Added qrcode.js CDN script to booking page head
 - [x] Added QR modal overlay HTML to booking confirmation page (step-8)
+
+## Calendar Month View Enhancements (May 2026)
+
+- [x] Show slot count badge ("3 left") on each day cell for days with remaining capacity
+- [x] Show "No available slots" state in inline panel when a full day is tapped, with a "Next available: [date]" link

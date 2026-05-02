@@ -666,6 +666,31 @@ export default function CalendarScreen() {
     return result;
   }, [currentMonth, currentYear, isDayAvailable, effectiveWorkingHours, locationAppointments, activeCustomSchedule, state.settings]);
 
+  // Find the next date after a given date that has available slots
+  const findNextAvailableDate = useCallback((afterDate: string): string | null => {
+    const slotStep = (state.settings as any).slotInterval ?? 30;
+    const defaultDuration = state.settings.defaultDuration ?? 30;
+    const start = new Date(afterDate + 'T00:00:00');
+    for (let i = 1; i <= 60; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (!isDayAvailable(ds)) continue;
+      const slots = generateAvailableSlots(
+        ds,
+        defaultDuration,
+        effectiveWorkingHours,
+        locationAppointments,
+        slotStep,
+        activeCustomSchedule,
+        state.settings.scheduleMode,
+        state.settings.bufferTime ?? 0
+      );
+      if (slots.some((s) => !s.isBooked)) return ds;
+    }
+    return null;
+  }, [isDayAvailable, effectiveWorkingHours, locationAppointments, activeCustomSchedule, state.settings]);
+
   // locFilter kept for backward-compat (already filtered by location above)
   const locFilter = useCallback((appts: Appointment[]) => appts, []);
 
@@ -1329,6 +1354,17 @@ export default function CalendarScreen() {
                     </View>
                   );
                 }
+                // Show remaining slot count badge
+                if (slotInfo && slotInfo.total > 0) {
+                  const remaining = slotInfo.total - slotInfo.booked;
+                  if (remaining > 0) {
+                    return (
+                      <View style={{ backgroundColor: colors.primary + "20", borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1, marginTop: 1 }}>
+                        <Text style={{ fontSize: 7, fontWeight: "700", color: colors.primary }}>{remaining} left</Text>
+                      </View>
+                    );
+                  }
+                }
                 return null;
               })()}
             </Pressable>
@@ -1419,8 +1455,51 @@ export default function CalendarScreen() {
                 </View>
               </>
             ) : (
-              <View style={{ paddingHorizontal: 14, paddingVertical: 14 }}>
-                <Text style={{ fontSize: 13, color: colors.muted, textAlign: "center" }}>All slots are booked for this day</Text>
+              <View style={{ paddingHorizontal: 14, paddingVertical: 16, alignItems: "center", gap: 8 }}>
+                <Text style={{ fontSize: 22 }}>📅</Text>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, textAlign: "center" }}>
+                  No available slots
+                </Text>
+                <Text style={{ fontSize: 12, color: colors.muted, textAlign: "center" }}>
+                  All time slots for this day are fully booked.
+                </Text>
+                {(() => {
+                  const nextDate = findNextAvailableDate(expandedDate!);
+                  if (!nextDate) return (
+                    <Text style={{ fontSize: 12, color: colors.muted, textAlign: "center", marginTop: 2 }}>
+                      No upcoming availability found in the next 60 days.
+                    </Text>
+                  );
+                  const nextDateObj = new Date(nextDate + 'T00:00:00');
+                  const nextLabel = nextDateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                  return (
+                    <Pressable
+                      onPress={() => {
+                        const [y, m, d] = nextDate.split('-').map(Number);
+                        setCurrentMonth(m - 1);
+                        setCurrentYear(y);
+                        setSelectedDate(nextDate);
+                        setExpandedDate(nextDate);
+                      }}
+                      style={({ pressed }) => ({
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                        backgroundColor: colors.primary + "15",
+                        borderRadius: 20,
+                        paddingHorizontal: 14,
+                        paddingVertical: 8,
+                        marginTop: 4,
+                        opacity: pressed ? 0.7 : 1,
+                      })}
+                    >
+                      <IconSymbol name="chevron.right" size={12} color={colors.primary} />
+                      <Text style={{ fontSize: 13, fontWeight: "600", color: colors.primary }}>
+                        Next available: {nextLabel}
+                      </Text>
+                    </Pressable>
+                  );
+                })()}
               </View>
             )}
           </View>
