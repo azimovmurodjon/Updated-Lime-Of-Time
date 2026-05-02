@@ -667,8 +667,11 @@ export default function CalendarScreen() {
     // Clear immediately so stale data from previous month doesn't show
     setDaySlotCounts({});
     setBadgesLoading(true);
-    const slotStep = Math.max(1, (state.settings as any).slotInterval ?? 30);
     const defaultDuration = Math.max(1, state.settings.defaultDuration ?? 30);
+    // Use max(slotInterval, defaultDuration) for badge slot computation so we show
+    // the number of bookable appointment slots, not 1-minute micro-slots.
+    const rawSlotStep = (state.settings as any).slotInterval ?? 30;
+    const slotStep = Math.max(rawSlotStep, defaultDuration);
     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 
     // Helper to compute slot info for a single day
@@ -1602,24 +1605,11 @@ export default function CalendarScreen() {
         {/* Workday Panel */}
         {renderWorkdayPanel(selectedDate)}
 
-        {/* Header + Book Button */}
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12, marginBottom: 8 }}>
+        {/* Header */}
+        <View style={{ marginTop: 12, marginBottom: 8 }}>
           <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>
             {formatDateDisplay(selectedDate)}
           </Text>
-          {state.locations.length > 0 && isDayAvailable(selectedDate) && !isDateInPast(selectedDate) && (calLocationFilter === null || !activeLocation?.temporarilyClosed) && (
-            <Pressable
-              onPress={() => router.push({ pathname: "/new-booking", params: { date: selectedDate } })}
-              style={({ pressed }) => ({
-                flexDirection: "row", alignItems: "center",
-                backgroundColor: colors.primary, paddingHorizontal: 14, paddingVertical: 8,
-                borderRadius: 20, gap: 6, opacity: pressed ? 0.8 : 1,
-              })}
-            >
-              <IconSymbol name="plus" size={14} color="#FFF" />
-              <Text style={{ color: "#FFF", fontSize: 13, fontWeight: "600" }}>Book Appointment</Text>
-            </Pressable>
-          )}
         </View>
 
         {selectedDateAppts.length === 0 ? (

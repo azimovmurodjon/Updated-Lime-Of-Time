@@ -37,6 +37,8 @@ import {
   timeSlotsOverlap,
 } from "@/lib/types";
 import { trpc } from "@/lib/trpc";
+import { apiCall } from "@/lib/_core/api";
+import { usePlanLimitCheck } from "@/hooks/use-plan-limit-check";
 import { useActiveLocation } from "@/hooks/use-active-location";
 import { useResponsive } from "@/hooks/use-responsive";
 import { FuturisticBackground } from "@/components/futuristic-background";
@@ -79,6 +81,9 @@ export default function CalendarBookingScreen() {
   }>();
 
   const sendSmsMutation = trpc.twilio.sendSms.useMutation();
+  const { planInfo } = usePlanLimitCheck();
+  const isStripePlan = planInfo && (planInfo.planKey === "studio" || planInfo.planKey === "enterprise");
+  const [requestingCardPayment, setRequestingCardPayment] = useState(false);
 
   // Pre-selected from calendar
   const preselectedDate = params.date ?? formatDateStr(new Date());
@@ -343,6 +348,33 @@ export default function CalendarBookingScreen() {
     dispatch({ type: "ADD_APPOINTMENT", payload: appointment });
     syncToDb({ type: "ADD_APPOINTMENT", payload: appointment });
 
+    // If card payment selected, send Stripe payment link after booking
+    if (selectedPaymentMethod === "card" && state.businessOwnerId) {
+      const clientForCard = getClientById(selectedClientId);
+      if (clientForCard?.phone) {
+        setRequestingCardPayment(true);
+        apiCall<{ ok: boolean; url: string; sessionId: string }>("/api/stripe-connect/request-payment", {
+          method: "POST",
+          body: JSON.stringify({ businessOwnerId: state.businessOwnerId, appointmentLocalId: appointment.id }),
+        }).then((result) => {
+          const svcName = selectedService ? getServiceDisplayName(selectedService) : "your appointment";
+          const apptDate = formatDateDisplay(preselectedDate);
+          const smsBody = `Hi ${clientForCard.name}, please complete your payment of $${(appointment.totalPrice ?? 0).toFixed(2)} for ${svcName} on ${apptDate}.\n\nPay securely by card here:\n${result.url}\n\n— ${state.settings.businessName}`;
+          const rawPhone = stripPhoneFormat(clientForCard.phone);
+          const smsEnabled = state.settings.twilioEnabled && state.businessOwnerId;
+          if (smsEnabled) {
+            const toNumber = rawPhone.startsWith("+") ? rawPhone : `+1${rawPhone.replace(/\D/g, "")}`;
+            sendSmsMutation.mutateAsync({ businessOwnerId: state.businessOwnerId!, toNumber, body: smsBody, smsAction: "confirmation" }).catch(() => {});
+          } else if (Platform.OS !== "web") {
+            const sep = Platform.OS === "ios" ? "&" : "?";
+            Linking.openURL(`sms:${rawPhone}${sep}body=${encodeURIComponent(smsBody)}`).catch(() => {});
+          }
+        }).catch(() => {
+          Alert.alert("Card Payment", "Appointment booked. Could not create card payment link — you can send it from the appointment detail.");
+        }).finally(() => setRequestingCardPayment(false));
+      }
+    }
+
     // Send confirmation SMS
     const notifPrefs = state.settings.notificationPreferences ?? {};
     const masterNotifOn = state.settings.notificationsEnabled !== false;
@@ -394,7 +426,8 @@ export default function CalendarBookingScreen() {
       }
     }
 
-    router.back();
+    // Navigate to the newly created appointment detail page
+    router.replace({ pathname: "/appointment-detail", params: { id: appointment.id } });
   }, [
     selectedServiceId,
     selectedClientId,
@@ -419,6 +452,7 @@ export default function CalendarBookingScreen() {
     getClientById,
     getLocationById,
     selectedService,
+    requestingCardPayment,
   ]);
 
   // Determine step count based on whether location selection is needed
@@ -1182,7 +1216,23 @@ export default function CalendarBookingScreen() {
           contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}
         >
           <View className="flex-row items-center justify-between mb-3">
-            <Pressable onPress={() => setStep(4)} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+            <Pressable
+              onPress={() => {
+                if (cart.length > 0) {
+                  Alert.alert(
+                    "Go Back?",
+                    "Going back will clear the extra items you added to the cart. Continue?",
+                    [
+                      { text: "Stay", style: "cancel" },
+                      { text: "Go Back & Clear", style: "destructive", onPress: () => { setCart([]); setStep(4); } },
+                    ]
+                  );
+                } else {
+                  setStep(4);
+                }
+              }}
+              style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}
+            >
               <Text className="text-sm" style={{ color: colors.primary }}>← Back</Text>
             </Pressable>
             <Text className="text-base font-semibold text-foreground">Review & Add More</Text>
@@ -1443,6 +1493,10 @@ export default function CalendarBookingScreen() {
               if ((pm as any).cashAppHandle) opts.push({ id: "cashapp", label: "💚 Cash App", sub: (pm as any).cashAppHandle.startsWith("$") ? (pm as any).cashAppHandle : "$" + (pm as any).cashAppHandle, color: "#00d632" });
               if ((pm as any).venmoHandle) opts.push({ id: "venmo", label: "💙 Venmo", sub: (pm as any).venmoHandle.startsWith("@") ? (pm as any).venmoHandle : "@" + (pm as any).venmoHandle, color: "#3d95ce" });
               opts.push({ id: "cash", label: "💵 Cash", sub: "Collect in person", color: "#888" });
+              // Add Stripe card payment option if available on this plan
+              if (isStripePlan && !!(state.settings as any).stripeConnectEnabled) {
+                opts.push({ id: "card", label: "💳 Pay by Card", sub: "Client pays via secure Stripe link", color: "#6366f1" });
+              }
               return opts.map((opt) => (
                 <Pressable
                   key={opt.id}
@@ -1659,9 +1713,10 @@ export default function CalendarBookingScreen() {
           {/* Confirm Button */}
           <Pressable
             onPress={handleBook}
+            disabled={requestingCardPayment}
             style={({ pressed }) => [
               styles.confirmBtn,
-              { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 },
+              { backgroundColor: colors.primary, opacity: pressed || requestingCardPayment ? 0.7 : 1 },
             ]}
           >
             <IconSymbol name="checkmark" size={18} color="#FFF" />
@@ -1673,7 +1728,7 @@ export default function CalendarBookingScreen() {
                 marginLeft: 8,
               }}
             >
-              Confirm Booking
+              {requestingCardPayment ? "Processing..." : "Confirm Booking"}
             </Text>
           </Pressable>
 
