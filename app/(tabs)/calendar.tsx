@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   PanResponder,
+  Animated,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { FuturisticBackground } from "@/components/futuristic-background";
@@ -643,41 +644,85 @@ export default function CalendarScreen() {
   // Per-day slot counts for Full/Off indicators in month view
   // Computed lazily via useEffect + setTimeout to avoid blocking the JS thread on navigation
   const [daySlotCounts, setDaySlotCounts] = useState<Record<string, { total: number; booked: number }>>({});
+  // True while slot counts are being computed — used to show skeleton badges
+  const [badgesLoading, setBadgesLoading] = useState(false);
+  // Animated value for skeleton shimmer opacity
+  const skeletonOpacity = useRef(new Animated.Value(0.3)).current;
+
+  // Skeleton shimmer animation — loops while badges are loading
+  useEffect(() => {
+    if (!badgesLoading) return;
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(skeletonOpacity, { toValue: 0.7, duration: 600, useNativeDriver: true }),
+        Animated.timing(skeletonOpacity, { toValue: 0.2, duration: 600, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [badgesLoading, skeletonOpacity]);
 
   useEffect(() => {
     // Clear immediately so stale data from previous month doesn't show
     setDaySlotCounts({});
-    // Defer the heavy computation until after the first render frame
-    const timer = setTimeout(() => {
-      const result: Record<string, { total: number; booked: number }> = {};
-      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-      const slotStep = (state.settings as any).slotInterval ?? 30;
-      const defaultDuration = state.settings.defaultDuration ?? 30;
-      for (let day = 1; day <= daysInMonth; day++) {
-        const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        // Skip closed/off days — no need to compute slots
-        if (!isDayAvailable(dateStr)) {
-          result[dateStr] = { total: 0, booked: 0 };
-          continue;
-        }
-        const slots = generateAvailableSlots(
-          dateStr,
-          defaultDuration,
-          effectiveWorkingHours,
-          locationAppointments,
-          slotStep,
-          activeCustomSchedule,
-          state.settings.scheduleMode,
-          state.settings.bufferTime ?? 0
-        );
-        const bookedOnDay = locationAppointments.filter(
-          (a) => a.date === dateStr && (a.status === 'confirmed' || a.status === 'pending')
-        ).length;
-        result[dateStr] = { total: slots.length, booked: bookedOnDay };
+    setBadgesLoading(true);
+    const slotStep = Math.max(1, (state.settings as any).slotInterval ?? 30);
+    const defaultDuration = Math.max(1, state.settings.defaultDuration ?? 30);
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+    // Helper to compute slot info for a single day
+    const computeDay = (day: number): [string, { total: number; booked: number }] => {
+      const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      if (!isDayAvailable(dateStr)) return [dateStr, { total: 0, booked: 0 }];
+      const slots = generateAvailableSlots(
+        dateStr,
+        defaultDuration,
+        effectiveWorkingHours,
+        locationAppointments,
+        slotStep,
+        activeCustomSchedule,
+        state.settings.scheduleMode,
+        state.settings.bufferTime ?? 0
+      );
+      const bookedOnDay = locationAppointments.filter(
+        (a) => a.date === dateStr && (a.status === 'confirmed' || a.status === 'pending')
+      ).length;
+      return [dateStr, { total: slots.length, booked: bookedOnDay }];
+    };
+
+    // Pass 1: compute current week (7 days around today) first — appears in ~50ms
+    const today = new Date();
+    const currentWeekDays: number[] = [];
+    const remainingDays: number[] = [];
+    for (let day = 1; day <= daysInMonth; day++) {
+      const d = new Date(currentYear, currentMonth, day);
+      const diffDays = Math.abs((d.getTime() - today.getTime()) / 86400000);
+      if (diffDays <= 7) currentWeekDays.push(day);
+      else remainingDays.push(day);
+    }
+
+    const timer1 = setTimeout(() => {
+      const partial: Record<string, { total: number; booked: number }> = {};
+      for (const day of currentWeekDays) {
+        const [ds, info] = computeDay(day);
+        partial[ds] = info;
       }
-      setDaySlotCounts(result);
-    }, 150); // 150ms delay — calendar renders first, then badges appear
-    return () => clearTimeout(timer);
+      setDaySlotCounts((prev) => ({ ...prev, ...partial }));
+
+      // Pass 2: compute the rest of the month — appears in ~200ms
+      const timer2 = setTimeout(() => {
+        const rest: Record<string, { total: number; booked: number }> = {};
+        for (const day of remainingDays) {
+          const [ds, info] = computeDay(day);
+          rest[ds] = info;
+        }
+        setDaySlotCounts((prev) => ({ ...prev, ...rest }));
+        setBadgesLoading(false);
+      }, 150);
+      return () => clearTimeout(timer2);
+    }, 50); // First pass after 50ms — very fast
+
+    return () => clearTimeout(timer1);
   // Use specific settings values (not the whole object) to avoid re-firing on every store update
   }, [currentMonth, currentYear, isDayAvailable, effectiveWorkingHours, locationAppointments, activeCustomSchedule,
     (state.settings as any).slotInterval, state.settings.defaultDuration, state.settings.scheduleMode, state.settings.bufferTime]);
@@ -1387,6 +1432,12 @@ export default function CalendarScreen() {
                       </View>
                     );
                   }
+                }
+                // Skeleton shimmer — slot count not yet computed
+                if (!slotInfo && badgesLoading) {
+                  return (
+                    <Animated.View style={{ opacity: skeletonOpacity, backgroundColor: colors.border, borderRadius: 4, width: 22, height: 8, marginTop: 2 }} />
+                  );
                 }
                 return null;
               })()}

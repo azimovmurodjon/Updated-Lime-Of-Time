@@ -666,6 +666,11 @@ export function generateAvailableSlots(
   scheduleMode: "weekly" | "custom" = "weekly",
   bufferTime: number = 0
 ): string[] {
+  // Guard: ensure stepMinutes and serviceDuration are positive to prevent infinite loops
+  const safeStep = Math.max(1, Math.floor(stepMinutes) || 30);
+  const safeDuration = Math.max(1, Math.floor(serviceDuration) || 30);
+  stepMinutes = safeStep;
+  serviceDuration = safeDuration;
   // Guard: if workingHours is null/undefined, fall back to DEFAULT_WORKING_HOURS
   const resolvedWorkingHours: Record<string, WorkingHours> = workingHours ?? DEFAULT_WORKING_HOURS;
   const customDay = customSchedule?.find((cs) => cs.date === date);
