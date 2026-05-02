@@ -865,6 +865,26 @@ export default function CalendarScreen() {
     }
   }, [locationAppointments, activeFilter, methodFilter, todayStr]);
 
+  // ─── Grouped sections for the filtered appointment list ─────────────
+  const filteredSections = useMemo(() => {
+    const map: Record<string, Appointment[]> = {};
+    for (const a of filteredAppointments) {
+      if (!map[a.date]) map[a.date] = [];
+      map[a.date].push(a);
+    }
+    // Return sorted date keys (already sorted by filteredAppointments sort)
+    return Object.keys(map)
+      .sort((a, b) => a.localeCompare(b))
+      .map((date) => ({ date, items: map[date] }));
+  }, [filteredAppointments]);
+
+  // Format a YYYY-MM-DD string as "May 1, 2026"
+  const formatSectionDate = (dateStr: string): string => {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const dt = new Date(y, m - 1, d);
+    return dt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  };
+
   // ─── Navigation ───────────────────────────────────────────────────────
 
   const prevMonth = () => {
@@ -1846,14 +1866,24 @@ export default function CalendarScreen() {
           );
         })()}
 
-        {filteredAppointments.length === 0 ? (
+        {filteredSections.length === 0 ? (
           <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={{ color: colors.muted, fontSize: 13 }}>
               {activeFilter === "unpaid" ? "All appointments are paid" : activeFilter === "paid" ? "No paid appointments yet" : `No ${activeFilter} appointments`}
             </Text>
           </View>
         ) : (
-          filteredAppointments.map((appt, apptIdx) => {
+          filteredSections.map((section) => (
+            <View key={section.date}>
+              {/* Day section header */}
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10, marginTop: 6 }}>
+                <View style={{ flex: 1, height: 1, backgroundColor: colors.border, marginRight: 10 }} />
+                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  {formatSectionDate(section.date)}
+                </Text>
+                <View style={{ flex: 1, height: 1, backgroundColor: colors.border, marginLeft: 10 }} />
+              </View>
+              {section.items.map((appt, apptIdx) => {
             const svc = getServiceById(appt.serviceId);
             const client = getClientById(appt.clientId);
             const staffMember = appt.staffId ? getStaffById(appt.staffId) : null;
@@ -2000,7 +2030,9 @@ export default function CalendarScreen() {
               </View>
               </SwipeableRequestCard>
             );
-          })
+          })}
+            </View>
+          ))
         )}
       </View>
     </>
