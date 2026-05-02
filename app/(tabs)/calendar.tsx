@@ -686,7 +686,13 @@ export default function CalendarScreen() {
         state.settings.scheduleMode,
         state.settings.bufferTime ?? 0
       );
-      if (slots.some((s) => !s.isBooked)) return ds;
+      // generateAvailableSlots returns string[] — check if any slot times are not already booked
+      const bookedOnDay = new Set(
+        locationAppointments
+          .filter((a) => a.date === ds && (a.status === "confirmed" || a.status === "pending"))
+          .map((a) => a.time)
+      );
+      if (slots.some((t) => !bookedOnDay.has(t))) return ds;
     }
     return null;
   }, [isDayAvailable, effectiveWorkingHours, locationAppointments, activeCustomSchedule, state.settings]);
@@ -1376,7 +1382,8 @@ export default function CalendarScreen() {
       {expandedDate && isDayAvailable(expandedDate) && !isDateInPast(expandedDate) && (() => {
         const slotStep = (state.settings as any).slotInterval ?? 30;
         const defaultDuration = state.settings.defaultDuration ?? 30;
-        const slots = generateAvailableSlots(
+        // generateAvailableSlots returns string[] of time strings (e.g. "09:00")
+        const allSlotTimes = generateAvailableSlots(
           expandedDate,
           defaultDuration,
           effectiveWorkingHours,
@@ -1386,7 +1393,13 @@ export default function CalendarScreen() {
           state.settings.scheduleMode,
           state.settings.bufferTime ?? 0
         );
-        const availableSlots = slots.filter((s) => !s.isBooked);
+        // Compute booked times for this date from appointments
+        const bookedTimes = new Set(
+          locationAppointments
+            .filter((a) => a.date === expandedDate && (a.status === "confirmed" || a.status === "pending"))
+            .map((a) => a.time)
+        );
+        const availableSlots = allSlotTimes.filter((t) => !bookedTimes.has(t));
         return (
           <View style={{ marginHorizontal: hp, marginTop: 8, marginBottom: 4, backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.border, overflow: "hidden" }}>
             {/* Panel header */}
@@ -1402,13 +1415,13 @@ export default function CalendarScreen() {
               <>
                 {/* Scrollable time slots */}
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingVertical: 10 }} contentContainerStyle={{ paddingHorizontal: 12, gap: 8, flexDirection: "row" }}>
-                  {availableSlots.slice(0, 20).map((slot) => (
+                  {availableSlots.slice(0, 20).map((slotTime) => (
                     <Pressable
-                      key={slot.time}
+                      key={slotTime}
                       onPress={() => {
                         router.push({
                           pathname: "/calendar-booking",
-                          params: { date: expandedDate, time: slot.time },
+                          params: { date: expandedDate, time: slotTime },
                         });
                         setExpandedDate(null);
                       }}
@@ -1423,7 +1436,7 @@ export default function CalendarScreen() {
                       })}
                     >
                       <Text style={{ fontSize: 13, fontWeight: "600", color: colors.primary }}>
-                        {formatTimeDisplay(slot.time)}
+                        {formatTimeDisplay(slotTime)}
                       </Text>
                     </Pressable>
                   ))}
