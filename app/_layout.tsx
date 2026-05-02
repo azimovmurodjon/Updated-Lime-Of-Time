@@ -115,6 +115,7 @@ function RootLayout() {
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="new-booking" options={{ presentation: "fullScreenModal" }} />
+              <Stack.Screen name="calendar-booking" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="appointment-detail" options={{ presentation: "card" }} />
               <Stack.Screen name="client-detail" options={{ presentation: "card" }} />
               <Stack.Screen name="service-form" options={{ presentation: "fullScreenModal" }} />

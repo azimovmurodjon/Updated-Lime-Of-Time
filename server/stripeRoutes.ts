@@ -204,9 +204,11 @@ export function registerStripeRoutes(app: Express): void {
           stripeCustomerId = owner.stripeCustomerId;
         } else {
           // Create new customer
+          // Only pass email if it's a valid non-empty string (Stripe rejects empty/null emails)
+          const custEmail = owner?.email && owner.email.trim() && owner.email.includes('@') ? owner.email.trim() : undefined;
           const customer = await stripe.customers.create({
             metadata: { businessOwnerId: String(businessOwnerId) },
-            email: owner?.email ?? undefined,
+            ...(custEmail ? { email: custEmail } : {}),
           });
           stripeCustomerId = customer.id;
           await db.update(businessOwners)

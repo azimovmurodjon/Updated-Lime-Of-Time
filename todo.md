@@ -1711,3 +1711,19 @@
 - [ ] Add Stripe gift payment webhook handler to mark gift as paid after Stripe checkout
 - [ ] Audit and fix subscription plan enforcement across the app
 - [ ] Fix all payment method connections (Zelle, Venmo, CashApp, Stripe) in gift and booking flows
+
+## Calendar Booking Flow & Month Swipe Navigation
+
+- [x] Calendar month view: swipe left/right to navigate months (gesture + prev/next buttons both work)
+- [x] Calendar month view: show "Full" badge on days with no available slots, "Off" badge on closed/non-working days
+- [x] Calendar day tap: inline time-slot expansion appears below selected day row (same page, no navigation)
+- [x] Calendar day tap: "+Book Appointment" button appears when day has available slots
+- [x] Calendar booking flow: after selecting time, show Continue button that opens new calendar-booking screen
+- [x] Calendar booking flow Step 1: Service category → service selection (category tiles → service list → detail sheet)
+- [x] Calendar booking flow Step 2: Client selection from client list (search + quick-add)
+- [x] Calendar booking flow Step 3: Location selection (auto-preselect if single location or location clicked from calendar)
+- [x] Calendar booking flow Step 4: Staff member selection filtered by chosen location with availability
+- [x] Calendar booking flow Step 5: Confirm booking summary (date, time, service, client, location, staff, price)
+- [x] Calendar booking flow Step 6: Send message option after confirmation
+- [x] Calendar booking flow: pre-fill date and time from calendar selection (not editable in flow)
+- [x] Calendar booking flow: completely separate from Home page New Booking flow (no changes to new-booking.tsx)

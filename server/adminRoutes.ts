@@ -5058,6 +5058,8 @@ function platformConfigPage(
   return adminLayout("Platform Config", "platform-config", `
     <h1 style="font-size:24px;font-weight:700;margin-bottom:24px;">Platform Configuration</h1>
 
+    <form id="platformConfigForm" method="POST" action="/api/admin/platform-config">
+
       <!-- Twilio Section -->
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:24px;">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
@@ -5251,12 +5253,6 @@ function platformConfigPage(
         </div>
       </div>
 
-    <form id="platformConfigForm" method="POST" action="/api/admin/platform-config">
-      <button id="savePlatformBtn" type="submit" disabled style="background:var(--border);color:var(--text-muted);padding:12px 28px;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:not-allowed;width:100%;transition:background 0.2s,color 0.2s;">
-        💾 Save Platform Configuration
-      </button>
-    </form>
-
       <!-- Stripe Section -->
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:24px;">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
@@ -5376,6 +5372,11 @@ function platformConfigPage(
         </div>
         <div id="stripeSuiteLog" style="display:none;margin-top:14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;max-height:260px;overflow-y:auto;"></div>
       </div>
+
+      <button id="savePlatformBtn" type="submit" disabled style="background:var(--border);color:var(--text-muted);padding:12px 28px;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:not-allowed;width:100%;transition:background 0.2s,color 0.2s;margin-top:8px;">
+        💾 Save Platform Configuration
+      </button>
+    </form>
 
     <script>
     // --- Inline confirmation modal (replaces browser confirm() which may be blocked) ---
@@ -6020,7 +6021,7 @@ function platformConfigPage(
         if (data.endpoints && data.endpoints.length > 0) {
           data.endpoints.forEach(function(e) { lines.push('  → ' + e.url + ' (' + e.status + ')'); });
         }
-        if (result) { result.textContent = lines.join('\n'); result.style.color = data.ok ? '#22c55e' : '#f59e0b'; }
+         if (result) { result.textContent = lines.join('\\n'); result.style.color = data.ok ? '#22c55e' : '#f59e0b'; }
       } catch (e) {
         if (result) { result.textContent = '❌ Network error'; result.style.color = '#ef4444'; }
       } finally {
@@ -6041,12 +6042,12 @@ function platformConfigPage(
         if (data.endpoints && data.endpoints.length > 0) {
           data.endpoints.forEach(function(e) { lines.push('  → ' + e.url + ' (' + e.status + ')'); });
         }
-        if (result) { result.textContent = lines.join('\n'); result.style.color = data.ok ? '#22c55e' : '#f59e0b'; }
+        if (result) { result.textContent = lines.join('\\n'); result.style.color = data.ok ? '#22c55e' : '#f59e0b'; }
       } catch (e) {
         if (result) { result.textContent = '❌ Network error'; result.style.color = '#ef4444'; }
       } finally {
         btn.disabled = false;
-        btn.textContent = '🟡 Test Test Webhook';
+        btn.textContent = '🟡 Test Test Webhook';;
       }
     };
     // Auto-run both connection tests on page load

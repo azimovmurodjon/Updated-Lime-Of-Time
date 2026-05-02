@@ -80,9 +80,11 @@ export function registerStripeConnectRoutes(app: Express): void {
 
       // Create a new Express account if none exists
       if (!accountId) {
+        // Only pass email if it's a valid non-empty string (Stripe rejects empty/null emails)
+        const ownerEmail = owner.email && owner.email.trim() && owner.email.includes('@') ? owner.email.trim() : undefined;
         const account = await stripe.accounts.create({
           type: "express",
-          email: owner.email ?? undefined,
+          ...(ownerEmail ? { email: ownerEmail } : {}),
           business_type: "individual",
           capabilities: {
             card_payments: { requested: true },

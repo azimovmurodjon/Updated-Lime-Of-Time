@@ -927,6 +927,145 @@ export default function NewBookingScreen() {
             <View style={{ width: 40 }} />
           </View>
 
+          {/* Location Selector — shown at top of Step 3 */}
+          {activeLocations.length > 1 && (
+            <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
+              <Text className="text-xs font-medium text-muted mb-3">Location</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {/* All Locations option */}
+                  <Pressable
+                    onPress={() => {
+                      setSelectedLocationId(null);
+                      setSelectedTime(null);
+                    }}
+                    style={({ pressed }) => [{
+                      paddingHorizontal: 14,
+                      paddingVertical: 10,
+                      borderRadius: 12,
+                      borderWidth: 1.5,
+                      backgroundColor: !selectedLocationId ? colors.primary + "15" : colors.background,
+                      borderColor: !selectedLocationId ? colors.primary : colors.border,
+                      opacity: pressed ? 0.7 : 1,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                    }]}
+                  >
+                    <IconSymbol name="location.fill" size={14} color={!selectedLocationId ? colors.primary : colors.muted} />
+                    <Text style={{ fontSize: 13, fontWeight: "600", color: !selectedLocationId ? colors.primary : colors.foreground }}>All Locations</Text>
+                  </Pressable>
+                  {/* Individual locations */}
+                  {activeLocations.map((loc) => {
+                    const isSelected = selectedLocationId === loc.id;
+                    return (
+                      <Pressable
+                        key={loc.id}
+                        onPress={() => {
+                          setSelectedLocationId(loc.id);
+                          setSelectedTime(null);
+                        }}
+                        style={({ pressed }) => [{
+                          paddingHorizontal: 14,
+                          paddingVertical: 10,
+                          borderRadius: 12,
+                          borderWidth: 1.5,
+                          backgroundColor: isSelected ? colors.primary + "15" : colors.background,
+                          borderColor: isSelected ? colors.primary : colors.border,
+                          opacity: pressed ? 0.7 : 1,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                        }]}
+                      >
+                        <IconSymbol name="location.fill" size={14} color={isSelected ? colors.primary : colors.muted} />
+                        <View>
+                          <Text style={{ fontSize: 13, fontWeight: "600", color: isSelected ? colors.primary : colors.foreground }}>{loc.name}</Text>
+                          {!!loc.address && (
+                            <Text style={{ fontSize: 11, color: colors.muted, marginTop: 1 }} numberOfLines={1}>{loc.address}</Text>
+                          )}
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            </View>
+          )}
+
+          {/* Staff Selector — shown at top of Step 3, filtered by selected location */}
+          {activeStaff.length > 0 && (
+            <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
+              <Text className="text-xs font-medium text-muted mb-3">Assign Staff (Optional)</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable
+                    onPress={() => setSelectedStaffId(null)}
+                    style={({ pressed }) => [{
+                      paddingHorizontal: 14,
+                      paddingVertical: 10,
+                      borderRadius: 12,
+                      borderWidth: 1.5,
+                      backgroundColor: !selectedStaffId ? colors.primary + "15" : colors.background,
+                      borderColor: !selectedStaffId ? colors.primary : colors.border,
+                      opacity: pressed ? 0.7 : 1,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                    }]}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: "600", color: !selectedStaffId ? colors.primary : colors.foreground }}>Any Available</Text>
+                  </Pressable>
+                  {activeStaff.map((member) => {
+                    const hasTimeSelected = !!(selectedDate && selectedTime);
+                    const isAvailable = staffAvailabilityMap[member.id] !== false;
+                    const dotColor = !hasTimeSelected ? colors.border : isAvailable ? colors.success : colors.muted;
+                    return (
+                      <Pressable
+                        key={member.id}
+                        onPress={() => setSelectedStaffId(member.id)}
+                        style={({ pressed }) => [{
+                          paddingHorizontal: 14,
+                          paddingVertical: 10,
+                          borderRadius: 12,
+                          borderWidth: 1.5,
+                          backgroundColor: selectedStaffId === member.id ? (member.color || colors.primary) + "15" : colors.background,
+                          borderColor: selectedStaffId === member.id ? (member.color || colors.primary) : colors.border,
+                          opacity: pressed ? 0.7 : 1,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                        }]}
+                      >
+                        <View style={{ position: "relative" }}>
+                          <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: member.color || colors.primary, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                            {member.photoUri ? (
+                              <Image source={{ uri: member.photoUri }} style={{ width: 28, height: 28, borderRadius: 14 }} />
+                            ) : (
+                              <Text style={{ color: "#FFF", fontSize: 12, fontWeight: "700" }}>{member.name.charAt(0).toUpperCase()}</Text>
+                            )}
+                          </View>
+                          <View style={{
+                            position: "absolute",
+                            bottom: -1,
+                            right: -1,
+                            width: 9,
+                            height: 9,
+                            borderRadius: 5,
+                            backgroundColor: dotColor,
+                            borderWidth: 1.5,
+                            borderColor: colors.background,
+                          }} />
+                        </View>
+                        <Text style={{ fontSize: 13, fontWeight: "600", color: selectedStaffId === member.id ? (member.color || colors.primary) : colors.foreground }}>{member.name}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            </View>
+          )}
+
           {/* Date Selection — Monthly Calendar Grid */}
           {(() => {
             const MONTH_NAMES_CAL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -1215,8 +1354,8 @@ export default function NewBookingScreen() {
             style={{ color: colors.foreground, minHeight: 50, textAlignVertical: "top" }}
           />
 
-          {/* Staff Selector */}
-          {activeStaff.length > 0 && (
+          {/* Staff Selector — REMOVED from bottom of Step 3 (now at top) */}
+          {false && activeStaff.length > 0 && (
             <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
               <Text className="text-xs font-medium text-muted mb-3">Assign Staff (Optional)</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -1384,8 +1523,8 @@ export default function NewBookingScreen() {
           </View>
 
 
-          {/* Location Selector */}
-          {activeLocations.length > 0 && (
+          {/* Location Selector — REMOVED from Step 4 (now in Step 3) */}
+          {false && activeLocations.length > 0 && (
             <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
               <Text className="text-xs font-medium text-muted mb-3">Location <Text style={{ color: colors.error }}>*</Text></Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -1684,17 +1823,17 @@ export default function NewBookingScreen() {
           {/* Continue to Payment Button */}
           <Pressable
             onPress={() => {
-              if (!selectedTime || (activeLocations.length > 0 && !selectedLocationId)) return;
+              if (!selectedTime) return;
               setStep(5);
             }}
             style={({ pressed }) => [
               styles.bookButton,
               {
-                backgroundColor: (selectedTime && (activeLocations.length === 0 || selectedLocationId)) ? colors.primary : colors.muted,
+                backgroundColor: selectedTime ? colors.primary : colors.muted,
                 opacity: pressed && selectedTime ? 0.8 : 1,
               },
             ]}
-            disabled={!selectedTime || (activeLocations.length > 0 && !selectedLocationId)}
+            disabled={!selectedTime}
           >
             <Text className="text-base font-semibold text-white">Continue to Payment →</Text>
           </Pressable>

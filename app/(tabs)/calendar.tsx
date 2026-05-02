@@ -13,6 +13,7 @@ import {
   TextInput,
   ActivityIndicator,
   KeyboardAvoidingView,
+  PanResponder,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { FuturisticBackground } from "@/components/futuristic-background";
@@ -34,6 +35,7 @@ import {
   generateRejectMessage,
   stripPhoneFormat,
   CustomScheduleDay,
+  generateAvailableSlots,
 } from "@/lib/types";
 import { TapTimePicker, timeToMinutes as tapTimeToMinutes } from "@/components/tap-time-picker";
 import { formatPhone } from "@/lib/utils";
@@ -377,6 +379,40 @@ export default function CalendarScreen() {
   const draftEndRef = useRef("17:00");
   const editingDateRef = useRef<string | null>(null);
 
+  // Inline time-slot expansion state (month view)
+  const [expandedDate, setExpandedDate] = useState<string | null>(null);
+
+  // Swipe gesture for month navigation
+  const swipeStartX = useRef<number>(0);
+  const monthPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: (_evt, gestureState) =>
+          Math.abs(gestureState.dx) > 12 && Math.abs(gestureState.dy) < 40,
+        onPanResponderGrant: (evt) => {
+          swipeStartX.current = evt.nativeEvent.pageX;
+        },
+        onPanResponderRelease: (_evt, gestureState) => {
+          if (gestureState.dx < -40) {
+            // Swipe left → next month
+            setCurrentMonth((m) => {
+              if (m === 11) { setCurrentYear((y) => y + 1); return 0; }
+              return m + 1;
+            });
+          } else if (gestureState.dx > 40) {
+            // Swipe right → prev month
+            setCurrentMonth((m) => {
+              if (m === 0) { setCurrentYear((y) => y - 1); return 11; }
+              return m - 1;
+            });
+          }
+        },
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
   // Timeline scroll refs for auto-scroll to current hour
   const dayTimelineRef = useRef<any>(null);
   const weekTimelineRef = useRef<any>(null);
@@ -603,6 +639,32 @@ export default function CalendarScreen() {
     });
     return statuses;
   }, [locationAppointments]);
+
+  // Per-day slot counts for Full/Off indicators in month view
+  const daySlotCounts = useMemo(() => {
+    const result: Record<string, { total: number; booked: number }> = {};
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const slotStep = (state.settings as any).slotInterval ?? 30;
+    const defaultDuration = state.settings.defaultDuration ?? 30;
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const slots = generateAvailableSlots(
+        dateStr,
+        defaultDuration,
+        effectiveWorkingHours,
+        locationAppointments,
+        slotStep,
+        activeCustomSchedule,
+        state.settings.scheduleMode,
+        state.settings.bufferTime ?? 0
+      );
+      const bookedOnDay = locationAppointments.filter(
+        (a) => a.date === dateStr && (a.status === 'confirmed' || a.status === 'pending')
+      ).length;
+      result[dateStr] = { total: slots.length, booked: bookedOnDay };
+    }
+    return result;
+  }, [currentMonth, currentYear, isDayAvailable, effectiveWorkingHours, locationAppointments, activeCustomSchedule, state.settings]);
 
   // locFilter kept for backward-compat (already filtered by location above)
   const locFilter = useCallback((appts: Appointment[]) => appts, []);
@@ -1177,8 +1239,8 @@ export default function CalendarScreen() {
         ))}
       </View>
 
-      {/* Calendar Grid */}
-      <View style={[styles.calendarGrid, { paddingHorizontal: hp }]}>
+      {/* Calendar Grid — swipe left/right to change month */}
+      <View style={[styles.calendarGrid, { paddingHorizontal: hp }]} {...monthPanResponder.panHandlers}>
         {calendarDays.map((day, idx) => {
           if (day === null) return <View key={`e-${idx}`} style={{ width: cellSize, height: cellSize }} />;
           const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -1196,7 +1258,11 @@ export default function CalendarScreen() {
           return (
             <Pressable
               key={dateStr}
-              onPress={() => !noLocation && setSelectedDate(dateStr)}
+              onPress={() => {
+                if (noLocation) return;
+                setSelectedDate(dateStr);
+                setExpandedDate((prev) => (prev === dateStr ? null : dateStr));
+              }}
               style={({ pressed }) => [
                 styles.dayCell,
                 {
@@ -1245,11 +1311,121 @@ export default function CalendarScreen() {
                 {statuses?.has("completed") && <View style={[styles.dot, { backgroundColor: colors.primary }]} />}
                 {statuses?.has("cancelled") && <View style={[styles.dot, { backgroundColor: colors.muted }]} />}
               </View>
+              {/* Full / Off badge */}
+              {(() => {
+                if (isPast || noLocation) return null;
+                if (!isAvailable || isTemporarilyClosed) {
+                  return (
+                    <View style={{ backgroundColor: colors.error + "22", borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1, marginTop: 1 }}>
+                      <Text style={{ fontSize: 8, fontWeight: "700", color: colors.error }}>Off</Text>
+                    </View>
+                  );
+                }
+                const slotInfo = daySlotCounts[dateStr];
+                if (slotInfo && slotInfo.total > 0 && slotInfo.booked >= slotInfo.total) {
+                  return (
+                    <View style={{ backgroundColor: "#EF444422", borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1, marginTop: 1 }}>
+                      <Text style={{ fontSize: 8, fontWeight: "700", color: "#EF4444" }}>Full</Text>
+                    </View>
+                  );
+                }
+                return null;
+              })()}
             </Pressable>
           );
         })}
       </View>
 
+      {/* Inline time-slot expansion panel */}
+      {expandedDate && isDayAvailable(expandedDate) && !isDateInPast(expandedDate) && (() => {
+        const slotStep = (state.settings as any).slotInterval ?? 30;
+        const defaultDuration = state.settings.defaultDuration ?? 30;
+        const slots = generateAvailableSlots(
+          expandedDate,
+          defaultDuration,
+          effectiveWorkingHours,
+          locationAppointments,
+          slotStep,
+          activeCustomSchedule,
+          state.settings.scheduleMode,
+          state.settings.bufferTime ?? 0
+        );
+        const availableSlots = slots.filter((s) => !s.isBooked);
+        return (
+          <View style={{ marginHorizontal: hp, marginTop: 8, marginBottom: 4, backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.border, overflow: "hidden" }}>
+            {/* Panel header */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground }}>
+                {availableSlots.length > 0 ? `${availableSlots.length} slot${availableSlots.length !== 1 ? "s" : ""} available` : "No slots available"}
+              </Text>
+              <Pressable onPress={() => setExpandedDate(null)} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}>
+                <IconSymbol name="xmark" size={16} color={colors.muted} />
+              </Pressable>
+            </View>
+            {availableSlots.length > 0 ? (
+              <>
+                {/* Scrollable time slots */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingVertical: 10 }} contentContainerStyle={{ paddingHorizontal: 12, gap: 8, flexDirection: "row" }}>
+                  {availableSlots.slice(0, 20).map((slot) => (
+                    <Pressable
+                      key={slot.time}
+                      onPress={() => {
+                        router.push({
+                          pathname: "/calendar-booking",
+                          params: { date: expandedDate, time: slot.time },
+                        });
+                        setExpandedDate(null);
+                      }}
+                      style={({ pressed }) => ({
+                        paddingHorizontal: 14,
+                        paddingVertical: 8,
+                        borderRadius: 20,
+                        backgroundColor: colors.primary + "18",
+                        borderWidth: 1,
+                        borderColor: colors.primary + "40",
+                        opacity: pressed ? 0.7 : 1,
+                      })}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: "600", color: colors.primary }}>
+                        {formatTimeDisplay(slot.time)}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+                {/* +Book Appointment CTA */}
+                <View style={{ paddingHorizontal: 14, paddingBottom: 12 }}>
+                  <Pressable
+                    onPress={() => {
+                      router.push({
+                        pathname: "/calendar-booking",
+                        params: { date: expandedDate },
+                      });
+                      setExpandedDate(null);
+                    }}
+                    style={({ pressed }) => ({
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: colors.primary,
+                      borderRadius: 12,
+                      paddingVertical: 12,
+                      gap: 6,
+                      opacity: pressed ? 0.8 : 1,
+                    })}
+                  >
+                    <IconSymbol name="plus" size={16} color="#FFF" />
+                    <Text style={{ color: "#FFF", fontSize: 14, fontWeight: "700" }}>Book Appointment</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : (
+              <View style={{ paddingHorizontal: 14, paddingVertical: 14 }}>
+                <Text style={{ fontSize: 13, color: colors.muted, textAlign: "center" }}>All slots are booked for this day</Text>
+              </View>
+            )}
+          </View>
+        );
+      })()}
       {/* Legend */}
       <View style={[styles.dotLegend, { paddingHorizontal: hp }]}>
         <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: colors.success }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Confirmed</Text></View>
