@@ -659,8 +659,15 @@ export default function CalendarBookingScreen() {
                       Select a Service
                     </Text>
                   )}
-                  {displaySvcs.map((item) => (
-                    <Pressable
+                  {displaySvcs.map((item) => {
+                    const CAT_EMOJI_SVC: Record<string, string> = {
+                      Hair: "✂️", Massage: "💆", Nails: "💅", Skincare: "🧴",
+                      "Waxing & Brows": "🪮", Waxing: "🪮", Brows: "🪮",
+                      Makeup: "💄", Lashes: "👁️", Spa: "🛁", Fitness: "🏋️",
+                      Tattoo: "🖊️", Piercing: "💎", Barber: "💈", General: "⭐",
+                    };
+                    const svcEmoji = CAT_EMOJI_SVC[item.category ?? ""] ?? "✨";
+                    return (<Pressable
                       key={item.id}
                       onPress={() => {
                         setSelectedServiceId(item.id);
@@ -692,9 +699,9 @@ export default function CalendarBookingScreen() {
                           }}
                         />
                       ) : (
-                        <View
-                          style={[styles.colorDot, { backgroundColor: item.color }]}
-                        />
+                        <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: item.color + "22", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                          <Text style={{ fontSize: 20 }}>{svcEmoji}</Text>
+                        </View>
                       )}
                       <View style={styles.optionContent}>
                         <Text className="text-base font-semibold text-foreground">
@@ -710,7 +717,8 @@ export default function CalendarBookingScreen() {
                         color={colors.muted}
                       />
                     </Pressable>
-                  ))}
+                    );
+                  })}
                 </View>
               );
             })()

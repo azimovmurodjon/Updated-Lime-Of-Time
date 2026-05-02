@@ -383,6 +383,7 @@ export default function CalendarScreen() {
   // Inline time-slot expansion state (month view)
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
   const [selectedSlotTime, setSelectedSlotTime] = useState<string | null>(null);
+  const [showAllSlots, setShowAllSlots] = useState(false);
 
   // Swipe gesture for month navigation
   const swipeStartX = useRef<number>(0);
@@ -678,6 +679,44 @@ export default function CalendarScreen() {
     const computeDay = (day: number): [string, { total: number; booked: number }] => {
       const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       if (!isDayAvailable(dateStr)) return [dateStr, { total: 0, booked: 0 }];
+
+      // In "All" mode: compute per-location and show the max available count
+      // (the location with the most availability) so the badge is accurate
+      if (calLocationFilter === null && activeLocations.length > 1) {
+        let maxAvailable = 0;
+        const d = new Date(dateStr + "T12:00:00");
+        const dayName = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][d.getDay()];
+        for (const loc of activeLocations) {
+          if (loc.temporarilyClosed) continue;
+          // Get this location's working hours for this day
+          const locWh = (loc.workingHours != null && Object.keys(loc.workingHours).length > 0)
+            ? loc.workingHours : state.settings.workingHours;
+          const locCustom = state.locationCustomSchedule?.[loc.id]?.find((cs: any) => cs.date === dateStr);
+          let locHours: { start: string; end: string } | null = null;
+          if (locCustom) {
+            if (!locCustom.isOpen) continue;
+            locHours = { start: locCustom.startTime ?? '09:00', end: locCustom.endTime ?? '17:00' };
+          } else {
+            const wh = locWh?.[dayName];
+            if (!wh || !wh.enabled) continue;
+            locHours = { start: wh.start, end: wh.end };
+          }
+          const locAppts = locationAppointments.filter((a) => a.locationId === loc.id);
+          const locSlots = generateAvailableSlots(
+            dateStr, defaultDuration,
+            { [dayName]: { enabled: true, ...locHours } } as any,
+            locAppts, slotStep, activeCustomSchedule,
+            state.settings.scheduleMode, state.settings.bufferTime ?? 0
+          );
+          const locBooked = new Set(
+            locAppts.filter((a) => a.date === dateStr && (a.status === 'confirmed' || a.status === 'pending')).map((a) => a.time)
+          );
+          const locAvail = locSlots.filter((t) => !locBooked.has(t)).length;
+          if (locAvail > maxAvailable) maxAvailable = locAvail;
+        }
+        return [dateStr, { total: maxAvailable, booked: 0 }];
+      }
+
       const slots = generateAvailableSlots(
         dateStr,
         defaultDuration,
@@ -733,6 +772,7 @@ export default function CalendarScreen() {
     return () => clearTimeout(timer1);
   // Use specific settings values (not the whole object) to avoid re-firing on every store update
   }, [currentMonth, currentYear, isDayAvailable, effectiveWorkingHours, locationAppointments, activeCustomSchedule,
+    calLocationFilter, activeLocations, state.locationCustomSchedule,
     (state.settings as any).slotInterval, state.settings.defaultDuration, state.settings.scheduleMode, state.settings.bufferTime]);
 
   // Find the next date after a given date that has available slots
@@ -1363,6 +1403,7 @@ export default function CalendarScreen() {
                 if (noLocation) return;
                 setSelectedDate(dateStr);
                 setSelectedSlotTime(null);
+                setShowAllSlots(false);
                 setExpandedDate((prev) => (prev === dateStr ? null : dateStr));
               }}
               style={({ pressed }) => [
@@ -1486,7 +1527,7 @@ export default function CalendarScreen() {
               <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground }}>
                 {availableSlots.length > 0 ? `${availableSlots.length} slot${availableSlots.length !== 1 ? "s" : ""} available — tap a time` : "No slots available"}
               </Text>
-              <Pressable onPress={() => { setExpandedDate(null); setSelectedSlotTime(null); }} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}>
+              <Pressable onPress={() => { setExpandedDate(null); setSelectedSlotTime(null); setShowAllSlots(false); }} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}>
                 <IconSymbol name="xmark" size={16} color={colors.muted} />
               </Pressable>
             </View>
@@ -1494,7 +1535,7 @@ export default function CalendarScreen() {
               <>
                 {/* Scrollable time slot chips — tap to select */}
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingVertical: 10 }} contentContainerStyle={{ paddingHorizontal: 12, gap: 8, flexDirection: "row" }}>
-                  {availableSlots.slice(0, 20).map((slotTime) => {
+                  {(showAllSlots ? availableSlots : availableSlots.slice(0, 20)).map((slotTime) => {
                     const isChipSelected = selectedSlotTime === slotTime;
                     return (
                       <Pressable
@@ -1516,6 +1557,24 @@ export default function CalendarScreen() {
                       </Pressable>
                     );
                   })}
+                  {!showAllSlots && availableSlots.length > 20 && (
+                    <Pressable
+                      onPress={() => setShowAllSlots(true)}
+                      style={({ pressed }) => ({
+                        paddingHorizontal: 14,
+                        paddingVertical: 8,
+                        borderRadius: 20,
+                        backgroundColor: colors.surface,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        opacity: pressed ? 0.7 : 1,
+                      })}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: "600", color: colors.muted }}>
+                        +{availableSlots.length - 20} more →
+                      </Text>
+                    </Pressable>
+                  )}
                 </ScrollView>
                 {/* +Book Appointment CTA — only shown after a time is selected */}
                 {selectedSlotTime && (

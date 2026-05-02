@@ -777,7 +777,15 @@ export default function NewBookingScreen() {
                 {!hasMultiCat && (
                   <Text className="text-base font-semibold text-foreground mb-3">Select a Service</Text>
                 )}
-                {displaySvcs.map((item) => (
+                {displaySvcs.map((item) => {
+                  const NB_CAT_EMOJI: Record<string, string> = {
+                    Hair: "✂️", Massage: "💆", Nails: "💅", Skincare: "🧴",
+                    "Waxing & Brows": "🪮", Waxing: "🪮", Brows: "🪮",
+                    Makeup: "💄", Lashes: "👁️", Spa: "🛁", Fitness: "🏋️",
+                    Tattoo: "🖊️", Piercing: "💎", Barber: "💈", General: "⭐",
+                  };
+                  const nbSvcEmoji = NB_CAT_EMOJI[item.category ?? ""] ?? "✨";
+                  return (
                   <Pressable
                     key={item.id}
                     onPress={() => {
@@ -796,7 +804,9 @@ export default function NewBookingScreen() {
                     {item.photoUri ? (
                       <Image source={{ uri: item.photoUri }} style={{ width: 40, height: 40, borderRadius: 8, marginRight: 12 }} />
                     ) : (
-                      <View style={[styles.colorDot, { backgroundColor: item.color }]} />
+                      <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: item.color + "22", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                        <Text style={{ fontSize: 20 }}>{nbSvcEmoji}</Text>
+                      </View>
                     )}
                     <View style={styles.optionContent}>
                       <Text className="text-base font-semibold text-foreground">{item.name}</Text>
@@ -804,7 +814,8 @@ export default function NewBookingScreen() {
                     </View>
                     <IconSymbol name="chevron.right" size={16} color={colors.muted} />
                   </Pressable>
-                ))}
+                  );
+                })}
               </View>
             );
           })()}
