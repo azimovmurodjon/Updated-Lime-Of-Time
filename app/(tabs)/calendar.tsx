@@ -644,136 +644,87 @@ export default function CalendarScreen() {
   }, [locationAppointments]);
 
   // Per-day slot counts for Full/Off indicators in month view
-  // Computed lazily via useEffect + setTimeout to avoid blocking the JS thread on navigation
+  // Computed synchronously so badges appear immediately on mount and after location switch
   const [daySlotCounts, setDaySlotCounts] = useState<Record<string, { total: number; booked: number }>>({});
-  // True while slot counts are being computed — used to show skeleton badges
-  const [badgesLoading, setBadgesLoading] = useState(false);
-  // Animated value for skeleton shimmer opacity
-  const skeletonOpacity = useRef(new Animated.Value(0.3)).current;
 
-  // Skeleton shimmer animation — loops while badges are loading
-  useEffect(() => {
-    if (!badgesLoading) return;
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(skeletonOpacity, { toValue: 0.7, duration: 600, useNativeDriver: true }),
-        Animated.timing(skeletonOpacity, { toValue: 0.2, duration: 600, useNativeDriver: true }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [badgesLoading, skeletonOpacity]);
-
-  useEffect(() => {
-    // Clear immediately so stale data from previous month doesn't show
-    setDaySlotCounts({});
-    setBadgesLoading(true);
+  // Helper to compute slot info for a single day — used by both the badge effect and the slot panel
+  const computeDaySlots = useCallback((dateStr: string): { total: number; booked: number } => {
+    if (!isDayAvailable(dateStr)) return { total: 0, booked: 0 };
     const defaultDuration = Math.max(1, state.settings.defaultDuration ?? 30);
-    // Use max(slotInterval, defaultDuration) for badge slot computation so we show
-    // the number of bookable appointment slots, not 1-minute micro-slots.
     const rawSlotStep = (state.settings as any).slotInterval ?? 30;
     const slotStep = Math.max(rawSlotStep, defaultDuration);
-    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 
-    // Helper to compute slot info for a single day
-    const computeDay = (day: number): [string, { total: number; booked: number }] => {
-      const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      if (!isDayAvailable(dateStr)) return [dateStr, { total: 0, booked: 0 }];
-
-      // In "All" mode: compute per-location and show the max available count
-      // (the location with the most availability) so the badge is accurate
-      if (calLocationFilter === null && activeLocations.length > 1) {
-        let maxAvailable = 0;
-        const d = new Date(dateStr + "T12:00:00");
-        const dayName = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][d.getDay()];
-        for (const loc of activeLocations) {
-          if (loc.temporarilyClosed) continue;
-          // Get this location's working hours for this day
-          const locWh = (loc.workingHours != null && Object.keys(loc.workingHours).length > 0)
-            ? loc.workingHours : state.settings.workingHours;
-          const locCustom = state.locationCustomSchedule?.[loc.id]?.find((cs: any) => cs.date === dateStr);
-          let locHours: { start: string; end: string } | null = null;
-          if (locCustom) {
-            if (!locCustom.isOpen) continue;
-            locHours = { start: locCustom.startTime ?? '09:00', end: locCustom.endTime ?? '17:00' };
-          } else {
-            const wh = locWh?.[dayName];
-            if (!wh || !wh.enabled) continue;
-            locHours = { start: wh.start, end: wh.end };
-          }
-          const locAppts = locationAppointments.filter((a) => a.locationId === loc.id);
-          const locSlots = generateAvailableSlots(
-            dateStr, defaultDuration,
-            { [dayName]: { enabled: true, ...locHours } } as any,
-            locAppts, slotStep, activeCustomSchedule,
-            state.settings.scheduleMode, state.settings.bufferTime ?? 0
-          );
-          const locBooked = new Set(
-            locAppts.filter((a) => a.date === dateStr && (a.status === 'confirmed' || a.status === 'pending')).map((a) => a.time)
-          );
-          const locAvail = locSlots.filter((t) => !locBooked.has(t)).length;
-          if (locAvail > maxAvailable) maxAvailable = locAvail;
+    // In "All" mode: compute per-location and show the max available count
+    if (calLocationFilter === null && activeLocations.length > 1) {
+      let maxAvailable = 0;
+      const d = new Date(dateStr + "T12:00:00");
+      const dayName = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][d.getDay()];
+      for (const loc of activeLocations) {
+        if (loc.temporarilyClosed) continue;
+        const locWh = (loc.workingHours != null && Object.keys(loc.workingHours).length > 0)
+          ? loc.workingHours : state.settings.workingHours;
+        const locCustom = state.locationCustomSchedule?.[loc.id]?.find((cs: any) => cs.date === dateStr);
+        let locHours: { start: string; end: string } | null = null;
+        if (locCustom) {
+          if (!locCustom.isOpen) continue;
+          locHours = { start: locCustom.startTime ?? '09:00', end: locCustom.endTime ?? '17:00' };
+        } else {
+          const wh = locWh?.[dayName];
+          if (!wh || !wh.enabled) continue;
+          locHours = { start: wh.start, end: wh.end };
         }
-        return [dateStr, { total: maxAvailable, booked: 0 }];
+        const locAppts = locationAppointments.filter((a) => a.locationId === loc.id);
+        const locSlots = generateAvailableSlots(
+          dateStr, defaultDuration,
+          { [dayName]: { enabled: true, ...locHours } } as any,
+          locAppts, slotStep, activeCustomSchedule,
+          state.settings.scheduleMode, state.settings.bufferTime ?? 0
+        );
+        const locBooked = new Set(
+          locAppts.filter((a) => a.date === dateStr && (a.status === 'confirmed' || a.status === 'pending')).map((a) => a.time)
+        );
+        const locAvail = locSlots.filter((t) => !locBooked.has(t)).length;
+        if (locAvail > maxAvailable) maxAvailable = locAvail;
       }
-
-      const slots = generateAvailableSlots(
-        dateStr,
-        defaultDuration,
-        effectiveWorkingHours,
-        locationAppointments,
-        slotStep,
-        activeCustomSchedule,
-        state.settings.scheduleMode,
-        state.settings.bufferTime ?? 0
-      );
-      // Use same filtering as slot panel: exclude times that have a confirmed/pending appointment
-      const bookedTimes = new Set(
-        locationAppointments
-          .filter((a) => a.date === dateStr && (a.status === 'confirmed' || a.status === 'pending'))
-          .map((a) => a.time)
-      );
-      const availableCount = slots.filter((t) => !bookedTimes.has(t)).length;
-      return [dateStr, { total: slots.length, booked: slots.length - availableCount }];
-    };
-
-    // Pass 1: compute current week (7 days around today) first — appears in ~50ms
-    const today = new Date();
-    const currentWeekDays: number[] = [];
-    const remainingDays: number[] = [];
-    for (let day = 1; day <= daysInMonth; day++) {
-      const d = new Date(currentYear, currentMonth, day);
-      const diffDays = Math.abs((d.getTime() - today.getTime()) / 86400000);
-      if (diffDays <= 7) currentWeekDays.push(day);
-      else remainingDays.push(day);
+      return { total: maxAvailable, booked: 0 };
     }
 
-    const timer1 = setTimeout(() => {
-      const partial: Record<string, { total: number; booked: number }> = {};
-      for (const day of currentWeekDays) {
-        const [ds, info] = computeDay(day);
-        partial[ds] = info;
-      }
-      setDaySlotCounts((prev) => ({ ...prev, ...partial }));
+    const slots = generateAvailableSlots(
+      dateStr, defaultDuration, effectiveWorkingHours,
+      locationAppointments, slotStep, activeCustomSchedule,
+      state.settings.scheduleMode, state.settings.bufferTime ?? 0
+    );
+    const bookedTimes = new Set(
+      locationAppointments
+        .filter((a) => a.date === dateStr && (a.status === 'confirmed' || a.status === 'pending'))
+        .map((a) => a.time)
+    );
+    const availableCount = slots.filter((t) => !bookedTimes.has(t)).length;
+    return { total: slots.length, booked: slots.length - availableCount };
+  }, [isDayAvailable, calLocationFilter, activeLocations, state.settings, state.locationCustomSchedule,
+    locationAppointments, effectiveWorkingHours, activeCustomSchedule]);
 
-      // Pass 2: compute the rest of the month — appears in ~200ms
-      const timer2 = setTimeout(() => {
-        const rest: Record<string, { total: number; booked: number }> = {};
-        for (const day of remainingDays) {
-          const [ds, info] = computeDay(day);
-          rest[ds] = info;
-        }
-        setDaySlotCounts((prev) => ({ ...prev, ...rest }));
-        setBadgesLoading(false);
-      }, 150);
-      return () => clearTimeout(timer2);
-    }, 50); // First pass after 50ms — very fast
+  useEffect(() => {
+    // Compute all badges synchronously — fast enough for a single month (~30 days)
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const result: Record<string, { total: number; booked: number }> = {};
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      result[dateStr] = computeDaySlots(dateStr);
+    }
+    setDaySlotCounts(result);
+  }, [currentMonth, currentYear, computeDaySlots]);
 
-    return () => clearTimeout(timer1);
-  // Use specific settings values (not the whole object) to avoid re-firing on every store update
-  }, [currentMonth, currentYear, isDayAvailable, effectiveWorkingHours, locationAppointments, activeCustomSchedule,
-    calLocationFilter, activeLocations, state.locationCustomSchedule,
-    (state.settings as any).slotInterval, state.settings.defaultDuration, state.settings.scheduleMode, state.settings.bufferTime]);
+  // Auto-open slot panel for today on initial mount
+  const hasAutoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (hasAutoOpenedRef.current) return;
+    if (calendarView !== 'month') return;
+    const todayDateStr = formatDateStr(new Date());
+    hasAutoOpenedRef.current = true;
+    setExpandedDate(todayDateStr);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calendarView]);
 
   // Find the next date after a given date that has available slots
   const findNextAvailableDate = useCallback((afterDate: string): string | null => {
@@ -1472,23 +1423,20 @@ export default function CalendarScreen() {
                     </View>
                   );
                 }
-                // Show remaining slot count badge (hidden on selected day)
-                if (!isSelected && slotInfo && slotInfo.total > 0) {
+                // Show remaining slot count badge (always visible, including on selected day)
+                if (slotInfo && slotInfo.total > 0) {
                   const remaining = slotInfo.total - slotInfo.booked;
                   if (remaining > 0) {
                     const badgeColor = remaining <= 2 ? "#F59E0B" : "#22C55E";
+                    // On selected day: use white text so it's readable on the green circle
+                    const textColor = isSelected ? "#fff" : badgeColor;
+                    const bgColor = isSelected ? (badgeColor + "55") : (badgeColor + "25");
                     return (
-                      <View style={{ backgroundColor: badgeColor + "25", borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1, marginTop: 1 }}>
-                        <Text style={{ fontSize: 7, fontWeight: "700", color: badgeColor }}>{remaining}</Text>
+                      <View style={{ backgroundColor: bgColor, borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1, marginTop: 1 }}>
+                        <Text style={{ fontSize: 7, fontWeight: "700", color: textColor }}>{remaining}</Text>
                       </View>
                     );
                   }
-                }
-                // Skeleton shimmer — slot count not yet computed
-                if (!slotInfo && badgesLoading) {
-                  return (
-                    <Animated.View style={{ opacity: skeletonOpacity, backgroundColor: colors.border, borderRadius: 4, width: 22, height: 8, marginTop: 2 }} />
-                  );
                 }
                 return null;
               })()}
