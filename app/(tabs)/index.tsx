@@ -41,6 +41,7 @@ import { RevenueChartCard } from "@/components/revenue-chart-card";
 import { PaymentSummaryCard } from "@/components/payment-summary-card";
 import { ChartDrillDownSheet, type DrillDownAppointment } from "@/components/chart-drilldown-sheet";
 import { ScheduleCard } from "@/components/schedule-card";
+import { OverviewDayWeekCard } from "@/components/overview-day-week-card";
 import { apiCall } from "@/lib/_core/api";
 import { trpc } from "@/lib/trpc";
 
@@ -1320,6 +1321,31 @@ export default function HomeScreen() {
     { businessOwnerId: state.businessOwnerId! },
     { enabled: !!state.businessOwnerId, staleTime: 5 * 60 * 1000 }
   );
+  // ─── Overview mode: "kpi" = 4-card grid, "dayweek" = Day/Week card ──
+  const [overviewMode, setOverviewMode] = useState<"kpi" | "dayweek">("kpi");
+  // Animated value: 0 = KPI visible, 1 = DayWeek visible
+  const overviewAnim = useRef(new Animated.Value(0)).current;
+  const switchOverviewMode = useCallback(
+    (next: "kpi" | "dayweek") => {
+      setOverviewMode(next);
+      Animated.timing(overviewAnim, {
+        toValue: next === "dayweek" ? 1 : 0,
+        duration: 260,
+        useNativeDriver: true,
+      }).start();
+    },
+    [overviewAnim]
+  );
+  // Derived animated styles
+  const kpiAnimStyle = {
+    opacity: overviewAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+    transform: [{ translateY: overviewAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 10] }) }],
+  };
+  const dayWeekAnimStyle = {
+    opacity: overviewAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
+    transform: [{ translateY: overviewAnim.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] }) }],
+  };
+
   const [overLimitDismissed, setOverLimitDismissed] = useState(false);
   const stripeConnected = !!(state.settings as any).stripeConnectEnabled;
 
@@ -1780,10 +1806,53 @@ export default function HomeScreen() {
           </View>
         )}
         {/* ─── KPI Cards (swipeable groups) ─────────────────── */}
-        <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 20 }]}>
-          Overview
-        </Text>
-        <View style={[styles.kpiGrid, { gap: cardGap }]}>
+        {/* Overview header with mode toggle */}
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 20, marginBottom: 2 }}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 0 }]}>Overview</Text>
+          <View style={{ flexDirection: "row", gap: 6 }}>
+            <Pressable
+              onPress={() => switchOverviewMode("kpi")}
+              style={({ pressed }) => ({
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                borderWidth: 1.5,
+                borderColor: overviewMode === "kpi" ? colors.primary : colors.border,
+                backgroundColor: overviewMode === "kpi" ? colors.primary + "18" : colors.surface,
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: pressed ? 0.7 : 1,
+              })}
+            >
+              <IconSymbol name="square.grid.2x2" size={16} color={overviewMode === "kpi" ? colors.primary : colors.muted} />
+            </Pressable>
+            <Pressable
+              onPress={() => switchOverviewMode("dayweek")}
+              style={({ pressed }) => ({
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                borderWidth: 1.5,
+                borderColor: overviewMode === "dayweek" ? colors.primary : colors.border,
+                backgroundColor: overviewMode === "dayweek" ? colors.primary + "18" : colors.surface,
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: pressed ? 0.7 : 1,
+              })}
+            >
+              <IconSymbol name="calendar.day.timeline.left" size={16} color={overviewMode === "dayweek" ? colors.primary : colors.muted} />
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Overview content switcher — crossfade between KPI grid and Day/Week card */}
+        <View style={{ position: "relative" }}>
+          {/* 4-KPI grid: always in normal flow — drives the container height */}
+          <Animated.View
+            style={kpiAnimStyle}
+            pointerEvents={overviewMode === "kpi" ? "auto" : "none"}
+          >
+          <View style={[styles.kpiGrid, { gap: cardGap }]}>
           {/* ── Earnings Card (5 slides: Today / Week / Month / Year / All Time) ── */}
           <SwipeableKpiCard
             width={cardW}
@@ -2038,8 +2107,26 @@ export default function HomeScreen() {
               },
             ]}
           />
-        </View>
+          </View>
+          </Animated.View>
 
+          {/* Day/Week card: absolutely overlays the KPI grid area, fades in when dayweek mode */}
+          <Animated.View
+            style={[
+              dayWeekAnimStyle,
+              { position: "absolute", top: 0, left: 0, right: 0 },
+            ]}
+            pointerEvents={overviewMode === "dayweek" ? "auto" : "none"}
+          >
+            <OverviewDayWeekCard
+              appointments={state.appointments}
+              services={state.services}
+              clients={state.clients}
+              selectedLocationFilter={selectedLocationFilter}
+              width={contentWidth}
+            />
+          </Animated.View>
+        </View>
         {/* ─── Monthly Goal Progress Bar ──────────────────────────────────── */}
         {state.settings.monthlyRevenueGoal > 0 && (
           <Pressable

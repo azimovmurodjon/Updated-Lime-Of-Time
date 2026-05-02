@@ -121,6 +121,8 @@ const MAPPING = {
   "arrow.up.left.and.arrow.down.right": "fullscreen",
   "checkmark.seal.fill": "verified",
   "minus.circle.fill": "remove-circle",
+  "square.grid.2x2": "grid-view",
+  "calendar.day.timeline.left": "view-day",
 } as unknown as IconMapping;
 
 export function IconSymbol({

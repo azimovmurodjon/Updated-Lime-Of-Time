@@ -1497,6 +1497,7 @@ export default function CalendarScreen() {
         const cacheEntry = slotCache[expandedDate];
         const availableSlots = cacheEntry?.availableSlots ?? [];
         const locationSlots = cacheEntry?.locationSlots ?? new Map<string, string[]>();
+        const isAllLocMode = calLocationFilter === null && activeLocations.length > 1;
         return (
           <View style={{ marginHorizontal: hp, marginTop: 8, marginBottom: 4, backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.border, overflow: "hidden" }}>
             {/* Panel header */}
@@ -1519,18 +1520,31 @@ export default function CalendarScreen() {
                         key={slotTime}
                         onPress={() => setSelectedSlotTime(isChipSelected ? null : slotTime)}
                         style={({ pressed }) => ({
+                          alignItems: "center",
+                          opacity: pressed ? 0.7 : 1,
+                        })}
+                      >
+                        <View style={{
                           paddingHorizontal: 14,
                           paddingVertical: 8,
                           borderRadius: 20,
                           backgroundColor: isChipSelected ? colors.primary : colors.primary + "18",
                           borderWidth: 1,
                           borderColor: isChipSelected ? colors.primary : colors.primary + "40",
-                          opacity: pressed ? 0.7 : 1,
-                        })}
-                      >
-                        <Text style={{ fontSize: 13, fontWeight: "600", color: isChipSelected ? "#FFF" : colors.primary }}>
-                          {formatTimeDisplay(slotTime)}
-                        </Text>
+                        }}>
+                          <Text style={{ fontSize: 13, fontWeight: "600", color: isChipSelected ? "#FFF" : colors.primary }}>
+                            {formatTimeDisplay(slotTime)}
+                          </Text>
+                        </View>
+                        {isAllLocMode && (() => {
+                          const locCount = locationSlots.get(slotTime)?.length ?? 1;
+                          if (locCount <= 1) return null;
+                          return (
+                            <Text style={{ fontSize: 10, fontWeight: "600", color: isChipSelected ? colors.primary : colors.muted, marginTop: 3 }}>
+                              {locCount} loc
+                            </Text>
+                          );
+                        })()}
                       </Pressable>
                     );
                   })}

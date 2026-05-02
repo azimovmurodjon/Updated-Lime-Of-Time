@@ -412,7 +412,7 @@ export default function NewBookingScreen() {
   // When no location is selected (All mode), aggregate across all active locations:
   // a day is open if ANY location has it open, and has slots if ANY location has slots.
   const dateOptions = useMemo(() => {
-    const dates: { date: string; closed: boolean; noSlots: boolean }[] = [];
+    const dates: { date: string; closed: boolean; noSlots: boolean; slotCount: number }[] = [];
     const today = new Date();
     const endDate = state.settings.businessHoursEndDate;
     // All-locations mode: selectedLocationId is null and there are multiple active locations
@@ -484,7 +484,28 @@ export default function NewBookingScreen() {
           noSlots = slots.length === 0;
         }
       }
-      dates.push({ date: ds, closed, noSlots });
+      // Compute slot count for badge
+      let slotCount = 0;
+      if (!closed && !noSlots) {
+        if (isAllMode) {
+          const allTimes = new Set<string>();
+          for (const loc of activeLocations) {
+            if (loc.temporarilyClosed) continue;
+            const locCustomSchedule = getLocCustomSchedule(loc.id);
+            const locWH = (loc.workingHours != null && Object.keys(loc.workingHours).length > 0)
+              ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
+              : (state.settings.workingHours ?? undefined);
+            const locAppts = state.appointments.filter((a) => a.locationId === loc.id);
+            const slots = generateAvailableSlots(ds, totalDuration, locWH, locAppts, effectiveStep, locCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
+            slots.forEach((s) => allTimes.add(s));
+          }
+          slotCount = allTimes.size;
+        } else {
+          const slots = generateAvailableSlots(ds, totalDuration, locationWorkingHours, locationAppts, effectiveStep, activeCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime ?? 0);
+          slotCount = slots.length;
+        }
+      }
+      dates.push({ date: ds, closed, noSlots, slotCount });
     }
     return dates;
   }, [selectedLocationId, activeLocations, activeCustomSchedule, locationWorkingHours, locationAppts, totalDuration, state.settings.scheduleMode, state.settings.bufferTime, state.settings.businessHoursEndDate, (state as any).locationCustomSchedule, state.appointments, state.settings.workingHours]);
@@ -578,9 +599,12 @@ export default function NewBookingScreen() {
       }
     }
 
+    let firstAppointmentId: string | null = null;
     for (const date of dates) {
+      const appointmentId = generateId();
+      if (!firstAppointmentId) firstAppointmentId = appointmentId;
       const appointment: Appointment = {
-        id: generateId(),
+        id: appointmentId,
         serviceId: selectedServiceId,
         clientId: selectedClientId,
         date,
@@ -654,7 +678,12 @@ export default function NewBookingScreen() {
       }
     }
 
-    router.back();
+    // Navigate to the newly created appointment detail
+    if (firstAppointmentId) {
+      router.replace({ pathname: "/appointment-detail", params: { id: firstAppointmentId } });
+    } else {
+      router.back();
+    }
   }, [selectedServiceId, selectedClientId, selectedDate, selectedTime, totalDuration, notes, cart, recurring, dispatch, router, appliedDiscount, discountAmount, totalPrice, subtotal, selectedStaffId, selectedLocationId, syncToDb, selectedService, selectedClient, state.settings, sendSmsMutation]);
 
   const getInitials = (name: string) => {
@@ -1189,6 +1218,7 @@ export default function NewBookingScreen() {
                     const opt = dateOptions.find((o) => o.date === dateStr);
                     const isClosed = opt ? opt.closed : true; // dates outside 90-day range treated as closed
                     const isNoSlots = opt ? opt.noSlots : false;
+                    const slotCount = opt ? opt.slotCount : 0;
                     const isDisabled = isPast || isOutOfRange || isClosed || isNoSlots;
                     return (
                       <Pressable
@@ -1239,6 +1269,16 @@ export default function NewBookingScreen() {
                         {!isClosed && isNoSlots && !isPast && !isOutOfRange && !isSelected && (
                           <View style={{ position: "absolute", top: 2, right: 2, backgroundColor: colors.warning + "20", borderRadius: 3, paddingHorizontal: 2, paddingVertical: 0 }}>
                             <Text style={{ fontSize: 7, color: colors.warning, fontWeight: "700" }}>FULL</Text>
+                          </View>
+                        )}
+                        {/* Slot count badge */}
+                        {!isClosed && !isNoSlots && !isPast && !isOutOfRange && slotCount > 0 && (
+                          <View style={{ position: "absolute", top: 1, right: 1, borderRadius: 4, paddingHorizontal: 2, paddingVertical: 0 }}>
+                            <Text style={{
+                              fontSize: 7,
+                              fontWeight: "700",
+                              color: isSelected ? "rgba(255,255,255,0.85)" : slotCount <= 2 ? colors.warning : colors.success,
+                            }}>{slotCount}</Text>
                           </View>
                         )}
                       </Pressable>
@@ -1642,65 +1682,83 @@ export default function NewBookingScreen() {
                   <Text className="text-xs text-muted">No additional services available</Text>
                 </View>
               ) : (() => {
-                const svcCats = Array.from(new Set(availableExtraServices.map((s) => s.category?.trim() || "General"))).sort();
-                const hasMultiCat = svcCats.length > 1;
-                const filteredSvcs = addMoreCategoryFilter
-                  ? availableExtraServices.filter((s) => (s.category?.trim() || "General") === addMoreCategoryFilter)
-                  : availableExtraServices;
+                const catGroups = new Map<string, typeof availableExtraServices>();
+                availableExtraServices.forEach((s) => {
+                  const cat = s.category?.trim() || "General";
+                  if (!catGroups.has(cat)) catGroups.set(cat, []);
+                  catGroups.get(cat)!.push(s);
+                });
+                const catEntries = Array.from(catGroups.entries()).sort((a, b) => {
+                  if (a[0] === "General") return 1;
+                  if (b[0] === "General") return -1;
+                  return a[0].localeCompare(b[0]);
+                });
+                const hasMultiCat = catEntries.length > 1;
                 return (
                   <View>
-                    {hasMultiCat && (
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={{ gap: 8, paddingBottom: 8, flexDirection: "row" }}
-                        style={{ marginBottom: 8 }}
-                      >
-                        <Pressable
-                          onPress={() => setAddMoreCategoryFilter(null)}
-                          style={[styles.filterChip, { backgroundColor: !addMoreCategoryFilter ? colors.primary : colors.surface, borderColor: !addMoreCategoryFilter ? colors.primary : colors.border }]}
-                        >
-                          <Text style={{ fontSize: 12, fontWeight: "600", color: !addMoreCategoryFilter ? "#fff" : colors.muted }}>All</Text>
-                        </Pressable>
-                        {svcCats.map((cat) => (
-                          <Pressable
-                            key={cat}
-                            onPress={() => setAddMoreCategoryFilter(addMoreCategoryFilter === cat ? null : cat)}
-                            style={[styles.filterChip, { backgroundColor: addMoreCategoryFilter === cat ? colors.primary : colors.surface, borderColor: addMoreCategoryFilter === cat ? colors.primary : colors.border }]}
-                          >
-                            <Text style={{ fontSize: 12, fontWeight: "600", color: addMoreCategoryFilter === cat ? "#fff" : colors.muted }} numberOfLines={1}>{cat}</Text>
-                          </Pressable>
-                        ))}
-                      </ScrollView>
-                    )}
-                    {filteredSvcs.map((s) => (
-                      <Pressable
-                        key={s.id}
-                        onPress={() =>
-                          addToCart({ type: "service", id: s.id, name: s.name, price: parseFloat(String(s.price)), duration: s.duration })
-                        }
-                        style={({ pressed }) => [
-                          styles.optionCard,
-                          { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
-                        ]}
-                      >
-                        {s.photoUri ? (
-                          <Image source={{ uri: s.photoUri }} style={{ width: 36, height: 36, borderRadius: 8, marginRight: 12 }} />
-                        ) : (
-                          <View style={[styles.colorDot, { backgroundColor: s.color }]} />
-                        )}
-                        <View style={styles.optionContent}>
-                          <Text className="text-sm font-semibold text-foreground">{s.name}</Text>
-                          <Text className="text-xs text-muted">{s.duration} min{s.category ? " · " + s.category : ""}</Text>
+                    {catEntries.map(([cat, svcs]) => {
+                      const isExpanded = !hasMultiCat || addMoreCategoryFilter === cat;
+                      return (
+                        <View key={cat}>
+                          {hasMultiCat && (
+                            <Pressable
+                              onPress={() => setAddMoreCategoryFilter(isExpanded ? null : cat)}
+                              style={({ pressed }) => ({
+                                flexDirection: "row",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                paddingVertical: 12,
+                                paddingHorizontal: 14,
+                                backgroundColor: isExpanded ? colors.primary + "12" : colors.surface,
+                                borderRadius: 10,
+                                borderWidth: 1,
+                                borderColor: isExpanded ? colors.primary + "40" : colors.border,
+                                marginBottom: 4,
+                                opacity: pressed ? 0.7 : 1,
+                              })}
+                            >
+                              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                                <Text style={{ fontSize: 14, fontWeight: "700", color: isExpanded ? colors.primary : colors.foreground }}>{cat}</Text>
+                                <View style={{ backgroundColor: colors.primary + "20", borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
+                                  <Text style={{ fontSize: 11, fontWeight: "700", color: colors.primary }}>{svcs.length}</Text>
+                                </View>
+                              </View>
+                              <IconSymbol name={isExpanded ? "chevron.down" : "chevron.right"} size={14} color={isExpanded ? colors.primary : colors.muted} />
+                            </Pressable>
+                          )}
+                          {isExpanded && svcs.map((s) => (
+                            <Pressable
+                              key={s.id}
+                              onPress={() =>
+                                addToCart({ type: "service", id: s.id, name: s.name, price: parseFloat(String(s.price)), duration: s.duration })
+                              }
+                              style={({ pressed }) => [
+                                styles.optionCard,
+                                { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1, marginLeft: hasMultiCat ? 8 : 0 },
+                              ]}
+                            >
+                              {s.photoUri ? (
+                                <Image source={{ uri: s.photoUri }} style={{ width: 36, height: 36, borderRadius: 8, marginRight: 12 }} />
+                              ) : (
+                                <View style={[styles.colorDot, { backgroundColor: s.color }]} />
+                              )}
+                              <View style={styles.optionContent}>
+                                <Text className="text-sm font-semibold text-foreground">{s.name}</Text>
+                                <Text className="text-xs text-muted">{s.duration} min</Text>
+                              </View>
+                              <Text className="text-sm font-bold" style={{ color: colors.primary }}>+ ${parseFloat(String(s.price)).toFixed(2)}</Text>
+                            </Pressable>
+                          ))}
                         </View>
-                        <Text className="text-sm font-bold" style={{ color: colors.primary }}>+ ${parseFloat(String(s.price)).toFixed(2)}</Text>
-                      </Pressable>
-                    ))}
+                      );
+                    })}
                   </View>
                 );
               })()}
             </View>
           )}
 
-          {/* Products — brand filter chips */}
+          {/* Products — collapsible by brand */}
           {addMoreTab === "products" && (
             <View className="mb-4">
               {availableProducts.length === 0 ? (
@@ -1708,60 +1766,78 @@ export default function NewBookingScreen() {
                   <Text className="text-xs text-muted">No products available</Text>
                 </View>
               ) : (() => {
-                const allBrands = Array.from(new Set(availableProducts.map((p) => p.brand?.trim() || "Other"))).sort();
-                const hasMultiBrand = allBrands.length > 1;
-                const filteredProds = addMoreBrandFilter
-                  ? availableProducts.filter((p) => (p.brand?.trim() || "Other") === addMoreBrandFilter)
-                  : availableProducts;
+                const brandGroups = new Map<string, typeof availableProducts>();
+                availableProducts.forEach((p) => {
+                  const brand = p.brand?.trim() || "Other";
+                  if (!brandGroups.has(brand)) brandGroups.set(brand, []);
+                  brandGroups.get(brand)!.push(p);
+                });
+                const brandEntries = Array.from(brandGroups.entries()).sort((a, b) => {
+                  if (a[0] === "Other") return 1;
+                  if (b[0] === "Other") return -1;
+                  return a[0].localeCompare(b[0]);
+                });
+                const hasMultiBrand = brandEntries.length > 1;
                 return (
                   <View>
-                    {hasMultiBrand && (
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={{ gap: 8, paddingBottom: 8, flexDirection: "row" }}
-                        style={{ marginBottom: 8 }}
-                      >
-                        <Pressable
-                          onPress={() => setAddMoreBrandFilter(null)}
-                          style={[styles.filterChip, { backgroundColor: !addMoreBrandFilter ? colors.primary : colors.surface, borderColor: !addMoreBrandFilter ? colors.primary : colors.border }]}
-                        >
-                          <Text style={{ fontSize: 12, fontWeight: "600", color: !addMoreBrandFilter ? "#fff" : colors.muted }}>All</Text>
-                        </Pressable>
-                        {allBrands.map((brand) => (
-                          <Pressable
-                            key={brand}
-                            onPress={() => setAddMoreBrandFilter(addMoreBrandFilter === brand ? null : brand)}
-                            style={[styles.filterChip, { backgroundColor: addMoreBrandFilter === brand ? colors.primary : colors.surface, borderColor: addMoreBrandFilter === brand ? colors.primary : colors.border }]}
-                          >
-                            <Text style={{ fontSize: 12, fontWeight: "600", color: addMoreBrandFilter === brand ? "#fff" : colors.muted }} numberOfLines={1}>{brand}</Text>
-                          </Pressable>
-                        ))}
-                      </ScrollView>
-                    )}
-                    {filteredProds.map((p) => (
-                      <Pressable
-                        key={p.id}
-                        onPress={() =>
-                          addToCart({ type: "product", id: p.id, name: p.name, price: parseFloat(String(p.price)), duration: 0 })
-                        }
-                        style={({ pressed }) => [
-                          styles.optionCard,
-                          { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
-                        ]}
-                      >
-                        {p.photoUri ? (
-                          <Image source={{ uri: p.photoUri }} style={{ width: 36, height: 36, borderRadius: 8, marginRight: 12 }} />
-                        ) : (
-                          <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
-                            <IconSymbol name="bag.fill" size={18} color={colors.primary} />
-                          </View>
-                        )}
-                        <View style={styles.optionContent}>
-                          <Text className="text-sm font-semibold text-foreground">{p.name}</Text>
-                          {p.brand ? <Text className="text-xs text-muted">{p.brand}{p.description ? " · " + p.description : ""}</Text> : p.description ? <Text className="text-xs text-muted">{p.description}</Text> : null}
+                    {brandEntries.map(([brand, prods]) => {
+                      const isExpanded = !hasMultiBrand || addMoreBrandFilter === brand;
+                      return (
+                        <View key={brand}>
+                          {hasMultiBrand && (
+                            <Pressable
+                              onPress={() => setAddMoreBrandFilter(isExpanded ? null : brand)}
+                              style={({ pressed }) => ({
+                                flexDirection: "row",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                paddingVertical: 12,
+                                paddingHorizontal: 14,
+                                backgroundColor: isExpanded ? colors.primary + "12" : colors.surface,
+                                borderRadius: 10,
+                                borderWidth: 1,
+                                borderColor: isExpanded ? colors.primary + "40" : colors.border,
+                                marginBottom: 4,
+                                opacity: pressed ? 0.7 : 1,
+                              })}
+                            >
+                              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                                <Text style={{ fontSize: 14, fontWeight: "700", color: isExpanded ? colors.primary : colors.foreground }}>{brand}</Text>
+                                <View style={{ backgroundColor: colors.primary + "20", borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
+                                  <Text style={{ fontSize: 11, fontWeight: "700", color: colors.primary }}>{prods.length}</Text>
+                                </View>
+                              </View>
+                              <IconSymbol name={isExpanded ? "chevron.down" : "chevron.right"} size={14} color={isExpanded ? colors.primary : colors.muted} />
+                            </Pressable>
+                          )}
+                          {isExpanded && prods.map((p) => (
+                            <Pressable
+                              key={p.id}
+                              onPress={() =>
+                                addToCart({ type: "product", id: p.id, name: p.name, price: parseFloat(String(p.price)), duration: 0 })
+                              }
+                              style={({ pressed }) => [
+                                styles.optionCard,
+                                { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1, marginLeft: hasMultiBrand ? 8 : 0 },
+                              ]}
+                            >
+                              {p.photoUri ? (
+                                <Image source={{ uri: p.photoUri }} style={{ width: 36, height: 36, borderRadius: 8, marginRight: 12 }} />
+                              ) : (
+                                <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                                  <IconSymbol name="bag.fill" size={18} color={colors.primary} />
+                                </View>
+                              )}
+                              <View style={styles.optionContent}>
+                                <Text className="text-sm font-semibold text-foreground">{p.name}</Text>
+                                {p.description ? <Text className="text-xs text-muted">{p.description}</Text> : null}
+                              </View>
+                              <Text className="text-sm font-bold" style={{ color: colors.primary }}>+ ${parseFloat(String(p.price)).toFixed(2)}</Text>
+                            </Pressable>
+                          ))}
                         </View>
-                        <Text className="text-sm font-bold" style={{ color: colors.primary }}>+ ${parseFloat(String(p.price)).toFixed(2)}</Text>
-                      </Pressable>
-                    ))}
+                      );
+                    })}
                   </View>
                 );
               })()}
@@ -1846,22 +1922,39 @@ export default function NewBookingScreen() {
           </View>
 
           {/* Continue to Payment Button */}
-          <Pressable
-            onPress={() => {
-              if (!selectedTime) return;
-              setStep(5);
-            }}
-            style={({ pressed }) => [
-              styles.bookButton,
-              {
-                backgroundColor: selectedTime ? colors.primary : colors.muted,
-                opacity: pressed && selectedTime ? 0.8 : 1,
-              },
-            ]}
-            disabled={!selectedTime}
-          >
-            <Text className="text-base font-semibold text-white">Continue to Payment →</Text>
-          </Pressable>
+          {(() => {
+            // Disable Continue when multiple locations have the selected time but none is chosen
+            const locationsForSelectedTime = isAllMode && selectedTime
+              ? activeLocations.filter((loc) => !loc.temporarilyClosed && locationTimeAvailable[loc.id] === true)
+              : [];
+            const needsLocationSelection = isAllMode && !!selectedTime && locationsForSelectedTime.length > 1 && !selectedLocationId;
+            const canContinue = !!selectedTime && !needsLocationSelection;
+            return (
+              <>
+                {needsLocationSelection && (
+                  <Text style={{ fontSize: 12, color: colors.warning, textAlign: "center", marginBottom: 8 }}>
+                    Please select a location above to continue
+                  </Text>
+                )}
+                <Pressable
+                  onPress={() => {
+                    if (!canContinue) return;
+                    setStep(5);
+                  }}
+                  style={({ pressed }) => [
+                    styles.bookButton,
+                    {
+                      backgroundColor: canContinue ? colors.primary : colors.muted,
+                      opacity: pressed && canContinue ? 0.8 : 1,
+                    },
+                  ]}
+                  disabled={!canContinue}
+                >
+                  <Text className="text-base font-semibold text-white">Continue to Payment →</Text>
+                </Pressable>
+              </>
+            );
+          })()}
 
           <View style={{ height: 40 }} />
         </ScrollView>

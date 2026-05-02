@@ -1741,3 +1741,11 @@
 
 - [x] Show slot count badge ("3 left") on each day cell for days with remaining capacity
 - [x] Show "No available slots" state in inline panel when a full day is tapped, with a "Next available: [date]" link
+
+## Calendar & Booking Flow Improvements (May 2026)
+
+- [ ] Calendar slot panel (All Locations mode): show location count badge under each time chip (e.g. "3 locations")
+- [ ] Calendar-booking flow: fix client phone number format to (000) 000-0000
+- [ ] Calendar-booking flow: service/product picker — collapsible categories (services) and brands (products), list hidden until category/brand tapped
+- [ ] New-booking flow: service/product picker — same collapsible categories/brands UX as calendar-booking
+- [ ] Continue button disabled until location selected when multiple locations available for chosen time (already done in new-booking.tsx)
