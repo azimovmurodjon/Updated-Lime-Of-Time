@@ -1949,7 +1949,7 @@ export function registerPublicRoutes(app: Express) {
     </div>
   </div>
   <div style="text-align:center;padding:16px 0;">
-    <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/IvzpqiWWzFzYmkTo.png" alt="Lime Of Time" style="width:24px;height:24px;border-radius:6px;vertical-align:middle;margin-right:6px;">
+    <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/VhShBdEStbScSasX.png" alt="Lime Of Time" style="width:24px;height:24px;border-radius:0;object-fit:contain;background:transparent;vertical-align:middle;margin-right:6px;">
     <span style="font-size:12px;color:var(--text-muted);">Powered by Lime Of Time</span>
   </div>
 </div>
@@ -2076,11 +2076,12 @@ function baseStyles(): string {
       }
       .header .biz-logo {
         width: 72px; height: 72px;
-        border-radius: 20px;
-        object-fit: cover;
+        border-radius: 0;
+        object-fit: contain;
         margin-bottom: 12px;
-        border: 2px solid var(--border);
-        box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+        border: none;
+        box-shadow: none;
+        background: transparent;
       }
       .header h1 {
         font-size: 24px;
@@ -2479,7 +2480,7 @@ function buyGiftPage(slug: string, owner: any): string {
   const bizName = (owner.businessName || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   const logoUri = owner.logoUrl || owner.businessLogoUri || "";
   // Always show the original app icon (Lime Of Time brand) on the gift page
-  const APP_ICON_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/app-icon-lime-of-time.png";
+  const APP_ICON_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/VhShBdEStbScSasX.png";
   const fallbackSrc = logoUri || '';
   const logoTag = `<img src="${APP_ICON_URL}" alt="Lime Of Time" class="biz-logo" onerror="this.src='${fallbackSrc}';this.onerror=null;">`;
   return `<!DOCTYPE html>
@@ -2515,7 +2516,7 @@ function buyGiftPage(slug: string, owner: any): string {
     .container{max-width:480px;margin:0 auto;padding:0 0 100px;}
     /* Header */
     .header{text-align:center;padding:28px 16px 20px;background:var(--bg-card);border-bottom:1px solid var(--border);margin-bottom:0;}
-    .biz-logo{width:72px;height:72px;border-radius:20px;object-fit:cover;border:2px solid var(--border);box-shadow:0 4px 16px rgba(0,0,0,0.1);margin-bottom:12px;display:block;margin-left:auto;margin-right:auto;}
+    .biz-logo{width:72px;height:72px;border-radius:0;object-fit:contain;border:none;box-shadow:none;background:transparent;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto;}
     .biz-logo-placeholder{width:72px;height:72px;border-radius:20px;background:var(--gift-bg);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:32px;border:2px solid var(--border);}
     .header h1{font-size:22px;font-weight:800;color:var(--text);margin-bottom:4px;letter-spacing:-0.5px;}
     .header .subtitle{font-size:13px;color:var(--textm);font-weight:500;}
@@ -3626,14 +3627,14 @@ function homePage(): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Lime Of Time — Smart Scheduling for Modern Businesses</title>
   <meta name="description" content="Lime Of Time is the all-in-one scheduling app for salons, barbershops, spas, and wellness businesses. Manage appointments, clients, staff, and payments from your phone." />
-  <link rel="icon" type="image/png" href="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/IvzpqiWWzFzYmkTo.png" />
-  <link rel="apple-touch-icon" href="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/IvzpqiWWzFzYmkTo.png" />
+  <link rel="icon" type="image/png" href="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/VhShBdEStbScSasX.png" />
+  <link rel="apple-touch-icon" href="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/VhShBdEStbScSasX.png" />
   <meta property="og:title" content="Lime Of Time — Smart Scheduling for Modern Businesses" />
   <meta property="og:description" content="The all-in-one scheduling app for salons, barbershops, spas, and wellness businesses." />
-  <meta property="og:image" content="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/IvzpqiWWzFzYmkTo.png" />
+  <meta property="og:image" content="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/VhShBdEStbScSasX.png" />
   <meta property="og:type" content="website" />
   <meta name="twitter:card" content="summary" />
-  <meta name="twitter:image" content="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/IvzpqiWWzFzYmkTo.png" />
+  <meta name="twitter:image" content="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/VhShBdEStbScSasX.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
@@ -4111,7 +4112,7 @@ function homePage(): string {
 <!-- NAV -->
 <nav id="navbar">
   <a href="/home" class="nav-logo">
-    <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/IvzpqiWWzFzYmkTo.png" alt="Lime Of Time" style="width:36px;height:36px;border-radius:10px;object-fit:cover;" />
+    <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/VhShBdEStbScSasX.png" alt="Lime Of Time" style="width:36px;height:36px;border-radius:0;object-fit:contain;background:transparent;" />
     <span class="nav-logo-text">Lime Of Time</span>
   </a>
   <div class="nav-links">
@@ -4610,7 +4611,7 @@ function toggleFaq(btn) {
     <div class="footer-top">
       <div class="footer-brand">
         <a href="/home" class="nav-logo" style="text-decoration:none;">
-          <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/IvzpqiWWzFzYmkTo.png" alt="Lime Of Time" style="width:40px;height:40px;border-radius:12px;object-fit:cover;" />
+          <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/VhShBdEStbScSasX.png" alt="Lime Of Time" style="width:40px;height:40px;border-radius:0;object-fit:contain;background:transparent;" />
           <span class="nav-logo-text">Lime Of Time</span>
         </a>
         <p>The all-in-one scheduling app for salons, barbershops, spas, and wellness businesses. Manage your business from your phone.</p>
@@ -4788,7 +4789,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
 <body>
   <div class="container" id="app">
     <div class="header" role="banner">
-      <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/app-icon-lime-of-time.png" alt="Lime Of Time" class="biz-logo" style="border-radius:20px;">
+      <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/VhShBdEStbScSasX.png" alt="Lime Of Time" class="biz-logo" style="border-radius:0;object-fit:contain;background:transparent;">
       <h1>Book with ${escHtml(owner.businessName)}</h1>
       <div class="subtitle">Powered by Lime Of Time</div>
     </div>
@@ -5105,7 +5106,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
   </div>` : ""}
   <div class="legal-footer" style="max-width:480px;margin:0 auto;">
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px;">
-      <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/IvzpqiWWzFzYmkTo.png" alt="Lime Of Time" style="width:28px;height:28px;border-radius:8px;object-fit:cover;border:1px solid var(--border);">
+      <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/VhShBdEStbScSasX.png" alt="Lime Of Time" style="width:28px;height:28px;border-radius:0;object-fit:contain;background:transparent;">
       <span style="font-size:12px;font-weight:600;color:var(--text-muted);">Lime Of Time</span>
     </div>
     <a href="/api/legal/privacy" target="_blank">Privacy Policy</a>

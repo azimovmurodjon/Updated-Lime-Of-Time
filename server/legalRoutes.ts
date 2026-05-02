@@ -218,7 +218,7 @@ function privacyPolicyPage(): string {
 <body>
   <div class="container">
     <div class="logo-header">
-      <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/IvzpqiWWzFzYmkTo.png" alt="Lime Of Time" style="width:64px;height:64px;border-radius:16px;object-fit:cover;margin-bottom:12px;" /><br/>
+      <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/VhShBdEStbScSasX.png" alt="Lime Of Time" style="width:64px;height:64px;border-radius:0;object-fit:contain;background:transparent;margin-bottom:12px;" /><br/>
       <h1>Lime Of Time</h1>
       <div class="subtitle">Scheduling Made Simple</div>
     </div>
@@ -356,7 +356,7 @@ function termsOfServicePage(): string {
 <body>
   <div class="container">
     <div class="logo-header">
-      <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/IvzpqiWWzFzYmkTo.png" alt="Lime Of Time" style="width:64px;height:64px;border-radius:16px;object-fit:cover;margin-bottom:12px;" /><br/>
+      <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/VhShBdEStbScSasX.png" alt="Lime Of Time" style="width:64px;height:64px;border-radius:0;object-fit:contain;background:transparent;margin-bottom:12px;" /><br/>
       <h1>Lime Of Time</h1>
       <div class="subtitle">Scheduling Made Simple</div>
     </div>
@@ -475,7 +475,7 @@ function eulaPage(): string {
 <body>
   <div class="container">
     <div class="logo-header">
-      <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/IvzpqiWWzFzYmkTo.png" alt="Lime Of Time" style="width:64px;height:64px;border-radius:16px;object-fit:cover;margin-bottom:12px;" /><br/>
+      <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/VhShBdEStbScSasX.png" alt="Lime Of Time" style="width:64px;height:64px;border-radius:0;object-fit:contain;background:transparent;margin-bottom:12px;" /><br/>
       <h1>Lime Of Time</h1>
       <div class="subtitle">Scheduling Made Simple</div>
     </div>
@@ -571,7 +571,7 @@ function businessAgreementPage(): string {
 <body>
   <div class="container">
     <div class="logo-header">
-      <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/IvzpqiWWzFzYmkTo.png" alt="Lime Of Time" style="width:64px;height:64px;border-radius:16px;object-fit:cover;margin-bottom:12px;" /><br/>
+      <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/VhShBdEStbScSasX.png" alt="Lime Of Time" style="width:64px;height:64px;border-radius:0;object-fit:contain;background:transparent;margin-bottom:12px;" /><br/>
       <h1>Lime Of Time</h1>
       <div class="subtitle">Scheduling Made Simple</div>
     </div>
@@ -678,7 +678,7 @@ function dataDeletionPage(): string {
 <body>
   <div class="container">
     <div class="logo-header">
-      <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/IvzpqiWWzFzYmkTo.png" alt="Lime Of Time" style="width:64px;height:64px;border-radius:16px;object-fit:cover;margin-bottom:12px;" /><br/>
+      <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/VhShBdEStbScSasX.png" alt="Lime Of Time" style="width:64px;height:64px;border-radius:0;object-fit:contain;background:transparent;margin-bottom:12px;" /><br/>
       <h1>Lime Of Time</h1>
       <div class="subtitle">Scheduling Made Simple</div>
     </div>
