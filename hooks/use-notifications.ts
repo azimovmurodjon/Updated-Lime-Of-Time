@@ -217,7 +217,7 @@ export function useNotifications() {
             router.push({ pathname: "/appointment-detail", params: { id: appointmentId, from: "notification" } });
           } else {
             // Fallback: open the Requests tab if no ID is available
-            router.push({ pathname: "/(tabs)/calendar", params: { filter: "requests" } });
+            router.push({ pathname: "/(tabs)/bookings", params: { filter: "requests" } });
           }
           break;
 
@@ -226,7 +226,7 @@ export function useNotifications() {
           if (appointmentId) {
             router.push({ pathname: "/appointment-detail", params: { id: appointmentId, from: "notification" } });
           } else {
-            router.push({ pathname: "/(tabs)/calendar", params: { filter: "upcoming" } });
+            router.push({ pathname: "/(tabs)/bookings", params: { filter: "upcoming" } });
           }
           break;
 
@@ -236,7 +236,7 @@ export function useNotifications() {
           if (appointmentId) {
             router.push({ pathname: "/appointment-detail", params: { id: appointmentId, from: "notification" } });
           } else {
-            router.push({ pathname: "/(tabs)/calendar", params: { filter: "upcoming" } });
+            router.push({ pathname: "/(tabs)/bookings", params: { filter: "upcoming" } });
           }
           break;
 
@@ -245,7 +245,7 @@ export function useNotifications() {
           if (appointmentId) {
             router.push({ pathname: "/appointment-detail", params: { id: appointmentId, from: "notification" } });
           } else {
-            router.push({ pathname: "/(tabs)/calendar", params: { filter: "cancelled" } });
+            router.push({ pathname: "/(tabs)/bookings", params: { filter: "cancelled" } });
           }
           break;
 
@@ -254,13 +254,13 @@ export function useNotifications() {
           if (appointmentId) {
             router.push({ pathname: "/appointment-detail", params: { id: appointmentId, from: "notification" } });
           } else {
-            router.push({ pathname: "/(tabs)/calendar", params: { filter: "completed" } });
+            router.push({ pathname: "/(tabs)/bookings", params: { filter: "completed" } });
           }
           break;
 
         // ── Waitlist: no appointment yet — open Requests tab to schedule ──────────
         case "waitlist":
-          router.push({ pathname: "/(tabs)/calendar", params: { filter: "requests" } });
+          router.push({ pathname: "/(tabs)/bookings", params: { filter: "requests" } });
           break;
 
         // ── Reminder: go directly to the appointment ──────────────────────────────
@@ -268,7 +268,7 @@ export function useNotifications() {
           if (appointmentId) {
             router.push({ pathname: "/appointment-detail", params: { id: appointmentId, from: "notification" } });
           } else {
-            router.push({ pathname: "/(tabs)/calendar", params: { filter: "upcoming" } });
+            router.push({ pathname: "/(tabs)/bookings", params: { filter: "upcoming" } });
           }
           break;
 
@@ -285,12 +285,12 @@ export function useNotifications() {
           if (appointmentId) {
             router.push({ pathname: "/appointment-detail", params: { id: appointmentId, from: "notification" } });
           } else if (filter) {
-            router.push({ pathname: "/(tabs)/calendar", params: { filter } });
+            router.push({ pathname: "/(tabs)/bookings", params: { filter } });
           } else if (data.url && typeof data.url === "string") {
             router.push(data.url as any);
           } else {
             // Fallback: open the calendar home
-            router.push({ pathname: "/(tabs)/calendar" });
+            router.push({ pathname: "/(tabs)/bookings" });
           }
           break;
       }

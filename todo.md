@@ -1751,4 +1751,4 @@
 - [ ] Continue button disabled until location selected when multiple locations available for chosen time (already done in new-booking.tsx)
 - [x] Fix Week card height — all 7 days visible, card must not be cut off or overflow into next section
 - [x] Smooth slide animation when swiping/navigating between days and weeks in Day/Week KPI card
-- [ ] Calendar page: add sticky day section headers (e.g. "May 1, 2026") to all appointment list tabs, hiding days with no appointments
+- [x] Calendar page: add sticky day section headers (e.g. "May 1, 2026") to all appointment list tabs, hiding days with no appointments

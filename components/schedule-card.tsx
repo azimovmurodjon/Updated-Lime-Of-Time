@@ -258,15 +258,10 @@ export function ScheduleCard({
                 : `${upcomingAppointments.length} scheduled`}
             </Text>
           </View>
-          {/* View All button — Today slide → Day view; Upcoming slide → Month view */}
+          {/* View All button — navigates to Bookings tab */}
           <Pressable
             onPress={() =>
-              router.push({
-                pathname: "/(tabs)/calendar",
-                params: activeIdx === 0
-                  ? { date: todayStr, view: "day" }
-                  : { date: nextUpcomingDate, view: "month" },
-              } as any)
+              router.push({ pathname: "/(tabs)/bookings" } as any)
             }
             style={({ pressed }) => ({
               flexDirection: "row",

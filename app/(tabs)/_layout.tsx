@@ -47,12 +47,7 @@ export default function TabLayout() {
     () => state.appointments.filter((a) => a.status === "pending").length,
     [state.appointments]
   );
-  const pendingGiftPayments = useMemo(
-    () => state.giftCards.filter(
-      (c) => (c as any).purchasedPublicly && (c as any).paymentStatus !== "paid" && !c.redeemed
-    ).length,
-    [state.giftCards]
-  );
+
 
   const bottomPadding = Platform.OS === "web"
     ? (isTablet ? 16 : 12)
@@ -106,6 +101,15 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => (
             <IconSymbol size={iconSize} name="calendar" color={color} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="bookings"
+        options={{
+          title: "Bookings",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={iconSize} name="calendar.badge.clock" color={color} />
+          ),
           tabBarBadge: pendingCount > 0 ? pendingCount : undefined,
           tabBarBadgeStyle: {
             backgroundColor: colors.error,
@@ -138,22 +142,7 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="gifts"
-        options={{
-          title: "Gifts",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={iconSize} name="gift.fill" color={color} />
-          ),
-          tabBarBadge: pendingGiftPayments > 0 ? pendingGiftPayments : undefined,
-          tabBarBadgeStyle: {
-            backgroundColor: colors.warning,
-            color: "#FFFFFF",
-            fontSize: 10,
-            fontWeight: "700" as const,
-            minWidth: 16,
-            height: 16,
-            borderRadius: 8,
-          },
-        }}
+        options={{ href: null }}
       />
       <Tabs.Screen
         name="settings"

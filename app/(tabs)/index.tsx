@@ -1715,7 +1715,7 @@ export default function HomeScreen() {
           <Pressable
             onPress={() =>
               router.push({
-                pathname: "/(tabs)/calendar",
+                pathname: "/(tabs)/bookings",
                 params: { filter: "requests" },
               })
             }
@@ -2243,8 +2243,8 @@ export default function HomeScreen() {
           totalAppointments={analytics.totalAppointments}
           appointments={analytics.filteredAppts}
           width={contentWidth}
-          onPressPaid={() => router.push({ pathname: '/(tabs)/calendar', params: { filter: 'paid' } } as any)}
-          onPressUnpaid={() => router.push({ pathname: '/(tabs)/calendar', params: { filter: 'unpaid' } } as any)}
+          onPressPaid={() => router.push({ pathname: '/(tabs)/bookings', params: { filter: 'paid' } } as any)}
+          onPressUnpaid={() => router.push({ pathname: '/(tabs)/bookings', params: { filter: 'unpaid' } } as any)}
           onPressFullSummary={() => router.push('/payment-summary' as any)}
           onPressStatus={(status) => {
             // Map appointment status keys to calendar filter keys
@@ -2256,7 +2256,7 @@ export default function HomeScreen() {
               all: 'upcoming',
             };
             const filter = calendarFilter[status] ?? 'upcoming';
-            router.push({ pathname: '/(tabs)/calendar', params: { filter } } as any);
+            router.push({ pathname: '/(tabs)/bookings', params: { filter } } as any);
           }}
           onPressMethod={(method) => router.push({ pathname: '/payment-summary', params: { method } } as any)}
         />
