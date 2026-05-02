@@ -1323,27 +1323,43 @@ export default function HomeScreen() {
   );
   // ─── Overview mode: "kpi" = 4-card grid, "dayweek" = Day/Week card ──
   const [overviewMode, setOverviewMode] = useState<"kpi" | "dayweek">("kpi");
+  // Measured heights for each view (set via onLayout)
+  const kpiMeasuredHeight = useRef(0);
+  const dayWeekMeasuredHeight = useRef(0);
+  // Track whether we have a first measurement yet
+  const overviewHeightInitialized = useRef(false);
+  // Animated container height — start at 0, set on first layout
+  const overviewHeightAnim = useRef(new Animated.Value(0)).current;
+  const [overviewHeightReady, setOverviewHeightReady] = useState(false);
   // Animated value: 0 = KPI visible, 1 = DayWeek visible
   const overviewAnim = useRef(new Animated.Value(0)).current;
   const switchOverviewMode = useCallback(
     (next: "kpi" | "dayweek") => {
       setOverviewMode(next);
-      Animated.timing(overviewAnim, {
-        toValue: next === "dayweek" ? 1 : 0,
-        duration: 260,
-        useNativeDriver: true,
-      }).start();
+      const targetH = next === "dayweek" ? dayWeekMeasuredHeight.current : kpiMeasuredHeight.current;
+      Animated.parallel([
+        Animated.timing(overviewAnim, {
+          toValue: next === "dayweek" ? 1 : 0,
+          duration: 260,
+          useNativeDriver: true,
+        }),
+        ...(targetH > 0 ? [Animated.timing(overviewHeightAnim, {
+          toValue: targetH,
+          duration: 280,
+          useNativeDriver: false,
+        })] : []),
+      ]).start();
     },
-    [overviewAnim]
+    [overviewAnim, overviewHeightAnim]
   );
   // Derived animated styles
   const kpiAnimStyle = {
     opacity: overviewAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
-    transform: [{ translateY: overviewAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 10] }) }],
+    transform: [{ translateY: overviewAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 8] }) }],
   };
   const dayWeekAnimStyle = {
     opacity: overviewAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
-    transform: [{ translateY: overviewAnim.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] }) }],
+    transform: [{ translateY: overviewAnim.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }],
   };
 
   const [overLimitDismissed, setOverLimitDismissed] = useState(false);
@@ -1846,11 +1862,30 @@ export default function HomeScreen() {
         </View>
 
         {/* Overview content switcher — crossfade between KPI grid and Day/Week card */}
-        <View style={{ position: "relative" }}>
-          {/* 4-KPI grid: always in normal flow — drives the container height */}
+        {/* Animated height container — expands/contracts when switching modes */}
+        <Animated.View
+          style={[
+            { overflow: "hidden" },
+            overviewHeightReady ? { height: overviewHeightAnim } : {},
+          ]}
+        >
+          {/* 4-KPI grid */}
           <Animated.View
             style={kpiAnimStyle}
             pointerEvents={overviewMode === "kpi" ? "auto" : "none"}
+            onLayout={(e) => {
+              const h = e.nativeEvent.layout.height;
+              if (h > 0) {
+                kpiMeasuredHeight.current = h;
+                if (overviewMode === "kpi") {
+                  overviewHeightAnim.setValue(h);
+                  if (!overviewHeightInitialized.current) {
+                    overviewHeightInitialized.current = true;
+                    setOverviewHeightReady(true);
+                  }
+                }
+              }
+            }}
           >
           <View style={[styles.kpiGrid, { gap: cardGap }]}>
           {/* ── Earnings Card (5 slides: Today / Week / Month / Year / All Time) ── */}
@@ -2110,13 +2145,22 @@ export default function HomeScreen() {
           </View>
           </Animated.View>
 
-          {/* Day/Week card: absolutely overlays the KPI grid area, fades in when dayweek mode */}
+          {/* Day/Week card: fades in on top, same flow position */}
           <Animated.View
             style={[
               dayWeekAnimStyle,
               { position: "absolute", top: 0, left: 0, right: 0 },
             ]}
             pointerEvents={overviewMode === "dayweek" ? "auto" : "none"}
+            onLayout={(e) => {
+              const h = e.nativeEvent.layout.height;
+              if (h > 0) {
+                dayWeekMeasuredHeight.current = h;
+                if (overviewMode === "dayweek") {
+                  overviewHeightAnim.setValue(h);
+                }
+              }
+            }}
           >
             <OverviewDayWeekCard
               appointments={state.appointments}
@@ -2126,7 +2170,7 @@ export default function HomeScreen() {
               width={contentWidth}
             />
           </Animated.View>
-        </View>
+        </Animated.View>
         {/* ─── Monthly Goal Progress Bar ──────────────────────────────────── */}
         {state.settings.monthlyRevenueGoal > 0 && (
           <Pressable
