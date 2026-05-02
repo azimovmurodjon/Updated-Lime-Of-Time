@@ -78,6 +78,7 @@ export default function CalendarBookingScreen() {
     date?: string;
     time?: string;
     locationId?: string;
+    eligibleLocationIds?: string; // comma-separated list of location IDs available at the selected time
   }>();
 
   const sendSmsMutation = trpc.twilio.sendSms.useMutation();
@@ -90,6 +91,10 @@ export default function CalendarBookingScreen() {
   const preselectedTime = params.time ?? null;
   // If a specific location was clicked from calendar, pre-select it
   const preselectedLocationId = params.locationId ?? null;
+  // Eligible location IDs for the selected time slot (passed from All-mode calendar)
+  const eligibleLocationIds = params.eligibleLocationIds
+    ? params.eligibleLocationIds.split(',')
+    : null;
 
   const [step, setStep] = useState<Step>(1);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
@@ -110,6 +115,11 @@ export default function CalendarBookingScreen() {
   // Location selection — pre-select if only one active location or if passed from calendar
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(() => {
     if (preselectedLocationId) return preselectedLocationId;
+    // Auto-select when only one eligible location from All-mode calendar
+    if (params.eligibleLocationIds) {
+      const ids = params.eligibleLocationIds.split(',');
+      if (ids.length === 1) return ids[0];
+    }
     if (activeLocations.length === 1) return activeLocations[0].id;
     // If user is in single-location mode
     const activeLoc = state.locations.find(
@@ -456,7 +466,12 @@ export default function CalendarBookingScreen() {
   ]);
 
   // Determine step count based on whether location selection is needed
-  const needsLocationStep = activeLocations.length > 1 && !preselectedLocationId;
+  // Skip location step if:
+  // 1. Only one active location
+  // 2. A specific location was pre-selected from the calendar
+  // 3. Only one eligible location was passed from All-mode calendar (auto-select it)
+  const singleEligibleLocationId = eligibleLocationIds?.length === 1 ? eligibleLocationIds[0] : null;
+  const needsLocationStep = activeLocations.length > 1 && !preselectedLocationId && !singleEligibleLocationId;
   // Steps: 1=Service, 2=Client, [3=Location if needed], 4=Staff, 5=Review+Add More, 6=Payment, 7=Confirm
   const TOTAL_STEPS = needsLocationStep ? 7 : 6;
 
@@ -881,7 +896,10 @@ export default function CalendarBookingScreen() {
           </View>
 
           {/* Show locations that are open on the selected date */}
-          {activeLocations.map((loc) => {
+          {/* When coming from All-mode calendar with a specific time, only show eligible locations */}
+          {activeLocations
+            .filter((loc) => !eligibleLocationIds || eligibleLocationIds.includes(loc.id))
+            .map((loc) => {
             const d = new Date(preselectedDate + "T12:00:00");
             const dayName = DAYS_OF_WEEK[d.getDay()];
             const locWH =

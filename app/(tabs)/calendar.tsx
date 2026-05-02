@@ -644,76 +644,122 @@ export default function CalendarScreen() {
   }, [locationAppointments]);
 
   // Per-day slot counts for Full/Off indicators in month view
-  // Computed synchronously so badges appear immediately on mount and after location switch
-  const [daySlotCounts, setDaySlotCounts] = useState<Record<string, { total: number; booked: number }>>({});
+  // ─── Slot cache: pre-computed for the entire visible month ──────────────
+  // Stored as a useMemo so it recomputes whenever location/appointments/settings change,
+  // but tapping a day reads from the cache instantly (zero computation on tap).
+  //
+  // Each entry stores:
+  //   availableSlots: string[]          — sorted available time strings (e.g. "09:00")
+  //   locationSlots: Map<time, locId[]> — which location(s) have this slot (All mode only)
+  //   badgeCount: number                — count shown in the day badge
+  //   isFull: boolean                   — all slots booked
+  const slotCache = useMemo(() => {
+    const cache: Record<string, {
+      availableSlots: string[];
+      locationSlots: Map<string, string[]>;
+      badgeCount: number;
+      isFull: boolean;
+    }> = {};
 
-  // Helper to compute slot info for a single day — used by both the badge effect and the slot panel
-  const computeDaySlots = useCallback((dateStr: string): { total: number; booked: number } => {
-    if (!isDayAvailable(dateStr)) return { total: 0, booked: 0 };
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
     const defaultDuration = Math.max(1, state.settings.defaultDuration ?? 30);
     const rawSlotStep = (state.settings as any).slotInterval ?? 30;
     const slotStep = Math.max(rawSlotStep, defaultDuration);
+    const isAllMode = calLocationFilter === null && activeLocations.length > 1;
 
-    // In "All" mode: compute per-location and show the max available count
-    if (calLocationFilter === null && activeLocations.length > 1) {
-      let maxAvailable = 0;
-      const d = new Date(dateStr + "T12:00:00");
-      const dayName = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][d.getDay()];
-      for (const loc of activeLocations) {
-        if (loc.temporarilyClosed) continue;
-        const locWh = (loc.workingHours != null && Object.keys(loc.workingHours).length > 0)
-          ? loc.workingHours : state.settings.workingHours;
-        const locCustom = state.locationCustomSchedule?.[loc.id]?.find((cs: any) => cs.date === dateStr);
-        let locHours: { start: string; end: string } | null = null;
-        if (locCustom) {
-          if (!locCustom.isOpen) continue;
-          locHours = { start: locCustom.startTime ?? '09:00', end: locCustom.endTime ?? '17:00' };
-        } else {
-          const wh = locWh?.[dayName];
-          if (!wh || !wh.enabled) continue;
-          locHours = { start: wh.start, end: wh.end };
-        }
-        const locAppts = locationAppointments.filter((a) => a.locationId === loc.id);
-        const locSlots = generateAvailableSlots(
-          dateStr, defaultDuration,
-          { [dayName]: { enabled: true, ...locHours } } as any,
-          locAppts, slotStep, activeCustomSchedule,
-          state.settings.scheduleMode, state.settings.bufferTime ?? 0
-        );
-        const locBooked = new Set(
-          locAppts.filter((a) => a.date === dateStr && (a.status === 'confirmed' || a.status === 'pending')).map((a) => a.time)
-        );
-        const locAvail = locSlots.filter((t) => !locBooked.has(t)).length;
-        if (locAvail > maxAvailable) maxAvailable = locAvail;
-      }
-      return { total: maxAvailable, booked: 0 };
-    }
-
-    const slots = generateAvailableSlots(
-      dateStr, defaultDuration, effectiveWorkingHours,
-      locationAppointments, slotStep, activeCustomSchedule,
-      state.settings.scheduleMode, state.settings.bufferTime ?? 0
-    );
-    const bookedTimes = new Set(
-      locationAppointments
-        .filter((a) => a.date === dateStr && (a.status === 'confirmed' || a.status === 'pending'))
-        .map((a) => a.time)
-    );
-    const availableCount = slots.filter((t) => !bookedTimes.has(t)).length;
-    return { total: slots.length, booked: slots.length - availableCount };
-  }, [isDayAvailable, calLocationFilter, activeLocations, state.settings, state.locationCustomSchedule,
-    locationAppointments, effectiveWorkingHours, activeCustomSchedule]);
-
-  useEffect(() => {
-    // Compute all badges synchronously — fast enough for a single month (~30 days)
-    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    const result: Record<string, { total: number; booked: number }> = {};
     for (let day = 1; day <= daysInMonth; day++) {
       const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      result[dateStr] = computeDaySlots(dateStr);
+
+      if (!isDayAvailable(dateStr)) {
+        cache[dateStr] = { availableSlots: [], locationSlots: new Map(), badgeCount: 0, isFull: false };
+        continue;
+      }
+
+      if (isAllMode) {
+        // Per-location slot generation — union unique times across all locations
+        const d = new Date(dateStr + "T12:00:00");
+        const dayName = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][d.getDay()];
+        // Map from time string → array of location IDs that have this slot available
+        const timeToLocIds = new Map<string, string[]>();
+        let totalSlotsAcrossLocs = 0;
+
+        for (const loc of activeLocations) {
+          if (loc.temporarilyClosed) continue;
+          const locWh = (loc.workingHours != null && Object.keys(loc.workingHours).length > 0)
+            ? loc.workingHours : state.settings.workingHours;
+          const locCustom = state.locationCustomSchedule?.[loc.id]?.find((cs: any) => cs.date === dateStr);
+          let locHours: { start: string; end: string } | null = null;
+          if (locCustom) {
+            if (!locCustom.isOpen) continue;
+            locHours = { start: locCustom.startTime ?? '09:00', end: locCustom.endTime ?? '17:00' };
+          } else {
+            const wh = (locWh as any)?.[dayName];
+            if (!wh || !wh.enabled) continue;
+            locHours = { start: wh.start, end: wh.end };
+          }
+          const locAppts = locationAppointments.filter((a) => a.locationId === loc.id);
+          const locSlots = generateAvailableSlots(
+            dateStr, defaultDuration,
+            { [dayName]: { enabled: true, ...locHours } } as any,
+            locAppts, slotStep,
+            state.locationCustomSchedule?.[loc.id] ?? activeCustomSchedule,
+            state.settings.scheduleMode, state.settings.bufferTime ?? 0
+          );
+          const locBooked = new Set(
+            locAppts
+              .filter((a) => a.date === dateStr && (a.status === 'confirmed' || a.status === 'pending'))
+              .map((a) => a.time)
+          );
+          const locAvailSlots = locSlots.filter((t) => !locBooked.has(t));
+          totalSlotsAcrossLocs += locAvailSlots.length;
+          for (const t of locAvailSlots) {
+            if (!timeToLocIds.has(t)) timeToLocIds.set(t, []);
+            timeToLocIds.get(t)!.push(loc.id);
+          }
+        }
+
+        // Sort unique times chronologically
+        const availableSlots = Array.from(timeToLocIds.keys()).sort();
+        cache[dateStr] = {
+          availableSlots,
+          locationSlots: timeToLocIds,
+          badgeCount: availableSlots.length,
+          isFull: totalSlotsAcrossLocs === 0 && isDayAvailable(dateStr),
+        };
+      } else {
+        // Single-location mode
+        const slots = generateAvailableSlots(
+          dateStr, defaultDuration, effectiveWorkingHours,
+          locationAppointments, slotStep, activeCustomSchedule,
+          state.settings.scheduleMode, state.settings.bufferTime ?? 0
+        );
+        const bookedTimes = new Set(
+          locationAppointments
+            .filter((a) => a.date === dateStr && (a.status === 'confirmed' || a.status === 'pending'))
+            .map((a) => a.time)
+        );
+        const availableSlots = slots.filter((t) => !bookedTimes.has(t));
+        cache[dateStr] = {
+          availableSlots,
+          locationSlots: new Map(),
+          badgeCount: availableSlots.length,
+          isFull: slots.length > 0 && availableSlots.length === 0,
+        };
+      }
     }
-    setDaySlotCounts(result);
-  }, [currentMonth, currentYear, computeDaySlots]);
+    return cache;
+  }, [currentMonth, currentYear, isDayAvailable, calLocationFilter, activeLocations,
+    state.settings, state.locationCustomSchedule, locationAppointments,
+    effectiveWorkingHours, activeCustomSchedule]);
+
+  // Derive daySlotCounts from slotCache for badge rendering
+  const daySlotCounts = useMemo(() => {
+    const result: Record<string, { total: number; booked: number }> = {};
+    for (const [dateStr, entry] of Object.entries(slotCache)) {
+      result[dateStr] = { total: entry.badgeCount, booked: 0 };
+    }
+    return result;
+  }, [slotCache]);
 
   // Auto-open slot panel for today on initial mount
   const hasAutoOpenedRef = useRef(false);
@@ -1447,27 +1493,10 @@ export default function CalendarScreen() {
 
       {/* Inline time-slot expansion panel */}
       {expandedDate && isDayAvailable(expandedDate) && !isDateInPast(expandedDate) && (() => {
-        const rawSlotStepPanel = (state.settings as any).slotInterval ?? 30;
-        const defaultDuration = state.settings.defaultDuration ?? 30;
-        const slotStep = Math.max(rawSlotStepPanel, defaultDuration);
-        // generateAvailableSlots returns string[] of time strings (e.g. "09:00")
-        const allSlotTimes = generateAvailableSlots(
-          expandedDate,
-          defaultDuration,
-          effectiveWorkingHours,
-          locationAppointments,
-          slotStep,
-          activeCustomSchedule,
-          state.settings.scheduleMode,
-          state.settings.bufferTime ?? 0
-        );
-        // Compute booked times for this date from appointments
-        const bookedTimes = new Set(
-          locationAppointments
-            .filter((a) => a.date === expandedDate && (a.status === "confirmed" || a.status === "pending"))
-            .map((a) => a.time)
-        );
-        const availableSlots = allSlotTimes.filter((t) => !bookedTimes.has(t));
+        // Read from pre-computed cache — instant, no computation on tap
+        const cacheEntry = slotCache[expandedDate];
+        const availableSlots = cacheEntry?.availableSlots ?? [];
+        const locationSlots = cacheEntry?.locationSlots ?? new Map<string, string[]>();
         return (
           <View style={{ marginHorizontal: hp, marginTop: 8, marginBottom: 4, backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.border, overflow: "hidden" }}>
             {/* Panel header */}
@@ -1529,10 +1558,16 @@ export default function CalendarScreen() {
                   <View style={{ paddingHorizontal: 14, paddingBottom: 12 }}>
                     <Pressable
                       onPress={() => {
-                        router.push({
-                          pathname: "/calendar-booking",
-                          params: { date: expandedDate, time: selectedSlotTime },
-                        });
+                        // In All mode, pass the eligible location IDs for this time slot
+                        const eligibleLocIds = locationSlots.get(selectedSlotTime);
+                        const params: Record<string, string> = {
+                          date: expandedDate!,
+                          time: selectedSlotTime,
+                        };
+                        if (eligibleLocIds && eligibleLocIds.length > 0) {
+                          params.eligibleLocationIds = eligibleLocIds.join(',');
+                        }
+                        router.push({ pathname: "/calendar-booking", params });
                         setExpandedDate(null);
                         setSelectedSlotTime(null);
                       }}
