@@ -6,12 +6,14 @@ import {
   Pressable,
   StyleSheet,
   Alert,
+  TextInput,
+  Modal,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
-import { useStore } from "@/lib/store";
+import { useStore, generateId, formatDateDisplay } from "@/lib/store";
 import {
   TEMPLATE_LIBRARY,
   TEMPLATE_CATEGORY_LABELS,
@@ -29,6 +31,31 @@ const CATEGORY_ORDER: TemplateCategory[] = [
   "reschedule",
 ];
 
+// Sample values used for live preview
+const SAMPLE_VARS: Record<string, string> = {
+  clientName:    "Jane Smith",
+  service:       "Lifting Facial Massage (60 min)",
+  date:          formatDateDisplay("2026-05-12") ?? "Tuesday, May 12",
+  time:          "6:00 PM",
+  endTime:       "7:00 PM",
+  location:      "Wellness Suite — 134 Locust Ct, Pittsburgh, PA",
+  staffName:     "Alex Johnson",
+  price:         "$55.00",
+  paymentMethod: "Cash",
+  businessName:  "Lime Of Time",
+  businessPhone: "(412) 555-0100",
+  bookingUrl:    "https://lime-of-time.com/book/lime-of-time",
+  reviewUrl:     "https://lime-of-time.com/review/lime-of-time",
+};
+
+function applyPreview(template: string): string {
+  let result = template;
+  for (const [key, val] of Object.entries(SAMPLE_VARS)) {
+    result = result.replace(new RegExp(`\\{${key}\\}`, "g"), val);
+  }
+  return result;
+}
+
 export default function TemplateLibraryScreen() {
   const colors = useColors();
   const router = useRouter();
@@ -39,6 +66,17 @@ export default function TemplateLibraryScreen() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>(
     Object.fromEntries(CATEGORY_ORDER.map((c) => [c, true]))
   );
+
+  // Which template cards have preview toggled on
+  const [previewIds, setPreviewIds] = useState<Set<string>>(new Set());
+
+  // Duplicate & Edit modal state
+  const [editModal, setEditModal] = useState<{
+    visible: boolean;
+    sourceId: string;
+    label: string;
+    message: string;
+  }>({ visible: false, sourceId: "", label: "", message: "" });
 
   const savedIds = useMemo(
     () => new Set((state.reminderTemplates ?? []).map((t) => t.id)),
@@ -62,13 +100,19 @@ export default function TemplateLibraryScreen() {
     setExpanded((prev) => ({ ...prev, [cat]: !prev[cat] }));
   }
 
+  function togglePreview(id: string) {
+    setPreviewIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
   function handleAdd(template: ReminderTemplate) {
     const alreadySaved = savedIds.has(template.id);
     if (alreadySaved) {
-      // If opened from Send Reminder, just go back with selection
       if (params.onSelectId !== undefined) {
         router.back();
-        // Pass selected id via router params on the way back
         router.setParams({ selectedLibraryId: template.id });
       }
       return;
@@ -81,12 +125,43 @@ export default function TemplateLibraryScreen() {
     dispatch({ type: "ADD_REMINDER_TEMPLATE", payload: toSave });
 
     if (params.onSelectId !== undefined) {
-      // Navigate back and signal which template was selected
       router.back();
       router.setParams({ selectedLibraryId: template.id });
     } else {
       Alert.alert("Template Added", `"${template.label}" has been added to your templates.`);
     }
+  }
+
+  function openDuplicateEdit(template: ReminderTemplate) {
+    setEditModal({
+      visible: true,
+      sourceId: template.id,
+      label: `${template.label} (Custom)`,
+      message: template.customMessage ?? "",
+    });
+  }
+
+  function saveDuplicate() {
+    const trimLabel = editModal.label.trim();
+    const trimMsg   = editModal.message.trim();
+    if (!trimLabel || !trimMsg) {
+      Alert.alert("Required", "Please provide both a name and a message.");
+      return;
+    }
+    // Find source template to copy category
+    const source = TEMPLATE_LIBRARY.find((t) => t.id === editModal.sourceId);
+    const newTemplate: ReminderTemplate = {
+      id:            generateId(),
+      label:         trimLabel,
+      customMessage: trimMsg,
+      minutesBefore: source?.minutesBefore ?? 0,
+      category:      (source?.category ?? "upcoming") as TemplateCategory,
+      isLibrary:     false,
+      createdAt:     new Date().toISOString(),
+    };
+    dispatch({ type: "ADD_REMINDER_TEMPLATE", payload: newTemplate });
+    setEditModal({ visible: false, sourceId: "", label: "", message: "" });
+    Alert.alert("Saved", `"${trimLabel}" has been added to your templates.`);
   }
 
   const s = useMemo(() => makeStyles(colors), [colors]);
@@ -105,7 +180,8 @@ export default function TemplateLibraryScreen() {
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
         <Text style={s.subtitle}>
           Browse 49 professional SMS templates organized by category. Tap{" "}
-          <Text style={{ color: colors.primary }}>Add to My Templates</Text> to save a template for use in Send Reminder.
+          <Text style={{ color: colors.primary }}>Add to My Templates</Text> to save, or{" "}
+          <Text style={{ color: colors.primary }}>Duplicate &amp; Edit</Text> to personalise.
         </Text>
 
         {grouped.map(({ cat, templates }) => (
@@ -128,9 +204,11 @@ export default function TemplateLibraryScreen() {
             {expanded[cat] && (
               <View style={s.templateList}>
                 {templates.map((tmpl) => {
-                  const isSaved = savedIds.has(tmpl.id);
+                  const isSaved      = savedIds.has(tmpl.id);
+                  const isPreviewing = previewIds.has(tmpl.id);
                   return (
                     <View key={tmpl.id} style={s.templateCard}>
+                      {/* Title row */}
                       <View style={s.templateTop}>
                         <Text style={s.templateLabel}>{tmpl.label}</Text>
                         {tmpl.minutesBefore > 0 && (
@@ -139,22 +217,53 @@ export default function TemplateLibraryScreen() {
                           </View>
                         )}
                       </View>
-                      <Text style={s.templatePreview} numberOfLines={3}>
-                        {tmpl.customMessage}
+
+                      {/* Message body — raw or previewed */}
+                      <Text style={[s.templatePreview, isPreviewing && s.templatePreviewFull]}>
+                        {isPreviewing
+                          ? applyPreview(tmpl.customMessage ?? "")
+                          : (tmpl.customMessage ?? "")}
                       </Text>
+
+                      {/* Preview toggle */}
                       <Pressable
-                        style={[s.addBtn, isSaved && s.addBtnSaved]}
-                        onPress={() => handleAdd(tmpl)}
+                        style={s.previewToggle}
+                        onPress={() => togglePreview(tmpl.id)}
                       >
                         <IconSymbol
-                          name={isSaved ? "checkmark" : "plus"}
-                          size={14}
-                          color={isSaved ? colors.success : colors.primary}
+                          name={isPreviewing ? "eye.slash" : "eye"}
+                          size={13}
+                          color={isPreviewing ? colors.muted : colors.primary}
                         />
-                        <Text style={[s.addBtnText, isSaved && s.addBtnTextSaved]}>
-                          {isSaved ? "Added to My Templates" : "Add to My Templates"}
+                        <Text style={[s.previewToggleText, isPreviewing && { color: colors.muted }]}>
+                          {isPreviewing ? "Hide Preview" : "Preview with Sample Data"}
                         </Text>
                       </Pressable>
+
+                      {/* Action buttons row */}
+                      <View style={s.actionRow}>
+                        <Pressable
+                          style={[s.addBtn, isSaved && s.addBtnSaved]}
+                          onPress={() => handleAdd(tmpl)}
+                        >
+                          <IconSymbol
+                            name={isSaved ? "checkmark" : "plus"}
+                            size={13}
+                            color={isSaved ? colors.success : colors.primary}
+                          />
+                          <Text style={[s.addBtnText, isSaved && s.addBtnTextSaved]}>
+                            {isSaved ? "Added" : "Add to My Templates"}
+                          </Text>
+                        </Pressable>
+
+                        <Pressable
+                          style={s.dupBtn}
+                          onPress={() => openDuplicateEdit(tmpl)}
+                        >
+                          <IconSymbol name="doc.on.doc.fill" size={13} color={colors.muted} />
+                          <Text style={s.dupBtnText}>Duplicate &amp; Edit</Text>
+                        </Pressable>
+                      </View>
                     </View>
                   );
                 })}
@@ -165,6 +274,67 @@ export default function TemplateLibraryScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Duplicate & Edit Modal */}
+      <Modal
+        visible={editModal.visible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setEditModal((p) => ({ ...p, visible: false }))}
+      >
+        <View style={[s.modalContainer, { backgroundColor: colors.background }]}>
+          <View style={s.modalHeader}>
+            <Pressable onPress={() => setEditModal((p) => ({ ...p, visible: false }))}>
+              <Text style={{ fontSize: 16, color: colors.muted }}>Cancel</Text>
+            </Pressable>
+            <Text style={s.modalTitle}>Duplicate &amp; Edit</Text>
+            <Pressable onPress={saveDuplicate}>
+              <Text style={{ fontSize: 16, color: colors.primary, fontWeight: "600" }}>Save</Text>
+            </Pressable>
+          </View>
+
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 16 }}>
+            <View>
+              <Text style={s.fieldLabel}>Template Name</Text>
+              <TextInput
+                style={[s.textInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.surface }]}
+                value={editModal.label}
+                onChangeText={(v) => setEditModal((p) => ({ ...p, label: v }))}
+                placeholder="e.g. My Custom Reminder"
+                placeholderTextColor={colors.muted}
+                returnKeyType="done"
+              />
+            </View>
+
+            <View>
+              <Text style={s.fieldLabel}>Message</Text>
+              <Text style={s.fieldHint}>
+                Variables: {"{clientName}"} {"{service}"} {"{date}"} {"{time}"} {"{location}"} {"{businessName}"}
+              </Text>
+              <TextInput
+                style={[s.textArea, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.surface }]}
+                value={editModal.message}
+                onChangeText={(v) => setEditModal((p) => ({ ...p, message: v }))}
+                placeholder="Type your message here..."
+                placeholderTextColor={colors.muted}
+                multiline
+                numberOfLines={8}
+                textAlignVertical="top"
+              />
+            </View>
+
+            {/* Live preview of edited message */}
+            {editModal.message.trim().length > 0 && (
+              <View style={[s.livePreviewBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Text style={[s.fieldLabel, { marginBottom: 6 }]}>Live Preview</Text>
+                <Text style={{ fontSize: 13, color: colors.foreground, lineHeight: 19 }}>
+                  {applyPreview(editModal.message)}
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -297,13 +467,33 @@ function makeStyles(colors: ReturnType<typeof useColors>) {
       fontSize: 13,
       color: colors.muted,
       lineHeight: 18,
+      numberOfLines: 3,
+    } as any,
+    templatePreviewFull: {
+      color: colors.foreground,
+    },
+    previewToggle: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      marginTop: 2,
+    },
+    previewToggleText: {
+      fontSize: 12,
+      color: colors.primary,
+      fontWeight: "500",
+    },
+    actionRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      marginTop: 4,
+      flexWrap: "wrap",
     },
     addBtn: {
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
-      alignSelf: "flex-start",
-      marginTop: 4,
       paddingVertical: 6,
       paddingHorizontal: 12,
       borderRadius: 20,
@@ -321,6 +511,72 @@ function makeStyles(colors: ReturnType<typeof useColors>) {
     },
     addBtnTextSaved: {
       color: colors.success,
+    },
+    dupBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    dupBtnText: {
+      fontSize: 13,
+      color: colors.muted,
+      fontWeight: "500",
+    },
+    // Modal styles
+    modalContainer: {
+      flex: 1,
+    },
+    modalHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: "#E5E7EB",
+    },
+    modalTitle: {
+      fontSize: 17,
+      fontWeight: "600",
+    },
+    fieldLabel: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: "#687076",
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      marginBottom: 8,
+    },
+    fieldHint: {
+      fontSize: 12,
+      color: "#687076",
+      marginBottom: 8,
+      lineHeight: 17,
+    },
+    textInput: {
+      borderWidth: 1,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontSize: 15,
+    },
+    textArea: {
+      borderWidth: 1,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontSize: 14,
+      minHeight: 160,
+    },
+    livePreviewBox: {
+      borderWidth: 1,
+      borderRadius: 12,
+      padding: 14,
     },
   });
 }
