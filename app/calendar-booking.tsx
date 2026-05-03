@@ -377,8 +377,28 @@ export default function CalendarBookingScreen() {
 
     // Persist promo code usedCount increment to DB if a promo code was applied
     if (appliedPromoCode) {
-      const updatedPromo = { ...appliedPromoCode, usedCount: (appliedPromoCode.usedCount ?? 0) + 1 };
+      const newUsedCount = (appliedPromoCode.usedCount ?? 0) + 1;
+      const maxUses = appliedPromoCode.maxUses;
+      const limitReached = maxUses != null && maxUses > 0 && newUsedCount >= maxUses;
+      const updatedPromo = {
+        ...appliedPromoCode,
+        usedCount: newUsedCount,
+        // Auto-deactivate when limit is reached
+        active: limitReached ? false : appliedPromoCode.active,
+      };
+      dispatch({ type: "UPDATE_PROMO_CODE", payload: updatedPromo });
       syncToDb({ type: "UPDATE_PROMO_CODE", payload: updatedPromo });
+      // Notify the owner that the promo code has been used up
+      if (limitReached) {
+        // Use setTimeout so the alert fires after navigation completes
+        setTimeout(() => {
+          Alert.alert(
+            "Promo Code Expired",
+            `"${appliedPromoCode.code}" has reached its maximum of ${maxUses} use${maxUses !== 1 ? "s" : ""} and has been automatically deactivated.`,
+            [{ text: "OK" }]
+          );
+        }, 800);
+      }
     }
 
     // If card payment selected, send Stripe payment link after booking
