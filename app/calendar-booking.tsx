@@ -36,6 +36,7 @@ import {
   stripPhoneFormat,
   formatPhoneNumber,
   timeSlotsOverlap,
+  formatFullAddress,
 } from "@/lib/types";
 import { trpc } from "@/lib/trpc";
 import { apiCall } from "@/lib/_core/api";
@@ -1634,119 +1635,120 @@ export default function CalendarBookingScreen() {
             <View style={{ width: 40 }} />
           </View>
 
-          {/* Summary card */}
-          <View
-            style={[
-              styles.summaryCard,
-              { backgroundColor: colors.surface, borderColor: colors.border },
-            ]}
-          >
-            <Text
-              style={{
-                fontSize: 13,
-                fontWeight: "700",
-                color: colors.muted,
-                marginBottom: 12,
-                textTransform: "uppercase",
-                letterSpacing: 0.5,
-              }}
-            >
-              Booking Summary
-            </Text>
-
-            <SummaryRow
-              label="Date"
-              value={formatDateDisplay(preselectedDate)}
-              colors={colors}
-            />
-            {preselectedTime && (
-              <SummaryRow
-                label="Time"
-                value={formatTimeDisplay(preselectedTime)}
-                colors={colors}
-              />
-            )}
+          {/* Summary card — professional receipt style */}
+          <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            {/* Service header with color dot */}
             {selectedService && (
-              <SummaryRow
-                label="Service"
-                value={`${selectedService.name} (${totalDuration} min)`}
-                colors={colors}
-              />
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14, gap: 10 }}>
+                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: selectedService.color ?? colors.primary }} />
+                <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground, flex: 1 }}>
+                  {selectedService.name}{cart.length > 0 ? ` + ${cart.length} extra` : ""}
+                </Text>
+                <View style={{ backgroundColor: colors.primary + "18", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: colors.primary }}>{totalDuration} min</Text>
+                </View>
+              </View>
             )}
-            {cart.length > 0 && (
-              <SummaryRow
-                label="Extras"
-                value={`${cart.length} item${cart.length > 1 ? "s" : ""} added`}
-                colors={colors}
-              />
-            )}
+
+            {/* Section label */}
+            <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>Details</Text>
+
+            {/* Date + Time row */}
+            <View style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: 10, gap: 10 }}>
+              <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center" }}>
+                <IconSymbol name="calendar" size={15} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>{formatDateDisplay(preselectedDate)}</Text>
+                {preselectedTime && (
+                  <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>
+                    {formatTimeDisplay(preselectedTime)}{" – "}{getEndTime(preselectedTime)}
+                  </Text>
+                )}
+              </View>
+            </View>
+
+            {/* Client row */}
             {selectedClient && (
-              <SummaryRow
-                label="Client"
-                value={selectedClient.name}
-                colors={colors}
-              />
+              <View style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: 10, gap: 10 }}>
+                <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center" }}>
+                  <IconSymbol name="person.fill" size={15} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>{selectedClient.name}</Text>
+                  {selectedClient.phone ? <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>{selectedClient.phone}</Text> : null}
+                </View>
+              </View>
             )}
+
+            {/* Location row with full address */}
             {selectedLocation && (
-              <SummaryRow
-                label="Location"
-                value={selectedLocation.name}
-                colors={colors}
-              />
+              <View style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: 10, gap: 10 }}>
+                <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center" }}>
+                  <IconSymbol name="location.fill" size={15} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>{selectedLocation.name}</Text>
+                  {selectedLocation.address ? (
+                    <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }} numberOfLines={2}>
+                      {formatFullAddress(selectedLocation.address, selectedLocation.city, selectedLocation.state, selectedLocation.zipCode)}
+                    </Text>
+                  ) : null}
+                  {selectedLocation.phone ? <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>{selectedLocation.phone}</Text> : null}
+                </View>
+              </View>
             )}
+
+            {/* Staff row */}
             {selectedStaffId && (() => {
               const staff = state.staff.find((s) => s.id === selectedStaffId);
               return staff ? (
-                <SummaryRow label="Staff" value={staff.name} colors={colors} />
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10, gap: 10 }}>
+                  <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: staff.color ?? colors.primary, alignItems: "center", justifyContent: "center" }}>
+                    <Text style={{ color: "#FFF", fontSize: 12, fontWeight: "700" }}>{staff.name.charAt(0).toUpperCase()}</Text>
+                  </View>
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>{staff.name}</Text>
+                </View>
               ) : null;
             })()}
+
+            {/* Payment row */}
             {selectedPaymentMethod && (
-              <SummaryRow
-                label="Payment"
-                value={selectedPaymentMethod === "zelle" ? "Zelle" : selectedPaymentMethod === "cashapp" ? "Cash App" : selectedPaymentMethod === "venmo" ? "Venmo" : "Cash"}
-                colors={colors}
-              />
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4, gap: 10 }}>
+                <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center" }}>
+                  <IconSymbol name="creditcard.fill" size={15} color={colors.primary} />
+                </View>
+                <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>
+                  {selectedPaymentMethod === "zelle" ? "Zelle" : selectedPaymentMethod === "cashapp" ? "Cash App" : selectedPaymentMethod === "venmo" ? "Venmo" : "Cash"}
+                </Text>
+              </View>
             )}
 
             {/* Divider */}
-            <View
-              style={{
-                height: 1,
-                backgroundColor: colors.border,
-                marginVertical: 12,
-              }}
-            />
+            <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 12 }} />
 
-            {/* Pricing */}
-            {servicePrice > 0 && (
+            {/* Pricing section */}
+            <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>Pricing</Text>
+            {servicePrice > 0 ? (
               <>
-                <SummaryRow
-                  label="Service"
-                  value={`$${servicePrice.toFixed(2)}`}
-                  colors={colors}
-                />
+                <SummaryRow label={selectedService?.name ?? "Service"} value={`$${servicePrice.toFixed(2)}`} colors={colors} />
                 {cart.length > 0 && (
-                  <SummaryRow
-                    label="Extras"
-                    value={`$${cart.reduce((s, i) => s + i.price, 0).toFixed(2)}`}
-                    colors={colors}
-                  />
+                  <SummaryRow label={`Extras (${cart.length})`} value={`$${cart.reduce((s, i) => s + i.price, 0).toFixed(2)}`} colors={colors} />
                 )}
                 {appliedDiscount && discountAmount > 0 && (
-                  <SummaryRow
-                    label={`Discount (${appliedDiscount.name})`}
-                    value={`-$${discountAmount.toFixed(2)}`}
-                    colors={colors}
-                    valueColor={colors.success}
-                  />
+                  <SummaryRow label={`Discount — ${appliedDiscount.name}`} value={`-$${discountAmount.toFixed(2)}`} colors={colors} valueColor={colors.success} />
                 )}
-                <SummaryRow
-                  label="Total"
-                  value={`$${totalPrice.toFixed(2)}`}
-                  colors={colors}
-                  bold
-                />
+                <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>Total</Text>
+                  <Text style={{ fontSize: 18, fontWeight: "800", color: colors.primary }}>${totalPrice.toFixed(2)}</Text>
+                </View>
               </>
+            ) : (
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>Total</Text>
+                <Text style={{ fontSize: 18, fontWeight: "800", color: colors.primary }}>$0.00</Text>
+              </View>
             )}
           </View>
 

@@ -236,29 +236,27 @@ export default function EditAppointmentScreen() {
     dispatch({ type: "UPDATE_APPOINTMENT", payload: updated });
     syncToDb({ type: "UPDATE_APPOINTMENT", payload: updated });
 
-    // Offer to send a reminder after saving
-    Alert.alert(
-      "Appointment Updated",
-      "Would you like to send a reminder to the client?",
-      [
-        {
-          text: "Not Now",
-          style: "cancel",
-          onPress: () => router.back(),
-        },
-        {
-          text: "Send Reminder",
-          onPress: () => {
-            router.back();
-            // Navigate to send-reminder from appointment-detail
-            router.push({
-              pathname: "/send-reminder" as any,
-              params: { appointmentId: appointment.id },
-            });
+    // Go back to Appointment Detail first, then offer reminder
+    router.back();
+    // Small delay so navigation commits before the alert appears
+    setTimeout(() => {
+      Alert.alert(
+        "Appointment Updated",
+        "Would you like to send a reminder to the client?",
+        [
+          { text: "Not Now", style: "cancel" },
+          {
+            text: "Send Reminder",
+            onPress: () => {
+              router.push({
+                pathname: "/send-reminder" as any,
+                params: { appointmentId: appointment.id },
+              });
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    }, 350);
   }, [appointment, selectedDate, selectedTime, selectedLocationId, activeLocations.length,
       dispatch, syncToDb, router]);
 
@@ -469,20 +467,18 @@ export default function EditAppointmentScreen() {
             </View>
           </View>
 
-          {/* Day headers */}
-          <View style={{ flexDirection: "row", marginBottom: 4 }}>
+          {/* Day headers — flex:1 per column so they stay aligned with % cells */}
+          <View style={{ flexDirection: "row", width: "100%", marginBottom: 4 }}>
             {DAY_HEADERS.map((d) => (
-              <View key={d} style={{ width: calCellSize, alignItems: "center" }}>
-                <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted }}>{d}</Text>
-              </View>
+              <Text key={d} style={{ flex: 1, textAlign: "center", fontSize: 11, fontWeight: "600", color: colors.muted }}>{d}</Text>
             ))}
           </View>
 
-          {/* Calendar grid */}
-          <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+          {/* Calendar grid — 14.28% cells so columns align with headers */}
+          <View style={{ flexDirection: "row", flexWrap: "wrap", width: "100%" }}>
             {calCells.map((day, idx) => {
               if (day === null) {
-                return <View key={`empty-${idx}`} style={{ width: calCellSize, height: calCellSize }} />;
+                return <View key={`empty-${idx}`} style={{ width: "14.28%", aspectRatio: 1 }} />;
               }
               const dateStr = `${displayYear}-${String(displayMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
               const isSelected = dateStr === selectedDate;
@@ -503,15 +499,15 @@ export default function EditAppointmentScreen() {
                     }
                   }}
                   style={({ pressed }) => ({
-                    width: calCellSize,
-                    height: calCellSize,
+                    width: "14.28%",
+                    aspectRatio: 1,
                     alignItems: "center",
                     justifyContent: "center",
-                    backgroundColor: "transparent",
-                    borderRadius: calCellSize / 2,
-                    borderWidth: isSelected ? 1.5 : 0,
-                    borderColor: isSelected ? colors.primary : "transparent",
-                    opacity: (isPast || isOutOfRange) ? 0.3 : pressed && !isDisabled ? 0.7 : 1,
+                    backgroundColor: isSelected ? colors.primary + "20" : "transparent",
+                    borderRadius: 999,
+                    borderWidth: isSelected || isToday ? 1.5 : 0,
+                    borderColor: isSelected || isToday ? colors.primary : "transparent",
+                    opacity: (isPast || isOutOfRange) ? 0.35 : pressed && !isDisabled ? 0.7 : 1,
                   })}
                 >
                   <Text
@@ -523,13 +519,14 @@ export default function EditAppointmentScreen() {
                         : isClosed && !isPast && !isOutOfRange
                         ? colors.muted
                         : colors.foreground,
-                      textDecorationLine: isClosed && !isPast && !isOutOfRange ? "line-through" : "none",
+                      // past dates: just dim via opacity above, no strikethrough
+                      textDecorationLine: "none",
                     }}
                   >
                     {day}
                   </Text>
                   {isToday && (
-                    <View style={{ position: "absolute", bottom: 4, width: 4, height: 4, borderRadius: 2, backgroundColor: colors.primary }} />
+                    <View style={{ position: "absolute", bottom: 3, width: 4, height: 4, borderRadius: 2, backgroundColor: colors.primary }} />
                   )}
                 </Pressable>
               );
