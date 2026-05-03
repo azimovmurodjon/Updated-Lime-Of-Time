@@ -16,7 +16,7 @@ import { useStore, formatTime } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import {
   getServiceDisplayName,
   stripPhoneFormat,
@@ -162,6 +162,24 @@ export default function SendReminderScreen() {
       tplVars.locZip
     );
   }, [tplVars, appointment, biz.smsTemplates]);
+
+  // Category pill filter (null = All)
+  const [selectedCategory, setSelectedCategory] = useState<TemplateCategory | null>(null);
+
+  // Unique categories present in the filtered reminder templates (excluding "Default")
+  const availableCategories = useMemo<TemplateCategory[]>(() => {
+    const seen = new Set<TemplateCategory>();
+    reminderTemplates.forEach((t) => {
+      if (t.category) seen.add(t.category as TemplateCategory);
+    });
+    return Array.from(seen);
+  }, [reminderTemplates]);
+
+  // Templates further filtered by selected category pill
+  const visibleTemplates = useMemo(() => {
+    if (!selectedCategory) return reminderTemplates;
+    return reminderTemplates.filter((t) => t.category === selectedCategory);
+  }, [reminderTemplates, selectedCategory]);
 
   // Selected template (null = use default reminder message)
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
@@ -313,15 +331,71 @@ export default function SendReminderScreen() {
             <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>Browse Library</Text>
           </Pressable>
         </View>
-        {appointment && STATUS_TEMPLATE_CATEGORIES[appointment.status as string] && (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-            {STATUS_TEMPLATE_CATEGORIES[appointment.status as string].map((cat) => (
-              <View key={cat} style={{ backgroundColor: colors.border, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}>
-                <Text style={{ fontSize: 11, color: colors.muted }}>{TEMPLATE_CATEGORY_LABELS[cat]}</Text>
-              </View>
-            ))}
+        {/* Category pill filter — only shown when there are multiple categories */}
+        {availableCategories.length > 1 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 8, paddingBottom: 12 }}
+            style={{ marginBottom: 2 }}
+          >
+            {/* "All" pill */}
+            <Pressable
+              onPress={() => setSelectedCategory(null)}
+              style={({ pressed }) => ([
+                styles.categoryPill,
+                {
+                  backgroundColor: selectedCategory === null ? colors.primary : colors.surface,
+                  borderColor: selectedCategory === null ? colors.primary : colors.border,
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ])}
+            >
+              <Text style={[
+                styles.categoryPillText,
+                { color: selectedCategory === null ? "#fff" : colors.muted },
+              ]}>
+                All
+              </Text>
+            </Pressable>
+
+            {availableCategories.map((cat) => {
+              const isActive = selectedCategory === cat;
+              return (
+                <Pressable
+                  key={cat}
+                  onPress={() => setSelectedCategory(isActive ? null : cat)}
+                  style={({ pressed }) => ([
+                    styles.categoryPill,
+                    {
+                      backgroundColor: isActive ? CATEGORY_PILL_COLORS[cat] ?? colors.primary : colors.surface,
+                      borderColor: isActive ? CATEGORY_PILL_COLORS[cat] ?? colors.primary : colors.border,
+                      opacity: pressed ? 0.7 : 1,
+                    },
+                  ])}
+                >
+                  <Text style={[
+                    styles.categoryPillText,
+                    { color: isActive ? "#fff" : colors.muted },
+                  ]}>
+                    {TEMPLATE_CATEGORY_LABELS[cat]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        )}
+
+        {/* Empty state when category filter yields no templates */}
+        {visibleTemplates.length === 0 && selectedCategory !== null && (
+          <View style={{ alignItems: "center", paddingVertical: 16, marginBottom: 8 }}>
+            <Text style={{ fontSize: 13, color: colors.muted, textAlign: "center" }}>
+              No {TEMPLATE_CATEGORY_LABELS[selectedCategory]} templates saved.{"\n"}
+              Browse the library to add some.
+            </Text>
           </View>
         )}
+
         <View style={{ gap: 8, marginBottom: 16 }}>
           {/* Default reminder option */}
           <Pressable
@@ -353,8 +427,8 @@ export default function SendReminderScreen() {
             </View>
           </Pressable>
 
-          {/* Custom reminder templates */}
-          {reminderTemplates.map((tpl) => {
+          {/* Custom reminder templates — filtered by category pill */}
+          {visibleTemplates.map((tpl) => {
             const isSelected = selectedTemplateId === tpl.id;
             // First line of the custom message as subtitle (variables not yet resolved)
             const previewLine = tpl.customMessage
@@ -582,6 +656,16 @@ export default function SendReminderScreen() {
   );
 }
 
+const CATEGORY_PILL_COLORS: Partial<Record<TemplateCategory, string>> = {
+  upcoming:   "#3B82F6",
+  confirmed:  "#22C55E",
+  pending:    "#F59E0B",
+  cancelled:  "#EF4444",
+  completed:  "#8B5CF6",
+  no_show:    "#F97316",
+  reschedule: "#06B6D4",
+};
+
 const styles = StyleSheet.create({
   card: {
     borderRadius: 16,
@@ -606,5 +690,15 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 16,
     marginBottom: 8,
+  },
+  categoryPill: {
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  categoryPillText: {
+    fontSize: 13,
+    fontWeight: "600",
   },
 });
