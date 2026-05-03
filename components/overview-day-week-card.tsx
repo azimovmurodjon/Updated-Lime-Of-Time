@@ -276,27 +276,32 @@ function DayTimeline({ dayDate, dayAppts, services, clients, colors, onApptPress
           {/* Current time indicator */}
           {isToday && nowTop >= 0 && nowTop <= totalHeight && (
             <View
+              pointerEvents="none"
               style={{
                 position: "absolute",
-                top: nowTop,
+                top: nowTop - 9,
                 left: 0,
                 right: 0,
-                height: 2,
-                backgroundColor: "#E53935",
-                zIndex: 10,
+                height: 18,
+                zIndex: 20,
+                flexDirection: "row",
+                alignItems: "center",
               }}
             >
-              <View
-                style={{
-                  position: "absolute",
-                  left: -4,
-                  top: -4,
-                  width: 10,
-                  height: 10,
-                  borderRadius: 5,
-                  backgroundColor: "#E53935",
-                }}
-              />
+              <View style={{
+                backgroundColor: "#E53935",
+                borderRadius: 9,
+                paddingHorizontal: 5,
+                paddingVertical: 2,
+                minWidth: LABEL_WIDTH - 2,
+                alignItems: "center",
+                justifyContent: "center",
+              }}>
+                <Text style={{ fontSize: 9, fontWeight: "700", color: "#fff", letterSpacing: 0.2 }}>
+                  {nowLabel}
+                </Text>
+              </View>
+              <View style={{ flex: 1, height: 1.5, backgroundColor: "#E53935" }} />
             </View>
           )}
 
@@ -368,7 +373,7 @@ function DayTimeline({ dayDate, dayAppts, services, clients, colors, onApptPress
         })}
       >
         <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#FFF" }} />
-        <Text style={{ fontSize: 11, fontWeight: "700", color: "#FFF" }}>{nowLabel}</Text>
+        <Text style={{ fontSize: 11, fontWeight: "700", color: "#FFF" }}>Now</Text>
       </Pressable>
     )}
     </View>

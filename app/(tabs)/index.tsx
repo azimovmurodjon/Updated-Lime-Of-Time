@@ -1823,7 +1823,7 @@ export default function HomeScreen() {
         )}
         {/* ─── KPI Cards (swipeable groups) ─────────────────── */}
         {/* Overview header with mode toggle */}
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 20, marginBottom: 2 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 32, marginBottom: 2 }}>
           <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 0 }]}>Overview</Text>
           <View style={{ flexDirection: "row", gap: 6 }}>
             <Pressable
