@@ -15,7 +15,7 @@
  * Navigation uses a smooth directional slide animation (like iOS page transitions).
  */
 
-import React, { useState, useCallback, useMemo, useRef } from "react";
+import React, { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -170,12 +170,18 @@ interface DayTimelineProps {
   clients: Client[];
   colors: ReturnType<typeof useColors>;
   onApptPress: (id: string) => void;
+  /** Container height so the Now pill can be positioned at the bottom */
+  containerHeight?: number;
 }
 
-function DayTimeline({ dayDate, dayAppts, services, clients, colors, onApptPress }: DayTimelineProps) {
+function DayTimeline({ dayDate, dayAppts, services, clients, colors, onApptPress, containerHeight }: DayTimelineProps) {
   const HOUR_HEIGHT = 56;
   const LABEL_WIDTH = 48;
+  // Full 24-hour range: 0 AM → 11 PM
+  const START_HOUR = 0;
+  const END_HOUR = 24;
   const [gridWidth, setGridWidth] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
 
   const rawBlocks = useMemo(() => {
     return dayAppts
@@ -197,35 +203,44 @@ function DayTimeline({ dayDate, dayAppts, services, clients, colors, onApptPress
 
   const blocks = useMemo(() => assignColumns(rawBlocks), [rawBlocks]);
 
-  // Determine visible hour range (show 6 AM – 10 PM by default, or expand to fit appts)
-  const startHour = useMemo(() => {
-    if (blocks.length === 0) return 8;
-    const minTop = Math.min(...blocks.map((b) => b.top));
-    return Math.max(0, Math.floor(minTop / HOUR_HEIGHT) - 1);
-  }, [blocks]);
-  const endHour = useMemo(() => {
-    if (blocks.length === 0) return 20;
-    const maxBottom = Math.max(...blocks.map((b) => b.top + b.height));
-    return Math.min(24, Math.ceil(maxBottom / HOUR_HEIGHT) + 1);
-  }, [blocks]);
-
+  // Full 24h: always show all hours
   const visibleHours = useMemo(
-    () => Array.from({ length: endHour - startHour }, (_, i) => startHour + i),
-    [startHour, endHour]
+    () => Array.from({ length: END_HOUR - START_HOUR }, (_, i) => START_HOUR + i),
+    []
   );
 
-  const totalHeight = (endHour - startHour) * HOUR_HEIGHT;
-  const offsetTop = startHour * HOUR_HEIGHT;
+  const totalHeight = (END_HOUR - START_HOUR) * HOUR_HEIGHT;
+  const offsetTop = START_HOUR * HOUR_HEIGHT;
 
   // Current time indicator
   const now = new Date();
   const isToday = dateStr(dayDate) === dateStr(now);
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const nowTop = isToday
-    ? ((now.getHours() * 60 + now.getMinutes()) / 60) * HOUR_HEIGHT - offsetTop
+    ? (nowMinutes / 60) * HOUR_HEIGHT - offsetTop
     : -1;
 
+  // Auto-scroll to current time on mount (or when day changes)
+  useEffect(() => {
+    if (!isToday) return;
+    const scrollY = Math.max(0, nowTop - (containerHeight ?? 200) / 2);
+    const timer = setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: scrollY, animated: true });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [isToday, nowTop, containerHeight]);
+
+  const scrollToNow = useCallback(() => {
+    if (!isToday) return;
+    const scrollY = Math.max(0, nowTop - (containerHeight ?? 200) / 2);
+    scrollRef.current?.scrollTo({ y: scrollY, animated: true });
+  }, [isToday, nowTop, containerHeight]);
+
+  const nowLabel = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
+
   return (
-    <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+    <View style={{ flex: 1, position: "relative" }}>
+    <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
       <View style={{ flexDirection: "row", minHeight: totalHeight + 24 }}>
         {/* Hour labels */}
         <View style={{ width: LABEL_WIDTH }}>
@@ -249,7 +264,7 @@ function DayTimeline({ dayDate, dayAppts, services, clients, colors, onApptPress
               key={h}
               style={{
                 position: "absolute",
-                top: (h - startHour) * HOUR_HEIGHT,
+                top: (h - START_HOUR) * HOUR_HEIGHT,
                 left: 0,
                 right: 0,
                 height: StyleSheet.hairlineWidth,
@@ -290,7 +305,7 @@ function DayTimeline({ dayDate, dayAppts, services, clients, colors, onApptPress
             const colW = gridWidth / totalCols;
             const blockLeft = col * colW + (col === 0 ? 2 : 1);
             const blockWidth = colW - (col === 0 ? 3 : 2);
-            const adjustedTop = top - offsetTop;
+            const adjustedTop = top - START_HOUR * HOUR_HEIGHT;
             if (adjustedTop + height < 0 || adjustedTop > totalHeight) return null;
             return (
               <Pressable
@@ -327,6 +342,36 @@ function DayTimeline({ dayDate, dayAppts, services, clients, colors, onApptPress
         </View>
       </View>
     </ScrollView>
+
+    {/* Floating "Now" pill — only shown when viewing today */}
+    {isToday && (
+      <Pressable
+        onPress={scrollToNow}
+        style={({ pressed }) => ({
+          position: "absolute",
+          bottom: 10,
+          right: 10,
+          backgroundColor: "#E53935",
+          borderRadius: 14,
+          paddingHorizontal: 10,
+          paddingVertical: 5,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 4,
+          opacity: pressed ? 0.75 : 1,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.25,
+          shadowRadius: 4,
+          elevation: 4,
+          zIndex: 20,
+        })}
+      >
+        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#FFF" }} />
+        <Text style={{ fontSize: 11, fontWeight: "700", color: "#FFF" }}>{nowLabel}</Text>
+      </Pressable>
+    )}
+    </View>
   );
 }
 
@@ -629,6 +674,7 @@ export function OverviewDayWeekCard({
                 clients={clients}
                 colors={colors}
                 onApptPress={handleApptPress}
+                containerHeight={340}
               />
             </View>
           </View>
