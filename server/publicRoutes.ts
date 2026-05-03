@@ -2444,11 +2444,11 @@ function baseStyles(): string {
       .seg-btn { flex:1; text-align:center; padding:8px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.15s; color:var(--text-secondary); }
       .seg-btn.active { background:var(--bg-card); color:var(--accent-dark); box-shadow:0 1px 3px var(--shadow); }
       /* Category / Brand tile grid */
-      .tile-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:8px; }
-      .tile-card { background:var(--bg-card); border:2px solid var(--border); border-radius:14px; padding:16px 12px; cursor:pointer; text-align:center; transition:all 0.15s; display:flex; flex-direction:column; align-items:center; justify-content:center; box-sizing:border-box; min-height:90px; }
-      .tile-card .tile-emoji { font-size:24px; margin-bottom:6px; line-height:1; flex-shrink:0; }
+      .tile-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:8px; align-items:start; }
+      .tile-card { background:var(--bg-card); border:2px solid var(--border); border-radius:14px; padding:16px 12px; cursor:pointer; text-align:center; transition:all 0.15s; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; box-sizing:border-box; min-height:90px; overflow:visible; }
+      .tile-card .tile-emoji { font-size:24px; margin-bottom:8px; line-height:1; flex-shrink:0; }
       .tile-card:hover { border-color:var(--accent); background:var(--accent-bg-light); }
-      .tile-card .tile-name { font-size:14px; font-weight:700; color:var(--text); margin-bottom:4px; word-break:break-word; overflow-wrap:break-word; white-space:normal; line-height:1.3; }
+      .tile-card .tile-name { font-size:14px; font-weight:700; color:var(--text); margin-bottom:4px; word-break:break-word; overflow-wrap:break-word; white-space:normal; line-height:1.3; width:100%; }
       .tile-card .tile-count { font-size:12px; color:var(--text-muted); flex-shrink:0; }
       /* Drill-down back link */
       .drill-back { display:inline-flex; align-items:center; gap:4px; color:var(--accent); font-size:13px; font-weight:600; cursor:pointer; margin-bottom:12px; }
@@ -2553,8 +2553,8 @@ function buyGiftPage(slug: string, owner: any): string {
     .card h2{font-size:17px;font-weight:700;color:var(--text);margin-bottom:6px;letter-spacing:-0.3px;}
     .card .card-sub{font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.5;}
     /* Service/product tiles */
-    .tile-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
-    .tile{background:var(--bg-card);border:2px solid var(--border);border-radius:16px;padding:16px 12px;cursor:pointer;text-align:center;transition:all .15s;-webkit-tap-highlight-color:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;box-sizing:border-box;min-height:90px;}
+    .tile-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;align-items:start;}
+    .tile{background:var(--bg-card);border:2px solid var(--border);border-radius:16px;padding:16px 12px;cursor:pointer;text-align:center;transition:all .15s;-webkit-tap-highlight-color:transparent;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;box-sizing:border-box;min-height:90px;overflow:visible;}
     .tile:active{transform:scale(0.97);}
     .tile.selected{border-color:var(--gift);background:var(--gift-bg);}
     .tile-icon{font-size:28px;margin-bottom:8px;display:block;flex-shrink:0;}
