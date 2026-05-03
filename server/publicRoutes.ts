@@ -261,17 +261,34 @@ export function registerPublicRoutes(app: Express) {
         return;
       }
       const staffList = await db.getStaffByOwner(owner.id);
+      // Load services so we can convert numeric DB ids → localId UUID strings
+      const servicesList = await db.getServicesByOwner(owner.id);
       // Only return active staff with their name, services, and working hours
-      res.json(staffList.filter((s: any) => s.active !== false).map((s: any) => ({
-        localId: s.localId,
-        name: s.name,
-        role: s.role || "",
-        color: s.color || "#6366f1",
-        photoUri: ((s as any).photoUri && /^https?:\/\//i.test((s as any).photoUri)) ? (s as any).photoUri : null,
-        serviceIds: Array.isArray(s.serviceIds) ? s.serviceIds : (s.serviceIds ? JSON.parse(s.serviceIds) : []),
-        locationIds: Array.isArray(s.locationIds) ? s.locationIds : (s.locationIds ? JSON.parse(s.locationIds) : null),
-        workingHours: s.workingHours ? (typeof s.workingHours === 'object' ? s.workingHours : JSON.parse(s.workingHours)) : null,
-      })));
+      res.json(staffList.filter((s: any) => s.active !== false).map((s: any) => {
+        // serviceIds in the DB are stored as numeric DB primary keys (from staff-form.tsx svc.id).
+        // The public booking page filters staff by selectedService.localId (a UUID string).
+        // We must convert numeric ids → localId strings so the client-side filter works.
+        const rawServiceIds: any[] = Array.isArray(s.serviceIds) ? s.serviceIds : (s.serviceIds ? JSON.parse(s.serviceIds) : []);
+        const serviceLocalIds: string[] = rawServiceIds
+          .map((numId: any) => {
+            // If it's already a UUID string (e.g. already migrated data), pass through
+            if (typeof numId === 'string' && numId.includes('-')) return numId;
+            // Otherwise treat as numeric DB id and look up the localId
+            const svc = servicesList.find((sv: any) => sv.id === numId || sv.id === Number(numId));
+            return svc ? svc.localId : null;
+          })
+          .filter((id: string | null): id is string => id !== null);
+        return {
+          localId: s.localId,
+          name: s.name,
+          role: s.role || "",
+          color: s.color || "#6366f1",
+          photoUri: ((s as any).photoUri && /^https?:\/\//i.test((s as any).photoUri)) ? (s as any).photoUri : null,
+          serviceIds: serviceLocalIds,
+          locationIds: Array.isArray(s.locationIds) ? s.locationIds : (s.locationIds ? JSON.parse(s.locationIds) : null),
+          workingHours: s.workingHours ? (typeof s.workingHours === 'object' ? s.workingHours : JSON.parse(s.workingHours)) : null,
+        };
+      }));
     } catch (err) {
       console.error("[Public API] Error fetching staff:", err);
       res.status(500).json({ error: "Internal server error" });
