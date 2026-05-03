@@ -614,7 +614,7 @@ export default function EditAppointmentScreen() {
                 return 'tag.fill';
               };
               return (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 12, marginBottom: 8 }} contentContainerStyle={{ gap: 8, alignItems: 'center' }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 12, marginBottom: 8, flexGrow: 0 }} contentContainerStyle={{ gap: 8, alignItems: 'center', paddingVertical: 4 }}>
                   {/* All pill */}
                   <Pressable
                     onPress={() => setSvcPickerCategory(null)}

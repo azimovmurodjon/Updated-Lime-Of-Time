@@ -126,6 +126,13 @@ const MAPPING = {
   "square.grid.2x2": "grid-view",
   "calendar.day.timeline.left": "view-day",
   "books.vertical.fill": "auto-stories",
+  "scissors": "content-cut",
+  "hand.raised.fill": "pan-tool",
+  "eye.fill": "visibility",
+  "eye": "visibility",
+  "face.smiling": "face",
+  "figure.stand": "accessibility",
+  "paintbrush": "brush",
 } as unknown as IconMapping;
 
 export function IconSymbol({
