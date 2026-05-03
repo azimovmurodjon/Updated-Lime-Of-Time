@@ -17,7 +17,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useStore, generateId, formatDateStr, formatTime, formatDateDisplay } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { Appointment, Client, Product, Discount, DAYS_OF_WEEK, DEFAULT_WORKING_HOURS, generateAvailableSlots, minutesToTime, timeToMinutes, getApplicableDiscount, generateConfirmationMessage, getServiceDisplayName, stripPhoneFormat, timeSlotsOverlap, PUBLIC_BOOKING_URL } from "@/lib/types";
 import { trpc } from "@/lib/trpc";
 import { useActiveLocation } from "@/hooks/use-active-location";
@@ -228,17 +228,19 @@ export default function NewBookingScreen() {
 
   // Auto-select single location whenever activeLocations changes
   // This handles the case where locations load after initial render
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const prevActiveLocCount = activeLocations.length;
-  if (!selectedLocationId && activeLocations.length === 1) {
-    setSelectedLocationId(activeLocations[0].id);
-  }
+  useEffect(() => {
+    if (!selectedLocationId && activeLocations.length === 1) {
+      setSelectedLocationId(activeLocations[0].id);
+    }
+  }, [activeLocations.length, selectedLocationId]);
+
   // Auto-clear selectedLocationId if the chosen location is no longer available
   // (closed on this date OR time slot not available there)
-  const prevSelectedLocationId = selectedLocationId;
-  if (prevSelectedLocationId && locationAvailable[prevSelectedLocationId] === false) {
-    setSelectedLocationId(null);
-  }
+  useEffect(() => {
+    if (selectedLocationId && locationAvailable[selectedLocationId] === false) {
+      setSelectedLocationId(null);
+    }
+  }, [selectedLocationId, locationAvailable]);
 
   // Per-staff availability: a staff member is unavailable if they have a confirmed/pending
   // appointment that overlaps the selected date + time + totalDuration.
