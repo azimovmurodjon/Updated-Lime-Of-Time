@@ -14,6 +14,7 @@ import {
   Platform,
   Modal,
   Animated,
+  ActivityIndicator,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatTime, formatDateStr } from "@/lib/store";
@@ -308,6 +309,10 @@ export default function HomeScreen() {
       router.replace("/onboarding");
     }
   }, [state.loaded, state.settings.onboardingComplete]);
+
+  // ─── Upload image mutation (for logo upload to cloud) ────────────
+  const uploadImageMut = trpc.files.uploadImage.useMutation();
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   // ─── Location Share Picker ──────────────────────────────
   const [showSharePicker, setShowSharePicker] = useState(false);
@@ -1296,17 +1301,37 @@ export default function HomeScreen() {
         quality: 0.8,
       });
       if (!result.canceled && result.assets[0]) {
-        const action = {
+        const localUri = result.assets[0].uri;
+        const mimeType = result.assets[0].mimeType ?? "image/jpeg";
+        // Optimistically update UI with local URI immediately
+        const optimisticAction = {
           type: "UPDATE_SETTINGS" as const,
-          payload: { businessLogoUri: result.assets[0].uri },
+          payload: { businessLogoUri: localUri },
         };
-        dispatch(action);
-        syncToDb(action);
+        dispatch(optimisticAction);
+        // Upload to cloud storage so the URL persists across deployments
+        setUploadingLogo(true);
+        try {
+          const base64 = await FileSystem.readAsStringAsync(localUri, { encoding: FileSystem.EncodingType.Base64 });
+          const { url } = await uploadImageMut.mutateAsync({ base64, mimeType, folder: "logos" });
+          // Replace local URI with permanent cloud URL in store + DB
+          const cloudAction = {
+            type: "UPDATE_SETTINGS" as const,
+            payload: { businessLogoUri: url },
+          };
+          dispatch(cloudAction);
+          syncToDb(cloudAction);
+        } catch {
+          // Upload failed — keep local URI in store but still sync so it works on this device
+          syncToDb(optimisticAction);
+        } finally {
+          setUploadingLogo(false);
+        }
       }
     } catch {
       Alert.alert("Error", "Failed to pick image. Please try again.");
     }
-  }, [dispatch, syncToDb]);
+  }, [dispatch, syncToDb, uploadImageMut]);
 
   const getEndTime = (time: string, duration: number) => {
     return formatTime(minutesToTime(timeToMinutes(time) + duration));
@@ -1482,9 +1507,11 @@ export default function HomeScreen() {
               onPress={handlePickLogo}
               style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
             >
-              <Image source={logoSource} style={styles.businessLogo} resizeMode="cover" />
+              <Image source={logoSource} style={[styles.businessLogo, uploadingLogo && { opacity: 0.5 }]} resizeMode="cover" />
               <View style={[styles.cameraOverlay, { backgroundColor: colors.primary }]}>
-                <IconSymbol name="photo" size={10} color="#FFF" />
+                {uploadingLogo
+                  ? <ActivityIndicator size={10} color="#FFF" />
+                  : <IconSymbol name="photo" size={10} color="#FFF" />}
               </View>
             </Pressable>
             <View style={styles.headerTextWrap}>
