@@ -821,8 +821,36 @@ Would you also like to charge a no-show fee via Stripe?`,
                 </View>
               )}
               {discountAmt > 0 && (
-                <View className="flex-row justify-between py-1">
-                  <Text className="text-sm" style={{ color: '#F59E0B' }}>{discountLabel}</Text>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 4 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
+                    <Text className="text-sm" style={{ color: '#F59E0B' }}>{discountLabel}</Text>
+                    {(appointment.status === 'pending' || appointment.status === 'confirmed') && (
+                      <Pressable
+                        onPress={() => {
+                          Alert.alert(
+                            "Remove Discount",
+                            `Remove the "${discountLabel}" discount from this appointment?`,
+                            [
+                              { text: "Cancel", style: "cancel" },
+                              {
+                                text: "Remove",
+                                style: "destructive",
+                                onPress: () => {
+                                  const restoredTotal = (appointment.totalPrice ?? 0) + discountAmt;
+                                  const updated = { ...appointment, discountAmount: undefined, discountPercent: undefined, discountName: undefined, totalPrice: restoredTotal };
+                                  dispatch({ type: "UPDATE_APPOINTMENT", payload: updated });
+                                  syncToDb({ type: "UPDATE_APPOINTMENT", payload: updated });
+                                },
+                              },
+                            ]
+                          );
+                        }}
+                        style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: colors.error + '18' })}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: colors.error }}>Remove</Text>
+                      </Pressable>
+                    )}
+                  </View>
                   <Text className="text-sm font-semibold" style={{ color: '#F59E0B' }}>-${discountAmt.toFixed(2)}</Text>
                 </View>
               )}

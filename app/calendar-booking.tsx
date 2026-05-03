@@ -375,6 +375,12 @@ export default function CalendarBookingScreen() {
     dispatch({ type: "ADD_APPOINTMENT", payload: appointment });
     syncToDb({ type: "ADD_APPOINTMENT", payload: appointment });
 
+    // Persist promo code usedCount increment to DB if a promo code was applied
+    if (appliedPromoCode) {
+      const updatedPromo = { ...appliedPromoCode, usedCount: (appliedPromoCode.usedCount ?? 0) + 1 };
+      syncToDb({ type: "UPDATE_PROMO_CODE", payload: updatedPromo });
+    }
+
     // If card payment selected, send Stripe payment link after booking
     if (selectedPaymentMethod === "card" && state.businessOwnerId) {
       const clientForCard = getClientById(selectedClientId);
