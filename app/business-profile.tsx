@@ -416,6 +416,18 @@ export default function BusinessProfileScreen() {
                   ) : null}
                 </View>
               </View>
+              {/* Warning nudge for local file:/// logos */}
+              {logoUri.startsWith("file:///") && (
+                <Pressable
+                  onPress={pickLogo}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, backgroundColor: colors.warning + "18", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: colors.warning + "40" }}
+                >
+                  <Text style={{ fontSize: 18 }}>⚠️</Text>
+                  <Text style={{ flex: 1, fontSize: 12, color: colors.warning, lineHeight: 17 }}>
+                    Logo may not display after reinstall — tap to re-upload to cloud storage.
+                  </Text>
+                </Pressable>
+              )}
             </Field>
 
             {/* Description */}

@@ -2,7 +2,7 @@ import "@/global.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import { Platform, StyleSheet, View } from "react-native";
@@ -19,11 +19,43 @@ import type { EdgeInsets, Metrics, Rect } from "react-native-safe-area-context";
 
 import { trpc, createTRPCClient } from "@/lib/trpc";
 import { initManusRuntime, subscribeSafeAreaInsets } from "@/lib/_core/manus-runtime";
-import { StoreProvider } from "@/lib/store";
+import { StoreProvider, useStore } from "@/lib/store";
 import { AppLockProvider } from "@/lib/app-lock-provider";
 import { NotificationProvider } from "@/lib/notification-provider";
 import { initSentry, withSentryWrapper } from "@/lib/sentry";
 import { AnimatedSplash } from "@/components/animated-splash";
+import * as FileSystem from "expo-file-system/legacy";
+
+/**
+ * One-time migration: if businessLogoUri is a local file:/// path (from a
+ * previous bug), re-upload it to cloud storage and save the permanent URL.
+ * Runs once when the store first loads.
+ */
+function LogoMigration() {
+  const { state, dispatch, syncToDb } = useStore();
+  const uploadImageMut = trpc.files.uploadImage.useMutation();
+  const hasRun = useRef(false);
+
+  useEffect(() => {
+    if (!state.loaded || hasRun.current) return;
+    const logoUri = state.settings.businessLogoUri;
+    if (!logoUri || !logoUri.startsWith("file:///")) return;
+    hasRun.current = true;
+    (async () => {
+      try {
+        const base64 = await FileSystem.readAsStringAsync(logoUri, { encoding: FileSystem.EncodingType.Base64 });
+        const { url } = await uploadImageMut.mutateAsync({ base64, mimeType: "image/jpeg", folder: "logos" });
+        const action = { type: "UPDATE_SETTINGS" as const, payload: { businessLogoUri: url } };
+        dispatch(action);
+        syncToDb(action);
+      } catch {
+        // Migration failed silently — logo will just be missing until re-uploaded manually
+      }
+    })();
+  }, [state.loaded, state.settings.businessLogoUri]);
+
+  return null;
+}
 
 // Initialize Sentry as early as possible (before any React rendering)
 initSentry();
@@ -107,6 +139,7 @@ function RootLayout() {
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
           <StoreProvider>
+            <LogoMigration />
             <AppLockProvider splashDone={splashDone}>
             <NotificationProvider>
             {/* Default to hiding native headers so raw route segments don't appear (e.g. "(tabs)", "products/[id]"). */}

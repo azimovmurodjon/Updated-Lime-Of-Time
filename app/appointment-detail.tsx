@@ -920,9 +920,9 @@ Would you also like to charge a no-show fee via Stripe?`,
               {/* Line items — only when expanded */}
               {chargesExpanded && (
                 <>
-                  <View className="flex-row justify-between py-1">
-                    <Text className="text-sm text-foreground">{service ? getServiceDisplayName(service) : "Service"}</Text>
-                    <Text className="text-sm font-semibold text-foreground">${svcPrice.toFixed(2)}</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingVertical: 4 }}>
+                    <Text style={{ fontSize: 13, color: colors.foreground, flex: 1, flexShrink: 1, paddingRight: 8 }} numberOfLines={2}>{service ? getServiceDisplayName(service) : "Service"}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: colors.foreground, flexShrink: 0 }}>${svcPrice.toFixed(2)}</Text>
                   </View>
                   {/* Extra services shown individually; products grouped by id with ×qty */}
                   {(() => {
@@ -936,17 +936,17 @@ Would you also like to charge a no-show fee via Stripe?`,
                     return (
                       <>
                         {serviceExtras.map((item, idx) => (
-                          <View key={`svc-${idx}`} className="flex-row justify-between py-1">
-                            <Text className="text-sm text-foreground">{item.name} (Service)</Text>
-                            <Text className="text-sm font-semibold text-foreground">${(item.price || 0).toFixed(2)}</Text>
+                          <View key={`svc-${idx}`} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingVertical: 4 }}>
+                            <Text style={{ fontSize: 13, color: colors.foreground, flex: 1, flexShrink: 1, paddingRight: 8 }} numberOfLines={2}>{item.name}</Text>
+                            <Text style={{ fontSize: 13, fontWeight: '600', color: colors.foreground, flexShrink: 0 }}>${(item.price || 0).toFixed(2)}</Text>
                           </View>
                         ))}
                         {Array.from(productGroups.entries()).map(([pid, g]) => (
-                          <View key={`prod-${pid}`} className="flex-row justify-between py-1">
-                            <Text className="text-sm text-foreground">
-                              {g.name}{g.qty > 1 ? ` ×${g.qty}` : ''} (Product)
+                          <View key={`prod-${pid}`} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingVertical: 4 }}>
+                            <Text style={{ fontSize: 13, color: colors.foreground, flex: 1, flexShrink: 1, paddingRight: 8 }} numberOfLines={2}>
+                              {g.name}{g.qty > 1 ? ` ×${g.qty}` : ''}
                             </Text>
-                            <Text className="text-sm font-semibold text-foreground">${(g.price * g.qty).toFixed(2)}</Text>
+                            <Text style={{ fontSize: 13, fontWeight: '600', color: colors.foreground, flexShrink: 0 }}>${(g.price * g.qty).toFixed(2)}</Text>
                           </View>
                         ))}
                       </>
