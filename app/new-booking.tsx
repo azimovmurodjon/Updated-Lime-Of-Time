@@ -80,6 +80,8 @@ export default function NewBookingScreen() {
   // Filter chips for the "Add More" section
   const [addMoreCategoryFilter, setAddMoreCategoryFilter] = useState<string | null>(null);
   const [addMoreBrandFilter, setAddMoreBrandFilter] = useState<string | null>(null);
+  // Product quantity map: productId → quantity (0 = not in cart)
+  const [productQty, setProductQty] = useState<Record<string, number>>({});
   const [recurring, setRecurring] = useState<"none" | "weekly" | "biweekly" | "monthly">("none");
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   // Pre-select the currently active location (single source of truth).
@@ -533,11 +535,10 @@ export default function NewBookingScreen() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [state.clients, clientSearch]);
 
-  // Available products (not already in cart)
+  // Available products (all active products — quantity controls replace the add/remove pattern)
   const availableProducts = useMemo(() => {
-    const cartProductIds = cart.filter((c) => c.type === "product").map((c) => c.id);
-    return state.products.filter((p) => p.available && !cartProductIds.includes(p.id));
-  }, [state.products, cart]);
+    return state.products.filter((p) => p.available);
+  }, [state.products]);
 
   // Available extra services (not primary, not already in cart)
   const availableExtraServices = useMemo(() => {
@@ -574,6 +575,28 @@ export default function NewBookingScreen() {
   const removeFromCart = useCallback((index: number) => {
     setCart((prev) => prev.filter((_, i) => i !== index));
   }, []);
+
+  // Update product quantity and sync the service-only cart + product rows
+  const setProductQtyAndSync = useCallback((productId: string, newQty: number) => {
+    setProductQty((prev) => {
+      const updated = { ...prev, [productId]: Math.max(0, newQty) };
+      // Rebuild cart: keep all service items, then add product rows for each qty
+      setCart((prevCart) => {
+        const serviceItems = prevCart.filter((c) => c.type === "service");
+        const productRows: CartItem[] = [];
+        for (const [pid, qty] of Object.entries(updated)) {
+          if (qty <= 0) continue;
+          const prod = state.products.find((p) => p.id === pid);
+          if (!prod) continue;
+          for (let i = 0; i < qty; i++) {
+            productRows.push({ type: "product", id: pid, name: prod.name, price: parseFloat(String(prod.price)), duration: 0 });
+          }
+        }
+        return [...serviceItems, ...productRows];
+      });
+      return updated;
+    });
+  }, [state.products]);
 
   const handleBook = useCallback(() => {
     if (!selectedServiceId || !selectedClientId || !selectedTime) return;
@@ -1832,7 +1855,7 @@ export default function NewBookingScreen() {
             </View>
           )}
 
-          {/* Products — collapsible by brand */}
+          {/* Products — quantity controls */}
           {addMoreTab === "products" && (
             <View className="mb-4">
               {availableProducts.length === 0 ? (
@@ -1884,31 +1907,60 @@ export default function NewBookingScreen() {
                               <IconSymbol name={isExpanded ? "chevron.down" : "chevron.right"} size={14} color={isExpanded ? colors.primary : colors.muted} />
                             </Pressable>
                           )}
-                          {isExpanded && prods.map((p) => (
-                            <Pressable
-                              key={p.id}
-                              onPress={() =>
-                                addToCart({ type: "product", id: p.id, name: p.name, price: parseFloat(String(p.price)), duration: 0 })
-                              }
-                              style={({ pressed }) => [
-                                styles.optionCard,
-                                { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1, marginLeft: hasMultiBrand ? 8 : 0 },
-                              ]}
-                            >
-                              {p.photoUri ? (
-                                <Image source={{ uri: p.photoUri }} style={{ width: 36, height: 36, borderRadius: 8, marginRight: 12 }} />
-                              ) : (
-                                <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
-                                  <IconSymbol name="bag.fill" size={18} color={colors.primary} />
+                          {isExpanded && prods.map((p) => {
+                            const qty = productQty[p.id] ?? 0;
+                            return (
+                              <View
+                                key={p.id}
+                                style={[
+                                  styles.optionCard,
+                                  { backgroundColor: qty > 0 ? colors.primary + "10" : colors.surface, borderColor: qty > 0 ? colors.primary : colors.border, marginLeft: hasMultiBrand ? 8 : 0 },
+                                ]}
+                              >
+                                {p.photoUri ? (
+                                  <Image source={{ uri: p.photoUri }} style={{ width: 36, height: 36, borderRadius: 8, marginRight: 12 }} />
+                                ) : (
+                                  <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                                    <IconSymbol name="bag.fill" size={18} color={colors.primary} />
+                                  </View>
+                                )}
+                                <View style={styles.optionContent}>
+                                  <Text className="text-sm font-semibold text-foreground">{p.name}</Text>
+                                  {p.description ? <Text className="text-xs text-muted" numberOfLines={1}>{p.description}</Text> : null}
+                                  <Text style={{ fontSize: 12, fontWeight: "700", color: colors.primary, marginTop: 2 }}>${parseFloat(String(p.price)).toFixed(2)}</Text>
                                 </View>
-                              )}
-                              <View style={styles.optionContent}>
-                                <Text className="text-sm font-semibold text-foreground">{p.name}</Text>
-                                {p.description ? <Text className="text-xs text-muted">{p.description}</Text> : null}
+                                {/* Quantity stepper */}
+                                <View style={{ flexDirection: "row", alignItems: "center", gap: 0 }}>
+                                  <Pressable
+                                    onPress={() => setProductQtyAndSync(p.id, qty - 1)}
+                                    style={({ pressed }) => ({
+                                      width: 32, height: 32, borderRadius: 16,
+                                      backgroundColor: qty > 0 ? colors.error + "18" : colors.surface,
+                                      borderWidth: 1, borderColor: qty > 0 ? colors.error + "60" : colors.border,
+                                      alignItems: "center", justifyContent: "center",
+                                      opacity: pressed ? 0.6 : qty > 0 ? 1 : 0.35,
+                                    })}
+                                    disabled={qty === 0}
+                                  >
+                                    <Text style={{ fontSize: 18, fontWeight: "700", color: qty > 0 ? colors.error : colors.muted, lineHeight: 22 }}>−</Text>
+                                  </Pressable>
+                                  <Text style={{ minWidth: 28, textAlign: "center", fontSize: 15, fontWeight: "700", color: qty > 0 ? colors.primary : colors.muted }}>{qty}</Text>
+                                  <Pressable
+                                    onPress={() => setProductQtyAndSync(p.id, qty + 1)}
+                                    style={({ pressed }) => ({
+                                      width: 32, height: 32, borderRadius: 16,
+                                      backgroundColor: colors.primary + "18",
+                                      borderWidth: 1, borderColor: colors.primary + "60",
+                                      alignItems: "center", justifyContent: "center",
+                                      opacity: pressed ? 0.6 : 1,
+                                    })}
+                                  >
+                                    <Text style={{ fontSize: 18, fontWeight: "700", color: colors.primary, lineHeight: 22 }}>+</Text>
+                                  </Pressable>
+                                </View>
                               </View>
-                              <Text className="text-sm font-bold" style={{ color: colors.primary }}>+ ${parseFloat(String(p.price)).toFixed(2)}</Text>
-                            </Pressable>
-                          ))}
+                            );
+                          })}
                         </View>
                       );
                     })}

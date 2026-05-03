@@ -120,6 +120,39 @@ export default function EditAppointmentScreen() {
   const [svcPickerCategory, setSvcPickerCategory] = useState<string | null>(null);
   const [editPrimaryService, setEditPrimaryService] = useState<string>(appointment?.serviceId ?? "");
 
+  // Product editor state: productId → quantity (0 = not in appointment)
+  const [productQty, setProductQty] = useState<Record<string, number>>(() => {
+    const qtyMap: Record<string, number> = {};
+    for (const item of (appointment?.extraItems ?? [])) {
+      if (item.type === 'product') {
+        qtyMap[item.id] = (qtyMap[item.id] ?? 0) + 1;
+      }
+    }
+    return qtyMap;
+  });
+
+  // Update product quantity and sync to editExtraItems (keeping service extras intact)
+  const setProductQtyAndSync = useCallback((productId: string, newQty: number) => {
+    const clamped = Math.max(0, newQty);
+    setProductQty((prev) => {
+      const updated = { ...prev, [productId]: clamped };
+      setEditExtraItems((prevItems) => {
+        const serviceItems = prevItems.filter((e) => e.type === 'service');
+        const productRows: import('@/lib/types').AppointmentExtraItem[] = [];
+        for (const [pid, qty] of Object.entries(updated)) {
+          if (qty <= 0) continue;
+          const prod = state.products.find((p) => p.id === pid);
+          if (!prod) continue;
+          for (let i = 0; i < qty; i++) {
+            productRows.push({ type: 'product', id: pid, name: prod.name, price: parseFloat(String(prod.price)), duration: 0 });
+          }
+        }
+        return [...serviceItems, ...productRows];
+      });
+      return updated;
+    });
+  }, [state.products]);
+
   // ── Derived data ───────────────────────────────────────────────────────
   const activeLocations = useMemo(
     () => state.locations.filter((l) => l.active),
@@ -608,6 +641,69 @@ export default function EditAppointmentScreen() {
             </ScrollView>
           </View>
         </Modal>
+
+        {/* Products Editor */}
+        {state.products.filter(p => p.available).length > 0 && (
+          <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: colors.muted, flex: 1 }}>PRODUCTS</Text>
+              {Object.values(productQty).reduce((s, q) => s + q, 0) > 0 && (
+                <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '600' }}>
+                  {Object.values(productQty).reduce((s, q) => s + q, 0)} item{Object.values(productQty).reduce((s, q) => s + q, 0) !== 1 ? 's' : ''}
+                </Text>
+              )}
+            </View>
+            {state.products.filter(p => p.available).map((p) => {
+              const qty = productQty[p.id] ?? 0;
+              return (
+                <View
+                  key={p.id}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center',
+                    paddingVertical: 10,
+                    borderBottomWidth: StyleSheet.hairlineWidth,
+                    borderBottomColor: colors.border,
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: colors.foreground }} numberOfLines={1}>{p.name}</Text>
+                    {p.description ? <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }} numberOfLines={1}>{p.description}</Text> : null}
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary, marginTop: 2 }}>${parseFloat(String(p.price)).toFixed(2)}</Text>
+                  </View>
+                  {/* Quantity stepper */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                    <Pressable
+                      onPress={() => setProductQtyAndSync(p.id, qty - 1)}
+                      style={({ pressed }) => ({
+                        width: 30, height: 30, borderRadius: 15,
+                        backgroundColor: qty > 0 ? colors.error + '18' : colors.surface,
+                        borderWidth: 1, borderColor: qty > 0 ? colors.error + '60' : colors.border,
+                        alignItems: 'center', justifyContent: 'center',
+                        opacity: pressed ? 0.6 : qty > 0 ? 1 : 0.35,
+                      })}
+                      disabled={qty === 0}
+                    >
+                      <Text style={{ fontSize: 18, fontWeight: '700', color: qty > 0 ? colors.error : colors.muted, lineHeight: 22 }}>−</Text>
+                    </Pressable>
+                    <Text style={{ minWidth: 26, textAlign: 'center', fontSize: 15, fontWeight: '700', color: qty > 0 ? colors.primary : colors.muted }}>{qty}</Text>
+                    <Pressable
+                      onPress={() => setProductQtyAndSync(p.id, qty + 1)}
+                      style={({ pressed }) => ({
+                        width: 30, height: 30, borderRadius: 15,
+                        backgroundColor: colors.primary + '18',
+                        borderWidth: 1, borderColor: colors.primary + '60',
+                        alignItems: 'center', justifyContent: 'center',
+                        opacity: pressed ? 0.6 : 1,
+                      })}
+                    >
+                      <Text style={{ fontSize: 18, fontWeight: '700', color: colors.primary, lineHeight: 22 }}>+</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
 
         {/* Location Selector */}
         {activeLocations.length > 0 && (

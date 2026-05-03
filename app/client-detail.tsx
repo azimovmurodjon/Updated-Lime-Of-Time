@@ -187,7 +187,7 @@ export default function ClientDetailScreen() {
     (appt: Appointment, type: "confirmation" | "reminder" | "upcoming" | "cancelled" | "completed") => {
       if (!client) return "";
       const svc = getServiceById(appt.serviceId);
-      const svcName = svc ? getServiceDisplayName(svc) : "your appointment";
+      const primarySvcName = svc ? getServiceDisplayName(svc) : "your appointment";
       const bizName = biz.businessName;
       const bizPhone = profile.phone;
       const apptLocation = appt.locationId ? getLocationById(appt.locationId) : null;
@@ -202,17 +202,61 @@ export default function ClientDetailScreen() {
 
       const slug = biz.customSlug || bizName.replace(/\s+/g, "-").toLowerCase();
       const fullAddrStr = formatFullAddress(addr, locCity, locState, locZip);
-      const locLine = locName ? (fullAddrStr ? `${locName} \u2014 ${fullAddrStr}` : locName) : fullAddrStr;
+      const locLine = locName ? (fullAddrStr ? `${locName} — ${fullAddrStr}` : locName) : fullAddrStr;
       const bookUrl = locId ? `${PUBLIC_BOOKING_URL}/book/${slug}?location=${locId}` : `${PUBLIC_BOOKING_URL}/book/${slug}`;
       const reviewUrl = `${PUBLIC_BOOKING_URL}/review/${slug}`;
       const phoneFormatted = formatPhoneNumber(stripPhoneFormat(locPhone));
+
+      // Multi-service expansion
+      const extraServiceItems = (appt.extraItems ?? []).filter((e) => e.type === "service");
+      const hasMultiService = extraServiceItems.length > 0;
+
+      let serviceName: string;
+      let timeDisplay: string;
+      let totalPrice: string;
+      let displayDuration: number;
+
+      if (hasMultiService) {
+        const startMins = timeToMinutes(appt.time);
+        const primaryDuration = svc?.duration ?? appt.duration;
+        const primaryPrice = svc?.price ?? 0;
+        const serviceLines: string[] = [];
+
+        const primaryEnd = minutesToTime(startMins + primaryDuration);
+        serviceLines.push(
+          `• ${primarySvcName} (${primaryDuration} min) ${formatTimeDisplay(minutesToTime(startMins))}–${formatTimeDisplay(primaryEnd)} — $${Number(primaryPrice).toFixed(2)}`
+        );
+
+        let cursor = startMins + primaryDuration;
+        for (const item of extraServiceItems) {
+          const itemEnd = minutesToTime(cursor + item.duration);
+          serviceLines.push(
+            `• ${item.name} (${item.duration} min) ${formatTimeDisplay(minutesToTime(cursor))}–${formatTimeDisplay(itemEnd)} — $${item.price.toFixed(2)}`
+          );
+          cursor += item.duration;
+        }
+        serviceName = serviceLines.join("\n");
+        timeDisplay = `${formatTimeDisplay(appt.time)}–${formatTimeDisplay(minutesToTime(cursor))}`;
+        displayDuration = cursor - startMins;
+        const rawTotal = appt.totalPrice ?? (Number(primaryPrice) + extraServiceItems.reduce((s, e) => s + e.price, 0));
+        totalPrice = `$${rawTotal.toFixed(2)}`;
+      } else {
+        serviceName = primarySvcName;
+        timeDisplay = formatTimeDisplay(appt.time);
+        displayDuration = appt.duration;
+        totalPrice = appt.totalPrice != null ? `$${appt.totalPrice.toFixed(2)}` : (svc ? `$${Number(svc.price).toFixed(2)}` : "");
+      }
+
       const tplVars = {
         clientName: client.name,
         businessName: bizName,
-        serviceName: svcName,
-        duration: String(appt.duration),
+        serviceName,
+        service: serviceName,
+        duration: String(displayDuration),
         date: appt.date,
-        time: appt.time,
+        time: timeDisplay,
+        price: totalPrice,
+        total: totalPrice,
         location: locLine,
         phone: phoneFormatted,
         clientPhone: client.phone ?? "",
@@ -224,32 +268,32 @@ export default function ClientDetailScreen() {
         case "confirmation": {
           const tpl = biz.smsTemplates?.confirmation;
           if (tpl) return applyTemplate(tpl, tplVars);
-          return generateConfirmationMessage(bizName, addr, client.name, svcName, appt.duration, appt.date, appt.time, locPhone, undefined, locName, locId, biz.customSlug, locCity, locState, locZip);
+          return generateConfirmationMessage(bizName, addr, client.name, serviceName, displayDuration, appt.date, appt.time, locPhone, undefined, locName, locId, biz.customSlug, locCity, locState, locZip);
         }
         case "reminder": {
           const tpl = biz.smsTemplates?.reminder;
           if (tpl) return applyTemplate(tpl, tplVars);
-          return generateReminderMessage(bizName, addr, client.name, svcName, appt.duration, appt.date, appt.time, locPhone, locName, locCity, locState, locZip);
+          return generateReminderMessage(bizName, addr, client.name, serviceName, displayDuration, appt.date, appt.time, locPhone, locName, locCity, locState, locZip);
         }
         case "upcoming": {
-          const endTime = formatTimeDisplay(minutesToTime(timeToMinutes(appt.time) + appt.duration));
-          return `Dear ${client.name},\n\nYou have an upcoming appointment request pending confirmation.\n\n\uD83D\uDCCB Service: ${svcName}\n\uD83D\uDCC5 Date: ${formatDateLong(appt.date)}\n\u23F0 Time: ${formatTimeDisplay(appt.time)} - ${endTime}\n\uD83D\uDCCD Location: ${locLine}\n\uD83C\uDFE2 Business: ${bizName}\n\uD83D\uDCDE Contact: ${phoneFormatted}\n\n\uD83D\uDD17 Book again: ${bookUrl}\n\nWe will confirm your appointment shortly. Thank you for your patience!\n\n${bizName}${LIME_OF_TIME_FOOTER}`;
+          const endTime = formatTimeDisplay(minutesToTime(timeToMinutes(appt.time) + displayDuration));
+          return `Dear ${client.name},\n\nYou have an upcoming appointment request pending confirmation.\n\n📋 Service: ${serviceName}\n📅 Date: ${formatDateLong(appt.date)}\n⏰ Time: ${formatTimeDisplay(appt.time)} - ${endTime}\n📍 Location: ${locLine}\n🏢 Business: ${bizName}\n📞 Contact: ${phoneFormatted}\n\n🔗 Book again: ${bookUrl}\n\nWe will confirm your appointment shortly. Thank you for your patience!\n\n${bizName}${LIME_OF_TIME_FOOTER}`;
         }
         case "cancelled": {
           const tpl = biz.smsTemplates?.cancellation;
           if (tpl) return applyTemplate(tpl, tplVars);
-          return generateCancellationMessage(bizName, client.name, svcName, appt.date, appt.time, "", locPhone, locName, apptLocation?.address, locCity, locState, locZip);
+          return generateCancellationMessage(bizName, client.name, serviceName, appt.date, appt.time, "", locPhone, locName, apptLocation?.address, locCity, locState, locZip);
         }
         case "completed": {
           const tpl = biz.smsTemplates?.completed;
           if (tpl) return applyTemplate(tpl, tplVars);
-          return `Dear ${client.name},\n\nThank you for visiting ${bizName}! Your appointment for ${svcName} on ${formatDateLong(appt.date)} has been completed.\n\nWe hope you had a wonderful experience and we\u2019d love to see you again!\n\n\uD83D\uDCCD Location: ${locLine}\n\uD83D\uDCDE Contact: ${phoneFormatted}\n\n\uD83D\uDD17 Book again: ${bookUrl}\n\nBest regards,\n${bizName}${LIME_OF_TIME_FOOTER}`;
+          return `Dear ${client.name},\n\nThank you for visiting ${bizName}! Your appointment for ${serviceName} on ${formatDateLong(appt.date)} has been completed.\n\nWe hope you had a wonderful experience and we’d love to see you again!\n\n📍 Location: ${locLine}\n📞 Contact: ${phoneFormatted}\n\n🔗 Book again: ${bookUrl}\n\nBest regards,\n${bizName}${LIME_OF_TIME_FOOTER}`;
         }
         default:
           return "";
       }
     },
-    [client, biz.businessName, biz.customSlug, profile, getServiceById, getLocationById]
+    [client, biz.businessName, biz.customSlug, biz.smsTemplates, profile, getServiceById, getLocationById]
   );
 
   const handleSendMessage = useCallback(
