@@ -162,6 +162,7 @@ export function useNotifications() {
   const scheduledRef = useRef<Set<string>>(new Set());
   const listenerSetupRef = useRef(false);
   const tokenRegisteredRef = useRef(false);
+  const prevOwnerIdRef = useRef<number | null>(null);
   const initialNotifHandledRef = useRef(false);
   // Keep a ref to appointments so the listener can access latest without re-registering
   const appointmentsRef = useRef(state.appointments);
@@ -286,6 +287,30 @@ export function useNotifications() {
     },
     [router]
   );
+
+  // Reset tokenRegisteredRef when the logged-in business owner changes so the
+  // new account always registers its own push token (fixes cross-account contamination).
+  useEffect(() => {
+    if (state.businessOwnerId !== null && state.businessOwnerId !== prevOwnerIdRef.current) {
+      // If there was a previous owner, clear their push token on the server so they
+      // stop receiving notifications on this device after logout.
+      if (prevOwnerIdRef.current !== null) {
+        updateBusiness.mutate(
+          { id: prevOwnerIdRef.current, expoPushToken: null },
+          {
+            onSuccess: () => logger.log("[Notifications] Cleared push token for previous owner", prevOwnerIdRef.current),
+            onError: (err) => logger.warn("[Notifications] Failed to clear previous owner push token:", err),
+          }
+        );
+      }
+      tokenRegisteredRef.current = false;
+      prevOwnerIdRef.current = state.businessOwnerId;
+    } else if (state.businessOwnerId === null) {
+      // Logged out — reset so next login re-registers
+      tokenRegisteredRef.current = false;
+      prevOwnerIdRef.current = null;
+    }
+  }, [state.businessOwnerId]);
 
   // Register for push notifications and save token to server
   useEffect(() => {

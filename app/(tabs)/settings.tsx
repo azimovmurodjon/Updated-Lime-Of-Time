@@ -88,6 +88,7 @@ function StatusDot({ status, colors }: { status: "ok" | "warn" | "off"; colors: 
 export default function SettingsScreen() {
   const { state, dispatch, syncToDb, filterAppointmentsByLocation, clientsForActiveLocation } = useStore();
   const deleteBusinessMut = trpc.business.delete.useMutation();
+  const updateBusinessMut = trpc.business.update.useMutation();
   const colors = useColors();
   const router = useRouter();
   const { isTablet, hp, maxContentWidth } = useResponsive();
@@ -163,6 +164,13 @@ export default function SettingsScreen() {
         text: "Log Out",
         style: "destructive",
         onPress: async () => {
+          // Clear push token from server so this device stops receiving notifications
+          // for this business after logout (prevents cross-account contamination)
+          if (state.businessOwnerId) {
+            try {
+              await updateBusinessMut.mutateAsync({ id: state.businessOwnerId, expoPushToken: null });
+            } catch {}
+          }
           dispatch({ type: "RESET_ALL_DATA" });
           try {
             await AsyncStorage.multiRemove([
