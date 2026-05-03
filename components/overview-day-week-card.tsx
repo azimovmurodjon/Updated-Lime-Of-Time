@@ -175,7 +175,7 @@ interface DayTimelineProps {
 
 function DayTimeline({ dayDate, dayAppts, services, clients, colors, onApptPress, containerHeight }: DayTimelineProps) {
   const HOUR_HEIGHT = 56;
-  const LABEL_WIDTH = 48;
+  const LABEL_WIDTH = 62;
   // Full 24-hour range: 0 AM → 11 PM
   const START_HOUR = 0;
   const END_HOUR = 24;
@@ -245,7 +245,7 @@ function DayTimeline({ dayDate, dayAppts, services, clients, colors, onApptPress
         <View style={{ width: LABEL_WIDTH, position: "relative" }}>
           {visibleHours.map((h) => (
             <View key={h} style={{ height: HOUR_HEIGHT, justifyContent: "flex-start", paddingTop: 4 }}>
-              <Text style={{ fontSize: 10, color: colors.muted, textAlign: "right", paddingRight: 8 }}>
+              <Text style={{ fontSize: 10, color: colors.muted, textAlign: "right", paddingRight: 6 }} numberOfLines={1}>
                 {formatHour(h)}
               </Text>
             </View>
