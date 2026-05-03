@@ -98,6 +98,8 @@ export interface Appointment {
   refundedAmount?: number;
   /** Stripe refund ID */
   stripeRefundId?: string;
+  /** Sent reminder timestamps keyed by reminder template id */
+  sentReminders?: Record<string, string>; // { [templateId]: ISO timestamp }
   /** ISO timestamp when client tapped 'I Sent Payment' on the manage page */
   clientPaidNotifiedAt?: string;
   /** Client-submitted cancellation request */
@@ -205,6 +207,10 @@ export interface Location {
   createdAt: string;
   /** Optional cover photo URL for the location */
   photoUri?: string | null;
+  /** Per-location buffer time override in minutes. null/undefined = use global BusinessSettings.bufferTime */
+  bufferMinutes?: number | null;
+  /** Per-location slot interval override in minutes. 0 = Auto. null/undefined = use global BusinessSettings.slotInterval */
+  slotIntervalMinutes?: number | null;
 }
 
 export const LOCATION_COLORS = [
@@ -489,6 +495,26 @@ export interface BusinessSettings {
   giftValidDays?: number;
 }
 
+/** A global reminder template that can be sent to clients for any appointment */
+export interface ReminderTemplate {
+  id: string;
+  /** Label shown in the list e.g. "1 hour before" */
+  label: string;
+  /** Number of minutes before appointment this reminder is for (e.g. 60 = 1 hour before). 0 = custom/manual */
+  minutesBefore: number;
+  /** Custom SMS message body. If empty, a default is generated from appointment details */
+  customMessage?: string;
+  createdAt: string;
+}
+
+export const DEFAULT_REMINDER_TEMPLATES: ReminderTemplate[] = [
+  { id: "rt-30m",  label: "30 minutes before", minutesBefore: 30,   customMessage: "", createdAt: new Date().toISOString() },
+  { id: "rt-1h",   label: "1 hour before",     minutesBefore: 60,   customMessage: "", createdAt: new Date().toISOString() },
+  { id: "rt-2h",   label: "2 hours before",    minutesBefore: 120,  customMessage: "", createdAt: new Date().toISOString() },
+  { id: "rt-6h",   label: "6 hours before",    minutesBefore: 360,  customMessage: "", createdAt: new Date().toISOString() },
+  { id: "rt-24h",  label: "24 hours before",   minutesBefore: 1440, customMessage: "", createdAt: new Date().toISOString() },
+];
+
 export const SERVICE_COLORS = [
   "#4CAF50",
   "#2E7D32",
@@ -657,10 +683,13 @@ function filterSlots(
     return !dayAppointments.some((a) => {
       const apptStart = timeToMinutes(a.time);
       const apptEnd = apptStart + a.duration;
-      // Block if the new slot overlaps the appointment window expanded by buffer on both sides:
-      // - slot must not start within bufferTime minutes before the appointment ends
-      // - slot must not end within bufferTime minutes after the appointment starts
-      return slotStart < (apptEnd + bufferTime) && slotEnd > (apptStart - bufferTime);
+      // Buffer applies ONLY after an appointment ends (not before it starts).
+      // A slot is blocked if:
+      //   - it overlaps the appointment itself (slotStart < apptEnd && slotEnd > apptStart), OR
+      //   - it starts within bufferTime minutes after the appointment ends
+      //     (i.e., slotStart < apptEnd + bufferTime)
+      // But we do NOT block slots that end within bufferTime of the appointment start.
+      return slotStart < (apptEnd + bufferTime) && slotEnd > apptStart;
     });
   });
 }

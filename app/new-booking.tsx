@@ -85,6 +85,9 @@ export default function NewBookingScreen() {
   // Pre-select the currently active location (single source of truth).
   // When activeLocationId is null (All mode), keep null so the date picker shows all locations.
   const [refreshKey, setRefreshKey] = useState(0);
+  // Local slot interval override: null = use global setting (Auto or configured)
+  // 0 = Auto (service duration + buffer), positive = explicit minutes
+  const [localSlotInterval, setLocalSlotInterval] = useState<number | null>(null);
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(() => {
     const allActive = state.locations.filter((l) => l.active);
     // If user is in "All" mode (null) AND there are multiple locations, keep null
@@ -167,11 +170,18 @@ export default function NewBookingScreen() {
     return basePrice + cart.reduce((sum, item) => sum + item.price, 0);
   }, [selectedService, cart]);
 
-  // Effective slot step: use configured slotInterval when non-zero, else auto (service duration capped at 30)
+  // Effective slot step:
+  // Priority: localSlotInterval (user picked in UI) > global slotInterval setting > Auto
+  // Auto = service duration + buffer time (so next slot starts right after appointment + buffer)
   const effectiveStep = useMemo(() => {
+    const bufferMin = (state.settings as any).bufferTime ?? 0;
+    const autoStep = Math.max(5, totalDuration + bufferMin);
+    if (localSlotInterval !== null) {
+      return localSlotInterval === 0 ? autoStep : localSlotInterval;
+    }
     const configured = (state.settings as any).slotInterval ?? 0;
-    return configured > 0 ? configured : Math.min(totalDuration, 30);
-  }, [(state.settings as any).slotInterval, totalDuration]);
+    return configured > 0 ? configured : autoStep;
+  }, [localSlotInterval, (state.settings as any).slotInterval, (state.settings as any).bufferTime, totalDuration]);
 
   // Auto-detect applicable discount (pass appointments to enforce maxUses cap)
   const appliedDiscount = useMemo(() => {
@@ -1311,6 +1321,51 @@ export default function NewBookingScreen() {
               </Text>
             </View>
           )}
+          {/* Slot Interval Selector */}
+          {(() => {
+            const INTERVALS = [
+              { label: "Auto", value: 0 },
+              { label: "5m", value: 5 },
+              { label: "10m", value: 10 },
+              { label: "15m", value: 15 },
+              { label: "20m", value: 20 },
+              { label: "25m", value: 25 },
+              { label: "30m", value: 30 },
+              { label: "35m", value: 35 },
+              { label: "40m", value: 40 },
+              { label: "45m", value: 45 },
+              { label: "50m", value: 50 },
+              { label: "55m", value: 55 },
+            ];
+            const globalConfigured = (state.settings as any).slotInterval ?? 0;
+            const activeValue = localSlotInterval !== null ? localSlotInterval : globalConfigured;
+            return (
+              <View style={{ marginBottom: 8 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingHorizontal: 2, paddingVertical: 2 }}>
+                  {INTERVALS.map((iv) => {
+                    const isActive = iv.value === activeValue;
+                    return (
+                      <Pressable
+                        key={iv.value}
+                        onPress={() => setLocalSlotInterval(iv.value)}
+                        style={({ pressed }) => ({
+                          paddingHorizontal: 12,
+                          paddingVertical: 5,
+                          borderRadius: 20,
+                          backgroundColor: isActive ? colors.primary : colors.surface,
+                          borderWidth: 1,
+                          borderColor: isActive ? colors.primary : colors.border,
+                          opacity: pressed ? 0.7 : 1,
+                        })}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: isActive ? "#FFFFFF" : colors.muted }}>{iv.label}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            );
+          })()}
           {/* Time Slots */}
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6, marginHorizontal: 4 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -1349,12 +1404,12 @@ export default function NewBookingScreen() {
               )}
             </View>
           ) : (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-              {staffFilteredTimeSlots.map((t) => {
+            (() => {
+              const slotChipWidth = Math.floor((screenWidth - hp * 2 - 12) / 3);
+              const renderSlotChip = (t: string) => {
                 const isSelected = t === selectedTime;
                 const locCount = isAllMode ? (slotLocationCount[t] ?? 1) : 1;
                 const multiLoc = isAllMode && locCount > 1;
-                const slotChipWidth = Math.floor((screenWidth - hp * 2 - 12) / 3);
                 return (
                   <Pressable
                     key={t}
@@ -1369,44 +1424,49 @@ export default function NewBookingScreen() {
                       },
                     ]}
                   >
-                    <Text
-                      style={{ fontSize: 13, fontWeight: "700", color: isSelected ? "#FFFFFF" : colors.foreground, textAlign: "center", lineHeight: 17 }}
-                    >
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: isSelected ? "#FFFFFF" : colors.foreground, textAlign: "center", lineHeight: 17 }}>
                       {formatTime(t)}
                     </Text>
-                    <Text
-                      style={{
-                        fontSize: 9,
-                        color: isSelected ? "#FFFFFF99" : colors.muted,
-                        marginTop: 1,
-                        textAlign: "center",
-                        lineHeight: 12,
-                      }}
-                    >
+                    <Text style={{ fontSize: 9, color: isSelected ? "#FFFFFF99" : colors.muted, marginTop: 1, textAlign: "center", lineHeight: 12 }}>
                       to {getEndTime(t)}
                     </Text>
                     {multiLoc && (
-                      <View style={{
-                        marginTop: 3,
-                        backgroundColor: isSelected ? "#FFFFFF30" : colors.primary + "20",
-                        borderRadius: 4,
-                        paddingHorizontal: 4,
-                        paddingVertical: 1,
-                      }}>
-                        <Text style={{
-                          fontSize: 9,
-                          fontWeight: "700",
-                          color: isSelected ? "#FFFFFF" : colors.primary,
-                          textAlign: "center",
-                        }}>
+                      <View style={{ marginTop: 3, backgroundColor: isSelected ? "#FFFFFF30" : colors.primary + "20", borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
+                        <Text style={{ fontSize: 9, fontWeight: "700", color: isSelected ? "#FFFFFF" : colors.primary, textAlign: "center" }}>
                           {locCount} locations
                         </Text>
                       </View>
                     )}
                   </Pressable>
                 );
-              })}
-            </View>
+              };
+              // Group into Morning/Afternoon/Evening when there are many slots
+              const useGroups = staffFilteredTimeSlots.length > 12;
+              if (!useGroups) {
+                return (
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+                    {staffFilteredTimeSlots.map(renderSlotChip)}
+                  </View>
+                );
+              }
+              const groups = [
+                { label: "Morning", slots: staffFilteredTimeSlots.filter((t) => { const h = parseInt(t.split(":")[0]); return h < 12; }) },
+                { label: "Afternoon", slots: staffFilteredTimeSlots.filter((t) => { const h = parseInt(t.split(":")[0]); return h >= 12 && h < 17; }) },
+                { label: "Evening", slots: staffFilteredTimeSlots.filter((t) => { const h = parseInt(t.split(":")[0]); return h >= 17; }) },
+              ].filter((g) => g.slots.length > 0);
+              return (
+                <View style={{ marginBottom: 12 }}>
+                  {groups.map((group) => (
+                    <View key={group.label} style={{ marginBottom: 10 }}>
+                      <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, marginBottom: 6, marginLeft: 2 }}>{group.label}</Text>
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                        {group.slots.map(renderSlotChip)}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              );
+            })()
           )}
 
           {/* Notes */}

@@ -28,6 +28,8 @@ import {
   ServicePhoto,
   PromoCode,
   InboxNotification,
+  ReminderTemplate,
+  DEFAULT_REMINDER_TEMPLATES,
 } from "./types";
 import { trpc } from "./trpc";
 
@@ -67,6 +69,8 @@ interface AppState {
   promoCodes: PromoCode[];
   /** In-app notification inbox items */
   inboxNotifications: InboxNotification[];
+  /** Global reminder templates for sending SMS reminders to clients */
+  reminderTemplates: ReminderTemplate[];
 }
 
 const initialSettings: BusinessSettings = {
@@ -135,6 +139,7 @@ const initialState: AppState = {
   servicePhotos: [],
   promoCodes: [],
   inboxNotifications: [],
+  reminderTemplates: DEFAULT_REMINDER_TEMPLATES,
 };
 
 // --- Actions ---
@@ -197,6 +202,10 @@ type Action =
   | { type: "MARK_INBOX_READ" }
   | { type: "DISMISS_INBOX_NOTIFICATION"; payload: string }
   | { type: "CLEAR_OLD_INBOX_NOTIFICATIONS" }
+  | { type: "ADD_REMINDER_TEMPLATE"; payload: ReminderTemplate }
+  | { type: "UPDATE_REMINDER_TEMPLATE"; payload: ReminderTemplate }
+  | { type: "DELETE_REMINDER_TEMPLATE"; payload: string }
+  | { type: "MARK_REMINDER_SENT"; payload: { appointmentId: string; templateId: string; sentAt: string } }
   | { type: "RESET_ALL_DATA" };
 
 function reducer(state: AppState, action: Action): AppState {
@@ -486,6 +495,24 @@ function reducer(state: AppState, action: Action): AppState {
         ),
       };
     }
+    case "ADD_REMINDER_TEMPLATE":
+      if ((state.reminderTemplates ?? []).some((t) => t.id === action.payload.id)) return state;
+      return { ...state, reminderTemplates: [...(state.reminderTemplates ?? []), action.payload] };
+    case "UPDATE_REMINDER_TEMPLATE":
+      return { ...state, reminderTemplates: (state.reminderTemplates ?? []).map((t) => t.id === action.payload.id ? action.payload : t) };
+    case "DELETE_REMINDER_TEMPLATE":
+      return { ...state, reminderTemplates: (state.reminderTemplates ?? []).filter((t) => t.id !== action.payload) };
+    case "MARK_REMINDER_SENT": {
+      const { appointmentId, templateId, sentAt } = action.payload;
+      return {
+        ...state,
+        appointments: state.appointments.map((a) =>
+          a.id === appointmentId
+            ? { ...a, sentReminders: { ...(a.sentReminders ?? {}), [templateId]: sentAt } }
+            : a
+        ),
+      };
+    }
     case "RESET_ALL_DATA":
       return { ...initialState, loaded: true };
     default:
@@ -545,6 +572,7 @@ const STORAGE_KEYS = {
   packages: "@bookease_packages",
   servicePhotos: "@bookease_service_photos",
   inboxNotifications: "@bookease_inbox_notifications",
+  reminderTemplates: "@bookease_reminder_templates",
 };
 
 /** Convert DB rows to local frontend models */
@@ -1004,7 +1032,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         // ── STEP 1: Load AsyncStorage cache immediately (stale-while-revalidate) ──
         // Show the user their last-known data instantly (~50ms) while DB fetches in background
         if (storedOwnerId) {
-          const [servicesRaw, clientsRaw, appointmentsRaw, reviewsRaw, settingsRaw, discountsRaw, giftCardsRaw, customScheduleRaw, productsRaw, staffRaw, locationsRaw, locationCustomScheduleRaw, clientPhotosRaw, packagesRaw, servicePhotosRaw, inboxNotificationsRaw] =
+          const [servicesRaw, clientsRaw, appointmentsRaw, reviewsRaw, settingsRaw, discountsRaw, giftCardsRaw, customScheduleRaw, productsRaw, staffRaw, locationsRaw, locationCustomScheduleRaw, clientPhotosRaw, packagesRaw, servicePhotosRaw, inboxNotificationsRaw, reminderTemplatesRaw] =
             await Promise.all([
               AsyncStorage.getItem(STORAGE_KEYS.services),
               AsyncStorage.getItem(STORAGE_KEYS.clients),
@@ -1022,6 +1050,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               AsyncStorage.getItem(STORAGE_KEYS.packages),
               AsyncStorage.getItem(STORAGE_KEYS.servicePhotos),
               AsyncStorage.getItem(STORAGE_KEYS.inboxNotifications),
+              AsyncStorage.getItem(STORAGE_KEYS.reminderTemplates),
             ]);
           if (servicesRaw || clientsRaw || appointmentsRaw || locationsRaw) {
             const parsedSettingsCache = settingsRaw ? JSON.parse(settingsRaw) : {};
@@ -1060,6 +1089,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 packages: packagesRaw ? JSON.parse(packagesRaw) : [],
                 servicePhotos: servicePhotosRaw ? JSON.parse(servicePhotosRaw) : [],
                 inboxNotifications: inboxNotificationsRaw ? JSON.parse(inboxNotificationsRaw) : [],
+                reminderTemplates: reminderTemplatesRaw ? JSON.parse(reminderTemplatesRaw) : DEFAULT_REMINDER_TEMPLATES,
               },
             });
             // Restore active location
@@ -1402,6 +1432,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!state.loaded) return;
     AsyncStorage.setItem(STORAGE_KEYS.inboxNotifications, JSON.stringify(state.inboxNotifications ?? []));
   }, [state.inboxNotifications, state.loaded]);
+  useEffect(() => {
+    if (!state.loaded) return;
+    AsyncStorage.setItem(STORAGE_KEYS.reminderTemplates, JSON.stringify(state.reminderTemplates ?? DEFAULT_REMINDER_TEMPLATES));
+  }, [state.reminderTemplates, state.loaded]);
   useEffect(() => {
     if (state.businessOwnerId !== null) {
       AsyncStorage.setItem(STORAGE_KEYS.businessOwnerId, String(state.businessOwnerId));

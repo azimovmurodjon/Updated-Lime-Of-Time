@@ -24,7 +24,6 @@ import {
   generateAcceptMessage,
   generateRejectMessage,
   generateCancellationMessage,
-  generateReminderMessage,
   formatFullAddress,
   PUBLIC_BOOKING_URL,
   LIME_OF_TIME_FOOTER,
@@ -705,45 +704,8 @@ Would you also like to charge a no-show fee via Stripe?`,
   };
 
   const handleSendReminder = () => {
-    if (!client?.phone) return;
-    const customReminderTpl = biz.smsTemplates?.reminder;
-    let msg: string;
-    if (customReminderTpl) {
-      const slug = biz.customSlug || biz.businessName.replace(/\s+/g, "-").toLowerCase();
-      const fullAddr = assignedLocation
-        ? formatFullAddress(assignedLocation.address, assignedLocation.city, assignedLocation.state, assignedLocation.zipCode)
-        : formatFullAddress(profile.address, profile.city, profile.state, profile.zipCode);
-      const locLine = assignedLocation?.name ? (fullAddr ? `${assignedLocation.name} \u2014 ${fullAddr}` : assignedLocation.name) : fullAddr;
-      msg = applyTemplate(customReminderTpl, {
-        clientName: client.name,
-        businessName: biz.businessName,
-        serviceName: service ? getServiceDisplayName(service) : "Service",
-        duration: String(appointment.duration),
-        date: appointment.date,
-        time: appointment.time,
-        location: locLine,
-        phone: formatPhoneNumber(stripPhoneFormat(assignedLocation?.phone || profile.phone)),
-        clientPhone: client.phone,
-        bookingUrl: `${PUBLIC_BOOKING_URL}/book/${slug}${assignedLocation?.id ? "?location=" + assignedLocation.id : ""}`,
-        reviewUrl: `${PUBLIC_BOOKING_URL}/review/${slug}`,
-      });
-    } else {
-      msg = generateReminderMessage(
-        biz.businessName,
-        assignedLocation?.address || profile.address,
-        client.name,
-        service ? getServiceDisplayName(service) : "Service",
-        appointment.duration,
-        appointment.date,
-        appointment.time,
-        assignedLocation?.phone || profile.phone,
-        assignedLocation?.name,
-        assignedLocation?.city ?? profile.city,
-        assignedLocation?.state ?? profile.state,
-        assignedLocation?.zipCode ?? profile.zipCode
-      );
-    }
-    openSms(client.phone, msg);
+    // Navigate to the Send Reminder screen instead of directly opening SMS
+    router.push({ pathname: '/send-reminder' as any, params: { appointmentId: appointment.id } });
   };
 
   const handleOpenMap = () => {
@@ -759,7 +721,27 @@ Would you also like to charge a no-show fee via Stripe?`,
         <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
           <IconSymbol name="arrow.left" size={24} color={colors.foreground} />
         </Pressable>
-        <Text style={{ fontSize: 20, fontWeight: "700", color: colors.foreground, marginLeft: 16 }}>Appointment</Text>
+        <Text style={{ fontSize: 20, fontWeight: "700", color: colors.foreground, marginLeft: 16, flex: 1 }}>Appointment</Text>
+        {/* Edit button — only show for non-cancelled/completed appointments */}
+        {appointment && appointment.status !== 'cancelled' && appointment.status !== 'completed' && (
+          <Pressable
+            onPress={() => router.push({ pathname: '/edit-appointment' as any, params: { id: appointment.id } })}
+            style={({ pressed }) => ({
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4,
+              paddingHorizontal: 12,
+              paddingVertical: 7,
+              borderRadius: 20,
+              borderWidth: 1.5,
+              borderColor: colors.primary,
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <IconSymbol name="pencil" size={14} color={colors.primary} />
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colors.primary }}>Edit</Text>
+          </Pressable>
+        )}
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}>

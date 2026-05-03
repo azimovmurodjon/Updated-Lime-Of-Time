@@ -1,0 +1,750 @@
+import {
+  Text,
+  View,
+  Pressable,
+  StyleSheet,
+  ScrollView,
+  Alert,
+  Modal,
+  TextInput,
+} from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { ScreenContainer } from "@/components/screen-container";
+import { useStore, formatTime, formatDateStr } from "@/lib/store";
+import { useColors } from "@/hooks/use-colors";
+import { useResponsive } from "@/hooks/use-responsive";
+import { IconSymbol } from "@/components/ui/icon-symbol";
+import { useState, useMemo, useCallback } from "react";
+import {
+  DAYS_OF_WEEK,
+  DEFAULT_WORKING_HOURS,
+  generateAvailableSlots,
+  minutesToTime,
+  timeToMinutes,
+  timeSlotsOverlap,
+  formatTimeDisplay,
+} from "@/lib/types";
+import { TapTimePicker } from "@/components/tap-time-picker";
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const DAY_HEADERS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const INTERVALS = [
+  { label: "Auto", value: 0 },
+  { label: "5m", value: 5 },
+  { label: "10m", value: 10 },
+  { label: "15m", value: 15 },
+  { label: "20m", value: 20 },
+  { label: "25m", value: 25 },
+  { label: "30m", value: 30 },
+  { label: "35m", value: 35 },
+  { label: "40m", value: 40 },
+  { label: "45m", value: 45 },
+  { label: "50m", value: 50 },
+  { label: "55m", value: 55 },
+];
+
+export default function EditAppointmentScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { state, dispatch, getServiceById, getLocationById, syncToDb } = useStore();
+  const colors = useColors();
+  const router = useRouter();
+  const { hp, width: screenWidth } = useResponsive();
+
+  const appointment = useMemo(
+    () => state.appointments.find((a) => a.id === id),
+    [state.appointments, id]
+  );
+
+  const service = useMemo(
+    () => (appointment ? getServiceById(appointment.serviceId) : null),
+    [appointment, getServiceById]
+  );
+
+  const todayStr = formatDateStr(new Date());
+
+  // ── Local state (pre-populated from appointment) ──────────────────────
+  const [selectedDate, setSelectedDate] = useState<string>(
+    appointment?.date ?? todayStr
+  );
+  const [selectedTime, setSelectedTime] = useState<string | null>(
+    appointment?.time ?? null
+  );
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(
+    appointment?.locationId ?? null
+  );
+
+  // Calendar month navigation
+  const [calMonthOffset, setCalMonthOffset] = useState(() => {
+    if (!appointment?.date) return 0;
+    const today = new Date();
+    const sel = new Date(appointment.date + "T12:00:00");
+    return (
+      (sel.getFullYear() - today.getFullYear()) * 12 +
+      (sel.getMonth() - today.getMonth())
+    );
+  });
+
+  // Slot interval override
+  const [localSlotInterval, setLocalSlotInterval] = useState<number | null>(null);
+
+  // Custom time modal
+  const [showCustomTime, setShowCustomTime] = useState(false);
+  const [customTimeValue, setCustomTimeValue] = useState(
+    appointment?.time ?? "09:00"
+  );
+
+  // ── Derived data ───────────────────────────────────────────────────────
+  const activeLocations = useMemo(
+    () => state.locations.filter((l) => l.active),
+    [state.locations]
+  );
+
+  const selectedLocation = useMemo(
+    () => (selectedLocationId ? state.locations.find((l) => l.id === selectedLocationId) ?? null : null),
+    [state.locations, selectedLocationId]
+  );
+
+  const locationWorkingHours = useMemo(() => {
+    if (selectedLocation?.workingHours && Object.keys(selectedLocation.workingHours).length > 0) {
+      return selectedLocation.workingHours as Record<string, import("@/lib/types").WorkingHours>;
+    }
+    return state.settings.workingHours ?? DEFAULT_WORKING_HOURS;
+  }, [selectedLocation, state.settings.workingHours]);
+
+  const duration = appointment?.duration ?? service?.duration ?? 60;
+
+  const effectiveStep = useMemo(() => {
+    const bufferMin = (state.settings as any).bufferTime ?? 0;
+    const autoStep = Math.max(5, duration + bufferMin);
+    if (localSlotInterval !== null) {
+      return localSlotInterval === 0 ? autoStep : localSlotInterval;
+    }
+    const configured = (state.settings as any).slotInterval ?? 0;
+    return configured > 0 ? configured : autoStep;
+  }, [localSlotInterval, (state.settings as any).slotInterval, (state.settings as any).bufferTime, duration]);
+
+  // Appointments at the selected location, excluding the current appointment being edited
+  const locationAppts = useMemo(() => {
+    const appts = state.appointments.filter((a) => a.id !== id);
+    if (!selectedLocationId) return appts;
+    return appts.filter((a) => a.locationId === selectedLocationId);
+  }, [state.appointments, id, selectedLocationId]);
+
+  const activeCustomSchedule = useMemo(() => {
+    const locEntries = selectedLocationId
+      ? ((state as any).locationCustomSchedule?.[selectedLocationId] ?? [])
+      : [];
+    const locDates = new Set(locEntries.map((cs: any) => cs.date));
+    const globalFallback = (state.customSchedule ?? []).filter((cs) => !locDates.has(cs.date));
+    return [...locEntries, ...globalFallback];
+  }, [selectedLocationId, (state as any).locationCustomSchedule, state.customSchedule]);
+
+  const timeSlots = useMemo(() => {
+    return generateAvailableSlots(
+      selectedDate,
+      duration,
+      locationWorkingHours,
+      locationAppts,
+      effectiveStep,
+      activeCustomSchedule,
+      state.settings.scheduleMode,
+      (state.settings as any).bufferTime ?? 0
+    );
+  }, [selectedDate, duration, locationWorkingHours, locationAppts, effectiveStep,
+      activeCustomSchedule, state.settings.scheduleMode, (state.settings as any).bufferTime]);
+
+  // Date options for the calendar (90 days)
+  const dateOptions = useMemo(() => {
+    const dates: { date: string; closed: boolean; noSlots: boolean }[] = [];
+    const today = new Date();
+    const endDate = state.settings.businessHoursEndDate;
+    for (let i = 0; i < 90; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      const ds = formatDateStr(d);
+      let closed = !!(endDate && ds > endDate);
+      if (!closed) {
+        const customDay = activeCustomSchedule.find((cs: { date: string; isOpen: boolean }) => cs.date === ds);
+        if (state.settings.scheduleMode === "custom") {
+          closed = !customDay || !customDay.isOpen;
+        } else if (customDay) {
+          closed = !customDay.isOpen;
+        } else {
+          const dayName = DAYS_OF_WEEK[d.getDay()];
+          const wh = locationWorkingHours[dayName];
+          closed = !wh || !wh.enabled;
+        }
+      }
+      let noSlots = false;
+      if (!closed) {
+        const slots = generateAvailableSlots(
+          ds, duration, locationWorkingHours, locationAppts, effectiveStep,
+          activeCustomSchedule, state.settings.scheduleMode, (state.settings as any).bufferTime ?? 0
+        );
+        noSlots = slots.length === 0;
+      }
+      dates.push({ date: ds, closed, noSlots });
+    }
+    return dates;
+  }, [activeCustomSchedule, locationWorkingHours, locationAppts, duration,
+      state.settings.scheduleMode, state.settings.businessHoursEndDate,
+      (state.settings as any).bufferTime, effectiveStep]);
+
+  // ── Helpers ────────────────────────────────────────────────────────────
+  const getEndTime = useCallback(
+    (t: string) => formatTimeDisplay(minutesToTime(timeToMinutes(t) + duration)),
+    [duration]
+  );
+
+  // Check if a custom time conflicts with confirmed/pending appointments (excluding self)
+  const customTimeHasConflict = useCallback(
+    (time: string) => {
+      const otherAppts = state.appointments.filter(
+        (a) =>
+          a.id !== id &&
+          a.date === selectedDate &&
+          (a.status === "confirmed" || a.status === "pending") &&
+          (!selectedLocationId || a.locationId === selectedLocationId)
+      );
+      return otherAppts.some((a) => timeSlotsOverlap(time, duration, a.time, a.duration));
+    },
+    [state.appointments, id, selectedDate, selectedLocationId, duration]
+  );
+
+  // ── Save ───────────────────────────────────────────────────────────────
+  const handleSave = useCallback(() => {
+    if (!appointment) return;
+    if (!selectedTime) {
+      Alert.alert("Select a Time", "Please select a time for the appointment.");
+      return;
+    }
+    if (activeLocations.length > 1 && !selectedLocationId) {
+      Alert.alert("Select a Location", "Please select a location for the appointment.");
+      return;
+    }
+
+    const updated = {
+      ...appointment,
+      date: selectedDate,
+      time: selectedTime,
+      locationId: selectedLocationId ?? appointment.locationId,
+    };
+
+    dispatch({ type: "UPDATE_APPOINTMENT", payload: updated });
+    syncToDb({ type: "UPDATE_APPOINTMENT", payload: updated });
+
+    // Offer to send a reminder after saving
+    Alert.alert(
+      "Appointment Updated",
+      "Would you like to send a reminder to the client?",
+      [
+        {
+          text: "Not Now",
+          style: "cancel",
+          onPress: () => router.back(),
+        },
+        {
+          text: "Send Reminder",
+          onPress: () => {
+            router.back();
+            // Navigate to send-reminder from appointment-detail
+            router.push({
+              pathname: "/send-reminder" as any,
+              params: { appointmentId: appointment.id },
+            });
+          },
+        },
+      ]
+    );
+  }, [appointment, selectedDate, selectedTime, selectedLocationId, activeLocations.length,
+      dispatch, syncToDb, router]);
+
+  // ── Guard: appointment not found ───────────────────────────────────────
+  if (!appointment) {
+    return (
+      <ScreenContainer edges={["top", "bottom", "left", "right"]}>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <Text style={{ color: colors.muted }}>Appointment not found.</Text>
+          <Pressable onPress={() => router.back()} style={{ marginTop: 16 }}>
+            <Text style={{ color: colors.primary }}>Go Back</Text>
+          </Pressable>
+        </View>
+      </ScreenContainer>
+    );
+  }
+
+  // ── Calendar rendering ─────────────────────────────────────────────────
+  const today = new Date();
+  const displayDate = new Date(today.getFullYear(), today.getMonth() + calMonthOffset, 1);
+  const displayMonth = displayDate.getMonth();
+  const displayYear = displayDate.getFullYear();
+  const firstDayOfWeek = new Date(displayYear, displayMonth, 1).getDay();
+  const daysInMonth = new Date(displayYear, displayMonth + 1, 0).getDate();
+  const calCells: (number | null)[] = [
+    ...Array(firstDayOfWeek).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+  const calCellSize = Math.floor((screenWidth - hp * 2) / 7);
+  const maxDate = new Date(today);
+  maxDate.setDate(today.getDate() + 89);
+  const maxDateStr = formatDateStr(maxDate);
+  const canGoPrev = calMonthOffset > 0;
+  const canGoNext = calMonthOffset < 3;
+
+  const slotChipWidth = Math.floor((screenWidth - hp * 2 - 12) / 3);
+
+  const renderSlotChip = (t: string) => {
+    const isSelected = t === selectedTime;
+    return (
+      <Pressable
+        key={t}
+        onPress={() => setSelectedTime(t)}
+        style={({ pressed }) => [
+          styles.timeChip,
+          {
+            backgroundColor: isSelected ? colors.primary : colors.surface,
+            borderColor: isSelected ? colors.primary : colors.border,
+            opacity: pressed ? 0.7 : 1,
+            width: slotChipWidth,
+          },
+        ]}
+      >
+        <Text style={{ fontSize: 13, fontWeight: "700", color: isSelected ? "#FFFFFF" : colors.foreground, textAlign: "center", lineHeight: 17 }}>
+          {formatTime(t)}
+        </Text>
+        <Text style={{ fontSize: 9, color: isSelected ? "#FFFFFF99" : colors.muted, marginTop: 1, textAlign: "center", lineHeight: 12 }}>
+          to {getEndTime(t)}
+        </Text>
+      </Pressable>
+    );
+  };
+
+  const useGroups = timeSlots.length > 12;
+  const slotGroups = useGroups
+    ? [
+        { label: "Morning", slots: timeSlots.filter((t) => parseInt(t.split(":")[0]) < 12) },
+        { label: "Afternoon", slots: timeSlots.filter((t) => { const h = parseInt(t.split(":")[0]); return h >= 12 && h < 17; }) },
+        { label: "Evening", slots: timeSlots.filter((t) => parseInt(t.split(":")[0]) >= 17) },
+      ].filter((g) => g.slots.length > 0)
+    : [];
+
+  return (
+    <ScreenContainer edges={["top", "bottom", "left", "right"]}>
+      {/* Header */}
+      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8, paddingTop: 8, paddingHorizontal: hp }}>
+        <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+          <IconSymbol name="arrow.left" size={24} color={colors.foreground} />
+        </Pressable>
+        <Text style={{ fontSize: 20, fontWeight: "700", color: colors.foreground, marginLeft: 16, flex: 1 }}>
+          Edit Appointment
+        </Text>
+        <Pressable
+          onPress={handleSave}
+          style={({ pressed }) => ({
+            backgroundColor: colors.primary,
+            paddingHorizontal: 16,
+            paddingVertical: 8,
+            borderRadius: 20,
+            opacity: pressed ? 0.8 : 1,
+          })}
+        >
+          <Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 14 }}>Save</Text>
+        </Pressable>
+      </View>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}
+      >
+        {/* Service info (read-only) */}
+        <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: service?.color ?? colors.primary }} />
+            <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>
+              {service?.name ?? "Service"}
+            </Text>
+            <Text style={{ fontSize: 12, color: colors.muted, marginLeft: "auto" }}>
+              {duration} min
+            </Text>
+          </View>
+        </View>
+
+        {/* Location Selector */}
+        {activeLocations.length > 0 && (
+          <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+            <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 10 }}>Location</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                {activeLocations.map((loc) => {
+                  const isSelected = selectedLocationId === loc.id;
+                  return (
+                    <Pressable
+                      key={loc.id}
+                      onPress={() => {
+                        setSelectedLocationId(loc.id);
+                        setSelectedTime(null);
+                      }}
+                      style={({ pressed }) => ({
+                        paddingHorizontal: 14,
+                        paddingVertical: 10,
+                        borderRadius: 12,
+                        borderWidth: 1.5,
+                        backgroundColor: isSelected ? colors.primary + "15" : colors.background,
+                        borderColor: isSelected ? colors.primary : colors.border,
+                        opacity: pressed ? 0.7 : 1,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                      })}
+                    >
+                      <IconSymbol name="location.fill" size={14} color={isSelected ? colors.primary : colors.muted} />
+                      <View>
+                        <Text style={{ fontSize: 13, fontWeight: "600", color: isSelected ? colors.primary : colors.foreground }}>
+                          {loc.name}
+                        </Text>
+                        {!!loc.address && (
+                          <Text style={{ fontSize: 11, color: colors.muted, marginTop: 1 }} numberOfLines={1}>
+                            {loc.address}
+                          </Text>
+                        )}
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Calendar */}
+        <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+          {/* Month navigation */}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <Pressable
+              onPress={() => { if (canGoPrev) setCalMonthOffset((o) => o - 1); }}
+              style={({ pressed }) => ({ padding: 8, opacity: canGoPrev ? (pressed ? 0.5 : 1) : 0.25 })}
+            >
+              <IconSymbol name="chevron.left" size={20} color={colors.foreground} />
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                setCalMonthOffset(0);
+                setSelectedDate(todayStr);
+                setSelectedTime(null);
+              }}
+            >
+              <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>
+                {MONTH_NAMES[displayMonth]} {displayYear}
+              </Text>
+            </Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              {selectedDate !== todayStr && (
+                <Pressable
+                  onPress={() => {
+                    setCalMonthOffset(0);
+                    setSelectedDate(todayStr);
+                    setSelectedTime(null);
+                  }}
+                  style={({ pressed }) => ({
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                    borderRadius: 12,
+                    backgroundColor: colors.primary + "18",
+                    opacity: pressed ? 0.65 : 1,
+                    marginRight: 4,
+                  })}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: colors.primary }}>Today</Text>
+                </Pressable>
+              )}
+              <Pressable
+                onPress={() => { if (canGoNext) setCalMonthOffset((o) => o + 1); }}
+                style={({ pressed }) => ({ padding: 8, opacity: canGoNext ? (pressed ? 0.5 : 1) : 0.25 })}
+              >
+                <IconSymbol name="chevron.right" size={20} color={colors.foreground} />
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Day headers */}
+          <View style={{ flexDirection: "row", marginBottom: 4 }}>
+            {DAY_HEADERS.map((d) => (
+              <View key={d} style={{ width: calCellSize, alignItems: "center" }}>
+                <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted }}>{d}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Calendar grid */}
+          <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+            {calCells.map((day, idx) => {
+              if (day === null) {
+                return <View key={`empty-${idx}`} style={{ width: calCellSize, height: calCellSize }} />;
+              }
+              const dateStr = `${displayYear}-${String(displayMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+              const isSelected = dateStr === selectedDate;
+              const isToday = dateStr === todayStr;
+              const isPast = dateStr < todayStr;
+              const isOutOfRange = dateStr > maxDateStr;
+              const opt = dateOptions.find((o) => o.date === dateStr);
+              const isClosed = opt ? opt.closed : true;
+              const isNoSlots = opt ? opt.noSlots : false;
+              const isDisabled = isPast || isOutOfRange || isClosed || isNoSlots;
+              return (
+                <Pressable
+                  key={dateStr}
+                  onPress={() => {
+                    if (!isDisabled) {
+                      setSelectedDate(dateStr);
+                      setSelectedTime(null);
+                    }
+                  }}
+                  style={({ pressed }) => ({
+                    width: calCellSize,
+                    height: calCellSize,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "transparent",
+                    borderRadius: calCellSize / 2,
+                    borderWidth: isSelected ? 1.5 : 0,
+                    borderColor: isSelected ? colors.primary : "transparent",
+                    opacity: (isPast || isOutOfRange) ? 0.3 : pressed && !isDisabled ? 0.7 : 1,
+                  })}
+                >
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: isToday || isSelected ? "700" : "400",
+                      color: isSelected || isToday
+                        ? colors.primary
+                        : isClosed && !isPast && !isOutOfRange
+                        ? colors.muted
+                        : colors.foreground,
+                      textDecorationLine: isClosed && !isPast && !isOutOfRange ? "line-through" : "none",
+                    }}
+                  >
+                    {day}
+                  </Text>
+                  {isToday && (
+                    <View style={{ position: "absolute", bottom: 4, width: 4, height: 4, borderRadius: 2, backgroundColor: colors.primary }} />
+                  )}
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Selected date label */}
+        {selectedDate && (
+          <View style={{ marginBottom: 8, marginHorizontal: 2 }}>
+            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>
+              {new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", {
+                weekday: "long", month: "long", day: "numeric",
+              })}
+            </Text>
+          </View>
+        )}
+
+        {/* Slot Interval Selector */}
+        <View style={{ marginBottom: 8 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingHorizontal: 2, paddingVertical: 2 }}>
+            {INTERVALS.map((iv) => {
+              const globalConfigured = (state.settings as any).slotInterval ?? 0;
+              const activeValue = localSlotInterval !== null ? localSlotInterval : globalConfigured;
+              const isActive = iv.value === activeValue;
+              return (
+                <Pressable
+                  key={iv.value}
+                  onPress={() => setLocalSlotInterval(iv.value)}
+                  style={({ pressed }) => ({
+                    paddingHorizontal: 12,
+                    paddingVertical: 5,
+                    borderRadius: 20,
+                    backgroundColor: isActive ? colors.primary : colors.surface,
+                    borderWidth: 1,
+                    borderColor: isActive ? colors.primary : colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                  })}
+                >
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: isActive ? "#FFFFFF" : colors.muted }}>
+                    {iv.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* Time Slots */}
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6, marginHorizontal: 4 }}>
+          <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted }}>Available Times</Text>
+        </View>
+
+        {timeSlots.length === 0 ? (
+          <View style={[styles.emptySlots, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={{ fontSize: 13, color: colors.muted }}>No available times for this date</Text>
+            <Text style={{ fontSize: 11, color: colors.muted, marginTop: 4 }}>Try a different date or check working hours</Text>
+          </View>
+        ) : useGroups ? (
+          <View style={{ marginBottom: 12 }}>
+            {slotGroups.map((group) => (
+              <View key={group.label} style={{ marginBottom: 10 }}>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, marginBottom: 6, marginLeft: 2 }}>
+                  {group.label}
+                </Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                  {group.slots.map(renderSlotChip)}
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+            {timeSlots.map(renderSlotChip)}
+          </View>
+        )}
+
+        {/* Custom Time Option */}
+        <Pressable
+          onPress={() => setShowCustomTime(true)}
+          style={({ pressed }) => [
+            styles.customTimeBtn,
+            {
+              borderColor: selectedTime && !timeSlots.includes(selectedTime) ? colors.primary : colors.border,
+              backgroundColor: selectedTime && !timeSlots.includes(selectedTime) ? colors.primary + "12" : colors.surface,
+              opacity: pressed ? 0.7 : 1,
+            },
+          ]}
+        >
+          <IconSymbol name="clock" size={16} color={selectedTime && !timeSlots.includes(selectedTime) ? colors.primary : colors.muted} />
+          <Text style={{ fontSize: 13, fontWeight: "600", color: selectedTime && !timeSlots.includes(selectedTime) ? colors.primary : colors.muted, marginLeft: 6 }}>
+            {selectedTime && !timeSlots.includes(selectedTime)
+              ? `Custom: ${formatTime(selectedTime)}`
+              : "Custom Time..."}
+          </Text>
+        </Pressable>
+
+        {/* Currently selected time summary */}
+        {selectedTime && (
+          <View style={[styles.selectedSummary, { backgroundColor: colors.primary + "12", borderColor: colors.primary + "40" }]}>
+            <IconSymbol name="checkmark.circle.fill" size={16} color={colors.primary} />
+            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.primary, marginLeft: 6 }}>
+              {formatTime(selectedTime)} – {getEndTime(selectedTime)}
+            </Text>
+            {selectedDate !== appointment.date || selectedTime !== appointment.time ? (
+              <Text style={{ fontSize: 11, color: colors.muted, marginLeft: 8 }}>
+                (changed)
+              </Text>
+            ) : null}
+          </View>
+        )}
+
+        <View style={{ height: 20 }} />
+      </ScrollView>
+
+      {/* Custom Time Modal */}
+      <Modal
+        visible={showCustomTime}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowCustomTime(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+          {/* Modal Header */}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <Pressable onPress={() => setShowCustomTime(false)} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}>
+              <Text style={{ fontSize: 16, color: colors.primary }}>Cancel</Text>
+            </Pressable>
+            <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>Custom Time</Text>
+            <Pressable
+              onPress={() => {
+                // Check for conflict with confirmed/pending appointments
+                if (customTimeHasConflict(customTimeValue)) {
+                  Alert.alert(
+                    "Time Conflict",
+                    "This time overlaps with an existing confirmed or pending appointment. Please choose a different time.",
+                    [{ text: "OK" }]
+                  );
+                  return;
+                }
+                setSelectedTime(customTimeValue);
+                setShowCustomTime(false);
+              }}
+              style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+            >
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.primary }}>Set</Text>
+            </Pressable>
+          </View>
+
+          <ScrollView contentContainerStyle={{ padding: 24 }}>
+            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 20, textAlign: "center" }}>
+              Custom time overrides normal slot availability. It will not block confirmed or pending appointments.
+            </Text>
+
+            <TapTimePicker
+              value={customTimeValue}
+              onChange={setCustomTimeValue}
+              stepMinutes={5}
+              label="Select Time"
+            />
+
+            <View style={{ marginTop: 24, padding: 14, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border }}>
+              <Text style={{ fontSize: 13, color: colors.muted, textAlign: "center" }}>
+                Selected: <Text style={{ fontWeight: "700", color: colors.foreground }}>{formatTimeDisplay(customTimeValue)}</Text>
+                {" → "}
+                <Text style={{ fontWeight: "700", color: colors.foreground }}>{getEndTime(customTimeValue)}</Text>
+              </Text>
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+    </ScreenContainer>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: {
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+  },
+  timeChip: {
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    minHeight: 52,
+  },
+  emptySlots: {
+    alignItems: "center",
+    paddingVertical: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  customTimeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    marginBottom: 12,
+  },
+  selectedSummary: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+});

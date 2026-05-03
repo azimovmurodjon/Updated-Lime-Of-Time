@@ -161,6 +161,8 @@ export default function LocationFormScreen() {
       workingHours: useLocationHours ? locationHours : {},
       photoUri: photoUri.trim() || undefined,
       createdAt: existing?.createdAt ?? new Date().toISOString(),
+      bufferMinutes: locBufferMinutes ?? undefined,
+      slotIntervalMinutes: locSlotIntervalMinutes ?? undefined,
     };
 
     const action = isEdit
@@ -219,6 +221,16 @@ export default function LocationFormScreen() {
   const [useLocationHours, setUseLocationHours] = useState(
     !!(existing?.workingHours && Object.keys(existing.workingHours).length > 0)
   );
+  // ── Per-location Buffer & Slot Interval overrides ────────────────────────────
+  const [locBufferMinutes, setLocBufferMinutes] = useState<number | null>(
+    existing?.bufferMinutes != null ? existing.bufferMinutes : null
+  );
+  const [locSlotIntervalMinutes, setLocSlotIntervalMinutes] = useState<number | null>(
+    existing?.slotIntervalMinutes != null ? existing.slotIntervalMinutes : null
+  );
+  const [showLocBufferPicker, setShowLocBufferPicker] = useState(false);
+  const [showLocSlotPicker, setShowLocSlotPicker] = useState(false);
+
   // ── Active Until ────────────────────────────────────────────────────────────
   const [activeUntil, setActiveUntil] = useState<string | undefined>(existing?.activeUntil);
   const [showActiveUntilPicker, setShowActiveUntilPicker] = useState(false);
@@ -677,6 +689,65 @@ export default function LocationFormScreen() {
             )}
           </View>
         )}
+
+        {/* Per-location Buffer & Slot Interval overrides */}
+        <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <IconSymbol name="clock" size={16} color={colors.primary} />
+            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Scheduling Overrides</Text>
+          </View>
+          <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 12, lineHeight: 17 }}>
+            Override the global buffer time and slot interval for this location only. Leave blank to use the global setting.
+          </Text>
+          {/* Buffer Time */}
+          <View style={{ marginBottom: 12 }}>
+            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground, marginBottom: 6 }}>Buffer Time (minutes)</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, flexDirection: "row" }}>
+              {[null, 0, 5, 10, 15, 20, 30, 45, 60].map((mins) => {
+                const isActive = locBufferMinutes === mins;
+                const label = mins === null ? "Global" : mins === 0 ? "None" : `${mins}m`;
+                return (
+                  <Pressable
+                    key={String(mins)}
+                    onPress={() => setLocBufferMinutes(mins)}
+                    style={({ pressed }) => ({
+                      paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
+                      backgroundColor: isActive ? colors.primary : colors.background,
+                      borderWidth: 1, borderColor: isActive ? colors.primary : colors.border,
+                      opacity: pressed ? 0.7 : 1,
+                    })}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: "600", color: isActive ? "#FFFFFF" : colors.foreground }}>{label}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+          {/* Slot Interval */}
+          <View>
+            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground, marginBottom: 6 }}>Slot Interval (minutes)</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, flexDirection: "row" }}>
+              {[null, 0, 5, 10, 15, 20, 25, 30, 45, 60].map((mins) => {
+                const isActive = locSlotIntervalMinutes === mins;
+                const label = mins === null ? "Global" : mins === 0 ? "Auto" : `${mins}m`;
+                return (
+                  <Pressable
+                    key={String(mins)}
+                    onPress={() => setLocSlotIntervalMinutes(mins)}
+                    style={({ pressed }) => ({
+                      paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
+                      backgroundColor: isActive ? colors.primary : colors.background,
+                      borderWidth: 1, borderColor: isActive ? colors.primary : colors.border,
+                      opacity: pressed ? 0.7 : 1,
+                    })}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: "600", color: isActive ? "#FFFFFF" : colors.foreground }}>{label}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
 
         {/* Active Until */}
         <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>

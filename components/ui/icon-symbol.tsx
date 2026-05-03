@@ -17,6 +17,7 @@ const MAPPING = {
   "chevron.left": "chevron-left",
   "xmark": "close",
   "checkmark": "check",
+  "clock": "access-time",
   "clock.fill": "access-time",
   "phone.fill": "phone",
   "envelope.fill": "email",

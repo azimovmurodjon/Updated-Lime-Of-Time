@@ -385,6 +385,9 @@ export default function CalendarScreen() {
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
   const [selectedSlotTime, setSelectedSlotTime] = useState<string | null>(null);
   const [showAllSlots, setShowAllSlots] = useState(false);
+  // Local slot interval override for the calendar page slot panel
+  // null = use global setting, 0 = Auto, positive = explicit minutes
+  const [localCalSlotInterval, setLocalCalSlotInterval] = useState<number | null>(null);
 
   // Swipe gesture for month navigation
   const swipeStartX = useRef<number>(0);
@@ -664,7 +667,16 @@ export default function CalendarScreen() {
 
     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
     const defaultDuration = Math.max(1, state.settings.defaultDuration ?? 30);
-    const rawSlotStep = (state.settings as any).slotInterval ?? 30;
+    const bufferMin = (state.settings as any).bufferTime ?? 0;
+    // Auto step: shortest active service duration + buffer (or defaultDuration + buffer if no services)
+    const shortestServiceDuration = state.services.filter((s: any) => s.active !== false).reduce(
+      (min: number, s: any) => Math.min(min, Math.max(1, s.duration ?? defaultDuration)),
+      defaultDuration
+    );
+    const autoStep = Math.max(5, shortestServiceDuration + bufferMin);
+    const globalConfigured = (state.settings as any).slotInterval ?? 0;
+    const resolvedInterval = localCalSlotInterval !== null ? localCalSlotInterval : globalConfigured;
+    const rawSlotStep = resolvedInterval === 0 ? autoStep : (resolvedInterval > 0 ? resolvedInterval : autoStep);
     const slotStep = Math.max(rawSlotStep, defaultDuration);
     const isAllMode = calLocationFilter === null && activeLocations.length > 1;
 
@@ -751,7 +763,7 @@ export default function CalendarScreen() {
     return cache;
   }, [currentMonth, currentYear, isDayAvailable, calLocationFilter, activeLocations,
     state.settings, state.locationCustomSchedule, locationAppointments,
-    effectiveWorkingHours, activeCustomSchedule]);
+    effectiveWorkingHours, activeCustomSchedule, localCalSlotInterval, state.services]);
 
   // Derive daySlotCounts from slotCache for badge rendering
   const daySlotCounts = useMemo(() => {
@@ -1540,6 +1552,49 @@ export default function CalendarScreen() {
             </View>
             {availableSlots.length > 0 ? (
               <>
+                {/* Slot Interval Selector */}
+                {(() => {
+                  const CAL_INTERVALS = [
+                    { label: "Auto", value: 0 },
+                    { label: "5m", value: 5 },
+                    { label: "10m", value: 10 },
+                    { label: "15m", value: 15 },
+                    { label: "20m", value: 20 },
+                    { label: "25m", value: 25 },
+                    { label: "30m", value: 30 },
+                    { label: "35m", value: 35 },
+                    { label: "40m", value: 40 },
+                    { label: "45m", value: 45 },
+                    { label: "50m", value: 50 },
+                    { label: "55m", value: 55 },
+                  ];
+                  const globalConfigured = (state.settings as any).slotInterval ?? 0;
+                  const activeValue = localCalSlotInterval !== null ? localCalSlotInterval : globalConfigured;
+                  return (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingTop: 8, paddingBottom: 4 }} contentContainerStyle={{ paddingHorizontal: 12, gap: 6, flexDirection: "row" }}>
+                      {CAL_INTERVALS.map((iv) => {
+                        const isActive = iv.value === activeValue;
+                        return (
+                          <Pressable
+                            key={iv.value}
+                            onPress={() => { setLocalCalSlotInterval(iv.value); setShowAllSlots(false); }}
+                            style={({ pressed }) => ({
+                              paddingHorizontal: 10,
+                              paddingVertical: 4,
+                              borderRadius: 16,
+                              backgroundColor: isActive ? colors.primary : colors.surface,
+                              borderWidth: 1,
+                              borderColor: isActive ? colors.primary : colors.border,
+                              opacity: pressed ? 0.7 : 1,
+                            })}
+                          >
+                            <Text style={{ fontSize: 11, fontWeight: "700", color: isActive ? "#FFFFFF" : colors.muted }}>{iv.label}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                  );
+                })()}
                 {/* Scrollable time slot chips — tap to select */}
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingVertical: 10 }} contentContainerStyle={{ paddingHorizontal: 12, gap: 8, flexDirection: "row" }}>
                   {(showAllSlots ? availableSlots : availableSlots.slice(0, 20)).map((slotTime) => {
