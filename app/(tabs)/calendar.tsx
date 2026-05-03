@@ -677,7 +677,8 @@ export default function CalendarScreen() {
     const globalConfigured = (state.settings as any).slotInterval ?? 0;
     const resolvedInterval = localCalSlotInterval !== null ? localCalSlotInterval : globalConfigured;
     const rawSlotStep = resolvedInterval === 0 ? autoStep : (resolvedInterval > 0 ? resolvedInterval : autoStep);
-    const slotStep = Math.max(rawSlotStep, defaultDuration);
+    // Do NOT clamp to defaultDuration — user-selected intervals (e.g. 15m) must be respected
+    const slotStep = Math.max(rawSlotStep, 5);
     const isAllMode = calLocationFilter === null && activeLocations.length > 1;
 
     for (let day = 1; day <= daysInMonth; day++) {

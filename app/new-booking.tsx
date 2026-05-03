@@ -355,7 +355,7 @@ export default function NewBookingScreen() {
     // Sort chronologically
     return Array.from(slotSet).sort();
   }, [isAllMode, selectedDate, locationWorkingHours, locationAppts, totalDuration,
-      activeCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime,
+      effectiveStep, activeCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime,
       activeLocations, locationOpenOnDate, state.appointments, state.settings.workingHours,
       (state as any).locationCustomSchedule, refreshKey]);
 
