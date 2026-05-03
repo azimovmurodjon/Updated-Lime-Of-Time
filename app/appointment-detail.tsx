@@ -89,6 +89,10 @@ export default function AppointmentDetailScreen() {
   const [lastSessionId, setLastSessionId] = useState<string | null>(null);
   // Track if we've already notified the owner about auto-detected payment
   const pollingNotifiedRef = useRef(false);
+  // Discount modal state
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [discountInput, setDiscountInput] = useState("");
+  const [discountType, setDiscountType] = useState<"percent" | "flat">("percent");
 
 
   // Derived variables — safe with optional chaining (appointment may be null during hydration)
@@ -1131,6 +1135,73 @@ Would you also like to charge a no-show fee via Stripe?`,
           </Pressable>
         )}
 
+        {/* Add to Calendar button */}
+        <Pressable
+          onPress={async () => {
+            try {
+              const Calendar = await import("expo-calendar");
+              const { status } = await Calendar.requestCalendarPermissionsAsync();
+              if (status !== "granted") {
+                Alert.alert("Permission Denied", "Calendar access is required to add this appointment.");
+                return;
+              }
+              const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+              const defaultCal = calendars.find((c) => c.allowsModifications) ?? calendars[0];
+              if (!defaultCal) {
+                Alert.alert("No Calendar", "No writable calendar found on this device.");
+                return;
+              }
+              const [year, month, day] = appointment.date.split("-").map(Number);
+              const [startH, startM] = appointment.time.split(":").map(Number);
+              const startDate = new Date(year, month - 1, day, startH, startM, 0);
+              const endDate = new Date(startDate.getTime() + appointment.duration * 60 * 1000);
+              const locName = assignedLocation?.name ?? biz.businessName ?? "";
+              const locAddr = assignedLocation
+                ? formatFullAddress(assignedLocation.address, assignedLocation.city, assignedLocation.state, assignedLocation.zipCode)
+                : formatFullAddress(profile.address, profile.city, profile.state, profile.zipCode);
+              const locationStr = [locName, locAddr].filter(Boolean).join(" — ");
+              await Calendar.createEventAsync(defaultCal.id, {
+                title: service ? `${getServiceDisplayName(service)}${client ? " — " + client.name : ""}` : "Appointment",
+                startDate,
+                endDate,
+                location: locationStr || undefined,
+                notes: appointment.notes || undefined,
+                alarms: [{ relativeOffset: -60 }],
+              });
+              Alert.alert("Added to Calendar", "The appointment has been added to your calendar.");
+            } catch (e) {
+              Alert.alert("Error", "Could not add to calendar. Please try again.");
+            }
+          }}
+          style={({ pressed }) => [
+            styles.messageBtn,
+            { borderColor: colors.border, opacity: pressed ? 0.8 : 1 },
+          ]}
+        >
+          <IconSymbol name="calendar" size={18} color={colors.muted} />
+          <Text style={[styles.messageBtnText, { color: colors.muted }]}>Add to Calendar</Text>
+        </Pressable>
+
+        {/* Add Discount button — only for pending/confirmed */}
+        {(appointment.status === "pending" || appointment.status === "confirmed") && (
+          <Pressable
+            onPress={() => {
+              setDiscountInput("");
+              setDiscountType("percent");
+              setShowDiscountModal(true);
+            }}
+            style={({ pressed }) => [
+              styles.messageBtn,
+              { borderColor: colors.warning, opacity: pressed ? 0.8 : 1 },
+            ]}
+          >
+            <IconSymbol name="tag.fill" size={18} color={colors.warning} />
+            <Text style={[styles.messageBtnText, { color: colors.warning }]}>
+              {(appointment.discountAmount ?? 0) > 0 ? "Edit Discount" : "Add Discount"}
+            </Text>
+          </Pressable>
+        )}
+
         {/* Pending Cancel/Reschedule Request Banner */}
         {(appointment.cancelRequest?.status === 'pending' || appointment.rescheduleRequest?.status === 'pending') && (
           <View style={{ backgroundColor: '#FEF3C7', borderColor: '#FCD34D', borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 16 }}>
@@ -1915,6 +1986,134 @@ Would you also like to charge a no-show fee via Stripe?`,
               >
                 <Text style={{ fontSize: 15, fontWeight: "700", color: "#FFF" }}>Cancel Appointment</Text>
               </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Add / Edit Discount Modal ── */}
+      <Modal visible={showDiscountModal} transparent animationType="slide" onRequestClose={() => setShowDiscountModal(false)}>
+        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" }}>
+          <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
+            {/* Header */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground }}>Apply Discount</Text>
+              <Pressable onPress={() => setShowDiscountModal(false)} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}>
+                <IconSymbol name="xmark" size={20} color={colors.muted} />
+              </Pressable>
+            </View>
+
+            {/* Saved discounts list */}
+            {state.discounts.filter((d) => d.active).length > 0 && (
+              <>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 }}>Saved Discounts</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    {state.discounts.filter((d) => d.active).map((d) => (
+                      <Pressable
+                        key={d.id}
+                        onPress={() => {
+                          const basePrice = (appointment?.totalPrice ?? 0) + (appointment?.discountAmount ?? 0);
+                          const amt = Math.round((basePrice * d.percentage) / 100 * 100) / 100;
+                          const updated = { ...appointment!, discountPercent: d.percentage, discountAmount: amt, discountName: d.name, totalPrice: Math.max(0, basePrice - amt) };
+                          dispatch({ type: "UPDATE_APPOINTMENT", payload: updated });
+                          syncToDb({ type: "UPDATE_APPOINTMENT", payload: updated });
+                          setShowDiscountModal(false);
+                        }}
+                        style={({ pressed }) => ({
+                          backgroundColor: colors.warning + "18",
+                          borderColor: colors.warning,
+                          borderWidth: 1,
+                          borderRadius: 20,
+                          paddingHorizontal: 14,
+                          paddingVertical: 8,
+                          opacity: pressed ? 0.7 : 1,
+                        })}
+                      >
+                        <Text style={{ fontSize: 13, fontWeight: "600", color: colors.warning }}>{d.name} — {d.percentage}% Off</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </ScrollView>
+              </>
+            )}
+
+            {/* Custom discount */}
+            <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 }}>Custom Discount</Text>
+            {/* Type toggle */}
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+              {(["percent", "flat"] as const).map((t) => (
+                <Pressable
+                  key={t}
+                  onPress={() => setDiscountType(t)}
+                  style={({ pressed }) => ({
+                    flex: 1,
+                    paddingVertical: 10,
+                    borderRadius: 12,
+                    alignItems: "center",
+                    backgroundColor: discountType === t ? colors.warning : colors.background,
+                    borderWidth: 1,
+                    borderColor: discountType === t ? colors.warning : colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                  })}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: "600", color: discountType === t ? "#FFF" : colors.muted }}>
+                    {t === "percent" ? "Percentage (%)" : "Flat Amount ($)"}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <TextInput
+              value={discountInput}
+              onChangeText={setDiscountInput}
+              placeholder={discountType === "percent" ? "e.g. 10  (for 10%)" : "e.g. 15  (for $15 off)"}
+              placeholderTextColor={colors.muted}
+              keyboardType="decimal-pad"
+              returnKeyType="done"
+              style={{ backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 14, fontSize: 16, color: colors.foreground, marginBottom: 16 }}
+            />
+
+            {/* Apply / Remove buttons */}
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              {(appointment?.discountAmount ?? 0) > 0 && (
+                <Pressable
+                  onPress={() => {
+                    const basePrice = (appointment?.totalPrice ?? 0) + (appointment?.discountAmount ?? 0);
+                    const updated = { ...appointment!, discountPercent: undefined, discountAmount: undefined, discountName: undefined, totalPrice: basePrice };
+                    dispatch({ type: "UPDATE_APPOINTMENT", payload: updated });
+                    syncToDb({ type: "UPDATE_APPOINTMENT", payload: updated });
+                    setShowDiscountModal(false);
+                  }}
+                  style={({ pressed }) => ({ flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: "center", backgroundColor: colors.error + "18", borderWidth: 1, borderColor: colors.error, opacity: pressed ? 0.7 : 1 })}
+                >
+                  <Text style={{ fontSize: 15, fontWeight: "700", color: colors.error }}>Remove</Text>
+                </Pressable>
+              )}
+              <Pressable
+                onPress={() => {
+                  const val = parseFloat(discountInput);
+                  if (isNaN(val) || val <= 0) { Alert.alert("Invalid", "Please enter a valid discount value."); return; }
+                  const basePrice = (appointment?.totalPrice ?? 0) + (appointment?.discountAmount ?? 0);
+                  let amt: number;
+                  let pct: number | undefined;
+                  if (discountType === "percent") {
+                    if (val > 100) { Alert.alert("Invalid", "Percentage cannot exceed 100."); return; }
+                    amt = Math.round((basePrice * val) / 100 * 100) / 100;
+                    pct = val;
+                  } else {
+                    if (val > basePrice) { Alert.alert("Invalid", `Discount cannot exceed the total ($${basePrice.toFixed(2)}).`); return; }
+                    amt = val;
+                    pct = undefined;
+                  }
+                  const updated = { ...appointment!, discountPercent: pct, discountAmount: amt, discountName: discountType === "percent" ? `${val}% Off` : `$${val.toFixed(2)} Off`, totalPrice: Math.max(0, basePrice - amt) };
+                  dispatch({ type: "UPDATE_APPOINTMENT", payload: updated });
+                  syncToDb({ type: "UPDATE_APPOINTMENT", payload: updated });
+                  setShowDiscountModal(false);
+                }}
+                style={({ pressed }) => ({ flex: 2, paddingVertical: 14, borderRadius: 14, alignItems: "center", backgroundColor: colors.warning, opacity: pressed ? 0.7 : 1 })}
+              >
+                <Text style={{ fontSize: 15, fontWeight: "700", color: "#FFF" }}>Apply Discount</Text>
+              </Pressable>
             </View>
           </View>
         </View>

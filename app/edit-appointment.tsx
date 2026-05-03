@@ -96,6 +96,11 @@ export default function EditAppointmentScreen() {
     appointment?.time ?? "09:00"
   );
 
+  // Discount modal state
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [discountInput, setDiscountInput] = useState("");
+  const [discountType, setDiscountType] = useState<"percent" | "flat">("percent");
+
   // ── Derived data ───────────────────────────────────────────────────────
   const activeLocations = useMemo(
     () => state.locations.filter((l) => l.active),
@@ -639,6 +644,85 @@ export default function EditAppointmentScreen() {
           </View>
         )}
 
+        {/* Apply Discount — only for pending/confirmed */}
+        {(appointment.status === "pending" || appointment.status === "confirmed") && (
+          <View style={{ marginTop: 16 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground }}>Discount</Text>
+              {appointment.discountAmount != null && appointment.discountAmount > 0 && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.success + "18", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
+                  <IconSymbol name="tag.fill" size={12} color={colors.success} />
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: colors.success }}>
+                    {appointment.discountName ? appointment.discountName + " · " : ""}
+                    {appointment.discountPercent != null ? `${appointment.discountPercent}%` : `$${appointment.discountAmount.toFixed(2)}`} off
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Saved discounts list */}
+            {state.discounts.filter((d) => d.active).length > 0 && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+                <View style={{ flexDirection: "row", gap: 8, paddingRight: 8 }}>
+                  {state.discounts.filter((d) => d.active).map((d) => {
+                    const isApplied = appointment.discountName === d.name;
+                    return (
+                      <Pressable
+                        key={d.id}
+                        onPress={() => {
+                          if (isApplied) {
+                            // Remove discount
+                            const updated = { ...appointment, discountAmount: undefined, discountPercent: undefined, discountName: undefined, totalPrice: (appointment.totalPrice ?? 0) + (appointment.discountAmount ?? 0) };
+                            dispatch({ type: "UPDATE_APPOINTMENT", payload: updated });
+                            syncToDb({ type: "UPDATE_APPOINTMENT", payload: updated });
+                          } else {
+                            const basePrice = (appointment.totalPrice ?? 0) + (appointment.discountAmount ?? 0);
+                            const amt = basePrice * (d.percentage / 100);
+                            const updated = { ...appointment, discountAmount: amt, discountPercent: d.percentage, discountName: d.name, totalPrice: Math.max(0, basePrice - amt) };
+                            dispatch({ type: "UPDATE_APPOINTMENT", payload: updated });
+                            syncToDb({ type: "UPDATE_APPOINTMENT", payload: updated });
+                          }
+                        }}
+                        style={({ pressed }) => ({
+                          paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
+                          borderWidth: 1.5,
+                          borderColor: isApplied ? colors.success : colors.border,
+                          backgroundColor: isApplied ? colors.success + "18" : colors.surface,
+                          opacity: pressed ? 0.7 : 1,
+                          flexDirection: "row", alignItems: "center", gap: 5,
+                        })}
+                      >
+                        <Text style={{ fontSize: 13, fontWeight: "600", color: isApplied ? colors.success : colors.foreground }}>
+                          {d.name} · {d.percentage}% off
+                        </Text>
+                        {isApplied && <IconSymbol name="checkmark" size={12} color={colors.success} />}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            )}
+
+            {/* Custom discount button */}
+            <Pressable
+              onPress={() => {
+                setDiscountInput("");
+                setDiscountType("percent");
+                setShowDiscountModal(true);
+              }}
+              style={({ pressed }) => ({
+                flexDirection: "row", alignItems: "center", gap: 6,
+                paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10,
+                borderWidth: 1, borderColor: colors.border,
+                backgroundColor: colors.surface, opacity: pressed ? 0.7 : 1,
+              })}
+            >
+              <IconSymbol name="tag.fill" size={14} color={colors.muted} />
+              <Text style={{ fontSize: 13, color: colors.muted, fontWeight: "600" }}>Custom Discount...</Text>
+            </Pressable>
+          </View>
+        )}
+
         <View style={{ height: 20 }} />
       </ScrollView>
 
@@ -695,6 +779,93 @@ export default function EditAppointmentScreen() {
                 <Text style={{ fontWeight: "700", color: colors.foreground }}>{getEndTime(customTimeValue)}</Text>
               </Text>
             </View>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Custom Discount Modal */}
+      <Modal
+        visible={showDiscountModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowDiscountModal(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <Pressable onPress={() => setShowDiscountModal(false)} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}>
+              <Text style={{ fontSize: 16, color: colors.primary }}>Cancel</Text>
+            </Pressable>
+            <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>Custom Discount</Text>
+            <Pressable
+              onPress={() => {
+                const val = parseFloat(discountInput);
+                if (isNaN(val) || val <= 0) {
+                  Alert.alert("Invalid Value", "Please enter a valid discount amount.");
+                  return;
+                }
+                const basePrice = (appointment.totalPrice ?? 0) + (appointment.discountAmount ?? 0);
+                const amt = discountType === "percent" ? Math.min(basePrice * (val / 100), basePrice) : Math.min(val, basePrice);
+                const pct = discountType === "percent" ? val : undefined;
+                const updated = { ...appointment, discountAmount: amt, discountPercent: pct, discountName: discountType === "percent" ? `${val}% off` : `$${val.toFixed(2)} off`, totalPrice: Math.max(0, basePrice - amt) };
+                dispatch({ type: "UPDATE_APPOINTMENT", payload: updated });
+                syncToDb({ type: "UPDATE_APPOINTMENT", payload: updated });
+                setShowDiscountModal(false);
+              }}
+              style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+            >
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.primary }}>Apply</Text>
+            </Pressable>
+          </View>
+          <ScrollView contentContainerStyle={{ padding: 24 }}>
+            {/* Type toggle */}
+            <View style={{ flexDirection: "row", backgroundColor: colors.surface, borderRadius: 12, padding: 4, marginBottom: 20 }}>
+              {(["percent", "flat"] as const).map((t) => (
+                <Pressable
+                  key={t}
+                  onPress={() => setDiscountType(t)}
+                  style={({ pressed }) => ({
+                    flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: "center",
+                    backgroundColor: discountType === t ? colors.primary : "transparent",
+                    opacity: pressed ? 0.7 : 1,
+                  })}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: discountType === t ? "#FFF" : colors.muted }}>
+                    {t === "percent" ? "Percentage (%)" : "Flat Amount ($)"}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 8 }}>
+              {discountType === "percent" ? "Enter discount percentage (e.g. 20 for 20% off)" : "Enter dollar amount to deduct (e.g. 10 for $10 off)"}
+            </Text>
+            <TextInput
+              value={discountInput}
+              onChangeText={setDiscountInput}
+              placeholder={discountType === "percent" ? "e.g. 20" : "e.g. 10.00"}
+              placeholderTextColor={colors.muted}
+              keyboardType="decimal-pad"
+              returnKeyType="done"
+              style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 22, fontWeight: "700", color: colors.foreground, textAlign: "center" }}
+            />
+
+            {/* Preview */}
+            {discountInput !== "" && !isNaN(parseFloat(discountInput)) && parseFloat(discountInput) > 0 && (() => {
+              const val = parseFloat(discountInput);
+              const basePrice = (appointment.totalPrice ?? 0) + (appointment.discountAmount ?? 0);
+              const amt = discountType === "percent" ? Math.min(basePrice * (val / 100), basePrice) : Math.min(val, basePrice);
+              const newTotal = Math.max(0, basePrice - amt);
+              return (
+                <View style={{ marginTop: 20, padding: 16, backgroundColor: colors.success + "12", borderRadius: 12, borderWidth: 1, borderColor: colors.success + "40" }}>
+                  <Text style={{ fontSize: 13, color: colors.success, textAlign: "center" }}>
+                    Discount: <Text style={{ fontWeight: "700" }}>-${amt.toFixed(2)}</Text>
+                  </Text>
+                  <Text style={{ fontSize: 16, fontWeight: "800", color: colors.success, textAlign: "center", marginTop: 4 }}>
+                    New Total: ${newTotal.toFixed(2)}
+                  </Text>
+                </View>
+              );
+            })()}
           </ScrollView>
         </View>
       </Modal>

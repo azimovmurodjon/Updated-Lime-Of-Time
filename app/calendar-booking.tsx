@@ -114,6 +114,11 @@ export default function CalendarBookingScreen() {
   const [addMoreCategoryFilter, setAddMoreCategoryFilter] = useState<string | null>(null);
   const [addMoreBrandFilter, setAddMoreBrandFilter] = useState<string | null>(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
+  // Promo code state
+  const [showPromoField, setShowPromoField] = useState(false);
+  const [promoInput, setPromoInput] = useState("");
+  const [appliedPromoCode, setAppliedPromoCode] = useState<import("@/lib/types").PromoCode | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
 
   // Location selection — pre-select if only one active location or if passed from calendar
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(() => {
@@ -253,7 +258,16 @@ export default function CalendarBookingScreen() {
     return subtotal * (appliedDiscount.percentage / 100);
   }, [appliedDiscount, subtotal]);
 
-  const totalPrice = subtotal - discountAmount;
+  // Promo code discount amount
+  const promoDiscountAmount = useMemo(() => {
+    if (!appliedPromoCode) return 0;
+    if (appliedPromoCode.percentage > 0) {
+      return Math.min(subtotal * (appliedPromoCode.percentage / 100), subtotal);
+    }
+    return Math.min(appliedPromoCode.flatAmount ?? 0, subtotal);
+  }, [appliedPromoCode, subtotal]);
+
+  const totalPrice = Math.max(0, subtotal - discountAmount - promoDiscountAmount);
 
   // Available extra services (exclude the primary service already selected)
   const availableExtraServices = useMemo(
@@ -352,8 +366,8 @@ export default function CalendarBookingScreen() {
       staffId: selectedStaffId ?? undefined,
       locationId: effectiveLocationId ?? undefined,
       discountPercent: appliedDiscount?.percentage,
-      discountAmount: discountAmount > 0 ? discountAmount : undefined,
-      discountName: appliedDiscount?.name,
+      discountAmount: (discountAmount + promoDiscountAmount) > 0 ? (discountAmount + promoDiscountAmount) : undefined,
+      discountName: appliedPromoCode ? (appliedDiscount ? `${appliedDiscount.name} + ${appliedPromoCode.code}` : appliedPromoCode.code) : appliedDiscount?.name,
       paymentStatus: totalPrice <= 0 ? "paid" : "unpaid",
       paymentMethod: (selectedPaymentMethod ?? undefined) as "free" | "zelle" | "venmo" | "cashapp" | "cash" | "card" | "unpaid" | undefined,
       extraItems: extraItems.length > 0 ? extraItems : undefined,
@@ -1748,6 +1762,14 @@ export default function CalendarBookingScreen() {
                 {appliedDiscount && discountAmount > 0 && (
                   <SummaryRow label={`Discount — ${appliedDiscount.name}`} value={`-$${discountAmount.toFixed(2)}`} colors={colors} valueColor={colors.success} />
                 )}
+                {appliedPromoCode && promoDiscountAmount > 0 && (
+                  <SummaryRow
+                    label={`Promo — ${appliedPromoCode.code}`}
+                    value={`-$${promoDiscountAmount.toFixed(2)}`}
+                    colors={colors}
+                    valueColor={colors.success}
+                  />
+                )}
                 <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                   <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>Total</Text>
@@ -1790,6 +1812,68 @@ export default function CalendarBookingScreen() {
                 },
               ]}
             />
+          </View>
+
+          {/* Promo Code */}
+          <View style={{ marginTop: 12 }}>
+            {!appliedPromoCode ? (
+              <Pressable
+                onPress={() => setShowPromoField(!showPromoField)}
+                style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1, flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 })}
+              >
+                <IconSymbol name="tag.fill" size={14} color={colors.primary} />
+                <Text style={{ fontSize: 13, color: colors.primary, fontWeight: "600" }}>
+                  {showPromoField ? "Hide promo code" : "Have a promo code?"}
+                </Text>
+              </Pressable>
+            ) : (
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.success + "18", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <IconSymbol name="tag.fill" size={14} color={colors.success} />
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: colors.success }}>{appliedPromoCode.code}</Text>
+                  <Text style={{ fontSize: 12, color: colors.success }}>applied</Text>
+                </View>
+                <Pressable
+                  onPress={() => { setAppliedPromoCode(null); setPromoInput(""); setPromoError(null); }}
+                  style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+                >
+                  <IconSymbol name="xmark" size={14} color={colors.success} />
+                </Pressable>
+              </View>
+            )}
+            {showPromoField && !appliedPromoCode && (
+              <View style={{ marginTop: 8 }}>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <TextInput
+                    value={promoInput}
+                    onChangeText={(t) => { setPromoInput(t.toUpperCase()); setPromoError(null); }}
+                    placeholder="Enter promo code"
+                    placeholderTextColor={colors.muted}
+                    autoCapitalize="characters"
+                    returnKeyType="done"
+                    style={{ flex: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: promoError ? colors.error : colors.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: colors.foreground, fontWeight: "600", letterSpacing: 1 }}
+                  />
+                  <Pressable
+                    onPress={() => {
+                      const code = promoInput.trim().toUpperCase();
+                      if (!code) { setPromoError("Please enter a promo code."); return; }
+                      const now = new Date();
+                      const match = (state.promoCodes ?? []).find((p) => p.code.toUpperCase() === code && p.active);
+                      if (!match) { setPromoError("Invalid or inactive promo code."); return; }
+                      if (match.expiresAt && new Date(match.expiresAt) < now) { setPromoError("This promo code has expired."); return; }
+                      if (match.maxUses != null && match.usedCount >= match.maxUses) { setPromoError("This promo code has reached its usage limit."); return; }
+                      setAppliedPromoCode(match);
+                      setShowPromoField(false);
+                      setPromoError(null);
+                    }}
+                    style={({ pressed }) => ({ backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10, justifyContent: "center", opacity: pressed ? 0.7 : 1 })}
+                  >
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: "#FFF" }}>Apply</Text>
+                  </Pressable>
+                </View>
+                {promoError && <Text style={{ fontSize: 12, color: colors.error, marginTop: 4 }}>{promoError}</Text>}
+              </View>
+            )}
           </View>
 
           {/* Confirm Button */}
