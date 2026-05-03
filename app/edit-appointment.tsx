@@ -90,6 +90,15 @@ export default function EditAppointmentScreen() {
   // Slot interval override
   const [localSlotInterval, setLocalSlotInterval] = useState<number | null>(null);
 
+  // Closed-day tooltip
+  const [closedDayMsg, setClosedDayMsg] = useState<string | null>(null);
+  const closedDayTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showClosedDayMsg = React.useCallback((msg: string) => {
+    if (closedDayTimer.current) clearTimeout(closedDayTimer.current);
+    setClosedDayMsg(msg);
+    closedDayTimer.current = setTimeout(() => setClosedDayMsg(null), 3000);
+  }, []);
+
   // Custom time modal
   const [showCustomTime, setShowCustomTime] = useState(false);
   const [customTimeValue, setCustomTimeValue] = useState(
@@ -500,6 +509,8 @@ export default function EditAppointmentScreen() {
                     if (!isDisabled) {
                       setSelectedDate(dateStr);
                       setSelectedTime(null);
+                    } else if (!isPast && !isOutOfRange && (isClosed || isNoSlots)) {
+                      showClosedDayMsg(isClosed ? "Closed — no working hours set for this day" : "No available slots on this day");
                     }
                   }}
                   style={({ pressed }) => ({
@@ -575,6 +586,14 @@ export default function EditAppointmentScreen() {
             <Text style={{ fontSize: 10, color: colors.muted }}>Closed</Text>
           </View>
         </View>
+
+        {/* Closed-day tooltip */}
+        {closedDayMsg ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.error + "18", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, marginTop: 6, marginBottom: 2 }}>
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.error }} />
+            <Text style={{ fontSize: 12, color: colors.error, fontWeight: "500", flex: 1 }}>{closedDayMsg}</Text>
+          </View>
+        ) : null}
 
         {/* Selected date label */}
         {selectedDate && (

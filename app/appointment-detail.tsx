@@ -71,6 +71,13 @@ export default function AppointmentDetailScreen() {
   // null = use global setting, 0 = Auto, positive = explicit minutes
   const [reschedLocalInterval, setReschedLocalInterval] = useState<number | null>(null);
   const [rescheduleReason, setRescheduleReason] = useState("");
+  const [reschedClosedDayMsg, setReschedClosedDayMsg] = useState<string | null>(null);
+  const reschedClosedDayTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showReschedClosedDayMsg = React.useCallback((msg: string) => {
+    if (reschedClosedDayTimer.current) clearTimeout(reschedClosedDayTimer.current);
+    setReschedClosedDayMsg(msg);
+    reschedClosedDayTimer.current = setTimeout(() => setReschedClosedDayMsg(null), 3000);
+  }, []);
   const [reschedCalMonth, setReschedCalMonth] = useState<{ year: number; month: number }>(() => {
     const d = appointment ? new Date(appointment.date + "T12:00:00") : new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
@@ -1861,7 +1868,10 @@ Would you also like to charge a no-show fee via Stripe?`,
                     return (
                       <Pressable
                         key={dateStr}
-                        onPress={() => { if (!isDisabled) { setReschedDate(dateStr); setReschedTime(null); } }}
+                        onPress={() => {
+                          if (!isDisabled) { setReschedDate(dateStr); setReschedTime(null); }
+                          else if (!isPast && !hasSlots) { showReschedClosedDayMsg("Closed — no working hours set for this day"); }
+                        }}
                         style={({ pressed }) => [{
                           width: "14.28%",
                           height: 48,
@@ -1920,6 +1930,14 @@ Would you also like to charge a no-show fee via Stripe?`,
                   <Text style={{ fontSize: 10, color: colors.muted }}>Closed</Text>
                 </View>
               </View>
+
+              {/* Closed-day tooltip */}
+              {reschedClosedDayMsg ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.error + "18", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, marginTop: 6, marginBottom: 2 }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.error }} />
+                  <Text style={{ fontSize: 12, color: colors.error, fontWeight: "500", flex: 1 }}>{reschedClosedDayMsg}</Text>
+                </View>
+              ) : null}
 
               {/* Time slots */}
               {/* Slot Interval Selector */}
