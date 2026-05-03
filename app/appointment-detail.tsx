@@ -1891,9 +1891,9 @@ Would you also like to charge a no-show fee via Stripe?`,
                         {!isPast && hasSlots && (
                           <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: dotColor, marginTop: 2 }} />
                         )}
-                        {/* No-slot indicator for future dates */}
+                        {/* Red dot for closed/off days */}
                         {!isPast && !hasSlots && (
-                          <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: "transparent", marginTop: 2 }} />
+                          <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.error, marginTop: 2 }} />
                         )}
                       </Pressable>
                     );
@@ -1914,6 +1914,10 @@ Would you also like to charge a no-show fee via Stripe?`,
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                   <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary }} />
                   <Text style={{ fontSize: 10, color: colors.muted }}>Limited</Text>
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.error }} />
+                  <Text style={{ fontSize: 10, color: colors.muted }}>Closed</Text>
                 </View>
               </View>
 

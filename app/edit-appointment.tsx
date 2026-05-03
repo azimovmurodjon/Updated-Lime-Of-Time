@@ -539,12 +539,15 @@ export default function EditAppointmentScreen() {
                   >
                     {day}
                   </Text>
-                  {/* Availability dot */}
+                  {/* Availability dot: green/amber/primary for open days, red for closed/no-slot future days */}
                   {!isPast && !isOutOfRange && slotCount > 0 && (
                     <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: dotColor, marginTop: 1 }} />
                   )}
-                  {/* Spacer to keep height consistent when no dot */}
-                  {(isPast || isOutOfRange || slotCount === 0) && (
+                  {!isPast && !isOutOfRange && slotCount === 0 && (
+                    <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.error, marginTop: 1 }} />
+                  )}
+                  {/* Spacer for past/out-of-range dates */}
+                  {(isPast || isOutOfRange) && (
                     <View style={{ width: 4, height: 4, marginTop: 1 }} />
                   )}
                 </Pressable>
@@ -566,6 +569,10 @@ export default function EditAppointmentScreen() {
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
             <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary }} />
             <Text style={{ fontSize: 10, color: colors.muted }}>Limited</Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.error }} />
+            <Text style={{ fontSize: 10, color: colors.muted }}>Closed</Text>
           </View>
         </View>
 
