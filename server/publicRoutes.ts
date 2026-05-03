@@ -1678,6 +1678,9 @@ export function registerPublicRoutes(app: Express) {
       const locs = await db.getLocationsByOwner(owner.id);
       const rawFee = await getPlatformConfig("STRIPE_PLATFORM_FEE_PERCENT");
       const feePercent = rawFee ? parseFloat(rawFee) : 1.5;
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       res.send(bookingPage(req.params.slug, owner, locationId, locs, feePercent));
     } catch (err) {
       console.error("[Public] Error serving booking page:", err);
@@ -1697,6 +1700,9 @@ export function registerPublicRoutes(app: Express) {
       const locs = await db.getLocationsByOwner(owner.id);
       const rawFee2 = await getPlatformConfig("STRIPE_PLATFORM_FEE_PERCENT");
       const feePercent2 = rawFee2 ? parseFloat(rawFee2) : 1.5;
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       res.send(bookingPage(req.params.slug, owner, req.params.locationId, locs, feePercent2));
     } catch (err) {
       console.error("[Public] Error serving booking page:", err);
@@ -4800,6 +4806,9 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
   <meta name="twitter:title" content="Book with ${escHtml(owner.businessName)}">
   <meta name="twitter:description" content="Book an appointment with ${escHtml(owner.businessName)}. Easy online scheduling.">
   <meta name="robots" content="index, follow">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <link rel="canonical" href="https://lime-of-time.com/book/${escHtml(owner.businessName.toLowerCase().replace(/\s+/g, '-'))}">  
   ${baseStyles()}
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
