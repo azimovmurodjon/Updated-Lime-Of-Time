@@ -5,7 +5,7 @@ import { useStore, formatTime, formatDateDisplay } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { useMemo, useState, useCallback, useRef, useEffect } from "react";
+import React, { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { apiCall } from "@/lib/_core/api";
 import { trpc } from "@/lib/trpc";
 import { usePlanLimitCheck } from "@/hooks/use-plan-limit-check";
@@ -821,21 +821,44 @@ Would you also like to charge a no-show fee via Stripe?`,
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}>
-        {/* Service Card */}
-        <View
-          className="rounded-2xl p-5 mb-4"
-          style={{ backgroundColor: (service?.color ?? colors.primary) + "12" }}
-        >
-          <View className="flex-row items-center mb-2">
-            <View style={[styles.colorDot, { backgroundColor: service?.color ?? colors.primary }]} />
-            <Text className="text-xl font-bold text-foreground ml-3">
-              {service ? getServiceDisplayName(service) : "Service"}
-            </Text>
-          </View>
-          <Text className="text-sm text-muted">
-            {appointment.duration} min · ${appointment.totalPrice != null ? appointment.totalPrice.toFixed(2) : (service?.price ?? 0)}
-          </Text>
-        </View>
+        {/* Service Card — multi-service aware */}
+        {(() => {
+          const extras = appointment.extraItems ?? [];
+          const extraServices = extras.filter(e => e.type === 'service');
+          const allServices = [
+            ...(service ? [{ id: appointment.serviceId, name: getServiceDisplayName(service), duration: service.duration, color: service.color ?? colors.primary }] : []),
+            ...extraServices.map(e => ({ id: e.id, name: e.name, duration: e.duration, color: colors.primary })),
+          ];
+          const totalDuration = allServices.reduce((s, sv) => s + sv.duration, 0);
+          const startMin = timeToMinutes(appointment.time);
+          return (
+            <View className="rounded-2xl p-4 mb-4" style={{ backgroundColor: (service?.color ?? colors.primary) + '12' }}>
+              {/* Header */}
+              <View className="flex-row items-center mb-2">
+                <View style={[styles.colorDot, { backgroundColor: service?.color ?? colors.primary }]} />
+                <Text className="text-xl font-bold text-foreground ml-3" numberOfLines={2}>
+                  {allServices.length > 1 ? `${allServices.length} Services` : (service ? getServiceDisplayName(service) : 'Service')}
+                </Text>
+              </View>
+              <Text className="text-sm text-muted mb-3">
+                {totalDuration} min total · ${appointment.totalPrice != null ? appointment.totalPrice.toFixed(2) : (service?.price ?? 0)}
+              </Text>
+              {/* Sequential time blocks for each service */}
+              {allServices.length > 1 && allServices.map((sv, idx) => {
+                const svcStart = startMin + allServices.slice(0, idx).reduce((s, x) => s + x.duration, 0);
+                const svcEnd = svcStart + sv.duration;
+                return (
+                  <View key={sv.id + idx} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 5, borderTopWidth: idx === 0 ? 0 : StyleSheet.hairlineWidth, borderTopColor: colors.border }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: sv.color, marginRight: 8 }} />
+                    <Text style={{ flex: 1, fontSize: 13, color: colors.foreground, fontWeight: '500' }} numberOfLines={2}>{sv.name}</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted, marginLeft: 8 }}>{formatTime(minutesToTime(svcStart))} – {formatTime(minutesToTime(svcEnd))}</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted, marginLeft: 6 }}>({sv.duration}m)</Text>
+                  </View>
+                );
+              })}
+            </View>
+          );
+        })()}
 
         {/* Itemized Charges */}
         {(() => {
@@ -1130,7 +1153,13 @@ Would you also like to charge a no-show fee via Stripe?`,
           <DetailRow
             icon="clock.fill"
             label="Time"
-            value={`${formatTime(appointment.time)} - ${endTimeStr}`}
+            value={(() => {
+              const extras = appointment.extraItems ?? [];
+              const extraServices = extras.filter(e => e.type === 'service');
+              const totalDur = (service?.duration ?? appointment.duration) + extraServices.reduce((s, e) => s + e.duration, 0);
+              const endMin = timeToMinutes(appointment.time) + totalDur;
+              return `${formatTime(appointment.time)} – ${formatTime(minutesToTime(endMin))}`;
+            })()}
             colors={colors}
           />
           <DetailRow

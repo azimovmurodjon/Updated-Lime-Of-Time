@@ -104,7 +104,7 @@ export default function SendReminderScreen() {
   const tplVars = useMemo(() => {
     if (!appointment || !client) return null;
     const svc = service;
-    const svcName = svc ? getServiceDisplayName(svc) : "your appointment";
+    const primarySvcName = svc ? getServiceDisplayName(svc) : "your appointment";
     const bizName = biz.businessName;
     const locPhone = assignedLocation?.phone || profile.phone || "";
     const locCity = assignedLocation?.city ?? profile.city ?? "";
@@ -120,13 +120,65 @@ export default function SendReminderScreen() {
       ? `${PUBLIC_BOOKING_URL}/book/${slug}?location=${locId}`
       : `${PUBLIC_BOOKING_URL}/book/${slug}`;
     const reviewUrl = `${PUBLIC_BOOKING_URL}/review/${slug}`;
+
+    // Build multi-service expansion for {service} and {time} variables
+    const extraServiceItems = (appointment.extraItems ?? []).filter(e => e.type === 'service');
+    const hasMultiService = extraServiceItems.length > 0;
+
+    let serviceName: string;
+    let timeDisplay: string;
+    let totalPrice: string;
+
+    if (hasMultiService) {
+      // Build sequential time blocks
+      const startMins = timeToMinutes(appointment.time);
+      const primaryDuration = svc?.duration ?? appointment.duration;
+      const serviceLines: string[] = [];
+
+      // Primary service block
+      const primaryStart = minutesToTime(startMins);
+      const primaryEnd = minutesToTime(startMins + primaryDuration);
+      const primaryPrice = svc?.price ?? 0;
+      serviceLines.push(
+        `• ${primarySvcName} (${primaryDuration} min) ${formatTimeDisplay(primaryStart)}–${formatTimeDisplay(primaryEnd)} — $${primaryPrice.toFixed(2)}`
+      );
+
+      // Extra service blocks
+      let cursor = startMins + primaryDuration;
+      for (const item of extraServiceItems) {
+        const itemStart = minutesToTime(cursor);
+        const itemEnd = minutesToTime(cursor + item.duration);
+        serviceLines.push(
+          `• ${item.name} (${item.duration} min) ${formatTimeDisplay(itemStart)}–${formatTimeDisplay(itemEnd)} — $${item.price.toFixed(2)}`
+        );
+        cursor += item.duration;
+      }
+
+      serviceName = serviceLines.join('\n');
+
+      // {time} = full window start → end of last service
+      const windowEnd = minutesToTime(cursor);
+      timeDisplay = `${formatTimeDisplay(appointment.time)}–${formatTimeDisplay(windowEnd)}`;
+
+      // {price} = total
+      const rawTotal = appointment.totalPrice ?? (primaryPrice + extraServiceItems.reduce((s, e) => s + e.price, 0));
+      totalPrice = `$${rawTotal.toFixed(2)}`;
+    } else {
+      serviceName = primarySvcName;
+      timeDisplay = formatTimeDisplay(appointment.time);
+      totalPrice = appointment.totalPrice != null ? `$${appointment.totalPrice.toFixed(2)}` : (svc ? `$${svc.price.toFixed(2)}` : "");
+    }
+
     return {
       clientName: client.name,
       businessName: bizName,
-      serviceName: svcName,
+      serviceName,
+      service: serviceName,
       duration: String(appointment.duration),
       date: appointment.date,
-      time: appointment.time,
+      time: timeDisplay,
+      price: totalPrice,
+      total: totalPrice,
       location: locLine,
       phone: formatPhoneNumber(stripPhoneFormat(locPhone)),
       clientPhone: client.phone ?? "",

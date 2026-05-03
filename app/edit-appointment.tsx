@@ -14,7 +14,7 @@ import { useStore, formatTime, formatDateStr } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { useResponsive } from "@/hooks/use-responsive";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useRef } from "react";
 import {
   DAYS_OF_WEEK,
   DEFAULT_WORKING_HOURS,
@@ -110,6 +110,16 @@ export default function EditAppointmentScreen() {
   const [discountInput, setDiscountInput] = useState("");
   const [discountType, setDiscountType] = useState<"percent" | "flat">("percent");
 
+  // Service editor state
+  const [editExtraItems, setEditExtraItems] = useState<import("@/lib/types").AppointmentExtraItem[]>(
+    appointment?.extraItems ?? []
+  );
+  const [showServicePicker, setShowServicePicker] = useState(false);
+  const [editingServiceIdx, setEditingServiceIdx] = useState<number | null>(null); // null = adding new
+  const [svcPickerSearch, setSvcPickerSearch] = useState("");
+  const [svcPickerCategory, setSvcPickerCategory] = useState<string | null>(null);
+  const [editPrimaryService, setEditPrimaryService] = useState<string>(appointment?.serviceId ?? "");
+
   // ── Derived data ───────────────────────────────────────────────────────
   const activeLocations = useMemo(
     () => state.locations.filter((l) => l.active),
@@ -128,7 +138,22 @@ export default function EditAppointmentScreen() {
     return state.settings.workingHours ?? DEFAULT_WORKING_HOURS;
   }, [selectedLocation, state.settings.workingHours]);
 
-  const duration = appointment?.duration ?? service?.duration ?? 60;
+  // Use editPrimaryService for live service changes
+  const primaryService = useMemo(
+    () => state.services.find(s => s.id === editPrimaryService) ?? service,
+    [state.services, editPrimaryService, service]
+  );
+
+  // Total duration = primary service + all extra services (no buffer)
+  const totalEditDuration = useMemo(() => {
+    const primaryDur = primaryService?.duration ?? appointment?.duration ?? 60;
+    const extrasDur = editExtraItems
+      .filter(e => e.type === 'service')
+      .reduce((s, e) => s + e.duration, 0);
+    return primaryDur + extrasDur;
+  }, [primaryService, appointment, editExtraItems]);
+
+  const duration = totalEditDuration;
 
   const effectiveStep = useMemo(() => {
     const bufferMin = (state.settings as any).bufferTime ?? 0;
@@ -240,11 +265,23 @@ export default function EditAppointmentScreen() {
       return;
     }
 
+    // Recalculate total price from primary service + extra items
+    const newPrimaryService = state.services.find(s => s.id === editPrimaryService) ?? service;
+    const primaryPrice = newPrimaryService?.price ?? appointment.totalPrice ?? 0;
+    const extrasPrice = editExtraItems.reduce((s, e) => s + e.price, 0);
+    const rawTotal = primaryPrice + extrasPrice;
+    const discountAmt = appointment.discountAmount ?? 0;
+    const newTotal = Math.max(0, rawTotal - discountAmt);
+
     const updated = {
       ...appointment,
+      serviceId: editPrimaryService || appointment.serviceId,
       date: selectedDate,
       time: selectedTime,
       locationId: selectedLocationId ?? appointment.locationId,
+      duration: totalEditDuration,
+      extraItems: editExtraItems,
+      totalPrice: newTotal,
     };
 
     dispatch({ type: "UPDATE_APPOINTMENT", payload: updated });
@@ -367,18 +404,210 @@ export default function EditAppointmentScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}
       >
-        {/* Service info (read-only) */}
+        {/* Services Editor */}
         <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: service?.color ?? colors.primary }} />
-            <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>
-              {service?.name ?? "Service"}
-            </Text>
-            <Text style={{ fontSize: 12, color: colors.muted, marginLeft: "auto" }}>
-              {duration} min
-            </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colors.muted, flex: 1 }}>SERVICES</Text>
+            <Text style={{ fontSize: 12, color: colors.muted }}>{totalEditDuration} min total</Text>
           </View>
+
+          {/* Primary service row */}
+          {(() => {
+            const ps = state.services.find(s => s.id === editPrimaryService) ?? service;
+            return (
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: ps?.color ?? colors.primary, marginRight: 8 }} />
+                <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: colors.foreground }} numberOfLines={2}>{ps?.name ?? 'Service'}</Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginRight: 8 }}>{ps?.duration ?? 0}m</Text>
+                <Text style={{ fontSize: 12, color: colors.primary, marginRight: 4 }}>${(ps?.price ?? 0).toFixed(2)}</Text>
+                <Pressable
+                  onPress={() => { setEditingServiceIdx(-1); setSvcPickerSearch(''); setSvcPickerCategory(null); setShowServicePicker(true); }}
+                  style={({ pressed }) => ({ padding: 6, opacity: pressed ? 0.6 : 1 })}
+                >
+                  <IconSymbol name="pencil" size={14} color={colors.primary} />
+                </Pressable>
+              </View>
+            );
+          })()}
+
+          {/* Extra service rows */}
+          {editExtraItems.filter(e => e.type === 'service').map((item, idx) => (
+            <View key={item.id + idx} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}>
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary, marginRight: 8 }} />
+              <Text style={{ flex: 1, fontSize: 14, color: colors.foreground }} numberOfLines={2}>{item.name}</Text>
+              <Text style={{ fontSize: 12, color: colors.muted, marginRight: 8 }}>{item.duration}m</Text>
+              <Text style={{ fontSize: 12, color: colors.primary, marginRight: 4 }}>${item.price.toFixed(2)}</Text>
+              <Pressable
+                onPress={() => {
+                  const realIdx = editExtraItems.findIndex((e, i) => e.type === 'service' && editExtraItems.filter(x => x.type === 'service').indexOf(e) === idx);
+                  setEditingServiceIdx(idx);
+                  setSvcPickerSearch('');
+                  setSvcPickerCategory(null);
+                  setShowServicePicker(true);
+                }}
+                style={({ pressed }) => ({ padding: 6, opacity: pressed ? 0.6 : 1 })}
+              >
+                <IconSymbol name="pencil" size={14} color={colors.primary} />
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  Alert.alert('Remove Service', `Remove "${item.name}" from this appointment?`, [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Remove', style: 'destructive', onPress: () => {
+                      const svcItems = editExtraItems.filter(e => e.type === 'service');
+                      const toRemoveId = svcItems[idx]?.id;
+                      setEditExtraItems(prev => {
+                        let removed = false;
+                        return prev.filter(e => {
+                          if (!removed && e.type === 'service' && e.id === toRemoveId) { removed = true; return false; }
+                          return true;
+                        });
+                      });
+                    }},
+                  ]);
+                }}
+                style={({ pressed }) => ({ padding: 6, opacity: pressed ? 0.6 : 1 })}
+              >
+                <IconSymbol name="trash" size={14} color={colors.error} />
+              </Pressable>
+            </View>
+          ))}
+
+          {/* Add Service button */}
+          <Pressable
+            onPress={() => { setEditingServiceIdx(null); setSvcPickerSearch(''); setSvcPickerCategory(null); setShowServicePicker(true); }}
+            style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', paddingTop: 10, opacity: pressed ? 0.6 : 1 })}
+          >
+            <IconSymbol name="plus.circle.fill" size={16} color={colors.primary} />
+            <Text style={{ fontSize: 13, color: colors.primary, fontWeight: '600', marginLeft: 6 }}>Add Service</Text>
+          </Pressable>
         </View>
+
+        {/* Service Picker Modal */}
+        <Modal visible={showServicePicker} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowServicePicker(false)}>
+          <View style={{ flex: 1, backgroundColor: colors.background }}>
+            {/* Header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}>
+              <Text style={{ flex: 1, fontSize: 17, fontWeight: '700', color: colors.foreground }}>
+                {editingServiceIdx === null ? 'Add Service' : editingServiceIdx === -1 ? 'Change Primary Service' : 'Change Service'}
+              </Text>
+              <Pressable onPress={() => setShowServicePicker(false)} style={({ pressed }) => ({ padding: 8, opacity: pressed ? 0.6 : 1 })}>
+                <IconSymbol name="xmark" size={20} color={colors.muted} />
+              </Pressable>
+            </View>
+
+            {/* Search */}
+            <View style={{ margin: 12, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 10, paddingHorizontal: 10, borderWidth: 1, borderColor: colors.border }}>
+              <IconSymbol name="magnifyingglass" size={16} color={colors.muted} />
+              <TextInput
+                value={svcPickerSearch}
+                onChangeText={setSvcPickerSearch}
+                placeholder="Search services..."
+                placeholderTextColor={colors.muted}
+                style={{ flex: 1, paddingVertical: 10, paddingHorizontal: 8, fontSize: 14, color: colors.foreground }}
+              />
+            </View>
+
+            {/* Category filter */}
+            {(() => {
+              const cats = Array.from(new Set(state.services.filter(s => s.category).map(s => s.category as string)));
+              if (cats.length === 0) return null;
+              return (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 12, marginBottom: 8 }} contentContainerStyle={{ gap: 8 }}>
+                  <Pressable
+                    onPress={() => setSvcPickerCategory(null)}
+                    style={({ pressed }) => ({ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: svcPickerCategory === null ? colors.primary : colors.surface, borderWidth: 1, borderColor: svcPickerCategory === null ? colors.primary : colors.border, opacity: pressed ? 0.7 : 1 })}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: svcPickerCategory === null ? '#fff' : colors.foreground }}>All</Text>
+                  </Pressable>
+                  {cats.map(cat => (
+                    <Pressable
+                      key={cat}
+                      onPress={() => setSvcPickerCategory(cat === svcPickerCategory ? null : cat)}
+                      style={({ pressed }) => ({ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: svcPickerCategory === cat ? colors.primary : colors.surface, borderWidth: 1, borderColor: svcPickerCategory === cat ? colors.primary : colors.border, opacity: pressed ? 0.7 : 1 })}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: svcPickerCategory === cat ? '#fff' : colors.foreground }}>{cat}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              );
+            })()}
+
+            {/* Service list */}
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12, gap: 8 }}>
+              {(() => {
+                // Build set of already-added service IDs to exclude
+                const addedIds = new Set<string>();
+                if (editingServiceIdx === null) {
+                  // Adding new: exclude primary + all existing extras
+                  addedIds.add(editPrimaryService);
+                  editExtraItems.filter(e => e.type === 'service').forEach(e => addedIds.add(e.id));
+                } else if (editingServiceIdx === -1) {
+                  // Changing primary: exclude existing extras only
+                  editExtraItems.filter(e => e.type === 'service').forEach(e => addedIds.add(e.id));
+                } else {
+                  // Changing an extra: exclude primary + other extras (not the one being edited)
+                  addedIds.add(editPrimaryService);
+                  const svcItems = editExtraItems.filter(e => e.type === 'service');
+                  svcItems.forEach((e, i) => { if (i !== editingServiceIdx) addedIds.add(e.id); });
+                }
+
+                const filtered = state.services.filter(s => {
+                  if (addedIds.has(s.id)) return false;
+                  if (svcPickerCategory && s.category !== svcPickerCategory) return false;
+                  if (svcPickerSearch.trim()) {
+                    const q = svcPickerSearch.toLowerCase();
+                    return s.name.toLowerCase().includes(q) || (s.category ?? '').toLowerCase().includes(q);
+                  }
+                  return true;
+                });
+
+                if (filtered.length === 0) {
+                  return <Text style={{ color: colors.muted, textAlign: 'center', marginTop: 32, fontSize: 14 }}>No services found</Text>;
+                }
+
+                return filtered.map(s => (
+                  <Pressable
+                    key={s.id}
+                    onPress={() => {
+                      if (editingServiceIdx === -1) {
+                        // Change primary service
+                        setEditPrimaryService(s.id);
+                      } else if (editingServiceIdx === null) {
+                        // Add new extra service
+                        setEditExtraItems(prev => [...prev, { type: 'service', id: s.id, name: s.name, price: s.price, duration: s.duration }]);
+                      } else {
+                        // Replace an existing extra service
+                        setEditExtraItems(prev => {
+                          const svcItems = prev.filter(e => e.type === 'service');
+                          const newItem: import('@/lib/types').AppointmentExtraItem = { type: 'service', id: s.id, name: s.name, price: s.price, duration: s.duration };
+                          let svcCount = 0;
+                          return prev.map(e => {
+                            if (e.type === 'service') {
+                              if (svcCount === editingServiceIdx) { svcCount++; return newItem; }
+                              svcCount++;
+                            }
+                            return e;
+                          });
+                        });
+                      }
+                      setShowServicePicker(false);
+                    }}
+                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, opacity: pressed ? 0.7 : 1 })}
+                  >
+                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: s.color ?? colors.primary, marginRight: 10 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: colors.foreground }} numberOfLines={2}>{s.name}</Text>
+                      {!!s.category && <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{s.category}</Text>}
+                    </View>
+                    <Text style={{ fontSize: 13, color: colors.muted, marginRight: 8 }}>{s.duration}m</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>${s.price.toFixed(2)}</Text>
+                  </Pressable>
+                ));
+              })()}
+            </ScrollView>
+          </View>
+        </Modal>
 
         {/* Location Selector */}
         {activeLocations.length > 0 && (

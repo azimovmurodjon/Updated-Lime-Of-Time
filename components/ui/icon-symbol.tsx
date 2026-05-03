@@ -13,6 +13,7 @@ const MAPPING = {
   "list.bullet": "list",
   "gearshape.fill": "settings",
   "plus": "add",
+  "plus.circle.fill": "add-circle",
   "chevron.right": "chevron-right",
   "chevron.left": "chevron-left",
   "xmark": "close",
