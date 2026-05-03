@@ -519,11 +519,14 @@ export default function EditAppointmentScreen() {
               </Pressable>
               <Pressable
                 onPress={() => {
-                  Alert.alert('Remove Service', `Remove "${item.name}" from this appointment?`, [
+                  // Capture values immediately to avoid stale closure inside Alert callback
+                  const svcItems = editExtraItems.filter(e => e.type === 'service');
+                  const toRemoveId = svcItems[idx]?.id;
+                  const toRemoveName = svcItems[idx]?.name ?? item.name;
+                  if (!toRemoveId) return;
+                  Alert.alert('Remove Service', `Remove "${toRemoveName}" from this appointment?`, [
                     { text: 'Cancel', style: 'cancel' },
                     { text: 'Remove', style: 'destructive', onPress: () => {
-                      const svcItems = editExtraItems.filter(e => e.type === 'service');
-                      const toRemoveId = svcItems[idx]?.id;
                       setEditExtraItems(prev => {
                         let removed = false;
                         return prev.filter(e => {
@@ -534,9 +537,9 @@ export default function EditAppointmentScreen() {
                     }},
                   ]);
                 }}
-                style={({ pressed }) => ({ padding: 6, opacity: pressed ? 0.6 : 1 })}
+                style={({ pressed }) => ({ padding: 6, opacity: pressed ? 0.6 : 1, marginLeft: 2 })}
               >
-                <IconSymbol name="trash" size={14} color={colors.error} />
+                <IconSymbol name="trash.fill" size={16} color={colors.error} />
               </Pressable>
             </View>
           ))}
