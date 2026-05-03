@@ -163,7 +163,7 @@ export default function EditAppointmentScreen() {
 
   // Date options for the calendar (90 days)
   const dateOptions = useMemo(() => {
-    const dates: { date: string; closed: boolean; noSlots: boolean }[] = [];
+    const dates: { date: string; closed: boolean; noSlots: boolean; slotCount: number }[] = [];
     const today = new Date();
     const endDate = state.settings.businessHoursEndDate;
     for (let i = 0; i < 90; i++) {
@@ -183,15 +183,15 @@ export default function EditAppointmentScreen() {
           closed = !wh || !wh.enabled;
         }
       }
-      let noSlots = false;
+      let slotCount = 0;
       if (!closed) {
         const slots = generateAvailableSlots(
           ds, duration, locationWorkingHours, locationAppts, effectiveStep,
           activeCustomSchedule, state.settings.scheduleMode, (state.settings as any).bufferTime ?? 0
         );
-        noSlots = slots.length === 0;
+        slotCount = slots.length;
       }
-      dates.push({ date: ds, closed, noSlots });
+      dates.push({ date: ds, closed, noSlots: slotCount === 0, slotCount });
     }
     return dates;
   }, [activeCustomSchedule, locationWorkingHours, locationAppts, duration,
@@ -493,7 +493,10 @@ export default function EditAppointmentScreen() {
               const opt = dateOptions.find((o) => o.date === dateStr);
               const isClosed = opt ? opt.closed : true;
               const isNoSlots = opt ? opt.noSlots : false;
+              const slotCount = opt?.slotCount ?? 0;
               const isDisabled = isPast || isOutOfRange || isClosed || isNoSlots;
+              // Dot color: green=many(6+), amber=few(3-5), primary=limited(1-2)
+              const dotColor = slotCount >= 6 ? colors.success : slotCount >= 3 ? colors.warning : colors.primary;
               return (
                 <Pressable
                   key={dateStr}
@@ -505,7 +508,7 @@ export default function EditAppointmentScreen() {
                   }}
                   style={({ pressed }) => ({
                     width: "14.28%",
-                    height: 44,
+                    height: 48,
                     alignItems: "center",
                     justifyContent: "center",
                     opacity: (isPast || isOutOfRange) ? 0.35 : pressed && !isDisabled ? 0.7 : 1,
@@ -540,9 +543,33 @@ export default function EditAppointmentScreen() {
                   >
                     {day}
                   </Text>
+                  {/* Availability dot */}
+                  {!isPast && !isOutOfRange && slotCount > 0 && (
+                    <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: dotColor, marginTop: 1 }} />
+                  )}
+                  {/* Spacer to keep height consistent when no dot */}
+                  {(isPast || isOutOfRange || slotCount === 0) && (
+                    <View style={{ width: 4, height: 4, marginTop: 1 }} />
+                  )}
                 </Pressable>
               );
             })}
+          </View>
+        </View>
+
+        {/* Dot legend */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 10, paddingHorizontal: 2 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.success }} />
+            <Text style={{ fontSize: 10, color: colors.muted }}>Many slots</Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.warning }} />
+            <Text style={{ fontSize: 10, color: colors.muted }}>Few slots</Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary }} />
+            <Text style={{ fontSize: 10, color: colors.muted }}>Limited</Text>
           </View>
         </View>
 

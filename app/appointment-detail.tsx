@@ -68,6 +68,8 @@ export default function AppointmentDetailScreen() {
   const today = new Date();
   const [reschedDate, setReschedDate] = useState<string>(appointment?.date ?? "");
   const [reschedTime, setReschedTime] = useState<string | null>(null);
+  // null = use global setting, 0 = Auto, positive = explicit minutes
+  const [reschedLocalInterval, setReschedLocalInterval] = useState<number | null>(null);
   const [reschedCalMonth, setReschedCalMonth] = useState<{ year: number; month: number }>(() => {
     const d = appointment ? new Date(appointment.date + "T12:00:00") : new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
@@ -195,10 +197,19 @@ export default function AppointmentDetailScreen() {
     const wh = (loc?.workingHours != null && Object.keys(loc.workingHours).length > 0)
       ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
       : (state.settings.workingHours ?? undefined);
-    // Resolve slot interval: location override > global setting > 30 min default
-    const globalInterval = state.settings.slotInterval ?? 30;
+    // Resolve slot interval: local UI override > location override > global setting > Auto
+    const globalInterval = state.settings.slotInterval ?? 0;
     const locInterval = (loc as any)?.slotIntervalMinutes;
-    const stepMins = (locInterval != null && locInterval > 0) ? locInterval : (globalInterval > 0 ? globalInterval : 30);
+    const bufferMin = state.settings.bufferTime ?? 0;
+    const autoStep = Math.max(5, appointment.duration + bufferMin);
+    let stepMins: number;
+    if (reschedLocalInterval !== null) {
+      stepMins = reschedLocalInterval === 0 ? autoStep : reschedLocalInterval;
+    } else if (locInterval != null && locInterval > 0) {
+      stepMins = locInterval;
+    } else {
+      stepMins = globalInterval > 0 ? globalInterval : autoStep;
+    }
     // Exclude the current appointment from conflict check
     const otherAppts = state.appointments.filter(a => a.id !== appointment.id);
     // Filter to only appointments for the assigned staff (staff availability)
@@ -214,9 +225,9 @@ export default function AppointmentDetailScreen() {
       stepMins,
       undefined,
       state.settings.scheduleMode,
-      state.settings.bufferTime ?? 0
+      bufferMin
     );
-  }, [reschedDate, appointment, assignedLocation, state.settings, state.appointments]);
+  }, [reschedDate, appointment, assignedLocation, state.settings, state.appointments, reschedLocalInterval]);
 
   // Pre-compute slot counts for every day in the visible month (for calendar dot indicators + disabled dates)
   const reschedMonthSlotCounts = useMemo(() => {
@@ -227,9 +238,18 @@ export default function AppointmentDetailScreen() {
     const wh = (loc?.workingHours != null && Object.keys(loc.workingHours).length > 0)
       ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
       : (state.settings.workingHours ?? undefined);
-    const globalInterval = state.settings.slotInterval ?? 30;
+    const globalInterval = state.settings.slotInterval ?? 0;
     const locInterval = (loc as any)?.slotIntervalMinutes;
-    const stepMins = (locInterval != null && locInterval > 0) ? locInterval : (globalInterval > 0 ? globalInterval : 30);
+    const bufferMin = state.settings.bufferTime ?? 0;
+    const autoStep = Math.max(5, appointment.duration + bufferMin);
+    let stepMins: number;
+    if (reschedLocalInterval !== null) {
+      stepMins = reschedLocalInterval === 0 ? autoStep : reschedLocalInterval;
+    } else if (locInterval != null && locInterval > 0) {
+      stepMins = locInterval;
+    } else {
+      stepMins = globalInterval > 0 ? globalInterval : autoStep;
+    }
     const otherAppts = state.appointments.filter(a => a.id !== appointment.id);
     const staffId = appointment.staffId;
     const staffFilteredAppts = staffId
@@ -246,12 +266,12 @@ export default function AppointmentDetailScreen() {
         stepMins,
         undefined,
         state.settings.scheduleMode,
-        state.settings.bufferTime ?? 0
+        bufferMin
       );
       counts[dateStr] = slots.length;
     }
     return counts;
-  }, [reschedCalMonth, appointment, assignedLocation, state.settings, state.appointments]);
+  }, [reschedCalMonth, appointment, assignedLocation, state.settings, state.appointments, reschedLocalInterval]);
 
   const handleReschedule = useCallback(() => {
     if (!reschedTime) return;
@@ -1889,7 +1909,46 @@ Would you also like to charge a no-show fee via Stripe?`,
               </View>
 
               {/* Time slots */}
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 20, marginBottom: 10 }}>
+              {/* Slot Interval Selector */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 16, marginBottom: 4 }} contentContainerStyle={{ gap: 6, paddingHorizontal: 2, paddingVertical: 2 }}>
+                {[
+                  { label: "Auto", value: 0 },
+                  { label: "5m", value: 5 },
+                  { label: "10m", value: 10 },
+                  { label: "15m", value: 15 },
+                  { label: "20m", value: 20 },
+                  { label: "25m", value: 25 },
+                  { label: "30m", value: 30 },
+                ].map((iv) => {
+                  const globalConfigured = (state.settings as any).slotInterval ?? 0;
+                  const activeValue = reschedLocalInterval !== null ? reschedLocalInterval : globalConfigured;
+                  const isActive = iv.value === activeValue;
+                  return (
+                    <Pressable
+                      key={iv.value}
+                      onPress={() => {
+                        setReschedLocalInterval(iv.value);
+                        setReschedTime(null);
+                      }}
+                      style={({ pressed }) => ({
+                        paddingHorizontal: 14,
+                        paddingVertical: 7,
+                        borderRadius: 20,
+                        backgroundColor: isActive ? colors.primary : colors.surface,
+                        borderWidth: 1.5,
+                        borderColor: isActive ? colors.primary : colors.border,
+                        opacity: pressed ? 0.7 : 1,
+                      })}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: "600", color: isActive ? "#FFF" : colors.foreground }}>
+                        {iv.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12, marginBottom: 10 }}>
                 <Text style={{ fontSize: 13, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>Available Times</Text>
                 {reschedSlots.length > 0 && (
                   <Text style={{ fontSize: 11, color: colors.primary, fontWeight: "600" }}>{reschedSlots.length} slot{reschedSlots.length !== 1 ? "s" : ""}</Text>
