@@ -731,6 +731,33 @@ export default function BookingsScreen() {
         {/* Filter tabs */}
         <View style={{ paddingHorizontal: hp, marginBottom: activeFilter === "paid" ? 6 : 12 }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {/* Today pill — filters to today's appointments */}
+            {(() => {
+              const isTodayActive = selectedDateFilter === todayStr;
+              const todayCount = locationAppointments.filter((a) => a.date === todayStr).length;
+              return (
+                <Pressable
+                  onPress={() => setSelectedDateFilter(isTodayActive ? null : todayStr)}
+                  style={({ pressed }) => [
+                    styles.filterChip,
+                    {
+                      backgroundColor: isTodayActive ? "#F59E0B18" : colors.surface,
+                      borderColor: isTodayActive ? "#F59E0B" : colors.border,
+                      opacity: pressed ? 0.7 : 1,
+                    },
+                  ]}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: isTodayActive ? "700" : "500", color: isTodayActive ? "#F59E0B" : colors.muted }}>
+                    Today
+                  </Text>
+                  {todayCount > 0 && (
+                    <View style={{ backgroundColor: isTodayActive ? "#F59E0B" : colors.border, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, marginLeft: 4 }}>
+                      <Text style={{ fontSize: 10, fontWeight: "700", color: isTodayActive ? "#FFF" : colors.muted }}>{todayCount}</Text>
+                    </View>
+                  )}
+                </Pressable>
+              );
+            })()}
             {FILTERS.map((f) => {
               const isActive = activeFilter === f.key;
               const count =

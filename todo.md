@@ -1752,3 +1752,6 @@
 - [x] Fix Week card height — all 7 days visible, card must not be cut off or overflow into next section
 - [x] Smooth slide animation when swiping/navigating between days and weeks in Day/Week KPI card
 - [x] Calendar page: add sticky day section headers (e.g. "May 1, 2026") to all appointment list tabs, hiding days with no appointments
+- [x] Calendar day list: add "Mark Paid" button on each appointment card (same as Bookings page), toggles to green "Paid" badge after tapping; requires payment modal
+- [x] Calendar day list: update date title format — show "Today, Sun, May 3" for today, "Monday, May 4" for other days (applies to month panel, day view, and week view titles)
+- [x] Bookings page: add "Today" filter pill alongside Upcoming/Confirmed/Unpaid that filters list to today's appointments only

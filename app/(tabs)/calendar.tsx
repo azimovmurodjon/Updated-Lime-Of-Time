@@ -1212,6 +1212,20 @@ export default function CalendarScreen() {
             );
           })()}
         </View>
+        {appt.paymentStatus !== "paid" && appt.status !== "cancelled" && (
+          <Pressable
+            onPress={() => { setPayModalAppt(appt); setPayModalMethod("cash"); }}
+            style={({ pressed }) => [{
+              backgroundColor: pressed ? "#16a34a" : "#22C55E",
+              borderRadius: 8,
+              paddingHorizontal: 10,
+              paddingVertical: 4,
+              marginLeft: "auto" as any,
+            }]}
+          >
+            <Text style={{ fontSize: 11, fontWeight: "700", color: "#FFF" }}>Mark Paid</Text>
+          </Pressable>
+        )}
         {isRequest && (
           <View style={[styles.actionRow, { borderTopColor: colors.border }]}>
             <Pressable onPress={() => handleAccept(appt)} style={({ pressed }) => [styles.acceptBtn, { backgroundColor: "#1B5E20", opacity: pressed ? 0.8 : 1 }]}>
@@ -1754,7 +1768,9 @@ export default function CalendarScreen() {
         {/* Header */}
         <View style={{ marginTop: 12, marginBottom: 8 }}>
           <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>
-            {formatDateDisplay(selectedDate)}
+            {selectedDate === todayStr
+              ? `Today, ${DAY_SHORT[new Date(selectedDate + "T12:00:00").getDay()]}, ${formatDateDisplay(selectedDate)}`
+              : `${DAY_FULL[new Date(selectedDate + "T12:00:00").getDay()]}, ${formatDateDisplay(selectedDate)}`}
           </Text>
         </View>
 
@@ -1786,7 +1802,9 @@ export default function CalendarScreen() {
           </Pressable>
           <Pressable onPress={jumpToToday}>
             <Text style={[styles.monthTitle, { color: colors.foreground }]}>
-              {DAY_FULL[new Date(selectedDate + "T12:00:00").getDay()]}, {formatDateDisplay(selectedDate)}
+              {selectedDate === todayStr
+                ? `Today, ${DAY_SHORT[new Date(selectedDate + "T12:00:00").getDay()]}, ${formatDateDisplay(selectedDate)}`
+                : `${DAY_FULL[new Date(selectedDate + "T12:00:00").getDay()]}, ${formatDateDisplay(selectedDate)}`}
             </Text>
           </Pressable>
           <Pressable onPress={nextDay} style={({ pressed }) => [styles.navBtn, { opacity: pressed ? 0.5 : 1 }]}>
@@ -1941,7 +1959,9 @@ export default function CalendarScreen() {
               <IconSymbol name="chevron.left" size={20} color={colors.foreground} />
             </Pressable>
             <Text style={[styles.monthTitle, { color: colors.foreground, fontSize: 16 }]}>
-              {DAY_FULL[new Date(selectedDate + "T12:00:00").getDay()]}, {formatDateDisplay(selectedDate)}
+              {selectedDate === todayStr
+                ? `Today, ${DAY_SHORT[new Date(selectedDate + "T12:00:00").getDay()]}, ${formatDateDisplay(selectedDate)}`
+                : `${DAY_FULL[new Date(selectedDate + "T12:00:00").getDay()]}, ${formatDateDisplay(selectedDate)}`}
             </Text>
             <Pressable onPress={() => {
               const d = new Date(selectedDate + "T12:00:00");
