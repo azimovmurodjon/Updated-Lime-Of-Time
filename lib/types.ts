@@ -539,11 +539,31 @@ export interface ReminderTemplate {
 }
 
 export const DEFAULT_REMINDER_TEMPLATES: ReminderTemplate[] = [
-  { id: "rt-30m",  label: "30 minutes before", minutesBefore: 30,   customMessage: "", createdAt: new Date().toISOString(), category: "upcoming" },
-  { id: "rt-1h",   label: "1 hour before",     minutesBefore: 60,   customMessage: "", createdAt: new Date().toISOString(), category: "upcoming" },
-  { id: "rt-2h",   label: "2 hours before",    minutesBefore: 120,  customMessage: "", createdAt: new Date().toISOString(), category: "upcoming" },
-  { id: "rt-6h",   label: "6 hours before",    minutesBefore: 360,  customMessage: "", createdAt: new Date().toISOString(), category: "upcoming" },
-  { id: "rt-24h",  label: "24 hours before",   minutesBefore: 1440, customMessage: "", createdAt: new Date().toISOString(), category: "upcoming" },
+  {
+    id: "rt-30m", label: "30 minutes before", minutesBefore: 30, category: "upcoming",
+    createdAt: new Date().toISOString(),
+    customMessage: "Hello {clientName}, your {service} appointment at {location} starts in 30 minutes at {time}. Please make your way over now and plan to arrive 5 minutes early. We look forward to seeing you! — {businessName}",
+  },
+  {
+    id: "rt-1h", label: "1 hour before", minutesBefore: 60, category: "upcoming",
+    createdAt: new Date().toISOString(),
+    customMessage: "Hello {clientName}, your {service} appointment at {location} is in 1 hour at {time}. Please plan to arrive 5 minutes early. If you need to reschedule, contact us as soon as possible. See you soon! — {businessName}",
+  },
+  {
+    id: "rt-2h", label: "2 hours before", minutesBefore: 120, category: "upcoming",
+    createdAt: new Date().toISOString(),
+    customMessage: "Hello {clientName}, this is a reminder that your {service} appointment at {location} is in 2 hours at {time}. Please ensure you are prepared and plan to arrive 5 minutes early. We look forward to serving you. — {businessName}",
+  },
+  {
+    id: "rt-6h", label: "6 hours before", minutesBefore: 360, category: "upcoming",
+    createdAt: new Date().toISOString(),
+    customMessage: "Hello {clientName}, just a reminder that your {service} appointment at {location} is today at {time} — that is about 6 hours from now. Please arrive 5 minutes early. If you need to make any changes, contact us right away. — {businessName}",
+  },
+  {
+    id: "rt-24h", label: "24 hours before", minutesBefore: 1440, category: "upcoming",
+    createdAt: new Date().toISOString(),
+    customMessage: "Hello {clientName}, this is your 24-hour reminder for your {service} appointment tomorrow, {date} at {time} at {location}. We look forward to seeing you. Please arrive 5 minutes early and contact us if you need to reschedule or cancel. — {businessName}",
+  },
 ];
 
 /** Built-in template library — 49 professional SMS templates across 7 categories (not saved to user store by default) */

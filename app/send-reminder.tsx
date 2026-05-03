@@ -354,43 +354,75 @@ export default function SendReminderScreen() {
           </Pressable>
 
           {/* Custom reminder templates */}
-          {reminderTemplates.map((tpl) => (
-            <Pressable
-              key={tpl.id}
-              onPress={() => { setSelectedTemplateId(tpl.id); setEditingBody(null); }}
-              style={({ pressed }) => [
-                styles.templateChip,
-                {
-                  borderColor: selectedTemplateId === tpl.id ? colors.primary : colors.border,
-                  backgroundColor: selectedTemplateId === tpl.id ? colors.primary + "12" : colors.surface,
-                  opacity: pressed ? 0.7 : 1,
-                },
-              ]}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: selectedTemplateId === tpl.id ? colors.primary + "20" : colors.border + "40", alignItems: "center", justifyContent: "center" }}>
-                  <IconSymbol name="clock" size={16} color={selectedTemplateId === tpl.id ? colors.primary : colors.muted} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontWeight: "700", color: selectedTemplateId === tpl.id ? colors.primary : colors.foreground }}>
-                    {tpl.label}
-                  </Text>
-                  {tpl.customMessage ? (
-                    <Text style={{ fontSize: 11, color: colors.muted, marginTop: 1 }} numberOfLines={1}>
-                      {tpl.customMessage.substring(0, 60)}...
-                    </Text>
-                  ) : (
-                    <Text style={{ fontSize: 11, color: colors.muted, marginTop: 1 }}>
-                      Uses default reminder message
-                    </Text>
-                  )}
-                </View>
-                {selectedTemplateId === tpl.id && (
-                  <IconSymbol name="checkmark.circle.fill" size={20} color={colors.primary} />
+          {reminderTemplates.map((tpl) => {
+            const isSelected = selectedTemplateId === tpl.id;
+            // First line of the custom message as subtitle (variables not yet resolved)
+            const previewLine = tpl.customMessage
+              ? tpl.customMessage.split("\n")[0].substring(0, 70) + (tpl.customMessage.length > 70 ? "…" : "")
+              : "Uses default reminder message";
+            const canRemove = !DEFAULT_REMINDER_TEMPLATES.some((d) => d.id === tpl.id);
+            return (
+              <View key={tpl.id} style={{ position: "relative" }}>
+                <Pressable
+                  onPress={() => { setSelectedTemplateId(tpl.id); setEditingBody(null); }}
+                  style={({ pressed }) => [
+                    styles.templateChip,
+                    {
+                      borderColor: isSelected ? colors.primary : colors.border,
+                      backgroundColor: isSelected ? colors.primary + "12" : colors.surface,
+                      opacity: pressed ? 0.7 : 1,
+                      paddingRight: canRemove ? 48 : 12,
+                    },
+                  ]}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: isSelected ? colors.primary + "20" : colors.border + "40", alignItems: "center", justifyContent: "center" }}>
+                      <IconSymbol name="clock" size={16} color={isSelected ? colors.primary : colors.muted} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: "700", color: isSelected ? colors.primary : colors.foreground }}>
+                        {tpl.label}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: colors.muted, marginTop: 1 }} numberOfLines={1}>
+                        {previewLine}
+                      </Text>
+                    </View>
+                    {isSelected && (
+                      <IconSymbol name="checkmark.circle.fill" size={20} color={colors.primary} />
+                    )}
+                  </View>
+                </Pressable>
+                {canRemove && (
+                  <Pressable
+                    onPress={() => {
+                      Alert.alert(
+                        "Remove Template",
+                        `Remove "${tpl.label}" from your templates?`,
+                        [
+                          { text: "Cancel", style: "cancel" },
+                          {
+                            text: "Remove", style: "destructive",
+                            onPress: () => {
+                              if (selectedTemplateId === tpl.id) { setSelectedTemplateId(null); setEditingBody(null); }
+                              dispatch({ type: "DELETE_REMINDER_TEMPLATE", payload: tpl.id });
+                              syncToDb({ type: "DELETE_REMINDER_TEMPLATE", payload: tpl.id });
+                            },
+                          },
+                        ]
+                      );
+                    }}
+                    style={({ pressed }) => ({
+                      position: "absolute", right: 8, top: 0, bottom: 0,
+                      alignItems: "center", justifyContent: "center",
+                      width: 36, opacity: pressed ? 0.5 : 1,
+                    })}
+                  >
+                    <IconSymbol name="xmark.circle.fill" size={20} color={colors.error} />
+                  </Pressable>
                 )}
               </View>
-            </Pressable>
-          ))}
+            );
+          })}
         </View>
 
         {/* Message Preview */}

@@ -62,6 +62,9 @@ export default function TemplateLibraryScreen() {
   const params = useLocalSearchParams<{ onSelectId?: string; filterCategory?: string }>();
   const { state, dispatch } = useStore();
 
+  // Search query state
+  const [searchQuery, setSearchQuery] = useState("");
+
   // Which categories are expanded
   const [expanded, setExpanded] = useState<Record<string, boolean>>(
     Object.fromEntries(CATEGORY_ORDER.map((c) => [c, true]))
@@ -90,11 +93,21 @@ export default function TemplateLibraryScreen() {
     : CATEGORY_ORDER;
 
   const grouped = useMemo(() => {
-    return visibleCategories.map((cat) => ({
-      cat,
-      templates: TEMPLATE_LIBRARY.filter((t) => t.category === cat),
-    }));
-  }, [visibleCategories]);
+    const q = searchQuery.trim().toLowerCase();
+    return visibleCategories
+      .map((cat) => ({
+        cat,
+        templates: TEMPLATE_LIBRARY.filter((t) => {
+          if (t.category !== cat) return false;
+          if (!q) return true;
+          return (
+            t.label.toLowerCase().includes(q) ||
+            (t.customMessage ?? "").toLowerCase().includes(q)
+          );
+        }),
+      }))
+      .filter(({ templates }) => templates.length > 0);
+  }, [visibleCategories, searchQuery]);
 
   function toggleCategory(cat: string) {
     setExpanded((prev) => ({ ...prev, [cat]: !prev[cat] }));
@@ -183,6 +196,34 @@ export default function TemplateLibraryScreen() {
           <Text style={{ color: colors.primary }}>Add to My Templates</Text> to save, or{" "}
           <Text style={{ color: colors.primary }}>Duplicate &amp; Edit</Text> to personalise.
         </Text>
+
+        {/* Search bar */}
+        <View style={[s.searchBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <IconSymbol name="magnifyingglass" size={16} color={colors.muted} />
+          <TextInput
+            style={[s.searchInput, { color: colors.foreground }]}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search templates…"
+            placeholderTextColor={colors.muted}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+          />
+          {searchQuery.length > 0 && (
+            <Pressable onPress={() => setSearchQuery("")} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}>
+              <IconSymbol name="xmark.circle.fill" size={16} color={colors.muted} />
+            </Pressable>
+          )}
+        </View>
+
+        {searchQuery.trim().length > 0 && grouped.length === 0 && (
+          <View style={{ alignItems: "center", paddingVertical: 32 }}>
+            <IconSymbol name="magnifyingglass" size={32} color={colors.border} />
+            <Text style={{ fontSize: 15, color: colors.muted, marginTop: 12, textAlign: "center" }}>
+              No templates match "{searchQuery.trim()}"
+            </Text>
+          </View>
+        )}
 
         {grouped.map(({ cat, templates }) => (
           <View key={cat} style={s.section}>
@@ -384,6 +425,21 @@ function makeStyles(colors: ReturnType<typeof useColors>) {
     scroll: {
       padding: 16,
       gap: 12,
+    },
+    searchBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      borderWidth: 1,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      marginBottom: 4,
+    },
+    searchInput: {
+      flex: 1,
+      fontSize: 15,
+      padding: 0,
     },
     subtitle: {
       fontSize: 14,

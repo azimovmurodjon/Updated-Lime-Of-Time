@@ -550,7 +550,7 @@ export default function SettingsScreen() {
           title: "My Templates",
           subtitle: `${(state.reminderTemplates ?? []).length} saved template${(state.reminderTemplates ?? []).length !== 1 ? "s" : ""}`,
           icon: "note.text",
-          route: "/sms-templates",
+          route: "/reminder-templates",
           color: "#8B5CF6",
           status: (state.reminderTemplates ?? []).length > 0 ? "ok" : undefined,
         },
