@@ -1257,8 +1257,8 @@ export default function NewBookingScreen() {
                         >
                           {day}
                         </Text>
-                        {/* Today dot */}
-                        {isToday && !isSelected && (
+                        {/* Today dot — always show when today, even when selected */}
+                        {isToday && (
                           <View style={{ position: "absolute", bottom: 4, width: 4, height: 4, borderRadius: 2, backgroundColor: colors.primary }} />
                         )}
                         {/* OFF badge for closed days (not past, not out of range) */}

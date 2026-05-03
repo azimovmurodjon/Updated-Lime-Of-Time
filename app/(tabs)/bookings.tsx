@@ -173,7 +173,7 @@ export default function BookingsScreen() {
 
   const calendarHeight = calendarAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, calendarContentHeight + 16],
+    outputRange: [0, calendarContentHeight + 50], // +50 accounts for legend row (~34px) + spacing
   });
 
   // ─── Calendar grid days ───────────────────────────────────────────────
@@ -596,7 +596,7 @@ export default function BookingsScreen() {
                     flexDirection: "row",
                     gap: 2,
                     position: "absolute",
-                    bottom: Math.max(3, Math.floor(cellH * 0.08)),
+                    bottom: Math.max(2, Math.floor(cellH * 0.06)),
                   }}>
                     {Array.from(statuses).slice(0, 3).map((status, si) => {
                       const dotColor =
@@ -695,7 +695,7 @@ export default function BookingsScreen() {
         <Animated.View style={{ height: calendarHeight, overflow: "hidden" }}>
           <View style={{
             marginHorizontal: hp,
-            marginBottom: 8,
+            marginBottom: 4,
             backgroundColor: colors.surface,
             borderRadius: 16,
             borderWidth: 1,
@@ -703,6 +703,28 @@ export default function BookingsScreen() {
             overflow: "hidden",
           }}>
             {renderMiniCalendar()}
+          </View>
+          {/* Dot color legend */}
+          <View style={{
+            marginHorizontal: hp,
+            marginBottom: 8,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 14,
+            paddingVertical: 6,
+          }}>
+            {([
+              { color: "#60A5FA", label: "Confirmed" },
+              { color: "#9CA3AF", label: "Pending" },
+              { color: "#22C55E", label: "Completed" },
+              { color: "#EF4444", label: "Cancelled" },
+            ] as { color: string; label: string }[]).map((item) => (
+              <View key={item.label} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: item.color }} />
+                <Text style={{ fontSize: 10, color: colors.muted, fontWeight: "500" }}>{item.label}</Text>
+              </View>
+            ))}
           </View>
         </Animated.View>
 

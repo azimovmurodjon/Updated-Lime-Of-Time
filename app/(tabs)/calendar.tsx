@@ -1472,7 +1472,7 @@ export default function CalendarScreen() {
                 {hasCustomOverride && !isSelected && (
                   <View style={[styles.overrideDot, { backgroundColor: custom?.isOpen ? colors.success : colors.error }]} />
                 )}
-                {/* Appointment dots — only show when day has appointments, one per status */}
+                {/* Appointment dots — always show when day has appointments, even when selected */}
                 {statuses && statuses.size > 0 && (
                   <View style={[styles.dotsRow, { bottom: 1 }]}>
                     {statuses.has("confirmed") && <View style={[styles.dot, { backgroundColor: "#60A5FA" }]} />}
