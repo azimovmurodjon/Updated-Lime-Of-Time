@@ -37,6 +37,7 @@ import {
   formatPhoneNumber,
   timeSlotsOverlap,
   formatFullAddress,
+  getMapUrl,
 } from "@/lib/types";
 import { trpc } from "@/lib/trpc";
 import { apiCall } from "@/lib/_core/api";
@@ -1681,23 +1682,32 @@ export default function CalendarBookingScreen() {
               </View>
             )}
 
-            {/* Location row with full address */}
-            {selectedLocation && (
-              <View style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: 10, gap: 10 }}>
-                <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center" }}>
-                  <IconSymbol name="location.fill" size={15} color={colors.primary} />
+            {/* Location row with tappable full address */}
+            {selectedLocation && (() => {
+              const fullAddr = formatFullAddress(selectedLocation.address, selectedLocation.city, selectedLocation.state, selectedLocation.zipCode);
+              const mapUrl = fullAddr ? getMapUrl(fullAddr) : null;
+              return (
+                <View style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: 10, gap: 10 }}>
+                  <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center" }}>
+                    <IconSymbol name="location.fill" size={15} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>{selectedLocation.name}</Text>
+                    {fullAddr ? (
+                      <Pressable
+                        onPress={() => mapUrl && Linking.openURL(mapUrl)}
+                        style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+                      >
+                        <Text style={{ fontSize: 12, color: colors.primary, marginTop: 1, textDecorationLine: "underline" }} numberOfLines={2}>
+                          {fullAddr}
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                    {selectedLocation.phone ? <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>{selectedLocation.phone}</Text> : null}
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>{selectedLocation.name}</Text>
-                  {selectedLocation.address ? (
-                    <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }} numberOfLines={2}>
-                      {formatFullAddress(selectedLocation.address, selectedLocation.city, selectedLocation.state, selectedLocation.zipCode)}
-                    </Text>
-                  ) : null}
-                  {selectedLocation.phone ? <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>{selectedLocation.phone}</Text> : null}
-                </View>
-              </View>
-            )}
+              );
+            })()}
 
             {/* Staff row */}
             {selectedStaffId && (() => {
@@ -1732,9 +1742,9 @@ export default function CalendarBookingScreen() {
             {servicePrice > 0 ? (
               <>
                 <SummaryRow label={selectedService?.name ?? "Service"} value={`$${servicePrice.toFixed(2)}`} colors={colors} />
-                {cart.length > 0 && (
-                  <SummaryRow label={`Extras (${cart.length})`} value={`$${cart.reduce((s, i) => s + i.price, 0).toFixed(2)}`} colors={colors} />
-                )}
+                {cart.length > 0 && cart.map((item) => (
+                  <SummaryRow key={item.id} label={item.name} value={`$${item.price.toFixed(2)}`} colors={colors} />
+                ))}
                 {appliedDiscount && discountAmount > 0 && (
                   <SummaryRow label={`Discount — ${appliedDiscount.name}`} value={`-$${discountAmount.toFixed(2)}`} colors={colors} valueColor={colors.success} />
                 )}
@@ -1803,6 +1813,67 @@ export default function CalendarBookingScreen() {
               {requestingCardPayment ? "Processing..." : "Confirm Booking"}
             </Text>
           </Pressable>
+
+          {/* Add to Calendar button */}
+          {(() => {
+            const hasDate = !!preselectedDate && !!preselectedTime;
+            if (!hasDate) return null;
+            const handleAddToCalendar = async () => {
+              try {
+                const Calendar = await import("expo-calendar");
+                const { status } = await Calendar.requestCalendarPermissionsAsync();
+                if (status !== "granted") {
+                  Alert.alert("Permission Denied", "Calendar access is required to add this appointment.");
+                  return;
+                }
+                const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+                const defaultCal = calendars.find((c) => c.allowsModifications) ?? calendars[0];
+                if (!defaultCal) {
+                  Alert.alert("No Calendar", "No writable calendar found on this device.");
+                  return;
+                }
+                const [year, month, day] = preselectedDate.split("-").map(Number);
+                const [startH, startM] = preselectedTime.split(":").map(Number);
+                const startDate = new Date(year, month - 1, day, startH, startM, 0);
+                const endDate = new Date(startDate.getTime() + totalDuration * 60 * 1000);
+                const locationStr = selectedLocation
+                  ? [selectedLocation.name, formatFullAddress(selectedLocation.address, selectedLocation.city, selectedLocation.state, selectedLocation.zipCode)].filter(Boolean).join(" — ")
+                  : undefined;
+                await Calendar.createEventAsync(defaultCal.id, {
+                  title: selectedService ? `${selectedService.name}${selectedClient ? " — " + selectedClient.name : ""}` : "Appointment",
+                  startDate,
+                  endDate,
+                  location: locationStr,
+                  notes: notes || undefined,
+                  alarms: [{ relativeOffset: -60 }],
+                });
+                Alert.alert("Added to Calendar", "The appointment has been added to your calendar.");
+              } catch (e) {
+                Alert.alert("Error", "Could not add to calendar. Please try again.");
+              }
+            };
+            return (
+              <Pressable
+                onPress={handleAddToCalendar}
+                style={({ pressed }) => ({
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  marginTop: 10,
+                  paddingVertical: 13,
+                  borderRadius: 14,
+                  borderWidth: 1.5,
+                  borderColor: colors.primary,
+                  backgroundColor: colors.primary + "12",
+                  opacity: pressed ? 0.7 : 1,
+                })}
+              >
+                <IconSymbol name="calendar" size={16} color={colors.primary} />
+                <Text style={{ fontSize: 14, fontWeight: "600", color: colors.primary }}>Add to Calendar</Text>
+              </Pressable>
+            );
+          })()}
 
           {selectedClient?.phone && (
             <Text

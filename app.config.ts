@@ -182,6 +182,13 @@ const config: ExpoConfig = {
           "Allow $(PRODUCT_NAME) to use Face ID to unlock the app.",
       },
     ],
+    [
+      "expo-calendar",
+      {
+        calendarPermission: "Allow $(PRODUCT_NAME) to access your calendar to add appointments.",
+        remindersPermission: "Allow $(PRODUCT_NAME) to access your reminders.",
+      },
+    ],
   ],
 
   experiments: {
