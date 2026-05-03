@@ -483,7 +483,7 @@ export default function EditAppointmentScreen() {
           <View style={{ flexDirection: "row", flexWrap: "wrap", width: "100%" }}>
             {calCells.map((day, idx) => {
               if (day === null) {
-                return <View key={`empty-${idx}`} style={{ width: "14.28%", aspectRatio: 1 }} />;
+                return <View key={`empty-${idx}`} style={{ width: "14.28%", height: 44 }} />;
               }
               const dateStr = `${displayYear}-${String(displayMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
               const isSelected = dateStr === selectedDate;
@@ -505,34 +505,41 @@ export default function EditAppointmentScreen() {
                   }}
                   style={({ pressed }) => ({
                     width: "14.28%",
-                    aspectRatio: 1,
+                    height: 44,
                     alignItems: "center",
                     justifyContent: "center",
-                    backgroundColor: isSelected ? colors.primary + "20" : "transparent",
-                    borderRadius: 999,
-                    borderWidth: isSelected || isToday ? 1.5 : 0,
-                    borderColor: isSelected || isToday ? colors.primary : "transparent",
                     opacity: (isPast || isOutOfRange) ? 0.35 : pressed && !isDisabled ? 0.7 : 1,
                   })}
                 >
+                  {/* Selected: outlined rounded square, no fill */}
+                  {isSelected && (
+                    <View style={{
+                      position: "absolute",
+                      width: 36,
+                      height: 36,
+                      borderRadius: 10,
+                      borderWidth: 2,
+                      borderColor: colors.primary,
+                      backgroundColor: "transparent",
+                    }} />
+                  )}
                   <Text
                     style={{
                       fontSize: 14,
                       fontWeight: isToday || isSelected ? "700" : "400",
-                      color: isSelected || isToday
+                      color: isToday
+                        ? colors.primary
+                        : isSelected
                         ? colors.primary
                         : isClosed && !isPast && !isOutOfRange
                         ? colors.muted
                         : colors.foreground,
-                      // past dates: just dim via opacity above, no strikethrough
                       textDecorationLine: "none",
+                      lineHeight: 20,
                     }}
                   >
                     {day}
                   </Text>
-                  {isToday && (
-                    <View style={{ position: "absolute", bottom: 3, width: 4, height: 4, borderRadius: 2, backgroundColor: colors.primary }} />
-                  )}
                 </Pressable>
               );
             })}
