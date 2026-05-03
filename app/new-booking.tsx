@@ -1699,17 +1699,27 @@ export default function NewBookingScreen() {
               return rows;
             })()}
 
-            {/* Products sub-line: always show when products are in cart */}
+            {/* Services + Products sub-lines: show when both types are in cart */}
             {(() => {
+              const serviceTotal = cart
+                .filter(c => c.type === 'service')
+                .reduce((s, c) => s + c.price, 0);
               const productTotal = cart
                 .filter(c => c.type === 'product')
                 .reduce((s, c) => s + c.price, 0);
-              if (productTotal === 0) return null;
+              const hasBoth = serviceTotal > 0 && productTotal > 0;
+              if (!hasBoth) return null;
               return (
-                <View style={[styles.cartItem, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, marginTop: 4, paddingTop: 8 }]}>
-                  <Text className="text-sm text-muted">Products</Text>
-                  <Text className="text-sm font-semibold" style={{ color: colors.primary }}>${productTotal.toFixed(2)}</Text>
-                </View>
+                <>
+                  <View style={[styles.cartItem, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, marginTop: 4, paddingTop: 8 }]}>
+                    <Text className="text-sm text-muted">Services</Text>
+                    <Text className="text-sm font-semibold text-foreground">${serviceTotal.toFixed(2)}</Text>
+                  </View>
+                  <View style={[styles.cartItem]}>
+                    <Text className="text-sm text-muted">Products</Text>
+                    <Text className="text-sm font-semibold" style={{ color: colors.primary }}>${productTotal.toFixed(2)}</Text>
+                  </View>
+                </>
               );
             })()}
             {/* Subtotal */}

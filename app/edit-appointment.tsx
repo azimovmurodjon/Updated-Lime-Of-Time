@@ -121,6 +121,7 @@ export default function EditAppointmentScreen() {
   const [editPrimaryService, setEditPrimaryService] = useState<string>(appointment?.serviceId ?? "");
 
   // Product editor state: productId → quantity (0 = not in appointment)
+  const [productsExpanded, setProductsExpanded] = useState(false);
   const [productQty, setProductQty] = useState<Record<string, number>>(() => {
     const qtyMap: Record<string, number> = {};
     for (const item of (appointment?.extraItems ?? [])) {
@@ -439,18 +440,27 @@ export default function EditAppointmentScreen() {
         const extrasTotal = editExtraItems.reduce((s, e) => s + e.price, 0);
         const rawTotal = primaryPrice + extrasTotal;
         const discountAmt = appointment?.discountAmount ?? 0;
+        const discountName = (appointment as any)?.discountName as string | undefined;
+        const discountPct = (appointment as any)?.discountPercent as number | undefined;
         const liveTotal = Math.max(0, rawTotal - discountAmt);
         const origTotal = appointment?.totalPrice ?? 0;
         const changed = Math.abs(liveTotal - origTotal) > 0.001;
         return (
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingHorizontal: hp, paddingBottom: 8, gap: 6 }}>
-            <Text style={{ fontSize: 12, color: colors.muted }}>New Total:</Text>
-            <Text style={{ fontSize: 16, fontWeight: '800', color: changed ? colors.primary : colors.muted }}>
-              ${liveTotal.toFixed(2)}
-            </Text>
-            {changed && (
-              <Text style={{ fontSize: 11, color: colors.muted, textDecorationLine: 'line-through' }}>
-                ${origTotal.toFixed(2)}
+          <View style={{ paddingHorizontal: hp, paddingBottom: 8, alignItems: 'flex-end', gap: 2 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={{ fontSize: 12, color: colors.muted }}>New Total:</Text>
+              <Text style={{ fontSize: 16, fontWeight: '800', color: changed ? colors.primary : colors.muted }}>
+                ${liveTotal.toFixed(2)}
+              </Text>
+              {changed && (
+                <Text style={{ fontSize: 11, color: colors.muted, textDecorationLine: 'line-through' }}>
+                  ${origTotal.toFixed(2)}
+                </Text>
+              )}
+            </View>
+            {discountAmt > 0 && (
+              <Text style={{ fontSize: 11, color: colors.warning }}>
+                {discountName ? `${discountName}` : discountPct ? `${discountPct}% off` : 'Discount'} −${discountAmt.toFixed(2)} applied
               </Text>
             )}
           </View>
@@ -666,18 +676,26 @@ export default function EditAppointmentScreen() {
           </View>
         </Modal>
 
-        {/* Products Editor */}
+        {/* Products Editor — collapsible */}
         {state.products.filter(p => p.available).length > 0 && (
           <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+            {/* Collapsible header */}
+            <Pressable
+              onPress={() => setProductsExpanded(e => !e)}
+              style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', opacity: pressed ? 0.7 : 1, marginBottom: productsExpanded ? 10 : 0 })}
+            >
               <Text style={{ fontSize: 13, fontWeight: '700', color: colors.muted, flex: 1 }}>PRODUCTS</Text>
-              {Object.values(productQty).reduce((s, q) => s + q, 0) > 0 && (
-                <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '600' }}>
-                  {Object.values(productQty).reduce((s, q) => s + q, 0)} item{Object.values(productQty).reduce((s, q) => s + q, 0) !== 1 ? 's' : ''}
-                </Text>
-              )}
-            </View>
-            {state.products.filter(p => p.available).map((p) => {
+              {(() => {
+                const totalSelected = Object.values(productQty).reduce((s, q) => s + q, 0);
+                return totalSelected > 0 ? (
+                  <View style={{ backgroundColor: colors.primary + '18', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2, marginRight: 8 }}>
+                    <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '700' }}>{totalSelected} selected</Text>
+                  </View>
+                ) : null;
+              })()}
+              <Text style={{ fontSize: 18, color: colors.muted, lineHeight: 22 }}>{productsExpanded ? '▲' : '▼'}</Text>
+            </Pressable>
+            {productsExpanded && state.products.filter(p => p.available).map((p) => {
               const qty = productQty[p.id] ?? 0;
               return (
                 <View
@@ -726,8 +744,8 @@ export default function EditAppointmentScreen() {
                 </View>
               );
             })}
-            {/* Product subtotal */}
-            {(() => {
+            {/* Product subtotal — only when expanded */}
+            {productsExpanded && (() => {
               const totalItems = Object.values(productQty).reduce((s, q) => s + q, 0);
               if (totalItems === 0) return null;
               const subtotal = state.products

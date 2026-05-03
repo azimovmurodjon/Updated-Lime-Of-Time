@@ -103,6 +103,7 @@ export default function AppointmentDetailScreen() {
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [discountInput, setDiscountInput] = useState("");
   const [discountType, setDiscountType] = useState<"percent" | "flat">("percent");
+  const [chargesExpanded, setChargesExpanded] = useState(true);
 
 
   // Derived variables — safe with optional chaining (appointment may be null during hydration)
@@ -898,58 +899,66 @@ Would you also like to charge a no-show fee via Stripe?`,
             : Math.max(0, afterDiscount - giftDeduction);
           return (
             <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
-              {/* Charges header with optional product badge */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              {/* Charges header — tappable to expand/collapse line items */}
+              <Pressable
+                onPress={() => setChargesExpanded(v => !v)}
+                style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', opacity: pressed ? 0.7 : 1, marginBottom: chargesExpanded ? 8 : 0 })}
+              >
                 <Text className="text-xs text-muted" style={{ flex: 1 }}>Charges</Text>
                 {(() => {
                   const productCount = (appointment.extraItems ?? []).filter(e => e.type === 'product').length;
-                  if (productCount === 0) return null;
-                  return (
-                    <View style={{ backgroundColor: colors.primary + '18', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: colors.primary + '40' }}>
+                  return productCount > 0 ? (
+                    <View style={{ backgroundColor: colors.primary + '18', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: colors.primary + '40', marginRight: 8 }}>
                       <Text style={{ fontSize: 11, fontWeight: '700', color: colors.primary }}>
                         {productCount} product{productCount !== 1 ? 's' : ''}
                       </Text>
                     </View>
-                  );
+                  ) : null;
                 })()}
-              </View>
-              <View className="flex-row justify-between py-1">
-                <Text className="text-sm text-foreground">{service ? getServiceDisplayName(service) : "Service"}</Text>
-                <Text className="text-sm font-semibold text-foreground">${svcPrice.toFixed(2)}</Text>
-              </View>
-              {/* Extra services shown individually; products grouped by id with ×qty */}
-              {(() => {
-                const serviceExtras = extras.filter(e => e.type === 'service');
-                const productGroups = new Map<string, { name: string; price: number; qty: number }>();
-                extras.forEach(e => {
-                  if (e.type !== 'product') return;
-                  if (!productGroups.has(e.id)) productGroups.set(e.id, { name: e.name, price: e.price || 0, qty: 0 });
-                  productGroups.get(e.id)!.qty += 1;
-                });
-                return (
-                  <>
-                    {serviceExtras.map((item, idx) => (
-                      <View key={`svc-${idx}`} className="flex-row justify-between py-1">
-                        <Text className="text-sm text-foreground">{item.name} (Service)</Text>
-                        <Text className="text-sm font-semibold text-foreground">${(item.price || 0).toFixed(2)}</Text>
-                      </View>
-                    ))}
-                    {Array.from(productGroups.entries()).map(([pid, g]) => (
-                      <View key={`prod-${pid}`} className="flex-row justify-between py-1">
-                        <Text className="text-sm text-foreground">
-                          {g.name}{g.qty > 1 ? ` ×${g.qty}` : ''} (Product)
-                        </Text>
-                        <Text className="text-sm font-semibold text-foreground">${(g.price * g.qty).toFixed(2)}</Text>
-                      </View>
-                    ))}
-                  </>
-                );
-              })()}
-              {extras.length > 0 && (
-                <View style={{ borderTopWidth: 1, borderTopColor: colors.border + "40", marginTop: 4, paddingTop: 4 }} className="flex-row justify-between py-1">
-                  <Text className="text-sm text-muted">Subtotal</Text>
-                  <Text className="text-sm text-muted">${subtotal.toFixed(2)}</Text>
-                </View>
+                <Text style={{ fontSize: 16, color: colors.muted }}>{chargesExpanded ? '▲' : '▼'}</Text>
+              </Pressable>
+              {/* Line items — only when expanded */}
+              {chargesExpanded && (
+                <>
+                  <View className="flex-row justify-between py-1">
+                    <Text className="text-sm text-foreground">{service ? getServiceDisplayName(service) : "Service"}</Text>
+                    <Text className="text-sm font-semibold text-foreground">${svcPrice.toFixed(2)}</Text>
+                  </View>
+                  {/* Extra services shown individually; products grouped by id with ×qty */}
+                  {(() => {
+                    const serviceExtras = extras.filter(e => e.type === 'service');
+                    const productGroups = new Map<string, { name: string; price: number; qty: number }>();
+                    extras.forEach(e => {
+                      if (e.type !== 'product') return;
+                      if (!productGroups.has(e.id)) productGroups.set(e.id, { name: e.name, price: e.price || 0, qty: 0 });
+                      productGroups.get(e.id)!.qty += 1;
+                    });
+                    return (
+                      <>
+                        {serviceExtras.map((item, idx) => (
+                          <View key={`svc-${idx}`} className="flex-row justify-between py-1">
+                            <Text className="text-sm text-foreground">{item.name} (Service)</Text>
+                            <Text className="text-sm font-semibold text-foreground">${(item.price || 0).toFixed(2)}</Text>
+                          </View>
+                        ))}
+                        {Array.from(productGroups.entries()).map(([pid, g]) => (
+                          <View key={`prod-${pid}`} className="flex-row justify-between py-1">
+                            <Text className="text-sm text-foreground">
+                              {g.name}{g.qty > 1 ? ` ×${g.qty}` : ''} (Product)
+                            </Text>
+                            <Text className="text-sm font-semibold text-foreground">${(g.price * g.qty).toFixed(2)}</Text>
+                          </View>
+                        ))}
+                      </>
+                    );
+                  })()}
+                  {extras.length > 0 && (
+                    <View style={{ borderTopWidth: 1, borderTopColor: colors.border + "40", marginTop: 4, paddingTop: 4 }} className="flex-row justify-between py-1">
+                      <Text className="text-sm text-muted">Subtotal</Text>
+                      <Text className="text-sm text-muted">${subtotal.toFixed(2)}</Text>
+                    </View>
+                  )}
+                </>
               )}
               {discountAmt > 0 && (
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 4 }}>
