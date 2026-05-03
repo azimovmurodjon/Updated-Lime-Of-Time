@@ -7,6 +7,7 @@ import {
   Alert,
   Modal,
   TextInput,
+  Image,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -575,27 +576,66 @@ export default function EditAppointmentScreen() {
               />
             </View>
 
-            {/* Category filter */}
+            {/* Category filter — compact horizontal chips with icons */}
             {(() => {
               const cats = Array.from(new Set(state.services.filter(s => s.category).map(s => s.category as string)));
               if (cats.length === 0) return null;
+              // Map common category names to SF Symbol icon names
+              const catIconMap: Record<string, string> = {
+                'Hair': 'scissors',
+                'Nails': 'paintbrush.fill',
+                'Skincare': 'sparkles',
+                'Skin Care': 'sparkles',
+                'Massage': 'hand.raised.fill',
+                'Waxing': 'eye.fill',
+                'Waxing & Brows': 'eye.fill',
+                'Brows': 'eye.fill',
+                'Lashes': 'eye',
+                'Makeup': 'face.smiling',
+                'Facials': 'sparkles',
+                'Body': 'figure.stand',
+                'Tanning': 'sun.max.fill',
+                'Threading': 'scissors',
+                'Coloring': 'paintbrush',
+                'Extensions': 'scissors',
+                'Braids': 'scissors',
+                'Barber': 'scissors',
+              };
+              const getIcon = (name: string): string => {
+                if (catIconMap[name]) return catIconMap[name];
+                // Partial match
+                const lower = name.toLowerCase();
+                if (lower.includes('hair')) return 'scissors';
+                if (lower.includes('nail')) return 'paintbrush.fill';
+                if (lower.includes('skin') || lower.includes('facial')) return 'sparkles';
+                if (lower.includes('massage') || lower.includes('body')) return 'hand.raised.fill';
+                if (lower.includes('wax') || lower.includes('brow') || lower.includes('lash')) return 'eye.fill';
+                if (lower.includes('makeup') || lower.includes('color')) return 'paintbrush';
+                return 'tag.fill';
+              };
               return (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 12, marginBottom: 8 }} contentContainerStyle={{ gap: 8 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 12, marginBottom: 8 }} contentContainerStyle={{ gap: 8, alignItems: 'center' }}>
+                  {/* All pill */}
                   <Pressable
                     onPress={() => setSvcPickerCategory(null)}
-                    style={({ pressed }) => ({ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: svcPickerCategory === null ? colors.primary : colors.surface, borderWidth: 1, borderColor: svcPickerCategory === null ? colors.primary : colors.border, opacity: pressed ? 0.7 : 1 })}
+                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: svcPickerCategory === null ? colors.primary : colors.surface, borderWidth: 1, borderColor: svcPickerCategory === null ? colors.primary : colors.border, opacity: pressed ? 0.7 : 1 })}
                   >
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: svcPickerCategory === null ? '#fff' : colors.foreground }}>All</Text>
+                    <Text style={{ fontSize: 13, lineHeight: 16 }}>✦</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: svcPickerCategory === null ? '#fff' : colors.foreground }}>All</Text>
                   </Pressable>
-                  {cats.map(cat => (
-                    <Pressable
-                      key={cat}
-                      onPress={() => setSvcPickerCategory(cat === svcPickerCategory ? null : cat)}
-                      style={({ pressed }) => ({ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: svcPickerCategory === cat ? colors.primary : colors.surface, borderWidth: 1, borderColor: svcPickerCategory === cat ? colors.primary : colors.border, opacity: pressed ? 0.7 : 1 })}
-                    >
-                      <Text style={{ fontSize: 12, fontWeight: '600', color: svcPickerCategory === cat ? '#fff' : colors.foreground }}>{cat}</Text>
-                    </Pressable>
-                  ))}
+                  {cats.map(cat => {
+                    const isActive = svcPickerCategory === cat;
+                    return (
+                      <Pressable
+                        key={cat}
+                        onPress={() => setSvcPickerCategory(cat === svcPickerCategory ? null : cat)}
+                        style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: isActive ? colors.primary : colors.surface, borderWidth: 1, borderColor: isActive ? colors.primary : colors.border, opacity: pressed ? 0.7 : 1 })}
+                      >
+                        <IconSymbol name={getIcon(cat) as any} size={13} color={isActive ? '#fff' : colors.muted} />
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: isActive ? '#fff' : colors.foreground }}>{cat}</Text>
+                      </Pressable>
+                    );
+                  })}
                 </ScrollView>
               );
             })()}
@@ -638,15 +678,11 @@ export default function EditAppointmentScreen() {
                     key={s.id}
                     onPress={() => {
                       if (editingServiceIdx === -1) {
-                        // Change primary service
                         setEditPrimaryService(s.id);
                       } else if (editingServiceIdx === null) {
-                        // Add new extra service
                         setEditExtraItems(prev => [...prev, { type: 'service', id: s.id, name: s.name, price: s.price, duration: s.duration }]);
                       } else {
-                        // Replace an existing extra service
                         setEditExtraItems(prev => {
-                          const svcItems = prev.filter(e => e.type === 'service');
                           const newItem: import('@/lib/types').AppointmentExtraItem = { type: 'service', id: s.id, name: s.name, price: s.price, duration: s.duration };
                           let svcCount = 0;
                           return prev.map(e => {
@@ -660,15 +696,24 @@ export default function EditAppointmentScreen() {
                       }
                       setShowServicePicker(false);
                     }}
-                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, opacity: pressed ? 0.7 : 1 })}
+                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, opacity: pressed ? 0.7 : 1 })}
                   >
-                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: s.color ?? colors.primary, marginRight: 10 }} />
+                    {/* Service image or colored avatar */}
+                    {s.photoUri ? (
+                      <Image source={{ uri: s.photoUri }} style={{ width: 44, height: 44, borderRadius: 10, marginRight: 12 }} resizeMode="cover" />
+                    ) : (
+                      <View style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: (s.color ?? colors.primary) + '22', alignItems: 'center', justifyContent: 'center', marginRight: 12, borderWidth: 1, borderColor: (s.color ?? colors.primary) + '40' }}>
+                        <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: s.color ?? colors.primary }} />
+                      </View>
+                    )}
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 14, fontWeight: '600', color: colors.foreground }} numberOfLines={2}>{s.name}</Text>
                       {!!s.category && <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{s.category}</Text>}
                     </View>
-                    <Text style={{ fontSize: 13, color: colors.muted, marginRight: 8 }}>{s.duration}m</Text>
-                    <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>${s.price.toFixed(2)}</Text>
+                    <View style={{ alignItems: 'flex-end', gap: 2 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: colors.primary }}>${s.price.toFixed(2)}</Text>
+                      <Text style={{ fontSize: 11, color: colors.muted }}>{s.duration}m</Text>
+                    </View>
                   </Pressable>
                 ));
               })()}
