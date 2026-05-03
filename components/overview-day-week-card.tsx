@@ -106,10 +106,9 @@ const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const WEEKEND_DAYS = [0, 6]; // Sunday, Saturday
 
 function formatHour(h: number): string {
-  if (h === 0) return "12 AM";
-  if (h < 12) return `${h} AM`;
-  if (h === 12) return "12 PM";
-  return `${h - 12} PM`;
+  const period = h < 12 ? "AM" : "PM";
+  const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${hour12}:00 ${period}`;
 }
 
 function getApptPrice(a: Appointment, services: Service[]): number {
@@ -243,7 +242,7 @@ function DayTimeline({ dayDate, dayAppts, services, clients, colors, onApptPress
     <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
       <View style={{ flexDirection: "row", minHeight: totalHeight + 24 }}>
         {/* Hour labels */}
-        <View style={{ width: LABEL_WIDTH }}>
+        <View style={{ width: LABEL_WIDTH, position: "relative" }}>
           {visibleHours.map((h) => (
             <View key={h} style={{ height: HOUR_HEIGHT, justifyContent: "flex-start", paddingTop: 4 }}>
               <Text style={{ fontSize: 10, color: colors.muted, textAlign: "right", paddingRight: 8 }}>
@@ -251,6 +250,35 @@ function DayTimeline({ dayDate, dayAppts, services, clients, colors, onApptPress
               </Text>
             </View>
           ))}
+          {/* Now pill — positioned in the label column so it never overlaps appointments */}
+          {isToday && nowTop >= 0 && nowTop <= totalHeight && (
+            <View
+              pointerEvents="none"
+              style={{
+                position: "absolute",
+                top: nowTop - 9,
+                left: 0,
+                right: 2,
+                height: 18,
+                alignItems: "flex-end",
+                justifyContent: "center",
+                zIndex: 21,
+              }}
+            >
+              <View style={{
+                backgroundColor: "#E53935",
+                borderRadius: 9,
+                paddingHorizontal: 5,
+                paddingVertical: 2,
+                alignItems: "center",
+                justifyContent: "center",
+              }}>
+                <Text style={{ fontSize: 9, fontWeight: "700", color: "#fff", letterSpacing: 0.2 }}>
+                  {nowLabel}
+                </Text>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Grid + appointment blocks */}
@@ -273,36 +301,20 @@ function DayTimeline({ dayDate, dayAppts, services, clients, colors, onApptPress
             />
           ))}
 
-          {/* Current time indicator */}
+          {/* Current time indicator — red line only (pill is in the label column) */}
           {isToday && nowTop >= 0 && nowTop <= totalHeight && (
             <View
               pointerEvents="none"
               style={{
                 position: "absolute",
-                top: nowTop - 9,
+                top: nowTop,
                 left: 0,
                 right: 0,
-                height: 18,
-                zIndex: 20,
-                flexDirection: "row",
-                alignItems: "center",
-              }}
-            >
-              <View style={{
+                height: 1.5,
                 backgroundColor: "#E53935",
-                borderRadius: 9,
-                paddingHorizontal: 5,
-                paddingVertical: 2,
-                minWidth: LABEL_WIDTH - 2,
-                alignItems: "center",
-                justifyContent: "center",
-              }}>
-                <Text style={{ fontSize: 9, fontWeight: "700", color: "#fff", letterSpacing: 0.2 }}>
-                  {nowLabel}
-                </Text>
-              </View>
-              <View style={{ flex: 1, height: 1.5, backgroundColor: "#E53935" }} />
-            </View>
+                zIndex: 20,
+              }}
+            />
           )}
 
           {/* Appointment blocks */}
