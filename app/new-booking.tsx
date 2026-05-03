@@ -18,7 +18,7 @@ import { useStore, generateId, formatDateStr, formatTime, formatDateDisplay } fr
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useMemo, useCallback } from "react";
-import { Appointment, Client, Product, Discount, DAYS_OF_WEEK, generateAvailableSlots, minutesToTime, timeToMinutes, getApplicableDiscount, generateConfirmationMessage, getServiceDisplayName, stripPhoneFormat, timeSlotsOverlap, PUBLIC_BOOKING_URL } from "@/lib/types";
+import { Appointment, Client, Product, Discount, DAYS_OF_WEEK, DEFAULT_WORKING_HOURS, generateAvailableSlots, minutesToTime, timeToMinutes, getApplicableDiscount, generateConfirmationMessage, getServiceDisplayName, stripPhoneFormat, timeSlotsOverlap, PUBLIC_BOOKING_URL } from "@/lib/types";
 import { trpc } from "@/lib/trpc";
 import { useActiveLocation } from "@/hooks/use-active-location";
 import { useResponsive } from "@/hooks/use-responsive";
@@ -278,7 +278,7 @@ export default function NewBookingScreen() {
         return onlyLoc.workingHours as Record<string, import('@/lib/types').WorkingHours>;
       }
     }
-    return state.settings.workingHours;
+    return state.settings.workingHours ?? DEFAULT_WORKING_HOURS;
   }, [selectedLocation, selectedLocationId, activeLocations, state.settings.workingHours]);
   // Filter appointments by the form-selected location (not the global active location)
   const locationAppts = useMemo(

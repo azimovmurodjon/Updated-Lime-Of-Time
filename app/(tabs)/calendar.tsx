@@ -77,6 +77,7 @@ type TimelineViewProps = {
   appts: Appointment[];
   tintColor?: string;
   liveNow: Date;
+  todayStr?: string;
   timelineHours: string[];
   effectiveHours: { start: string; end: string } | null;
   available: boolean;
@@ -93,7 +94,7 @@ type TimelineViewProps = {
 };
 
 function TimelineView({
-  dateStr, appts, tintColor, liveNow, timelineHours, effectiveHours, available,
+  dateStr, appts, tintColor, liveNow, todayStr, timelineHours, effectiveHours, available,
   colors, getServiceById, getClientById, onApptPress,
 }: TimelineViewProps) {
   const [containerWidth, setContainerWidth] = React.useState(0);
@@ -101,7 +102,7 @@ function TimelineView({
   const totalHours = TIMELINE_END - TIMELINE_START + 1;
   const gridHeight = totalHours * HOUR_HEIGHT;
 
-  const isToday = dateStr === formatDateStr(liveNow);
+  const isToday = dateStr === (todayStr ?? formatDateStr(liveNow));
   const nowMinutes = liveNow.getHours() * 60 + liveNow.getMinutes();
   const nowTop = (nowMinutes - TIMELINE_START * 60) * (HOUR_HEIGHT / 60);
   const showNowLine = isToday && nowTop >= 0 && nowTop <= gridHeight;
@@ -1359,6 +1360,7 @@ export default function CalendarScreen() {
       appts={appts}
       tintColor={tintColor}
       liveNow={liveNow}
+      todayStr={todayStr}
       timelineHours={timelineHours}
       effectiveHours={getEffectiveHours(dateStr)}
       available={isDayAvailable(dateStr)}
@@ -1427,51 +1429,62 @@ export default function CalendarScreen() {
                 styles.dayCell,
                 {
                   width: cellSize,
-                  height: cellSize,
-                  backgroundColor: noLocation
-                    ? "transparent"
-                    : isSelected
-                    ? (isTemporarilyClosed ? colors.error : colors.primary)
-                    : isTemporarilyClosed && !isPast
-                    ? colors.error + "18"
-                    : "transparent",
-                  borderRadius: cellSize / 2,
+                  height: cellSize + 18,
                   opacity: noLocation ? 0.3 : isPast ? 0.3 : pressed ? 0.7 : 1,
                 },
               ]}
             >
-              <Text
-                style={{
-                  fontSize: 15,
-                  fontWeight: isToday || isSelected ? "700" : "400",
-                  color: noLocation
-                    ? colors.muted
-                    : isSelected
-                    ? "#FFF"
-                    : isTemporarilyClosed
-                    ? colors.error
-                    : isToday
-                    ? colors.primary
-                    : !isAvailable
-                    ? colors.muted
-                    : colors.foreground,
-                  textDecorationLine: noLocation ? "line-through" : (isTemporarilyClosed || (!isAvailable && !isPast)) ? "line-through" : "none",
-                }}
-              >
-                {day}
-              </Text>
-              {/* Custom override indicator */}
-              {hasCustomOverride && !isSelected && (
-                <View style={[styles.overrideDot, { backgroundColor: custom?.isOpen ? colors.success : colors.error }]} />
-              )}
-              {/* Appointment dots — one per status present on this day */}
-              <View style={styles.dotsRow}>
-                {statuses?.has("confirmed") && <View style={[styles.dot, { backgroundColor: colors.success }]} />}
-                {statuses?.has("pending") && <View style={[styles.dot, { backgroundColor: "#FF9800" }]} />}
-                {statuses?.has("completed") && <View style={[styles.dot, { backgroundColor: colors.primary }]} />}
-                {statuses?.has("cancelled") && <View style={[styles.dot, { backgroundColor: colors.muted }]} />}
+              {/* Circle background for the date number */}
+              <View style={{
+                width: cellSize - 4,
+                height: cellSize - 4,
+                borderRadius: (cellSize - 4) / 2,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: noLocation
+                  ? "transparent"
+                  : isSelected
+                  ? (isTemporarilyClosed ? colors.error : colors.primary)
+                  : isTemporarilyClosed && !isPast
+                  ? colors.error + "18"
+                  : "transparent",
+                position: "relative",
+              }}>
+                <Text
+                  style={{
+                    fontSize: 15,
+                    fontWeight: isToday || isSelected ? "700" : "400",
+                    color: noLocation
+                      ? colors.muted
+                      : isSelected
+                      ? "#FFF"
+                      : isTemporarilyClosed
+                      ? colors.error
+                      : isToday
+                      ? colors.primary
+                      : !isAvailable
+                      ? colors.muted
+                      : colors.foreground,
+                    textDecorationLine: noLocation ? "line-through" : (isTemporarilyClosed || (!isAvailable && !isPast)) ? "line-through" : "none",
+                  }}
+                >
+                  {day}
+                </Text>
+                {/* Custom override indicator */}
+                {hasCustomOverride && !isSelected && (
+                  <View style={[styles.overrideDot, { backgroundColor: custom?.isOpen ? colors.success : colors.error }]} />
+                )}
+                {/* Appointment dots — only show when day has appointments, one per status */}
+                {statuses && statuses.size > 0 && (
+                  <View style={[styles.dotsRow, { bottom: 1 }]}>
+                    {statuses.has("confirmed") && <View style={[styles.dot, { backgroundColor: "#60A5FA" }]} />}
+                    {statuses.has("pending") && <View style={[styles.dot, { backgroundColor: "#9CA3AF" }]} />}
+                    {statuses.has("completed") && <View style={[styles.dot, { backgroundColor: colors.success }]} />}
+                    {statuses.has("cancelled") && <View style={[styles.dot, { backgroundColor: colors.error }]} />}
+                  </View>
+                )}
               </View>
-              {/* Full / Off badge */}
+              {/* Badge row below the circle — Off / Full / slot count */}
               {(() => {
                 if (isPast || noLocation) return null;
                 if (!isAvailable || isTemporarilyClosed) {
@@ -1489,12 +1502,10 @@ export default function CalendarScreen() {
                     </View>
                   );
                 }
-                // Show remaining slot count badge (always visible, including on selected day)
                 if (slotInfo && slotInfo.total > 0) {
                   const remaining = slotInfo.total - slotInfo.booked;
                   if (remaining > 0) {
                     const badgeColor = remaining <= 2 ? "#F59E0B" : "#22C55E";
-                    // On selected day: use white text so it's readable on the green circle
                     const textColor = isSelected ? "#fff" : badgeColor;
                     const bgColor = isSelected ? (badgeColor + "55") : (badgeColor + "25");
                     return (
@@ -1675,10 +1686,10 @@ export default function CalendarScreen() {
       })()}
       {/* Legend */}
       <View style={[styles.dotLegend, { paddingHorizontal: hp }]}>
-        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: colors.success }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Confirmed</Text></View>
-        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: "#FF9800" }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Pending</Text></View>
-        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: colors.primary }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Completed</Text></View>
-        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: colors.muted }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Cancelled</Text></View>
+        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: "#60A5FA" }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Confirmed</Text></View>
+        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: "#9CA3AF" }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Pending</Text></View>
+        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: colors.success }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Completed</Text></View>
+        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: colors.error }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Cancelled</Text></View>
       </View>
 
       {/* Selected Date Panel */}
@@ -2296,7 +2307,7 @@ const styles = StyleSheet.create({
   navBtn: { padding: 8 },
   dayHeaderRow: { flexDirection: "row", marginBottom: 4 },
   calendarGrid: { flexDirection: "row", flexWrap: "wrap", width: "100%" },
-  dayCell: { alignItems: "center", justifyContent: "center" },
+  dayCell: { alignItems: "center", justifyContent: "flex-start", paddingTop: 2 },
   dotsRow: { flexDirection: "row", gap: 2, position: "absolute", bottom: 2 },
   dot: { width: 5, height: 5, borderRadius: 2.5 },
   overrideDot: { width: 5, height: 5, borderRadius: 2.5, position: "absolute", top: 3, right: 6 },
