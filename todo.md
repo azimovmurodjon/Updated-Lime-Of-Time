@@ -1755,3 +1755,4 @@
 - [x] Calendar day list: add "Mark Paid" button on each appointment card (same as Bookings page), toggles to green "Paid" badge after tapping; requires payment modal
 - [x] Calendar day list: update date title format — show "Today, Sun, May 3" for today, "Monday, May 4" for other days (applies to month panel, day view, and week view titles)
 - [x] Bookings page: add "Today" filter pill alongside Upcoming/Confirmed/Unpaid that filters list to today's appointments only
+- [x] Public booking page: fix category card overflow — long category names (e.g. "Upper body: back/neck/shoulders/face") now wrap inside the card border on both Select Service (step 3) and Add More (step 6)
