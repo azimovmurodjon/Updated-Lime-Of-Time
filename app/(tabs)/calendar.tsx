@@ -1441,12 +1441,12 @@ export default function CalendarScreen() {
                 borderRadius: (cellSize - 4) / 2,
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: noLocation
-                  ? "transparent"
-                  : isSelected
-                  ? (isTemporarilyClosed ? colors.error : colors.primary)
-                  : isTemporarilyClosed && !isPast
+                backgroundColor: isTemporarilyClosed && !isPast && !isSelected
                   ? colors.error + "18"
+                  : "transparent",
+                borderWidth: isSelected ? 1.5 : 0,
+                borderColor: isSelected
+                  ? (isTemporarilyClosed ? colors.error : colors.primary)
                   : "transparent",
                 position: "relative",
               }}>
@@ -1456,12 +1456,10 @@ export default function CalendarScreen() {
                     fontWeight: isToday || isSelected ? "700" : "400",
                     color: noLocation
                       ? colors.muted
-                      : isSelected
-                      ? "#FFF"
+                      : isSelected || isToday
+                      ? (isTemporarilyClosed ? colors.error : colors.primary)
                       : isTemporarilyClosed
                       ? colors.error
-                      : isToday
-                      ? colors.primary
                       : !isAvailable
                       ? colors.muted
                       : colors.foreground,

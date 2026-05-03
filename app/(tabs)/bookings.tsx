@@ -578,22 +578,20 @@ export default function BookingsScreen() {
                   alignItems: "center",
                   justifyContent: "center",
                   borderRadius: radius,
-                  backgroundColor: isSelected
-                    ? colors.primary
-                    : isToday
-                    ? colors.primary + "20"
-                    : "transparent",
+                  backgroundColor: "transparent",
+                  borderWidth: isSelected ? 1.5 : 0,
+                  borderColor: isSelected ? colors.primary : "transparent",
                   opacity: pressed ? 0.7 : 1,
                 }]}
               >
                 <Text style={{
                   fontSize: 13,
                   fontWeight: isToday || isSelected ? "700" : "400",
-                  color: isSelected ? "#FFF" : isToday ? colors.primary : colors.foreground,
+                  color: isSelected || isToday ? colors.primary : colors.foreground,
                 }}>
                   {day}
                 </Text>
-                {hasAppts && !isSelected && (
+                {hasAppts && (
                   <View style={{
                     flexDirection: "row",
                     gap: 2,
@@ -602,10 +600,10 @@ export default function BookingsScreen() {
                   }}>
                     {Array.from(statuses).slice(0, 3).map((status, si) => {
                       const dotColor =
-                        status === "confirmed" ? colors.success
-                        : status === "pending" ? "#FF9800"
-                        : status === "completed" ? colors.primary
-                        : colors.muted;
+                        status === "confirmed" ? "#60A5FA"
+                        : status === "pending" ? "#9CA3AF"
+                        : status === "completed" ? colors.success
+                        : colors.error;
                       return <View key={si} style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: dotColor }} />;
                     })}
                   </View>

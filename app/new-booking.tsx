@@ -1236,8 +1236,10 @@ export default function NewBookingScreen() {
                           height: calCellSize,
                           alignItems: "center",
                           justifyContent: "center",
-                          backgroundColor: isSelected ? colors.primary : "transparent",
+                          backgroundColor: "transparent",
                           borderRadius: calCellSize / 2,
+                          borderWidth: isSelected ? 1.5 : 0,
+                          borderColor: isSelected ? colors.primary : "transparent",
                           opacity: (isPast || isOutOfRange) ? 0.3 : pressed && !isDisabled ? 0.7 : 1,
                         })}
                       >
@@ -1245,9 +1247,7 @@ export default function NewBookingScreen() {
                           style={{
                             fontSize: 14,
                             fontWeight: isToday || isSelected ? "700" : "400",
-                            color: isSelected
-                              ? "#FFFFFF"
-                              : isToday
+                            color: isSelected || isToday
                               ? colors.primary
                               : isClosed && !isPast && !isOutOfRange
                               ? colors.muted
@@ -1273,13 +1273,25 @@ export default function NewBookingScreen() {
                             <Text style={{ fontSize: 7, color: colors.warning, fontWeight: "700" }}>FULL</Text>
                           </View>
                         )}
-                        {/* Slot count badge */}
+                        {/* Slot count badge — green rounded-square */}
                         {!isClosed && !isNoSlots && !isPast && !isOutOfRange && slotCount > 0 && (
-                          <View style={{ position: "absolute", top: 1, right: 1, borderRadius: 4, paddingHorizontal: 2, paddingVertical: 0 }}>
+                          <View style={{
+                            position: "absolute",
+                            top: 1,
+                            right: 1,
+                            backgroundColor: slotCount <= 2 ? colors.warning + "30" : colors.success + "30",
+                            borderRadius: 4,
+                            borderWidth: 1,
+                            borderColor: slotCount <= 2 ? colors.warning + "80" : colors.success + "80",
+                            paddingHorizontal: 2,
+                            paddingVertical: 0,
+                            minWidth: 12,
+                            alignItems: "center",
+                          }}>
                             <Text style={{
                               fontSize: 7,
                               fontWeight: "700",
-                              color: isSelected ? "rgba(255,255,255,0.85)" : slotCount <= 2 ? colors.warning : colors.success,
+                              color: slotCount <= 2 ? colors.warning : colors.success,
                             }}>{slotCount}</Text>
                           </View>
                         )}
