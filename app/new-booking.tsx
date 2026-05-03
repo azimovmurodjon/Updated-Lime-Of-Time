@@ -1699,6 +1699,19 @@ export default function NewBookingScreen() {
               return rows;
             })()}
 
+            {/* Products sub-line: always show when products are in cart */}
+            {(() => {
+              const productTotal = cart
+                .filter(c => c.type === 'product')
+                .reduce((s, c) => s + c.price, 0);
+              if (productTotal === 0) return null;
+              return (
+                <View style={[styles.cartItem, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, marginTop: 4, paddingTop: 8 }]}>
+                  <Text className="text-sm text-muted">Products</Text>
+                  <Text className="text-sm font-semibold" style={{ color: colors.primary }}>${productTotal.toFixed(2)}</Text>
+                </View>
+              );
+            })()}
             {/* Subtotal */}
             {discountAmount > 0 && (
               <View style={[styles.cartItem, { borderTopWidth: 1, borderTopColor: colors.border, marginTop: 4, paddingTop: 8 }]}>

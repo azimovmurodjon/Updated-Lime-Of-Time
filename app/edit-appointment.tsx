@@ -412,7 +412,7 @@ export default function EditAppointmentScreen() {
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]}>
       {/* Header */}
-      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8, paddingTop: 8, paddingHorizontal: hp }}>
+      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4, paddingTop: 8, paddingHorizontal: hp }}>
         <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
           <IconSymbol name="arrow.left" size={24} color={colors.foreground} />
         </Pressable>
@@ -432,6 +432,30 @@ export default function EditAppointmentScreen() {
           <Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 14 }}>Save</Text>
         </Pressable>
       </View>
+      {/* Live New Total preview */}
+      {(() => {
+        const ps = state.services.find(s => s.id === editPrimaryService) ?? service;
+        const primaryPrice = parseFloat(String(ps?.price ?? appointment?.totalPrice ?? 0));
+        const extrasTotal = editExtraItems.reduce((s, e) => s + e.price, 0);
+        const rawTotal = primaryPrice + extrasTotal;
+        const discountAmt = appointment?.discountAmount ?? 0;
+        const liveTotal = Math.max(0, rawTotal - discountAmt);
+        const origTotal = appointment?.totalPrice ?? 0;
+        const changed = Math.abs(liveTotal - origTotal) > 0.001;
+        return (
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingHorizontal: hp, paddingBottom: 8, gap: 6 }}>
+            <Text style={{ fontSize: 12, color: colors.muted }}>New Total:</Text>
+            <Text style={{ fontSize: 16, fontWeight: '800', color: changed ? colors.primary : colors.muted }}>
+              ${liveTotal.toFixed(2)}
+            </Text>
+            {changed && (
+              <Text style={{ fontSize: 11, color: colors.muted, textDecorationLine: 'line-through' }}>
+                ${origTotal.toFixed(2)}
+              </Text>
+            )}
+          </View>
+        );
+      })()}
 
       <ScrollView
         showsVerticalScrollIndicator={false}

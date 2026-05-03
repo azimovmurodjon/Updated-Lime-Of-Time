@@ -898,7 +898,21 @@ Would you also like to charge a no-show fee via Stripe?`,
             : Math.max(0, afterDiscount - giftDeduction);
           return (
             <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
-              <Text className="text-xs text-muted mb-2">Charges</Text>
+              {/* Charges header with optional product badge */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                <Text className="text-xs text-muted" style={{ flex: 1 }}>Charges</Text>
+                {(() => {
+                  const productCount = (appointment.extraItems ?? []).filter(e => e.type === 'product').length;
+                  if (productCount === 0) return null;
+                  return (
+                    <View style={{ backgroundColor: colors.primary + '18', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: colors.primary + '40' }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: colors.primary }}>
+                        {productCount} product{productCount !== 1 ? 's' : ''}
+                      </Text>
+                    </View>
+                  );
+                })()}
+              </View>
               <View className="flex-row justify-between py-1">
                 <Text className="text-sm text-foreground">{service ? getServiceDisplayName(service) : "Service"}</Text>
                 <Text className="text-sm font-semibold text-foreground">${svcPrice.toFixed(2)}</Text>
