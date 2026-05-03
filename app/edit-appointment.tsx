@@ -702,6 +702,24 @@ export default function EditAppointmentScreen() {
                 </View>
               );
             })}
+            {/* Product subtotal */}
+            {(() => {
+              const totalItems = Object.values(productQty).reduce((s, q) => s + q, 0);
+              if (totalItems === 0) return null;
+              const subtotal = state.products
+                .filter(p => p.available)
+                .reduce((s, p) => s + (productQty[p.id] ?? 0) * parseFloat(String(p.price)), 0);
+              return (
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 10, marginTop: 2 }}>
+                  <Text style={{ fontSize: 13, color: colors.muted }}>
+                    {totalItems} item{totalItems !== 1 ? 's' : ''}
+                  </Text>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: colors.primary }}>
+                    ${subtotal.toFixed(2)}
+                  </Text>
+                </View>
+              );
+            })()}
           </View>
         )}
 

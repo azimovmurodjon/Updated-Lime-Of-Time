@@ -1642,26 +1642,62 @@ export default function NewBookingScreen() {
               </View>
             )}
 
-            {/* Cart Items */}
-            {cart.map((item, index) => (
-              <View key={`${item.type}-${item.id}-${index}`} style={styles.cartItem}>
-                <View style={{ flex: 1 }}>
-                  <Text className="text-sm font-semibold text-foreground">{item.name}</Text>
-                  <Text className="text-xs text-muted">
-                    {item.type === "product" ? "Product" : `${item.duration} min`}
-                  </Text>
-                </View>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Text className="text-sm font-bold" style={{ color: colors.primary }}>${item.price.toFixed(2)}</Text>
-                  <Pressable
-                    onPress={() => removeFromCart(index)}
-                    style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}
-                  >
-                    <IconSymbol name="xmark" size={16} color={colors.error} />
-                  </Pressable>
-                </View>
-              </View>
-            ))}
+            {/* Cart Items — services shown individually, products grouped by id */}
+            {(() => {
+              const serviceExtras = cart.filter((c) => c.type === "service");
+              const productGroups = new Map<string, { name: string; price: number; qty: number }>();
+              cart.forEach((item) => {
+                if (item.type !== "product") return;
+                if (!productGroups.has(item.id)) {
+                  productGroups.set(item.id, { name: item.name, price: item.price, qty: 0 });
+                }
+                productGroups.get(item.id)!.qty += 1;
+              });
+              const rows: React.ReactNode[] = [];
+              serviceExtras.forEach((item) => {
+                const originalIdx = cart.indexOf(item);
+                rows.push(
+                  <View key={`svc-${item.id}-${originalIdx}`} style={styles.cartItem}>
+                    <View style={{ flex: 1 }}>
+                      <Text className="text-sm font-semibold text-foreground">{item.name}</Text>
+                      <Text className="text-xs text-muted">{item.duration} min</Text>
+                    </View>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <Text className="text-sm font-bold" style={{ color: colors.primary }}>${item.price.toFixed(2)}</Text>
+                      <Pressable
+                        onPress={() => removeFromCart(originalIdx)}
+                        style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}
+                      >
+                        <IconSymbol name="xmark" size={16} color={colors.error} />
+                      </Pressable>
+                    </View>
+                  </View>
+                );
+              });
+              productGroups.forEach((group, productId) => {
+                rows.push(
+                  <View key={`prod-${productId}`} style={styles.cartItem}>
+                    <View style={{ flex: 1 }}>
+                      <Text className="text-sm font-semibold text-foreground">{group.name}</Text>
+                      <Text className="text-xs text-muted">Product</Text>
+                    </View>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      {group.qty > 1 && (
+                        <Text style={{ fontSize: 12, color: colors.muted, fontWeight: "600" }}>×{group.qty}</Text>
+                      )}
+                      <Text className="text-sm font-bold" style={{ color: colors.primary }}>${(group.price * group.qty).toFixed(2)}</Text>
+                      <Pressable
+                        onPress={() => setProductQtyAndSync(productId, 0)}
+                        style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}
+                      >
+                        <IconSymbol name="xmark" size={16} color={colors.error} />
+                      </Pressable>
+                    </View>
+                  </View>
+                );
+              });
+              return rows;
+            })()}
 
             {/* Subtotal */}
             {discountAmount > 0 && (

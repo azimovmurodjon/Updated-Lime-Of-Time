@@ -903,12 +903,34 @@ Would you also like to charge a no-show fee via Stripe?`,
                 <Text className="text-sm text-foreground">{service ? getServiceDisplayName(service) : "Service"}</Text>
                 <Text className="text-sm font-semibold text-foreground">${svcPrice.toFixed(2)}</Text>
               </View>
-              {extras.map((item, idx) => (
-                <View key={idx} className="flex-row justify-between py-1">
-                  <Text className="text-sm text-foreground">{item.name} ({item.type === "product" ? "Product" : "Service"})</Text>
-                  <Text className="text-sm font-semibold text-foreground">${(item.price || 0).toFixed(2)}</Text>
-                </View>
-              ))}
+              {/* Extra services shown individually; products grouped by id with ×qty */}
+              {(() => {
+                const serviceExtras = extras.filter(e => e.type === 'service');
+                const productGroups = new Map<string, { name: string; price: number; qty: number }>();
+                extras.forEach(e => {
+                  if (e.type !== 'product') return;
+                  if (!productGroups.has(e.id)) productGroups.set(e.id, { name: e.name, price: e.price || 0, qty: 0 });
+                  productGroups.get(e.id)!.qty += 1;
+                });
+                return (
+                  <>
+                    {serviceExtras.map((item, idx) => (
+                      <View key={`svc-${idx}`} className="flex-row justify-between py-1">
+                        <Text className="text-sm text-foreground">{item.name} (Service)</Text>
+                        <Text className="text-sm font-semibold text-foreground">${(item.price || 0).toFixed(2)}</Text>
+                      </View>
+                    ))}
+                    {Array.from(productGroups.entries()).map(([pid, g]) => (
+                      <View key={`prod-${pid}`} className="flex-row justify-between py-1">
+                        <Text className="text-sm text-foreground">
+                          {g.name}{g.qty > 1 ? ` ×${g.qty}` : ''} (Product)
+                        </Text>
+                        <Text className="text-sm font-semibold text-foreground">${(g.price * g.qty).toFixed(2)}</Text>
+                      </View>
+                    ))}
+                  </>
+                );
+              })()}
               {extras.length > 0 && (
                 <View style={{ borderTopWidth: 1, borderTopColor: colors.border + "40", marginTop: 4, paddingTop: 4 }} className="flex-row justify-between py-1">
                   <Text className="text-sm text-muted">Subtotal</Text>
