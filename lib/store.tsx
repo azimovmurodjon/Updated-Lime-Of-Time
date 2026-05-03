@@ -27,6 +27,7 @@ import {
   ServicePackage,
   ServicePhoto,
   PromoCode,
+  InboxNotification,
 } from "./types";
 import { trpc } from "./trpc";
 
@@ -64,6 +65,8 @@ interface AppState {
   servicePhotos: ServicePhoto[];
   /** Referral and promotional codes */
   promoCodes: PromoCode[];
+  /** In-app notification inbox items */
+  inboxNotifications: InboxNotification[];
 }
 
 const initialSettings: BusinessSettings = {
@@ -131,6 +134,7 @@ const initialState: AppState = {
   packages: [],
   servicePhotos: [],
   promoCodes: [],
+  inboxNotifications: [],
 };
 
 // --- Actions ---
@@ -189,6 +193,10 @@ type Action =
   | { type: "ADD_PROMO_CODE"; payload: PromoCode }
   | { type: "UPDATE_PROMO_CODE"; payload: PromoCode }
   | { type: "DELETE_PROMO_CODE"; payload: string }
+  | { type: "ADD_INBOX_NOTIFICATION"; payload: InboxNotification }
+  | { type: "MARK_INBOX_READ" }
+  | { type: "DISMISS_INBOX_NOTIFICATION"; payload: string }
+  | { type: "CLEAR_OLD_INBOX_NOTIFICATIONS" }
   | { type: "RESET_ALL_DATA" };
 
 function reducer(state: AppState, action: Action): AppState {
@@ -448,6 +456,36 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, promoCodes: (state.promoCodes ?? []).map((p) => p.id === action.payload.id ? action.payload : p) };
     case "DELETE_PROMO_CODE":
       return { ...state, promoCodes: (state.promoCodes ?? []).filter((p) => p.id !== action.payload) };
+    case "ADD_INBOX_NOTIFICATION": {
+      // Avoid duplicates by id
+      const existing = state.inboxNotifications ?? [];
+      if (existing.some((n) => n.id === action.payload.id)) return state;
+      return { ...state, inboxNotifications: [action.payload, ...existing] };
+    }
+    case "MARK_INBOX_READ":
+      return {
+        ...state,
+        inboxNotifications: (state.inboxNotifications ?? []).map((n) => ({ ...n, read: true })),
+      };
+    case "DISMISS_INBOX_NOTIFICATION":
+      // Dismissing moves it to read immediately
+      return {
+        ...state,
+        inboxNotifications: (state.inboxNotifications ?? []).map((n) =>
+          n.id === action.payload ? { ...n, read: true } : n
+        ),
+      };
+    case "CLEAR_OLD_INBOX_NOTIFICATIONS": {
+      // Keep only items from the last 30 days
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 30);
+      return {
+        ...state,
+        inboxNotifications: (state.inboxNotifications ?? []).filter(
+          (n) => new Date(n.timestamp) >= cutoff
+        ),
+      };
+    }
     case "RESET_ALL_DATA":
       return { ...initialState, loaded: true };
     default:
@@ -506,6 +544,7 @@ const STORAGE_KEYS = {
   clientPhotos: "@bookease_client_photos",
   packages: "@bookease_packages",
   servicePhotos: "@bookease_service_photos",
+  inboxNotifications: "@bookease_inbox_notifications",
 };
 
 /** Convert DB rows to local frontend models */
@@ -965,7 +1004,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         // ── STEP 1: Load AsyncStorage cache immediately (stale-while-revalidate) ──
         // Show the user their last-known data instantly (~50ms) while DB fetches in background
         if (storedOwnerId) {
-          const [servicesRaw, clientsRaw, appointmentsRaw, reviewsRaw, settingsRaw, discountsRaw, giftCardsRaw, customScheduleRaw, productsRaw, staffRaw, locationsRaw, locationCustomScheduleRaw, clientPhotosRaw, packagesRaw, servicePhotosRaw] =
+          const [servicesRaw, clientsRaw, appointmentsRaw, reviewsRaw, settingsRaw, discountsRaw, giftCardsRaw, customScheduleRaw, productsRaw, staffRaw, locationsRaw, locationCustomScheduleRaw, clientPhotosRaw, packagesRaw, servicePhotosRaw, inboxNotificationsRaw] =
             await Promise.all([
               AsyncStorage.getItem(STORAGE_KEYS.services),
               AsyncStorage.getItem(STORAGE_KEYS.clients),
@@ -982,6 +1021,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               AsyncStorage.getItem(STORAGE_KEYS.clientPhotos),
               AsyncStorage.getItem(STORAGE_KEYS.packages),
               AsyncStorage.getItem(STORAGE_KEYS.servicePhotos),
+              AsyncStorage.getItem(STORAGE_KEYS.inboxNotifications),
             ]);
           if (servicesRaw || clientsRaw || appointmentsRaw || locationsRaw) {
             const parsedSettingsCache = settingsRaw ? JSON.parse(settingsRaw) : {};
@@ -1019,6 +1059,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 clientPhotos: clientPhotosRaw ? JSON.parse(clientPhotosRaw) : [],
                 packages: packagesRaw ? JSON.parse(packagesRaw) : [],
                 servicePhotos: servicePhotosRaw ? JSON.parse(servicePhotosRaw) : [],
+                inboxNotifications: inboxNotificationsRaw ? JSON.parse(inboxNotificationsRaw) : [],
               },
             });
             // Restore active location
@@ -1357,6 +1398,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!state.loaded) return;
     AsyncStorage.setItem(STORAGE_KEYS.servicePhotos, JSON.stringify(state.servicePhotos ?? []));
   }, [state.servicePhotos, state.loaded]);
+  useEffect(() => {
+    if (!state.loaded) return;
+    AsyncStorage.setItem(STORAGE_KEYS.inboxNotifications, JSON.stringify(state.inboxNotifications ?? []));
+  }, [state.inboxNotifications, state.loaded]);
   useEffect(() => {
     if (state.businessOwnerId !== null) {
       AsyncStorage.setItem(STORAGE_KEYS.businessOwnerId, String(state.businessOwnerId));

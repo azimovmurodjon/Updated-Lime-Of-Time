@@ -353,11 +353,11 @@ const appointmentsRouter = router({
             db.getEnrichedAppointment(localId, businessOwnerId),
           ]);
           if (owner && enrichedAppt) {
-            // Only send if owner has emailClientOnConfirmation preference enabled (default true)
+            // Only send if owner has emailClientOnConfirmation preference explicitly enabled (default OFF)
             // Also respect the master notificationsEnabled toggle
             const prefs = (owner as any).notificationPreferences ?? {};
             const masterNotifOn = (owner as any).notificationsEnabled !== false;
-            const emailEnabled = prefs.emailClientOnConfirmation !== false;
+            const emailEnabled = prefs.emailClientOnConfirmation === true;
             if (masterNotifOn && emailEnabled && enrichedAppt.clientEmail && enrichedAppt.clientEmail.includes("@")) {
               await sendAppointmentConfirmationEmail(owner.businessName, {
                 clientName: enrichedAppt.clientName ?? "Valued Client",
@@ -430,9 +430,9 @@ const appointmentsRouter = router({
               const clientName = enrichedAppt.clientName ?? "Valued Client";
               const serviceName = enrichedAppt.serviceName ?? "your appointment";
               const businessName = owner.businessName;
-              if (data.status === "confirmed" && prefs.smsClientOnConfirmation !== false) {
+              if (data.status === "confirmed" && prefs.smsClientOnConfirmation === true) {
                 await sendStatusSms(clientPhone, `Hi ${clientName}, your appointment for ${serviceName} has been confirmed by ${businessName}. See you soon!`);
-              } else if (data.status === "cancelled" && prefs.smsClientOnCancellation !== false) {
+              } else if (data.status === "cancelled" && prefs.smsClientOnCancellation === true) {
                 await sendStatusSms(clientPhone, `Hi ${clientName}, your appointment for ${serviceName} with ${businessName} has been cancelled. Please contact us to reschedule.`);
               } else if (data.status === "completed" && prefs.smsClientOnCompletion === true) {
                 await sendStatusSms(clientPhone, `Hi ${clientName}, thank you for visiting ${businessName}! We hope to see you again soon.`);

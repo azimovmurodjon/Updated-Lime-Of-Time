@@ -135,6 +135,7 @@ function RootLayout() {
               <Stack.Screen name="location-form" options={{ presentation: "fullScreenModal" }} />
               <Stack.Screen name="reviews" options={{ presentation: "card" }} />
               <Stack.Screen name="notification-settings" options={{ presentation: "card" }} />
+              <Stack.Screen name="notification-inbox" options={{ presentation: "card" }} />
               <Stack.Screen name="data-export" options={{ presentation: "card" }} />
               <Stack.Screen name="staff" options={{ presentation: "card" }} />
               <Stack.Screen name="staff-form" options={{ presentation: "fullScreenModal" }} />

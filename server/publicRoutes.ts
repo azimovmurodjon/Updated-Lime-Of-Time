@@ -879,7 +879,7 @@ export function registerPublicRoutes(app: Express) {
       // Email notifications are only available on paid plans (not free tier)
       const ownerNotifPrefs = (owner as any).notificationPreferences ?? {};
       const masterNotifEnabled = (owner as any).notificationsEnabled !== false;
-      const emailOnNewBookingEnabled = ownerNotifPrefs.emailOnNewBooking !== false;
+      const emailOnNewBookingEnabled = ownerNotifPrefs.emailOnNewBooking === true;
       const ownerSubStatus = (owner as any).subscriptionStatus as string | undefined;
       const isFreePlan = !ownerSubStatus || ownerSubStatus === "free";
       if (masterNotifEnabled && owner.email && emailOnNewBookingEnabled && !isFreePlan) {

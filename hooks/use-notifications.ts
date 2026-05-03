@@ -173,25 +173,14 @@ export function useNotifications() {
   const autoCompleteDelayMinutes = state.settings.autoCompleteDelayMinutes ?? 5;
 
   // ── App icon badge count ─────────────────────────────────────────────────
-  // Set the home-screen badge to the number of upcoming (confirmed/pending)
-  // appointments today + tomorrow so the owner always sees at a glance how
-  // many bookings are coming up.
+  // Badge = pending booking requests + unread inbox notifications, capped at 99.
   useEffect(() => {
     if (Platform.OS === "web") return;
-    const now = new Date();
-    const todayStr = now.toISOString().slice(0, 10);
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().slice(0, 10);
-
-    const upcoming = state.appointments.filter(
-      (a) =>
-        (a.status === "confirmed" || a.status === "pending") &&
-        (a.date === todayStr || a.date === tomorrowStr)
-    );
-
-    Notifications.setBadgeCountAsync(upcoming.length).catch(() => {});
-  }, [state.appointments]);
+    const pendingCount = state.appointments.filter((a) => a.status === "pending").length;
+    const unreadCount = (state.inboxNotifications ?? []).filter((n) => !n.read).length;
+    const total = Math.min(pendingCount + unreadCount, 99);
+    Notifications.setBadgeCountAsync(total).catch(() => {});
+  }, [state.appointments, state.inboxNotifications]);
 
   // tRPC mutation to save push token to server
   const updateBusiness = trpc.business.update.useMutation();
@@ -380,9 +369,10 @@ export function useNotifications() {
       }
     });
 
-    // ── Foreground notification listener: auto-update payment status ────────
+    // ── Foreground notification listener: auto-update payment status + add to inbox ────────
     const foregroundSubscription = Notifications.addNotificationReceivedListener((notification) => {
       const data = notification.request.content.data as NotificationData;
+      // Auto-update payment status
       if (data?.type === "payment_received" && data?.appointmentId) {
         const apptId = data.appointmentId;
         const appt = appointmentsRef.current.find((a) => a.id === apptId);
@@ -393,6 +383,50 @@ export function useNotifications() {
           syncToDb(updateAction);
           logger.log("[Notifications] Auto-marked appointment as paid from card payment:", apptId);
         }
+      }
+      // Add to in-app notification inbox for relevant event types
+      if (data?.type === "appointment_request") {
+        const content = notification.request.content;
+        dispatch({
+          type: "ADD_INBOX_NOTIFICATION",
+          payload: {
+            id: `inbox-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            type: "new_booking",
+            title: content.title ?? "New Booking Request",
+            body: content.body ?? "",
+            appointmentId: data.appointmentId,
+            timestamp: new Date().toISOString(),
+            read: false,
+          },
+        });
+      } else if (data?.type === "appointment_cancelled") {
+        const content = notification.request.content;
+        dispatch({
+          type: "ADD_INBOX_NOTIFICATION",
+          payload: {
+            id: `inbox-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            type: "cancelled_by_client",
+            title: content.title ?? "Appointment Cancelled",
+            body: content.body ?? "",
+            appointmentId: data.appointmentId,
+            timestamp: new Date().toISOString(),
+            read: false,
+          },
+        });
+      } else if (data?.type === "appointment_rescheduled") {
+        const content = notification.request.content;
+        dispatch({
+          type: "ADD_INBOX_NOTIFICATION",
+          payload: {
+            id: `inbox-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            type: "rescheduled_by_client",
+            title: content.title ?? "Appointment Rescheduled",
+            body: content.body ?? "",
+            appointmentId: data.appointmentId,
+            timestamp: new Date().toISOString(),
+            read: false,
+          },
+        });
       }
     });
 
@@ -440,17 +474,47 @@ export function useNotifications() {
     if (Platform.OS === "web") return;
     if (!state.settings.notificationsEnabled) return;
 
+    // Individual push toggle for appointment reminders
+    const pushRemindersEnabled = state.settings.notificationPreferences?.pushOnNewBooking !== false;
+    // We treat the 1h/30min reminders as always-on when master is on, but only for confirmed appts
+    // (pending appts don't get reminders since they haven't been accepted yet)
+
     const now = new Date();
 
     const upcomingAppts = state.appointments.filter((a) => {
-      if (a.status !== "confirmed" && a.status !== "pending") return false;
+      if (a.status !== "confirmed") return false; // Only confirmed appointments get reminders
       const [h, m] = a.time.split(":").map(Number);
-      const apptDate = new Date(a.date + "T00:00:00");
-      apptDate.setHours(h, m, 0, 0);
+      // Use local date parsing to avoid timezone offset bugs
+      const [yr, mo, dy] = a.date.split("-").map(Number);
+      const apptDate = new Date(yr, mo - 1, dy, h, m, 0, 0);
       // Only schedule for appointments in the future (within 7 days)
       const diffMs = apptDate.getTime() - now.getTime();
       return diffMs > 0 && diffMs < 7 * 24 * 60 * 60 * 1000;
     });
+
+    // Cancel notifications for appointments that are no longer confirmed/upcoming
+    // (cancelled, deleted, or rescheduled appointments should not fire reminders)
+    const cancelStaleReminders = async () => {
+      try {
+        const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+        const validIds = new Set(upcomingAppts.map((a) => a.id));
+        for (const n of scheduled) {
+          const id = n.identifier;
+          // Match reminder-1h-{id}, reminder-30m-{id}, autocomplete-{id}-*, autocomplete-action-{id}
+          const match = id.match(/^(?:reminder-1h|reminder-30m|autocomplete(?:-action)?)-([^-]+)/);
+          if (match) {
+            const apptId = match[1];
+            if (!validIds.has(apptId)) {
+              await Notifications.cancelScheduledNotificationAsync(id);
+              logger.log("[Notifications] Cancelled stale notification:", id);
+            }
+          }
+        }
+      } catch (err) {
+        logger.warn("[Notifications] Failed to cancel stale reminders:", err);
+      }
+    };
+    cancelStaleReminders();
 
     // Get all currently scheduled notifications so we can skip already-scheduled ones
     // This prevents duplicates when the component re-mounts (app background/foreground)
@@ -482,11 +546,12 @@ export function useNotifications() {
       const staff = state.staff?.find((s: any) => s.id === appt.staffId);
       const staffLine = staff?.name ? `👤 ${staff.name}` : "";
 
+      // Use local date parsing to avoid timezone offset bugs (prevents 26-27h drift)
       const [h, m] = appt.time.split(":").map(Number);
-      const apptDate = new Date(appt.date + "T00:00:00");
-      apptDate.setHours(h, m, 0, 0);
+      const [yr, mo, dy] = appt.date.split("-").map(Number);
+      const apptDate = new Date(yr, mo - 1, dy, h, m, 0, 0);
 
-      // ── 1-hour reminder ────────────────────────────────────────────────
+      // ── 1-hour reminder ──────────────────────────────────────────────────────
       const hourReminderDate = new Date(apptDate.getTime() - 60 * 60 * 1000);
       if (hourReminderDate.getTime() > now.getTime()) {
         await scheduleIfNotExists(
@@ -508,7 +573,7 @@ export function useNotifications() {
         );
       }
 
-      // ── 30-minute reminder ─────────────────────────────────────────────
+      // ── 30-minute reminder ──────────────────────────────────────────────────────
       const reminderDate = new Date(apptDate.getTime() - 30 * 60 * 1000);
       if (reminderDate.getTime() > now.getTime()) {
         await scheduleIfNotExists(
@@ -535,8 +600,8 @@ export function useNotifications() {
       if (autoCompleteEnabled) {
         // End time = start time + duration + delay
         const [endH, endM] = endTime.split(":").map(Number);
-        const autoCompleteDate = new Date(appt.date + "T00:00:00");
-        autoCompleteDate.setHours(endH, endM + autoCompleteDelayMinutes, 0, 0);
+        // Use local date parsing to avoid timezone offset bugs
+        const autoCompleteDate = new Date(yr, mo - 1, dy, endH, endM + autoCompleteDelayMinutes, 0, 0);
 
         if (autoCompleteDate.getTime() > now.getTime()) {
           await scheduleIfNotExists(

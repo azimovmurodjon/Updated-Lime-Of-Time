@@ -36,7 +36,7 @@ const TABS: { key: TabKey; label: string; icon: string }[] = [
   { key: "business",  label: "Business",  icon: "building.2.fill" },
   { key: "payments",  label: "Payments",  icon: "creditcard.fill" },
   { key: "clients",   label: "Clients",   icon: "person.2.fill" },
-  { key: "comms",     label: "Comms",     icon: "message.fill" },
+  { key: "comms",     label: "Alerts",    icon: "bell.fill" },
   { key: "account",   label: "Account",   icon: "person.fill" },
 ];
 

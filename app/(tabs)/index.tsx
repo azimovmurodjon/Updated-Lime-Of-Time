@@ -19,6 +19,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useStore, formatTime, formatDateStr } from "@/lib/store";
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { minutesToTime, timeToMinutes, PUBLIC_BOOKING_URL, formatFullAddress, formatPhoneNumber } from "@/lib/types";
@@ -1495,8 +1496,44 @@ export default function HomeScreen() {
               </Text>
               <Text style={[styles.greetingText, { color: colors.muted }]}>{greeting}</Text>
             </View>
-            {/* Live clock widget — right side of header */}
+            {/* Bell icon + Live clock widget — right side of header */}
             <View style={{ alignItems: "flex-end", gap: 2 }}>
+              {/* Bell notification button */}
+              <Pressable
+                onPress={() => router.push("/notification-inbox" as any)}
+                style={({ pressed }) => ({
+                  position: "relative",
+                  padding: 4,
+                  marginBottom: 2,
+                  opacity: pressed ? 0.7 : 1,
+                })}
+              >
+                <Ionicons name="notifications-outline" size={22} color={colors.primary} />
+                {(() => {
+                  const pendingCount = state.appointments.filter((a) => a.status === "pending").length;
+                  const unreadCount = (state.inboxNotifications ?? []).filter((n) => !n.read).length;
+                  const total = Math.min(pendingCount + unreadCount, 99);
+                  if (total === 0) return null;
+                  return (
+                    <View style={{
+                      position: "absolute",
+                      top: 0,
+                      right: 0,
+                      minWidth: 16,
+                      height: 16,
+                      borderRadius: 8,
+                      backgroundColor: colors.error,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      paddingHorizontal: 3,
+                    }}>
+                      <Text style={{ fontSize: 10, fontWeight: "700", color: "#fff" }}>
+                        {total > 99 ? "99+" : String(total)}
+                      </Text>
+                    </View>
+                  );
+                })()}
+              </Pressable>
               <Text style={{ fontSize: 22, fontWeight: "800", color: colors.primary, letterSpacing: 0.5, fontVariant: ["tabular-nums"] }}>
                 {liveTimeStr.replace(/ (AM|PM)$/, "")}
               </Text>

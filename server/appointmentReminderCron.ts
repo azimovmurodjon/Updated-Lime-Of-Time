@@ -58,10 +58,10 @@ function isInReminderWindow(
   const windowStart = new Date(now.getTime() + reminderHours * 60 * 60 * 1000);
   const windowEnd = new Date(now.getTime() + (reminderHours + 1) * 60 * 60 * 1000);
 
-  // Build appointment datetime (treat as local midnight + time)
-  const [h, m] = apptTime.split(":").map(Number);
-  const apptDateObj = new Date(apptDate + "T00:00:00");
-  apptDateObj.setHours(h, m, 0, 0);
+  // Build appointment datetime in local server time.
+  // Using "T" + time + ":00" directly avoids the midnight UTC offset bug
+  // that caused 24h reminders to fire 26-27h early when server is in UTC.
+  const apptDateObj = new Date(`${apptDate}T${apptTime}:00`);
 
   return apptDateObj >= windowStart && apptDateObj < windowEnd;
 }
@@ -123,7 +123,7 @@ async function sendAppointmentReminders() {
       const owner = ownerMap.get(appt.businessOwnerId);
       if (!owner) return false;
       const notifPrefs = (owner.notificationPreferences as any) ?? {};
-      const emailEnabled = notifPrefs.emailOnReminder !== false;
+      const emailEnabled = notifPrefs.emailOnReminder === true;
       const pushEnabled = notifPrefs.pushOnReminder !== false;
       if (!emailEnabled && !pushEnabled) return false;
 
@@ -218,7 +218,7 @@ async function sendAppointmentReminders() {
       const ownerSubStatus = owner.subscriptionStatus as string | undefined;
       const isFreePlan = !ownerSubStatus || ownerSubStatus === "free";
       const masterNotifEnabled = owner.notificationsEnabled !== false;
-      const emailEnabled = notifPrefs.emailOnReminder !== false;
+      const emailEnabled = notifPrefs.emailOnReminder === true;
       const clientEmail = client?.email;
       if (masterNotifEnabled && emailEnabled && !isFreePlan && clientEmail && clientEmail.includes("@")) {
         try {

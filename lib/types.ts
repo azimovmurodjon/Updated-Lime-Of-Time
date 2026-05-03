@@ -415,13 +415,25 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   birthdayReminderHour: 8,
   emailOnReminder: false,
   reminderHoursBefore: 24,
-  smsClientOnConfirmation: true,
-  smsClientOnCancellation: true,
+  smsClientOnConfirmation: false,
+  smsClientOnCancellation: false,
   emailClientOnCancellation: false,
   emailClientOnComplete: false,
-  smsClientOnNoShow: true,
+  smsClientOnNoShow: false,
   emailClientOnPaymentConfirmed: false,
 };
+
+/** An item in the in-app notification inbox */
+export interface InboxNotification {
+  id: string;
+  type: "new_booking" | "cancelled_by_client" | "rescheduled_by_client";
+  title: string;
+  body: string;
+  appointmentId?: string;
+  clientName?: string;
+  timestamp: string; // ISO string
+  read: boolean;
+}
 
 export interface BusinessSettings {
   businessName: string;
