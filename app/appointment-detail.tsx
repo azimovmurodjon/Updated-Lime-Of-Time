@@ -195,19 +195,63 @@ export default function AppointmentDetailScreen() {
     const wh = (loc?.workingHours != null && Object.keys(loc.workingHours).length > 0)
       ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
       : (state.settings.workingHours ?? undefined);
+    // Resolve slot interval: location override > global setting > 30 min default
+    const globalInterval = state.settings.slotInterval ?? 30;
+    const locInterval = (loc as any)?.slotIntervalMinutes;
+    const stepMins = (locInterval != null && locInterval > 0) ? locInterval : (globalInterval > 0 ? globalInterval : 30);
     // Exclude the current appointment from conflict check
     const otherAppts = state.appointments.filter(a => a.id !== appointment.id);
+    // Filter to only appointments for the assigned staff (staff availability)
+    const staffId = appointment.staffId;
+    const staffFilteredAppts = staffId
+      ? otherAppts.filter(a => !a.staffId || a.staffId === staffId)
+      : otherAppts;
     return generateAvailableSlots(
       reschedDate,
       appointment.duration,
       wh,
-      otherAppts,
-      30, // default step minutes
+      staffFilteredAppts,
+      stepMins,
       undefined,
       state.settings.scheduleMode,
       state.settings.bufferTime ?? 0
     );
   }, [reschedDate, appointment, assignedLocation, state.settings, state.appointments]);
+
+  // Pre-compute slot counts for every day in the visible month (for calendar dot indicators + disabled dates)
+  const reschedMonthSlotCounts = useMemo(() => {
+    if (!appointment) return {} as Record<string, number>;
+    const { year, month } = reschedCalMonth;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const loc = assignedLocation;
+    const wh = (loc?.workingHours != null && Object.keys(loc.workingHours).length > 0)
+      ? loc.workingHours as Record<string, import('@/lib/types').WorkingHours>
+      : (state.settings.workingHours ?? undefined);
+    const globalInterval = state.settings.slotInterval ?? 30;
+    const locInterval = (loc as any)?.slotIntervalMinutes;
+    const stepMins = (locInterval != null && locInterval > 0) ? locInterval : (globalInterval > 0 ? globalInterval : 30);
+    const otherAppts = state.appointments.filter(a => a.id !== appointment.id);
+    const staffId = appointment.staffId;
+    const staffFilteredAppts = staffId
+      ? otherAppts.filter(a => !a.staffId || a.staffId === staffId)
+      : otherAppts;
+    const counts: Record<string, number> = {};
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      const slots = generateAvailableSlots(
+        dateStr,
+        appointment.duration,
+        wh,
+        staffFilteredAppts,
+        stepMins,
+        undefined,
+        state.settings.scheduleMode,
+        state.settings.bufferTime ?? 0
+      );
+      counts[dateStr] = slots.length;
+    }
+    return counts;
+  }, [reschedCalMonth, appointment, assignedLocation, state.settings, state.appointments]);
 
   const handleReschedule = useCallback(() => {
     if (!reschedTime) return;
@@ -1774,26 +1818,53 @@ Would you also like to charge a no-show fee via Stripe?`,
                 {/* Calendar grid */}
                 <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
                   {reschedCalDays.map((day, idx) => {
-                    if (!day) return <View key={`e${idx}`} style={{ width: "14.28%", height: 40 }} />;
+                    if (!day) return <View key={`e${idx}`} style={{ width: "14.28%", height: 48 }} />;
                     const dateStr = `${reschedCalMonth.year}-${String(reschedCalMonth.month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-                    const isPast = new Date(dateStr + "T23:59:59") < today;
-                    const isSelected = dateStr === reschedDate;
                     const todayStr = today.toISOString().split("T")[0];
+                    const isPast = new Date(dateStr + "T23:59:59") < today;
+                    const slotCount = reschedMonthSlotCounts[dateStr] ?? 0;
+                    const hasSlots = slotCount > 0;
+                    const isDisabled = isPast || (!hasSlots && !isPast);
+                    const isSelected = dateStr === reschedDate;
                     const isToday = dateStr === todayStr;
+                    // Dot color: green if many slots, amber if few, red if 1-2
+                    const dotColor = slotCount >= 6 ? colors.success : slotCount >= 3 ? colors.warning : colors.primary;
                     return (
                       <Pressable
                         key={dateStr}
-                        onPress={() => { if (!isPast) { setReschedDate(dateStr); setReschedTime(null); } }}
+                        onPress={() => { if (!isDisabled) { setReschedDate(dateStr); setReschedTime(null); } }}
                         style={({ pressed }) => [{
-                          width: "14.28%", height: 44, alignItems: "center", justifyContent: "center",
-                          borderRadius: 10,
-                          backgroundColor: isSelected ? colors.primary : isToday ? colors.primary + "33" : "transparent",
-                          opacity: isPast ? 0.22 : pressed ? 0.7 : 1,
+                          width: "14.28%",
+                          height: 48,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          opacity: isDisabled ? 0.22 : pressed ? 0.7 : 1,
                         }]}
                       >
-                        <Text style={{ fontSize: 15, fontWeight: isSelected || isToday ? "700" : "500", color: isSelected ? "#FFF" : isToday ? colors.primary : colors.foreground }}>{day}</Text>
-                        {isToday && !isSelected && (
-                          <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.primary, marginTop: 1 }} />
+                        {/* Selected: outlined rounded square, no fill */}
+                        {isSelected && (
+                          <View style={{
+                            position: "absolute",
+                            width: 36, height: 36,
+                            borderRadius: 10,
+                            borderWidth: 2,
+                            borderColor: colors.primary,
+                            backgroundColor: "transparent",
+                          }} />
+                        )}
+                        <Text style={{
+                          fontSize: 15,
+                          fontWeight: isToday || isSelected ? "700" : "500",
+                          color: isToday ? colors.primary : isSelected ? colors.primary : colors.foreground,
+                          lineHeight: 20,
+                        }}>{day}</Text>
+                        {/* Availability dot */}
+                        {!isPast && hasSlots && (
+                          <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: dotColor, marginTop: 2 }} />
+                        )}
+                        {/* No-slot indicator for future dates */}
+                        {!isPast && !hasSlots && (
+                          <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: "transparent", marginTop: 2 }} />
                         )}
                       </Pressable>
                     );
@@ -1801,8 +1872,29 @@ Would you also like to charge a no-show fee via Stripe?`,
                 </View>
               </View>
 
+              {/* Dot legend */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginTop: 10, paddingHorizontal: 2 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.success }} />
+                  <Text style={{ fontSize: 10, color: colors.muted }}>Many slots</Text>
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.warning }} />
+                  <Text style={{ fontSize: 10, color: colors.muted }}>Few slots</Text>
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary }} />
+                  <Text style={{ fontSize: 10, color: colors.muted }}>Limited</Text>
+                </View>
+              </View>
+
               {/* Time slots */}
-              <Text style={{ fontSize: 13, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 20, marginBottom: 10 }}>Available Times</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 20, marginBottom: 10 }}>
+                <Text style={{ fontSize: 13, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>Available Times</Text>
+                {reschedSlots.length > 0 && (
+                  <Text style={{ fontSize: 11, color: colors.primary, fontWeight: "600" }}>{reschedSlots.length} slot{reschedSlots.length !== 1 ? "s" : ""}</Text>
+                )}
+              </View>
               {reschedSlots.length === 0 ? (
                 <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center", paddingVertical: 16 }}>No available slots on this date</Text>
               ) : (
