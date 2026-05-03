@@ -297,23 +297,22 @@ export default function EditAppointmentScreen() {
   const canGoPrev = calMonthOffset > 0;
   const canGoNext = calMonthOffset < 3;
 
-  const slotChipWidth = Math.floor((screenWidth - hp * 2 - 12) / 3);
-
   const renderSlotChip = (t: string) => {
     const isSelected = t === selectedTime;
     return (
       <Pressable
         key={t}
         onPress={() => setSelectedTime(t)}
-        style={({ pressed }) => [
-          styles.timeChip,
-          {
-            backgroundColor: isSelected ? colors.primary : colors.surface,
-            borderColor: isSelected ? colors.primary : colors.border,
-            opacity: pressed ? 0.7 : 1,
-            width: slotChipWidth,
-          },
-        ]}
+        style={({ pressed }) => ({
+          width: "22%",
+          paddingVertical: 9,
+          borderRadius: 10,
+          backgroundColor: isSelected ? colors.primary : colors.surface,
+          borderWidth: 1.5,
+          borderColor: isSelected ? colors.primary : colors.border,
+          alignItems: "center",
+          opacity: pressed ? 0.7 : 1,
+        })}
       >
         <Text style={{ fontSize: 13, fontWeight: "700", color: isSelected ? "#FFFFFF" : colors.foreground, textAlign: "center", lineHeight: 17 }}>
           {formatTime(t)}
@@ -325,14 +324,11 @@ export default function EditAppointmentScreen() {
     );
   };
 
-  const useGroups = timeSlots.length > 12;
-  const slotGroups = useGroups
-    ? [
-        { label: "Morning", slots: timeSlots.filter((t) => parseInt(t.split(":")[0]) < 12) },
-        { label: "Afternoon", slots: timeSlots.filter((t) => { const h = parseInt(t.split(":")[0]); return h >= 12 && h < 17; }) },
-        { label: "Evening", slots: timeSlots.filter((t) => parseInt(t.split(":")[0]) >= 17) },
-      ].filter((g) => g.slots.length > 0)
-    : [];
+  const slotGroups = [
+    { label: "Morning", slots: timeSlots.filter((t) => parseInt(t.split(":")[0]) < 12) },
+    { label: "Afternoon", slots: timeSlots.filter((t) => { const h = parseInt(t.split(":")[0]); return h >= 12 && h < 17; }) },
+    { label: "Evening", slots: timeSlots.filter((t) => parseInt(t.split(":")[0]) >= 17) },
+  ].filter((g) => g.slots.length > 0);
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]}>
@@ -624,7 +620,7 @@ export default function EditAppointmentScreen() {
             <Text style={{ fontSize: 13, color: colors.muted }}>No available times for this date</Text>
             <Text style={{ fontSize: 11, color: colors.muted, marginTop: 4 }}>Try a different date or check working hours</Text>
           </View>
-        ) : useGroups ? (
+        ) : (
           <View style={{ marginBottom: 12 }}>
             {slotGroups.map((group) => (
               <View key={group.label} style={{ marginBottom: 10 }}>
@@ -636,10 +632,6 @@ export default function EditAppointmentScreen() {
                 </View>
               </View>
             ))}
-          </View>
-        ) : (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-            {timeSlots.map(renderSlotChip)}
           </View>
         )}
 

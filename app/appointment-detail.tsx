@@ -70,6 +70,7 @@ export default function AppointmentDetailScreen() {
   const [reschedTime, setReschedTime] = useState<string | null>(null);
   // null = use global setting, 0 = Auto, positive = explicit minutes
   const [reschedLocalInterval, setReschedLocalInterval] = useState<number | null>(null);
+  const [rescheduleReason, setRescheduleReason] = useState("");
   const [reschedCalMonth, setReschedCalMonth] = useState<{ year: number; month: number }>(() => {
     const d = appointment ? new Date(appointment.date + "T12:00:00") : new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
@@ -275,7 +276,7 @@ export default function AppointmentDetailScreen() {
 
   const handleReschedule = useCallback(() => {
     if (!reschedTime) return;
-    const updated = { ...appointment!, date: reschedDate, time: reschedTime };
+    const updated = { ...appointment!, date: reschedDate, time: reschedTime, rescheduleReason: rescheduleReason.trim() || undefined };
     dispatch({ type: "UPDATE_APPOINTMENT", payload: updated });
     syncToDb({ type: "UPDATE_APPOINTMENT", payload: updated });
     setShowRescheduleModal(false);
@@ -1205,6 +1206,14 @@ Would you also like to charge a no-show fee via Stripe?`,
             <Text style={{ fontSize: 14, color: colors.foreground }}>{appointment.cancellationReason}</Text>
           </View>
         ) : null}
+
+        {/* Reschedule Reason */}
+        {appointment.rescheduleReason ? (
+          <View style={{ backgroundColor: colors.primary + "12", borderColor: colors.primary + "40", borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 16 }}>
+            <Text style={{ fontSize: 11, fontWeight: "700", color: colors.primary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Reschedule Reason</Text>
+            <Text style={{ fontSize: 14, color: colors.foreground }}>{appointment.rescheduleReason}</Text>
+          </View>
+        ) : null}
         {/* Notes */}
         {appointment.notes ? (
           <View className="bg-surface rounded-2xl p-4 mb-4 border border-border">
@@ -1795,7 +1804,7 @@ Would you also like to charge a no-show fee via Stripe?`,
           <View style={{ backgroundColor: colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, maxHeight: "85%" }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
               <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground }}>Reschedule Appointment</Text>
-              <Pressable onPress={() => setShowRescheduleModal(false)} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
+              <Pressable onPress={() => { setShowRescheduleModal(false); setRescheduleReason(""); }} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
                 <IconSymbol name="xmark" size={22} color={colors.muted} />
               </Pressable>
             </View>
@@ -1992,10 +2001,35 @@ Would you also like to charge a no-show fee via Stripe?`,
                 </View>
               )}
 
+              {/* Reschedule Reason */}
+              <View style={{ marginTop: 16, marginBottom: 4 }}>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Reason (optional)</Text>
+                <TextInput
+                  value={rescheduleReason}
+                  onChangeText={setRescheduleReason}
+                  placeholder="e.g. Client requested earlier time"
+                  placeholderTextColor={colors.muted}
+                  multiline
+                  numberOfLines={2}
+                  returnKeyType="done"
+                  style={{
+                    backgroundColor: colors.surface,
+                    borderWidth: 1.5,
+                    borderColor: rescheduleReason.trim() ? colors.primary : colors.border,
+                    borderRadius: 10,
+                    padding: 10,
+                    fontSize: 14,
+                    color: colors.foreground,
+                    minHeight: 60,
+                    textAlignVertical: "top",
+                  }}
+                />
+              </View>
+
               {/* Confirm button */}
               <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
                 <TouchableOpacity
-                  onPress={() => setShowRescheduleModal(false)}
+                  onPress={() => { setShowRescheduleModal(false); setRescheduleReason(""); }}
                   style={{ flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, alignItems: "center" }}
                 >
                   <Text style={{ fontSize: 15, fontWeight: "600", color: colors.muted }}>Cancel</Text>

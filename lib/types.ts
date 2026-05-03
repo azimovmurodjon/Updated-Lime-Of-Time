@@ -118,6 +118,8 @@ export interface Appointment {
     submittedAt: string;
     resolvedAt?: string;
   } | null;
+  /** Reason provided when owner reschedules the appointment */
+  rescheduleReason?: string;
 }
 
 export interface Review {
