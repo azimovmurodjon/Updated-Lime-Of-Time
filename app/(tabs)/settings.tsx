@@ -544,6 +544,25 @@ export default function SettingsScreen() {
         </View>
       </Pressable>
 
+      <SectionHeader label="Reminder Templates" accentColor="#8B5CF6" colors={colors} />
+      {renderNavList([
+        {
+          title: "My Templates",
+          subtitle: `${(state.reminderTemplates ?? []).length} saved template${(state.reminderTemplates ?? []).length !== 1 ? "s" : ""}`,
+          icon: "note.text",
+          route: "/sms-templates",
+          color: "#8B5CF6",
+          status: (state.reminderTemplates ?? []).length > 0 ? "ok" : undefined,
+        },
+        {
+          title: "Browse Template Library",
+          subtitle: "49 professional SMS templates by category",
+          icon: "books.vertical.fill",
+          route: "/template-library",
+          color: "#8B5CF6",
+        },
+      ])}
+
       <SectionHeader label="SMS Messaging" accentColor="#00897B" colors={colors} />
       {renderNavList([
         {

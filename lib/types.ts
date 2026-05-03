@@ -496,6 +496,33 @@ export interface BusinessSettings {
 }
 
 /** A global reminder template that can be sent to clients for any appointment */
+export type TemplateCategory =
+  | "upcoming"
+  | "confirmed"
+  | "pending"
+  | "cancelled"
+  | "completed"
+  | "no_show"
+  | "reschedule";
+
+export const TEMPLATE_CATEGORY_LABELS: Record<TemplateCategory, string> = {
+  upcoming:   "Upcoming Appointment",
+  confirmed:  "Confirmed Appointment",
+  pending:    "Pending / Awaiting Confirmation",
+  cancelled:  "Cancelled Appointment",
+  completed:  "Completed / Follow-up",
+  no_show:    "No-Show",
+  reschedule: "Reschedule",
+};
+
+/** Which categories are shown on the Send Reminder screen for each appointment status */
+export const STATUS_TEMPLATE_CATEGORIES: Record<string, TemplateCategory[]> = {
+  pending:   ["pending", "upcoming"],
+  confirmed: ["confirmed", "upcoming"],
+  completed: ["completed", "reschedule"],
+  cancelled: ["cancelled", "reschedule"],
+};
+
 export interface ReminderTemplate {
   id: string;
   /** Label shown in the list e.g. "1 hour before" */
@@ -505,14 +532,133 @@ export interface ReminderTemplate {
   /** Custom SMS message body. If empty, a default is generated from appointment details */
   customMessage?: string;
   createdAt: string;
+  /** Category this template belongs to */
+  category?: TemplateCategory;
+  /** Whether this template came from the built-in library (not user-created) */
+  isLibrary?: boolean;
 }
 
 export const DEFAULT_REMINDER_TEMPLATES: ReminderTemplate[] = [
-  { id: "rt-30m",  label: "30 minutes before", minutesBefore: 30,   customMessage: "", createdAt: new Date().toISOString() },
-  { id: "rt-1h",   label: "1 hour before",     minutesBefore: 60,   customMessage: "", createdAt: new Date().toISOString() },
-  { id: "rt-2h",   label: "2 hours before",    minutesBefore: 120,  customMessage: "", createdAt: new Date().toISOString() },
-  { id: "rt-6h",   label: "6 hours before",    minutesBefore: 360,  customMessage: "", createdAt: new Date().toISOString() },
-  { id: "rt-24h",  label: "24 hours before",   minutesBefore: 1440, customMessage: "", createdAt: new Date().toISOString() },
+  { id: "rt-30m",  label: "30 minutes before", minutesBefore: 30,   customMessage: "", createdAt: new Date().toISOString(), category: "upcoming" },
+  { id: "rt-1h",   label: "1 hour before",     minutesBefore: 60,   customMessage: "", createdAt: new Date().toISOString(), category: "upcoming" },
+  { id: "rt-2h",   label: "2 hours before",    minutesBefore: 120,  customMessage: "", createdAt: new Date().toISOString(), category: "upcoming" },
+  { id: "rt-6h",   label: "6 hours before",    minutesBefore: 360,  customMessage: "", createdAt: new Date().toISOString(), category: "upcoming" },
+  { id: "rt-24h",  label: "24 hours before",   minutesBefore: 1440, customMessage: "", createdAt: new Date().toISOString(), category: "upcoming" },
+];
+
+/** Built-in template library — 49 professional SMS templates across 7 categories (not saved to user store by default) */
+export const TEMPLATE_LIBRARY: ReminderTemplate[] = [
+  // ─── UPCOMING (7) ───────────────────────────────────────────────────────────
+  { id: "lib-up-1", label: "Standard Reminder", minutesBefore: 1440, category: "upcoming", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, this is a reminder that you have an appointment for {service} on {date} at {time} at {location}. We look forward to seeing you. Please reply CONFIRM to confirm or CANCEL to cancel. — {businessName}" },
+  { id: "lib-up-2", label: "Same-Day Reminder", minutesBefore: 120, category: "upcoming", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, just a reminder that your {service} appointment is today at {time} at {location}. We look forward to seeing you. — {businessName}" },
+  { id: "lib-up-3", label: "Location & Directions", minutesBefore: 1440, category: "upcoming", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, your {service} appointment is on {date} at {time}. We are located at {location}. If you need directions or have any questions, please do not hesitate to contact us. — {businessName}" },
+  { id: "lib-up-4", label: "Preparation Reminder", minutesBefore: 1440, category: "upcoming", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, your {service} appointment is on {date} at {time} at {location}. Please arrive 5 minutes early and ensure you are prepared for your session. We look forward to serving you. — {businessName}" },
+  { id: "lib-up-5", label: "48-Hour Advance Notice", minutesBefore: 2880, category: "upcoming", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, we wanted to remind you that your {service} appointment is in 2 days on {date} at {time} at {location}. Please contact us if you need to make any changes. — {businessName}" },
+  { id: "lib-up-6", label: "1-Hour Reminder", minutesBefore: 60, category: "upcoming", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, your {service} appointment at {location} begins in 1 hour at {time}. We look forward to seeing you shortly. — {businessName}" },
+  { id: "lib-up-7", label: "Friendly Nudge", minutesBefore: 1440, category: "upcoming", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, we are looking forward to your {service} appointment on {date} at {time} at {location}. If anything changes, please let us know as soon as possible. Thank you. — {businessName}" },
+
+  // ─── CONFIRMED (7) ──────────────────────────────────────────────────────────
+  { id: "lib-co-1", label: "Booking Confirmation", minutesBefore: 0, category: "confirmed", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, your {service} appointment has been confirmed for {date} at {time} at {location}. We look forward to seeing you. — {businessName}" },
+  { id: "lib-co-2", label: "Confirmation with Payment", minutesBefore: 0, category: "confirmed", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, your {service} appointment on {date} at {time} is confirmed. Total: {price}. Payment method: {paymentMethod}. See you at {location}. — {businessName}" },
+  { id: "lib-co-3", label: "What to Bring", minutesBefore: 1440, category: "confirmed", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, your {service} appointment is confirmed for {date} at {time} at {location}. Please remember to bring any relevant documents or items for your session. — {businessName}" },
+  { id: "lib-co-4", label: "Deposit Reminder", minutesBefore: 0, category: "confirmed", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, your {service} appointment on {date} at {time} is confirmed. A deposit may be required to hold your booking. Please contact us if you have any questions. — {businessName}" },
+  { id: "lib-co-5", label: "Confirmation with Staff", minutesBefore: 0, category: "confirmed", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, your {service} appointment with {staffName} on {date} at {time} at {location} is confirmed. We look forward to seeing you. — {businessName}" },
+  { id: "lib-co-6", label: "Policy Reminder", minutesBefore: 1440, category: "confirmed", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, your {service} appointment on {date} at {time} is confirmed. Please note that cancellations within 24 hours may be subject to a fee. Contact us if you need to reschedule. — {businessName}" },
+  { id: "lib-co-7", label: "Confirmation Summary", minutesBefore: 0, category: "confirmed", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, booking confirmed! Service: {service} | Date: {date} | Time: {time} | Location: {location} | Total: {price}. See you soon. — {businessName}" },
+
+  // ─── PENDING (7) ────────────────────────────────────────────────────────────
+  { id: "lib-pe-1", label: "Awaiting Confirmation", minutesBefore: 0, category: "pending", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, your {service} appointment request for {date} at {time} at {location} is currently pending confirmation. We will notify you once it is confirmed. — {businessName}" },
+  { id: "lib-pe-2", label: "Action Required", minutesBefore: 0, category: "pending", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, your {service} appointment on {date} at {time} requires your confirmation. Please reply YES to confirm or NO to cancel. — {businessName}" },
+  { id: "lib-pe-3", label: "Booking Request Received", minutesBefore: 0, category: "pending", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, we have received your booking request for {service} on {date} at {time} at {location}. We will review and confirm your appointment shortly. — {businessName}" },
+  { id: "lib-pe-4", label: "Pending Follow-up", minutesBefore: 0, category: "pending", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, we noticed your {service} appointment on {date} at {time} is still pending. Please contact us to confirm or reschedule at your earliest convenience. — {businessName}" },
+  { id: "lib-pe-5", label: "Deposit Pending", minutesBefore: 0, category: "pending", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, your {service} appointment on {date} at {time} is pending. To secure your booking, a deposit may be required. Please contact us for details. — {businessName}" },
+  { id: "lib-pe-6", label: "Availability Check", minutesBefore: 0, category: "pending", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, we are checking availability for your {service} request on {date} at {time}. We will confirm your appointment as soon as possible. Thank you for your patience. — {businessName}" },
+  { id: "lib-pe-7", label: "Reminder to Confirm", minutesBefore: 0, category: "pending", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, this is a reminder that your {service} appointment on {date} at {time} is awaiting your confirmation. Please respond at your earliest convenience. — {businessName}" },
+
+  // ─── CANCELLED (7) ──────────────────────────────────────────────────────────
+  { id: "lib-ca-1", label: "Cancellation Notice", minutesBefore: 0, category: "cancelled", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, your {service} appointment on {date} at {time} has been cancelled. We are sorry for any inconvenience. Please contact us to reschedule at your convenience. — {businessName}" },
+  { id: "lib-ca-2", label: "Rebooking Invitation", minutesBefore: 0, category: "cancelled", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, we noticed your {service} appointment was cancelled. We would love to have you back. Please contact us or visit our booking page to schedule a new appointment. — {businessName}" },
+  { id: "lib-ca-3", label: "Waitlist Offer", minutesBefore: 0, category: "cancelled", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, your appointment has been cancelled. We have added you to our waitlist and will notify you as soon as a new slot becomes available. — {businessName}" },
+  { id: "lib-ca-4", label: "Cancellation with Fee Notice", minutesBefore: 0, category: "cancelled", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, your {service} appointment on {date} has been cancelled. Please note that a cancellation fee may apply per our policy. Contact us if you have any questions. — {businessName}" },
+  { id: "lib-ca-5", label: "Apology & Rebook", minutesBefore: 0, category: "cancelled", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, we sincerely apologize for the cancellation of your {service} appointment on {date}. We would like to make it right — please contact us to reschedule at a time that works for you. — {businessName}" },
+  { id: "lib-ca-6", label: "Business-Initiated Cancel", minutesBefore: 0, category: "cancelled", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, we regret to inform you that your {service} appointment on {date} at {time} has been cancelled due to unforeseen circumstances. We apologize for the inconvenience and will contact you to reschedule. — {businessName}" },
+  { id: "lib-ca-7", label: "Final Cancellation Notice", minutesBefore: 0, category: "cancelled", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, this is to confirm that your {service} appointment on {date} has been cancelled as requested. We hope to serve you again in the future. — {businessName}" },
+
+  // ─── COMPLETED / FOLLOW-UP (7) ──────────────────────────────────────────────
+  { id: "lib-cm-1", label: "Thank You", minutesBefore: 0, category: "completed", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, thank you for visiting us for your {service} appointment. We hope you had a wonderful experience and look forward to seeing you again. — {businessName}" },
+  { id: "lib-cm-2", label: "Rebook Reminder", minutesBefore: 0, category: "completed", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, it was a pleasure serving you for your {service}. When you are ready to book your next appointment, we are here for you. Contact us or visit our booking page. — {businessName}" },
+  { id: "lib-cm-3", label: "Review Request", minutesBefore: 0, category: "completed", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, thank you for your recent {service} appointment. We would greatly appreciate it if you could take a moment to share your feedback. Your opinion helps us improve. — {businessName}" },
+  { id: "lib-cm-4", label: "Loyalty Appreciation", minutesBefore: 0, category: "completed", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, thank you for your continued loyalty. It is always a pleasure to serve you. We look forward to your next visit. — {businessName}" },
+  { id: "lib-cm-5", label: "Next Appointment Suggestion", minutesBefore: 0, category: "completed", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, thank you for your {service} appointment. Based on your service, we recommend scheduling your next visit in 4–6 weeks. Contact us whenever you are ready. — {businessName}" },
+  { id: "lib-cm-6", label: "Aftercare Instructions", minutesBefore: 0, category: "completed", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, thank you for your {service} appointment today. Please follow any aftercare instructions provided during your visit. Do not hesitate to contact us if you have any questions. — {businessName}" },
+  { id: "lib-cm-7", label: "Special Offer for Next Visit", minutesBefore: 0, category: "completed", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, thank you for your recent visit. As a valued client, we would like to offer you a special discount on your next {service} appointment. Contact us to learn more. — {businessName}" },
+
+  // ─── NO-SHOW (7) ────────────────────────────────────────────────────────────
+  { id: "lib-ns-1", label: "Missed Appointment Notice", minutesBefore: 0, category: "no_show", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, we noticed you were unable to make your {service} appointment on {date} at {time}. We understand things come up. Please contact us to reschedule at your convenience. — {businessName}" },
+  { id: "lib-ns-2", label: "Reschedule Offer", minutesBefore: 0, category: "no_show", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, we missed you at your {service} appointment on {date}. We would be happy to reschedule at a time that works better for you. Please contact us at your earliest convenience. — {businessName}" },
+  { id: "lib-ns-3", label: "Final Notice", minutesBefore: 0, category: "no_show", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, this is a final notice regarding your missed {service} appointment on {date}. Please contact us to reschedule or to discuss any concerns. We value your business. — {businessName}" },
+  { id: "lib-ns-4", label: "Gentle Follow-up", minutesBefore: 0, category: "no_show", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, we hope everything is well. We missed you at your {service} appointment on {date}. Please let us know if you would like to reschedule. — {businessName}" },
+  { id: "lib-ns-5", label: "No-Show Fee Notice", minutesBefore: 0, category: "no_show", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, we are following up regarding your missed {service} appointment on {date}. Please be aware that a no-show fee may apply per our policy. Contact us to discuss further. — {businessName}" },
+  { id: "lib-ns-6", label: "Rebooking Invitation", minutesBefore: 0, category: "no_show", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, we missed you at your {service} appointment. We would love to have you back — please contact us or visit our booking page to schedule a new appointment. — {businessName}" },
+  { id: "lib-ns-7", label: "Check-In", minutesBefore: 0, category: "no_show", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, we wanted to check in after your missed {service} appointment on {date}. If there is anything we can do to assist you or accommodate your schedule, please do not hesitate to reach out. — {businessName}" },
+
+  // ─── RESCHEDULE (7) ─────────────────────────────────────────────────────────
+  { id: "lib-rs-1", label: "Appointment Rescheduled", minutesBefore: 0, category: "reschedule", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, your {service} appointment has been rescheduled to {date} at {time} at {location}. Please contact us if this does not work for you. — {businessName}" },
+  { id: "lib-rs-2", label: "New Time Confirmation", minutesBefore: 0, category: "reschedule", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, this is to confirm your rescheduled {service} appointment on {date} at {time} at {location}. We look forward to seeing you. — {businessName}" },
+  { id: "lib-rs-3", label: "Apology & New Time", minutesBefore: 0, category: "reschedule", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, we sincerely apologize for the change to your {service} appointment. Your new appointment is on {date} at {time} at {location}. Thank you for your understanding. — {businessName}" },
+  { id: "lib-rs-4", label: "Reschedule Request", minutesBefore: 0, category: "reschedule", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, we would like to reschedule your {service} appointment originally set for {date}. Please contact us at your earliest convenience to arrange a new time. — {businessName}" },
+  { id: "lib-rs-5", label: "Client-Initiated Reschedule", minutesBefore: 0, category: "reschedule", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, as requested, your {service} appointment has been rescheduled to {date} at {time}. We look forward to seeing you then. — {businessName}" },
+  { id: "lib-rs-6", label: "Reschedule Confirmation", minutesBefore: 0, category: "reschedule", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, your rescheduled {service} appointment is confirmed for {date} at {time} at {location}. Please arrive on time. We look forward to serving you. — {businessName}" },
+  { id: "lib-rs-7", label: "Reschedule Reminder", minutesBefore: 1440, category: "reschedule", isLibrary: true, createdAt: "",
+    customMessage: "Hello {clientName}, this is a reminder that your rescheduled {service} appointment is tomorrow on {date} at {time} at {location}. We look forward to seeing you. — {businessName}" },
 ];
 
 export const SERVICE_COLORS = [

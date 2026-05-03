@@ -31,6 +31,9 @@ import {
   LIME_OF_TIME_FOOTER,
   ReminderTemplate,
   DEFAULT_REMINDER_TEMPLATES,
+  STATUS_TEMPLATE_CATEGORIES,
+  TEMPLATE_CATEGORY_LABELS,
+  TemplateCategory,
 } from "@/lib/types";
 
 function applyTemplate(template: string, vars: Record<string, string>): string {
@@ -81,10 +84,21 @@ export default function SendReminderScreen() {
   const profile = biz.profile ?? {};
 
   // Reminder templates from store (fall back to defaults if empty)
-  const reminderTemplates: ReminderTemplate[] = useMemo(() => {
+  const allReminderTemplates: ReminderTemplate[] = useMemo(() => {
     const stored = state.reminderTemplates ?? [];
     return stored.length > 0 ? stored : DEFAULT_REMINDER_TEMPLATES;
   }, [state.reminderTemplates]);
+
+  // Filter templates by appointment status
+  const reminderTemplates: ReminderTemplate[] = useMemo(() => {
+    if (!appointment) return allReminderTemplates;
+    const status = appointment.status as string;
+    const allowedCategories = STATUS_TEMPLATE_CATEGORIES[status];
+    if (!allowedCategories) return allReminderTemplates;
+    return allReminderTemplates.filter(
+      (t) => !t.category || allowedCategories.includes(t.category as TemplateCategory)
+    );
+  }, [allReminderTemplates, appointment]);
 
   // Build message variables from appointment context
   const tplVars = useMemo(() => {
@@ -287,9 +301,27 @@ export default function SendReminderScreen() {
         </View>
 
         {/* Template Selector */}
-        <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 8, marginLeft: 2 }}>
-          Choose Template
-        </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8, marginHorizontal: 2 }}>
+          <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted }}>
+            Choose Template
+          </Text>
+          <Pressable
+            onPress={() => router.push({ pathname: "/template-library" as any })}
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, flexDirection: "row", alignItems: "center", gap: 4 })}
+          >
+            <IconSymbol name="plus" size={13} color={colors.primary} />
+            <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>Browse Library</Text>
+          </Pressable>
+        </View>
+        {appointment && STATUS_TEMPLATE_CATEGORIES[appointment.status as string] && (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+            {STATUS_TEMPLATE_CATEGORIES[appointment.status as string].map((cat) => (
+              <View key={cat} style={{ backgroundColor: colors.border, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}>
+                <Text style={{ fontSize: 11, color: colors.muted }}>{TEMPLATE_CATEGORY_LABELS[cat]}</Text>
+              </View>
+            ))}
+          </View>
+        )}
         <View style={{ gap: 8, marginBottom: 16 }}>
           {/* Default reminder option */}
           <Pressable

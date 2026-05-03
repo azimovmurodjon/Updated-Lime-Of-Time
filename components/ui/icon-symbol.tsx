@@ -124,6 +124,7 @@ const MAPPING = {
   "minus.circle.fill": "remove-circle",
   "square.grid.2x2": "grid-view",
   "calendar.day.timeline.left": "view-day",
+  "books.vertical.fill": "auto-stories",
 } as unknown as IconMapping;
 
 export function IconSymbol({
