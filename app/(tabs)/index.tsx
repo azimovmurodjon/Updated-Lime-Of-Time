@@ -1924,7 +1924,7 @@ export default function HomeScreen() {
               }
             }}
           >
-          <View style={[styles.kpiGrid, { gap: cardGap }]}>
+          <View style={[styles.kpiGrid, { gap: cardGap, marginTop: 8 }]}>
           {/* ── Earnings Card (5 slides: Today / Week / Month / Year / All Time) ── */}
           <SwipeableKpiCard
             width={cardW}
