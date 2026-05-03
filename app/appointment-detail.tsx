@@ -1957,23 +1957,37 @@ Would you also like to charge a no-show fee via Stripe?`,
               {reschedSlots.length === 0 ? (
                 <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center", paddingVertical: 16 }}>No available slots on this date</Text>
               ) : (
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-                  {reschedSlots.map(slot => (
-                    <Pressable
-                      key={slot}
-                      onPress={() => setReschedTime(slot)}
-                      style={({ pressed }) => [{
-                        paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20,
-                        backgroundColor: reschedTime === slot ? colors.primary : colors.background,
-                        borderWidth: 1.5,
-                        borderColor: reschedTime === slot ? colors.primary : colors.border,
-                        opacity: pressed ? 0.7 : 1,
-                      }]}
-                    >
-                      <Text style={{ fontSize: 14, fontWeight: "600", color: reschedTime === slot ? "#FFF" : colors.foreground }}>
-                        {formatTime(slot)}
-                      </Text>
-                    </Pressable>
+                <View style={{ marginBottom: 16 }}>
+                  {([
+                    { label: "Morning", slots: reschedSlots.filter(s => timeToMinutes(s) < 12 * 60) },
+                    { label: "Afternoon", slots: reschedSlots.filter(s => timeToMinutes(s) >= 12 * 60 && timeToMinutes(s) < 17 * 60) },
+                    { label: "Evening", slots: reschedSlots.filter(s => timeToMinutes(s) >= 17 * 60) },
+                  ] as { label: string; slots: string[] }[]).filter(g => g.slots.length > 0).map(group => (
+                    <View key={group.label} style={{ marginBottom: 12 }}>
+                      <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>{group.label}</Text>
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                        {group.slots.map(slot => (
+                          <Pressable
+                            key={slot}
+                            onPress={() => setReschedTime(slot)}
+                            style={({ pressed }) => ({
+                              width: "22%",
+                              paddingVertical: 9,
+                              borderRadius: 10,
+                              backgroundColor: reschedTime === slot ? colors.primary : colors.background,
+                              borderWidth: 1.5,
+                              borderColor: reschedTime === slot ? colors.primary : colors.border,
+                              alignItems: "center",
+                              opacity: pressed ? 0.7 : 1,
+                            })}
+                          >
+                            <Text style={{ fontSize: 13, fontWeight: "600", color: reschedTime === slot ? "#FFF" : colors.foreground }}>
+                              {formatTime(slot)}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </View>
                   ))}
                 </View>
               )}
