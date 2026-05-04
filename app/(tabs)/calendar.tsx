@@ -742,10 +742,19 @@ export default function CalendarScreen() {
           isFull: totalSlotsAcrossLocs === 0 && isDayAvailable(dateStr),
         };
       } else {
-        // Single-location mode
+        // Single-location mode — use the active location's own workingHours if set,
+        // otherwise fall back to global settings. This ensures the slot count matches
+        // what the working-hours display shows for this specific location.
+        const locWorkingHours = (activeLocation?.workingHours != null && Object.keys(activeLocation.workingHours).length > 0)
+          ? activeLocation.workingHours
+          : state.settings.workingHours;
+        // Also respect per-location custom schedule overrides for this date
+        const locCustomSchedule = activeLocation
+          ? (state.locationCustomSchedule?.[activeLocation.id] ?? activeCustomSchedule)
+          : activeCustomSchedule;
         const slots = generateCalendarSlots(
-          dateStr, defaultDuration, effectiveWorkingHours,
-          locationAppointments, slotStep, activeCustomSchedule,
+          dateStr, defaultDuration, locWorkingHours,
+          locationAppointments, slotStep, locCustomSchedule,
           state.settings.scheduleMode, state.settings.bufferTime ?? 0
         );
         const bookedTimes = new Set(
@@ -763,7 +772,7 @@ export default function CalendarScreen() {
       }
     }
     return cache;
-  }, [currentMonth, currentYear, isDayAvailable, calLocationFilter, activeLocations,
+  }, [currentMonth, currentYear, isDayAvailable, calLocationFilter, activeLocations, activeLocation,
     state.settings, state.locationCustomSchedule, locationAppointments,
     effectiveWorkingHours, activeCustomSchedule, localCalSlotInterval, state.services]);
 
@@ -1462,19 +1471,25 @@ export default function CalendarScreen() {
                 },
               ]}
             >
-              {/* Circle background for the date number */}
+              {/* Rounded square card for the date number */}
               <View style={{
                 width: cellSize - 4,
                 height: cellSize - 4,
-                borderRadius: (cellSize - 4) / 2,
+                borderRadius: 8,
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: isTemporarilyClosed && !isPast && !isSelected
-                  ? colors.error + "18"
+                backgroundColor: isSelected
+                  ? (isTemporarilyClosed ? colors.error + "22" : colors.primary + "18")
+                  : isToday
+                  ? colors.primary + "10"
+                  : isTemporarilyClosed && !isPast
+                  ? colors.error + "12"
                   : "transparent",
-                borderWidth: isSelected ? 1.5 : 0,
+                borderWidth: isSelected ? 2 : isToday ? 1.5 : 0,
                 borderColor: isSelected
                   ? (isTemporarilyClosed ? colors.error : colors.primary)
+                  : isToday
+                  ? colors.primary + "60"
                   : "transparent",
                 position: "relative",
               }}>
@@ -1637,12 +1652,24 @@ export default function CalendarScreen() {
                             {formatTimeDisplay(slotTime)}
                           </Text>
                         </View>
-                        {isAllLocMode && (() => {
-                          const locCount = locationSlots.get(slotTime)?.length ?? 1;
-                          if (locCount <= 1) return null;
+                        {isAllLocMode ? (() => {
+                          const locIds = locationSlots.get(slotTime) ?? [];
+                          const locCount = locIds.length;
+                          const badgeColor = locCount > 2 ? colors.success : locCount === 2 ? "#F59E0B" : colors.muted;
                           return (
-                            <Text style={{ fontSize: 10, fontWeight: "600", color: isChipSelected ? colors.primary : colors.muted, marginTop: 3 }}>
-                              {locCount} loc
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 2, marginTop: 3 }}>
+                              <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: badgeColor }} />
+                              <Text style={{ fontSize: 10, fontWeight: "600", color: isChipSelected ? colors.primary : badgeColor }}>
+                                {locCount} {locCount === 1 ? "loc" : "locs"}
+                              </Text>
+                            </View>
+                          );
+                        })() : (() => {
+                          // Single-location mode: show the location name if available
+                          if (!activeLocation) return null;
+                          return (
+                            <Text style={{ fontSize: 9, color: isChipSelected ? colors.primary + "CC" : colors.muted, marginTop: 2 }} numberOfLines={1}>
+                              {activeLocation.name.length > 10 ? activeLocation.name.slice(0, 9) + "…" : activeLocation.name}
                             </Text>
                           );
                         })()}
