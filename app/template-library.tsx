@@ -485,10 +485,11 @@ function makeStyles(colors: ReturnType<typeof useColors>) {
       borderTopColor: colors.border,
     },
     templateCard: {
-      padding: 14,
-      borderBottomWidth: StyleSheet.hairlineWidth,
+      padding: 18,
+      paddingVertical: 20,
+      borderBottomWidth: 1,
       borderBottomColor: colors.border,
-      gap: 6,
+      gap: 10,
     },
     templateTop: {
       flexDirection: "row",
@@ -515,11 +516,12 @@ function makeStyles(colors: ReturnType<typeof useColors>) {
     templatePreview: {
       fontSize: 13,
       color: colors.muted,
-      lineHeight: 18,
+      lineHeight: 20,
       numberOfLines: 3,
     } as any,
     templatePreviewFull: {
       color: colors.foreground,
+      lineHeight: 20,
     },
     previewToggle: {
       flexDirection: "row",
@@ -536,7 +538,7 @@ function makeStyles(colors: ReturnType<typeof useColors>) {
       flexDirection: "row",
       alignItems: "center",
       gap: 8,
-      marginTop: 4,
+      marginTop: 8,
       flexWrap: "wrap",
     },
     addBtn: {

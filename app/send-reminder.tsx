@@ -92,13 +92,15 @@ export default function SendReminderScreen() {
     return stored.length > 0 ? stored : DEFAULT_REMINDER_TEMPLATES;
   }, [state.reminderTemplates]);
 
-  // Filter templates by appointment status
+  // Filter templates by appointment status, and exclude time-based templates
+  // (those with minutesBefore > 0 belong in the Template Library, not the quick-select list)
   const reminderTemplates: ReminderTemplate[] = useMemo(() => {
-    if (!appointment) return allReminderTemplates;
+    const withoutTimeBased = allReminderTemplates.filter((t) => !t.minutesBefore || t.minutesBefore === 0);
+    if (!appointment) return withoutTimeBased;
     const status = appointment.status as string;
     const allowedCategories = STATUS_TEMPLATE_CATEGORIES[status];
-    if (!allowedCategories) return allReminderTemplates;
-    return allReminderTemplates.filter(
+    if (!allowedCategories) return withoutTimeBased;
+    return withoutTimeBased.filter(
       (t) => !t.category || allowedCategories.includes(t.category as TemplateCategory)
     );
   }, [allReminderTemplates, appointment]);
