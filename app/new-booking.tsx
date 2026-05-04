@@ -18,7 +18,7 @@ import { useStore, generateId, formatDateStr, formatTime, formatDateDisplay } fr
 import { useColors } from "@/hooks/use-colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { Appointment, Client, Product, Discount, DAYS_OF_WEEK, DEFAULT_WORKING_HOURS, generateAvailableSlots, minutesToTime, timeToMinutes, getApplicableDiscount, generateConfirmationMessage, getServiceDisplayName, stripPhoneFormat, timeSlotsOverlap, PUBLIC_BOOKING_URL } from "@/lib/types";
+import { Appointment, Client, Product, Discount, DAYS_OF_WEEK, DEFAULT_WORKING_HOURS, generateAvailableSlots, minutesToTime, timeToMinutes, getApplicableDiscount, generateConfirmationMessage, getServiceDisplayName, stripPhoneFormat, timeSlotsOverlap, PUBLIC_BOOKING_URL, formatPhoneNumber, formatFullAddress } from "@/lib/types";
 import { trpc } from "@/lib/trpc";
 import { useActiveLocation } from "@/hooks/use-active-location";
 import { useResponsive } from "@/hooks/use-responsive";
@@ -979,7 +979,7 @@ export default function NewBookingScreen() {
                     <View style={styles.optionContent}>
                       <Text className="text-base font-semibold text-foreground">{item.name}</Text>
                       {item.phone ? (
-                        <Text className="text-xs text-muted mt-0.5">{item.phone}</Text>
+                        <Text className="text-xs text-muted mt-0.5">{formatPhoneNumber(item.phone)}</Text>
                       ) : null}
                     </View>
                     <IconSymbol name="chevron.right" size={16} color={colors.muted} />
@@ -1071,7 +1071,7 @@ export default function NewBookingScreen() {
                         <View>
                           <Text style={{ fontSize: 13, fontWeight: "600", color: isSelected ? colors.primary : colors.foreground }}>{loc.name}</Text>
                           {!!loc.address && (
-                            <Text style={{ fontSize: 11, color: colors.muted, marginTop: 1 }} numberOfLines={1}>{loc.address}</Text>
+                            <Text style={{ fontSize: 11, color: colors.muted, marginTop: 1 }} numberOfLines={2}>{formatFullAddress(loc.address, loc.city, loc.state, loc.zipCode)}</Text>
                           )}
                         </View>
                       </Pressable>
@@ -1777,7 +1777,7 @@ export default function NewBookingScreen() {
                         <View>
                           <Text style={{ fontSize: 13, fontWeight: "600", color: isSelected ? colors.primary : isAvailable ? colors.foreground : colors.muted }}>{loc.name}</Text>
                           {!!loc.address && (
-                            <Text style={{ fontSize: 11, color: colors.muted, marginTop: 1 }} numberOfLines={1}>{loc.address}</Text>
+                            <Text style={{ fontSize: 11, color: colors.muted, marginTop: 1 }} numberOfLines={2}>{formatFullAddress(loc.address, loc.city, loc.state, loc.zipCode)}</Text>
                           )}
                           {isClosed && (
                             <Text style={{ fontSize: 10, color: colors.error, marginTop: 1, fontWeight: "600" }}>Closed this day</Text>

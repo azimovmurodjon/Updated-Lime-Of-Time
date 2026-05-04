@@ -1544,7 +1544,7 @@ export default function CalendarBookingScreen() {
                     {item.name}
                   </Text>
                   {item.phone ? (
-                    <Text className="text-xs text-muted mt-0.5">{item.phone}</Text>
+                    <Text className="text-xs text-muted mt-0.5">{formatPhoneNumber(item.phone)}</Text>
                   ) : null}
                 </View>
                 <IconSymbol name="chevron.right" size={16} color={colors.muted} />
@@ -1713,8 +1713,8 @@ export default function CalendarBookingScreen() {
                     {loc.name}
                   </Text>
                   {loc.address ? (
-                    <Text className="text-xs text-muted mt-0.5" numberOfLines={1}>
-                      {loc.address}
+                    <Text className="text-xs text-muted mt-0.5" numberOfLines={2}>
+                      {formatFullAddress(loc.address, loc.city, loc.state, loc.zipCode)}
                     </Text>
                   ) : null}
                   {!isOpen && (
@@ -2494,7 +2494,7 @@ export default function CalendarBookingScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>{selectedClient.name}</Text>
-                  {selectedClient.phone ? <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>{selectedClient.phone}</Text> : null}
+                  {selectedClient.phone ? <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>{formatPhoneNumber(selectedClient.phone)}</Text> : null}
                 </View>
               </View>
             )}
