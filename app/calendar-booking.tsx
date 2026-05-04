@@ -29,6 +29,7 @@ import {
   Client,
   DAYS_OF_WEEK,
   generateAvailableSlots,
+  generateCalendarSlots,
   minutesToTime,
   timeToMinutes,
   getApplicableDiscount,
@@ -760,6 +761,7 @@ export default function CalendarBookingScreen() {
 
         // Step 0 location-aware working hours and appointments
         const step0LocationId = preselectedLocationId;
+        const step0IsAllMode = !step0LocationId && activeLocations.length > 1;
         const step0Location = step0LocationId ? state.locations.find((l) => l.id === step0LocationId) ?? null : null;
         const step0WorkingHours = (step0Location?.workingHours && Object.keys(step0Location.workingHours).length > 0)
           ? step0Location.workingHours as Record<string, import("@/lib/types").WorkingHours>
@@ -777,34 +779,105 @@ export default function CalendarBookingScreen() {
           return state.customSchedule ?? [];
         })();
 
+        // Helper: compute available slots for a given date, respecting All-locations union logic
+        const computeStep0Slots = (ds: string): string[] => {
+          if (!step0IsAllMode) {
+            return generateAvailableSlots(
+              ds, step0EffectiveInterval, step0WorkingHours, step0Appts, step0EffectiveInterval,
+              step0CustomSchedule, state.settings.scheduleMode, (state.settings as any).bufferTime ?? 0
+            );
+          }
+          // All-locations mode: union slots across all locations (same logic as Calendar tab)
+          const d = new Date(ds + "T12:00:00");
+          const dayName = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][d.getDay()];
+          const timeSet = new Set<string>();
+          for (const loc of activeLocations) {
+            if (loc.temporarilyClosed) continue;
+            const locWh: Record<string, any> = (loc.workingHours != null && Object.keys(loc.workingHours).length > 0)
+              ? (loc.workingHours as Record<string, any>)
+              : ((state.settings.workingHours ?? {}) as Record<string, any>);
+            const locCustomSchedule: any[] = (state as any).locationCustomSchedule?.[loc.id] ?? [];
+            const locCustom = locCustomSchedule.find((cs: any) => cs.date === ds);
+            let locHours: { start: string; end: string } | null = null;
+            if (locCustom) {
+              if (!locCustom.isOpen) continue;
+              locHours = { start: locCustom.startTime ?? '09:00', end: locCustom.endTime ?? '17:00' };
+            } else {
+              const wh = locWh[dayName] ?? locWh[dayName.charAt(0).toUpperCase() + dayName.slice(1)];
+              if (!wh || !wh.enabled) continue;
+              locHours = { start: wh.start, end: wh.end };
+            }
+            const fullLocWh: Record<string, any> = { ...locWh };
+            fullLocWh[dayName] = { enabled: true, start: locHours.start, end: locHours.end };
+            const locAppts = state.appointments.filter((a) =>
+              a.locationId === loc.id || (!a.locationId && activeLocations.length === 1)
+            );
+            const mergedCustomSchedule: any[] = [
+              ...locCustomSchedule,
+              ...(state.customSchedule ?? []).filter(
+                (cs) => !locCustomSchedule.some((lcs: any) => lcs.date === cs.date)
+              ),
+            ];
+            const locSlots = generateCalendarSlots(
+              ds, step0EffectiveInterval,
+              fullLocWh,
+              locAppts, step0EffectiveInterval,
+              mergedCustomSchedule,
+              state.settings.scheduleMode, (state.settings as any).bufferTime ?? 0
+            );
+            const locBooked = new Set(
+              locAppts
+                .filter((a) => a.date === ds && (a.status === 'confirmed' || a.status === 'pending'))
+                .map((a) => a.time)
+            );
+            for (const t of locSlots) {
+              if (!locBooked.has(t)) timeSet.add(t);
+            }
+          }
+          return Array.from(timeSet).sort();
+        };
+
+        // Helper: check if a date is closed in All-locations mode
+        const isStep0DateClosed = (ds: string): boolean => {
+          const endDate = state.settings.businessHoursEndDate;
+          if (endDate && ds > endDate) return true;
+          if (!step0IsAllMode) {
+            const customDay = step0CustomSchedule.find((cs: any) => cs.date === ds);
+            if (state.settings.scheduleMode === "custom") return !customDay || !customDay.isOpen;
+            if (customDay) return !customDay.isOpen;
+            const d = new Date(ds + "T12:00:00");
+            const dayName = DAYS_OF_WEEK[d.getDay()];
+            const wh = (step0WorkingHours as any)[dayName];
+            return !wh || !wh.enabled;
+          }
+          // All mode: open if any location has this day open
+          const d = new Date(ds + "T12:00:00");
+          const dayName = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][d.getDay()];
+          for (const loc of activeLocations) {
+            if (loc.temporarilyClosed) continue;
+            const locCustomSchedule: any[] = (state as any).locationCustomSchedule?.[loc.id] ?? [];
+            const locCustom = locCustomSchedule.find((cs: any) => cs.date === ds);
+            if (locCustom) { if (locCustom.isOpen) return false; continue; }
+            const locWh: Record<string, any> = (loc.workingHours != null && Object.keys(loc.workingHours).length > 0)
+              ? (loc.workingHours as Record<string, any>)
+              : ((state.settings.workingHours ?? {}) as Record<string, any>);
+            const wh = locWh[dayName] ?? locWh[dayName.charAt(0).toUpperCase() + dayName.slice(1)];
+            if (wh && wh.enabled) return false;
+          }
+          return true;
+        };
+
         // Date options for calendar (90 days)
         const step0DateOptions = (() => {
           const dates: { date: string; closed: boolean; noSlots: boolean; slotCount: number }[] = [];
-          const endDate = state.settings.businessHoursEndDate;
           for (let i = 0; i < 90; i++) {
             const d = new Date(today);
             d.setDate(today.getDate() + i);
             const ds = formatDateStr(d);
-            let closed = !!(endDate && ds > endDate);
-            if (!closed) {
-              const customDay = step0CustomSchedule.find((cs: any) => cs.date === ds);
-              if (state.settings.scheduleMode === "custom") {
-                closed = !customDay || !customDay.isOpen;
-              } else if (customDay) {
-                closed = !customDay.isOpen;
-              } else {
-                const dayName = DAYS_OF_WEEK[d.getDay()];
-                const wh = (step0WorkingHours as any)[dayName];
-                closed = !wh || !wh.enabled;
-              }
-            }
+            const closed = isStep0DateClosed(ds);
             let slotCount = 0;
             if (!closed) {
-              const slots = generateAvailableSlots(
-                ds, step0EffectiveInterval, step0WorkingHours, step0Appts, step0EffectiveInterval,
-                step0CustomSchedule, state.settings.scheduleMode, (state.settings as any).bufferTime ?? 0
-              );
-              slotCount = slots.length;
+              slotCount = computeStep0Slots(ds).length;
             }
             dates.push({ date: ds, closed, noSlots: slotCount === 0, slotCount });
           }
@@ -812,10 +885,7 @@ export default function CalendarBookingScreen() {
         })();
 
         // Time slots for selected date
-        const step0TimeSlots = generateAvailableSlots(
-          step0Date, step0EffectiveInterval, step0WorkingHours, step0Appts, step0EffectiveInterval,
-          step0CustomSchedule, state.settings.scheduleMode, (state.settings as any).bufferTime ?? 0
-        );
+        const step0TimeSlots = computeStep0Slots(step0Date);
         const step0SlotGroups = [
           { label: "Morning", slots: step0TimeSlots.filter((t) => parseInt(t.split(":")[0]) < 12) },
           { label: "Afternoon", slots: step0TimeSlots.filter((t) => { const h = parseInt(t.split(":")[0]); return h >= 12 && h < 17; }) },
