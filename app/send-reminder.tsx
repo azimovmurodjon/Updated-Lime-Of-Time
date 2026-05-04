@@ -24,6 +24,7 @@ import {
   formatDateLong,
   formatTimeDisplay,
   generateReminderMessage,
+  buildPriceLine,
   formatFullAddress,
   minutesToTime,
   timeToMinutes,
@@ -48,10 +49,11 @@ function applyTemplate(template: string, vars: Record<string, string>): string {
 const VARIABLES = [
   { label: "{clientName}", description: "Client's name" },
   { label: "{businessName}", description: "Business name" },
-  { label: "{serviceName}", description: "Service name" },
+  { label: "{service}", description: "Service name" },
   { label: "{date}", description: "Appointment date" },
   { label: "{time}", description: "Appointment time" },
   { label: "{location}", description: "Location" },
+  { label: "{priceLine}", description: "Smart pricing block (total, discounts, gift cards)" },
   { label: "{phone}", description: "Business phone" },
   { label: "{bookingUrl}", description: "Booking link" },
   { label: "{reviewUrl}", description: "Review link" },
@@ -170,6 +172,15 @@ export default function SendReminderScreen() {
       totalPrice = appointment.totalPrice != null ? `$${appointment.totalPrice.toFixed(2)}` : (svc ? `$${svc.price.toFixed(2)}` : "");
     }
 
+    // Build smart pricing block
+    const priceLine = buildPriceLine({
+      totalPrice: appointment.totalPrice,
+      discountAmount: appointment.discountAmount,
+      discountName: appointment.discountName,
+      giftUsedAmount: appointment.giftUsedAmount,
+      paymentStatus: appointment.paymentStatus,
+    });
+
     return {
       clientName: client.name,
       businessName: bizName,
@@ -180,6 +191,7 @@ export default function SendReminderScreen() {
       time: timeDisplay,
       price: totalPrice,
       total: totalPrice,
+      priceLine,
       location: locLine,
       phone: formatPhoneNumber(stripPhoneFormat(locPhone)),
       clientPhone: client.phone ?? "",
@@ -212,7 +224,12 @@ export default function SendReminderScreen() {
       tplVars.locName || undefined,
       tplVars.locCity,
       tplVars.locState,
-      tplVars.locZip
+      tplVars.locZip,
+      appointment.totalPrice,
+      appointment.discountAmount,
+      appointment.discountName,
+      appointment.giftUsedAmount,
+      appointment.paymentStatus
     );
   }, [tplVars, appointment, biz.smsTemplates]);
 

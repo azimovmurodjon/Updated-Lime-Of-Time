@@ -547,143 +547,153 @@ export const DEFAULT_REMINDER_TEMPLATES: ReminderTemplate[] = [
   {
     id: "rt-30m", label: "30 minutes before", minutesBefore: 30, category: "upcoming",
     createdAt: new Date().toISOString(),
-    customMessage: "Dear {clientName},\n\nYour appointment begins in 30 minutes. Please head over now.\n\n📋 Service: {service}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease arrive 5 minutes early. We look forward to seeing you!",
+    customMessage: "Dear {clientName},\n\nYour appointment begins in just 30 minutes \u2014 please head over now!\n\n\ud83d\udccb Service: {service}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nWe look forward to seeing you shortly!",
   },
   {
     id: "rt-1h", label: "1 hour before", minutesBefore: 60, category: "upcoming",
     createdAt: new Date().toISOString(),
-    customMessage: "Dear {clientName},\n\nYour appointment is in 1 hour. Please plan to arrive a few minutes early.\n\n📋 Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nIf you need to reschedule, please contact us as soon as possible.",
+    customMessage: "Dear {clientName},\n\nYour appointment is in 1 hour. Please start making your way over.\n\n\ud83d\udccb Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease arrive a few minutes early. If you need to reschedule, contact us right away.",
   },
   {
     id: "rt-2h", label: "2 hours before", minutesBefore: 120, category: "upcoming",
     createdAt: new Date().toISOString(),
-    customMessage: "Dear {clientName},\n\nThis is a reminder that your appointment is in 2 hours.\n\n📋 Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease ensure you are prepared and arrive 5 minutes early. We look forward to serving you.",
+    customMessage: "Dear {clientName},\n\nThis is a reminder that your appointment is in 2 hours.\n\n\ud83d\udccb Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease ensure you are prepared and arrive 5 minutes early. We look forward to serving you.",
   },
   {
     id: "rt-6h", label: "6 hours before", minutesBefore: 360, category: "upcoming",
     createdAt: new Date().toISOString(),
-    customMessage: "Dear {clientName},\n\nJust a reminder \u2014 your appointment is today in approximately 6 hours.\n\n📋 Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nIf you need to make any changes, please contact us right away.",
+    customMessage: "Dear {clientName},\n\nJust a reminder \u2014 your appointment is today in approximately 6 hours.\n\n\ud83d\udccb Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nIf you need to make any changes, please contact us right away.",
   },
   {
     id: "rt-24h", label: "24 hours before", minutesBefore: 1440, category: "upcoming",
     createdAt: new Date().toISOString(),
-    customMessage: "Dear {clientName},\n\nThis is your 24-hour reminder for your appointment tomorrow.\n\n📋 Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease arrive 5 minutes early. If you need to reschedule or cancel, contact us as soon as possible. We look forward to seeing you!",
+    customMessage: "Dear {clientName},\n\nThis is your 24-hour reminder for your appointment tomorrow. We look forward to seeing you!\n\n\ud83d\udccb Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease arrive 5 minutes early. If you need to reschedule or cancel, contact us as soon as possible.",
   },
 ];
 
-/** Built-in template library — 49 professional SMS templates across 7 categories (not saved to user store by default) */
+/** Built-in template library — 54 professional SMS templates across 7 categories (not saved to user store by default) */
 export const TEMPLATE_LIBRARY: ReminderTemplate[] = [
-  // ─── UPCOMING (7) ───────────────────────────────────────────────────────────
+  // ─── UPCOMING (12 — includes 5 time-based) ──────────────────────────────────
+  { id: "lib-up-t30m", label: "30 Minutes Before", minutesBefore: 30, category: "upcoming", isLibrary: true, createdAt: "",
+    customMessage: "Dear {clientName},\n\nYour appointment begins in just 30 minutes \u2014 please head over now!\n\n\ud83d\udccb Service: {service}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nWe look forward to seeing you shortly!" },
+  { id: "lib-up-t1h", label: "1 Hour Before", minutesBefore: 60, category: "upcoming", isLibrary: true, createdAt: "",
+    customMessage: "Dear {clientName},\n\nYour appointment is in 1 hour. Please start making your way over.\n\n\ud83d\udccb Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease arrive a few minutes early. If you need to reschedule, contact us right away." },
+  { id: "lib-up-t2h", label: "2 Hours Before", minutesBefore: 120, category: "upcoming", isLibrary: true, createdAt: "",
+    customMessage: "Dear {clientName},\n\nThis is a reminder that your appointment is in 2 hours.\n\n\ud83d\udccb Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease ensure you are prepared and arrive 5 minutes early. We look forward to serving you." },
+  { id: "lib-up-t6h", label: "6 Hours Before", minutesBefore: 360, category: "upcoming", isLibrary: true, createdAt: "",
+    customMessage: "Dear {clientName},\n\nJust a reminder \u2014 your appointment is today in approximately 6 hours.\n\n\ud83d\udccb Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nIf you need to make any changes, please contact us right away." },
+  { id: "lib-up-t24h", label: "24 Hours Before", minutesBefore: 1440, category: "upcoming", isLibrary: true, createdAt: "",
+    customMessage: "Dear {clientName},\n\nThis is your 24-hour reminder for your appointment tomorrow. We look forward to seeing you!\n\n\ud83d\udccb Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease arrive 5 minutes early. If you need to reschedule or cancel, contact us as soon as possible." },
   { id: "lib-up-1", label: "Standard Reminder", minutesBefore: 1440, category: "upcoming", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nThis is a friendly reminder about your upcoming appointment.\n\n📋 Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease reply CONFIRM to confirm or CANCEL to cancel. We look forward to seeing you!" },
+    customMessage: "Dear {clientName},\n\nThis is a friendly reminder about your upcoming appointment.\n\n\ud83d\udccb Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease reply CONFIRM to confirm or CANCEL to cancel. We look forward to seeing you!" },
   { id: "lib-up-2", label: "Same-Day Reminder", minutesBefore: 120, category: "upcoming", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nJust a reminder \u2014 your appointment is today!\n\n📋 Service: {service}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease arrive 5 minutes early. We look forward to seeing you!" },
+    customMessage: "Dear {clientName},\n\nJust a reminder \u2014 your appointment is today!\n\n\ud83d\udccb Service: {service}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease arrive 5 minutes early. We look forward to seeing you!" },
   { id: "lib-up-3", label: "Location & Directions", minutesBefore: 1440, category: "upcoming", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nHere are your appointment details and directions.\n\n📋 Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nIf you need directions or have any questions, please do not hesitate to contact us." },
+    customMessage: "Dear {clientName},\n\nHere are your appointment details and directions.\n\n\ud83d\udccb Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nIf you need directions or have any questions, please do not hesitate to contact us." },
   { id: "lib-up-4", label: "Preparation Reminder", minutesBefore: 1440, category: "upcoming", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nYour appointment is coming up. Please ensure you are prepared.\n\n📋 Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease arrive 5 minutes early and ensure you are ready for your session. We look forward to serving you." },
+    customMessage: "Dear {clientName},\n\nYour appointment is coming up. Please ensure you are prepared.\n\n\ud83d\udccb Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease arrive 5 minutes early and ensure you are ready for your session. We look forward to serving you." },
   { id: "lib-up-5", label: "48-Hour Advance Notice", minutesBefore: 2880, category: "upcoming", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nYour appointment is in 2 days. We want to make sure you are ready!\n\n📋 Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease contact us if you need to make any changes." },
+    customMessage: "Dear {clientName},\n\nYour appointment is in 2 days. We want to make sure you are ready!\n\n\ud83d\udccb Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease contact us if you need to make any changes." },
   { id: "lib-up-6", label: "1-Hour Reminder", minutesBefore: 60, category: "upcoming", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nYour appointment begins in 1 hour. Please start making your way over.\n\n📋 Service: {service}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nWe look forward to seeing you shortly!" },
+    customMessage: "Dear {clientName},\n\nYour appointment begins in 1 hour. Please start making your way over.\n\n\ud83d\udccb Service: {service}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nWe look forward to seeing you shortly!" },
   { id: "lib-up-7", label: "Friendly Nudge", minutesBefore: 1440, category: "upcoming", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nWe are looking forward to your upcoming appointment!\n\n📋 Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nIf anything changes, please let us know as soon as possible. Thank you!" },
+    customMessage: "Dear {clientName},\n\nWe are looking forward to your upcoming appointment!\n\n\ud83d\udccb Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nIf anything changes, please let us know as soon as possible. Thank you!" },
 
   // ─── CONFIRMED (7) ──────────────────────────────────────────────────────────
   { id: "lib-co-1", label: "Booking Confirmation", minutesBefore: 0, category: "confirmed", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nYour appointment has been confirmed. We look forward to seeing you!\n\n✅ Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease arrive 5 minutes early. If you need to reschedule, contact us as soon as possible." },
+    customMessage: "Dear {clientName},\n\nYour appointment has been confirmed. We look forward to seeing you!\n\n\u2705 Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease arrive 5 minutes early. If you need to reschedule, contact us as soon as possible." },
   { id: "lib-co-2", label: "Confirmation with Payment", minutesBefore: 0, category: "confirmed", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nYour appointment is confirmed and your payment details are below.\n\n✅ Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nThank you for your payment. We look forward to serving you!" },
+    customMessage: "Dear {clientName},\n\nYour appointment is confirmed and your payment details are below.\n\n\u2705 Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nThank you for your payment. We look forward to serving you!" },
   { id: "lib-co-3", label: "What to Bring", minutesBefore: 1440, category: "confirmed", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nYour appointment is confirmed. Here is a reminder of what to bring.\n\n✅ Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease remember to bring any relevant documents or items for your session." },
+    customMessage: "Dear {clientName},\n\nYour appointment is confirmed. Here is a reminder of what to bring.\n\n\u2705 Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease remember to bring any relevant documents or items for your session." },
   { id: "lib-co-4", label: "Deposit Reminder", minutesBefore: 0, category: "confirmed", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nYour appointment is confirmed. A deposit is required to secure your booking.\n\n✅ Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease contact us to arrange your deposit at your earliest convenience." },
+    customMessage: "Dear {clientName},\n\nYour appointment is confirmed. A deposit is required to secure your booking.\n\n\u2705 Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease contact us to arrange your deposit at your earliest convenience." },
   { id: "lib-co-5", label: "Confirmation with Staff", minutesBefore: 0, category: "confirmed", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nYour appointment is confirmed. We are excited to serve you!\n\n✅ Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease arrive 5 minutes early. We look forward to seeing you!" },
+    customMessage: "Dear {clientName},\n\nYour appointment is confirmed. We are excited to serve you!\n\n\u2705 Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease arrive 5 minutes early. We look forward to seeing you!" },
   { id: "lib-co-6", label: "Policy Reminder", minutesBefore: 1440, category: "confirmed", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nYour appointment is confirmed. Please review our cancellation policy.\n\n✅ Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease note that cancellations within 24 hours may be subject to a fee. Contact us if you need to reschedule." },
+    customMessage: "Dear {clientName},\n\nYour appointment is confirmed. Please review our cancellation policy.\n\n\u2705 Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease note that cancellations within 24 hours may be subject to a fee. Contact us if you need to reschedule." },
   { id: "lib-co-7", label: "Confirmation Summary", minutesBefore: 0, category: "confirmed", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nBooking confirmed! Here is your full appointment summary.\n\n✅ Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nSee you soon!" },
+    customMessage: "Dear {clientName},\n\nBooking confirmed! Here is your full appointment summary.\n\n\u2705 Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nSee you soon!" },
 
   // ─── PENDING (7) ────────────────────────────────────────────────────────────
   { id: "lib-pe-1", label: "Awaiting Confirmation", minutesBefore: 0, category: "pending", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nYour appointment request has been received and is pending confirmation.\n\n🕒 Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nWe will notify you as soon as your appointment is confirmed." },
+    customMessage: "Dear {clientName},\n\nYour appointment request has been received and is pending confirmation.\n\n\ud83d\udd52 Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nWe will notify you as soon as your appointment is confirmed." },
   { id: "lib-pe-2", label: "Action Required", minutesBefore: 0, category: "pending", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nYour appointment requires your confirmation. Please respond at your earliest convenience.\n\n🕒 Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease reply YES to confirm or NO to cancel." },
+    customMessage: "Dear {clientName},\n\nYour appointment requires your confirmation. Please respond at your earliest convenience.\n\n\ud83d\udd52 Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease reply YES to confirm or NO to cancel." },
   { id: "lib-pe-3", label: "Booking Request Received", minutesBefore: 0, category: "pending", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nWe have received your booking request and are reviewing it now.\n\n🕒 Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nWe will confirm your appointment shortly. Thank you for your patience." },
+    customMessage: "Dear {clientName},\n\nWe have received your booking request and are reviewing it now.\n\n\ud83d\udd52 Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nWe will confirm your appointment shortly. Thank you for your patience." },
   { id: "lib-pe-4", label: "Pending Follow-up", minutesBefore: 0, category: "pending", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nYour appointment is still pending. Please contact us to confirm or reschedule.\n\n🕒 Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease respond at your earliest convenience." },
+    customMessage: "Dear {clientName},\n\nYour appointment is still pending. Please contact us to confirm or reschedule.\n\n\ud83d\udd52 Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease respond at your earliest convenience." },
   { id: "lib-pe-5", label: "Deposit Pending", minutesBefore: 0, category: "pending", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nYour appointment is pending. A deposit is required to secure your booking.\n\n🕒 Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease contact us to arrange your deposit and confirm your booking." },
+    customMessage: "Dear {clientName},\n\nYour appointment is pending. A deposit is required to secure your booking.\n\n\ud83d\udd52 Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease contact us to arrange your deposit and confirm your booking." },
   { id: "lib-pe-6", label: "Availability Check", minutesBefore: 0, category: "pending", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nWe are checking availability for your requested appointment time.\n\n🕒 Service: {service}\n📅 Requested Date: {date}\n⏰ Requested Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nWe will confirm your appointment as soon as possible. Thank you for your patience." },
+    customMessage: "Dear {clientName},\n\nWe are checking availability for your requested appointment time.\n\n\ud83d\udd52 Service: {service}\n\ud83d\udcc5 Requested Date: {date}\n\u23f0 Requested Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nWe will confirm your appointment as soon as possible. Thank you for your patience." },
   { id: "lib-pe-7", label: "Reminder to Confirm", minutesBefore: 0, category: "pending", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nThis is a reminder that your appointment is awaiting your confirmation.\n\n🕒 Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease respond at your earliest convenience to secure your spot." },
+    customMessage: "Dear {clientName},\n\nThis is a reminder that your appointment is awaiting your confirmation.\n\n\ud83d\udd52 Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease respond at your earliest convenience to secure your spot." },
 
   // ─── CANCELLED (7) ──────────────────────────────────────────────────────────
   { id: "lib-ca-1", label: "Cancellation Notice", minutesBefore: 0, category: "cancelled", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nYour appointment has been cancelled. We are sorry for any inconvenience.\n\n❌ Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease contact us to reschedule at your convenience." },
+    customMessage: "Dear {clientName},\n\nYour appointment has been cancelled. We are sorry for any inconvenience.\n\n\u274c Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease contact us to reschedule at your convenience." },
   { id: "lib-ca-2", label: "Rebooking Invitation", minutesBefore: 0, category: "cancelled", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nWe noticed your appointment was cancelled. We would love to have you back!\n\n❌ Service: {service}\n📅 Date: {date}\n🏢 {businessName}\n📞 {phone}\n🔗 Book again: {bookingUrl}\n\nWe are here whenever you are ready. We hope to see you soon!" },
+    customMessage: "Dear {clientName},\n\nWe noticed your appointment was cancelled. We would love to have you back!\n\n\u274c Service: {service}\n\ud83d\udcc5 Date: {date}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\ud83d\udd17 Book again: {bookingUrl}\n\nWe are here whenever you are ready. We hope to see you soon!" },
   { id: "lib-ca-3", label: "Waitlist Offer", minutesBefore: 0, category: "cancelled", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nYour appointment has been cancelled. We have added you to our waitlist.\n\n❌ Service: {service}\n📅 Date: {date}\n🏢 {businessName}\n📞 {phone}\n\nWe will notify you as soon as a new slot becomes available. Thank you for your patience." },
+    customMessage: "Dear {clientName},\n\nYour appointment has been cancelled. We have added you to our waitlist.\n\n\u274c Service: {service}\n\ud83d\udcc5 Date: {date}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nWe will notify you as soon as a new slot becomes available. Thank you for your patience." },
   { id: "lib-ca-4", label: "Cancellation with Fee Notice", minutesBefore: 0, category: "cancelled", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nYour appointment has been cancelled. Please note that a cancellation fee may apply.\n\n❌ Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease contact us if you have any questions regarding our cancellation policy." },
+    customMessage: "Dear {clientName},\n\nYour appointment has been cancelled. Please note that a cancellation fee may apply.\n\n\u274c Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease contact us if you have any questions regarding our cancellation policy." },
   { id: "lib-ca-5", label: "Apology & Rebook", minutesBefore: 0, category: "cancelled", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nWe sincerely apologize for the cancellation of your appointment. We would like to make it right.\n\n❌ Service: {service}\n📅 Date: {date}\n🏢 {businessName}\n📞 {phone}\n🔗 Rebook: {bookingUrl}\n\nPlease contact us to reschedule at a time that works for you. Thank you for your understanding." },
+    customMessage: "Dear {clientName},\n\nWe sincerely apologize for the cancellation of your appointment. We would like to make it right.\n\n\u274c Service: {service}\n\ud83d\udcc5 Date: {date}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\ud83d\udd17 Rebook: {bookingUrl}\n\nPlease contact us to reschedule at a time that works for you. Thank you for your understanding." },
   { id: "lib-ca-6", label: "Business-Initiated Cancel", minutesBefore: 0, category: "cancelled", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nWe regret to inform you that your appointment has been cancelled due to unforeseen circumstances.\n\n❌ Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n🏢 {businessName}\n📞 {phone}\n\nWe sincerely apologize for the inconvenience and will contact you to reschedule as soon as possible." },
+    customMessage: "Dear {clientName},\n\nWe regret to inform you that your appointment has been cancelled due to unforeseen circumstances.\n\n\u274c Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nWe sincerely apologize for the inconvenience and will contact you to reschedule as soon as possible." },
   { id: "lib-ca-7", label: "Final Cancellation Notice", minutesBefore: 0, category: "cancelled", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nThis is to confirm that your appointment has been cancelled as requested.\n\n❌ Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n🏢 {businessName}\n📞 {phone}\n\nWe hope to serve you again in the future. Please do not hesitate to reach out whenever you are ready to book." },
+    customMessage: "Dear {clientName},\n\nThis is to confirm that your appointment has been cancelled as requested.\n\n\u274c Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nWe hope to serve you again in the future. Please do not hesitate to reach out whenever you are ready to book." },
 
   // ─── COMPLETED / FOLLOW-UP (7) ──────────────────────────────────────────────
   { id: "lib-cm-1", label: "Thank You", minutesBefore: 0, category: "completed", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nThank you for visiting us! We hope you had a wonderful experience.\n\n✨ Service: {service}\n📅 Date: {date}\n💰 Total Paid: {price}\n🏢 {businessName}\n📞 {phone}\n\nWe look forward to seeing you again soon!" },
+    customMessage: "Dear {clientName},\n\nThank you for visiting us! We hope you had a wonderful experience.\n\n\u2728 Service: {service}\n\ud83d\udcc5 Date: {date}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nWe look forward to seeing you again soon!" },
   { id: "lib-cm-2", label: "Rebook Reminder", minutesBefore: 0, category: "completed", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nIt was a pleasure serving you! When you are ready for your next appointment, we are here.\n\n✨ Service: {service}\n📅 Date: {date}\n💰 Total Paid: {price}\n🏢 {businessName}\n📞 {phone}\n🔗 Book again: {bookingUrl}\n\nWe look forward to your next visit!" },
+    customMessage: "Dear {clientName},\n\nIt was a pleasure serving you! When you are ready for your next appointment, we are here.\n\n\u2728 Service: {service}\n\ud83d\udcc5 Date: {date}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\ud83d\udd17 Book again: {bookingUrl}\n\nWe look forward to your next visit!" },
   { id: "lib-cm-3", label: "Review Request", minutesBefore: 0, category: "completed", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nThank you for your recent appointment. Your feedback means the world to us!\n\n✨ Service: {service}\n📅 Date: {date}\n💰 Total Paid: {price}\n🏢 {businessName}\n📞 {phone}\n⭐ Leave a review: {reviewUrl}\n\nThank you for taking a moment to share your experience!" },
+    customMessage: "Dear {clientName},\n\nThank you for your recent appointment. Your feedback means the world to us!\n\n\u2728 Service: {service}\n\ud83d\udcc5 Date: {date}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\u2b50 Leave a review: {reviewUrl}\n\nThank you for taking a moment to share your experience!" },
   { id: "lib-cm-4", label: "Loyalty Appreciation", minutesBefore: 0, category: "completed", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nThank you for your continued loyalty. It is always a pleasure to serve you.\n\n✨ Service: {service}\n📅 Date: {date}\n💰 Total Paid: {price}\n🏢 {businessName}\n📞 {phone}\n\nAs a valued client, we truly appreciate your trust in us. We look forward to your next visit!" },
+    customMessage: "Dear {clientName},\n\nThank you for your continued loyalty. It is always a pleasure to serve you.\n\n\u2728 Service: {service}\n\ud83d\udcc5 Date: {date}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nAs a valued client, we truly appreciate your trust in us. We look forward to your next visit!" },
   { id: "lib-cm-5", label: "Next Appointment Suggestion", minutesBefore: 0, category: "completed", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nThank you for your appointment. Based on your service, we recommend scheduling your next visit soon.\n\n✨ Service: {service}\n📅 Date: {date}\n💰 Total Paid: {price}\n🏢 {businessName}\n📞 {phone}\n🔗 Book your next visit: {bookingUrl}\n\nWe recommend scheduling your next appointment in 4\u20136 weeks. Contact us whenever you are ready!" },
+    customMessage: "Dear {clientName},\n\nThank you for your appointment. Based on your service, we recommend scheduling your next visit soon.\n\n\u2728 Service: {service}\n\ud83d\udcc5 Date: {date}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\ud83d\udd17 Book your next visit: {bookingUrl}\n\nWe recommend scheduling your next appointment in 4\u20136 weeks. Contact us whenever you are ready!" },
   { id: "lib-cm-6", label: "Aftercare Instructions", minutesBefore: 0, category: "completed", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nThank you for your appointment today. Here are a few aftercare reminders.\n\n✨ Service: {service}\n📅 Date: {date}\n💰 Total Paid: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease follow any aftercare instructions provided during your visit. Do not hesitate to contact us if you have any questions or concerns." },
+    customMessage: "Dear {clientName},\n\nThank you for your appointment today. Here are a few aftercare reminders.\n\n\u2728 Service: {service}\n\ud83d\udcc5 Date: {date}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease follow any aftercare instructions provided during your visit. Do not hesitate to contact us if you have any questions or concerns." },
   { id: "lib-cm-7", label: "Special Offer for Next Visit", minutesBefore: 0, category: "completed", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nThank you for your recent visit! As a valued client, we have a special offer for you.\n\n✨ Service: {service}\n📅 Date: {date}\n💰 Total Paid: {price}\n🏢 {businessName}\n📞 {phone}\n🔗 Book your next visit: {bookingUrl}\n\nContact us to learn about your exclusive discount on your next appointment!" },
+    customMessage: "Dear {clientName},\n\nThank you for your recent visit! As a valued client, we have a special offer for you.\n\n\u2728 Service: {service}\n\ud83d\udcc5 Date: {date}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\ud83d\udd17 Book your next visit: {bookingUrl}\n\nContact us to learn about your exclusive discount on your next appointment!" },
 
   // ─── NO-SHOW (7) ────────────────────────────────────────────────────────────
   { id: "lib-ns-1", label: "Missed Appointment Notice", minutesBefore: 0, category: "no_show", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nWe noticed you were unable to make your appointment. We understand things come up.\n\n🗓 Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease contact us to reschedule at your convenience." },
+    customMessage: "Dear {clientName},\n\nWe noticed you were unable to make your appointment. We understand things come up.\n\n\ud83d\uddd3 Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease contact us to reschedule at your convenience." },
   { id: "lib-ns-2", label: "Reschedule Offer", minutesBefore: 0, category: "no_show", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nWe missed you at your appointment! We would be happy to reschedule.\n\n🗓 Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n🏢 {businessName}\n📞 {phone}\n🔗 Rebook: {bookingUrl}\n\nPlease contact us at your earliest convenience to arrange a new time." },
+    customMessage: "Dear {clientName},\n\nWe missed you at your appointment! We would be happy to reschedule.\n\n\ud83d\uddd3 Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\ud83d\udd17 Rebook: {bookingUrl}\n\nPlease contact us at your earliest convenience to arrange a new time." },
   { id: "lib-ns-3", label: "Final Notice", minutesBefore: 0, category: "no_show", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nThis is a final notice regarding your missed appointment.\n\n🗓 Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease contact us to reschedule or to discuss any concerns. We value your business." },
+    customMessage: "Dear {clientName},\n\nThis is a final notice regarding your missed appointment.\n\n\ud83d\uddd3 Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease contact us to reschedule or to discuss any concerns. We value your business." },
   { id: "lib-ns-4", label: "Gentle Follow-up", minutesBefore: 0, category: "no_show", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nWe hope everything is well. We missed you at your appointment and wanted to check in.\n\n🗓 Service: {service}\n📅 Date: {date}\n🏢 {businessName}\n📞 {phone}\n\nPlease let us know if you would like to reschedule. We are here to help!" },
+    customMessage: "Dear {clientName},\n\nWe hope everything is well. We missed you at your appointment and wanted to check in.\n\n\ud83d\uddd3 Service: {service}\n\ud83d\udcc5 Date: {date}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease let us know if you would like to reschedule. We are here to help!" },
   { id: "lib-ns-5", label: "No-Show Fee Notice", minutesBefore: 0, category: "no_show", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nWe are following up regarding your missed appointment. Please be aware that a no-show fee may apply.\n\n🗓 Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease contact us to discuss your account and reschedule at your convenience." },
+    customMessage: "Dear {clientName},\n\nWe are following up regarding your missed appointment. Please be aware that a no-show fee may apply.\n\n\ud83d\uddd3 Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease contact us to discuss your account and reschedule at your convenience." },
   { id: "lib-ns-6", label: "Rebooking Invitation", minutesBefore: 0, category: "no_show", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nWe missed you and would love to have you back!\n\n🗓 Service: {service}\n📅 Date: {date}\n🏢 {businessName}\n📞 {phone}\n🔗 Book again: {bookingUrl}\n\nWe are here whenever you are ready. We hope to see you soon!" },
+    customMessage: "Dear {clientName},\n\nWe missed you and would love to have you back!\n\n\ud83d\uddd3 Service: {service}\n\ud83d\udcc5 Date: {date}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\ud83d\udd17 Book again: {bookingUrl}\n\nWe are here whenever you are ready. We hope to see you soon!" },
   { id: "lib-ns-7", label: "Check-In", minutesBefore: 0, category: "no_show", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nWe wanted to check in after your missed appointment. Is there anything we can do to help?\n\n🗓 Service: {service}\n📅 Date: {date}\n🏢 {businessName}\n📞 {phone}\n\nIf there is anything we can do to accommodate your schedule, please do not hesitate to reach out." },
+    customMessage: "Dear {clientName},\n\nWe wanted to check in after your missed appointment. Is there anything we can do to help?\n\n\ud83d\uddd3 Service: {service}\n\ud83d\udcc5 Date: {date}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nIf there is anything we can do to accommodate your schedule, please do not hesitate to reach out." },
 
   // ─── RESCHEDULE (7) ─────────────────────────────────────────────────────────
   { id: "lib-rs-1", label: "Appointment Rescheduled", minutesBefore: 0, category: "reschedule", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nYour appointment has been rescheduled. Here are your updated details.\n\n🔄 Service: {service}\n📅 New Date: {date}\n⏰ New Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease contact us if this does not work for you." },
+    customMessage: "Dear {clientName},\n\nYour appointment has been rescheduled. Here are your updated details.\n\n\ud83d\udd04 Service: {service}\n\ud83d\udcc5 New Date: {date}\n\u23f0 New Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease contact us if this does not work for you." },
   { id: "lib-rs-2", label: "New Time Confirmation", minutesBefore: 0, category: "reschedule", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nThis is to confirm your rescheduled appointment. We look forward to seeing you!\n\n🔄 Service: {service}\n📅 New Date: {date}\n⏰ New Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease arrive 5 minutes early. We look forward to serving you!" },
+    customMessage: "Dear {clientName},\n\nThis is to confirm your rescheduled appointment. We look forward to seeing you!\n\n\ud83d\udd04 Service: {service}\n\ud83d\udcc5 New Date: {date}\n\u23f0 New Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease arrive 5 minutes early. We look forward to serving you!" },
   { id: "lib-rs-3", label: "Apology & New Time", minutesBefore: 0, category: "reschedule", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nWe sincerely apologize for the change to your appointment. Here are your new details.\n\n🔄 Service: {service}\n📅 New Date: {date}\n⏰ New Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nThank you for your understanding and flexibility." },
+    customMessage: "Dear {clientName},\n\nWe sincerely apologize for the change to your appointment. Here are your new details.\n\n\ud83d\udd04 Service: {service}\n\ud83d\udcc5 New Date: {date}\n\u23f0 New Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nThank you for your understanding and flexibility." },
   { id: "lib-rs-4", label: "Reschedule Request", minutesBefore: 0, category: "reschedule", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nWe would like to reschedule your appointment. Please contact us to arrange a new time.\n\n🔄 Service: {service}\n📅 Original Date: {date}\n⏰ Original Time: {time}\n🏢 {businessName}\n📞 {phone}\n\nPlease contact us at your earliest convenience to arrange a new appointment time." },
+    customMessage: "Dear {clientName},\n\nWe would like to reschedule your appointment. Please contact us to arrange a new time.\n\n\ud83d\udd04 Service: {service}\n\ud83d\udcc5 Original Date: {date}\n\u23f0 Original Time: {time}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease contact us at your earliest convenience to arrange a new appointment time." },
   { id: "lib-rs-5", label: "Client-Initiated Reschedule", minutesBefore: 0, category: "reschedule", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nAs requested, your appointment has been rescheduled. Here are your new details.\n\n🔄 Service: {service}\n📅 New Date: {date}\n⏰ New Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nWe look forward to seeing you then!" },
+    customMessage: "Dear {clientName},\n\nAs requested, your appointment has been rescheduled. Here are your new details.\n\n\ud83d\udd04 Service: {service}\n\ud83d\udcc5 New Date: {date}\n\u23f0 New Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nWe look forward to seeing you then!" },
   { id: "lib-rs-6", label: "Reschedule Confirmation", minutesBefore: 0, category: "reschedule", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nYour rescheduled appointment is confirmed. We look forward to seeing you!\n\n🔄 Service: {service}\n📅 New Date: {date}\n⏰ New Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease arrive on time. We look forward to serving you!" },
+    customMessage: "Dear {clientName},\n\nYour rescheduled appointment is confirmed. We look forward to seeing you!\n\n\ud83d\udd04 Service: {service}\n\ud83d\udcc5 New Date: {date}\n\u23f0 New Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease arrive on time. We look forward to serving you!" },
   { id: "lib-rs-7", label: "Reschedule Reminder", minutesBefore: 1440, category: "reschedule", isLibrary: true, createdAt: "",
-    customMessage: "Dear {clientName},\n\nThis is a reminder that your rescheduled appointment is tomorrow.\n\n🔄 Service: {service}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n💰 Total: {price}\n🏢 {businessName}\n📞 {phone}\n\nPlease arrive 5 minutes early. We look forward to seeing you!" },
+    customMessage: "Dear {clientName},\n\nThis is a reminder that your rescheduled appointment is tomorrow.\n\n\ud83d\udd04 Service: {service}\n\ud83d\udcc5 Date: {date}\n\u23f0 Time: {time}\n\ud83d\udccd Location: {location}\n{priceLine}\n\ud83c\udfe2 {businessName}\n\ud83d\udcde {phone}\n\nPlease arrive 5 minutes early. We look forward to seeing you!" },
 ];
 
 export const SERVICE_COLORS = [
@@ -1176,6 +1186,53 @@ export function generateCancellationMessage(
   return `Dear ${clientName},\n\nYour appointment has been cancelled.\n\n📋 Service: ${serviceName}\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)}${locationRow}${feeNote}\n\nIf you would like to reschedule, please visit our booking page or contact us directly.\n\n📞 Contact: ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nThank you.\n${businessName}`;
 }
 
+/**
+ * Build a smart pricing block for SMS templates.
+ * - Shows full breakdown when discount/gift/promo is applied.
+ * - Shows just the total when no adjustments.
+ * - Distinguishes "Total Paid" vs "Amount Due" based on paymentStatus.
+ */
+export function buildPriceLine(opts: {
+  totalPrice?: number | null;
+  discountAmount?: number | null;
+  discountName?: string | null;
+  giftUsedAmount?: number | null;
+  paymentStatus?: string | null;
+}): string {
+  const { totalPrice, discountAmount, discountName, giftUsedAmount, paymentStatus } = opts;
+  const hasDiscount = discountAmount != null && discountAmount > 0;
+  const hasGift = giftUsedAmount != null && giftUsedAmount > 0;
+  const isPaid = paymentStatus === "paid";
+  const totalLabel = isPaid ? "Total Paid" : "Amount Due";
+
+  if (!hasDiscount && !hasGift) {
+    // Simple case — just show total
+    if (totalPrice != null) {
+      return `💰 ${totalLabel}: $${totalPrice.toFixed(2)}`;
+    }
+    return "💰 Total: See invoice";
+  }
+
+  // Full breakdown
+  const lines: string[] = [];
+  if (totalPrice != null) {
+    // Reconstruct subtotal
+    const subtotal = totalPrice + (discountAmount ?? 0) + (giftUsedAmount ?? 0);
+    lines.push(`💰 Subtotal: $${subtotal.toFixed(2)}`);
+    if (hasDiscount) {
+      const label = discountName ? `Discount (${discountName})` : "Discount";
+      lines.push(`🏷️ ${label}: -$${(discountAmount as number).toFixed(2)}`);
+    }
+    if (hasGift) {
+      lines.push(`🎁 Gift Card Applied: -$${(giftUsedAmount as number).toFixed(2)}`);
+    }
+    lines.push(`✅ ${totalLabel}: $${totalPrice.toFixed(2)}`);
+  } else {
+    lines.push("💰 Total: See invoice");
+  }
+  return lines.join("\n");
+}
+
 /** Generate professional upcoming reminder message */
 export function generateReminderMessage(
   businessName: string,
@@ -1189,14 +1246,20 @@ export function generateReminderMessage(
   locationName?: string,
   city?: string,
   state?: string,
-  zipCode?: string
+  zipCode?: string,
+  totalPrice?: number | null,
+  discountAmount?: number | null,
+  discountName?: string | null,
+  giftUsedAmount?: number | null,
+  paymentStatus?: string | null
 ): string {
   const endTime = formatTimeDisplay(minutesToTime(timeToMinutes(time) + serviceDuration));
   const fullAddr = formatFullAddress(address, city, state, zipCode);
   const locationLine = locationName
     ? (fullAddr ? `${locationName} — ${fullAddr}` : locationName)
     : fullAddr;
-  return appendLimeFooter(`Dear ${clientName},\n\nThis is a friendly reminder about your upcoming appointment.\n\n📋 Service: ${serviceName}\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} – ${endTime}\n📍 Location: ${locationLine}\n💰 Total: See invoice\n🏢 ${businessName}\n📞 ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early. If you need to reschedule or cancel, please contact us as soon as possible.`);
+  const priceLine = buildPriceLine({ totalPrice, discountAmount, discountName, giftUsedAmount, paymentStatus });
+  return appendLimeFooter(`Dear ${clientName},\n\nThis is a friendly reminder about your upcoming appointment.\n\n📋 Service: ${serviceName}\n📅 Date: ${formatDateLong(date)}\n⏰ Time: ${formatTimeDisplay(time)} – ${endTime}\n📍 Location: ${locationLine}\n${priceLine}\n🏢 ${businessName}\n📞 ${formatPhoneNumber(stripPhoneFormat(businessPhone))}\n\nPlease arrive 5 minutes early. If you need to reschedule or cancel, please contact us as soon as possible.`);
 }
 
 /** Locked footer appended to every reminder message — cannot be removed by users */
