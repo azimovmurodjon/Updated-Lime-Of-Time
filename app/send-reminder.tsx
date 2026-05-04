@@ -92,10 +92,14 @@ export default function SendReminderScreen() {
     return stored.length > 0 ? stored : DEFAULT_REMINDER_TEMPLATES;
   }, [state.reminderTemplates]);
 
-  // Filter templates by appointment status, and exclude time-based templates
-  // (those with minutesBefore > 0 belong in the Template Library, not the quick-select list)
+  // IDs of the 5 built-in default time-based templates that should NOT appear
+  // in the Send Reminder quick-select list (they live in the Template Library instead).
+  // Library templates added by the user (even if they have minutesBefore set) should still show.
+  const DEFAULT_TIME_BASED_IDS = new Set(["rt-30m", "rt-1h", "rt-2h", "rt-6h", "rt-24h"]);
+
+  // Filter templates by appointment status, and exclude the 5 built-in time-based defaults
   const reminderTemplates: ReminderTemplate[] = useMemo(() => {
-    const withoutTimeBased = allReminderTemplates.filter((t) => !t.minutesBefore || t.minutesBefore === 0);
+    const withoutTimeBased = allReminderTemplates.filter((t) => !DEFAULT_TIME_BASED_IDS.has(t.id));
     if (!appointment) return withoutTimeBased;
     const status = appointment.status as string;
     const allowedCategories = STATUS_TEMPLATE_CATEGORIES[status];
