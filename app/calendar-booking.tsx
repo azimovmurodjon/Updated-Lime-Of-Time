@@ -210,6 +210,54 @@ export default function CalendarBookingScreen() {
     state.customSchedule,
   ]);
 
+  // Resolve the closing time (in minutes) for the pre-selected date.
+  // Used to disable services that would push the appointment past closing time.
+  const closingTimeMin = useMemo(() => {
+    if (!preselectedDate || !preselectedTime) return null;
+    // Check custom schedule override first
+    const customDay = activeCustomSchedule.find((cs: any) => cs.date === preselectedDate);
+    if (customDay) {
+      if (!customDay.isOpen) return null;
+      if (customDay.endTime) return timeToMinutes(customDay.endTime);
+    }
+    // Fall back to weekly working hours
+    const d = new Date(preselectedDate + "T12:00:00");
+    const dayName = DAYS_OF_WEEK[d.getDay()];
+    if (!dayName) return null;
+    const wh = (locationWorkingHours as any)?.[dayName] ?? (locationWorkingHours as any)?.[dayName.toLowerCase()];
+    if (!wh || !wh.enabled) return null;
+    return timeToMinutes(wh.end);
+  }, [preselectedDate, preselectedTime, activeCustomSchedule, locationWorkingHours]);
+
+  // Check if a service with a given duration would be disabled at the pre-selected time.
+  // A service is disabled if:
+  //   1. selected_time + service_duration > closing_time, OR
+  //   2. selected_time + service_duration overlaps an existing non-cancelled appointment
+  const isServiceDisabledAtTime = useCallback((serviceDuration: number): { disabled: boolean; reason: string | null } => {
+    if (!preselectedTime) return { disabled: false, reason: null };
+    const startMin = timeToMinutes(preselectedTime);
+    const endMin = startMin + serviceDuration;
+    // Check closing time
+    if (closingTimeMin !== null && endMin > closingTimeMin) {
+      const h = Math.floor(closingTimeMin / 60);
+      const m = closingTimeMin % 60;
+      const ap = h >= 12 ? "PM" : "AM";
+      const hr = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      return { disabled: true, reason: `Exceeds closing time (${hr}:${String(m).padStart(2, "0")} ${ap})` };
+    }
+    // Check overlap with existing appointments
+    const dayAppts = locationAppts.filter(
+      (a) => a.date === preselectedDate && a.status !== "cancelled"
+    );
+    const overlaps = dayAppts.some((a) => {
+      const apptStart = timeToMinutes(a.time);
+      const apptEnd = apptStart + a.duration;
+      return startMin < apptEnd && endMin > apptStart;
+    });
+    if (overlaps) return { disabled: true, reason: "Overlaps an existing appointment" };
+    return { disabled: false, reason: null };
+  }, [preselectedTime, closingTimeMin, locationAppts, preselectedDate]);
+
   // Available staff filtered by selected location and service
   const availableStaff = useMemo(() => {
     return state.staff.filter((s) => {
@@ -725,56 +773,67 @@ export default function CalendarBookingScreen() {
                       Tattoo: "🖊️", Piercing: "💎", Barber: "💈", General: "⭐",
                     };
                     const svcEmoji = CAT_EMOJI_SVC[item.category ?? ""] ?? "✨";
-                    return (<Pressable
-                      key={item.id}
-                      onPress={() => {
-                        setSelectedServiceId(item.id);
-                        setStep(2);
-                      }}
-                      style={({ pressed }) => [
-                        styles.optionCard,
-                        {
-                          backgroundColor:
-                            selectedServiceId === item.id
-                              ? item.color + "15"
-                              : colors.surface,
-                          borderColor:
-                            selectedServiceId === item.id
-                              ? item.color
-                              : colors.border,
-                          opacity: pressed ? 0.7 : 1,
-                        },
-                      ]}
-                    >
-                      {item.photoUri ? (
-                        <Image
-                          source={{ uri: item.photoUri }}
-                          style={{
-                            width: 40,
-                            height: 40,
-                            borderRadius: 8,
-                            marginRight: 12,
+                    const { disabled: svcDisabled, reason: svcReason } = isServiceDisabledAtTime(item.duration);
+                    return (
+                      <View key={item.id}>
+                        <Pressable
+                          onPress={() => {
+                            if (svcDisabled) return;
+                            setSelectedServiceId(item.id);
+                            setStep(2);
                           }}
-                        />
-                      ) : (
-                        <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: item.color + "22", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
-                          <Text style={{ fontSize: 20 }}>{svcEmoji}</Text>
-                        </View>
-                      )}
-                      <View style={styles.optionContent}>
-                        <Text className="text-base font-semibold text-foreground">
-                          {item.name}
-                        </Text>
-                        <Text className="text-xs text-muted mt-0.5">
-                          {item.duration} min · ${item.price}
-                        </Text>
+                          style={({ pressed }) => [
+                            styles.optionCard,
+                            {
+                              backgroundColor:
+                                selectedServiceId === item.id
+                                  ? item.color + "15"
+                                  : colors.surface,
+                              borderColor:
+                                svcDisabled
+                                  ? colors.border
+                                  : selectedServiceId === item.id
+                                  ? item.color
+                                  : colors.border,
+                              opacity: svcDisabled ? 0.45 : pressed ? 0.7 : 1,
+                            },
+                          ]}
+                        >
+                          {item.photoUri ? (
+                            <Image
+                              source={{ uri: item.photoUri }}
+                              style={{
+                                width: 40,
+                                height: 40,
+                                borderRadius: 8,
+                                marginRight: 12,
+                              }}
+                            />
+                          ) : (
+                            <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: item.color + "22", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                              <Text style={{ fontSize: 20 }}>{svcEmoji}</Text>
+                            </View>
+                          )}
+                          <View style={styles.optionContent}>
+                            <Text style={{ fontSize: 15, fontWeight: "600", color: svcDisabled ? colors.muted : colors.foreground }}>
+                              {item.name}
+                            </Text>
+                            <Text className="text-xs text-muted mt-0.5">
+                              {item.duration} min · ${item.price}
+                            </Text>
+                            {svcDisabled && svcReason && (
+                              <Text style={{ fontSize: 11, color: colors.error, marginTop: 2 }}>
+                                ⚠️ {svcReason}
+                              </Text>
+                            )}
+                          </View>
+                          {svcDisabled ? (
+                            <IconSymbol name="lock.fill" size={16} color={colors.muted} />
+                          ) : (
+                            <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+                          )}
+                        </Pressable>
                       </View>
-                      <IconSymbol
-                        name="chevron.right"
-                        size={16}
-                        color={colors.muted}
-                      />
-                    </Pressable>
                     );
                   })}
                 </View>
@@ -1449,24 +1508,41 @@ export default function CalendarBookingScreen() {
                               <IconSymbol name={isExpanded ? "chevron.down" : "chevron.right"} size={14} color={isExpanded ? colors.primary : colors.muted} />
                             </Pressable>
                           )}
-                          {isExpanded && svcs.map((s) => (
-                            <Pressable
-                              key={s.id}
-                              onPress={() => addToCart({ type: "service", id: s.id, name: s.name, price: parseFloat(String(s.price)), duration: s.duration })}
-                              style={({ pressed }) => [styles.optionCard, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1, marginLeft: hasMultiCat ? 8 : 0 }]}
-                            >
-                              {s.photoUri ? (
-                                <Image source={{ uri: s.photoUri }} style={{ width: 36, height: 36, borderRadius: 8, marginRight: 12 }} />
-                              ) : (
-                                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: s.color, marginRight: 12 }} />
-                              )}
-                              <View style={styles.optionContent}>
-                                <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{s.name}</Text>
-                                <Text style={{ fontSize: 12, color: colors.muted }}>{s.duration} min</Text>
-                              </View>
-                              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.primary }}>+ ${parseFloat(String(s.price)).toFixed(2)}</Text>
-                            </Pressable>
-                          ))}
+                          {isExpanded && svcs.map((s) => {
+                            // Disable add-on if total duration (primary + cart + this add-on) exceeds closing time.
+                            // Buffer between stacked services is ignored — only buffer after the last service matters.
+                            const addOnTotalDuration = totalDuration + s.duration;
+                            const addOnEndMin = preselectedTime ? timeToMinutes(preselectedTime) + addOnTotalDuration : null;
+                            const addOnDisabled = s.duration > 0 && closingTimeMin !== null && addOnEndMin !== null && addOnEndMin > closingTimeMin;
+                            return (
+                              <Pressable
+                                key={s.id}
+                                onPress={() => {
+                                  if (addOnDisabled) return;
+                                  addToCart({ type: "service", id: s.id, name: s.name, price: parseFloat(String(s.price)), duration: s.duration });
+                                }}
+                                style={({ pressed }) => [styles.optionCard, { backgroundColor: colors.surface, borderColor: colors.border, opacity: addOnDisabled ? 0.4 : pressed ? 0.7 : 1, marginLeft: hasMultiCat ? 8 : 0 }]}
+                              >
+                                {s.photoUri ? (
+                                  <Image source={{ uri: s.photoUri }} style={{ width: 36, height: 36, borderRadius: 8, marginRight: 12 }} />
+                                ) : (
+                                  <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: s.color, marginRight: 12 }} />
+                                )}
+                                <View style={styles.optionContent}>
+                                  <Text style={{ fontSize: 14, fontWeight: "600", color: addOnDisabled ? colors.muted : colors.foreground }}>{s.name}</Text>
+                                  <Text style={{ fontSize: 12, color: colors.muted }}>{s.duration} min</Text>
+                                  {addOnDisabled && (
+                                    <Text style={{ fontSize: 11, color: colors.error, marginTop: 2 }}>⚠️ Exceeds closing time</Text>
+                                  )}
+                                </View>
+                                {addOnDisabled ? (
+                                  <IconSymbol name="lock.fill" size={14} color={colors.muted} />
+                                ) : (
+                                  <Text style={{ fontSize: 14, fontWeight: "700", color: colors.primary }}>+ ${parseFloat(String(s.price)).toFixed(2)}</Text>
+                                )}
+                              </Pressable>
+                            );
+                          })}
                         </View>
                       );
                     })}

@@ -875,6 +875,125 @@ function filterSlots(
   });
 }
 
+/**
+ * Calendar-page slot generator: produces slots that restart at appointment_end + buffer
+ * after each existing appointment, rather than using a fixed grid from day start.
+ *
+ * Algorithm:
+ *  1. Build a sorted list of "blocked segments" from existing appointments + buffer.
+ *  2. Walk through the day in segments of free time.
+ *  3. Within each free segment, generate slots starting at the segment start,
+ *     spaced by stepMinutes, stopping when slot_start + serviceDuration > segment_end.
+ *
+ * This ensures that after a 6:00–7:30 appointment with 15m buffer, the next slot
+ * is exactly 7:45 (not 8:00), and continues at 8:15, 8:45, etc. for 30m interval.
+ */
+export function generateCalendarSlots(
+  date: string,
+  serviceDuration: number,
+  workingHours: Record<string, WorkingHours> | null | undefined,
+  appointments: Appointment[],
+  stepMinutes: number = 30,
+  customSchedule?: CustomScheduleDay[],
+  scheduleMode: "weekly" | "custom" = "weekly",
+  bufferTime: number = 0
+): string[] {
+  const safeStep = Math.max(1, Math.floor(stepMinutes) || 30);
+  const safeDuration = Math.max(1, Math.floor(serviceDuration) || 30);
+  const resolvedWorkingHours: Record<string, WorkingHours> = workingHours ?? DEFAULT_WORKING_HOURS;
+  const customDay = customSchedule?.find((cs) => cs.date === date);
+
+  // Resolve the workday start/end minutes
+  let dayStartMin: number;
+  let dayEndMin: number;
+  let isOpen = false;
+
+  if (scheduleMode === "custom") {
+    if (!customDay || !customDay.isOpen || !customDay.startTime || !customDay.endTime) return [];
+    dayStartMin = timeToMinutes(customDay.startTime);
+    dayEndMin = timeToMinutes(customDay.endTime);
+    isOpen = true;
+  } else if (customDay) {
+    if (!customDay.isOpen) return [];
+    if (customDay.startTime && customDay.endTime) {
+      dayStartMin = timeToMinutes(customDay.startTime);
+      dayEndMin = timeToMinutes(customDay.endTime);
+      isOpen = true;
+    } else {
+      // Workday ON but no explicit hours — fall back to weekly
+      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return [];
+      const d2 = new Date(date + "T12:00:00");
+      const dn2 = DAYS_OF_WEEK[d2.getDay()];
+      if (!dn2) return [];
+      const wh2 = resolvedWorkingHours[dn2] || resolvedWorkingHours[dn2.toLowerCase()];
+      dayStartMin = timeToMinutes(wh2?.start ?? "09:00");
+      dayEndMin = timeToMinutes(wh2?.end ?? "17:00");
+      isOpen = true;
+    }
+  } else {
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return [];
+    const d = new Date(date + "T12:00:00");
+    const dn = DAYS_OF_WEEK[d.getDay()];
+    if (!dn) return [];
+    const wh = resolvedWorkingHours[dn] || resolvedWorkingHours[dn.toLowerCase()];
+    if (!wh || !wh.enabled) return [];
+    dayStartMin = timeToMinutes(wh.start);
+    dayEndMin = timeToMinutes(wh.end);
+    isOpen = true;
+  }
+
+  if (!isOpen) return [];
+
+  // Build sorted blocked segments from non-cancelled appointments on this day
+  const dayAppts = appointments
+    .filter((a) => a.date === date && a.status !== "cancelled")
+    .map((a) => ({
+      start: timeToMinutes(a.time),
+      end: timeToMinutes(a.time) + a.duration + bufferTime,
+    }))
+    .sort((a, b) => a.start - b.start);
+
+  // Merge overlapping blocked segments
+  const blocked: { start: number; end: number }[] = [];
+  for (const seg of dayAppts) {
+    if (blocked.length > 0 && seg.start < blocked[blocked.length - 1].end) {
+      blocked[blocked.length - 1].end = Math.max(blocked[blocked.length - 1].end, seg.end);
+    } else {
+      blocked.push({ ...seg });
+    }
+  }
+
+  // Build free segments between blocked ones
+  const freeSegments: { start: number; end: number }[] = [];
+  let cursor = dayStartMin;
+  for (const blk of blocked) {
+    if (cursor < blk.start) {
+      freeSegments.push({ start: cursor, end: blk.start });
+    }
+    cursor = Math.max(cursor, blk.end);
+  }
+  if (cursor < dayEndMin) {
+    freeSegments.push({ start: cursor, end: dayEndMin });
+  }
+
+  // Generate slots within each free segment
+  const slots: string[] = [];
+  for (const seg of freeSegments) {
+    for (let min = seg.start; min + safeDuration <= seg.end; min += safeStep) {
+      slots.push(minutesToTime(min));
+    }
+  }
+
+  // Filter out past times for today
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  if (date === todayStr) {
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    return slots.filter((s) => timeToMinutes(s) > currentMinutes);
+  }
+  return slots;
+}
+
 /** Generate available time slots for a given date, considering working hours, custom schedule overrides, existing appointments, and past-time filtering.
  *  When scheduleMode is "custom", ONLY custom schedule entries are used (no weekly fallback).
  *  When scheduleMode is "weekly" (default), custom overrides take precedence for specific dates, then weekly hours are used. */

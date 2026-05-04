@@ -37,6 +37,7 @@ import {
   stripPhoneFormat,
   CustomScheduleDay,
   generateAvailableSlots,
+  generateCalendarSlots,
 } from "@/lib/types";
 import { TapTimePicker, timeToMinutes as tapTimeToMinutes } from "@/components/tap-time-picker";
 import { formatPhone } from "@/lib/utils";
@@ -712,7 +713,7 @@ export default function CalendarScreen() {
             locHours = { start: wh.start, end: wh.end };
           }
           const locAppts = locationAppointments.filter((a) => a.locationId === loc.id);
-          const locSlots = generateAvailableSlots(
+          const locSlots = generateCalendarSlots(
             dateStr, defaultDuration,
             { [dayName]: { enabled: true, ...locHours } } as any,
             locAppts, slotStep,
@@ -742,7 +743,7 @@ export default function CalendarScreen() {
         };
       } else {
         // Single-location mode
-        const slots = generateAvailableSlots(
+        const slots = generateCalendarSlots(
           dateStr, defaultDuration, effectiveWorkingHours,
           locationAppointments, slotStep, activeCustomSchedule,
           state.settings.scheduleMode, state.settings.bufferTime ?? 0
@@ -796,7 +797,7 @@ export default function CalendarScreen() {
       d.setDate(start.getDate() + i);
       const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       if (!isDayAvailable(ds)) continue;
-      const slots = generateAvailableSlots(
+      const slots = generateCalendarSlots(
         ds,
         defaultDuration,
         effectiveWorkingHours,
@@ -1582,6 +1583,7 @@ export default function CalendarScreen() {
                     { label: "45m", value: 45 },
                     { label: "50m", value: 50 },
                     { label: "55m", value: 55 },
+                    { label: "1h", value: 60 },
                   ];
                   const globalConfigured = (state.settings as any).slotInterval ?? 0;
                   const activeValue = localCalSlotInterval !== null ? localCalSlotInterval : globalConfigured;
