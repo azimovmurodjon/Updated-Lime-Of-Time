@@ -1103,8 +1103,8 @@ export default function CalendarBookingScreen() {
               </Text>
             </View>
 
-            {/* Interval selector */}
-            <View style={{ marginBottom: 8 }}>
+            {/* Interval selector — compact horizontal strip */}
+            <View style={{ marginBottom: 12 }}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingHorizontal: 2, paddingVertical: 2 }}>
                 {BOOKING_INTERVALS.map((iv) => {
                   const activeValue = step0SlotInterval !== null ? step0SlotInterval : 0;
@@ -1114,14 +1114,14 @@ export default function CalendarBookingScreen() {
                       key={iv.value}
                       onPress={() => { setStep0SlotInterval(iv.value); setStep0Time(null); }}
                       style={({ pressed }) => ({
-                        paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20,
-                        backgroundColor: isActive ? colors.primary : colors.surface,
-                        borderWidth: 1, borderColor: isActive ? colors.primary : colors.border,
+                        paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20,
+                        backgroundColor: isActive ? colors.primary : colors.background,
+                        borderWidth: 1.5, borderColor: isActive ? colors.primary : colors.border,
                         opacity: pressed ? 0.7 : 1,
                       })}
                     >
-                      <Text style={{ fontSize: 11, fontWeight: "700", color: isActive ? "#FFFFFF" : colors.muted }}>
-                        {iv.value === 0 ? "Auto (30m)" : iv.label}
+                      <Text style={{ fontSize: 12, fontWeight: "700", color: isActive ? "#FFFFFF" : colors.muted }}>
+                        {iv.value === 0 ? `Auto (${step0EffectiveInterval}m)` : iv.label}
                       </Text>
                     </Pressable>
                   );
@@ -1130,34 +1130,70 @@ export default function CalendarBookingScreen() {
             </View>
 
             {/* Time slots */}
-            <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 6, marginHorizontal: 2 }}>Available Times</Text>
             {step0TimeSlots.length === 0 ? (
-              <View style={{ alignItems: "center", paddingVertical: 24, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 16 }}>
-                <Text style={{ fontSize: 13, color: colors.muted }}>No available times for this date</Text>
-                <Text style={{ fontSize: 11, color: colors.muted, marginTop: 4 }}>Try a different date or check working hours</Text>
+              <View style={{ alignItems: "center", paddingVertical: 28, backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 16 }}>
+                <Text style={{ fontSize: 14, fontWeight: "600", color: colors.muted }}>No available times</Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 4 }}>Try a different date or adjust working hours</Text>
               </View>
             ) : (
               <View style={{ marginBottom: 16 }}>
                 {step0SlotGroups.map((group) => (
-                  <View key={group.label} style={{ marginBottom: 10 }}>
-                    <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, marginBottom: 6, marginLeft: 2 }}>{group.label}</Text>
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                  <View key={group.label} style={{ marginBottom: 16 }}>
+                    {/* Section header with divider line */}
+                    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10, gap: 8 }}>
+                      <Text style={{ fontSize: 10, fontWeight: "700", color: colors.muted, letterSpacing: 1, textTransform: "uppercase" }}>{group.label}</Text>
+                      <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.border }} />
+                    </View>
+                    {/* 3-column pill grid */}
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                       {group.slots.map((t) => {
                         const isSlotSelected = t === step0Time;
                         const locCount = step0IsAllMode ? (step0SlotLocCount[t] ?? 0) : 0;
+                        // Availability tint: few slots (≤2 locs in all-mode) → warm orange tint on background
+                        const isScarce = step0IsAllMode && locCount > 0 && locCount <= 2;
                         const locCountColor = locCount > 2 ? colors.success : locCount > 1 ? colors.warning : colors.muted;
+                        // Slot background: selected → primary fill; scarce → faint orange tint; normal → surface
+                        const slotBg = isSlotSelected
+                          ? colors.primary
+                          : isScarce
+                          ? colors.warning + "18"
+                          : colors.surface;
+                        const slotBorder = isSlotSelected
+                          ? colors.primary
+                          : isScarce
+                          ? colors.warning + "60"
+                          : colors.border;
                         return (
                           <Pressable
                             key={t}
                             onPress={() => setStep0Time(t)}
                             style={({ pressed }) => ({
-                              width: "22%", paddingVertical: 9, borderRadius: 10,
-                              backgroundColor: isSlotSelected ? colors.primary : colors.surface,
-                              borderWidth: 1.5, borderColor: isSlotSelected ? colors.primary : colors.border,
-                              alignItems: "center", opacity: pressed ? 0.7 : 1,
+                              width: "30%",
+                              paddingVertical: 11,
+                              paddingHorizontal: 4,
+                              borderRadius: 50,
+                              backgroundColor: slotBg,
+                              borderWidth: isSlotSelected ? 0 : 1.5,
+                              borderColor: slotBorder,
+                              alignItems: "center",
+                              opacity: pressed ? 0.7 : 1,
+                              // Subtle shadow for selected
+                              ...(isSlotSelected ? {
+                                shadowColor: colors.primary,
+                                shadowOffset: { width: 0, height: 2 },
+                                shadowOpacity: 0.25,
+                                shadowRadius: 4,
+                                elevation: 3,
+                              } : {}),
                             })}
                           >
-                            <Text style={{ fontSize: 13, fontWeight: "700", color: isSlotSelected ? "#FFFFFF" : colors.foreground, textAlign: "center", lineHeight: 17 }}>
+                            <Text style={{
+                              fontSize: 13,
+                              fontWeight: "700",
+                              color: isSlotSelected ? "#FFFFFF" : colors.foreground,
+                              textAlign: "center",
+                              lineHeight: 17,
+                            }}>
                               {formatTimeDisplay(t)}
                             </Text>
                             {step0IsAllMode && locCount > 0 && (
