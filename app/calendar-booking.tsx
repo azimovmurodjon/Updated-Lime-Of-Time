@@ -28,7 +28,6 @@ import {
   Appointment,
   Client,
   DAYS_OF_WEEK,
-  generateAvailableSlots,
   generateCalendarSlots,
   minutesToTime,
   timeToMinutes,
@@ -780,9 +779,12 @@ export default function CalendarBookingScreen() {
         })();
 
         // Helper: compute available slots for a given date, respecting All-locations union logic
+        // IMPORTANT: always use generateCalendarSlots (same as Calendar tab) — NOT generateAvailableSlots.
+        // The two functions use different algorithms (dynamic restart vs fixed grid), so mixing them
+        // causes slot count mismatches between the Calendar tab and the booking page.
         const computeStep0Slots = (ds: string): string[] => {
           if (!step0IsAllMode) {
-            return generateAvailableSlots(
+            return generateCalendarSlots(
               ds, step0EffectiveInterval, step0WorkingHours, step0Appts, step0EffectiveInterval,
               step0CustomSchedule, state.settings.scheduleMode, (state.settings as any).bufferTime ?? 0
             );
@@ -1633,7 +1635,7 @@ export default function CalendarBookingScreen() {
                   !locCustomSchedule.some((lcs: any) => lcs.date === cs.date)
               );
               const mergedCustom = [...locCustomSchedule, ...globalFallback];
-              const slots = generateAvailableSlots(
+              const slots = generateCalendarSlots(
                 preselectedDate,
                 totalDuration,
                 locWH,
