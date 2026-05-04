@@ -697,27 +697,54 @@ export default function CalendarScreen() {
         // Map from time string → array of location IDs that have this slot available
         const timeToLocIds = new Map<string, string[]>();
         let totalSlotsAcrossLocs = 0;
+        // Use ALL appointments (not pre-filtered by location) so we can scope per location below
+        const allAppts = state.appointments;
 
         for (const loc of activeLocations) {
           if (loc.temporarilyClosed) continue;
-          const locWh = (loc.workingHours != null && Object.keys(loc.workingHours).length > 0)
-            ? loc.workingHours : state.settings.workingHours;
-          const locCustom = state.locationCustomSchedule?.[loc.id]?.find((cs: any) => cs.date === dateStr);
+          // Use this location's own workingHours, fall back to global settings
+          const locWh: Record<string, any> = (loc.workingHours != null && Object.keys(loc.workingHours).length > 0)
+            ? (loc.workingHours as Record<string, any>)
+            : ((state.settings.workingHours ?? {}) as Record<string, any>);
+          // Check per-location custom schedule override for this date
+          const locCustomSchedule: any[] = state.locationCustomSchedule?.[loc.id] ?? [];
+          const locCustom = locCustomSchedule.find((cs: any) => cs.date === dateStr);
           let locHours: { start: string; end: string } | null = null;
           if (locCustom) {
             if (!locCustom.isOpen) continue;
             locHours = { start: locCustom.startTime ?? '09:00', end: locCustom.endTime ?? '17:00' };
           } else {
-            const wh = (locWh as any)?.[dayName];
+            const wh = locWh[dayName] ?? locWh[dayName.charAt(0).toUpperCase() + dayName.slice(1)];
             if (!wh || !wh.enabled) continue;
             locHours = { start: wh.start, end: wh.end };
           }
-          const locAppts = locationAppointments.filter((a) => a.locationId === loc.id);
+          // Build a full working-hours object for this location (all days) so generateCalendarSlots
+          // can correctly resolve the day name from the date string internally
+          const fullLocWh: Record<string, any> = {};
+          for (const [dk, dv] of Object.entries(locWh)) {
+            fullLocWh[dk] = dv;
+          }
+          // Override the specific day with the resolved hours (respects custom schedule)
+          fullLocWh[dayName] = { enabled: true, start: locHours.start, end: locHours.end };
+          // Appointments for this location: include appointments with matching locationId
+          // AND appointments with no locationId (legacy/unassigned — treat as belonging to this location
+          // only when there is exactly one location, otherwise only match by ID)
+          const locAppts = allAppts.filter((a) =>
+            a.locationId === loc.id ||
+            (!a.locationId && activeLocations.length === 1)
+          );
+          // Merge global custom schedule fallback for dates not covered by location-specific overrides
+          const mergedCustomSchedule: any[] = [
+            ...locCustomSchedule,
+            ...activeCustomSchedule.filter(
+              (cs: any) => !locCustomSchedule.some((lcs: any) => lcs.date === cs.date)
+            ),
+          ];
           const locSlots = generateCalendarSlots(
             dateStr, defaultDuration,
-            { [dayName]: { enabled: true, ...locHours } } as any,
+            fullLocWh,
             locAppts, slotStep,
-            state.locationCustomSchedule?.[loc.id] ?? activeCustomSchedule,
+            mergedCustomSchedule,
             state.settings.scheduleMode, state.settings.bufferTime ?? 0
           );
           const locBooked = new Set(
@@ -773,7 +800,7 @@ export default function CalendarScreen() {
     }
     return cache;
   }, [currentMonth, currentYear, isDayAvailable, calLocationFilter, activeLocations, activeLocation,
-    state.settings, state.locationCustomSchedule, locationAppointments,
+    state.settings, state.locationCustomSchedule, locationAppointments, state.appointments,
     effectiveWorkingHours, activeCustomSchedule, localCalSlotInterval, state.services]);
 
   // Derive daySlotCounts from slotCache for badge rendering
