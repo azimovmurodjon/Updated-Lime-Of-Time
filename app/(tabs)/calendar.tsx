@@ -1868,6 +1868,35 @@ export default function CalendarScreen() {
           </Pressable>
         </View>
 
+        {/* Slot count badge pill */}
+        {(() => {
+          const cacheEntry = slotCache[selectedDate];
+          const slotCount = cacheEntry?.badgeCount ?? 0;
+          const isFull = cacheEntry?.isFull ?? false;
+          const isPast = isDateInPast(selectedDate);
+          if (isPast) return null;
+          const pillColor = slotCount > 2 ? colors.success : slotCount > 0 ? colors.warning : colors.error;
+          const pillLabel = isFull
+            ? "Fully booked"
+            : slotCount === 0
+            ? isDayAvailable(selectedDate) ? "No slots available" : "Closed"
+            : `${slotCount} slot${slotCount !== 1 ? "s" : ""} available`;
+          return (
+            <View style={{ paddingHorizontal: hp, marginBottom: 8 }}>
+              <View style={{
+                flexDirection: "row", alignItems: "center", gap: 6,
+                backgroundColor: pillColor + "18",
+                borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5,
+                alignSelf: "flex-start",
+                borderWidth: 1, borderColor: pillColor + "40",
+              }}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: pillColor }} />
+                <Text style={{ fontSize: 12, fontWeight: "700", color: pillColor }}>{pillLabel}</Text>
+              </View>
+            </View>
+          );
+        })()}
+
         {/* Workday Panel */}
         <View style={{ paddingHorizontal: hp, marginBottom: 8 }}>
           {renderWorkdayPanel(selectedDate)}

@@ -886,6 +886,40 @@ export default function CalendarBookingScreen() {
 
         // Time slots for selected date
         const step0TimeSlots = computeStep0Slots(step0Date);
+
+        // Per-slot location count (All-locations mode only)
+        const step0SlotLocCount: Record<string, number> = {};
+        if (step0IsAllMode) {
+          const ds = step0Date;
+          const d = new Date(ds + "T12:00:00");
+          const dayName = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][d.getDay()];
+          for (const t of step0TimeSlots) {
+            let count = 0;
+            for (const loc of activeLocations) {
+              if (loc.temporarilyClosed) continue;
+              const locCustomSchedule: any[] = (state as any).locationCustomSchedule?.[loc.id] ?? [];
+              const locCustom = locCustomSchedule.find((cs: any) => cs.date === ds);
+              const locWh: Record<string, any> = (loc.workingHours != null && Object.keys(loc.workingHours).length > 0)
+                ? (loc.workingHours as Record<string, any>)
+                : ((state.settings.workingHours ?? {}) as Record<string, any>);
+              let locOpen = false;
+              if (locCustom) {
+                locOpen = locCustom.isOpen;
+              } else {
+                const wh = locWh[dayName] ?? locWh[dayName.charAt(0).toUpperCase() + dayName.slice(1)];
+                locOpen = !!(wh && wh.enabled);
+              }
+              if (!locOpen) continue;
+              // Check if this time is not booked at this location
+              const locAppts = state.appointments.filter((a) => a.locationId === loc.id);
+              const bookedAtLoc = locAppts.some((a) =>
+                a.date === ds && a.time === t && (a.status === 'confirmed' || a.status === 'pending')
+              );
+              if (!bookedAtLoc) count++;
+            }
+            step0SlotLocCount[t] = count;
+          }
+        }
         const step0SlotGroups = [
           { label: "Morning", slots: step0TimeSlots.filter((t) => parseInt(t.split(":")[0]) < 12) },
           { label: "Afternoon", slots: step0TimeSlots.filter((t) => { const h = parseInt(t.split(":")[0]); return h >= 12 && h < 17; }) },
@@ -1072,6 +1106,8 @@ export default function CalendarBookingScreen() {
                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
                       {group.slots.map((t) => {
                         const isSlotSelected = t === step0Time;
+                        const locCount = step0IsAllMode ? (step0SlotLocCount[t] ?? 0) : 0;
+                        const locCountColor = locCount > 2 ? colors.success : locCount > 1 ? colors.warning : colors.muted;
                         return (
                           <Pressable
                             key={t}
@@ -1086,6 +1122,14 @@ export default function CalendarBookingScreen() {
                             <Text style={{ fontSize: 13, fontWeight: "700", color: isSlotSelected ? "#FFFFFF" : colors.foreground, textAlign: "center", lineHeight: 17 }}>
                               {formatTimeDisplay(t)}
                             </Text>
+                            {step0IsAllMode && locCount > 0 && (
+                              <View style={{ flexDirection: "row", alignItems: "center", gap: 2, marginTop: 2 }}>
+                                <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: isSlotSelected ? "rgba(255,255,255,0.7)" : locCountColor }} />
+                                <Text style={{ fontSize: 9, fontWeight: "600", color: isSlotSelected ? "rgba(255,255,255,0.85)" : locCountColor, lineHeight: 11 }}>
+                                  {locCount} {locCount === 1 ? "loc" : "locs"}
+                                </Text>
+                              </View>
+                            )}
                           </Pressable>
                         );
                       })}
