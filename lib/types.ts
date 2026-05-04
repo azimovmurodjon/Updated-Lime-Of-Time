@@ -369,6 +369,8 @@ export interface NotificationPreferences {
   birthdayReminderEnabled?: boolean;
   /** Hour (0-23) at which the daily birthday reminder fires. Default 8 (8 AM) */
   birthdayReminderHour?: number;
+  /** Push notification to business owner before their upcoming appointment */
+  pushOnReminder?: boolean;
   /** Email reminder sent to the client before their confirmed appointment */
   emailOnReminder?: boolean;
   /** How many hours before the appointment to send the client reminder email.
@@ -411,14 +413,15 @@ export const DEFAULT_SMS_TEMPLATES: SmsTemplates = {
 };
 
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
-  pushOnNewBooking: false,
-  pushOnCancellation: false,
-  pushOnReschedule: false,
-  pushOnWaitlist: false,
+  pushOnNewBooking: true,
+  pushOnCancellation: true,
+  pushOnReschedule: true,
+  pushOnWaitlist: true,
   emailOnNewBooking: false,
   emailClientOnConfirmation: false,
-  birthdayReminderEnabled: false,
+  birthdayReminderEnabled: true,
   birthdayReminderHour: 8,
+  pushOnReminder: true,
   emailOnReminder: false,
   reminderHoursBefore: 24,
   smsClientOnConfirmation: false,

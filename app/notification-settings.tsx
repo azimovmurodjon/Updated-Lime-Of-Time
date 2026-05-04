@@ -74,6 +74,15 @@ const NOTIF_EVENTS: NotifEvent[] = [
       "⏳ {clientName} has joined the waitlist for {service} on {date}. You will be notified when a slot opens.",
   },
   {
+    key: "pushOnReminder",
+    label: "Upcoming Appointment Reminder",
+    description: "Push notification sent to you before each confirmed appointment.",
+    channel: "push",
+    vars: ["{clientName}", "{service}", "{date}", "{time}"],
+    defaultMessage:
+      "⏰ Reminder: {clientName} — {service} at {time} on {date}. Please ensure everything is ready.",
+  },
+  {
     key: "emailOnNewBooking",
     label: "New Booking (Email to You)",
     description: "Email sent to your business address on each new booking.",

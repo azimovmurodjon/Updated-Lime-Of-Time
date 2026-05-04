@@ -59,7 +59,8 @@ export async function sendExpoPush(
   expoPushToken: string,
   payload: PushPayload
 ): Promise<boolean> {
-  if (!expoPushToken || !expoPushToken.startsWith("ExponentPushToken[")) {
+  // Accept both legacy "ExponentPushToken[...]" and modern "ExpoPushToken[...]" formats
+  if (!expoPushToken || (!expoPushToken.startsWith("ExponentPushToken[") && !expoPushToken.startsWith("ExpoPushToken["))) {
     console.warn("[Push] Invalid or missing Expo push token:", expoPushToken);
     return false;
   }

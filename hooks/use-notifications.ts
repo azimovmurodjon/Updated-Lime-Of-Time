@@ -312,12 +312,15 @@ export function useNotifications() {
     }
   }, [state.businessOwnerId]);
 
-  // Register for push notifications and save token to server
+  // Register for push notifications and save token to server.
+  // We always register the token regardless of the notificationsEnabled toggle so that
+  // the server has a valid token ready. The server-side checks (notificationsEnabled,
+  // per-event toggles) gate whether a push is actually sent.
   useEffect(() => {
     if (Platform.OS === "web") return;
     if (tokenRegisteredRef.current) return;
     if (!state.businessOwnerId) return;
-    if (!state.settings.notificationsEnabled) return;
+    if (!state.loaded) return; // Wait until store is fully loaded before registering
 
     tokenRegisteredRef.current = true;
 
@@ -332,7 +335,7 @@ export function useNotifications() {
         );
       }
     });
-  }, [state.businessOwnerId, state.settings.notificationsEnabled]);
+  }, [state.businessOwnerId, state.loaded]);
 
   // Set up notification response listener for tap handling (once)
   useEffect(() => {

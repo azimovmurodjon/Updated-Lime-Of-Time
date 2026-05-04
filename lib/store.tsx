@@ -76,7 +76,7 @@ interface AppState {
 const initialSettings: BusinessSettings = {
   businessName: "My Business",
   defaultDuration: 60,
-  notificationsEnabled: false,
+  notificationsEnabled: true,
   notificationPreferences: DEFAULT_NOTIFICATION_PREFERENCES,
   workingHours: DEFAULT_WORKING_HOURS,
   profile: DEFAULT_BUSINESS_PROFILE,
