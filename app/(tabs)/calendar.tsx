@@ -295,6 +295,7 @@ export default function CalendarScreen() {
   const [currentMonth, setCurrentMonth] = useState(() => new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
   const [selectedDate, setSelectedDate] = useState(() => formatDateStr(new Date()));
+  const [showDaySlotTooltip, setShowDaySlotTooltip] = useState(false);
   // Payment method filter (only active when activeFilter === "paid")
   type MethodFilterKey = "cash" | "zelle" | "venmo" | "cashapp" | "card";
   const METHOD_FILTER_OPTIONS: { key: MethodFilterKey; label: string; color: string }[] = [
@@ -1868,7 +1869,7 @@ export default function CalendarScreen() {
           </Pressable>
         </View>
 
-        {/* Slot count badge pill */}
+        {/* Slot count badge pill — tappable to expand available times */}
         {(() => {
           const cacheEntry = slotCache[selectedDate];
           const slotCount = cacheEntry?.badgeCount ?? 0;
@@ -1881,18 +1882,56 @@ export default function CalendarScreen() {
             : slotCount === 0
             ? isDayAvailable(selectedDate) ? "No slots available" : "Closed"
             : `${slotCount} slot${slotCount !== 1 ? "s" : ""} available`;
+          const canExpand = slotCount > 0 && !isFull;
+          const availTimes = cacheEntry?.availableSlots ?? [];
           return (
             <View style={{ paddingHorizontal: hp, marginBottom: 8 }}>
-              <View style={{
-                flexDirection: "row", alignItems: "center", gap: 6,
-                backgroundColor: pillColor + "18",
-                borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5,
-                alignSelf: "flex-start",
-                borderWidth: 1, borderColor: pillColor + "40",
-              }}>
+              <Pressable
+                onPress={() => canExpand && setShowDaySlotTooltip((v) => !v)}
+                style={({ pressed }) => ({
+                  flexDirection: "row", alignItems: "center", gap: 6,
+                  backgroundColor: pillColor + "18",
+                  borderRadius: showDaySlotTooltip ? 12 : 20,
+                  paddingHorizontal: 12, paddingVertical: 5,
+                  alignSelf: "flex-start",
+                  borderWidth: 1, borderColor: pillColor + "40",
+                  opacity: pressed ? 0.75 : 1,
+                })}
+              >
                 <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: pillColor }} />
                 <Text style={{ fontSize: 12, fontWeight: "700", color: pillColor }}>{pillLabel}</Text>
-              </View>
+                {canExpand && (
+                  <Text style={{ fontSize: 10, color: pillColor, marginLeft: 2 }}>{showDaySlotTooltip ? "▲" : "▼"}</Text>
+                )}
+              </Pressable>
+              {showDaySlotTooltip && canExpand && (
+                <View style={{
+                  marginTop: 6, backgroundColor: colors.surface,
+                  borderRadius: 12, borderWidth: 1, borderColor: colors.border,
+                  padding: 10, alignSelf: "flex-start", maxWidth: "100%",
+                }}>
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Available Times</Text>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                    {availTimes.map((t) => (
+                      <Pressable
+                        key={t}
+                        onPress={() => {
+                          setShowDaySlotTooltip(false);
+                          router.push({ pathname: "/new-booking", params: { date: selectedDate, time: t } });
+                        }}
+                        style={({ pressed }) => ({
+                          backgroundColor: colors.primary + "18",
+                          borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5,
+                          borderWidth: 1, borderColor: colors.primary + "40",
+                          opacity: pressed ? 0.7 : 1,
+                        })}
+                      >
+                        <Text style={{ fontSize: 12, fontWeight: "600", color: colors.primary }}>{formatTimeDisplay(t)}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              )}
             </View>
           );
         })()}
@@ -2024,9 +2063,20 @@ export default function CalendarScreen() {
                     {d.getDate()}
                   </Text>
                 </View>
-                {!noLoc && !available && !isPast && (
-                  <Text style={{ fontSize: 8, color: colors.error, marginTop: 2 }}>Closed</Text>
-                )}
+                {!noLoc && !isPast && (() => {
+                  const cacheEntry = slotCache[dateStr];
+                  const slotCount = cacheEntry?.badgeCount ?? 0;
+                  const isFull = cacheEntry?.isFull ?? false;
+                  if (!available) return <Text style={{ fontSize: 8, color: colors.error, marginTop: 2 }}>Closed</Text>;
+                  if (isFull) return <Text style={{ fontSize: 8, color: colors.error, fontWeight: "700", marginTop: 2 }}>Full</Text>;
+                  if (slotCount === 0) return <Text style={{ fontSize: 8, color: colors.muted, marginTop: 2 }}>—</Text>;
+                  const pillColor = slotCount > 2 ? colors.success : colors.warning;
+                  return (
+                    <View style={{ marginTop: 3, backgroundColor: pillColor + "22", borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2 }}>
+                      <Text style={{ fontSize: 8, fontWeight: "700", color: pillColor }}>{slotCount}</Text>
+                    </View>
+                  );
+                })()}
               </Pressable>
             );
           })}
