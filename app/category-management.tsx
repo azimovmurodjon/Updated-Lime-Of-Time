@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import {
   Text,
   View,
@@ -7,6 +7,10 @@ import {
   ScrollView,
   TextInput,
   Alert,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
+  FlatList,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -19,6 +23,255 @@ import { FuturisticBackground } from "@/components/futuristic-background";
 
 type Tab = "services" | "products";
 
+// ─── Emoji Options ───────────────────────────────────────────────────────────
+
+const EMOJI_OPTIONS = [
+  // Hair
+  "💇", "✂️", "💈", "🪮", "👱",
+  // Nails
+  "💅", "🪄", "💎", "✨",
+  // Face & Skin
+  "🧖", "🫧", "🧴", "💆", "🌿",
+  // Body & Massage
+  "💪", "🛁", "🧘", "🌸", "🪷",
+  // Wellness & Health
+  "🌱", "🍃", "🌿", "🩺", "💊",
+  // Beauty
+  "👄", "💋", "👁️", "🎨", "🪞",
+  // General
+  "⭐", "🌟", "✨", "🎯", "🔖",
+  "🏷️", "📋", "🗂️", "📌", "🎁",
+  // Spa
+  "🕯️", "🌺", "🌻", "🌼", "🌷",
+  // Add-ons
+  "➕", "🔮", "💫", "🌙", "☀️",
+];
+
+// ─── Emoji Picker Modal ───────────────────────────────────────────────────────
+
+function EmojiPickerModal({
+  visible,
+  onSelect,
+  onClose,
+  colors,
+}: {
+  visible: boolean;
+  onSelect: (emoji: string) => void;
+  onClose: () => void;
+  colors: ReturnType<typeof useColors>;
+}) {
+  const uniqueEmojis = Array.from(new Set(EMOJI_OPTIONS));
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={emojiStyles.overlay} onPress={onClose}>
+        <Pressable style={[emojiStyles.sheet, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[emojiStyles.title, { color: colors.foreground }]}>Choose an Emoji</Text>
+          <FlatList
+            data={uniqueEmojis}
+            numColumns={6}
+            keyExtractor={(item, i) => `${item}-${i}`}
+            renderItem={({ item }) => (
+              <Pressable
+                onPress={() => { onSelect(item); onClose(); }}
+                style={({ pressed }) => [emojiStyles.emojiBtn, { opacity: pressed ? 0.6 : 1 }]}
+              >
+                <Text style={emojiStyles.emojiText}>{item}</Text>
+              </Pressable>
+            )}
+            contentContainerStyle={{ paddingBottom: 8 }}
+          />
+          <Pressable
+            onPress={onClose}
+            style={[emojiStyles.cancelBtn, { backgroundColor: colors.border }]}
+          >
+            <Text style={{ color: colors.foreground, fontWeight: "600", fontSize: 14 }}>Cancel</Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const emojiStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  sheet: {
+    width: "100%",
+    maxWidth: 360,
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 20,
+    gap: 12,
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  emojiBtn: {
+    flex: 1,
+    aspectRatio: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    margin: 3,
+  },
+  emojiText: {
+    fontSize: 26,
+  },
+  cancelBtn: {
+    marginTop: 8,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+});
+
+// ─── Rename Modal ─────────────────────────────────────────────────────────────
+
+const CAT_RENAME_WARN = 20;
+const CAT_RENAME_MAX = 25;
+
+function RenameModal({
+  visible,
+  title,
+  initialValue,
+  onConfirm,
+  onClose,
+  colors,
+}: {
+  visible: boolean;
+  title: string;
+  initialValue: string;
+  onConfirm: (newName: string) => void;
+  onClose: () => void;
+  colors: ReturnType<typeof useColors>;
+}) {
+  const [value, setValue] = useState(initialValue);
+  const inputRef = useRef<TextInput>(null);
+
+  // Reset value when modal opens with a new initialValue
+  const handleOpen = useCallback(() => {
+    setValue(initialValue);
+    setTimeout(() => inputRef.current?.focus(), 150);
+  }, [initialValue]);
+
+  const len = value.length;
+  const counterColor = len >= CAT_RENAME_MAX ? colors.error : len >= CAT_RENAME_WARN ? colors.warning : colors.muted;
+
+  const handleConfirm = () => {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === initialValue) { onClose(); return; }
+    onConfirm(trimmed);
+    onClose();
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} onShow={handleOpen}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={renameStyles.overlay}
+      >
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={[renameStyles.sheet, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[renameStyles.title, { color: colors.foreground }]}>{title}</Text>
+
+          <View style={[renameStyles.inputWrap, {
+            borderColor: len >= CAT_RENAME_MAX ? colors.error : len >= CAT_RENAME_WARN ? colors.warning : colors.border,
+            backgroundColor: colors.background,
+          }]}>
+            <TextInput
+              ref={inputRef}
+              value={value}
+              onChangeText={setValue}
+              style={[renameStyles.input, { color: colors.foreground }]}
+              returnKeyType="done"
+              onSubmitEditing={handleConfirm}
+              maxLength={50}
+              selectTextOnFocus
+            />
+          </View>
+
+          {len > 0 && (
+            <Text style={{ fontSize: 11, color: counterColor, fontWeight: len >= CAT_RENAME_WARN ? "600" : "400", textAlign: "right", marginTop: -4 }}>
+              {len >= CAT_RENAME_MAX
+                ? `${len}/50 · Long names may be truncated on the booking page`
+                : len >= CAT_RENAME_WARN
+                ? `${len}/50 · Consider a shorter name for best display`
+                : `${len}/50`}
+            </Text>
+          )}
+
+          <View style={renameStyles.btnRow}>
+            <Pressable
+              onPress={onClose}
+              style={({ pressed }) => [renameStyles.btn, { backgroundColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
+            >
+              <Text style={{ color: colors.foreground, fontWeight: "600", fontSize: 15 }}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              onPress={handleConfirm}
+              style={({ pressed }) => [renameStyles.btn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
+            >
+              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>Rename</Text>
+            </Pressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+const renameStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  sheet: {
+    width: "100%",
+    maxWidth: 360,
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 22,
+    gap: 14,
+  },
+  title: {
+    fontSize: 17,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  inputWrap: {
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+  },
+  input: {
+    fontSize: 16,
+    paddingVertical: 10,
+  },
+  btnRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 4,
+  },
+  btn: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: "center",
+  },
+});
+
 // ─── Category Row ─────────────────────────────────────────────────────────────
 
 function CategoryRow({
@@ -26,24 +279,35 @@ function CategoryRow({
   count,
   countLabel,
   accentColor,
+  emoji,
   onRename,
   onDelete,
+  onEmojiPress,
   colors,
 }: {
   item: string;
   count: number;
   countLabel: string;
   accentColor: string;
+  emoji?: string;
   onRename: (name: string) => void;
   onDelete: (name: string) => void;
+  onEmojiPress: (name: string) => void;
   colors: ReturnType<typeof useColors>;
 }) {
   return (
     <View style={[rowStyles.container, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      {/* Color dot */}
-      <View style={[rowStyles.dot, { backgroundColor: accentColor + "30" }]}>
-        <IconSymbol name="tag.fill" size={14} color={accentColor} />
-      </View>
+      {/* Emoji button */}
+      <Pressable
+        onPress={() => onEmojiPress(item)}
+        style={({ pressed }) => [rowStyles.dot, { backgroundColor: accentColor + "20", opacity: pressed ? 0.6 : 1 }]}
+      >
+        {emoji ? (
+          <Text style={{ fontSize: 18 }}>{emoji}</Text>
+        ) : (
+          <IconSymbol name="tag.fill" size={14} color={accentColor} />
+        )}
+      </Pressable>
 
       {/* Name + count */}
       <View style={rowStyles.info}>
@@ -296,6 +560,23 @@ export default function CategoryManagementScreen() {
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newBrandName, setNewBrandName] = useState("");
 
+  // Rename modal state
+  const [renameModal, setRenameModal] = useState<{
+    visible: boolean;
+    title: string;
+    oldName: string;
+    type: "serviceCategory" | "productCategory" | "productBrand";
+  }>({ visible: false, title: "", oldName: "", type: "serviceCategory" });
+
+  // Emoji picker state
+  const [emojiPicker, setEmojiPicker] = useState<{
+    visible: boolean;
+    categoryName: string;
+  }>({ visible: false, categoryName: "" });
+
+  // Derived: categoryEmojis map from settings
+  const categoryEmojis = state.settings.categoryEmojis ?? {};
+
   // ── Derived data ────────────────────────────────────────────────────────────
 
   const serviceCategories = useMemo(() => {
@@ -334,61 +615,65 @@ export default function CategoryManagementScreen() {
   // ── Rename / Delete helpers ──────────────────────────────────────────────────
 
   const renameServiceCategory = useCallback((oldName: string) => {
-    Alert.prompt("Rename Category", `Rename "${oldName}" to:`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Rename",
-        onPress: (newName?: string) => {
-          if (!newName?.trim() || newName.trim() === oldName) return;
-          const trimmed = newName.trim();
-          state.services.forEach((s) => {
-            if (s.category?.trim() === oldName) {
-              const action = { type: "UPDATE_SERVICE" as const, payload: { ...s, category: trimmed } };
-              dispatch(action); syncToDb(action);
-            }
-          });
-        },
-      },
-    ], "plain-text", oldName);
-  }, [state.services, dispatch, syncToDb]);
+    setRenameModal({ visible: true, title: `Rename Category`, oldName, type: "serviceCategory" });
+  }, []);
 
   const renameProductCategory = useCallback((oldName: string) => {
-    Alert.prompt("Rename Category", `Rename "${oldName}" to:`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Rename",
-        onPress: (newName?: string) => {
-          if (!newName?.trim() || newName.trim() === oldName) return;
-          const trimmed = newName.trim();
-          state.products.forEach((p) => {
-            if (p.category?.trim() === oldName) {
-              const action = { type: "UPDATE_PRODUCT" as const, payload: { ...p, category: trimmed } };
-              dispatch(action); syncToDb(action);
-            }
-          });
-        },
-      },
-    ], "plain-text", oldName);
-  }, [state.products, dispatch, syncToDb]);
+    setRenameModal({ visible: true, title: `Rename Category`, oldName, type: "productCategory" });
+  }, []);
 
   const renameProductBrand = useCallback((oldName: string) => {
-    Alert.prompt("Rename Brand", `Rename "${oldName}" to:`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Rename",
-        onPress: (newName?: string) => {
-          if (!newName?.trim() || newName.trim() === oldName) return;
-          const trimmed = newName.trim();
-          state.products.forEach((p) => {
-            if (p.brand?.trim() === oldName) {
-              const action = { type: "UPDATE_PRODUCT" as const, payload: { ...p, brand: trimmed } };
-              dispatch(action); syncToDb(action);
-            }
-          });
-        },
-      },
-    ], "plain-text", oldName);
-  }, [state.products, dispatch, syncToDb]);
+    setRenameModal({ visible: true, title: `Rename Brand`, oldName, type: "productBrand" });
+  }, []);
+
+  const handleRenameConfirm = useCallback((newName: string) => {
+    const { oldName, type } = renameModal;
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed === oldName) return;
+    if (type === "serviceCategory") {
+      state.services.forEach((s) => {
+        if (s.category?.trim() === oldName) {
+          const action = { type: "UPDATE_SERVICE" as const, payload: { ...s, category: trimmed } };
+          dispatch(action); syncToDb(action);
+        }
+      });
+      // Move emoji to new key if exists
+      if (categoryEmojis[oldName]) {
+        const updated = { ...categoryEmojis, [trimmed]: categoryEmojis[oldName] };
+        delete updated[oldName];
+        const action = { type: "UPDATE_SETTINGS" as const, payload: { categoryEmojis: updated } };
+        dispatch(action); syncToDb(action);
+      }
+    } else if (type === "productCategory") {
+      state.products.forEach((p) => {
+        if (p.category?.trim() === oldName) {
+          const action = { type: "UPDATE_PRODUCT" as const, payload: { ...p, category: trimmed } };
+          dispatch(action); syncToDb(action);
+        }
+      });
+      if (categoryEmojis[oldName]) {
+        const updated = { ...categoryEmojis, [trimmed]: categoryEmojis[oldName] };
+        delete updated[oldName];
+        const action = { type: "UPDATE_SETTINGS" as const, payload: { categoryEmojis: updated } };
+        dispatch(action); syncToDb(action);
+      }
+    } else {
+      state.products.forEach((p) => {
+        if (p.brand?.trim() === oldName) {
+          const action = { type: "UPDATE_PRODUCT" as const, payload: { ...p, brand: trimmed } };
+          dispatch(action); syncToDb(action);
+        }
+      });
+    }
+  }, [renameModal, state.services, state.products, categoryEmojis, dispatch, syncToDb]);
+
+  const handleEmojiSave = useCallback((emoji: string) => {
+    const { categoryName } = emojiPicker;
+    if (!categoryName) return;
+    const updated = { ...categoryEmojis, [categoryName]: emoji };
+    const action = { type: "UPDATE_SETTINGS" as const, payload: { categoryEmojis: updated } };
+    dispatch(action); syncToDb(action);
+  }, [emojiPicker, categoryEmojis, dispatch, syncToDb]);
 
   const deleteServiceCategory = useCallback((catName: string) => {
     const count = serviceCountForCategory(catName);
@@ -485,6 +770,24 @@ export default function CategoryManagementScreen() {
     <ScreenContainer>
       <FuturisticBackground />
 
+      {/* ── Rename Modal ── */}
+      <RenameModal
+        visible={renameModal.visible}
+        title={renameModal.title}
+        initialValue={renameModal.oldName}
+        onConfirm={handleRenameConfirm}
+        onClose={() => setRenameModal((m) => ({ ...m, visible: false }))}
+        colors={colors}
+      />
+
+      {/* ── Emoji Picker Modal ── */}
+      <EmojiPickerModal
+        visible={emojiPicker.visible}
+        onSelect={handleEmojiSave}
+        onClose={() => setEmojiPicker((e) => ({ ...e, visible: false }))}
+        colors={colors}
+      />
+
       {/* ── Header ── */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Pressable
@@ -556,8 +859,10 @@ export default function CategoryManagementScreen() {
                   count={serviceCountForCategory(cat)}
                   countLabel="service"
                   accentColor={colors.primary}
+                  emoji={categoryEmojis[cat]}
                   onRename={renameServiceCategory}
                   onDelete={deleteServiceCategory}
+                  onEmojiPress={(name) => setEmojiPicker({ visible: true, categoryName: name })}
                   colors={colors}
                 />
               ))
@@ -602,8 +907,10 @@ export default function CategoryManagementScreen() {
                   count={productCountForCategory(cat)}
                   countLabel="product"
                   accentColor={colors.primary}
+                  emoji={categoryEmojis[cat]}
                   onRename={renameProductCategory}
                   onDelete={deleteProductCategory}
+                  onEmojiPress={(name) => setEmojiPicker({ visible: true, categoryName: name })}
                   colors={colors}
                 />
               ))
@@ -640,8 +947,10 @@ export default function CategoryManagementScreen() {
                   count={productCountForBrand(brand)}
                   countLabel="product"
                   accentColor="#8B5CF6"
+                  emoji={categoryEmojis[brand]}
                   onRename={renameProductBrand}
                   onDelete={deleteProductBrand}
+                  onEmojiPress={(name) => setEmojiPicker({ visible: true, categoryName: name })}
                   colors={colors}
                 />
               ))

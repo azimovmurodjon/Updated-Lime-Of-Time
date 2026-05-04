@@ -1758,3 +1758,6 @@
 - [x] Public booking page: fix category card overflow — long category names (e.g. "Upper body: back/neck/shoulders/face") now wrap inside the card border on both Select Service (step 3) and Add More (step 6)
 - [x] Public booking page: 2-line clamp with ellipsis on category tile names (step 3 and step 6) — names over 2 lines truncate with …
 - [x] Category editor: live character counter on name input, turns amber at 20+ chars and red at 25+ chars with contextual warning message
+- [ ] Category editor: replace native Alert.prompt rename with custom modal that has live character counter (amber at 20+, red at 25+)
+- [ ] Public booking page: tooltip showing full category name on long-press for truncated tiles (step 3 and step 6)
+- [ ] Category editor: emoji picker per category — tappable emoji button on each row opens curated picker; emoji stored in categoryEmojis map in settings DB and shown on booking page tiles

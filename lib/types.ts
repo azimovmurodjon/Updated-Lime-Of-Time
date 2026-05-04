@@ -495,6 +495,8 @@ export interface BusinessSettings {
   requestResponseWindowHours?: number; // hours before a pending cancel/reschedule request auto-expires (default: 48)
   /** Number of days a publicly-purchased gift card is valid for. Default 90. */
   giftValidDays?: number;
+  /** Custom emoji per category name. Key = category name, value = emoji string. */
+  categoryEmojis?: Record<string, string>;
 }
 
 /** A global reminder template that can be sent to clients for any appointment */

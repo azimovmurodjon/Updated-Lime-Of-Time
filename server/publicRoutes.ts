@@ -5175,6 +5175,7 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     const DAYS_MAP = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
     const CANCEL_POLICY = ${JSON.stringify(owner.cancellationPolicy || { enabled: false, hoursBeforeAppointment: 2, feePercentage: 50 })};
     const PAYMENT_METHODS = ${JSON.stringify({ zelle: (owner as any).zelleHandle || null, cashApp: (owner as any).cashAppHandle || null, venmo: (owner as any).venmoHandle || null, stripeEnabled: !!(owner as any).stripeConnectEnabled, businessOwnerId: owner.id, platformFeePercent })};
+    const CATEGORY_EMOJIS_MAP = ${JSON.stringify((owner as any).categoryEmojis || {})};
     let services = [];
     let products = [];
     let discounts = [];
@@ -5474,6 +5475,8 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
     };
     function getCategoryEmoji(name) {
       if (!name) return '🔖';
+      // Check custom emoji map first (set by staff in the app)
+      if (name !== 'all' && CATEGORY_EMOJIS_MAP && CATEGORY_EMOJIS_MAP[name]) return CATEGORY_EMOJIS_MAP[name];
       var key = name.toLowerCase().trim();
       if (CATEGORY_EMOJI[key]) return CATEGORY_EMOJI[key];
       for (var k in CATEGORY_EMOJI) {
@@ -5501,7 +5504,8 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
         '<div class="tile-name">All</div>' +
         '<div class="tile-count">' + services.length + '</div></div>';
       cats.forEach(function(cat) {
-        html += '<div class="tile-card" data-svc-cat="' + esc(cat) + '">' +
+        var titleAttr = cat.length > 25 ? ' title="' + esc(cat) + '"' : '';
+        html += '<div class="tile-card" data-svc-cat="' + esc(cat) + '"' + titleAttr + '>' +
           '<div class="tile-emoji">' + getCategoryEmoji(cat) + '</div>' +
           '<div class="tile-name">' + esc(cat) + '</div>' +
           '<div class="tile-count">' + catMap[cat].length + '</div></div>';
@@ -6307,7 +6311,8 @@ function bookingPage(slug: string, owner: any, preselectedLocationId?: string | 
           '</div>';
         cats.forEach(cat => {
           const count = catMap[cat].length;
-          html += '<div class="tile-card" data-cat="' + esc(cat) + '">' +
+          const titleAttr = cat.length > 25 ? ' title="' + esc(cat) + '"' : '';
+          html += '<div class="tile-card" data-cat="' + esc(cat) + '"' + titleAttr + '>' +
             '<div class="tile-emoji">' + getCategoryEmoji(cat) + '</div>' +
             '<div class="tile-name">' + esc(cat) + '</div>' +
             '<div class="tile-count">' + count + ' service' + (count !== 1 ? 's' : '') + '</div>' +
