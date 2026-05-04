@@ -296,6 +296,7 @@ export default function CalendarScreen() {
   const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
   const [selectedDate, setSelectedDate] = useState(() => formatDateStr(new Date()));
   const [showDaySlotTooltip, setShowDaySlotTooltip] = useState(false);
+  const [weekSlotTooltipDate, setWeekSlotTooltipDate] = useState<string | null>(null);
   // Payment method filter (only active when activeFilter === "paid")
   type MethodFilterKey = "cash" | "zelle" | "venmo" | "cashapp" | "card";
   const METHOD_FILTER_OPTIONS: { key: MethodFilterKey; label: string; color: string }[] = [
@@ -961,11 +962,13 @@ export default function CalendarScreen() {
     const d = new Date(selectedDate + "T12:00:00");
     d.setDate(d.getDate() - 1);
     setSelectedDate(formatDateStr(d));
+    setShowDaySlotTooltip(false);
   };
   const nextDay = () => {
     const d = new Date(selectedDate + "T12:00:00");
     d.setDate(d.getDate() + 1);
     setSelectedDate(formatDateStr(d));
+    setShowDaySlotTooltip(false);
   };
   const jumpToToday = () => {
     const freshNow = new Date();
@@ -1566,15 +1569,15 @@ export default function CalendarScreen() {
                 const slotInfo = daySlotCounts[dateStr];
                 if (slotInfo && slotInfo.total > 0 && slotInfo.booked >= slotInfo.total) {
                   return (
-                    <View style={{ backgroundColor: "#EF444422", borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1, marginTop: 1 }}>
-                      <Text style={{ fontSize: 8, fontWeight: "700", color: "#EF4444" }}>Full</Text>
+                    <View style={{ backgroundColor: colors.error + "22", borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1, marginTop: 1 }}>
+                      <Text style={{ fontSize: 8, fontWeight: "700", color: colors.error }}>Full</Text>
                     </View>
                   );
                 }
                 if (slotInfo && slotInfo.total > 0) {
                   const remaining = slotInfo.total - slotInfo.booked;
                   if (remaining > 0) {
-                    const badgeColor = remaining <= 2 ? "#F59E0B" : "#22C55E";
+                    const badgeColor = remaining <= 2 ? colors.warning : colors.success;
                     const textColor = isSelected ? "#fff" : badgeColor;
                     const bgColor = isSelected ? (badgeColor + "55") : (badgeColor + "25");
                     return (
@@ -2071,16 +2074,59 @@ export default function CalendarScreen() {
                   if (isFull) return <Text style={{ fontSize: 8, color: colors.error, fontWeight: "700", marginTop: 2 }}>Full</Text>;
                   if (slotCount === 0) return <Text style={{ fontSize: 8, color: colors.muted, marginTop: 2 }}>—</Text>;
                   const pillColor = slotCount > 2 ? colors.success : colors.warning;
+                  const isExpanded = weekSlotTooltipDate === dateStr;
                   return (
-                    <View style={{ marginTop: 3, backgroundColor: pillColor + "22", borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2 }}>
+                    <Pressable
+                      onPress={(e) => { e.stopPropagation?.(); setWeekSlotTooltipDate(isExpanded ? null : dateStr); }}
+                      style={{ marginTop: 3, backgroundColor: pillColor + "22", borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2, flexDirection: "row", alignItems: "center", gap: 2 }}
+                    >
                       <Text style={{ fontSize: 8, fontWeight: "700", color: pillColor }}>{slotCount}</Text>
-                    </View>
+                      <Text style={{ fontSize: 7, color: pillColor }}>{isExpanded ? "▲" : "▼"}</Text>
+                    </Pressable>
                   );
                 })()}
               </Pressable>
             );
           })}
         </ScrollView>
+
+        {/* Week slot tooltip — shows available times for the tapped day badge */}
+        {weekSlotTooltipDate && (() => {
+          const cacheEntry = slotCache[weekSlotTooltipDate];
+          const availTimes = cacheEntry?.availableSlots ?? [];
+          if (availTimes.length === 0) return null;
+          return (
+            <View style={{ marginHorizontal: hp, marginBottom: 8, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 10 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  {formatDateDisplay(weekSlotTooltipDate)} — Available Times
+                </Text>
+                <Pressable onPress={() => setWeekSlotTooltipDate(null)} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}>
+                  <IconSymbol name="xmark" size={14} color={colors.muted} />
+                </Pressable>
+              </View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                {availTimes.map((t) => (
+                  <Pressable
+                    key={t}
+                    onPress={() => {
+                      setWeekSlotTooltipDate(null);
+                      router.push({ pathname: "/new-booking", params: { date: weekSlotTooltipDate, time: t } });
+                    }}
+                    style={({ pressed }) => ({
+                      backgroundColor: colors.primary + "18",
+                      borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5,
+                      borderWidth: 1, borderColor: colors.primary + "40",
+                      opacity: pressed ? 0.7 : 1,
+                    })}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: "600", color: colors.primary }}>{formatTimeDisplay(t)}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          );
+        })()}
 
         {/* Selected Day Full Column: same design as Day view */}
         <View style={{ paddingHorizontal: hp }}>
