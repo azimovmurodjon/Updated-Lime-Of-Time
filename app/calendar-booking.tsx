@@ -286,6 +286,10 @@ export default function CalendarBookingScreen() {
   //   2. selected_time + service_duration overlaps an existing non-cancelled appointment
   const isServiceDisabledAtTime = useCallback((serviceDuration: number): { disabled: boolean; reason: string | null } => {
     if (!preselectedTime) return { disabled: false, reason: null };
+    // When no location is selected yet (All-locations mode, Step 0 already validated the slot),
+    // skip the overlap check — checking all appointments would falsely block slots that are
+    // only booked at one location but free at others.
+    if (!selectedLocationId) return { disabled: false, reason: null };
     const startMin = timeToMinutes(preselectedTime);
     const endMin = startMin + serviceDuration;
     // Check closing time
