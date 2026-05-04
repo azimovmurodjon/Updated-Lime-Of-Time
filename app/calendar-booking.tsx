@@ -315,16 +315,10 @@ export default function CalendarBookingScreen() {
 
   // Available staff filtered by selected location and service
   const availableStaff = useMemo(() => {
-    return state.staff.filter((s) => {
-      if (!s.active) return false;
-      if (selectedLocationId && s.locationIds && s.locationIds.length > 0) {
-        if (!s.locationIds.includes(selectedLocationId)) return false;
-      }
-      if (!selectedServiceId) return true;
-      if (!s.serviceIds || s.serviceIds.length === 0) return true;
-      return s.serviceIds.includes(selectedServiceId);
-    });
-  }, [state.staff, selectedServiceId, selectedLocationId]);
+    // Show ALL active staff — location and service filtering is handled in rendering
+    // (unavailable/wrong-location staff are shown grayed, not hidden)
+    return state.staff.filter((s) => s.active);
+  }, [state.staff]);
 
   // Staff availability map for the pre-selected date/time
   const staffAvailabilityMap = useMemo((): Record<string, boolean> => {
@@ -1833,8 +1827,22 @@ export default function CalendarBookingScreen() {
             </View>
           ) : (
             availableStaff.map((member) => {
-              const isAvailable = staffAvailabilityMap[member.id] !== false;
+              // Check if staff is assigned to the selected location
+              const isAtLocation = !selectedLocationId ||
+                !member.locationIds ||
+                member.locationIds.length === 0 ||
+                member.locationIds.includes(selectedLocationId);
+              // Check if staff is free at the selected time
+              const isFreeAtTime = staffAvailabilityMap[member.id] !== false;
+              // Staff is selectable only if at the right location AND free at the time
+              const isAvailable = isAtLocation && isFreeAtTime;
               const isSelected = selectedStaffId === member.id;
+              // Determine the reason for being unavailable
+              const unavailableReason = !isAtLocation
+                ? "Not at this location"
+                : !isFreeAtTime && preselectedTime
+                ? `Busy at ${formatTimeDisplay(preselectedTime)}`
+                : null;
               return (
                 <Pressable
                   key={member.id}
@@ -1923,16 +1931,16 @@ export default function CalendarBookingScreen() {
                     {member.role ? (
                       <Text className="text-xs text-muted mt-0.5">{member.role}</Text>
                     ) : null}
-                    {!isAvailable && preselectedTime && (
+                    {unavailableReason && (
                       <Text
                         style={{
                           fontSize: 11,
-                          color: colors.warning,
+                          color: !isAtLocation ? colors.muted : colors.warning,
                           marginTop: 2,
                           fontWeight: "600",
                         }}
                       >
-                        Busy at {formatTimeDisplay(preselectedTime)}
+                        {unavailableReason}
                       </Text>
                     )}
                   </View>
