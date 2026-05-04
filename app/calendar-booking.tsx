@@ -888,36 +888,66 @@ export default function CalendarBookingScreen() {
         const step0TimeSlots = computeStep0Slots(step0Date);
 
         // Per-slot location count (All-locations mode only)
+        // Uses generateCalendarSlots per location — identical logic to calendar.tsx slotCache
+        // so the "X locs" label always matches what the Calendar tab shows.
         const step0SlotLocCount: Record<string, number> = {};
         if (step0IsAllMode) {
           const ds = step0Date;
           const d = new Date(ds + "T12:00:00");
           const dayName = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][d.getDay()];
-          for (const t of step0TimeSlots) {
-            let count = 0;
-            for (const loc of activeLocations) {
-              if (loc.temporarilyClosed) continue;
-              const locCustomSchedule: any[] = (state as any).locationCustomSchedule?.[loc.id] ?? [];
-              const locCustom = locCustomSchedule.find((cs: any) => cs.date === ds);
-              const locWh: Record<string, any> = (loc.workingHours != null && Object.keys(loc.workingHours).length > 0)
-                ? (loc.workingHours as Record<string, any>)
-                : ((state.settings.workingHours ?? {}) as Record<string, any>);
-              let locOpen = false;
-              if (locCustom) {
-                locOpen = locCustom.isOpen;
-              } else {
-                const wh = locWh[dayName] ?? locWh[dayName.charAt(0).toUpperCase() + dayName.slice(1)];
-                locOpen = !!(wh && wh.enabled);
-              }
-              if (!locOpen) continue;
-              // Check if this time is not booked at this location
-              const locAppts = state.appointments.filter((a) => a.locationId === loc.id);
-              const bookedAtLoc = locAppts.some((a) =>
-                a.date === ds && a.time === t && (a.status === 'confirmed' || a.status === 'pending')
-              );
-              if (!bookedAtLoc) count++;
+          const allAppts = state.appointments;
+          // Build a map: time → count of locations that have this slot available
+          const timeToLocCount = new Map<string, number>();
+          for (const loc of activeLocations) {
+            if (loc.temporarilyClosed) continue;
+            const locCustomSchedule: any[] = (state as any).locationCustomSchedule?.[loc.id] ?? [];
+            const locCustom = locCustomSchedule.find((cs: any) => cs.date === ds);
+            const locWh: Record<string, any> = (loc.workingHours != null && Object.keys(loc.workingHours).length > 0)
+              ? (loc.workingHours as Record<string, any>)
+              : ((state.settings.workingHours ?? {}) as Record<string, any>);
+            let locHours: { start: string; end: string } | null = null;
+            if (locCustom) {
+              if (!locCustom.isOpen) continue;
+              locHours = { start: locCustom.startTime ?? '09:00', end: locCustom.endTime ?? '17:00' };
+            } else {
+              const wh = locWh[dayName] ?? locWh[dayName.charAt(0).toUpperCase() + dayName.slice(1)];
+              if (!wh || !wh.enabled) continue;
+              locHours = { start: wh.start, end: wh.end };
             }
-            step0SlotLocCount[t] = count;
+            // Build full working-hours object so generateCalendarSlots can resolve day name
+            const fullLocWh: Record<string, any> = { ...locWh };
+            fullLocWh[dayName] = { enabled: true, start: locHours.start, end: locHours.end };
+            // Filter appointments for this location (same as calendar.tsx)
+            const locAppts = allAppts.filter((a) =>
+              a.locationId === loc.id || (!a.locationId && activeLocations.length === 1)
+            );
+            const mergedCustomSchedule: any[] = [
+              ...locCustomSchedule,
+              ...(state.customSchedule ?? []).filter(
+                (cs) => !locCustomSchedule.some((lcs: any) => lcs.date === cs.date)
+              ),
+            ];
+            // Generate slots for this location using the same interval as the time slot grid
+            const locSlots = generateCalendarSlots(
+              ds, step0EffectiveInterval,
+              fullLocWh,
+              locAppts, step0EffectiveInterval,
+              mergedCustomSchedule,
+              state.settings.scheduleMode, (state.settings as any).bufferTime ?? 0
+            );
+            const locBooked = new Set(
+              locAppts
+                .filter((a) => a.date === ds && (a.status === 'confirmed' || a.status === 'pending'))
+                .map((a) => a.time)
+            );
+            const locAvailSlots = new Set(locSlots.filter((t) => !locBooked.has(t)));
+            // Increment count for each time this location has available
+            for (const t of locAvailSlots) {
+              timeToLocCount.set(t, (timeToLocCount.get(t) ?? 0) + 1);
+            }
+          }
+          for (const t of step0TimeSlots) {
+            step0SlotLocCount[t] = timeToLocCount.get(t) ?? 0;
           }
         }
         const step0SlotGroups = [
