@@ -245,11 +245,11 @@ export default function TemplateLibraryScreen() {
 
             {expanded[cat] && (
               <View style={s.templateList}>
-                {templates.map((tmpl) => {
+                {templates.map((tmpl, idx) => {
                   const isSaved      = savedIds.has(tmpl.id);
                   const isPreviewing = previewIds.has(tmpl.id);
                   return (
-                    <View key={tmpl.id} style={s.templateCard}>
+                    <View key={tmpl.id} style={[s.templateCard, idx === templates.length - 1 && s.templateCardLast]}>
                       {/* Title row */}
                       <View style={s.templateTop}>
                         <Text style={s.templateLabel}>{tmpl.label}</Text>
@@ -481,15 +481,25 @@ function makeStyles(colors: ReturnType<typeof useColors>) {
       fontWeight: "500",
     },
     templateList: {
+      paddingHorizontal: 12,
+      paddingTop: 12,
+      paddingBottom: 4,
+      gap: 10,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.border,
     },
     templateCard: {
-      padding: 18,
-      paddingVertical: 20,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
+      padding: 16,
+      paddingVertical: 18,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      marginBottom: 10,
       gap: 10,
+    },
+    templateCardLast: {
+      marginBottom: 4,
     },
     templateTop: {
       flexDirection: "row",
