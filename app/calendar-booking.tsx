@@ -100,7 +100,10 @@ export default function CalendarBookingScreen() {
     : null;
 
   const [step, setStep] = useState<Step>(1);
-  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
+  // Multi-service selection: array of services chosen in Step 1
+  const [selectedServices, setSelectedServices] = useState<CartItem[]>([]);
+  // Derived: primary service ID is the first selected service
+  const selectedServiceId = selectedServices.length > 0 ? selectedServices[0].id : null;
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
@@ -145,8 +148,8 @@ export default function CalendarBookingScreen() {
   );
 
   const totalDuration = useMemo(
-    () => (selectedService?.duration ?? state.settings.defaultDuration) + cart.reduce((s, i) => s + i.duration, 0),
-    [selectedService, state.settings.defaultDuration, cart]
+    () => selectedServices.reduce((s, i) => s + i.duration, 0) + cart.reduce((s, i) => s + i.duration, 0),
+    [selectedServices, cart]
   );
 
   const servicePrice = useMemo(() => {
@@ -155,8 +158,8 @@ export default function CalendarBookingScreen() {
   }, [selectedService]);
 
   const subtotal = useMemo(
-    () => servicePrice + cart.reduce((s, i) => s + i.price, 0),
-    [servicePrice, cart]
+    () => selectedServices.reduce((s, i) => s + i.price, 0) + cart.reduce((s, i) => s + i.price, 0),
+    [selectedServices, cart]
   );
 
   const effectiveStep = useMemo(() => {
@@ -317,10 +320,11 @@ export default function CalendarBookingScreen() {
 
   const totalPrice = Math.max(0, subtotal - discountAmount - promoDiscountAmount);
 
-  // Available extra services (exclude the primary service already selected)
+  // Available extra services (exclude all services already in selectedServices)
+  const selectedServiceIds = useMemo(() => new Set(selectedServices.map((s) => s.id)), [selectedServices]);
   const availableExtraServices = useMemo(
-    () => state.services.filter((s) => s.id !== selectedServiceId),
-    [state.services, selectedServiceId]
+    () => state.services.filter((s) => !selectedServiceIds.has(s.id)),
+    [state.services, selectedServiceIds]
   );
 
   const availableProducts = useMemo(() => state.products ?? [], [state.products]);
@@ -392,13 +396,23 @@ export default function CalendarBookingScreen() {
       return;
     }
 
-    const extraItems = cart.map((item) => ({
-      type: item.type,
-      id: item.id,
-      name: item.name,
-      price: item.price,
-      duration: item.duration,
-    }));
+    // Build extraItems: selectedServices[1+] (additional primary services) + cart (add-ons from review page)
+    const extraItems = [
+      ...selectedServices.slice(1).map((item) => ({
+        type: item.type,
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        duration: item.duration,
+      })),
+      ...cart.map((item) => ({
+        type: item.type,
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        duration: item.duration,
+      })),
+    ];
 
     const appointment: Appointment = {
       id: generateId(),
@@ -664,33 +678,58 @@ export default function CalendarBookingScreen() {
         </Text>
       </View>
 
-      {/* ─── Step 1: Service Selection ─── */}
+      {/* ─── Step 1: Multi-Service Selection ─── */}
       {step === 1 && (
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: hp }}
-        >
-          {state.services.length === 0 ? (
-            <View className="items-center py-12">
-              <Text className="text-base text-muted">No services available</Text>
-              <Text className="text-sm text-muted mt-1">Create a service first</Text>
+        <View style={{ flex: 1 }}>
+          {/* Pinned cart at top — always visible */}
+          {selectedServices.length > 0 && (
+            <View style={{ marginHorizontal: hp, marginBottom: 10, backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.primary + "50", padding: 12 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.primary, textTransform: "uppercase", letterSpacing: 0.6 }}>Selected Services</Text>
+                <Text style={{ fontSize: 12, color: colors.muted }}>
+                  {selectedServices.reduce((s, i) => s + i.duration, 0)} min · ${selectedServices.reduce((s, i) => s + i.price, 0).toFixed(2)}
+                </Text>
+              </View>
+              {selectedServices.map((svc, idx) => (
+                <View key={svc.id + idx} style={{ flexDirection: "row", alignItems: "center", marginBottom: 4, gap: 8 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>{svc.name}</Text>
+                    <Text style={{ fontSize: 11, color: colors.muted }}>{svc.duration} min · ${svc.price.toFixed(2)}</Text>
+                  </View>
+                  <Pressable
+                    onPress={() => setSelectedServices((prev) => prev.filter((_, i) => i !== idx))}
+                    style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, padding: 4 })}
+                  >
+                    <IconSymbol name="xmark" size={14} color={colors.error} />
+                  </Pressable>
+                </View>
+              ))}
             </View>
-          ) : (
-            (() => {
-              const groups = new Map<string, typeof state.services>();
-              state.services.forEach((s) => {
-                const cat = s.category?.trim() || "General";
-                if (!groups.has(cat)) groups.set(cat, []);
-                groups.get(cat)!.push(s);
-              });
-              const entries = Array.from(groups.entries()).sort((a, b) => {
-                if (a[0] === "General") return 1;
-                if (b[0] === "General") return -1;
-                return a[0].localeCompare(b[0]);
-              });
-              const hasMultiCat = entries.length > 1;
+          )}
 
-              if (hasMultiCat && step1CategoryFilter === null) {
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 120, paddingHorizontal: hp }}
+          >
+            {state.services.length === 0 ? (
+              <View className="items-center py-12">
+                <Text className="text-base text-muted">No services available</Text>
+                <Text className="text-sm text-muted mt-1">Create a service first</Text>
+              </View>
+            ) : (
+              (() => {
+                const groups = new Map<string, typeof state.services>();
+                state.services.forEach((s) => {
+                  const cat = s.category?.trim() || "General";
+                  if (!groups.has(cat)) groups.set(cat, []);
+                  groups.get(cat)!.push(s);
+                });
+                const entries = Array.from(groups.entries()).sort((a, b) => {
+                  if (a[0] === "General") return 1;
+                  if (b[0] === "General") return -1;
+                  return a[0].localeCompare(b[0]);
+                });
+                const hasMultiCat = entries.length > 1;
                 const CATEGORY_EMOJI: Record<string, string> = {
                   Hair: "✂️", Massage: "💆", Nails: "💅", Skincare: "🧴",
                   "Waxing & Brows": "🪮", Waxing: "🪮", Brows: "🪮",
@@ -698,149 +737,173 @@ export default function CalendarBookingScreen() {
                   Tattoo: "🖊️", Piercing: "💎", Barber: "💈", General: "⭐",
                 };
                 const getCatEmoji = (c: string) => CATEGORY_EMOJI[c] ?? "✨";
+
+                // Total duration already selected — used for conflict checking of additional services
+                const alreadySelectedDuration = selectedServices.reduce((s, i) => s + i.duration, 0);
+
+                if (hasMultiCat && step1CategoryFilter === null) {
+                  return (
+                    <View>
+                      <Text className="text-base font-semibold text-foreground mb-3">
+                        {selectedServices.length > 0 ? "Add from another category" : "Select a Category"}
+                      </Text>
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                        {entries.map(([cat, svcs]) => (
+                          <Pressable
+                            key={cat}
+                            onPress={() => setStep1CategoryFilter(cat)}
+                            style={({ pressed }) => ({
+                              width: "47%",
+                              backgroundColor: colors.surface,
+                              borderColor: colors.border,
+                              borderWidth: 1,
+                              borderRadius: 14,
+                              paddingVertical: 18,
+                              paddingHorizontal: 14,
+                              alignItems: "center",
+                              gap: 8,
+                              opacity: pressed ? 0.7 : 1,
+                            })}
+                          >
+                            <Text style={{ fontSize: 32 }}>{getCatEmoji(cat)}</Text>
+                            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, textAlign: "center" }}>{cat}</Text>
+                            <Text style={{ fontSize: 11, color: colors.muted }}>{svcs.length} service{svcs.length !== 1 ? "s" : ""}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </View>
+                  );
+                }
+
+                const displaySvcs =
+                  hasMultiCat && step1CategoryFilter
+                    ? (groups.get(step1CategoryFilter) ?? [])
+                    : state.services;
+
                 return (
                   <View>
-                    <Text className="text-base font-semibold text-foreground mb-3">
-                      Select a Category
-                    </Text>
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-                      {entries.map(([cat, svcs]) => (
+                    {hasMultiCat && step1CategoryFilter && (
+                      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12, gap: 8 }}>
                         <Pressable
-                          key={cat}
-                          onPress={() => setStep1CategoryFilter(cat)}
-                          style={({ pressed }) => ({
-                            width: "47%",
-                            backgroundColor: colors.surface,
-                            borderColor: colors.border,
-                            borderWidth: 1,
-                            borderRadius: 14,
-                            paddingVertical: 18,
-                            paddingHorizontal: 14,
-                            alignItems: "center",
-                            gap: 8,
-                            opacity: pressed ? 0.7 : 1,
-                          })}
+                          onPress={() => setStep1CategoryFilter(null)}
+                          style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
                         >
-                          <Text style={{ fontSize: 32 }}>{getCatEmoji(cat)}</Text>
-                          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, textAlign: "center" }}>{cat}</Text>
-                          <Text style={{ fontSize: 11, color: colors.muted }}>{svcs.length} service{svcs.length !== 1 ? "s" : ""}</Text>
+                          <Text style={{ fontSize: 14, color: colors.primary }}>← Categories</Text>
                         </Pressable>
-                      ))}
-                    </View>
-                  </View>
-                );
-              }
-
-              const displaySvcs =
-                hasMultiCat && step1CategoryFilter
-                  ? (groups.get(step1CategoryFilter) ?? [])
-                  : state.services;
-
-              return (
-                <View>
-                  {hasMultiCat && step1CategoryFilter && (
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        marginBottom: 12,
-                        gap: 8,
-                      }}
-                    >
-                      <Pressable
-                        onPress={() => setStep1CategoryFilter(null)}
-                        style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
-                      >
-                        <Text style={{ fontSize: 14, color: colors.primary }}>
-                          ← Categories
-                        </Text>
-                      </Pressable>
-                      <Text className="text-base font-semibold text-foreground">
-                        {step1CategoryFilter}
-                      </Text>
-                    </View>
-                  )}
-                  {!hasMultiCat && (
-                    <Text className="text-base font-semibold text-foreground mb-3">
-                      Select a Service
-                    </Text>
-                  )}
-                  {displaySvcs.map((item) => {
-                    const CAT_EMOJI_SVC: Record<string, string> = {
-                      Hair: "✂️", Massage: "💆", Nails: "💅", Skincare: "🧴",
-                      "Waxing & Brows": "🪮", Waxing: "🪮", Brows: "🪮",
-                      Makeup: "💄", Lashes: "👁️", Spa: "🛁", Fitness: "🏋️",
-                      Tattoo: "🖊️", Piercing: "💎", Barber: "💈", General: "⭐",
-                    };
-                    const svcEmoji = CAT_EMOJI_SVC[item.category ?? ""] ?? "✨";
-                    const { disabled: svcDisabled, reason: svcReason } = isServiceDisabledAtTime(item.duration);
-                    return (
-                      <View key={item.id}>
+                        <Text className="text-base font-semibold text-foreground">{step1CategoryFilter}</Text>
+                      </View>
+                    )}
+                    {!hasMultiCat && (
+                      <Text className="text-base font-semibold text-foreground mb-3">Select Services</Text>
+                    )}
+                    {displaySvcs.map((item) => {
+                      const svcEmoji = getCatEmoji(item.category ?? "");
+                      const isSelected = selectedServices.some((s) => s.id === item.id);
+                      // Check if adding this service would exceed closing time or overlap
+                      const combinedDuration = alreadySelectedDuration + item.duration;
+                      const { disabled: svcDisabled, reason: svcReason } = isServiceDisabledAtTime(combinedDuration);
+                      return (
                         <Pressable
+                          key={item.id}
                           onPress={() => {
                             if (svcDisabled) return;
-                            setSelectedServiceId(item.id);
-                            setStep(2);
+                            if (isSelected) {
+                              // Deselect
+                              setSelectedServices((prev) => prev.filter((s) => s.id !== item.id));
+                            } else {
+                              // Check for duplicate
+                              const alreadyAdded = selectedServices.some((s) => s.id === item.id);
+                              if (alreadyAdded) {
+                                Alert.alert("Already Added", `"${item.name}" is already in your selection.`);
+                                return;
+                              }
+                              setSelectedServices((prev) => [...prev, {
+                                type: "service",
+                                id: item.id,
+                                name: item.name,
+                                price: parseFloat(String(item.price)),
+                                duration: item.duration,
+                              }]);
+                            }
                           }}
                           style={({ pressed }) => [
                             styles.optionCard,
                             {
-                              backgroundColor:
-                                selectedServiceId === item.id
-                                  ? item.color + "15"
-                                  : colors.surface,
-                              borderColor:
-                                svcDisabled
-                                  ? colors.border
-                                  : selectedServiceId === item.id
-                                  ? item.color
-                                  : colors.border,
+                              backgroundColor: isSelected ? (item.color ?? colors.primary) + "15" : colors.surface,
+                              borderColor: svcDisabled ? colors.border : isSelected ? (item.color ?? colors.primary) : colors.border,
                               opacity: svcDisabled ? 0.45 : pressed ? 0.7 : 1,
                             },
                           ]}
                         >
                           {item.photoUri ? (
-                            <Image
-                              source={{ uri: item.photoUri }}
-                              style={{
-                                width: 40,
-                                height: 40,
-                                borderRadius: 8,
-                                marginRight: 12,
-                              }}
-                            />
+                            <Image source={{ uri: item.photoUri }} style={{ width: 40, height: 40, borderRadius: 8, marginRight: 12 }} />
                           ) : (
-                            <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: item.color + "22", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                            <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: (item.color ?? colors.primary) + "22", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
                               <Text style={{ fontSize: 20 }}>{svcEmoji}</Text>
                             </View>
                           )}
                           <View style={styles.optionContent}>
-                            <Text style={{ fontSize: 15, fontWeight: "600", color: svcDisabled ? colors.muted : colors.foreground }}>
-                              {item.name}
-                            </Text>
-                            <Text className="text-xs text-muted mt-0.5">
-                              {item.duration} min · ${item.price}
-                            </Text>
+                            <Text style={{ fontSize: 15, fontWeight: "600", color: svcDisabled ? colors.muted : colors.foreground }}>{item.name}</Text>
+                            <Text className="text-xs text-muted mt-0.5">{item.duration} min · ${parseFloat(String(item.price)).toFixed(2)}</Text>
                             {svcDisabled && svcReason && (
-                              <Text style={{ fontSize: 11, color: colors.error, marginTop: 2 }}>
-                                ⚠️ {svcReason}
-                              </Text>
+                              <Text style={{ fontSize: 11, color: colors.error, marginTop: 2 }}>⚠️ {svcReason}</Text>
                             )}
                           </View>
                           {svcDisabled ? (
                             <IconSymbol name="lock.fill" size={16} color={colors.muted} />
+                          ) : isSelected ? (
+                            <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: item.color ?? colors.primary, alignItems: "center", justifyContent: "center" }}>
+                              <IconSymbol name="checkmark" size={14} color="#FFF" />
+                            </View>
                           ) : (
-                            <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+                            <View style={{ width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: colors.border }} />
                           )}
                         </Pressable>
-                      </View>
-                    );
-                  })}
-                </View>
-              );
-            })()
-          )}
-        </ScrollView>
+                      );
+                    })}
+                    {/* Add from another category button */}
+                    {hasMultiCat && step1CategoryFilter && selectedServices.length > 0 && (
+                      <Pressable
+                        onPress={() => setStep1CategoryFilter(null)}
+                        style={({ pressed }) => ({
+                          flexDirection: "row", alignItems: "center", justifyContent: "center",
+                          gap: 8, paddingVertical: 13, borderRadius: 14, borderWidth: 1.5,
+                          borderColor: colors.primary, backgroundColor: colors.primary + "12",
+                          opacity: pressed ? 0.7 : 1, marginTop: 4,
+                        })}
+                      >
+                        <IconSymbol name="plus" size={16} color={colors.primary} />
+                        <Text style={{ fontSize: 14, fontWeight: "600", color: colors.primary }}>Add from another category</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                );
+              })()
+            )}
+          </ScrollView>
+
+          {/* Pinned Continue button */}
+          <View style={{ paddingHorizontal: hp, paddingBottom: 16, paddingTop: 8, backgroundColor: colors.background }}>
+            <Pressable
+              onPress={() => {
+                if (selectedServices.length === 0) return;
+                setStep(2);
+              }}
+              style={({ pressed }) => [
+                styles.confirmBtn,
+                {
+                  backgroundColor: selectedServices.length > 0 ? colors.primary : colors.border,
+                  opacity: pressed && selectedServices.length > 0 ? 0.8 : 1,
+                  marginTop: 0,
+                },
+              ]}
+            >
+              <Text style={{ color: selectedServices.length > 0 ? "#FFF" : colors.muted, fontSize: 16, fontWeight: "700" }}>
+                {selectedServices.length === 0 ? "Select at least one service" : `Continue with ${selectedServices.length} service${selectedServices.length > 1 ? "s" : ""} →`}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
       )}
 
       {/* ─── Step 2: Client Selection ─── */}
@@ -1378,22 +1441,32 @@ export default function CalendarBookingScreen() {
           <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border, marginBottom: 16 }]}>
             <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 12 }}>Booking Items</Text>
 
-            {/* Primary Service */}
-            {selectedService && (
-              <View style={styles.cartItem}>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: selectedService.color, marginRight: 8 }} />
-                    <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{selectedService.name}</Text>
+            {/* All selected services — editable list with remove buttons */}
+            {selectedServices.map((svc, idx) => {
+              const svcData = state.services.find((s) => s.id === svc.id);
+              return (
+                <View key={svc.id + idx} style={styles.cartItem}>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: svcData?.color ?? colors.primary, marginRight: 8 }} />
+                      <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{svc.name}</Text>
+                    </View>
+                    <Text style={{ fontSize: 12, color: colors.muted, marginLeft: 18 }}>{svc.duration} min</Text>
                   </View>
-                  <Text style={{ fontSize: 12, color: colors.muted, marginLeft: 18 }}>{selectedService.duration} min</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: colors.primary }}>${svc.price.toFixed(2)}</Text>
+                    {selectedServices.length > 1 && (
+                      <Pressable
+                        onPress={() => setSelectedServices((prev) => prev.filter((_, i) => i !== idx))}
+                        style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+                      >
+                        <IconSymbol name="xmark" size={16} color={colors.error} />
+                      </Pressable>
+                    )}
+                  </View>
                 </View>
-                <View style={{ alignItems: "flex-end" }}>
-                  <Text style={{ fontSize: 14, fontWeight: "700", color: colors.primary }}>${servicePrice.toFixed(2)}</Text>
-                  <Text style={{ fontSize: 10, color: colors.success, fontWeight: "600" }}>PRIMARY</Text>
-                </View>
-              </View>
-            )}
+              );
+            })}
 
             {/* Cart Items */}
             {cart.map((item, index) => (
@@ -1754,15 +1827,23 @@ export default function CalendarBookingScreen() {
 
           {/* Summary card — professional receipt style */}
           <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            {/* Service header with color dot */}
-            {selectedService && (
-              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14, gap: 10 }}>
-                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: selectedService.color ?? colors.primary }} />
-                <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground, flex: 1 }}>
-                  {selectedService.name}{cart.length > 0 ? ` + ${cart.length} extra` : ""}
-                </Text>
-                <View style={{ backgroundColor: colors.primary + "18", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-                  <Text style={{ fontSize: 12, fontWeight: "600", color: colors.primary }}>{totalDuration} min</Text>
+            {/* Services header — show all selected services */}
+            {selectedServices.length > 0 && (
+              <View style={{ marginBottom: 14 }}>
+                {selectedServices.map((svc, idx) => {
+                  const svcData = state.services.find((s) => s.id === svc.id);
+                  return (
+                    <View key={svc.id + idx} style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: idx < selectedServices.length - 1 ? 6 : 0 }}>
+                      <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: svcData?.color ?? colors.primary }} />
+                      <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground, flex: 1 }}>{svc.name}</Text>
+                      <Text style={{ fontSize: 12, color: colors.muted }}>{svc.duration} min</Text>
+                    </View>
+                  );
+                })}
+                <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 6 }}>
+                  <View style={{ backgroundColor: colors.primary + "18", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                    <Text style={{ fontSize: 12, fontWeight: "600", color: colors.primary }}>{totalDuration} min total</Text>
+                  </View>
                 </View>
               </View>
             )}
@@ -1825,15 +1906,22 @@ export default function CalendarBookingScreen() {
               );
             })()}
 
-            {/* Staff row */}
+            {/* Staff row with photo */}
             {selectedStaffId && (() => {
               const staff = state.staff.find((s) => s.id === selectedStaffId);
               return staff ? (
                 <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10, gap: 10 }}>
-                  <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: staff.color ?? colors.primary, alignItems: "center", justifyContent: "center" }}>
-                    <Text style={{ color: "#FFF", fontSize: 12, fontWeight: "700" }}>{staff.name.charAt(0).toUpperCase()}</Text>
+                  <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: (staff.color ?? colors.primary) + "20", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                    {staff.photoUri ? (
+                      <Image source={{ uri: staff.photoUri }} style={{ width: 28, height: 28, borderRadius: 14 }} />
+                    ) : (
+                      <Text style={{ color: staff.color ?? colors.primary, fontSize: 12, fontWeight: "700" }}>{staff.name.charAt(0).toUpperCase()}</Text>
+                    )}
                   </View>
-                  <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>{staff.name}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>{staff.name}</Text>
+                    {staff.role ? <Text style={{ fontSize: 11, color: colors.muted }}>{staff.role}</Text> : null}
+                  </View>
                 </View>
               ) : null;
             })()}
@@ -1857,7 +1945,9 @@ export default function CalendarBookingScreen() {
             <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>Pricing</Text>
             {servicePrice > 0 ? (
               <>
-                <SummaryRow label={selectedService?.name ?? "Service"} value={`$${servicePrice.toFixed(2)}`} colors={colors} />
+                {selectedServices.map((svc, idx) => (
+                  <SummaryRow key={svc.id + idx} label={svc.name} value={`$${svc.price.toFixed(2)}`} colors={colors} />
+                ))}
                 {cart.length > 0 && cart.map((item) => (
                   <SummaryRow key={item.id} label={item.name} value={`$${item.price.toFixed(2)}`} colors={colors} />
                 ))}
