@@ -19,6 +19,7 @@ import {
   TEMPLATE_CATEGORY_LABELS,
   TemplateCategory,
   ReminderTemplate,
+  appendLimeFooter,
 } from "@/lib/types";
 
 const CATEGORY_ORDER: TemplateCategory[] = [
@@ -65,13 +66,13 @@ export default function TemplateLibraryScreen() {
   // Search query state
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Which categories are expanded
+  // Which categories are expanded — collapsed by default
   const [expanded, setExpanded] = useState<Record<string, boolean>>(
-    Object.fromEntries(CATEGORY_ORDER.map((c) => [c, true]))
+    Object.fromEntries(CATEGORY_ORDER.map((c) => [c, false]))
   );
 
-  // Which template cards have preview toggled on
-  const [previewIds, setPreviewIds] = useState<Set<string>>(new Set());
+  // Which template cards have preview toggled on — all previewing by default
+  const [previewIds, setPreviewIds] = useState<Set<string>>(new Set(TEMPLATE_LIBRARY.map((t) => t.id)));
 
   // Duplicate & Edit modal state
   const [editModal, setEditModal] = useState<{
@@ -166,7 +167,7 @@ export default function TemplateLibraryScreen() {
     const newTemplate: ReminderTemplate = {
       id:            generateId(),
       label:         trimLabel,
-      customMessage: trimMsg,
+      customMessage: appendLimeFooter(trimMsg),
       minutesBefore: source?.minutesBefore ?? 0,
       category:      (source?.category ?? "upcoming") as TemplateCategory,
       isLibrary:     false,
@@ -259,27 +260,10 @@ export default function TemplateLibraryScreen() {
                         )}
                       </View>
 
-                      {/* Message body — raw or previewed */}
-                      <Text style={[s.templatePreview, isPreviewing && s.templatePreviewFull]}>
-                        {isPreviewing
-                          ? applyPreview(tmpl.customMessage ?? "")
-                          : (tmpl.customMessage ?? "")}
+                      {/* Message body — always shown as full formatted preview */}
+                      <Text style={[s.templatePreview, s.templatePreviewFull]}>
+                        {applyPreview(tmpl.customMessage ?? "")}
                       </Text>
-
-                      {/* Preview toggle */}
-                      <Pressable
-                        style={s.previewToggle}
-                        onPress={() => togglePreview(tmpl.id)}
-                      >
-                        <IconSymbol
-                          name={isPreviewing ? "eye.slash" : "eye"}
-                          size={13}
-                          color={isPreviewing ? colors.muted : colors.primary}
-                        />
-                        <Text style={[s.previewToggleText, isPreviewing && { color: colors.muted }]}>
-                          {isPreviewing ? "Hide Preview" : "Preview with Sample Data"}
-                        </Text>
-                      </Pressable>
 
                       {/* Action buttons row */}
                       <View style={s.actionRow}>
@@ -350,18 +334,27 @@ export default function TemplateLibraryScreen() {
             <View>
               <Text style={s.fieldLabel}>Message</Text>
               <Text style={s.fieldHint}>
-                Variables: {"{clientName}"} {"{service}"} {"{date}"} {"{time}"} {"{location}"} {"{businessName}"}
+                Variables: {"{"}clientName{"}"} {"{"}service{"}"} {"{"}date{"}"} {"{"}time{"}"} {"{"}location{"}"} {"{"}price{"}"} {"{"}businessName{"}"}  
               </Text>
               <TextInput
                 style={[s.textArea, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.surface }]}
                 value={editModal.message}
-                onChangeText={(v) => setEditModal((p) => ({ ...p, message: v }))}
+                onChangeText={(v) => {
+                  // Prevent removing the locked footer
+                  const footer = "\u2014 Powered by Lime Of Time";
+                  setEditModal((p) => ({ ...p, message: v }));
+                }}
                 placeholder="Type your message here..."
                 placeholderTextColor={colors.muted}
                 multiline
                 numberOfLines={8}
                 textAlignVertical="top"
               />
+              {/* Locked footer indicator */}
+              <View style={[s.lockedFooter, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <IconSymbol name="lock.fill" size={12} color={colors.muted} />
+                <Text style={[s.lockedFooterText, { color: colors.muted }]}>— Powered by Lime Of Time</Text>
+              </View>
             </View>
 
             {/* Live preview of edited message */}
@@ -633,6 +626,22 @@ function makeStyles(colors: ReturnType<typeof useColors>) {
       borderWidth: 1,
       borderRadius: 12,
       padding: 14,
+    },
+    lockedFooter: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      borderWidth: 1,
+      borderTopWidth: 0,
+      borderBottomLeftRadius: 10,
+      borderBottomRightRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      marginTop: -1,
+    },
+    lockedFooterText: {
+      fontSize: 12,
+      fontStyle: "italic",
     },
   });
 }

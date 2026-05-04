@@ -29,6 +29,7 @@ import {
   timeToMinutes,
   PUBLIC_BOOKING_URL,
   LIME_OF_TIME_FOOTER,
+  appendLimeFooter,
   ReminderTemplate,
   DEFAULT_REMINDER_TEMPLATES,
   STATUS_TEMPLATE_CATEGORIES,
@@ -626,7 +627,13 @@ export default function SendReminderScreen() {
             </Pressable>
             <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground }}>Edit Message</Text>
             <Pressable
-              onPress={() => setShowEditor(false)}
+              onPress={() => {
+                // Enforce footer on save
+                if (editingBody !== null) {
+                  setEditingBody(appendLimeFooter(editingBody));
+                }
+                setShowEditor(false);
+              }}
               style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
             >
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.primary }}>Done</Text>
@@ -680,6 +687,29 @@ export default function SendReminderScreen() {
               placeholder="Enter your reminder message..."
               placeholderTextColor={colors.muted}
             />
+
+            {/* Locked footer preview */}
+            <View style={{
+              marginTop: 10,
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.surface,
+              padding: 12,
+              flexDirection: "row",
+              alignItems: "flex-start",
+              gap: 8,
+            }}>
+              <IconSymbol name="lock.fill" size={13} color={colors.muted} style={{ marginTop: 2 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 11, color: colors.muted, marginBottom: 3 }}>
+                  Always appended — cannot be removed:
+                </Text>
+                <Text style={{ fontSize: 13, color: colors.foreground, fontStyle: "italic" }}>
+                  {LIME_OF_TIME_FOOTER.trim()}
+                </Text>
+              </View>
+            </View>
 
             {/* Character count */}
             <Text style={{ fontSize: 11, color: colors.muted, textAlign: "right", marginTop: 6 }}>
