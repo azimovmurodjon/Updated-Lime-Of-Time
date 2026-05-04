@@ -1674,7 +1674,7 @@ export default function HomeScreen() {
           {/* ─── Header Quick Actions ──────────────────────────────────── */}
           <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
             <Pressable
-              onPress={() => router.push("/new-booking" as any)}
+              onPress={() => router.push({ pathname: "/calendar-booking", params: { preselectedLocationId: selectedLocationFilter ?? "" } } as any)}
               style={({ pressed }) => ({
                 flex: 1,
                 flexDirection: "row",
@@ -2601,7 +2601,7 @@ export default function HomeScreen() {
 
       {/* FAB */}
       <Pressable
-        onPress={() => router.push("/new-booking")}
+        onPress={() => router.push({ pathname: "/calendar-booking", params: { preselectedLocationId: selectedLocationFilter ?? "" } } as any)}
         style={({ pressed }) => [
           styles.fab,
           { right: hp, transform: [{ scale: pressed ? 0.93 : 1 }] },

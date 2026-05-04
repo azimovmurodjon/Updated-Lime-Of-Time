@@ -11,6 +11,7 @@ import {
   Platform,
   Alert,
   Image,
+  Modal,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -81,6 +82,7 @@ export default function CalendarBookingScreen() {
     date?: string;
     time?: string;
     locationId?: string;
+    preselectedLocationId?: string; // passed from Home page location filter
     eligibleLocationIds?: string; // comma-separated list of location IDs available at the selected time
   }>();
 
@@ -92,8 +94,8 @@ export default function CalendarBookingScreen() {
   // Pre-selected from calendar
   const preselectedDate = params.date ?? formatDateStr(new Date());
   const preselectedTime = params.time ?? null;
-  // If a specific location was clicked from calendar, pre-select it
-  const preselectedLocationId = params.locationId ?? null;
+  // If a specific location was clicked from calendar or passed from Home page filter, pre-select it
+  const preselectedLocationId = params.locationId ?? (params.preselectedLocationId || null);
   // Eligible location IDs for the selected time slot (passed from All-mode calendar)
   const eligibleLocationIds = params.eligibleLocationIds
     ? params.eligibleLocationIds.split(',')
@@ -122,6 +124,11 @@ export default function CalendarBookingScreen() {
   const [promoInput, setPromoInput] = useState("");
   const [appliedPromoCode, setAppliedPromoCode] = useState<import("@/lib/types").PromoCode | null>(null);
   const [promoError, setPromoError] = useState<string | null>(null);
+  // Discount pencil bottom sheet
+  const [showDiscountSheet, setShowDiscountSheet] = useState(false);
+
+  // Whether the location was pre-passed from the Home page filter (show banner in Step 4)
+  const homePagePreselectedLocationId = params.preselectedLocationId || null;
 
   // Location selection — pre-select if only one active location or if passed from calendar
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(() => {
@@ -1061,6 +1068,29 @@ export default function CalendarBookingScreen() {
             <View style={{ width: 40 }} />
           </View>
 
+          {/* Green banner when location was pre-selected from Home page filter */}
+          {homePagePreselectedLocationId && (
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                backgroundColor: colors.success + "18",
+                borderColor: colors.success + "40",
+                borderWidth: 1,
+                borderRadius: 10,
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                marginBottom: 16,
+              }}
+            >
+              <IconSymbol name="location.fill" size={14} color={colors.success} />
+              <Text style={{ flex: 1, fontSize: 13, color: colors.success, fontWeight: "600" }}>
+                Booking for {state.locations.find((l) => l.id === homePagePreselectedLocationId)?.name ?? "selected location"} — tap to change location
+              </Text>
+            </View>
+          )}
+
           {/* Show locations that are open on the selected date */}
           {/* When coming from All-mode calendar with a specific time, only show eligible locations */}
           {activeLocations
@@ -1502,6 +1532,27 @@ export default function CalendarBookingScreen() {
                 </View>
               </>
             )}
+
+            {/* Promo code row */}
+            {appliedPromoCode && promoDiscountAmount > 0 && (
+              <View style={styles.cartItem}>
+                <Text style={{ fontSize: 13, fontWeight: "500", color: colors.success }}>Promo — {appliedPromoCode.code}</Text>
+                <Text style={{ fontSize: 13, fontWeight: "500", color: colors.success }}>-${promoDiscountAmount.toFixed(2)}</Text>
+              </View>
+            )}
+
+            {/* Discount pencil row */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "flex-end", marginTop: 4, marginBottom: 2 }}>
+              <Pressable
+                onPress={() => setShowDiscountSheet(true)}
+                style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4, paddingHorizontal: 6 })}
+              >
+                <IconSymbol name="pencil" size={13} color={colors.primary} />
+                <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>
+                  {appliedPromoCode ? "Edit Promo" : "Add Promo / Discount"}
+                </Text>
+              </Pressable>
+            </View>
 
             {/* Total */}
             <View style={[styles.cartItem, { borderTopWidth: 2, borderTopColor: colors.border, marginTop: 4, paddingTop: 10 }]}>
@@ -2165,6 +2216,79 @@ export default function CalendarBookingScreen() {
           )}
         </ScrollView>
       )}
+      {/* Discount / Promo Bottom Sheet */}
+      <Modal
+        visible={showDiscountSheet}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowDiscountSheet(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowDiscountSheet(false)}>
+          <Pressable style={[styles.modalSheet, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground, marginBottom: 16 }}>
+              Promo / Discount
+            </Text>
+
+            {/* Currently applied promo */}
+            {appliedPromoCode && (
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.success + "18", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Text style={{ fontSize: 15, fontWeight: "700", color: colors.success, letterSpacing: 1 }}>{appliedPromoCode.code}</Text>
+                  <Text style={{ fontSize: 13, color: colors.success }}>applied</Text>
+                </View>
+                <Pressable
+                  onPress={() => { setAppliedPromoCode(null); setPromoInput(""); setPromoError(null); }}
+                  style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: colors.error }}>Remove</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {/* Promo code input */}
+            <TextInput
+              value={promoInput}
+              onChangeText={(t) => { setPromoInput(t.toUpperCase()); setPromoError(null); }}
+              placeholder={appliedPromoCode ? "Enter a different promo code" : "Enter promo code"}
+              placeholderTextColor={colors.muted}
+              autoCapitalize="characters"
+              returnKeyType="done"
+              style={{ backgroundColor: colors.background, borderWidth: 1, borderColor: promoError ? colors.error : colors.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: colors.foreground, fontWeight: "600", letterSpacing: 1, marginBottom: 8 }}
+            />
+            {promoError && (
+              <Text style={{ fontSize: 12, color: colors.error, marginBottom: 8 }}>{promoError}</Text>
+            )}
+
+            {/* Apply button */}
+            <Pressable
+              onPress={() => {
+                const code = promoInput.trim().toUpperCase();
+                if (!code) { setPromoError("Please enter a promo code."); return; }
+                const now = new Date();
+                const match = (state.promoCodes ?? []).find((p) => p.code.toUpperCase() === code && p.active);
+                if (!match) { setPromoError("Invalid or inactive promo code."); return; }
+                if (match.expiresAt && new Date(match.expiresAt) < now) { setPromoError("This promo code has expired."); return; }
+                if (match.maxUses != null && match.usedCount >= match.maxUses) { setPromoError("This promo code has reached its usage limit."); return; }
+                setAppliedPromoCode(match);
+                setPromoInput("");
+                setPromoError(null);
+                setShowDiscountSheet(false);
+              }}
+              style={({ pressed }) => ({ backgroundColor: colors.primary, borderRadius: 10, paddingVertical: 13, alignItems: "center", marginBottom: 10, opacity: pressed ? 0.8 : 1 })}
+            >
+              <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 15 }}>Apply</Text>
+            </Pressable>
+
+            {/* Cancel */}
+            <Pressable
+              onPress={() => { setPromoError(null); setShowDiscountSheet(false); }}
+              style={({ pressed }) => ({ alignItems: "center", paddingVertical: 10, opacity: pressed ? 0.5 : 1 })}
+            >
+              <Text style={{ color: colors.muted, fontSize: 14 }}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -2297,5 +2421,17 @@ const styles = StyleSheet.create({
     height: 34,
     justifyContent: "center",
     alignItems: "center",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderWidth: 1,
+    padding: 24,
+    paddingBottom: 36,
   },
 });
