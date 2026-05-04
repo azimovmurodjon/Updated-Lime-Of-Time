@@ -1756,3 +1756,5 @@
 - [x] Calendar day list: update date title format — show "Today, Sun, May 3" for today, "Monday, May 4" for other days (applies to month panel, day view, and week view titles)
 - [x] Bookings page: add "Today" filter pill alongside Upcoming/Confirmed/Unpaid that filters list to today's appointments only
 - [x] Public booking page: fix category card overflow — long category names (e.g. "Upper body: back/neck/shoulders/face") now wrap inside the card border on both Select Service (step 3) and Add More (step 6)
+- [x] Public booking page: 2-line clamp with ellipsis on category tile names (step 3 and step 6) — names over 2 lines truncate with …
+- [x] Category editor: live character counter on name input, turns amber at 20+ chars and red at 25+ chars with contextual warning message

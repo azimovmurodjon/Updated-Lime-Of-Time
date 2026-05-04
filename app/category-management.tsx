@@ -180,12 +180,16 @@ const emptyStyles = StyleSheet.create({
 
 // ─── Add Row ──────────────────────────────────────────────────────────────────
 
+const CAT_WARN_LIMIT = 20;
+const CAT_MAX_LIMIT = 25;
+
 function AddRow({
   value,
   onChangeText,
   placeholder,
   onSubmit,
   buttonLabel = "Add",
+  showCharCounter = false,
   colors,
 }: {
   value: string;
@@ -193,30 +197,47 @@ function AddRow({
   placeholder: string;
   onSubmit: () => void;
   buttonLabel?: string;
+  showCharCounter?: boolean;
   colors: ReturnType<typeof useColors>;
 }) {
+  const len = value.length;
+  const counterColor = len >= CAT_MAX_LIMIT ? colors.error : len >= CAT_WARN_LIMIT ? colors.warning : colors.muted;
   return (
-    <View style={[addStyles.container, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={colors.muted}
-        style={[addStyles.input, { color: colors.foreground }]}
-        returnKeyType="done"
-        onSubmitEditing={onSubmit}
-      />
-      <Pressable
-        onPress={onSubmit}
-        style={({ pressed }) => [
-          addStyles.btn,
-          { backgroundColor: value.trim() ? colors.primary : colors.muted + "40", opacity: pressed ? 0.75 : 1 },
-        ]}
-      >
-        <Text style={[addStyles.btnText, { color: value.trim() ? "#fff" : colors.muted }]}>
-          {buttonLabel}
-        </Text>
-      </Pressable>
+    <View>
+      <View style={[addStyles.container, { backgroundColor: colors.surface, borderColor: len >= CAT_MAX_LIMIT ? colors.error : len >= CAT_WARN_LIMIT ? colors.warning : colors.border }]}>
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={colors.muted}
+          style={[addStyles.input, { color: colors.foreground }]}
+          returnKeyType="done"
+          onSubmitEditing={onSubmit}
+          maxLength={50}
+        />
+        <Pressable
+          onPress={onSubmit}
+          style={({ pressed }) => [
+            addStyles.btn,
+            { backgroundColor: value.trim() ? colors.primary : colors.muted + "40", opacity: pressed ? 0.75 : 1 },
+          ]}
+        >
+          <Text style={[addStyles.btnText, { color: value.trim() ? "#fff" : colors.muted }]}>
+            {buttonLabel}
+          </Text>
+        </Pressable>
+      </View>
+      {showCharCounter && len > 0 && (
+        <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 4, paddingHorizontal: 4 }}>
+          <Text style={{ fontSize: 11, color: counterColor, fontWeight: len >= CAT_WARN_LIMIT ? "600" : "400" }}>
+            {len >= CAT_MAX_LIMIT
+              ? `${len}/50 · Long names may be truncated on the booking page`
+              : len >= CAT_WARN_LIMIT
+              ? `${len}/50 · Consider a shorter name for best display`
+              : `${len}/50`}
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -549,6 +570,7 @@ export default function CategoryManagementScreen() {
               onChangeText={setNewCategoryName}
               placeholder="e.g. Hair, Nails, Massage"
               onSubmit={handleAddServiceCategory}
+              showCharCounter
               colors={colors}
             />
           </>
@@ -593,6 +615,7 @@ export default function CategoryManagementScreen() {
               onChangeText={setNewCategoryName}
               placeholder="e.g. Skincare, Hair Care"
               onSubmit={handleAddProductCategory}
+              showCharCounter
               colors={colors}
             />
 

@@ -2454,7 +2454,7 @@ function baseStyles(): string {
       .tile-card { background:var(--bg-card); border:2px solid var(--border); border-radius:14px; padding:16px 12px; cursor:pointer; text-align:center; transition:all 0.15s; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; box-sizing:border-box; min-height:90px; overflow:visible; }
       .tile-card .tile-emoji { font-size:24px; margin-bottom:8px; line-height:1; flex-shrink:0; }
       .tile-card:hover { border-color:var(--accent); background:var(--accent-bg-light); }
-      .tile-card .tile-name { font-size:14px; font-weight:700; color:var(--text); margin-bottom:4px; word-break:break-word; overflow-wrap:break-word; white-space:normal; line-height:1.3; width:100%; }
+      .tile-card .tile-name { font-size:14px; font-weight:700; color:var(--text); margin-bottom:4px; line-height:1.3; width:100%; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word; overflow-wrap:break-word; }
       .tile-card .tile-count { font-size:12px; color:var(--text-muted); flex-shrink:0; }
       /* Drill-down back link */
       .drill-back { display:inline-flex; align-items:center; gap:4px; color:var(--accent); font-size:13px; font-weight:600; cursor:pointer; margin-bottom:12px; }
@@ -2564,7 +2564,7 @@ function buyGiftPage(slug: string, owner: any): string {
     .tile:active{transform:scale(0.97);}
     .tile.selected{border-color:var(--gift);background:var(--gift-bg);}
     .tile-icon{font-size:28px;margin-bottom:8px;display:block;flex-shrink:0;}
-    .tile-name{font-size:13px;font-weight:700;color:var(--text);line-height:1.3;margin-bottom:4px;word-break:break-word;overflow-wrap:break-word;white-space:normal;}
+    .tile-name{font-size:13px;font-weight:700;color:var(--text);line-height:1.3;margin-bottom:4px;word-break:break-word;overflow-wrap:break-word;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
     .tile-price{font-size:13px;font-weight:700;color:var(--accent);flex-shrink:0;}
     .tile-dur{font-size:11px;color:var(--textm);margin-top:2px;flex-shrink:0;}
     .tile.selected .tile-name{color:var(--gift);}
