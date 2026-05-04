@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import {
   Text,
   View,
@@ -48,6 +48,7 @@ import { useResponsive } from "@/hooks/use-responsive";
 import { FuturisticBackground } from "@/components/futuristic-background";
 
 // Steps:
+// 0 = Date & Time picker (only when launched from Home page without a pre-selected time)
 // 1 = Service Category / Service selection
 // 2 = Client selection
 // 3 = Location selection (only if multiple locations)
@@ -55,7 +56,23 @@ import { FuturisticBackground } from "@/components/futuristic-background";
 // 5 = Review & Add More
 // 6 = Payment Method
 // 7 = Confirm
-type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const DAY_HEADERS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const BOOKING_INTERVALS = [
+  { label: "Auto", value: 0 },
+  { label: "5m", value: 5 },
+  { label: "10m", value: 10 },
+  { label: "15m", value: 15 },
+  { label: "20m", value: 20 },
+  { label: "25m", value: 25 },
+  { label: "30m", value: 30 },
+  { label: "1hr", value: 60 },
+];
 
 type CartItem = {
   type: "service" | "product";
@@ -91,9 +108,9 @@ export default function CalendarBookingScreen() {
   const isStripePlan = planInfo && (planInfo.planKey === "studio" || planInfo.planKey === "enterprise");
   const [requestingCardPayment, setRequestingCardPayment] = useState(false);
 
-  // Pre-selected from calendar
-  const preselectedDate = params.date ?? formatDateStr(new Date());
-  const preselectedTime = params.time ?? null;
+  // Pre-selected from calendar (or from Step 0 date/time picker)
+  // These are computed after step0 state is set, so we use a ref-like approach
+  // The actual effective date/time is derived below after step0 state declarations
   // If a specific location was clicked from calendar or passed from Home page filter, pre-select it
   const preselectedLocationId = params.locationId ?? (params.preselectedLocationId || null);
   // Eligible location IDs for the selected time slot (passed from All-mode calendar)
@@ -101,7 +118,27 @@ export default function CalendarBookingScreen() {
     ? params.eligibleLocationIds.split(',')
     : null;
 
-  const [step, setStep] = useState<Step>(1);
+  // Step 0 date/time picker state
+  const [step0Date, setStep0Date] = useState<string>(() => params.date ?? formatDateStr(new Date()));
+  const [step0Time, setStep0Time] = useState<string | null>(null);
+  const [step0CalMonthOffset, setStep0CalMonthOffset] = useState(0);
+  const [step0SlotInterval, setStep0SlotInterval] = useState<number | null>(null);
+  const [step0ClosedDayMsg, setStep0ClosedDayMsg] = useState<string | null>(null);
+  const step0ClosedDayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showStep0ClosedDayMsg = useCallback((msg: string) => {
+    if (step0ClosedDayTimer.current) clearTimeout(step0ClosedDayTimer.current);
+    setStep0ClosedDayMsg(msg);
+    step0ClosedDayTimer.current = setTimeout(() => setStep0ClosedDayMsg(null), 3000);
+  }, []);
+
+  // Whether to show Step 0 (date/time picker) — show when launched without a pre-selected time
+  const showDateTimePicker = !params.time;
+
+  const [step, setStep] = useState<Step>(() => showDateTimePicker ? 0 : 1);
+
+  // Effective date/time: from Step 0 picker (when no time param) or from params (calendar tap)
+  const preselectedDate = showDateTimePicker ? step0Date : (params.date ?? formatDateStr(new Date()));
+  const preselectedTime = showDateTimePicker ? step0Time : (params.time ?? null);
   // Multi-service selection: array of services chosen in Step 1
   const [selectedServices, setSelectedServices] = useState<CartItem[]>([]);
   // Derived: primary service ID is the first selected service
@@ -124,7 +161,11 @@ export default function CalendarBookingScreen() {
   const [promoInput, setPromoInput] = useState("");
   const [appliedPromoCode, setAppliedPromoCode] = useState<import("@/lib/types").PromoCode | null>(null);
   const [promoError, setPromoError] = useState<string | null>(null);
-  // Discount pencil bottom sheet
+  // Separate promo / discount sheets
+  const [showPromoSheet, setShowPromoSheet] = useState(false);
+  const [showDiscountPickerSheet, setShowDiscountPickerSheet] = useState(false);
+  const [appliedManualDiscount, setAppliedManualDiscount] = useState<import("@/lib/types").Discount | null>(null);
+  // Legacy combined sheet (kept for backward compat, now unused)
   const [showDiscountSheet, setShowDiscountSheet] = useState(false);
 
   // Whether the location was pre-passed from the Home page filter (show banner in Step 4)
@@ -584,21 +625,26 @@ export default function CalendarBookingScreen() {
   // 3. Only one eligible location was passed from All-mode calendar (auto-select it)
   const singleEligibleLocationId = eligibleLocationIds?.length === 1 ? eligibleLocationIds[0] : null;
   const needsLocationStep = activeLocations.length > 1 && !preselectedLocationId && !singleEligibleLocationId;
-  // Steps: 1=Service, 2=Client, [3=Location if needed], 4=Staff, 5=Review+Add More, 6=Payment, 7=Confirm
-  const TOTAL_STEPS = needsLocationStep ? 7 : 6;
+  // Steps: [0=Date/Time if no preselected time], 1=Service, 2=Client, [3=Location if needed], 4=Staff, 5=Review+Add More, 6=Payment, 7=Confirm
+  const TOTAL_STEPS = (showDateTimePicker ? 1 : 0) + (needsLocationStep ? 7 : 6);
 
-  // Map logical steps to display step numbers (skip location step if not needed)
+  // Map logical steps to display step numbers (skip location step / date-time step if not needed)
   const displayStep = useMemo(() => {
+    const dateOffset = showDateTimePicker ? 1 : 0;
+    if (step === 0) return 1;
     if (!needsLocationStep) {
-      // No location step: 1→1, 2→2, 4→3, 5→4, 6→5, 7→6
-      if (step <= 2) return step;
-      if (step === 4) return 3;
-      if (step === 5) return 4;
-      if (step === 6) return 5;
-      if (step === 7) return 6;
+      // No location step: 1→1+offset, 2→2+offset, 4→3+offset, 5→4+offset, 6→5+offset, 7→6+offset
+      if (step === 1) return 1 + dateOffset;
+      if (step === 2) return 2 + dateOffset;
+      if (step === 4) return 3 + dateOffset;
+      if (step === 5) return 4 + dateOffset;
+      if (step === 6) return 5 + dateOffset;
+      if (step === 7) return 6 + dateOffset;
+    } else {
+      return step + dateOffset;
     }
     return step;
-  }, [step, needsLocationStep]);
+  }, [step, needsLocationStep, showDateTimePicker]);
 
   const formatTimeDisplay = (time: string) => {
     const [h, m] = time.split(":").map(Number);
@@ -662,28 +708,342 @@ export default function CalendarBookingScreen() {
         ))}
       </View>
 
-      {/* Pre-selected date/time banner */}
-      <View
-        style={{
-          marginHorizontal: hp,
-          marginBottom: 12,
-          backgroundColor: colors.primary + "15",
-          borderRadius: 12,
-          paddingHorizontal: 14,
-          paddingVertical: 10,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 8,
-          borderWidth: 1,
-          borderColor: colors.primary + "40",
-        }}
-      >
-        <IconSymbol name="calendar" size={16} color={colors.primary} />
-        <Text style={{ fontSize: 14, fontWeight: "600", color: colors.primary }}>
-          {formatDateDisplay(preselectedDate)}
-          {preselectedTime ? ` · ${formatTimeDisplay(preselectedTime)}` : ""}
-        </Text>
-      </View>
+      {/* Date/time banner — only show when past Step 0 */}
+      {step > 0 && (
+        <View
+          style={{
+            marginHorizontal: hp,
+            marginBottom: 12,
+            backgroundColor: colors.primary + "15",
+            borderRadius: 12,
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
+            borderWidth: 1,
+            borderColor: colors.primary + "40",
+          }}
+        >
+          <IconSymbol name="calendar" size={16} color={colors.primary} />
+          <Text style={{ fontSize: 14, fontWeight: "600", color: colors.primary }}>
+            {formatDateDisplay(preselectedDate)}
+            {preselectedTime ? ` · ${formatTimeDisplay(preselectedTime)}` : ""}
+          </Text>
+        </View>
+      )}
+
+      {/* ─── Step 0: Date & Time Picker ─── */}
+      {step === 0 && (() => {
+        const todayStr = formatDateStr(new Date());
+        const today = new Date();
+        const displayDate = new Date(today.getFullYear(), today.getMonth() + step0CalMonthOffset, 1);
+        const displayMonth = displayDate.getMonth();
+        const displayYear = displayDate.getFullYear();
+        const firstDayOfWeek = new Date(displayYear, displayMonth, 1).getDay();
+        const daysInMonth = new Date(displayYear, displayMonth + 1, 0).getDate();
+        const calCells: (number | null)[] = [
+          ...Array(firstDayOfWeek).fill(null),
+          ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+        ];
+        const maxDate = new Date(today);
+        maxDate.setDate(today.getDate() + 89);
+        const maxDateStr = formatDateStr(maxDate);
+        const canGoPrev = step0CalMonthOffset > 0;
+        const canGoNext = step0CalMonthOffset < 3;
+
+        // Effective slot interval for Step 0 (no service selected yet, use 30min default or global setting)
+        const globalInterval = (state.settings as any).slotInterval ?? 0;
+        const step0EffectiveInterval = step0SlotInterval !== null
+          ? (step0SlotInterval === 0 ? 30 : step0SlotInterval)
+          : (globalInterval > 0 ? globalInterval : 30);
+
+        // Step 0 location-aware working hours and appointments
+        const step0LocationId = preselectedLocationId;
+        const step0Location = step0LocationId ? state.locations.find((l) => l.id === step0LocationId) ?? null : null;
+        const step0WorkingHours = (step0Location?.workingHours && Object.keys(step0Location.workingHours).length > 0)
+          ? step0Location.workingHours as Record<string, import("@/lib/types").WorkingHours>
+          : state.settings.workingHours;
+        const step0Appts = step0LocationId
+          ? state.appointments.filter((a) => a.locationId === step0LocationId)
+          : state.appointments;
+        const step0CustomSchedule = (() => {
+          if (step0LocationId) {
+            const locEntries = (state as any).locationCustomSchedule?.[step0LocationId] ?? [];
+            const locDates = new Set(locEntries.map((cs: any) => cs.date));
+            const globalFallback = (state.customSchedule ?? []).filter((cs) => !locDates.has(cs.date));
+            return [...locEntries, ...globalFallback];
+          }
+          return state.customSchedule ?? [];
+        })();
+
+        // Date options for calendar (90 days)
+        const step0DateOptions = (() => {
+          const dates: { date: string; closed: boolean; noSlots: boolean; slotCount: number }[] = [];
+          const endDate = state.settings.businessHoursEndDate;
+          for (let i = 0; i < 90; i++) {
+            const d = new Date(today);
+            d.setDate(today.getDate() + i);
+            const ds = formatDateStr(d);
+            let closed = !!(endDate && ds > endDate);
+            if (!closed) {
+              const customDay = step0CustomSchedule.find((cs: any) => cs.date === ds);
+              if (state.settings.scheduleMode === "custom") {
+                closed = !customDay || !customDay.isOpen;
+              } else if (customDay) {
+                closed = !customDay.isOpen;
+              } else {
+                const dayName = DAYS_OF_WEEK[d.getDay()];
+                const wh = (step0WorkingHours as any)[dayName];
+                closed = !wh || !wh.enabled;
+              }
+            }
+            let slotCount = 0;
+            if (!closed) {
+              const slots = generateAvailableSlots(
+                ds, step0EffectiveInterval, step0WorkingHours, step0Appts, step0EffectiveInterval,
+                step0CustomSchedule, state.settings.scheduleMode, (state.settings as any).bufferTime ?? 0
+              );
+              slotCount = slots.length;
+            }
+            dates.push({ date: ds, closed, noSlots: slotCount === 0, slotCount });
+          }
+          return dates;
+        })();
+
+        // Time slots for selected date
+        const step0TimeSlots = generateAvailableSlots(
+          step0Date, step0EffectiveInterval, step0WorkingHours, step0Appts, step0EffectiveInterval,
+          step0CustomSchedule, state.settings.scheduleMode, (state.settings as any).bufferTime ?? 0
+        );
+        const step0SlotGroups = [
+          { label: "Morning", slots: step0TimeSlots.filter((t) => parseInt(t.split(":")[0]) < 12) },
+          { label: "Afternoon", slots: step0TimeSlots.filter((t) => { const h = parseInt(t.split(":")[0]); return h >= 12 && h < 17; }) },
+          { label: "Evening", slots: step0TimeSlots.filter((t) => parseInt(t.split(":")[0]) >= 17) },
+        ].filter((g) => g.slots.length > 0);
+
+        return (
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}
+          >
+            {/* Month navigation */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <Pressable
+                onPress={() => { if (canGoPrev) setStep0CalMonthOffset((o) => o - 1); }}
+                style={({ pressed }) => ({ padding: 8, opacity: canGoPrev ? (pressed ? 0.5 : 1) : 0.25 })}
+              >
+                <IconSymbol name="chevron.left" size={20} color={colors.foreground} />
+              </Pressable>
+              <Pressable onPress={() => { setStep0CalMonthOffset(0); setStep0Date(todayStr); setStep0Time(null); }}>
+                <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>
+                  {MONTH_NAMES[displayMonth]} {displayYear}
+                </Text>
+              </Pressable>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                {step0Date !== todayStr && (
+                  <Pressable
+                    onPress={() => { setStep0CalMonthOffset(0); setStep0Date(todayStr); setStep0Time(null); }}
+                    style={({ pressed }) => ({ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: colors.primary + "18", opacity: pressed ? 0.65 : 1, marginRight: 4 })}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: "600", color: colors.primary }}>Today</Text>
+                  </Pressable>
+                )}
+                <Pressable
+                  onPress={() => { if (canGoNext) setStep0CalMonthOffset((o) => o + 1); }}
+                  style={({ pressed }) => ({ padding: 8, opacity: canGoNext ? (pressed ? 0.5 : 1) : 0.25 })}
+                >
+                  <IconSymbol name="chevron.right" size={20} color={colors.foreground} />
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Day headers */}
+            <View style={{ flexDirection: "row", width: "100%", marginBottom: 4 }}>
+              {DAY_HEADERS.map((d) => (
+                <Text key={d} style={{ flex: 1, textAlign: "center", fontSize: 11, fontWeight: "600", color: colors.muted }}>{d}</Text>
+              ))}
+            </View>
+
+            {/* Calendar grid */}
+            <View style={{ flexDirection: "row", flexWrap: "wrap", width: "100%", marginBottom: 4 }}>
+              {calCells.map((day, idx) => {
+                if (day === null) {
+                  return <View key={`empty-${idx}`} style={{ width: "14.28%", height: 52 }} />;
+                }
+                const dateStr = `${displayYear}-${String(displayMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                const isSelected = dateStr === step0Date;
+                const isToday = dateStr === todayStr;
+                const isPast = dateStr < todayStr;
+                const isOutOfRange = dateStr > maxDateStr;
+                const opt = step0DateOptions.find((o) => o.date === dateStr);
+                const isClosed = opt ? opt.closed : true;
+                const isNoSlots = opt ? opt.noSlots : false;
+                const slotCount = opt?.slotCount ?? 0;
+                const isDisabled = isPast || isOutOfRange || isClosed || isNoSlots;
+                // Green if >2 slots, orange if ≤2 (but >0)
+                const dotColor = slotCount > 2 ? colors.success : slotCount > 0 ? colors.warning : colors.error;
+                return (
+                  <Pressable
+                    key={dateStr}
+                    onPress={() => {
+                      if (!isDisabled) {
+                        setStep0Date(dateStr);
+                        setStep0Time(null);
+                      } else if (!isPast && !isOutOfRange && (isClosed || isNoSlots)) {
+                        showStep0ClosedDayMsg(isClosed ? "Closed — no working hours set for this day" : "No available slots on this day");
+                      }
+                    }}
+                    style={({ pressed }) => ({
+                      width: "14.28%",
+                      height: 52,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      opacity: (isPast || isOutOfRange) ? 0.35 : pressed && !isDisabled ? 0.7 : 1,
+                    })}
+                  >
+                    {isSelected && (
+                      <View style={{ position: "absolute", width: 36, height: 36, borderRadius: 10, borderWidth: 2, borderColor: colors.primary, backgroundColor: "transparent" }} />
+                    )}
+                    <Text style={{
+                      fontSize: 14,
+                      fontWeight: isToday || isSelected ? "700" : "400",
+                      color: isToday ? colors.primary : isSelected ? colors.primary : isClosed && !isPast && !isOutOfRange ? colors.muted : colors.foreground,
+                      lineHeight: 18,
+                    }}>
+                      {day}
+                    </Text>
+                    {/* Slot count label */}
+                    {!isPast && !isOutOfRange && slotCount > 0 && (
+                      <Text style={{ fontSize: 8, fontWeight: "700", color: dotColor, lineHeight: 10, marginTop: 1 }}>
+                        {slotCount}
+                      </Text>
+                    )}
+                    {!isPast && !isOutOfRange && slotCount === 0 && (
+                      <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.error, marginTop: 2 }} />
+                    )}
+                    {(isPast || isOutOfRange) && (
+                      <View style={{ width: 4, height: 4, marginTop: 2 }} />
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Slot count legend */}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 10, paddingHorizontal: 2 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.success }} />
+                <Text style={{ fontSize: 10, color: colors.muted }}>Many slots</Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.warning }} />
+                <Text style={{ fontSize: 10, color: colors.muted }}>Few slots (≤2)</Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.error }} />
+                <Text style={{ fontSize: 10, color: colors.muted }}>Closed</Text>
+              </View>
+            </View>
+
+            {/* Closed-day tooltip */}
+            {step0ClosedDayMsg ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.error + "18", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, marginBottom: 8 }}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.error }} />
+                <Text style={{ fontSize: 12, color: colors.error, fontWeight: "500", flex: 1 }}>{step0ClosedDayMsg}</Text>
+              </View>
+            ) : null}
+
+            {/* Selected date label */}
+            <View style={{ marginBottom: 8, marginHorizontal: 2 }}>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>
+                {new Date(step0Date + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+              </Text>
+            </View>
+
+            {/* Interval selector */}
+            <View style={{ marginBottom: 8 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingHorizontal: 2, paddingVertical: 2 }}>
+                {BOOKING_INTERVALS.map((iv) => {
+                  const activeValue = step0SlotInterval !== null ? step0SlotInterval : 0;
+                  const isActive = iv.value === activeValue;
+                  return (
+                    <Pressable
+                      key={iv.value}
+                      onPress={() => { setStep0SlotInterval(iv.value); setStep0Time(null); }}
+                      style={({ pressed }) => ({
+                        paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20,
+                        backgroundColor: isActive ? colors.primary : colors.surface,
+                        borderWidth: 1, borderColor: isActive ? colors.primary : colors.border,
+                        opacity: pressed ? 0.7 : 1,
+                      })}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: "700", color: isActive ? "#FFFFFF" : colors.muted }}>
+                        {iv.value === 0 ? "Auto (30m)" : iv.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
+            {/* Time slots */}
+            <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 6, marginHorizontal: 2 }}>Available Times</Text>
+            {step0TimeSlots.length === 0 ? (
+              <View style={{ alignItems: "center", paddingVertical: 24, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 16 }}>
+                <Text style={{ fontSize: 13, color: colors.muted }}>No available times for this date</Text>
+                <Text style={{ fontSize: 11, color: colors.muted, marginTop: 4 }}>Try a different date or check working hours</Text>
+              </View>
+            ) : (
+              <View style={{ marginBottom: 16 }}>
+                {step0SlotGroups.map((group) => (
+                  <View key={group.label} style={{ marginBottom: 10 }}>
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, marginBottom: 6, marginLeft: 2 }}>{group.label}</Text>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                      {group.slots.map((t) => {
+                        const isSlotSelected = t === step0Time;
+                        return (
+                          <Pressable
+                            key={t}
+                            onPress={() => setStep0Time(t)}
+                            style={({ pressed }) => ({
+                              width: "22%", paddingVertical: 9, borderRadius: 10,
+                              backgroundColor: isSlotSelected ? colors.primary : colors.surface,
+                              borderWidth: 1.5, borderColor: isSlotSelected ? colors.primary : colors.border,
+                              alignItems: "center", opacity: pressed ? 0.7 : 1,
+                            })}
+                          >
+                            <Text style={{ fontSize: 13, fontWeight: "700", color: isSlotSelected ? "#FFFFFF" : colors.foreground, textAlign: "center", lineHeight: 17 }}>
+                              {formatTimeDisplay(t)}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Continue button */}
+            <Pressable
+              onPress={() => {
+                if (!step0Time) {
+                  Alert.alert("Select a Time", "Please select a time slot to continue.");
+                  return;
+                }
+                setStep(1);
+              }}
+              style={({ pressed }) => ([
+                styles.confirmBtn,
+                { backgroundColor: step0Time ? colors.primary : colors.muted, opacity: pressed ? 0.8 : 1 },
+              ])}
+            >
+              <Text style={{ color: "#FFF", fontSize: 16, fontWeight: "700" }}>Continue →</Text>
+            </Pressable>
+          </ScrollView>
+        );
+      })()}
 
       {/* ─── Step 1: Multi-Service Selection ─── */}
       {step === 1 && (
@@ -1467,6 +1827,49 @@ export default function CalendarBookingScreen() {
             <View style={{ width: 40 }} />
           </View>
 
+          {/* Booking Summary Card */}
+          <View style={{ backgroundColor: colors.primary + "10", borderRadius: 14, borderWidth: 1, borderColor: colors.primary + "30", padding: 14, marginBottom: 14 }}>
+            <Text style={{ fontSize: 12, fontWeight: "700", color: colors.primary, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 }}>Booking Summary</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
+              <IconSymbol name="calendar" size={14} color={colors.primary} />
+              <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>
+                {formatDateDisplay(preselectedDate)}{preselectedTime ? ` · ${formatTimeDisplay(preselectedTime)}` : ""}
+              </Text>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 }}>
+              <IconSymbol name="clock" size={14} color={colors.muted} />
+              <Text style={{ fontSize: 12, color: colors.muted }}>Total duration: {totalDuration} min</Text>
+            </View>
+            <View style={{ borderTopWidth: 1, borderTopColor: colors.primary + "20", paddingTop: 8, gap: 4 }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                <Text style={{ fontSize: 13, color: colors.muted }}>Subtotal</Text>
+                <Text style={{ fontSize: 13, color: colors.muted }}>${subtotal.toFixed(2)}</Text>
+              </View>
+              {(appliedDiscount && discountAmount > 0) && (
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <Text style={{ fontSize: 13, color: colors.warning }}>{appliedDiscount.name} ({appliedDiscount.percentage}% off)</Text>
+                  <Text style={{ fontSize: 13, color: colors.warning }}>-${discountAmount.toFixed(2)}</Text>
+                </View>
+              )}
+              {(appliedManualDiscount && !appliedDiscount) && (
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <Text style={{ fontSize: 13, color: colors.warning }}>{appliedManualDiscount.name} ({appliedManualDiscount.percentage}% off)</Text>
+                  <Text style={{ fontSize: 13, color: colors.warning }}>-${(subtotal * (appliedManualDiscount.percentage / 100)).toFixed(2)}</Text>
+                </View>
+              )}
+              {appliedPromoCode && promoDiscountAmount > 0 && (
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <Text style={{ fontSize: 13, color: colors.success }}>Promo: {appliedPromoCode.code}</Text>
+                  <Text style={{ fontSize: 13, color: colors.success }}>-${promoDiscountAmount.toFixed(2)}</Text>
+                </View>
+              )}
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 4, borderTopWidth: 1, borderTopColor: colors.primary + "20", paddingTop: 6 }}>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground }}>Amount Due</Text>
+                <Text style={{ fontSize: 16, fontWeight: "800", color: colors.primary }}>${totalPrice.toFixed(2)}</Text>
+              </View>
+            </View>
+          </View>
+
           {/* Cart Summary */}
           <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border, marginBottom: 16 }]}>
             <Text style={{ fontSize: 12, fontWeight: "600", color: colors.muted, marginBottom: 12 }}>Booking Items</Text>
@@ -1541,15 +1944,24 @@ export default function CalendarBookingScreen() {
               </View>
             )}
 
-            {/* Discount pencil row */}
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "flex-end", marginTop: 4, marginBottom: 2 }}>
+            {/* Promo Code + Discount buttons — separate */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 10, marginTop: 6, marginBottom: 2 }}>
               <Pressable
-                onPress={() => setShowDiscountSheet(true)}
-                style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4, paddingHorizontal: 6 })}
+                onPress={() => setShowPromoSheet(true)}
+                style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 5, paddingHorizontal: 8, borderRadius: 8, backgroundColor: colors.success + "15", borderWidth: 1, borderColor: colors.success + "40" })}
               >
-                <IconSymbol name="pencil" size={13} color={colors.primary} />
-                <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>
-                  {appliedPromoCode ? "Edit Promo" : "Add Promo / Discount"}
+                <IconSymbol name="tag.fill" size={12} color={colors.success} />
+                <Text style={{ fontSize: 12, color: colors.success, fontWeight: "600" }}>
+                  {appliedPromoCode ? `Promo: ${appliedPromoCode.code}` : "Add Promo Code"}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setShowDiscountPickerSheet(true)}
+                style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 5, paddingHorizontal: 8, borderRadius: 8, backgroundColor: colors.warning + "15", borderWidth: 1, borderColor: colors.warning + "40" })}
+              >
+                <IconSymbol name="percent" size={12} color={colors.warning} />
+                <Text style={{ fontSize: 12, color: colors.warning, fontWeight: "600" }}>
+                  {appliedManualDiscount ? appliedManualDiscount.name : "Add Discount"}
                 </Text>
               </Pressable>
             </View>
@@ -2283,6 +2695,179 @@ export default function CalendarBookingScreen() {
             <Pressable
               onPress={() => { setPromoError(null); setShowDiscountSheet(false); }}
               style={({ pressed }) => ({ alignItems: "center", paddingVertical: 10, opacity: pressed ? 0.5 : 1 })}
+            >
+              <Text style={{ color: colors.muted, fontSize: 14 }}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+      {/* Promo Code Picker Sheet — shows list of active user promo codes */}
+      <Modal
+        visible={showPromoSheet}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowPromoSheet(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowPromoSheet(false)}>
+          <Pressable style={[styles.modalSheet, { backgroundColor: colors.surface, borderColor: colors.border, maxHeight: "70%" }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>Select Promo Code</Text>
+              <Pressable onPress={() => setShowPromoSheet(false)} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}>
+                <IconSymbol name="xmark" size={18} color={colors.muted} />
+              </Pressable>
+            </View>
+
+            {/* Currently applied */}
+            {appliedPromoCode && (
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.success + "18", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <IconSymbol name="tag.fill" size={14} color={colors.success} />
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: colors.success, letterSpacing: 1 }}>{appliedPromoCode.code}</Text>
+                  <Text style={{ fontSize: 12, color: colors.success }}>applied</Text>
+                </View>
+                <Pressable
+                  onPress={() => { setAppliedPromoCode(null); setPromoInput(""); setPromoError(null); }}
+                  style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: colors.error }}>Remove</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {/* List of active promo codes */}
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 320 }}>
+              {(state.promoCodes ?? []).filter((p) => p.active).length === 0 ? (
+                <View style={{ alignItems: "center", paddingVertical: 32 }}>
+                  <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center" }}>No active promo codes available.{"\n"}Create promo codes in Settings.</Text>
+                </View>
+              ) : (
+                (state.promoCodes ?? []).filter((p) => {
+                  if (!p.active) return false;
+                  if (p.expiresAt && new Date(p.expiresAt) < new Date()) return false;
+                  if (p.maxUses != null && p.usedCount >= p.maxUses) return false;
+                  return true;
+                }).map((promo) => {
+                  const isSelected = appliedPromoCode?.code === promo.code;
+                  const discountLabel = promo.percentage ? `${promo.percentage}% off` : promo.flatAmount ? `-$${promo.flatAmount.toFixed(2)}` : "";
+                  return (
+                    <Pressable
+                      key={promo.code}
+                      onPress={() => {
+                        setAppliedPromoCode(promo);
+                        setPromoInput("");
+                        setPromoError(null);
+                        setShowPromoSheet(false);
+                      }}
+                      style={({ pressed }) => ({
+                        flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                        paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, marginBottom: 8,
+                        backgroundColor: isSelected ? colors.success + "18" : colors.background,
+                        borderWidth: 1.5, borderColor: isSelected ? colors.success : colors.border,
+                        opacity: pressed ? 0.7 : 1,
+                      })}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, fontWeight: "700", color: isSelected ? colors.success : colors.foreground, letterSpacing: 0.5 }}>{promo.code}</Text>
+                        {promo.label ? <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{promo.label}</Text> : null}
+                        {promo.expiresAt ? <Text style={{ fontSize: 11, color: colors.muted, marginTop: 1 }}>Expires {new Date(promo.expiresAt).toLocaleDateString()}</Text> : null}
+                      </View>
+                      <View style={{ alignItems: "flex-end", gap: 4 }}>
+                        {discountLabel ? <Text style={{ fontSize: 13, fontWeight: "700", color: isSelected ? colors.success : colors.primary }}>{discountLabel}</Text> : null}
+                        {promo.maxUses != null && (
+                          <Text style={{ fontSize: 10, color: colors.muted }}>{promo.usedCount ?? 0}/{promo.maxUses} uses</Text>
+                        )}
+                        {isSelected && <IconSymbol name="checkmark.circle.fill" size={18} color={colors.success} />}
+                      </View>
+                    </Pressable>
+                  );
+                })
+              )}
+            </ScrollView>
+
+            <Pressable
+              onPress={() => setShowPromoSheet(false)}
+              style={({ pressed }) => ({ alignItems: "center", paddingVertical: 12, marginTop: 8, opacity: pressed ? 0.5 : 1 })}
+            >
+              <Text style={{ color: colors.muted, fontSize: 14 }}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Discount Picker Sheet — shows list of user-created discounts */}
+      <Modal
+        visible={showDiscountPickerSheet}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowDiscountPickerSheet(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowDiscountPickerSheet(false)}>
+          <Pressable style={[styles.modalSheet, { backgroundColor: colors.surface, borderColor: colors.border, maxHeight: "70%" }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>Select Discount</Text>
+              <Pressable onPress={() => setShowDiscountPickerSheet(false)} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}>
+                <IconSymbol name="xmark" size={18} color={colors.muted} />
+              </Pressable>
+            </View>
+
+            {/* Currently applied manual discount */}
+            {appliedManualDiscount && (
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.warning + "18", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <IconSymbol name="percent" size={14} color={colors.warning} />
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: colors.warning }}>{appliedManualDiscount.name}</Text>
+                  <Text style={{ fontSize: 12, color: colors.warning }}>applied</Text>
+                </View>
+                <Pressable
+                  onPress={() => setAppliedManualDiscount(null)}
+                  style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: colors.error }}>Remove</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {/* List of user-created discounts */}
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 320 }}>
+              {(state.discounts ?? []).filter((d) => d.active !== false).length === 0 ? (
+                <View style={{ alignItems: "center", paddingVertical: 32 }}>
+                  <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center" }}>No discounts available.{"\n"}Create discounts in Settings.</Text>
+                </View>
+              ) : (
+                (state.discounts ?? []).filter((d) => d.active !== false).map((disc) => {
+                  const isSelected = appliedManualDiscount?.id === disc.id;
+                  return (
+                    <Pressable
+                      key={disc.id}
+                      onPress={() => {
+                        setAppliedManualDiscount(isSelected ? null : disc);
+                        setShowDiscountPickerSheet(false);
+                      }}
+                      style={({ pressed }) => ({
+                        flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                        paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, marginBottom: 8,
+                        backgroundColor: isSelected ? colors.warning + "18" : colors.background,
+                        borderWidth: 1.5, borderColor: isSelected ? colors.warning : colors.border,
+                        opacity: pressed ? 0.7 : 1,
+                      })}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, fontWeight: "700", color: isSelected ? colors.warning : colors.foreground }}>{disc.name}</Text>
+                        {(disc as any).description ? <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }} numberOfLines={2}>{(disc as any).description}</Text> : null}
+                      </View>
+                      <View style={{ alignItems: "flex-end", gap: 4 }}>
+                        <Text style={{ fontSize: 14, fontWeight: "700", color: isSelected ? colors.warning : colors.primary }}>{disc.percentage}% off</Text>
+                        {isSelected && <IconSymbol name="checkmark.circle.fill" size={18} color={colors.warning} />}
+                      </View>
+                    </Pressable>
+                  );
+                })
+              )}
+            </ScrollView>
+
+            <Pressable
+              onPress={() => setShowDiscountPickerSheet(false)}
+              style={({ pressed }) => ({ alignItems: "center", paddingVertical: 12, marginTop: 8, opacity: pressed ? 0.5 : 1 })}
             >
               <Text style={{ color: colors.muted, fontSize: 14 }}>Cancel</Text>
             </Pressable>
