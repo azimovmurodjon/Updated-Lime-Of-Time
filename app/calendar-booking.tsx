@@ -757,6 +757,9 @@ export default function CalendarBookingScreen() {
         const step0EffectiveInterval = step0SlotInterval !== null
           ? (step0SlotInterval === 0 ? 30 : step0SlotInterval)
           : (globalInterval > 0 ? globalInterval : 30);
+        // Default service duration — must match what the Calendar tab uses so slot counts are identical.
+        // Calendar tab uses state.settings.defaultDuration ?? 30 as serviceDuration in generateCalendarSlots.
+        const step0DefaultDuration = Math.max(1, state.settings.defaultDuration ?? 30);
 
         // Step 0 location-aware working hours and appointments
         const step0LocationId = preselectedLocationId;
@@ -785,7 +788,7 @@ export default function CalendarBookingScreen() {
         const computeStep0Slots = (ds: string): string[] => {
           if (!step0IsAllMode) {
             return generateCalendarSlots(
-              ds, step0EffectiveInterval, step0WorkingHours, step0Appts, step0EffectiveInterval,
+              ds, step0DefaultDuration, step0WorkingHours, step0Appts, step0EffectiveInterval,
               step0CustomSchedule, state.settings.scheduleMode, (state.settings as any).bufferTime ?? 0
             );
           }
@@ -821,7 +824,7 @@ export default function CalendarBookingScreen() {
               ),
             ];
             const locSlots = generateCalendarSlots(
-              ds, step0EffectiveInterval,
+              ds, step0DefaultDuration,
               fullLocWh,
               locAppts, step0EffectiveInterval,
               mergedCustomSchedule,
@@ -929,9 +932,9 @@ export default function CalendarBookingScreen() {
                 (cs) => !locCustomSchedule.some((lcs: any) => lcs.date === cs.date)
               ),
             ];
-            // Generate slots for this location using the same interval as the time slot grid
+            // Generate slots for this location using the same duration + interval as the Calendar tab
             const locSlots = generateCalendarSlots(
-              ds, step0EffectiveInterval,
+              ds, step0DefaultDuration,
               fullLocWh,
               locAppts, step0EffectiveInterval,
               mergedCustomSchedule,
