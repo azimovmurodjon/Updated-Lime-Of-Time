@@ -315,10 +315,15 @@ export default function CalendarBookingScreen() {
 
   // Available staff filtered by selected location and service
   const availableStaff = useMemo(() => {
-    // Show ALL active staff — location and service filtering is handled in rendering
-    // (unavailable/wrong-location staff are shown grayed, not hidden)
-    return state.staff.filter((s) => s.active);
-  }, [state.staff]);
+    return state.staff.filter((s) => {
+      if (!s.active) return false;
+      // Only show staff assigned to the selected location (or unassigned staff when no location chosen)
+      if (selectedLocationId && s.locationIds && s.locationIds.length > 0) {
+        if (!s.locationIds.includes(selectedLocationId)) return false;
+      }
+      return true;
+    });
+  }, [state.staff, selectedLocationId]);
 
   // Staff availability map for the pre-selected date/time
   const staffAvailabilityMap = useMemo((): Record<string, boolean> => {
@@ -1827,20 +1832,11 @@ export default function CalendarBookingScreen() {
             </View>
           ) : (
             availableStaff.map((member) => {
-              // Check if staff is assigned to the selected location
-              const isAtLocation = !selectedLocationId ||
-                !member.locationIds ||
-                member.locationIds.length === 0 ||
-                member.locationIds.includes(selectedLocationId);
-              // Check if staff is free at the selected time
-              const isFreeAtTime = staffAvailabilityMap[member.id] !== false;
-              // Staff is selectable only if at the right location AND free at the time
-              const isAvailable = isAtLocation && isFreeAtTime;
+              // Staff in this list are already filtered to the selected location
+              // Only check time availability here
+              const isAvailable = staffAvailabilityMap[member.id] !== false;
               const isSelected = selectedStaffId === member.id;
-              // Determine the reason for being unavailable
-              const unavailableReason = !isAtLocation
-                ? "Not at this location"
-                : !isFreeAtTime && preselectedTime
+              const unavailableReason = !isAvailable && preselectedTime
                 ? `Busy at ${formatTimeDisplay(preselectedTime)}`
                 : null;
               return (
@@ -1935,7 +1931,7 @@ export default function CalendarBookingScreen() {
                       <Text
                         style={{
                           fontSize: 11,
-                          color: !isAtLocation ? colors.muted : colors.warning,
+                          color: colors.warning,
                           marginTop: 2,
                           fontWeight: "600",
                         }}
