@@ -123,7 +123,7 @@ export default function BookingsScreen() {
 
   // Package completion modal
   const [showPkgCompleteModal, setShowPkgCompleteModal] = useState(false);
-  const [pkgCompleteInfo, setPkgCompleteInfo] = useState<{ name: string; sessions: number; totalValue: number } | null>(null);
+  const [pkgCompleteInfo, setPkgCompleteInfo] = useState<{ name: string; sessions: number; totalValue: number; groupId: string } | null>(null);
   const shownPkgCompleteRef = React.useRef<Set<string>>(new Set());
 
   const setActiveFilterPersisted = useCallback((key: FilterKey) => {
@@ -163,7 +163,7 @@ export default function BookingsScreen() {
       if (nonCancelled.length >= total && !shownPkgCompleteRef.current.has(groupId)) {
         shownPkgCompleteRef.current.add(groupId);
         const totalValue = nonCancelled.reduce((sum, a) => sum + (a.totalPrice ?? 0), 0);
-        setPkgCompleteInfo({ name, sessions: total, totalValue });
+        setPkgCompleteInfo({ name, sessions: total, totalValue, groupId });
         setShowPkgCompleteModal(true);
         break; // show one at a time
       }
@@ -898,8 +898,24 @@ export default function BookingsScreen() {
             <View style={{ backgroundColor: '#0891b215', borderRadius: 12, borderWidth: 1.5, borderColor: '#0891b2', padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <Text style={{ fontSize: 14 }}>📦</Text>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: '#0891b2' }}>Package Sessions</Text>
-                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>Showing all sessions for this package</Text>
+                {(() => {
+                  const pkgAppts = locationAppointments.filter((a) => a.packageGroupId === packageGroupFilter && a.status !== 'cancelled');
+                  const booked = pkgAppts.length;
+                  const total = pkgAppts[0]?.sessionTotal ?? booked;
+                  const pct = total > 0 ? Math.min(booked / total, 1) : 0;
+                  return (
+                    <>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: '#0891b2' }}>Package Sessions</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: '#0891b2' }}>{booked}/{total}</Text>
+                      </View>
+                      <View style={{ height: 5, borderRadius: 3, backgroundColor: '#0891b230', marginTop: 5, overflow: 'hidden' }}>
+                        <View style={{ height: '100%', width: `${Math.round(pct * 100)}%`, borderRadius: 3, backgroundColor: '#0891b2' }} />
+                      </View>
+                      <Text style={{ fontSize: 11, color: colors.muted, marginTop: 3 }}>{booked === total ? 'All sessions booked ✓' : `${total - booked} session${total - booked !== 1 ? 's' : ''} remaining`}</Text>
+                    </>
+                  );
+                })()}
               </View>
               <Pressable
                 onPress={() => setPackageGroupFilter(null)}
@@ -1104,9 +1120,20 @@ export default function BookingsScreen() {
                 )}
               </>
             )}
+            {pkgCompleteInfo && (
+              <Pressable
+                onPress={() => {
+                  setShowPkgCompleteModal(false);
+                  setPackageGroupFilter(pkgCompleteInfo.groupId);
+                }}
+                style={({ pressed }) => ({ marginTop: 4, width: '100%', paddingVertical: 12, borderRadius: 14, borderWidth: 1.5, borderColor: colors.primary, alignItems: 'center', opacity: pressed ? 0.7 : 1 })}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '600', color: colors.primary }}>View Package Sessions</Text>
+              </Pressable>
+            )}
             <Pressable
               onPress={() => setShowPkgCompleteModal(false)}
-              style={({ pressed }) => ({ marginTop: 8, width: '100%', paddingVertical: 14, borderRadius: 14, backgroundColor: colors.primary, alignItems: 'center', opacity: pressed ? 0.8 : 1 })}
+              style={({ pressed }) => ({ marginTop: 4, width: '100%', paddingVertical: 14, borderRadius: 14, backgroundColor: colors.primary, alignItems: 'center', opacity: pressed ? 0.8 : 1 })}
             >
               <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFF' }}>Awesome!</Text>
             </Pressable>

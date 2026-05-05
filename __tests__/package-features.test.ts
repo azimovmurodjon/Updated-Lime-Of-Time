@@ -102,6 +102,65 @@ describe("Calendar Teal Package Dot (calendar.tsx)", () => {
   });
 });
 
+// ─── Feature 4: Progress bar in banner ──────────────────────────────────────
+
+describe("Package Banner Progress Bar (bookings.tsx)", () => {
+  it("computes booked count from non-cancelled sessions", () => {
+    expect(bookings).toContain("a.status !== 'cancelled'");
+  });
+
+  it("renders a progress bar track and fill", () => {
+    expect(bookings).toContain("pct * 100");
+  });
+
+  it("shows X/Y session count in the banner header", () => {
+    expect(bookings).toContain("{booked}/{total}");
+  });
+
+  it("shows 'All sessions booked' when complete", () => {
+    expect(bookings).toContain("All sessions booked ✓");
+  });
+
+  it("shows remaining count when not complete", () => {
+    expect(bookings).toContain("remaining`");
+  });
+});
+
+// ─── Feature 5: View Package shortcut in completion modal ────────────────────
+
+describe("View Package Shortcut in Completion Modal (bookings.tsx)", () => {
+  it("has a 'View Package Sessions' button", () => {
+    expect(bookings).toContain("View Package Sessions");
+  });
+
+  it("sets packageGroupFilter from pkgCompleteInfo.groupId on press", () => {
+    expect(bookings).toContain("setPackageGroupFilter(pkgCompleteInfo.groupId)");
+  });
+
+  it("pkgCompleteInfo type includes groupId field", () => {
+    expect(bookings).toContain("groupId: string");
+  });
+
+  it("passes groupId when setting pkgCompleteInfo", () => {
+    expect(bookings).toContain("groupId });");
+  });
+});
+
+// ─── Feature 6: Package session legend in calendar ───────────────────────────
+
+describe("Package Session Legend in Calendar Month View (calendar.tsx)", () => {
+  it("renders a teal legend dot for Package session", () => {
+    expect(calendar).toContain("Package session");
+  });
+
+  it("uses the correct teal color in the legend", () => {
+    // The legend line has the color and label on the same line; search a window around the label
+    const idx = calendar.lastIndexOf("Package session"); // last occurrence = legend (not comment)
+    const legendLine = calendar.slice(Math.max(0, idx - 150), idx + 50);
+    expect(legendLine).toContain("'#0891b2'");
+  });
+});
+
 // ─── Shared: lib/types.ts has package fields on Appointment ──────────────────
 
 describe("Appointment type has package session fields (lib/types.ts)", () => {

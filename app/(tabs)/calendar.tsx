@@ -1845,6 +1845,7 @@ export default function CalendarScreen() {
         <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: "#9CA3AF" }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Pending</Text></View>
         <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: colors.success }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Completed</Text></View>
         <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: colors.error }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Cancelled</Text></View>
+        <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#0891b2' }]} /><Text style={{ fontSize: 10, color: colors.muted }}>Package session</Text></View>
       </View>
 
       {/* Selected Date Panel */}
