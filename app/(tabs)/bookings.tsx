@@ -90,7 +90,7 @@ const FILTER_STORAGE_KEY = "bookings_active_filter";
 export default function BookingsScreen() {
   const colors = useColors();
   const router = useRouter();
-  const params = useLocalSearchParams<{ filter?: string }>();
+  const params = useLocalSearchParams<{ filter?: string; packageGroupId?: string }>();
   const { hp, width } = useResponsive();
   const { state, dispatch, getServiceById, getClientById, getStaffById, getLocationById, syncToDb, filterAppointmentsByLocation, bulkMarkPaid, bulkMarkUnpaid } = useStore();
   const { activeLocation, activeLocations, hasMultipleLocations: hasMultiLoc } = useActiveLocation();
@@ -117,6 +117,9 @@ export default function BookingsScreen() {
 
   const initialFilter = (params.filter as FilterKey) || "upcoming";
   const [activeFilter, setActiveFilter] = useState<FilterKey>(initialFilter);
+
+  // Package group filter — when navigating from 'View all sessions' in appointment-detail
+  const [packageGroupFilter, setPackageGroupFilter] = useState<string | null>(params.packageGroupId ?? null);
 
   const setActiveFilterPersisted = useCallback((key: FilterKey) => {
     setActiveFilter(key);
@@ -382,8 +385,13 @@ export default function BookingsScreen() {
     if (selectedDateFilter) {
       result = result.filter((a) => a.date === selectedDateFilter);
     }
+    // Apply package group filter if set
+    if (packageGroupFilter) {
+      result = locationAppointments.filter((a) => a.packageGroupId === packageGroupFilter)
+        .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+    }
     return result;
-  }, [locationAppointments, activeFilter, methodFilter, todayStr, selectedDateFilter]);
+  }, [locationAppointments, activeFilter, methodFilter, todayStr, selectedDateFilter, packageGroupFilter]);
 
   // ─── Grouped sections ─────────────────────────────────────────────────
 
@@ -852,6 +860,25 @@ export default function BookingsScreen() {
                 style={({ pressed }) => [{ backgroundColor: "#22C55E", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, opacity: pressed ? 0.8 : 1 }]}
               >
                 <Text style={{ color: "#FFF", fontSize: 13, fontWeight: "700" }}>Mark All Paid</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        {/* Package group filter banner */}
+        {packageGroupFilter && (
+          <View style={{ paddingHorizontal: hp, marginBottom: 10 }}>
+            <View style={{ backgroundColor: '#0891b215', borderRadius: 12, borderWidth: 1.5, borderColor: '#0891b2', padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Text style={{ fontSize: 14 }}>📦</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#0891b2' }}>Package Sessions</Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>Showing all sessions for this package</Text>
+              </View>
+              <Pressable
+                onPress={() => setPackageGroupFilter(null)}
+                style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#0891b220' })}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#0891b2' }}>Clear</Text>
               </Pressable>
             </View>
           </View>

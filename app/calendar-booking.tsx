@@ -1820,11 +1820,24 @@ export default function CalendarBookingScreen() {
                   const isSelected = ds === pkgSessionDate;
                   const isToday = ds === todayStr;
                   const isScheduled = packageSessions.some((s) => s.date === ds);
+                  const isBufferBlocked = ds < minAllowedDate;
+                  const pkgSlotCount = (() => {
+                    if (closed || isBufferBlocked) return 0;
+                    const slots = generateCalendarSlots(
+                      ds, sessionDuration, locationWorkingHours,
+                      locationAppointments, effectiveStep,
+                      activeCustomSchedule, state.settings.scheduleMode,
+                      state.settings.bufferTime ?? 0
+                    );
+                    return slots.length;
+                  })();
+                  const isFull = !closed && !isBufferBlocked && pkgSlotCount === 0;
+                  const isDisabled = closed || isFull || isBufferBlocked;
                   return (
                     <Pressable
                       key={ds}
                       onPress={() => {
-                        if (closed) return;
+                        if (isDisabled) return;
                         setPkgSessionDate(ds);
                         setPkgSessionTime(null);
                       }}
@@ -1833,13 +1846,13 @@ export default function CalendarBookingScreen() {
                         aspectRatio: 1,
                         alignItems: "center",
                         justifyContent: "center",
-                        opacity: closed ? 0.3 : pressed ? 0.7 : 1,
+                        opacity: isBufferBlocked ? 0.25 : isDisabled ? 0.45 : pressed ? 0.7 : 1,
                       })}
                     >
                       <View style={{
                         width: 34,
                         height: 34,
-                        borderRadius: 17,
+                        borderRadius: isSelected ? 8 : 17,
                         alignItems: "center",
                         justifyContent: "center",
                         backgroundColor: isSelected ? colors.primary : isScheduled ? colors.success + "30" : "transparent",
@@ -1849,10 +1862,13 @@ export default function CalendarBookingScreen() {
                         <Text style={{
                           fontSize: 14,
                           fontWeight: isSelected || isToday ? "700" : "400",
-                          color: isSelected ? "#FFF" : isScheduled ? colors.success : closed ? colors.muted : colors.foreground,
+                          color: isSelected ? "#FFF" : isScheduled ? colors.success : isDisabled ? colors.muted : colors.foreground,
                         }}>{day}</Text>
                       </View>
-                      {isScheduled && !isSelected && (
+                      {isFull && !isBufferBlocked && (
+                        <Text style={{ fontSize: 8, fontWeight: "700", color: colors.error, marginTop: 1, letterSpacing: 0.3 }}>FULL</Text>
+                      )}
+                      {isScheduled && !isSelected && !isFull && (
                         <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.success, marginTop: 1 }} />
                       )}
                     </Pressable>

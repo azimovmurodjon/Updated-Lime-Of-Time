@@ -67,6 +67,11 @@ export interface Appointment {
   /** Total price including primary service + extra items. Falls back to service price if not set. */
   totalPrice?: number;
   /** Structured list of extra items (services/products) added to this appointment */
+  // Package session metadata
+  packageGroupId?: string;
+  packageName?: string;
+  sessionIndex?: number;
+  sessionTotal?: number;
   extraItems?: AppointmentExtraItem[];
   /** Whether a gift card was applied to this appointment */
   giftApplied?: boolean;

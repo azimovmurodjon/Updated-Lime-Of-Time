@@ -1729,35 +1729,45 @@ export default function CalendarScreen() {
                 {/* +Book Appointment CTA — only shown after a time is selected */}
                 {selectedSlotTime && (
                   <View style={{ paddingHorizontal: 14, paddingBottom: 12 }}>
-                    <Pressable
-                      onPress={() => {
-                        // In All mode, pass the eligible location IDs for this time slot
-                        const eligibleLocIds = locationSlots.get(selectedSlotTime);
-                        const params: Record<string, string> = {
-                          date: expandedDate!,
-                          time: selectedSlotTime,
-                        };
-                        if (eligibleLocIds && eligibleLocIds.length > 0) {
-                          params.eligibleLocationIds = eligibleLocIds.join(',');
-                        }
-                        router.push({ pathname: "/calendar-booking", params });
-                        setExpandedDate(null);
-                        setSelectedSlotTime(null);
-                      }}
-                      style={({ pressed }) => ({
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        backgroundColor: colors.primary,
-                        borderRadius: 12,
-                        paddingVertical: 12,
-                        gap: 6,
-                        opacity: pressed ? 0.8 : 1,
-                      })}
-                    >
-                      <IconSymbol name="plus" size={16} color="#FFF" />
-                      <Text style={{ color: "#FFF", fontSize: 14, fontWeight: "700" }}>Book Appointment</Text>
-                    </Pressable>
+                    {isAllLocMode ? (
+                      <View style={{ borderRadius: 12, borderWidth: 1.5, borderColor: colors.warning, backgroundColor: colors.warning + '15', paddingVertical: 12, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        <IconSymbol name="location.fill" size={16} color={colors.warning} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: colors.warning }}>Select a Location First</Text>
+                          <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>Use the location filter at the top to pick a specific location before booking.</Text>
+                        </View>
+                      </View>
+                    ) : (
+                      <Pressable
+                        onPress={() => {
+                          // In All mode, pass the eligible location IDs for this time slot
+                          const eligibleLocIds = locationSlots.get(selectedSlotTime);
+                          const params: Record<string, string> = {
+                            date: expandedDate!,
+                            time: selectedSlotTime,
+                          };
+                          if (eligibleLocIds && eligibleLocIds.length > 0) {
+                            params.eligibleLocationIds = eligibleLocIds.join(',');
+                          }
+                          router.push({ pathname: "/calendar-booking", params });
+                          setExpandedDate(null);
+                          setSelectedSlotTime(null);
+                        }}
+                        style={({ pressed }) => ({
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: colors.primary,
+                          borderRadius: 12,
+                          paddingVertical: 12,
+                          gap: 6,
+                          opacity: pressed ? 0.8 : 1,
+                        })}
+                      >
+                        <IconSymbol name="plus" size={16} color="#FFF" />
+                        <Text style={{ color: "#FFF", fontSize: 14, fontWeight: "700" }}>Book Appointment</Text>
+                      </Pressable>
+                    )}
                   </View>
                 )}
               </>

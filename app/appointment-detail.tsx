@@ -861,6 +861,30 @@ Would you also like to charge a no-show fee via Stripe?`,
           );
         })()}
 
+        {/* Part of Package Banner */}
+        {appointment.packageGroupId && (
+          <View style={{ borderRadius: 14, borderWidth: 1.5, borderColor: '#0891b2', backgroundColor: '#0891b215', paddingVertical: 12, paddingHorizontal: 14, marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: '#0891b2', alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontSize: 16 }}>📦</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#0891b2' }}>Part of a Package</Text>
+              {appointment.packageName ? (
+                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>{appointment.packageName}</Text>
+              ) : null}
+              {appointment.sessionIndex != null && appointment.sessionTotal != null ? (
+                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>Session {appointment.sessionIndex} of {appointment.sessionTotal}</Text>
+              ) : null}
+            </View>
+            <Pressable
+              onPress={() => router.push({ pathname: '/(tabs)/bookings' as any, params: { packageGroupId: appointment.packageGroupId } })}
+              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#0891b220' })}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#0891b2' }}>View all</Text>
+            </Pressable>
+          </View>
+        )}
+
         {/* Itemized Charges */}
         {(() => {
           const extras = appointment.extraItems ?? [];
