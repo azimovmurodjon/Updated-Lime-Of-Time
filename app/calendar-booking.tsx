@@ -174,14 +174,23 @@ export default function CalendarBookingScreen() {
   const preselectedDate = showDateTimePicker ? step0Date : (params.date ?? formatDateStr(new Date()));
   const preselectedTime = showDateTimePicker ? step0Time : (params.time ?? null);
   // Multi-service selection: array of services chosen in Step 1
-  // Pre-populate from packageId param (from Package Browser)
+  // Pre-populate from packageId param (from Package Browser) — synchronous init so it's ready before first render
   const [selectedServices, setSelectedServices] = useState<CartItem[]>(() => {
     const pkgId = params.packageId;
     if (!pkgId) return [];
-    // We can't call useStore here (already called above), but we can read the raw store value
-    // The store is available via the `state` variable declared below — use a lazy init workaround:
-    // We'll populate in a useEffect instead (see below)
-    return [];
+    const pkg = (state.packages ?? []).find((p: any) => p.id === pkgId);
+    if (!pkg) return [];
+    const includedSvcs = (pkg.serviceIds ?? []).map((id: string) => state.services.find((s: any) => s.id === id)).filter(Boolean) as any[];
+    const totalDuration = includedSvcs.reduce((s: number, sv: any) => s + sv.duration, 0);
+    return [{
+      type: "package" as const,
+      id: pkg.id,
+      packageId: pkg.id,
+      packageServiceIds: pkg.serviceIds,
+      name: pkg.name,
+      price: pkg.price,
+      duration: totalDuration,
+    }];
   });
   // Derived: primary service ID is the first selected service
   const selectedServiceId = selectedServices.length > 0 ? selectedServices[0].id : null;
@@ -1398,7 +1407,13 @@ export default function CalendarBookingScreen() {
                       Alert.alert("Select a Time", "Please select a time slot to continue.");
                       return;
                     }
-                    setStep(1);
+                    // If a package is pre-selected (from Package Browser), skip service selection (Step 1)
+                    // and go directly to Select Client (Step 2)
+                    if (params.packageId && selectedServices.length > 0) {
+                      setStep(2);
+                    } else {
+                      setStep(1);
+                    }
                   }}
                   style={({ pressed }) => ([
                     styles.confirmBtn,
