@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import {
   Text,
   View,
@@ -106,6 +106,7 @@ export default function CalendarBookingScreen() {
     locationId?: string;
     preselectedLocationId?: string; // passed from Home page location filter
     eligibleLocationIds?: string; // comma-separated list of location IDs available at the selected time
+    packageId?: string; // pre-select a package (from Package Browser)
   }>();
 
   const sendSmsMutation = trpc.twilio.sendSms.useMutation();
@@ -129,6 +130,30 @@ export default function CalendarBookingScreen() {
   const [step0CalMonthOffset, setStep0CalMonthOffset] = useState(0);
   const [step0SlotInterval, setStep0SlotInterval] = useState<number | null>(null);
   const [step0ClosedDayMsg, setStep0ClosedDayMsg] = useState<string | null>(null);
+  // Pre-populate selectedServices when a packageId param is passed (from Package Browser)
+  useEffect(() => {
+    const pkgId = params.packageId;
+    if (!pkgId) return;
+    const pkg = (state.packages ?? []).find((p) => p.id === pkgId);
+    if (!pkg) return;
+    const includedSvcs = pkg.serviceIds
+      .map((id: string) => state.services.find((s: any) => s.id === id))
+      .filter(Boolean) as typeof state.services;
+    const totalDuration = includedSvcs.reduce((s: number, sv: any) => s + sv.duration, 0);
+    setSelectedServices([{
+      type: "package",
+      id: pkg.id,
+      packageId: pkg.id,
+      packageServiceIds: pkg.serviceIds,
+      name: pkg.name,
+      price: pkg.price,
+      duration: totalDuration,
+    }]);
+    // Skip Step 1 (service selection) — go straight to Step 0 or Step 8
+    // Step will already be 0 (date picker) or 1 (service) — keep as-is, package is pre-selected
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.packageId]);
+
   const step0ClosedDayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showStep0ClosedDayMsg = useCallback((msg: string) => {
     if (step0ClosedDayTimer.current) clearTimeout(step0ClosedDayTimer.current);
@@ -145,7 +170,15 @@ export default function CalendarBookingScreen() {
   const preselectedDate = showDateTimePicker ? step0Date : (params.date ?? formatDateStr(new Date()));
   const preselectedTime = showDateTimePicker ? step0Time : (params.time ?? null);
   // Multi-service selection: array of services chosen in Step 1
-  const [selectedServices, setSelectedServices] = useState<CartItem[]>([]);
+  // Pre-populate from packageId param (from Package Browser)
+  const [selectedServices, setSelectedServices] = useState<CartItem[]>(() => {
+    const pkgId = params.packageId;
+    if (!pkgId) return [];
+    // We can't call useStore here (already called above), but we can read the raw store value
+    // The store is available via the `state` variable declared below — use a lazy init workaround:
+    // We'll populate in a useEffect instead (see below)
+    return [];
+  });
   // Derived: primary service ID is the first selected service
   const selectedServiceId = selectedServices.length > 0 ? selectedServices[0].id : null;
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -1400,6 +1433,44 @@ export default function CalendarBookingScreen() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 120, paddingHorizontal: hp }}
           >
+            {/* ── Book a Package banner ─────────────────────────────────────── */}
+            {(() => {
+              const activePackages = (state.packages ?? []).filter((p) => p.active);
+              if (activePackages.length === 0) return null;
+              return (
+                <Pressable
+                  onPress={() => router.push({
+                    pathname: "/package-browser" as any,
+                    params: selectedLocationId ? { locationId: selectedLocationId } : {},
+                  })}
+                  style={({ pressed }) => ({
+                    backgroundColor: colors.primary + "12",
+                    borderColor: colors.primary + "40",
+                    borderWidth: 1.5,
+                    borderRadius: 14,
+                    paddingHorizontal: 14,
+                    paddingVertical: 12,
+                    marginBottom: 16,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 10,
+                    opacity: pressed ? 0.75 : 1,
+                  })}
+                >
+                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colors.primary + "20", alignItems: "center", justifyContent: "center" }}>
+                    <Text style={{ fontSize: 18 }}>📦</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: colors.primary }}>Book a Package</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>
+                      {activePackages.length} bundle{activePackages.length !== 1 ? "s" : ""} available — save more when you book together
+                    </Text>
+                  </View>
+                  <IconSymbol name="chevron.right" size={16} color={colors.primary} />
+                </Pressable>
+              );
+            })()}
+
             {/* ── Packages & Bundles section ─────────────────────────────────── */}
             {(() => {
               const activePackages = (state.packages ?? []).filter((p) => p.active);
@@ -1931,10 +2002,20 @@ export default function CalendarBookingScreen() {
                           color: isSelected ? "#FFF" : isScheduled ? colors.success : isDisabled ? colors.muted : colors.foreground,
                         }}>{day}</Text>
                       </View>
-                      {isFull && !isBufferBlocked && (
-                        <Text style={{ fontSize: 8, fontWeight: "700", color: colors.error, marginTop: 1, letterSpacing: 0.3 }}>FULL</Text>
-                      )}
-                      {isScheduled && !isSelected && !isFull && (
+                      {/* Slot count badge / FULL label — shown below the date circle */}
+                      {!isBufferBlocked && !closed && !isScheduled && (() => {
+                        if (isFull) {
+                          return <Text style={{ fontSize: 8, fontWeight: "700", color: colors.error, marginTop: 1, letterSpacing: 0.3 }}>FULL</Text>;
+                        }
+                        // Color coding: green ≥ 6, amber 2–5, red 1
+                        const slotColor = pkgSlotCount >= 6 ? "#22C55E" : pkgSlotCount >= 2 ? "#F59E0B" : "#EF4444";
+                        return (
+                          <Text style={{ fontSize: 8, fontWeight: "700", color: isSelected ? "rgba(255,255,255,0.85)" : slotColor, marginTop: 1 }}>
+                            {pkgSlotCount}
+                          </Text>
+                        );
+                      })()}
+                      {isScheduled && !isSelected && (
                         <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.success, marginTop: 1 }} />
                       )}
                     </Pressable>
