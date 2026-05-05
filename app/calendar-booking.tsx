@@ -1824,10 +1824,10 @@ export default function CalendarBookingScreen() {
                   const pkgSlotCount = (() => {
                     if (closed || isBufferBlocked) return 0;
                     const slots = generateCalendarSlots(
-                      ds, sessionDuration, locationWorkingHours,
-                      locationAppointments, effectiveStep,
-                      activeCustomSchedule, state.settings.scheduleMode,
-                      state.settings.bufferTime ?? 0
+                      ds, sessionDuration, state.settings.workingHours,
+                      state.appointments, 30,
+                      state.customSchedule ?? [], state.settings.scheduleMode,
+                      (state.settings as any).bufferTime ?? 0
                     );
                     return slots.length;
                   })();
