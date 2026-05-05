@@ -1677,7 +1677,7 @@ export default function CalendarScreen() {
                   );
                 })()}
                 {/* Scrollable time slot chips — tap to select */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingVertical: 10 }} contentContainerStyle={{ paddingHorizontal: 12, gap: 8, flexDirection: "row" }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingVertical: 10 }} contentContainerStyle={{ paddingHorizontal: 12, gap: 8, flexDirection: "row", alignItems: "center" }}>
                   {(showAllSlots ? availableSlots : availableSlots.slice(0, 20)).map((slotTime) => {
                     const isChipSelected = selectedSlotTime === slotTime;
                     return (
@@ -1690,14 +1690,24 @@ export default function CalendarScreen() {
                         })}
                       >
                         <View style={{
+                          height: 48,
+                          minWidth: 80,
                           paddingHorizontal: 14,
-                          paddingVertical: 8,
-                          borderRadius: 20,
-                          backgroundColor: isChipSelected ? colors.primary : colors.primary + "18",
-                          borderWidth: 1,
-                          borderColor: isChipSelected ? colors.primary : colors.primary + "40",
+                          borderRadius: 12,
+                          backgroundColor: isChipSelected ? colors.primary : colors.surface,
+                          borderWidth: isChipSelected ? 0 : 1.5,
+                          borderColor: isChipSelected ? colors.primary : colors.border,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          ...(isChipSelected ? {
+                            shadowColor: colors.primary,
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.25,
+                            shadowRadius: 4,
+                            elevation: 3,
+                          } : {}),
                         }}>
-                          <Text style={{ fontSize: 13, fontWeight: "600", color: isChipSelected ? "#FFF" : colors.primary }}>
+                          <Text style={{ fontSize: 13, fontWeight: "700", color: isChipSelected ? "#FFF" : colors.foreground }}>
                             {formatTimeDisplay(slotTime)}
                           </Text>
                         </View>

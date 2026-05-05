@@ -125,9 +125,28 @@ export default function PackageBrowserScreen() {
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 32 }}>
           <Text style={{ fontSize: 40, marginBottom: 12 }}>📦</Text>
           <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground, marginBottom: 6, textAlign: "center" }}>No Packages Yet</Text>
-          <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center" }}>
-            Create packages in Settings → Services to offer bundled deals to your clients.
+          <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center", lineHeight: 20 }}>
+            Create packages in Packages & Bundles settings to offer bundled deals to your clients.
           </Text>
+          <Pressable
+            onPress={() => router.push("/packages" as any)}
+            style={({ pressed }) => ({
+              marginTop: 24,
+              paddingHorizontal: 24,
+              paddingVertical: 14,
+              borderRadius: 12,
+              backgroundColor: colors.primary,
+              opacity: pressed ? 0.8 : 1,
+            })}
+          >
+            <Text style={{ fontSize: 15, fontWeight: "700", color: "#FFFFFF" }}>Go to Packages Settings</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => router.back()}
+            style={({ pressed }) => ({ marginTop: 12, opacity: pressed ? 0.6 : 1 })}
+          >
+            <Text style={{ fontSize: 14, color: colors.muted }}>Go Back</Text>
+          </Pressable>
         </View>
       </ScreenContainer>
     );

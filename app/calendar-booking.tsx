@@ -1159,6 +1159,20 @@ export default function CalendarBookingScreen() {
               </View>
             </View>
 
+            {/* Location subtitle — shown once a location is selected */}
+            {step0Location && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10, paddingHorizontal: 4 }}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary }} />
+                <Text style={{ fontSize: 12, fontWeight: "600", color: colors.primary }} numberOfLines={1}>
+                  Booking at {step0Location.name}
+                </Text>
+                {!!formatFullAddress(step0Location.address, step0Location.city, step0Location.state, step0Location.zipCode) && (
+                  <Text style={{ fontSize: 11, color: colors.muted, flex: 1 }} numberOfLines={1}>
+                    {formatFullAddress(step0Location.address, step0Location.city, step0Location.state, step0Location.zipCode)}
+                  </Text>
+                )}
+              </View>
+            )}
             {/* Day headers */}
             <View style={{ flexDirection: "row", width: "100%", marginBottom: 4 }}>
               {DAY_HEADERS.map((d) => (
