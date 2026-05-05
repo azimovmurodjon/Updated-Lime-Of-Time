@@ -1471,7 +1471,7 @@ export default function CalendarBookingScreen() {
                 <Pressable
                   onPress={() => router.push({
                     pathname: "/package-browser" as any,
-                    params: selectedLocationId ? { locationId: selectedLocationId } : {},
+                    params: { ...(selectedLocationId ? { locationId: selectedLocationId } : {}), fromCalendarBooking: '1' },
                   })}
                   style={({ pressed }) => ({
                     backgroundColor: colors.primary + "12",

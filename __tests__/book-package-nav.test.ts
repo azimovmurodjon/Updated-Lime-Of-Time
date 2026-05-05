@@ -56,8 +56,9 @@ describe("Package Browser — handleBookPackage navigation", () => {
   });
 
   it("should pass locationId param if available", () => {
-    const navBlock = browserSrc.slice(browserSrc.indexOf('pathname: "/calendar-booking"'));
-    expect(navBlock.slice(0, 300)).toContain("locationId");
+    // locationId is in the navParams object built before the pathname call
+    const handleBlock = browserSrc.slice(browserSrc.indexOf("handleBookPackage"));
+    expect(handleBlock.slice(0, 600)).toContain("locationId");
   });
 
   it("should dismiss the detail sheet before navigating", () => {

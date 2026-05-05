@@ -49,7 +49,7 @@ function formatExpiry(days: number): string {
 export default function PackageBrowserScreen() {
   const colors = useColors();
   const router = useRouter();
-  const params = useLocalSearchParams<{ locationId?: string; preselectedLocationId?: string }>();
+  const params = useLocalSearchParams<{ locationId?: string; preselectedLocationId?: string; fromCalendarBooking?: string }>();
 
   const { state } = useStore();
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
@@ -98,15 +98,19 @@ export default function PackageBrowserScreen() {
 
   const handleBookPackage = (pkg: ServicePackage) => {
     setDetailPackage(null);
-    const info = getPackageInfo(pkg);
-    router.push({
-      pathname: "/calendar-booking",
-      params: {
-        packageId: pkg.id,
-        ...(params.locationId ? { locationId: params.locationId } : {}),
-        ...(params.preselectedLocationId ? { preselectedLocationId: params.preselectedLocationId } : {}),
-      },
-    });
+    const navParams = {
+      packageId: pkg.id,
+      ...(params.locationId ? { locationId: params.locationId } : {}),
+      ...(params.preselectedLocationId ? { preselectedLocationId: params.preselectedLocationId } : {}),
+    };
+    // If opened from within calendar-booking (Step 1 banner), replace this screen so the
+    // back stack is clean: (tabs) → calendar-booking (with package pre-selected).
+    // If opened standalone (e.g. from home quick-actions), push a fresh calendar-booking.
+    if (params.fromCalendarBooking === "1") {
+      router.replace({ pathname: "/calendar-booking", params: navParams } as any);
+    } else {
+      router.push({ pathname: "/calendar-booking", params: navParams });
+    }
   };
 
   const s = styles(colors);
