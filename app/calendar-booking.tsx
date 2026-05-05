@@ -50,13 +50,14 @@ import { FuturisticBackground } from "@/components/futuristic-background";
 // Steps:
 // 0 = Date & Time picker (only when launched from Home page without a pre-selected time)
 // 1 = Service Category / Service selection
+// 1b (8) = Multi-session package scheduler (only when a package is selected)
 // 2 = Client selection
 // 3 = Location selection (only if multiple locations)
 // 4 = Staff selection (filtered by location)
 // 5 = Review & Add More
 // 6 = Payment Method
 // 7 = Confirm
-type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -171,6 +172,18 @@ export default function CalendarBookingScreen() {
   const [appliedManualDiscount, setAppliedManualDiscount] = useState<import("@/lib/types").Discount | null>(null);
   // Legacy combined sheet (kept for backward compat, now unused)
   const [showDiscountSheet, setShowDiscountSheet] = useState(false);
+
+  // Package multi-session scheduler state (Step 8)
+  // packageSessions: array of { date, time } for each session the user schedules
+  const [packageSessions, setPackageSessions] = useState<{ date: string; time: string }[]>([]);
+  // Which session index is currently being scheduled (0-based)
+  const [pkgSessionIdx, setPkgSessionIdx] = useState(0);
+  // Calendar month offset for the package session scheduler
+  const [pkgCalMonthOffset, setPkgCalMonthOffset] = useState(0);
+  // Selected date in the package session scheduler
+  const [pkgSessionDate, setPkgSessionDate] = useState<string>(() => formatDateStr(new Date()));
+  // Selected time in the package session scheduler
+  const [pkgSessionTime, setPkgSessionTime] = useState<string | null>(null);
 
   // Whether the location was pre-passed from the Home page filter (show banner in Step 4)
   const homePagePreselectedLocationId = params.preselectedLocationId || null;
@@ -438,7 +451,10 @@ export default function CalendarBookingScreen() {
   }, [activeLocations.length, selectedLocationId]);
 
   const handleBook = useCallback(() => {
-    if (!selectedServiceId || !selectedClientId || !preselectedTime) return;
+    // For package multi-session bookings, require at least client and sessions
+    const isPackageBooking = packageSessions.length > 0;
+    if (!isPackageBooking && (!selectedServiceId || !preselectedTime)) return;
+    if (!selectedClientId) return;
     let effectiveLocationId = selectedLocationId;
     if (!effectiveLocationId && activeLocations.length === 1) {
       effectiveLocationId = activeLocations[0].id;
@@ -469,12 +485,54 @@ export default function CalendarBookingScreen() {
       })),
     ];
 
+    if (isPackageBooking) {
+      // Multi-session package: create one appointment per session, all sharing a packageGroupId
+      const pkgCartItem = selectedServices.find((s) => s.type === "package");
+      const pkgId = pkgCartItem?.packageId;
+      const pkgName = pkgCartItem?.name ?? "Package";
+      const pkgDuration = pkgCartItem?.duration ?? totalDuration;
+      const pkgPrice = pkgCartItem?.price ?? totalPrice;
+      const packageGroupId = generateId(); // shared across all sessions
+      const sessionCount = packageSessions.length;
+      packageSessions.forEach((session, idx) => {
+        const sessionAppointment: Appointment = {
+          id: generateId(),
+          serviceId: selectedServiceId ?? (state.services[0]?.id ?? "pkg"),
+          clientId: selectedClientId,
+          date: session.date,
+          time: session.time,
+          duration: pkgDuration,
+          status: "confirmed",
+          notes: notes.trim() ? `[Package: ${pkgName} — Session ${idx + 1}/${sessionCount}] ${notes.trim()}` : `Package: ${pkgName} — Session ${idx + 1}/${sessionCount}`,
+          createdAt: new Date().toISOString(),
+          totalPrice: idx === 0 ? pkgPrice : 0, // charge on first session only
+          staffId: selectedStaffId ?? undefined,
+          locationId: effectiveLocationId ?? undefined,
+          paymentStatus: idx === 0 ? (pkgPrice <= 0 ? "paid" : "unpaid") : "paid",
+          paymentMethod: (selectedPaymentMethod ?? undefined) as "free" | "zelle" | "venmo" | "cashapp" | "cash" | "card" | "unpaid" | undefined,
+          // Package metadata stored in extraItems
+          extraItems: [{
+            type: "package" as const,
+            id: pkgId ?? "pkg",
+            name: pkgName,
+            price: pkgPrice,
+            duration: pkgDuration,
+            packageGroupId,
+            sessionIndex: idx,
+            sessionTotal: sessionCount,
+          } as any],
+        };
+        dispatch({ type: "ADD_APPOINTMENT", payload: sessionAppointment });
+        syncToDb({ type: "ADD_APPOINTMENT", payload: sessionAppointment });
+      });
+    } else {
+    // Single appointment (non-package)
     const appointment: Appointment = {
       id: generateId(),
-      serviceId: selectedServiceId,
+      serviceId: selectedServiceId!,
       clientId: selectedClientId,
       date: preselectedDate,
-      time: preselectedTime,
+      time: preselectedTime!,
       duration: totalDuration,
       status: "confirmed",
       notes: notes.trim(),
@@ -563,7 +621,7 @@ export default function CalendarBookingScreen() {
         svc ? getServiceDisplayName(svc) : "Service",
         totalDuration,
         preselectedDate,
-        preselectedTime,
+        preselectedTime ?? "",
         apptLoc?.phone || profile.phone,
         client.phone,
         apptLoc?.name,
@@ -598,6 +656,11 @@ export default function CalendarBookingScreen() {
 
     // Navigate to the newly created appointment detail page
     router.replace({ pathname: "/appointment-detail", params: { id: appointment.id } });
+    } // end else (single appointment)
+    // For package bookings, navigate back to home after all sessions are created
+    if (packageSessions.length > 0) {
+      router.replace({ pathname: "/(tabs)" });
+    }
   }, [
     selectedServiceId,
     selectedClientId,
@@ -623,6 +686,7 @@ export default function CalendarBookingScreen() {
     getLocationById,
     selectedService,
     requestingCardPayment,
+    packageSessions,
   ]);
 
   // Determine step count based on whether location selection is needed
@@ -1534,6 +1598,18 @@ export default function CalendarBookingScreen() {
             <Pressable
               onPress={() => {
                 if (selectedServices.length === 0) return;
+                // If a package is selected, go to multi-session scheduler (Step 8)
+                const hasPackage = selectedServices.some((s) => s.type === "package");
+                if (hasPackage) {
+                  // Reset session scheduler state
+                  setPackageSessions([]);
+                  setPkgSessionIdx(0);
+                  setPkgCalMonthOffset(0);
+                  setPkgSessionDate(formatDateStr(new Date()));
+                  setPkgSessionTime(null);
+                  setStep(8);
+                  return;
+                }
                 setStep(2);
               }}
               style={({ pressed }) => [
@@ -1552,6 +1628,317 @@ export default function CalendarBookingScreen() {
           </View>
         </View>
       )}
+
+      {/* ─── Step 8: Multi-Session Package Scheduler ─── */}
+      {step === 8 && (() => {
+        const pkgCartItem = selectedServices.find((s) => s.type === "package");
+        const pkg = pkgCartItem ? (state.packages ?? []).find((p) => p.id === pkgCartItem.packageId) : null;
+        const totalSessions = pkg?.sessions ?? 1;
+        const bufferDays = pkg?.bufferDays ?? 0;
+        const sessionDuration = pkgCartItem?.duration ?? 60;
+
+        const today = new Date();
+        const todayStr = formatDateStr(today);
+        const displayDate = new Date(today.getFullYear(), today.getMonth() + pkgCalMonthOffset, 1);
+        const displayMonth = displayDate.getMonth();
+        const displayYear = displayDate.getFullYear();
+        const firstDayOfWeek = new Date(displayYear, displayMonth, 1).getDay();
+        const daysInMonth = new Date(displayYear, displayMonth + 1, 0).getDate();
+        const calCells: (number | null)[] = [
+          ...Array(firstDayOfWeek).fill(null),
+          ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+        ];
+
+        // Compute the minimum allowed date for this session (buffer days after previous session)
+        const prevSession = pkgSessionIdx > 0 ? packageSessions[pkgSessionIdx - 1] : null;
+        const minAllowedDate = prevSession && bufferDays > 0
+          ? (() => {
+              const d = new Date(prevSession.date + "T12:00:00");
+              d.setDate(d.getDate() + bufferDays);
+              return formatDateStr(d);
+            })()
+          : todayStr;
+
+        // Check if a date is closed (uses same logic as Step 0)
+        const isPkgDateClosed = (ds: string): boolean => {
+          if (ds < minAllowedDate) return true;
+          const endDate = state.settings.businessHoursEndDate;
+          if (endDate && ds > endDate) return true;
+          const customDay = (state.customSchedule ?? []).find((cs: any) => cs.date === ds);
+          if (state.settings.scheduleMode === "custom") return !customDay || !customDay.isOpen;
+          if (customDay) return !customDay.isOpen;
+          const d = new Date(ds + "T12:00:00");
+          const dayName = DAYS_OF_WEEK[d.getDay()];
+          const wh = (state.settings.workingHours as any)?.[dayName];
+          return !wh || !wh.enabled;
+        };
+
+        // Compute available time slots for the selected date
+        const pkgTimeSlots: string[] = (() => {
+          if (isPkgDateClosed(pkgSessionDate)) return [];
+          return generateCalendarSlots(
+            pkgSessionDate, sessionDuration,
+            state.settings.workingHours,
+            state.appointments,
+            30,
+            state.customSchedule ?? [],
+            state.settings.scheduleMode,
+            (state.settings as any).bufferTime ?? 0
+          );
+        })();
+
+        // Group time slots by Morning / Afternoon / Evening
+        const pkgSlotGroups: { label: string; slots: string[] }[] = [];
+        const morningSlots = pkgTimeSlots.filter((t) => { const h = parseInt(t.split(":")[0]); return h < 12; });
+        const afternoonSlots = pkgTimeSlots.filter((t) => { const h = parseInt(t.split(":")[0]); return h >= 12 && h < 17; });
+        const eveningSlots = pkgTimeSlots.filter((t) => { const h = parseInt(t.split(":")[0]); return h >= 17; });
+        if (morningSlots.length > 0) pkgSlotGroups.push({ label: "Morning", slots: morningSlots });
+        if (afternoonSlots.length > 0) pkgSlotGroups.push({ label: "Afternoon", slots: afternoonSlots });
+        if (eveningSlots.length > 0) pkgSlotGroups.push({ label: "Evening", slots: eveningSlots });
+
+        const formatTimeDisplay = (time: string) => {
+          const [h, m] = time.split(":").map(Number);
+          const ap = h >= 12 ? "PM" : "AM";
+          const hr = h === 0 ? 12 : h > 12 ? h - 12 : h;
+          return `${hr}:${String(m).padStart(2, "0")} ${ap}`;
+        };
+
+        const handleConfirmSession = () => {
+          if (!pkgSessionTime) {
+            Alert.alert("Select a Time", "Please select a time slot for this session.");
+            return;
+          }
+          const newSessions = [...packageSessions];
+          newSessions[pkgSessionIdx] = { date: pkgSessionDate, time: pkgSessionTime };
+          setPackageSessions(newSessions);
+
+          if (pkgSessionIdx + 1 < totalSessions) {
+            // Advance to next session
+            const nextIdx = pkgSessionIdx + 1;
+            setPkgSessionIdx(nextIdx);
+            // Set default date for next session: minAllowed date after buffer
+            const nextMinDate = bufferDays > 0
+              ? (() => {
+                  const d = new Date(pkgSessionDate + "T12:00:00");
+                  d.setDate(d.getDate() + bufferDays);
+                  return formatDateStr(d);
+                })()
+              : pkgSessionDate;
+            setPkgSessionDate(nextMinDate);
+            setPkgSessionTime(null);
+            // Reset calendar month to show the new minimum date
+            const nextDateObj = new Date(nextMinDate + "T12:00:00");
+            const monthDiff = (nextDateObj.getFullYear() - today.getFullYear()) * 12 + (nextDateObj.getMonth() - today.getMonth());
+            setPkgCalMonthOffset(Math.max(0, monthDiff));
+          } else {
+            // All sessions scheduled — proceed to client selection
+            setStep(2);
+          }
+        };
+
+        return (
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}>
+            {/* Header */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <Pressable onPress={() => {
+                if (pkgSessionIdx > 0) {
+                  setPkgSessionIdx(pkgSessionIdx - 1);
+                  const prev = packageSessions[pkgSessionIdx - 1];
+                  if (prev) { setPkgSessionDate(prev.date); setPkgSessionTime(prev.time); }
+                  else { setPkgSessionDate(formatDateStr(new Date())); setPkgSessionTime(null); }
+                } else {
+                  setStep(1);
+                }
+              }} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+                <Text style={{ fontSize: 14, color: colors.primary }}>← Back</Text>
+              </Pressable>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>Schedule Sessions</Text>
+              <View style={{ width: 50 }} />
+            </View>
+
+            {/* Package info banner */}
+            {pkg && (
+              <View style={{ backgroundColor: colors.primary + "15", borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: colors.primary + "40" }}>
+                <Text style={{ fontSize: 15, fontWeight: "700", color: colors.primary, marginBottom: 2 }}>{pkg.name}</Text>
+                <Text style={{ fontSize: 13, color: colors.muted }}>{totalSessions} session{totalSessions !== 1 ? "s" : ""} · {sessionDuration} min each{bufferDays > 0 ? ` · ${bufferDays}+ day gap required` : ""}</Text>
+              </View>
+            )}
+
+            {/* Session progress dots */}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 20, justifyContent: "center" }}>
+              {Array.from({ length: totalSessions }).map((_, i) => {
+                const isDone = i < pkgSessionIdx || (i === pkgSessionIdx && !!packageSessions[i]);
+                const isCurrent = i === pkgSessionIdx;
+                return (
+                  <View key={i} style={{
+                    width: isCurrent ? 32 : 10,
+                    height: 10,
+                    borderRadius: 5,
+                    backgroundColor: isDone ? colors.success : isCurrent ? colors.primary : colors.border,
+                  }} />
+                );
+              })}
+            </View>
+            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.foreground, textAlign: "center", marginBottom: 16 }}>
+              Session {pkgSessionIdx + 1} of {totalSessions}
+            </Text>
+
+            {/* Buffer days notice */}
+            {bufferDays > 0 && pkgSessionIdx > 0 && (
+              <View style={{ backgroundColor: colors.warning + "20", borderRadius: 10, padding: 10, marginBottom: 14, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <IconSymbol name="exclamationmark.circle.fill" size={16} color={colors.warning} />
+                <Text style={{ fontSize: 12, color: colors.warning, flex: 1, fontWeight: "600" }}>
+                  Must be at least {bufferDays} day{bufferDays !== 1 ? "s" : ""} after Session {pkgSessionIdx} ({prevSession ? formatDateDisplay(prevSession.date) : ""})
+                </Text>
+              </View>
+            )}
+
+            {/* Calendar */}
+            <View style={{ marginBottom: 16 }}>
+              {/* Month navigation */}
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <Pressable onPress={() => pkgCalMonthOffset > 0 && setPkgCalMonthOffset(pkgCalMonthOffset - 1)} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, padding: 8 })}>
+                  <IconSymbol name="chevron.left" size={18} color={pkgCalMonthOffset > 0 ? colors.foreground : colors.border} />
+                </Pressable>
+                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>{MONTH_NAMES[displayMonth]} {displayYear}</Text>
+                <Pressable onPress={() => pkgCalMonthOffset < 5 && setPkgCalMonthOffset(pkgCalMonthOffset + 1)} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, padding: 8 })}>
+                  <IconSymbol name="chevron.right" size={18} color={pkgCalMonthOffset < 5 ? colors.foreground : colors.border} />
+                </Pressable>
+              </View>
+              {/* Day headers */}
+              <View style={{ flexDirection: "row", marginBottom: 4 }}>
+                {DAY_HEADERS.map((d) => (
+                  <Text key={d} style={{ flex: 1, textAlign: "center", fontSize: 11, fontWeight: "600", color: colors.muted }}>{d}</Text>
+                ))}
+              </View>
+              {/* Calendar grid */}
+              <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                {calCells.map((day, idx) => {
+                  if (!day) return <View key={`e${idx}`} style={{ width: "14.28%", aspectRatio: 1 }} />;
+                  const ds = `${displayYear}-${String(displayMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                  const closed = isPkgDateClosed(ds);
+                  const isSelected = ds === pkgSessionDate;
+                  const isToday = ds === todayStr;
+                  const isScheduled = packageSessions.some((s) => s.date === ds);
+                  return (
+                    <Pressable
+                      key={ds}
+                      onPress={() => {
+                        if (closed) return;
+                        setPkgSessionDate(ds);
+                        setPkgSessionTime(null);
+                      }}
+                      style={({ pressed }) => ({
+                        width: "14.28%",
+                        aspectRatio: 1,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        opacity: closed ? 0.3 : pressed ? 0.7 : 1,
+                      })}
+                    >
+                      <View style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: 17,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: isSelected ? colors.primary : isScheduled ? colors.success + "30" : "transparent",
+                        borderWidth: isToday && !isSelected ? 1.5 : 0,
+                        borderColor: colors.primary,
+                      }}>
+                        <Text style={{
+                          fontSize: 14,
+                          fontWeight: isSelected || isToday ? "700" : "400",
+                          color: isSelected ? "#FFF" : isScheduled ? colors.success : closed ? colors.muted : colors.foreground,
+                        }}>{day}</Text>
+                      </View>
+                      {isScheduled && !isSelected && (
+                        <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.success, marginTop: 1 }} />
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Time slots */}
+            {pkgSlotGroups.length > 0 ? (
+              <View style={{ marginBottom: 20 }}>
+                {pkgSlotGroups.map((group) => (
+                  <View key={group.label} style={{ marginBottom: 14 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                      <Text style={{ fontSize: 10, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.8 }}>{group.label}</Text>
+                      <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+                    </View>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                      {group.slots.map((t) => {
+                        const isSlotSelected = t === pkgSessionTime;
+                        return (
+                          <Pressable
+                            key={t}
+                            onPress={() => setPkgSessionTime(t)}
+                            style={({ pressed }) => ({
+                              paddingHorizontal: 14,
+                              paddingVertical: 10,
+                              borderRadius: 50,
+                              borderWidth: 1.5,
+                              borderColor: isSlotSelected ? colors.primary : colors.border,
+                              backgroundColor: isSlotSelected ? colors.primary : colors.surface,
+                              opacity: pressed ? 0.7 : 1,
+                              ...(isSlotSelected ? { shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3 } : {}),
+                            })}
+                          >
+                            <Text style={{ fontSize: 13, fontWeight: "700", color: isSlotSelected ? "#FFF" : colors.foreground }}>
+                              {formatTimeDisplay(t)}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={{ alignItems: "center", paddingVertical: 24 }}>
+                <IconSymbol name="calendar" size={32} color={colors.muted} />
+                <Text style={{ fontSize: 14, color: colors.muted, marginTop: 8, textAlign: "center" }}>
+                  {isPkgDateClosed(pkgSessionDate) ? (bufferDays > 0 && pkgSessionDate < minAllowedDate ? `Buffer period — select a date after ${formatDateDisplay(minAllowedDate)}` : "Closed on this day") : "No available slots on this day"}
+                </Text>
+              </View>
+            )}
+
+            {/* Already scheduled sessions summary */}
+            {packageSessions.filter(Boolean).length > 0 && (
+              <View style={{ backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: colors.border }}>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 }}>Scheduled So Far</Text>
+                {packageSessions.filter(Boolean).map((s, i) => (
+                  <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: i < packageSessions.filter(Boolean).length - 1 ? 8 : 0 }}>
+                    <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: colors.success + "20", alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ fontSize: 11, fontWeight: "700", color: colors.success }}>{i + 1}</Text>
+                    </View>
+                    <Text style={{ fontSize: 13, color: colors.foreground }}>{formatDateDisplay(s.date)} · {formatTimeDisplay(s.time)}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Confirm session button */}
+            <Pressable
+              onPress={handleConfirmSession}
+              style={({ pressed }) => ([
+                styles.confirmBtn,
+                { backgroundColor: pkgSessionTime ? colors.primary : colors.border, opacity: pressed ? 0.8 : 1 },
+              ])}
+            >
+              <Text style={{ color: pkgSessionTime ? "#FFF" : colors.muted, fontSize: 16, fontWeight: "700" }}>
+                {pkgSessionIdx + 1 < totalSessions
+                  ? `Confirm Session ${pkgSessionIdx + 1} → Schedule Session ${pkgSessionIdx + 2}`
+                  : `Confirm Session ${pkgSessionIdx + 1} → Continue`}
+              </Text>
+            </Pressable>
+          </ScrollView>
+        );
+      })()}
 
       {/* ─── Step 2: Client Selection ─── */}
       {step === 2 && (
@@ -2599,20 +2986,41 @@ export default function CalendarBookingScreen() {
             {/* Section label */}
             <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>Details</Text>
 
-            {/* Date + Time row */}
-            <View style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: 10, gap: 10 }}>
-              <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center" }}>
-                <IconSymbol name="calendar" size={15} color={colors.primary} />
+            {/* Package sessions list (multi-session packages) */}
+            {packageSessions.length > 0 ? (
+              <View style={{ marginBottom: 10 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center" }}>
+                    <IconSymbol name="calendar" size={15} color={colors.primary} />
+                  </View>
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground }}>{packageSessions.length} Session{packageSessions.length !== 1 ? "s" : ""} Scheduled</Text>
+                </View>
+                {packageSessions.map((s, i) => (
+                  <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingLeft: 38, marginBottom: 4 }}>
+                    <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: colors.success + "20", alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ fontSize: 10, fontWeight: "700", color: colors.success }}>{i + 1}</Text>
+                    </View>
+                    <Text style={{ fontSize: 13, color: colors.foreground }}>{formatDateDisplay(s.date)}</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>· {formatTimeDisplay(s.time)}</Text>
+                  </View>
+                ))}
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>{formatDateDisplay(preselectedDate)}</Text>
-                {preselectedTime && (
-                  <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>
-                    {formatTimeDisplay(preselectedTime)}{" – "}{getEndTime(preselectedTime)}
-                  </Text>
-                )}
+            ) : (
+              /* Date + Time row (single session) */
+              <View style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: 10, gap: 10 }}>
+                <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center" }}>
+                  <IconSymbol name="calendar" size={15} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: colors.foreground }}>{formatDateDisplay(preselectedDate)}</Text>
+                  {preselectedTime && (
+                    <Text style={{ fontSize: 12, color: colors.muted, marginTop: 1 }}>
+                      {formatTimeDisplay(preselectedTime)}{" – "}{getEndTime(preselectedTime)}
+                    </Text>
+                  )}
+                </View>
               </View>
-            </View>
+            )}
 
             {/* Client row */}
             {selectedClient && (
@@ -2691,37 +3099,29 @@ export default function CalendarBookingScreen() {
 
             {/* Pricing section */}
             <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>Pricing</Text>
-            {servicePrice > 0 ? (
-              <>
-                {selectedServices.map((svc, idx) => (
-                  <SummaryRow key={svc.id + idx} label={svc.name} value={`$${svc.price.toFixed(2)}`} colors={colors} />
-                ))}
-                {cart.length > 0 && cart.map((item) => (
-                  <SummaryRow key={item.id} label={item.name} value={`$${item.price.toFixed(2)}`} colors={colors} />
-                ))}
-                {appliedDiscount && discountAmount > 0 && (
-                  <SummaryRow label={`Discount — ${appliedDiscount.name}`} value={`-$${discountAmount.toFixed(2)}`} colors={colors} valueColor={colors.success} />
-                )}
-                {appliedPromoCode && promoDiscountAmount > 0 && (
-                  <SummaryRow
-                    label={`Promo — ${appliedPromoCode.code}`}
-                    value={`-$${promoDiscountAmount.toFixed(2)}`}
-                    colors={colors}
-                    valueColor={colors.success}
-                  />
-                )}
-                <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
-                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                  <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>Total</Text>
-                  <Text style={{ fontSize: 18, fontWeight: "800", color: colors.primary }}>${totalPrice.toFixed(2)}</Text>
-                </View>
-              </>
-            ) : (
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>Total</Text>
-                <Text style={{ fontSize: 18, fontWeight: "800", color: colors.primary }}>$0.00</Text>
-              </View>
+            {/* Always show line items — use subtotal > 0 instead of servicePrice > 0 so packages show correctly */}
+            {selectedServices.map((svc, idx) => (
+              <SummaryRow key={svc.id + idx} label={svc.name} value={`$${svc.price.toFixed(2)}`} colors={colors} />
+            ))}
+            {cart.length > 0 && cart.map((item) => (
+              <SummaryRow key={item.id} label={item.name} value={`$${item.price.toFixed(2)}`} colors={colors} />
+            ))}
+            {appliedDiscount && discountAmount > 0 && (
+              <SummaryRow label={`Discount — ${appliedDiscount.name}`} value={`-$${discountAmount.toFixed(2)}`} colors={colors} valueColor={colors.success} />
             )}
+            {appliedPromoCode && promoDiscountAmount > 0 && (
+              <SummaryRow
+                label={`Promo — ${appliedPromoCode.code}`}
+                value={`-$${promoDiscountAmount.toFixed(2)}`}
+                colors={colors}
+                valueColor={colors.success}
+              />
+            )}
+            <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>Total</Text>
+              <Text style={{ fontSize: 18, fontWeight: "800", color: colors.primary }}>${totalPrice.toFixed(2)}</Text>
+            </View>
           </View>
 
           {/* Notes */}
