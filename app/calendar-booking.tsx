@@ -3155,6 +3155,33 @@ export default function CalendarBookingScreen() {
 
           {/* Summary card — professional receipt style */}
           <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            {/* Package session count banner */}
+            {(() => {
+              const pkgCartItem = selectedServices.find((s) => s.type === "package");
+              if (!pkgCartItem) return null;
+              const pkg = (state.packages ?? []).find((p: any) => p.id === pkgCartItem.packageId);
+              const totalSessions = pkg?.sessions ?? packageSessions.length;
+              const scheduledCount = packageSessions.length;
+              const isComplete = scheduledCount === totalSessions;
+              return (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.primary + "18", borderRadius: 10, padding: 12, marginBottom: 14 }}>
+                  <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: colors.primary + "28", alignItems: "center", justifyContent: "center" }}>
+                    <IconSymbol name="calendar" size={17} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: colors.primary }}>
+                      {scheduledCount} of {totalSessions} session{totalSessions !== 1 ? "s" : ""} will be scheduled
+                    </Text>
+                    <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>{pkgCartItem.name}</Text>
+                  </View>
+                  {isComplete && (
+                    <View style={{ backgroundColor: colors.success + "22", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                      <Text style={{ fontSize: 11, fontWeight: "700", color: colors.success }}>Complete ✓</Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })()}
             {/* Services header — show all selected services */}
             {selectedServices.length > 0 && (
               <View style={{ marginBottom: 14 }}>
