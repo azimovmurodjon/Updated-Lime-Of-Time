@@ -38,6 +38,7 @@ import {
   CustomScheduleDay,
   generateAvailableSlots,
   generateCalendarSlots,
+  formatFullAddress,
 } from "@/lib/types";
 import { TapTimePicker, timeToMinutes as tapTimeToMinutes } from "@/components/tap-time-picker";
 import { formatPhone } from "@/lib/utils";
@@ -2289,26 +2290,57 @@ export default function CalendarScreen() {
 
           {/* Location Filter — shown when multiple locations exist, includes All chip */}
           {hasMultiLoc && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
-              <View style={{ flexDirection: "row", gap: 6 }}>
-                {/* All chip */}
-                <Pressable
-                  onPress={() => setActiveLocation(null)}
-                  style={({ pressed }) => [{
-                    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1,
-                    backgroundColor: calLocationFilter === null ? colors.primary + "15" : colors.surface,
-                    borderColor: calLocationFilter === null ? colors.primary : colors.border,
-                    opacity: pressed ? 0.7 : 1,
-                  }]}
-                >
-                  <Text style={{ fontSize: 12, fontWeight: "600", color: calLocationFilter === null ? colors.primary : colors.muted }}>All</Text>
-                </Pressable>
-                {activeLocations.map((loc) => (
-                  <Pressable key={loc.id} onPress={() => setActiveLocation(loc.id)} style={({ pressed }) => [{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, backgroundColor: calLocationFilter === loc.id ? colors.primary + "15" : colors.surface, borderColor: calLocationFilter === loc.id ? colors.primary : colors.border, opacity: pressed ? 0.7 : 1 }]}>
-                    <Text style={{ fontSize: 12, fontWeight: "600", color: calLocationFilter === loc.id ? colors.primary : colors.muted }}>{loc.name}</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ marginBottom: 10 }}
+              contentContainerStyle={{ flexDirection: 'row', gap: 8, paddingHorizontal: 2, paddingVertical: 2 }}
+            >
+              {/* All chip */}
+              <Pressable
+                onPress={() => setActiveLocation(null)}
+                style={({ pressed }) => ({
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  borderRadius: 14,
+                  borderWidth: 1.5,
+                  backgroundColor: calLocationFilter === null ? colors.primary + '15' : colors.surface,
+                  borderColor: calLocationFilter === null ? colors.primary : colors.border,
+                  opacity: pressed ? 0.7 : 1,
+                  justifyContent: 'center',
+                })}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '600', color: calLocationFilter === null ? colors.primary : colors.muted }}>All</Text>
+              </Pressable>
+              {activeLocations.map((loc) => {
+                const isChosen = calLocationFilter === loc.id;
+                const fullAddr = formatFullAddress(loc.address, loc.city, loc.state, loc.zipCode);
+                return (
+                  <Pressable
+                    key={loc.id}
+                    onPress={() => setActiveLocation(loc.id)}
+                    style={({ pressed }) => ({
+                      paddingHorizontal: 14,
+                      paddingVertical: 8,
+                      borderRadius: 14,
+                      borderWidth: 1.5,
+                      backgroundColor: isChosen ? colors.primary + '15' : colors.surface,
+                      borderColor: isChosen ? colors.primary : colors.border,
+                      opacity: pressed ? 0.7 : 1,
+                      maxWidth: 200,
+                    })}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: isChosen ? colors.primary : colors.foreground }} numberOfLines={1}>
+                      {loc.name}
+                    </Text>
+                    {!!fullAddr && (
+                      <Text style={{ fontSize: 11, color: isChosen ? colors.primary + 'cc' : colors.muted, marginTop: 2 }} numberOfLines={1}>
+                        {fullAddr}
+                      </Text>
+                    )}
                   </Pressable>
-                ))}
-              </View>
+                );
+              })}
             </ScrollView>
           )}
 

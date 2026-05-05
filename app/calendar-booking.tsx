@@ -1045,9 +1045,14 @@ export default function CalendarBookingScreen() {
                 <Text style={{ fontSize: 13, fontWeight: '700', color: colors.foreground, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                   Select Location
                 </Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ flexDirection: 'row', gap: 8, paddingVertical: 2 }}
+                >
                   {activeLocations.map((loc) => {
                     const isChosen = selectedLocationId === loc.id;
+                    const fullAddr = formatFullAddress(loc.address, loc.city, loc.state, loc.zipCode);
                     return (
                       <Pressable
                         key={loc.id}
@@ -1057,21 +1062,27 @@ export default function CalendarBookingScreen() {
                         }}
                         style={({ pressed }) => ({
                           paddingHorizontal: 14,
-                          paddingVertical: 8,
-                          borderRadius: 20,
+                          paddingVertical: 10,
+                          borderRadius: 14,
                           borderWidth: 1.5,
                           borderColor: isChosen ? colors.primary : colors.border,
                           backgroundColor: isChosen ? colors.primary + '18' : colors.surface,
                           opacity: pressed ? 0.7 : 1,
+                          maxWidth: 200,
                         })}
                       >
-                        <Text style={{ fontSize: 13, fontWeight: isChosen ? '700' : '500', color: isChosen ? colors.primary : colors.foreground }}>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: isChosen ? colors.primary : colors.foreground }} numberOfLines={1}>
                           {loc.name}
                         </Text>
+                        {!!fullAddr && (
+                          <Text style={{ fontSize: 11, color: isChosen ? colors.primary + 'cc' : colors.muted, marginTop: 2 }} numberOfLines={1}>
+                            {fullAddr}
+                          </Text>
+                        )}
                       </Pressable>
                     );
                   })}
-                </View>
+                </ScrollView>
                 {!selectedLocationId && (
                   <Text style={{ fontSize: 12, color: colors.warning, marginTop: 6 }}>
                     ⚠ Please select a location to see available times
