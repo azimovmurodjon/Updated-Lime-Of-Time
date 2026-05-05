@@ -833,7 +833,9 @@ export default function CalendarBookingScreen() {
         const step0DefaultDuration = Math.max(1, state.settings.defaultDuration ?? 30);
 
         // Step 0 location-aware working hours and appointments
-        const step0LocationId = preselectedLocationId;
+        // Use selectedLocationId (which is updated by the location chip selector) so that
+        // slot availability and working hours react immediately when the user picks a location.
+        const step0LocationId = selectedLocationId ?? preselectedLocationId;
         const step0IsAllMode = !step0LocationId && activeLocations.length > 1;
         const step0Location = step0LocationId ? state.locations.find((l) => l.id === step0LocationId) ?? null : null;
         const step0WorkingHours = (step0Location?.workingHours && Object.keys(step0Location.workingHours).length > 0)
@@ -1037,6 +1039,47 @@ export default function CalendarBookingScreen() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: hp, paddingBottom: 40 }}
           >
+            {/* ── Location selector (multi-location only) ── */}
+            {activeLocations.length > 1 && (
+              <View style={{ marginBottom: 14 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: colors.foreground, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Select Location
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {activeLocations.map((loc) => {
+                    const isChosen = selectedLocationId === loc.id;
+                    return (
+                      <Pressable
+                        key={loc.id}
+                        onPress={() => {
+                          setSelectedLocationId(loc.id);
+                          setStep0Time(null); // reset time when location changes
+                        }}
+                        style={({ pressed }) => ({
+                          paddingHorizontal: 14,
+                          paddingVertical: 8,
+                          borderRadius: 20,
+                          borderWidth: 1.5,
+                          borderColor: isChosen ? colors.primary : colors.border,
+                          backgroundColor: isChosen ? colors.primary + '18' : colors.surface,
+                          opacity: pressed ? 0.7 : 1,
+                        })}
+                      >
+                        <Text style={{ fontSize: 13, fontWeight: isChosen ? '700' : '500', color: isChosen ? colors.primary : colors.foreground }}>
+                          {loc.name}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {!selectedLocationId && (
+                  <Text style={{ fontSize: 12, color: colors.warning, marginTop: 6 }}>
+                    ⚠ Please select a location to see available times
+                  </Text>
+                )}
+              </View>
+            )}
+
             {/* Month navigation */}
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <Pressable
@@ -1282,21 +1325,33 @@ export default function CalendarBookingScreen() {
             )}
 
             {/* Continue button */}
-            <Pressable
-              onPress={() => {
-                if (!step0Time) {
-                  Alert.alert("Select a Time", "Please select a time slot to continue.");
-                  return;
-                }
-                setStep(1);
-              }}
-              style={({ pressed }) => ([
-                styles.confirmBtn,
-                { backgroundColor: step0Time ? colors.primary : colors.muted, opacity: pressed ? 0.8 : 1 },
-              ])}
-            >
-              <Text style={{ color: "#FFF", fontSize: 16, fontWeight: "700" }}>Continue →</Text>
-            </Pressable>
+            {(() => {
+              const needsLocation = activeLocations.length > 1 && !selectedLocationId;
+              const canContinue = !!step0Time && !needsLocation;
+              return (
+                <Pressable
+                  onPress={() => {
+                    if (needsLocation) {
+                      Alert.alert("Select a Location", "Please select a location before continuing.");
+                      return;
+                    }
+                    if (!step0Time) {
+                      Alert.alert("Select a Time", "Please select a time slot to continue.");
+                      return;
+                    }
+                    setStep(1);
+                  }}
+                  style={({ pressed }) => ([
+                    styles.confirmBtn,
+                    { backgroundColor: canContinue ? colors.primary : colors.muted, opacity: pressed ? 0.8 : 1 },
+                  ])}
+                >
+                  <Text style={{ color: '#FFF', fontSize: 16, fontWeight: '700' }}>
+                    {needsLocation ? 'Select a Location First' : !step0Time ? 'Select a Time to Continue' : 'Continue →'}
+                  </Text>
+                </Pressable>
+              );
+            })()}
           </ScrollView>
         );
       })()}
