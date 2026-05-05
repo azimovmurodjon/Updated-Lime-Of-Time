@@ -12,6 +12,7 @@ import {
   Alert,
   Image,
   Modal,
+  useWindowDimensions,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -100,6 +101,9 @@ export default function CalendarBookingScreen() {
   const colors = useColors();
   const router = useRouter();
   const { hp } = useResponsive();
+  const { width: screenWidth } = useWindowDimensions();
+  // Fixed pill width: (screen - 2*horizontal_padding - 2*gaps) / 3 columns
+  const slotPillWidth = Math.floor((screenWidth - hp * 2 - 16) / 3);
   const params = useLocalSearchParams<{
     date?: string;
     time?: string;
@@ -1299,15 +1303,13 @@ export default function CalendarBookingScreen() {
                       <Text style={{ fontSize: 10, fontWeight: "700", color: colors.muted, letterSpacing: 1, textTransform: "uppercase" }}>{group.label}</Text>
                       <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.border }} />
                     </View>
-                    {/* 3-column pill grid */}
+                    {/* 3-column fixed-width pill grid — no orphan pills */}
                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                       {group.slots.map((t) => {
                         const isSlotSelected = t === step0Time;
                         const locCount = step0IsAllMode ? (step0SlotLocCount[t] ?? 0) : 0;
-                        // Availability tint: few slots (≤2 locs in all-mode) → warm orange tint on background
                         const isScarce = step0IsAllMode && locCount > 0 && locCount <= 2;
                         const locCountColor = locCount > 2 ? colors.success : locCount > 1 ? colors.warning : colors.muted;
-                        // Slot background: selected → primary fill; scarce → faint orange tint; normal → surface
                         const slotBg = isSlotSelected
                           ? colors.primary
                           : isScarce
@@ -1323,16 +1325,15 @@ export default function CalendarBookingScreen() {
                             key={t}
                             onPress={() => setStep0Time(t)}
                             style={({ pressed }) => ({
-                              width: "30%",
-                              paddingVertical: 11,
-                              paddingHorizontal: 4,
-                              borderRadius: 50,
+                              width: slotPillWidth,
+                              height: 48,
+                              borderRadius: 12,
                               backgroundColor: slotBg,
                               borderWidth: isSlotSelected ? 0 : 1.5,
                               borderColor: slotBorder,
                               alignItems: "center",
+                              justifyContent: "center",
                               opacity: pressed ? 0.7 : 1,
-                              // Subtle shadow for selected
                               ...(isSlotSelected ? {
                                 shadowColor: colors.primary,
                                 shadowOffset: { width: 0, height: 2 },
@@ -1347,7 +1348,7 @@ export default function CalendarBookingScreen() {
                               fontWeight: "700",
                               color: isSlotSelected ? "#FFFFFF" : colors.foreground,
                               textAlign: "center",
-                              lineHeight: 17,
+                              lineHeight: 18,
                             }}>
                               {formatTimeDisplay(t)}
                             </Text>
@@ -1471,8 +1472,8 @@ export default function CalendarBookingScreen() {
               );
             })()}
 
-            {/* ── Packages & Bundles section ─────────────────────────────────── */}
-            {(() => {
+            {/* ── Packages & Bundles section removed — accessible via Book a Package banner above ── */}
+            {false && (() => {
               const activePackages = (state.packages ?? []).filter((p) => p.active);
               if (activePackages.length === 0) return null;
               return (

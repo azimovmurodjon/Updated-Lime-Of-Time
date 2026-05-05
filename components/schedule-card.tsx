@@ -307,7 +307,7 @@ export function ScheduleCard({
                 Your schedule is clear — enjoy your day!
               </Text>
               <Pressable
-                onPress={() => router.push("/new-booking")}
+                onPress={() => router.push("/(tabs)/calendar" as any)}
                 style={({ pressed }) => [
                   styles.bookBtn,
                   { backgroundColor: ACCENT, opacity: pressed ? 0.8 : 1 },
