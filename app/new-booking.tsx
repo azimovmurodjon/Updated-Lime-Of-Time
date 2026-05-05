@@ -28,8 +28,12 @@ import { FuturisticBackground } from "@/components/futuristic-background";
 type Step = 1 | 2 | 3 | 4 | 5;
 
 type CartItem = {
-  type: "service" | "product";
+  type: "service" | "product" | "package";
   id: string;
+  /** For packages: the package id */
+  packageId?: string;
+  /** For packages: the list of included service ids */
+  packageServiceIds?: string[];
   name: string;
   price: number;
   duration: number;
@@ -158,19 +162,39 @@ export default function NewBookingScreen() {
     return state.staff.find((s) => s.id === selectedStaffId) ?? null;
   }, [state.staff, selectedStaffId]);
 
-  const selectedService = selectedServiceId ? getServiceById(selectedServiceId) : null;
+  // Resolve selectedServiceId: if it starts with 'pkg:' it's a package selection
+  const selectedPackage = useMemo(() => {
+    if (!selectedServiceId?.startsWith("pkg:")) return null;
+    const pkgId = selectedServiceId.slice(4);
+    return (state.packages ?? []).find((p) => p.id === pkgId) ?? null;
+  }, [selectedServiceId, state.packages]);
+
+  const selectedService = useMemo(() => {
+    if (!selectedServiceId || selectedServiceId.startsWith("pkg:")) return null;
+    return getServiceById(selectedServiceId);
+  }, [selectedServiceId, getServiceById]);
+
   const selectedClient = selectedClientId ? getClientById(selectedClientId) : null;
 
-  // Total duration includes primary service + cart items
+  // Total duration includes primary service/package + cart items
   const totalDuration = useMemo(() => {
+    if (selectedPackage) {
+      const pkgDur = selectedPackage.serviceIds
+        .map((id) => state.services.find((s) => s.id === id))
+        .filter(Boolean)
+        .reduce((sum, sv) => sum + (sv?.duration ?? 0), 0);
+      return pkgDur + cart.reduce((sum, item) => sum + item.duration, 0);
+    }
     const baseDur = selectedService?.duration ?? state.settings.defaultDuration;
     return baseDur + cart.reduce((sum, item) => sum + item.duration, 0);
-  }, [selectedService, cart, state.settings.defaultDuration]);
+  }, [selectedService, selectedPackage, cart, state.settings.defaultDuration, state.services]);
 
   const subtotal = useMemo(() => {
-    const basePrice = selectedService ? parseFloat(String(selectedService.price)) : 0;
+    const basePrice = selectedPackage
+      ? selectedPackage.price
+      : selectedService ? parseFloat(String(selectedService.price)) : 0;
     return basePrice + cart.reduce((sum, item) => sum + item.price, 0);
-  }, [selectedService, cart]);
+  }, [selectedService, selectedPackage, cart]);
 
   // Effective slot step:
   // Priority: localSlotInterval (user picked in UI) > global slotInterval setting > Auto
@@ -638,15 +662,21 @@ export default function NewBookingScreen() {
     for (const date of dates) {
       const appointmentId = generateId();
       if (!firstAppointmentId) firstAppointmentId = appointmentId;
+      // Resolve service ID: for packages use the first service in the package
+      const resolvedServiceId = selectedPackage
+        ? (selectedPackage.serviceIds[0] ?? selectedServiceId)
+        : selectedServiceId;
       const appointment: Appointment = {
         id: appointmentId,
-        serviceId: selectedServiceId,
+        serviceId: resolvedServiceId!,
         clientId: selectedClientId,
         date,
         time: selectedTime,
         duration: totalDuration,
         status: "confirmed",
-        notes: bookNotes,
+        notes: selectedPackage
+          ? (bookNotes ? `${bookNotes}\nPackage: ${selectedPackage.name}` : `Package: ${selectedPackage.name}`)
+          : bookNotes,
         createdAt: new Date().toISOString(),
         totalPrice,
         extraItems: cart.length > 0 ? cart.map((c) => ({ type: c.type, id: c.id, name: c.name, price: c.price, duration: c.duration })) : undefined,
@@ -761,6 +791,74 @@ export default function NewBookingScreen() {
       {/* Step 1: Select Service — category drill-down */}
       {step === 1 && (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: hp }}>
+          {/* ── Packages & Bundles section ─────────────────────────────────── */}
+          {(() => {
+            const activePackages = (state.packages ?? []).filter((p) => p.active);
+            if (activePackages.length === 0) return null;
+            return (
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 }}>Packages &amp; Bundles</Text>
+                {activePackages.map((pkg) => {
+                  const isSelected = selectedServiceId === `pkg:${pkg.id}`;
+                  const includedSvcs = pkg.serviceIds
+                    .map((id) => state.services.find((s) => s.id === id))
+                    .filter(Boolean) as typeof state.services;
+                  const totalDuration = includedSvcs.reduce((s, sv) => s + sv.duration, 0);
+                  const retailTotal = includedSvcs.reduce((s, sv) => s + parseFloat(String(sv.price)), 0);
+                  const savings = retailTotal - pkg.price;
+                  return (
+                    <Pressable
+                      key={pkg.id}
+                      onPress={() => {
+                        setSelectedServiceId(`pkg:${pkg.id}`);
+                        setStep(2);
+                      }}
+                      style={({ pressed }) => ({
+                        backgroundColor: isSelected ? colors.primary + "15" : colors.surface,
+                        borderColor: isSelected ? colors.primary : colors.border,
+                        borderWidth: 1.5,
+                        borderRadius: 14,
+                        padding: 14,
+                        marginBottom: 10,
+                        opacity: pressed ? 0.75 : 1,
+                      })}
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                            <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>{pkg.name}</Text>
+                            {savings > 0 && (
+                              <View style={{ backgroundColor: "#22C55E20", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 }}>
+                                <Text style={{ fontSize: 11, color: "#22C55E", fontWeight: "700" }}>Save ${savings.toFixed(2)}</Text>
+                              </View>
+                            )}
+                          </View>
+                          {pkg.description ? (
+                            <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 6 }} numberOfLines={2}>{pkg.description}</Text>
+                          ) : null}
+                          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4 }}>
+                            {includedSvcs.map((sv) => (
+                              <View key={sv.id} style={{ backgroundColor: colors.border, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
+                                <Text style={{ fontSize: 11, color: colors.muted }}>{sv.name}</Text>
+                              </View>
+                            ))}
+                          </View>
+                          <Text style={{ fontSize: 12, color: colors.muted, marginTop: 6 }}>{totalDuration} min total</Text>
+                        </View>
+                        <View style={{ alignItems: "flex-end", gap: 6 }}>
+                          <Text style={{ fontSize: 17, fontWeight: "700", color: colors.primary }}>${pkg.price.toFixed(2)}</Text>
+                          <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+                        </View>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+                <View style={{ height: 1, backgroundColor: colors.border, marginBottom: 16 }} />
+                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 }}>Individual Services</Text>
+              </View>
+            );
+          })()}
+
           {state.services.length === 0 ? (
             <View className="items-center py-12">
               <Text className="text-base text-muted">No services available</Text>
@@ -2041,7 +2139,7 @@ export default function NewBookingScreen() {
                   ]}
                 />
                 <Text className="text-base font-semibold text-foreground ml-2">
-                  {selectedService?.name}
+                  {selectedPackage ? selectedPackage.name : selectedService?.name}
                   {cart.length > 0 ? ` + ${cart.length} more` : ""}
                 </Text>
               </View>

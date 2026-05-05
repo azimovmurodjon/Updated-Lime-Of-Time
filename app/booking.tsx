@@ -127,7 +127,18 @@ export default function PublicBookingScreen() {
   // Selected product detail
   const productDetail: Product | null = productDetailId ? availableProducts.find((p) => p.id === productDetailId) ?? null : null;
 
-  const selectedService = selectedServiceId ? getServiceById(selectedServiceId) : null;
+  // Resolve package selection (pkg: prefix)
+  const selectedPackage = useMemo(() => {
+    if (!selectedServiceId?.startsWith("pkg:")) return null;
+    const pkgId = selectedServiceId.slice(4);
+    return (state.packages ?? []).find((p) => p.id === pkgId) ?? null;
+  }, [selectedServiceId, state.packages]);
+
+  const selectedService = useMemo(() => {
+    if (!selectedServiceId || selectedServiceId.startsWith("pkg:")) return null;
+    return getServiceById(selectedServiceId);
+  }, [selectedServiceId, getServiceById]);
+
   const businessName = state.settings.businessName || "Our Business";
   const profile = state.settings.profile;
   const businessLogoUri = profile.businessLogoUri;
@@ -179,19 +190,28 @@ export default function PublicBookingScreen() {
     setClientPhone(formatPhoneNumber(text));
   };
 
+  // Resolve effective duration: package total or service duration
+  const effectiveDuration = useMemo(() => {
+    if (selectedPackage) {
+      return selectedPackage.serviceIds
+        .map((id) => state.services.find((s) => s.id === id))
+        .filter(Boolean)
+        .reduce((sum, sv) => sum + (sv?.duration ?? 0), 0) || state.settings.defaultDuration;
+    }
+    return selectedService?.duration ?? state.settings.defaultDuration;
+  }, [selectedPackage, selectedService, state.services, state.settings.defaultDuration]);
+
   // Effective slot step: use configured slotInterval when non-zero, else auto (service duration capped at 30)
   const effectiveStep = useMemo(() => {
     const configured = (state.settings as any).slotInterval ?? 0;
-    const duration = selectedService?.duration ?? state.settings.defaultDuration;
-    return configured > 0 ? configured : Math.min(duration, 30);
-  }, [(state.settings as any).slotInterval, selectedService, state.settings.defaultDuration]);
+    return configured > 0 ? configured : Math.min(effectiveDuration, 30);
+  }, [(state.settings as any).slotInterval, effectiveDuration]);
 
   // Generate available time slots using location-scoped data
   const timeSlots = useMemo(() => {
-    const duration = selectedService?.duration ?? state.settings.defaultDuration;
     return generateAvailableSlots(
       selectedDate,
-      duration,
+      effectiveDuration,
       locationWorkingHours,
       locationAppointments,
       effectiveStep,
@@ -199,13 +219,13 @@ export default function PublicBookingScreen() {
       state.settings.scheduleMode,
       state.settings.bufferTime ?? 0
     );
-  }, [selectedDate, locationWorkingHours, locationAppointments, selectedService, locationCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime, state.settings.defaultDuration, effectiveStep, refreshKey]);
+  }, [selectedDate, locationWorkingHours, locationAppointments, effectiveDuration, locationCustomSchedule, state.settings.scheduleMode, state.settings.bufferTime, effectiveStep, refreshKey]);
 
   // Date options: next 30 days — mark closed days and days with no available slots
   const dateOptions = useMemo(() => {
     const dates: { date: string; closed: boolean; noSlots: boolean }[] = [];
     const today = new Date();
-    const duration = selectedService?.duration ?? state.settings.defaultDuration;
+    const duration = effectiveDuration;
     for (let i = 0; i < 30; i++) {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
@@ -254,8 +274,8 @@ export default function PublicBookingScreen() {
   const appliedGiftCard = giftApplied ? state.giftCards.find((g) => g.id === giftApplied) : null;
 
   const priceInfo = useMemo(() => {
-    if (!selectedService) return { original: 0, final: 0, discountPct: 0, isGift: false, giftUsed: 0 };
-    const original = selectedService.price;
+    if (!selectedService && !selectedPackage) return { original: 0, final: 0, discountPct: 0, isGift: false, giftUsed: 0 };
+    const original = selectedPackage ? selectedPackage.price : (selectedService?.price ?? 0);
     if (appliedGiftCard) {
       const balance = appliedGiftCard.remainingBalance ?? 0;
       const giftUsed = Math.min(balance, original);
@@ -308,15 +328,22 @@ export default function PublicBookingScreen() {
         }));
       });
 
+    // Resolve service ID: for packages use the first service in the package
+    const resolvedServiceId = selectedPackage
+      ? (selectedPackage.serviceIds[0] ?? selectedServiceId)
+      : selectedServiceId;
+
     const appointment: Appointment = {
       id: generateId(),
-      serviceId: selectedServiceId,
+      serviceId: resolvedServiceId!,
       clientId,
       date: selectedDate,
       time: selectedTime,
-      duration: selectedService?.duration ?? state.settings.defaultDuration,
+      duration: effectiveDuration,
       status: "pending",
-      notes: notes.trim(),
+      notes: selectedPackage
+        ? (notes.trim() ? `${notes.trim()}\nPackage: ${selectedPackage.name}` : `Package: ${selectedPackage.name}`)
+        : notes.trim(),
       createdAt: new Date().toISOString(),
       totalPrice: priceInfo.final + cartTotal,
       discountPercent: priceInfo.discountPct > 0 ? priceInfo.discountPct : undefined,
@@ -349,7 +376,7 @@ export default function PublicBookingScreen() {
     }
 
     setStep("done");
-  }, [selectedServiceId, selectedTime, clientName, clientPhone, clientEmail, notes, selectedDate, selectedService, state, dispatch, appliedGiftCard, syncToDb, priceInfo, selectedLocationId, selectedStaffId, applicableDiscount, productCart, cartTotal]);
+  }, [selectedServiceId, selectedTime, clientName, clientPhone, clientEmail, notes, selectedDate, selectedService, selectedPackage, effectiveDuration, state, dispatch, appliedGiftCard, syncToDb, priceInfo, selectedLocationId, selectedStaffId, applicableDiscount, productCart, cartTotal]);
 
   // Resolve the address to show: use selected location's full address if available, else global profile
   const displayAddress = selectedLocation
@@ -360,9 +387,9 @@ export default function PublicBookingScreen() {
   }, [displayAddress]);
 
   const endTimeStr = useMemo(() => {
-    if (!selectedTime || !selectedService) return "";
-    return formatTimeDisplay(minutesToTime(timeToMinutes(selectedTime) + selectedService.duration));
-  }, [selectedTime, selectedService]);
+    if (!selectedTime || (!selectedService && !selectedPackage)) return "";
+    return formatTimeDisplay(minutesToTime(timeToMinutes(selectedTime) + effectiveDuration));
+  }, [selectedTime, selectedService, selectedPackage, effectiveDuration]);
 
   // If the pre-selected location (from URL param) is temporarily closed, show a gate screen
   const isLocationTemporarilyClosed = selectedLocation?.temporarilyClosed === true;
@@ -801,6 +828,71 @@ export default function PublicBookingScreen() {
               </Text>
               <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 16 }}>Tap a service to see full details</Text>
 
+              {/* ── Packages & Bundles section ───────────────────────────────────── */}
+              {(state.packages ?? []).filter((pkg) => pkg.active !== false).length > 0 && (
+                <View style={{ marginBottom: 20 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10, gap: 8 }}>
+                    <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, letterSpacing: 0.8, textTransform: "uppercase" }}>Packages & Bundles</Text>
+                    <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+                  </View>
+                  {(state.packages ?? []).filter((pkg) => pkg.active !== false).map((pkg) => {
+                    const pkgServices = pkg.serviceIds
+                      .map((id) => state.services.find((s) => s.id === id))
+                      .filter(Boolean);
+                    const pkgDuration = pkgServices.reduce((sum, sv) => sum + (sv?.duration ?? 0), 0);
+                    const isSelected = selectedServiceId === `pkg:${pkg.id}`;
+                    return (
+                      <Pressable
+                        key={pkg.id}
+                        onPress={() => {
+                          setSelectedServiceId(`pkg:${pkg.id}`);
+                          setSelectedStaffId(null);
+                          setStep("staff");
+                        }}
+                        style={({ pressed }) => ([
+                          styles.serviceOption,
+                          {
+                            backgroundColor: isSelected ? colors.primary + "15" : colors.surface,
+                            borderColor: isSelected ? colors.primary : colors.primary + "40",
+                            borderWidth: isSelected ? 1.5 : 1,
+                            opacity: pressed ? 0.7 : 1,
+                            padding: 14,
+                          },
+                        ])}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                            <View style={{ backgroundColor: colors.primary + "20", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}>
+                              <Text style={{ fontSize: 10, fontWeight: "700", color: colors.primary, textTransform: "uppercase", letterSpacing: 0.5 }}>Package</Text>
+                            </View>
+                            {pkg.sessions && pkg.sessions > 1 && (
+                              <Text style={{ fontSize: 11, color: colors.muted }}>{pkg.sessions} sessions</Text>
+                            )}
+                          </View>
+                          <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>{pkg.name}</Text>
+                          {pkgServices.length > 0 && (
+                            <Text style={{ fontSize: 12, color: colors.muted, marginTop: 3 }} numberOfLines={2}>
+                              {pkgServices.map((sv) => sv?.name).join(" · ")}
+                            </Text>
+                          )}
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 6 }}>
+                            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.primary }}>${pkg.price.toFixed(2)}</Text>
+                            {pkgDuration > 0 && <Text style={{ fontSize: 12, color: colors.muted }}>{pkgDuration} min total</Text>}
+                          </View>
+                        </View>
+                        <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+                      </Pressable>
+                    );
+                  })}
+                  <View style={{ flexDirection: "row", alignItems: "center", marginTop: 14, marginBottom: 4, gap: 8 }}>
+                    <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted, letterSpacing: 0.8, textTransform: "uppercase" }}>Individual Services</Text>
+                    <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+                  </View>
+                </View>
+              )}
+
               {filteredServices.map((item) => (
                 <Pressable
                   key={item.id}
@@ -1132,7 +1224,7 @@ export default function PublicBookingScreen() {
               <View style={styles.timeGrid}>
                 {timeSlots.map((t) => {
                   const isSelected = t === selectedTime;
-                  const endT = minutesToTime(timeToMinutes(t) + (selectedService?.duration ?? state.settings.defaultDuration));
+                  const endT = minutesToTime(timeToMinutes(t) + effectiveDuration);
                   return (
                     <Pressable
                       key={t}
@@ -1525,8 +1617,10 @@ export default function PublicBookingScreen() {
                 </View>
               )}
               <View style={[styles.summaryRow, { borderBottomColor: colors.border + "40" }]}>
-                <Text style={{ fontSize: 14, color: colors.muted }}>Service</Text>
-                <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{selectedService ? getServiceDisplayName(selectedService) : ""}</Text>
+                <Text style={{ fontSize: 14, color: colors.muted }}>{selectedPackage ? "Package" : "Service"}</Text>
+                <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>
+                  {selectedPackage ? selectedPackage.name : selectedService ? getServiceDisplayName(selectedService) : ""}
+                </Text>
               </View>
               <View style={[styles.summaryRow, { borderBottomColor: colors.border + "40" }]}>
                 <Text style={{ fontSize: 14, color: colors.muted }}>Date</Text>
@@ -1540,7 +1634,7 @@ export default function PublicBookingScreen() {
               </View>
               <View style={[styles.summaryRow, { borderBottomColor: colors.border + "40" }]}>
                 <Text style={{ fontSize: 14, color: colors.muted }}>Duration</Text>
-                <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{selectedService?.duration} min</Text>
+                <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{effectiveDuration} min</Text>
               </View>
               <View style={[styles.summaryRow, { borderBottomWidth: 0 }]}>
                 <Text style={{ fontSize: 14, color: colors.muted }}>Price</Text>

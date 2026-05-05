@@ -47,7 +47,7 @@ export interface ServicePhoto {
 export type AppointmentStatus = "pending" | "confirmed" | "completed" | "cancelled" | "no_show";
 
 export interface AppointmentExtraItem {
-  type: "service" | "product";
+  type: "service" | "product" | "package";
   id: string;
   name: string;
   price: number;
@@ -276,6 +276,17 @@ export interface ServicePackage {
   active: boolean;
   /** Optional expiry in days from purchase date (null = no expiry) */
   expiryDays?: number | null;
+  /**
+   * Minimum gap in days required between consecutive sessions of this package.
+   * e.g. 14 means the client must wait at least 14 days between each visit.
+   * null / undefined = no restriction.
+   */
+  bufferDays?: number | null;
+  /**
+   * Buffer time in minutes to add after each session appointment (same-day padding).
+   * null / undefined = no extra buffer.
+   */
+  bufferMinutes?: number | null;
   createdAt: string;
 }
 

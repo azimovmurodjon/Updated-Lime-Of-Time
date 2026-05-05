@@ -75,8 +75,12 @@ const BOOKING_INTERVALS = [
 ];
 
 type CartItem = {
-  type: "service" | "product";
+  type: "service" | "product" | "package";
   id: string;
+  /** For packages: the package id; for services: the service id */
+  packageId?: string;
+  /** For packages: the list of included service ids */
+  packageServiceIds?: string[];
   name: string;
   price: number;
   duration: number;
@@ -1266,6 +1270,94 @@ export default function CalendarBookingScreen() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 120, paddingHorizontal: hp }}
           >
+            {/* ── Packages & Bundles section ─────────────────────────────────── */}
+            {(() => {
+              const activePackages = (state.packages ?? []).filter((p) => p.active);
+              if (activePackages.length === 0) return null;
+              return (
+                <View style={{ marginBottom: 20 }}>
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 }}>Packages &amp; Bundles</Text>
+                  {activePackages.map((pkg) => {
+                    const isSelected = selectedServices.some((s) => s.packageId === pkg.id);
+                    const includedSvcs = pkg.serviceIds
+                      .map((id) => state.services.find((s) => s.id === id))
+                      .filter(Boolean) as typeof state.services;
+                    const totalDuration = includedSvcs.reduce((s, sv) => s + sv.duration, 0);
+                    const retailTotal = includedSvcs.reduce((s, sv) => s + parseFloat(String(sv.price)), 0);
+                    const savings = retailTotal - pkg.price;
+                    return (
+                      <Pressable
+                        key={pkg.id}
+                        onPress={() => {
+                          if (isSelected) {
+                            setSelectedServices((prev) => prev.filter((s) => s.packageId !== pkg.id));
+                          } else {
+                            setSelectedServices((prev) => [
+                              ...prev.filter((s) => s.packageId !== pkg.id),
+                              {
+                                type: "package",
+                                id: pkg.id,
+                                packageId: pkg.id,
+                                packageServiceIds: pkg.serviceIds,
+                                name: pkg.name,
+                                price: pkg.price,
+                                duration: totalDuration,
+                              },
+                            ]);
+                          }
+                        }}
+                        style={({ pressed }) => ({
+                          backgroundColor: isSelected ? colors.primary + "15" : colors.surface,
+                          borderColor: isSelected ? colors.primary : colors.border,
+                          borderWidth: 1.5,
+                          borderRadius: 14,
+                          padding: 14,
+                          marginBottom: 10,
+                          opacity: pressed ? 0.75 : 1,
+                        })}
+                      >
+                        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+                          <View style={{ flex: 1 }}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                              <Text style={{ fontSize: 15, fontWeight: "700", color: colors.foreground }}>{pkg.name}</Text>
+                              {savings > 0 && (
+                                <View style={{ backgroundColor: "#22C55E20", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 }}>
+                                  <Text style={{ fontSize: 11, color: "#22C55E", fontWeight: "700" }}>Save ${savings.toFixed(2)}</Text>
+                                </View>
+                              )}
+                            </View>
+                            {pkg.description ? (
+                              <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 6 }} numberOfLines={2}>{pkg.description}</Text>
+                            ) : null}
+                            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4 }}>
+                              {includedSvcs.map((sv) => (
+                                <View key={sv.id} style={{ backgroundColor: colors.border, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
+                                  <Text style={{ fontSize: 11, color: colors.muted }}>{sv.name}</Text>
+                                </View>
+                              ))}
+                            </View>
+                            <Text style={{ fontSize: 12, color: colors.muted, marginTop: 6 }}>{totalDuration} min total</Text>
+                          </View>
+                          <View style={{ alignItems: "flex-end", gap: 6 }}>
+                            <Text style={{ fontSize: 17, fontWeight: "700", color: colors.primary }}>${pkg.price.toFixed(2)}</Text>
+                            {isSelected ? (
+                              <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" }}>
+                                <IconSymbol name="checkmark" size={14} color="#FFF" />
+                              </View>
+                            ) : (
+                              <View style={{ width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: colors.border }} />
+                            )}
+                          </View>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                  <View style={{ height: 1, backgroundColor: colors.border, marginBottom: 16 }} />
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10 }}>Individual Services</Text>
+                </View>
+              );
+            })()}
+
             {state.services.length === 0 ? (
               <View className="items-center py-12">
                 <Text className="text-base text-muted">No services available</Text>

@@ -46,6 +46,8 @@ import { ScheduleCard } from "@/components/schedule-card";
 import { OverviewDayWeekCard } from "@/components/overview-day-week-card";
 import { apiCall } from "@/lib/_core/api";
 import { trpc } from "@/lib/trpc";
+import * as Notifications from "expo-notifications";
+import * as Linking from "expo-linking";
 
 // App logo URL (same as app.config.ts logoUrl)
 const APP_LOGO_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663347678319/IvzpqiWWzFzYmkTo.png";
@@ -344,7 +346,18 @@ export default function HomeScreen() {
   const [drillDownAppointments, setDrillDownAppointments] = useState<DrillDownAppointment[]>([]);
   const [drillDownRevenue, setDrillDownRevenue] = useState(0);
 
-  // ─── Tutorial Walkthrough ──────────────────────────────────────
+  // ─── Push Permission Banner ──────────────────────────────────────────
+  const [pushDenied, setPushDenied] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS === "web") return;
+      Notifications.getPermissionsAsync().then((status) => {
+        setPushDenied(status.status === "denied");
+      });
+    }, [])
+  );
+
+  // ─── Tutorial Walkthrough ──────────────────────────────────────────────
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
   const tutorialFade = useState(() => new Animated.Value(0))[0];
@@ -1732,6 +1745,29 @@ export default function HomeScreen() {
               <Text style={{ fontSize: 12, color: colors.muted, lineHeight: 17 }}>Add your business address to start accepting bookings. Tap here to set up your first location.</Text>
             </View>
             <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+          </Pressable>
+        )}
+
+        {/* Push Permission Denied Banner */}
+        {pushDenied && Platform.OS !== "web" && (
+          <Pressable
+            onPress={() => Linking.openSettings()}
+            style={({ pressed }) => ({
+              flexDirection: "row", alignItems: "center", gap: 12,
+              backgroundColor: colors.warning + "18",
+              borderWidth: 1, borderColor: colors.warning + "50",
+              borderRadius: 14, padding: 14, marginTop: 12,
+              opacity: pressed ? 0.8 : 1,
+            })}
+          >
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.warning + "25", alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="notifications-off-outline" size={20} color={colors.warning} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.warning, marginBottom: 2 }}>Notifications Disabled</Text>
+              <Text style={{ fontSize: 12, color: colors.muted, lineHeight: 17 }}>You won’t receive booking alerts. Tap here to enable notifications in Settings.</Text>
+            </View>
+            <Text style={{ fontSize: 12, fontWeight: "600", color: colors.warning }}>Fix →</Text>
           </Pressable>
         )}
 

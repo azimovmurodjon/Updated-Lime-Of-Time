@@ -27,6 +27,8 @@ const EMPTY_FORM = {
   price: "",
   sessions: "",
   expiryDays: "",
+  bufferDays: "",
+  bufferMinutes: "",
   active: true,
   serviceIds: [] as string[],
 };
@@ -62,6 +64,8 @@ export default function PackagesScreen() {
       price: String(pkg.price),
       sessions: pkg.sessions != null ? String(pkg.sessions) : "",
       expiryDays: pkg.expiryDays != null ? String(pkg.expiryDays) : "",
+      bufferDays: pkg.bufferDays != null ? String(pkg.bufferDays) : "",
+      bufferMinutes: pkg.bufferMinutes != null ? String(pkg.bufferMinutes) : "",
       active: pkg.active,
       serviceIds: pkg.serviceIds,
     });
@@ -84,6 +88,8 @@ export default function PackagesScreen() {
     const priceNum = parseFloat(form.price);
     const sessionsNum = form.sessions.trim() ? parseInt(form.sessions, 10) : undefined;
     const expiryNum = form.expiryDays.trim() ? parseInt(form.expiryDays, 10) : null;
+    const bufferDaysNum = form.bufferDays.trim() ? parseInt(form.bufferDays, 10) : null;
+    const bufferMinutesNum = form.bufferMinutes.trim() ? parseInt(form.bufferMinutes, 10) : null;
 
     if (editingId) {
       const existing = (state.packages ?? []).find((p) => p.id === editingId);
@@ -95,6 +101,8 @@ export default function PackagesScreen() {
         price: priceNum,
         sessions: sessionsNum,
         expiryDays: expiryNum,
+        bufferDays: bufferDaysNum,
+        bufferMinutes: bufferMinutesNum,
         active: form.active,
         serviceIds: form.serviceIds,
       };
@@ -107,6 +115,8 @@ export default function PackagesScreen() {
         price: priceNum,
         sessions: sessionsNum,
         expiryDays: expiryNum,
+        bufferDays: bufferDaysNum,
+        bufferMinutes: bufferMinutesNum,
         active: form.active,
         serviceIds: form.serviceIds,
         createdAt: new Date().toISOString(),
@@ -386,6 +396,36 @@ export default function PackagesScreen() {
               keyboardType="number-pad"
               returnKeyType="done"
             />
+
+            {/* Buffer Days between sessions */}
+            <Text style={[styles.label, { color: colors.muted }]}>Min. Days Between Sessions (optional)</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground }]}
+              value={form.bufferDays}
+              onChangeText={(v) => setForm((f) => ({ ...f, bufferDays: v }))}
+              placeholder="e.g. 14"
+              placeholderTextColor={colors.muted}
+              keyboardType="number-pad"
+              returnKeyType="next"
+            />
+            <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 8, marginTop: 2 }}>
+              Minimum days a client must wait between each session of this package.
+            </Text>
+
+            {/* Buffer Minutes after each session */}
+            <Text style={[styles.label, { color: colors.muted }]}>Buffer Time After Each Session (minutes, optional)</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground }]}
+              value={form.bufferMinutes}
+              onChangeText={(v) => setForm((f) => ({ ...f, bufferMinutes: v }))}
+              placeholder="e.g. 30"
+              placeholderTextColor={colors.muted}
+              keyboardType="number-pad"
+              returnKeyType="done"
+            />
+            <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 8, marginTop: 2 }}>
+              Extra padding time added after each session appointment.
+            </Text>
 
             {/* Active toggle */}
             <View style={[styles.toggleRow, { borderColor: colors.border }]}>
