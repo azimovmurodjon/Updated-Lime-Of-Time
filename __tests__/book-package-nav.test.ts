@@ -1,6 +1,7 @@
 /**
  * Tests for the "Book This Package" navigation fix:
- * - Step 0 Continue button skips to Step 2 (Select Client) when packageId is pre-selected
+ * - When packageId param is present, calendar-booking starts at Step 8 (multi-session scheduler)
+ *   directly, skipping Step 0 (date/time picker) and Step 1 (service selection)
  * - selectedServices is initialized synchronously from packageId in useState (no useEffect race)
  * - The useEffect still exists as a fallback for dynamic package changes
  */
@@ -11,17 +12,26 @@ import { join } from "path";
 const ROOT = join(__dirname, "..");
 const bookingSrc = readFileSync(join(ROOT, "app/calendar-booking.tsx"), "utf8");
 
-describe("Book This Package — Step 0 Continue navigation fix", () => {
-  it("should skip to Step 2 when packageId param is set and services are pre-selected", () => {
-    // The Continue button should call setStep(2) when params.packageId is truthy
-    expect(bookingSrc).toContain("if (params.packageId && selectedServices.length > 0)");
-    expect(bookingSrc).toContain("setStep(2)");
+describe("Book This Package — initial step fix", () => {
+  it("should start at Step 8 when packageId param is set", () => {
+    // The useState initializer should return 8 when params.packageId is truthy
+    expect(bookingSrc).toContain("if (params.packageId) return 8;");
   });
 
-  it("should still go to Step 1 when no package is pre-selected", () => {
-    // The else branch should still call setStep(1)
-    const continueBlock = bookingSrc.slice(bookingSrc.indexOf("If a package is pre-selected"));
-    expect(continueBlock.slice(0, 500)).toContain("setStep(1)");
+  it("should exclude packageId bookings from showDateTimePicker", () => {
+    // showDateTimePicker must be false when packageId is present (no Step 0 for packages)
+    expect(bookingSrc).toContain("const showDateTimePicker = !params.time && !params.packageId;");
+  });
+
+  it("should still go to Step 0 when no package and no time param", () => {
+    // The else branch should still call showDateTimePicker ? 0 : 1
+    const stepBlock = bookingSrc.slice(bookingSrc.indexOf("if (params.packageId) return 8;"));
+    expect(stepBlock.slice(0, 200)).toContain("showDateTimePicker ? 0 : 1");
+  });
+
+  it("should still go to Step 1 when no package but time is pre-selected", () => {
+    // When time is provided (calendar tap), showDateTimePicker=false → step starts at 1
+    expect(bookingSrc).toContain("showDateTimePicker ? 0 : 1");
   });
 
   it("should initialize selectedServices synchronously from packageId in useState", () => {
@@ -35,8 +45,6 @@ describe("Book This Package — Step 0 Continue navigation fix", () => {
   it("should not return empty array when pkgId is found in state.packages", () => {
     // The initializer should return the populated CartItem, not []
     const initBlock = bookingSrc.slice(bookingSrc.indexOf("synchronous init so it's ready before first render"));
-    // Should NOT have 'if (!pkg) return []; ... return [];' as the only return
-    // Instead it should have a populated return after finding the package
     expect(initBlock.slice(0, 700)).toContain("return [{");
   });
 
@@ -44,6 +52,13 @@ describe("Book This Package — Step 0 Continue navigation fix", () => {
     // The useEffect that handles params.packageId should still exist
     expect(bookingSrc).toContain("Pre-populate selectedServices when a packageId param is passed");
     expect(bookingSrc).toContain("}, [params.packageId]);");
+  });
+
+  it("should go back to package-browser when Back is tapped on Step 8 session 0", () => {
+    // When launched from Package Browser, Back on Step 8 session 0 should call router.back()
+    expect(bookingSrc).toContain("} else if (params.packageId) {");
+    expect(bookingSrc).toContain("// Launched directly from Package Browser — go back to it");
+    expect(bookingSrc).toContain("router.back();");
   });
 });
 
@@ -65,5 +80,11 @@ describe("Package Browser — handleBookPackage navigation", () => {
     // setDetailPackage(null) should be called before router.push
     const handleBlock = browserSrc.slice(browserSrc.indexOf("handleBookPackage"));
     expect(handleBlock.slice(0, 100)).toContain("setDetailPackage(null)");
+  });
+
+  it("should use router.replace when fromCalendarBooking param is set", () => {
+    // When opened from within calendar-booking Step 1 banner, use replace to keep stack clean
+    expect(browserSrc).toContain('params.fromCalendarBooking === "1"');
+    expect(browserSrc).toContain('router.replace(');
   });
 });

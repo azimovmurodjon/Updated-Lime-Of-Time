@@ -166,9 +166,15 @@ export default function CalendarBookingScreen() {
   }, []);
 
   // Whether to show Step 0 (date/time picker) — show when launched without a pre-selected time
-  const showDateTimePicker = !params.time;
+  // Package bookings skip Step 0 entirely (sessions are picked in Step 8)
+  const showDateTimePicker = !params.time && !params.packageId;
 
-  const [step, setStep] = useState<Step>(() => showDateTimePicker ? 0 : 1);
+  const [step, setStep] = useState<Step>(() => {
+    // When a package is pre-selected (from Package Browser), jump straight to
+    // Step 8 (multi-session scheduler), skipping date/time picker and service selection.
+    if (params.packageId) return 8;
+    return showDateTimePicker ? 0 : 1;
+  });
 
   // Effective date/time: from Step 0 picker (when no time param) or from params (calendar tap)
   const preselectedDate = showDateTimePicker ? step0Date : (params.date ?? formatDateStr(new Date()));
@@ -1913,6 +1919,9 @@ export default function CalendarBookingScreen() {
                   const prev = packageSessions[pkgSessionIdx - 1];
                   if (prev) { setPkgSessionDate(prev.date); setPkgSessionTime(prev.time); }
                   else { setPkgSessionDate(formatDateStr(new Date())); setPkgSessionTime(null); }
+                } else if (params.packageId) {
+                  // Launched directly from Package Browser — go back to it
+                  router.back();
                 } else {
                   setStep(1);
                 }
