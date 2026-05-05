@@ -284,7 +284,17 @@ export default function AppointmentDetailScreen() {
 
   const handleReschedule = useCallback(() => {
     if (!reschedTime) return;
-    const updated = { ...appointment!, date: reschedDate, time: reschedTime, rescheduleReason: rescheduleReason.trim() || undefined };
+    const updated = {
+      ...appointment!,
+      date: reschedDate,
+      time: reschedTime,
+      rescheduleReason: rescheduleReason.trim() || undefined,
+      // Preserve package session metadata so the session stays linked to its package
+      packageGroupId: appointment!.packageGroupId,
+      packageName: appointment!.packageName,
+      sessionIndex: appointment!.sessionIndex,
+      sessionTotal: appointment!.sessionTotal,
+    };
     dispatch({ type: "UPDATE_APPOINTMENT", payload: updated });
     syncToDb({ type: "UPDATE_APPOINTMENT", payload: updated });
     setShowRescheduleModal(false);

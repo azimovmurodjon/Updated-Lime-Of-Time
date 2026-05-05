@@ -121,6 +121,11 @@ export default function BookingsScreen() {
   // Package group filter — when navigating from 'View all sessions' in appointment-detail
   const [packageGroupFilter, setPackageGroupFilter] = useState<string | null>(params.packageGroupId ?? null);
 
+  // Package completion modal
+  const [showPkgCompleteModal, setShowPkgCompleteModal] = useState(false);
+  const [pkgCompleteInfo, setPkgCompleteInfo] = useState<{ name: string; sessions: number; totalValue: number } | null>(null);
+  const shownPkgCompleteRef = React.useRef<Set<string>>(new Set());
+
   const setActiveFilterPersisted = useCallback((key: FilterKey) => {
     setActiveFilter(key);
     AsyncStorage.setItem(FILTER_STORAGE_KEY, key).catch(() => {});
@@ -142,6 +147,28 @@ export default function BookingsScreen() {
       setActiveFilterPersisted(params.filter as FilterKey);
     }
   }, [params.filter]);
+
+  // Detect package completion: when all sessions of a package are booked
+  useEffect(() => {
+    const pkgGroups = new Map<string, { appts: typeof locationAppointments; name: string; total: number }>();
+    for (const a of locationAppointments) {
+      if (!a.packageGroupId || a.sessionTotal == null) continue;
+      if (!pkgGroups.has(a.packageGroupId)) {
+        pkgGroups.set(a.packageGroupId, { appts: [], name: a.packageName ?? 'Package', total: a.sessionTotal });
+      }
+      pkgGroups.get(a.packageGroupId)!.appts.push(a);
+    }
+    for (const [groupId, { appts, name, total }] of pkgGroups) {
+      const nonCancelled = appts.filter((a) => a.status !== 'cancelled');
+      if (nonCancelled.length >= total && !shownPkgCompleteRef.current.has(groupId)) {
+        shownPkgCompleteRef.current.add(groupId);
+        const totalValue = nonCancelled.reduce((sum, a) => sum + (a.totalPrice ?? 0), 0);
+        setPkgCompleteInfo({ name, sessions: total, totalValue });
+        setShowPkgCompleteModal(true);
+        break; // show one at a time
+      }
+    }
+  }, [locationAppointments]);
 
   // ─── Date filter (from collapsible calendar) ──────────────────────────
   const [selectedDateFilter, setSelectedDateFilter] = useState<string | null>(null);
@@ -1047,6 +1074,44 @@ export default function BookingsScreen() {
             </Pressable>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Package Completion Modal */}
+      <Modal visible={showPkgCompleteModal} transparent animationType="fade">
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          onPress={() => setShowPkgCompleteModal(false)}
+        >
+          <Pressable
+            style={{ width: '100%', maxWidth: 340, backgroundColor: colors.background, borderRadius: 24, padding: 28, alignItems: 'center', gap: 12 }}
+            onPress={() => {}}
+          >
+            <Text style={{ fontSize: 52 }}>🎉</Text>
+            <Text style={{ fontSize: 22, fontWeight: '800', color: colors.foreground, textAlign: 'center' }}>Package Complete!</Text>
+            {pkgCompleteInfo && (
+              <>
+                <Text style={{ fontSize: 15, color: colors.muted, textAlign: 'center', lineHeight: 22 }}>
+                  All {pkgCompleteInfo.sessions} sessions of{' '}
+                  <Text style={{ fontWeight: '700', color: colors.foreground }}>{pkgCompleteInfo.name}</Text>{' '}
+                  have been booked.
+                </Text>
+                {pkgCompleteInfo.totalValue > 0 && (
+                  <View style={{ backgroundColor: colors.success + '18', borderRadius: 14, paddingVertical: 10, paddingHorizontal: 18, marginTop: 4 }}>
+                    <Text style={{ fontSize: 13, color: colors.success, fontWeight: '700', textAlign: 'center' }}>
+                      Total package value: ${pkgCompleteInfo.totalValue.toFixed(2)}
+                    </Text>
+                  </View>
+                )}
+              </>
+            )}
+            <Pressable
+              onPress={() => setShowPkgCompleteModal(false)}
+              style={({ pressed }) => ({ marginTop: 8, width: '100%', paddingVertical: 14, borderRadius: 14, backgroundColor: colors.primary, alignItems: 'center', opacity: pressed ? 0.8 : 1 })}
+            >
+              <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFF' }}>Awesome!</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* Undo toast */}

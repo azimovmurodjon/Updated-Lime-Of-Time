@@ -650,6 +650,15 @@ export default function CalendarScreen() {
     return statuses;
   }, [locationAppointments]);
 
+  // Package session dates — teal dot indicator in month view
+  const pkgSessionDates = useMemo(() => {
+    const dates = new Set<string>();
+    locationAppointments.forEach((a) => {
+      if (a.packageGroupId) dates.add(a.date);
+    });
+    return dates;
+  }, [locationAppointments]);
+
   // Per-day slot counts for Full/Off indicators in month view
   // ─── Slot cache: pre-computed for the entire visible month ──────────────
   // Stored as a useMemo so it recomputes whenever location/appointments/settings change,
@@ -1553,6 +1562,14 @@ export default function CalendarScreen() {
                     {statuses.has("pending") && <View style={[styles.dot, { backgroundColor: "#9CA3AF" }]} />}
                     {statuses.has("completed") && <View style={[styles.dot, { backgroundColor: colors.success }]} />}
                     {statuses.has("cancelled") && <View style={[styles.dot, { backgroundColor: colors.error }]} />}
+                    {/* Teal dot for package sessions */}
+                    {pkgSessionDates.has(dateStr) && <View style={[styles.dot, { backgroundColor: '#0891b2' }]} />}
+                  </View>
+                )}
+                {/* Teal dot when only package sessions exist (no other status dots) */}
+                {(!statuses || statuses.size === 0) && pkgSessionDates.has(dateStr) && (
+                  <View style={[styles.dotsRow, { bottom: 1 }]}>
+                    <View style={[styles.dot, { backgroundColor: '#0891b2' }]} />
                   </View>
                 )}
               </View>
